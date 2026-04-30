@@ -624,9 +624,9 @@ class ProfileSearchImplTest(unittest.TestCase):
         result = do_profile_search_impl(req_json)
         self.assertEqual(result["rows"], 0)
 
-    def test_exclude_contained_keeps_better_outer(self):
-        # Outer window [1,5] is a better (smaller distance) match than inner [2,4].
-        # exclude_contained should keep the outer and discard the inner.
+    def test_exclude_overlap_removes_overlapping_worse_window(self):
+        # [1,5] (distance 0.0) overlaps/contains [2,4] (worse match).
+        # exclude_overlap should keep [1,5] and discard [2,4].
         req_json = {
             "normalization": "none",
             "algo": {
@@ -635,7 +635,7 @@ class ProfileSearchImplTest(unittest.TestCase):
             },
             "result": {
                 "num": 20,
-                "exclude_contained": True,
+                "exclude_overlap": True,
             },
             "source_data": {"ts": [1, 2, 3, 4, 5], "data": [1, 2, 3, 4, 5]},
             "target_data": {
@@ -652,9 +652,9 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertIn([1, 5], matched_windows)
         self.assertNotIn([2, 4], matched_windows)
 
-    def test_exclude_contained_keeps_better_inner(self):
-        # Inner window [2,4] is a better (smaller distance) match than outer [1,5].
-        # exclude_contained should keep the inner and discard the outer.
+    def test_exclude_overlap_keeps_better_window_discards_worse(self):
+        # [2,4] (distance 0.0) is a better match than outer [1,5]. They overlap.
+        # exclude_overlap should keep [2,4] (processed first, best-first) and discard [1,5].
         req_json = {
             "normalization": "none",
             "algo": {
@@ -663,7 +663,7 @@ class ProfileSearchImplTest(unittest.TestCase):
             },
             "result": {
                 "num": 20,
-                "exclude_contained": True,
+                "exclude_overlap": True,
             },
             "source_data": {"ts": [2, 3, 4], "data": [2, 3, 4]},
             "target_data": {
@@ -715,12 +715,12 @@ class ProfileSearchImplTest(unittest.TestCase):
         self.assertNotIn([2, 4], matched_windows)
         self.assertIn([4, 6], matched_windows)
 
-    def test_exclude_contained_oversample_prevents_underfill(self):
-        """The retry loop doubles the oversample when _filter_exclude_contained removes
+    def test_exclude_overlap_oversample_prevents_underfill(self):
+        """The retry loop doubles the oversample when _filter_exclude_overlap removes
         too many candidates, ensuring target_rows results are returned even when the
-        initial heap would be too small to cover all non-contained profiles.
+        initial heap would be too small to cover all non-overlapping profiles.
 
-        Setup: 1 best match + 15 near-clones that all contain [10,14] + 2 independent
+        Setup: 1 best match + 15 near-clones that all overlap with [10,14] + 2 independent
         profiles at ranks 17-18.  With an initial oversample of 8 the heap holds only
         16 entries; both independent profiles are evicted before scoring completes, so
         the first scan under-fills.  The retry loop detects this (total_passed > heap
@@ -736,9 +736,9 @@ class ProfileSearchImplTest(unittest.TestCase):
         ts_list.append([10, 14])
         data_list.append(list(source))
 
-        # 15 near-clone profiles whose ts_windows all contain [10, 14].
-        # They rank better than the two independent profiles but form a containment
-        # cluster with [10, 14], so _filter_exclude_contained discards all 15.
+        # 15 near-clone profiles whose ts_windows all overlap with [10, 14].
+        # They rank better than the two independent profiles but overlap with
+        # [10, 14], so _filter_exclude_overlap discards all 15.
         for i in range(15):
             ts_list.append([10 - (i + 1), 14 + (i + 1)])  # [9,15], [8,16], ..., [-5,29]
             data_list.append([v + 0.01 * (i + 1) for v in source])
@@ -753,23 +753,23 @@ class ProfileSearchImplTest(unittest.TestCase):
             "source_data": source,
             "target_data": {"ts": ts_list, "data": data_list},
             "algo": {"type": "dtw", "params": {"radius": 1}},
-            "result": {"num": 2, "exclude_contained": True},
+            "result": {"num": 2, "exclude_overlap": True},
         }
 
-        original = ps._CONTAINMENT_OVERSAMPLE
+        original = ps._EXCLUSION_OVERSAMPLE
         try:
-            # Start with oversample=8 (heap_limit=16).  All 18 profiles pass threshold
-            # filtering, so the heap is saturated and both independent profiles are
-            # evicted.  The retry loop must detect the under-fill, double the
-            # oversample, and rescan until it returns 2.
-            ps._CONTAINMENT_OVERSAMPLE = 8
+            # Start with oversample=8 (heap_limit=16).  All 18 profiles remain
+            # eligible candidates during scoring, so the heap is saturated and both
+            # independent profiles are evicted.  The retry loop must detect the
+            # under-fill, double the oversample, and rescan until it returns 2.
+            ps._EXCLUSION_OVERSAMPLE = 8
             result = ps.do_profile_search_impl(req)
             self.assertEqual(
                 result["rows"], 2,
                 "retry loop must compensate for the under-filled initial heap and return both independent profiles",
             )
         finally:
-            ps._CONTAINMENT_OVERSAMPLE = original
+            ps._EXCLUSION_OVERSAMPLE = original
 
 
     def test_window_size_step_skips_intermediate_sizes(self):
@@ -875,6 +875,166 @@ class ProfileSearchImplTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             do_profile_search_impl(req_json)
 
+    def test_exclude_overlap_partial_overlap(self):
+        """Partial overlap (not containment) between [1,5] and [4,8] should still
+        cause the worse match to be excluded when exclude_overlap is True."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 10,
+                "exclude_overlap": True,
+            },
+            "source_data": [1, 2, 3, 4, 5],
+            "target_data": {
+                "ts": [[1, 5], [4, 8], [10, 14]],
+                "data": [
+                    [1, 2, 3, 4, 5],   # best match (distance 0.0)
+                    [4, 5, 6, 7, 8],   # ts_window [4,8] partially overlaps [1,5] at timestamps 4 and 5 → excluded
+                    [1, 2, 3, 4, 5],   # non-overlapping, same distance → kept
+                ],
+            },
+        }
 
+        result = do_profile_search_impl(req_json)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertIn([1, 5], matched_windows)
+        self.assertNotIn([4, 8], matched_windows)
+        self.assertIn([10, 14], matched_windows)
+
+    def test_exclude_overlap_works_with_cosine(self):
+        """exclude_overlap must work for the cosine algorithm (it was not restricted
+        to dtw, unlike the former exclude_contained option)."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "cosine",
+                "params": {},
+            },
+            "result": {
+                "num": 10,
+                "exclude_overlap": True,
+            },
+            "source_data": [1, 0, -1],
+            "target_data": {
+                "ts": [[1, 3], [2, 4], [10, 12]],
+                "data": [
+                    [2, 0, -2],    # cosine similarity 1.0 (best)
+                    [1, 0, -1],    # cosine similarity 1.0, overlaps with [1,3] → excluded
+                    [-1, 0, 1],    # cosine similarity -1.0, non-overlapping → kept
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertIn([1, 3], matched_windows)
+        self.assertNotIn([2, 4], matched_windows)
+        self.assertIn([10, 12], matched_windows)
+
+    def test_exclude_overlap_non_overlapping_windows_all_kept(self):
+        """When no windows overlap, exclude_overlap must not remove any result."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 10,
+                "exclude_overlap": True,
+            },
+            "source_data": [1, 2, 3],
+            "target_data": {
+                "ts": [[1, 3], [5, 7], [9, 11]],
+                "data": [
+                    [1, 2, 3],
+                    [1, 2, 3],
+                    [1, 2, 3],
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["rows"], 3)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertIn([1, 3], matched_windows)
+        self.assertIn([5, 7], matched_windows)
+        self.assertIn([9, 11], matched_windows)
+
+    def test_exclude_overlap_identical_single_point_windows(self):
+        """Two identical single-point windows [t,t] must be treated as overlapping
+        so that exclude_overlap discards the worse-ranked duplicate."""
+        from taosanalytics.algo.tool.profile_search import _is_interval_overlapping
+        # Identical single-point windows overlap.
+        self.assertTrue(_is_interval_overlapping([5, 5], [5, 5]))
+        # Different single-point windows do not overlap.
+        self.assertFalse(_is_interval_overlapping([5, 5], [6, 6]))
+        # Adjacency rule still holds for multi-point windows.
+        self.assertFalse(_is_interval_overlapping([1, 5], [5, 9]))
+
+    def test_exclude_overlap_single_shared_timestamp_not_overlap(self):
+        """Two profiles that share only one endpoint timestamp (e.g. [1,5] and [5,9])
+        must NOT be considered overlapping — a single touching point is adjacent,
+        not a true overlap."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 10,
+                "exclude_overlap": True,
+            },
+            "source_data": [1, 2, 3, 4, 5],
+            "target_data": {
+                "ts": [[1, 5], [5, 9]],
+                "data": [
+                    [1, 2, 3, 4, 5],   # best match (distance 0.0)
+                    [5, 6, 7, 8, 9],   # touches at ts=5 only — should NOT be excluded
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["rows"], 2)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertIn([1, 5], matched_windows)
+        self.assertIn([5, 9], matched_windows)
+
+    def test_exclude_overlap_single_point_window_edge_case(self):
+        """Single-point windows [t,t] must be treated consistently by exclude_overlap:
+        exact duplicates overlap and should be excluded, while [t,t] and [t,t+k]
+        only touch at an endpoint and should both be kept."""
+        req_json = {
+            "normalization": "none",
+            "algo": {
+                "type": "dtw",
+                "params": {"radius": 1},
+            },
+            "result": {
+                "num": 10,
+                "exclude_overlap": True,
+            },
+            "source_data": [7],
+            "target_data": {
+                "ts": [[1, 1], [1, 1], [1, 2]],
+                "data": [
+                    [7],      # best match
+                    [7],      # exact same single-point window; should be excluded
+                    [7, 8],   # shares only endpoint t=1 with [1,1]; should be kept
+                ],
+            },
+        }
+
+        result = do_profile_search_impl(req_json)
+        self.assertEqual(result["rows"], 2)
+        matched_windows = [m["ts_window"] for m in result["matches"]]
+        self.assertEqual(matched_windows.count([1, 1]), 1)
+        self.assertIn([1, 2], matched_windows)
 if __name__ == '__main__':
     unittest.main()
