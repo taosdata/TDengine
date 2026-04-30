@@ -62,7 +62,7 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
 
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
-    """ abstract anomaly detection service, all anomaly detection algorithm class should be
+    """ abstract anomaly detection service, all anomaly detection algorithm class should
     inherit from this class"""
 
     def __init__(self):
