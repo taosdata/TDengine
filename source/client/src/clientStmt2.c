@@ -3009,7 +3009,19 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     param->restoreTbCols = false;
     param->tblData.isOrdered = true;
     param->tblData.isDuplicateTs = false;
+    param->tblData.hasPreComputedVgUid = false;
     tstrncpy(param->tblData.tbName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
+
+    if (pStmt->bInfo.tbExistsInServer) {
+      SStmtTbExistInfo* pExistInfo =
+          (SStmtTbExistInfo*)tSimpleHashGet(pStmt->sql.pTbExistCache, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+      if (pExistInfo) {
+        param->tblData.hasPreComputedVgUid = true;
+        param->tblData.preComputedUid      = pExistInfo->uid;
+        param->tblData.preComputedSuid     = pExistInfo->suid;
+        param->tblData.preComputedVgId     = pExistInfo->vgId;
+      }
+    }
 
     param->pCreateTbReq = pCreateTbReq;
   }

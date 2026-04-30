@@ -334,6 +334,10 @@ typedef struct STableColsData {
   bool    getFromHash;
   bool    isOrdered;
   bool    isDuplicateTs;
+  bool     hasPreComputedVgUid;  // set by main thread when table already exists in server
+  uint64_t preComputedUid;
+  uint64_t preComputedSuid;
+  int32_t  preComputedVgId;
 } STableColsData;
 
 typedef struct STableVgUid {

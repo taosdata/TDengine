@@ -645,6 +645,18 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
   STableVgUid* pTbInfo = NULL;
   int32_t      code = 0;
 
+  if (pTbData->hasPreComputedVgUid) {
+    *uid  = pTbData->preComputedUid;
+    *vgId = pTbData->preComputedVgId;
+    *suid = pTbData->preComputedSuid;
+    SName sname;
+    code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
+    }
+    return code;
+  }
+
   if (pTbData->getFromHash) {
     pTbInfo = (STableVgUid*)tSimpleHashGet(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName));
   }
