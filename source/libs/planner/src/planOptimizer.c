@@ -4782,6 +4782,9 @@ static int32_t rewriteTailOptCreateSort(SIndefRowsFuncLogicNode* pIndef, SLogicN
   SFunctionNode* pTail = NULL;
   SNode*         pFunc = NULL;
   FOREACH(pFunc, pIndef->pFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pFunc)) {
+      continue;
+    }
     if (FUNCTION_TYPE_TAIL == ((SFunctionNode*)pFunc)->funcType) {
       pTail = (SFunctionNode*)pFunc;
       break;
@@ -4834,14 +4837,22 @@ static int32_t rewriteTailOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SLog
   SNode*         pFunc = NULL;
   FOREACH(pFunc, pIndef->pFuncs) {
     SNode* pNew = NULL;
-    code = rewriteTailOptCreateProjectExpr((SFunctionNode*)pFunc, &pNew);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeStrictAppend(&pProject->pProjections, pNew);
+    if (QUERY_NODE_FUNCTION != nodeType(pFunc)) {
+      code = nodesCloneNode(pFunc, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        tstrncpy(((SExprNode*)pNew)->aliasName, ((SExprNode*)pFunc)->aliasName, TSDB_COL_NAME_LEN);
+        code = nodesListMakeStrictAppend(&pProject->pProjections, pNew);
+      }
+    } else {
+      code = rewriteTailOptCreateProjectExpr((SFunctionNode*)pFunc, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListMakeStrictAppend(&pProject->pProjections, pNew);
+      }
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
     }
-    if (FUNCTION_TYPE_TAIL == ((SFunctionNode*)pFunc)->funcType) {
+    if (QUERY_NODE_FUNCTION == nodeType(pFunc) && FUNCTION_TYPE_TAIL == ((SFunctionNode*)pFunc)->funcType) {
       pTail = (SFunctionNode*)pFunc;
     }
   }
@@ -4998,6 +5009,34 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   return code;
 }
 
+// Wrap a column node with _select_value() to keep pAggFuncs function-only.
+static int32_t rewriteUniqueOptCreateSelectValueFunc(SNode* pCol, SNode** ppNode) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
+  }
+
+  tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, ((SExprNode*)pCol)->aliasName, TSDB_COL_NAME_LEN);
+  pFunc->node.resType = ((SExprNode*)pCol)->resType;
+  SNode* pNew = NULL;
+  code = nodesCloneNode(pCol, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNew);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fmGetFuncInfo(pFunc, NULL, 0);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  *ppNode = (SNode*)pFunc;
+  return code;
+}
+
 static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogicNode** pOutput) {
   SAggLogicNode* pAgg = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAgg);
@@ -5022,6 +5061,17 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   SNode* pPrimaryKey = NULL;
   SNode* pNode = NULL;
   FOREACH(pNode, pIndef->pFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+      // Pass-through column from coexisting select agg; wrap with _select_value
+      // to keep pAggFuncs function-only (downstream walkers cast to SFunctionNode).
+      SNode* pNew = NULL;
+      code = rewriteUniqueOptCreateSelectValueFunc(pNode, &pNew);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pNew);
+      }
+      if (TSDB_CODE_SUCCESS != code) break;
+      continue;
+    }
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     SNode*         pExpr = nodesListGetNode(pFunc->pParameterList, 0);
     if (FUNCTION_TYPE_UNIQUE == pFunc->funcType) {
@@ -5111,7 +5161,12 @@ static int32_t rewriteUniqueOptCreateProject(SIndefRowsFuncLogicNode* pIndef, SL
   SNode* pNode = NULL;
   FOREACH(pNode, pIndef->pFuncs) {
     SNode* pNew = NULL;
-    code = rewriteUniqueOptCreateProjectCol((SFunctionNode*)pNode, &pNew);
+    if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+      // Pass-through column node: clone directly as projection
+      code = nodesCloneNode(pNode, &pNew);
+    } else {
+      code = rewriteUniqueOptCreateProjectCol((SFunctionNode*)pNode, &pNew);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pProject->pProjections, pNew);
     }

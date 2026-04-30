@@ -91,7 +91,7 @@ class TestFunctionStateduration:
             f"select stateduration(c1 ,'GT',1,True) from {dbname}.t1",
             f"select stateduration(c1 ,'GT',1,1s) , count(c1) from {dbname}.t1",
             f"select stateduration(c1 ,'GT',1,1s) , avg(c1) from {dbname}.t1",
-            f"select stateduration(c1 ,'GT',1,1s) , min(c1) from {dbname}.t1",
+            # f"select stateduration(c1 ,'GT',1,1s) , min(c1) from {dbname}.t1",  # indef+select now allowed
             f"select stateduration(c1 ,'GT',1,1s) , spread(c1) from {dbname}.t1",
             f"select stateduration(c1 ,'GT',1,1s) , diff(c1) from {dbname}.t1",
         ]
@@ -235,7 +235,7 @@ class TestFunctionStateduration:
 
         # unique with aggregate function
         tdSql.error(f"select stateduration(c6,'GT',1,1s) ,sum(c1)  from {dbname}.ct1")
-        tdSql.error(f"select stateduration(c6,'GT',1,1s) ,max(c1)  from {dbname}.ct1")
+        tdSql.query(f"select stateduration(c6,'GT',1,1s) ,max(c1)  from {dbname}.ct1")  # indef+select now allowed
         tdSql.error(f"select stateduration(c6,'GT',1,1s) ,csum(c1)  from {dbname}.ct1")
         tdSql.error(f"select stateduration(c6,'GT',1,1s) ,count(c1)  from {dbname}.ct1")
 

@@ -3593,10 +3593,17 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   // The auto-generated COUNT function in the DELETE statement is legal
-  if (isSelectStmt(pCxt->pCurrStmt) &&
-      (((SSelectStmt*)pCxt->pCurrStmt)->hasIndefiniteRowsFunc || ((SSelectStmt*)pCxt->pCurrStmt)->hasMultiRowsFunc)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "Aggregate func '%s' mixed with other multi-row functions", pFunc->functionName);
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    bool mixedWithIndefOrMulti = pSelect->hasIndefiniteRowsFunc || pSelect->hasMultiRowsFunc;
+    // select-only agg funcs (first/last/min/max/mode/last_row, excluding top/bottom/sample)
+    // are allowed to coexist with indefinite-row funcs
+    bool isAllowedSelectAggWithIndef = pSelect->hasIndefiniteRowsFunc && !pSelect->hasMultiRowsFunc &&
+                                       fmIsSelectFunc(pFunc->funcId) && !fmIsMultiRowsFunc(pFunc->funcId);
+    if (mixedWithIndefOrMulti && !isAllowedSelectAggWithIndef) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Aggregate func '%s' mixed with other multi-row functions", pFunc->functionName);
+    }
   }
 
   if (isCountStar(pFunc)) {
@@ -3629,7 +3636,7 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
                                    "Indefinite rows function '%s' only allowed in select clause", pFunc->functionName);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc) {
+  if (pSelect->hasNonSelectAggFuncs || pSelect->hasMultiRowsFunc) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Indefinite rows function '%s' mixed with other multi-row functions",
                                    pFunc->functionName);
@@ -4272,6 +4279,10 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
+    if (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId)) {
+      pSelect->hasNonSelectAggFuncs = true;
+    }
+    // (removed - selectAggFuncNum and hasMultiSelectAggFuncs computed on demand)
     pSelect->hasCountFunc = pSelect->hasCountFunc ? true : (FUNCTION_TYPE_COUNT == pFunc->funcType);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
 
@@ -5502,7 +5513,17 @@ static int32_t checkGroupByListForBlob(STranslateContext* pCxt, SSelectStmt* pSe
 }
 
 static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
-  if (isAggFunc(*pNode) || isIndefiniteRowsFunc(*pNode)) {
+  if (isAggFunc(*pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (isIndefiniteRowsFunc(*pNode)) {
+    STranslateContext* pCxt = (STranslateContext*)pContext;
+    SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    // When indef-row funcs coexist with select agg funcs, descend into indef-row
+    // functions so their column params get wrapped with _select_value().
+    if (pSelect && pSelect->hasAggFuncs && !pSelect->hasNonSelectAggFuncs) {
+      return DEAL_RES_CONTINUE;
+    }
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -5515,6 +5536,35 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
   nodesRewriteExprs(pSelect->pProjectionList, rewriteColsToSelectValFuncImpl, pCxt);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     nodesRewriteExprs(pSelect->pOrderByList, rewriteColsToSelectValFuncImpl, pCxt);
+  }
+  return pCxt->errCode;
+}
+
+// Rewrite walker: descend into indefinite-row functions to wrap their column params
+// with _select_value() so the Agg node can output them.
+static EDealRes rewriteIndefColsToSelectValImpl(SNode** pNode, void* pContext) {
+  if (isAggFunc(*pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (isIndefiniteRowsFunc(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    return rewriteColToSelectValFunc((STranslateContext*)pContext, pNode);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+// When indefinite-row functions coexist with select agg functions, the Agg node
+// sits below IndefRows. Raw columns inside indef functions (e.g. c1 in diff(c1))
+// must be wrapped with _select_value() so Agg outputs them for IndefRows to consume.
+static int32_t rewriteIndefColsForSelectAgg(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pSelect->hasIndefiniteRowsFunc || !pSelect->hasAggFuncs || pSelect->hasNonSelectAggFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteIndefColsToSelectValImpl, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    nodesRewriteExprs(pSelect->pOrderByList, rewriteIndefColsToSelectValImpl, pCxt);
   }
   return pCxt->errCode;
 }
@@ -12065,6 +12115,25 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
   return code;
 }
 
+// Check if there are multiple selection-aggregate functions (first, last, min, max, mode, last_row)
+// in the projection list. These are agg+select funcs that are NOT indefinite-row functions
+// and NOT internal _select_value wrappers (which also carry AGG+SELECT flags).
+static bool hasMultiSelectAggFuncs(SSelectStmt* pSelect) {
+  int32_t count = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pSelect->pProjectionList) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      if (fmIsAggFunc(pFunc->funcId) && fmIsSelectFunc(pFunc->funcId) &&
+          !fmIsIndefiniteRowsFunc(pFunc->funcId) &&
+          FUNCTION_TYPE_SELECT_VALUE != pFunc->funcType) {
+        if (++count > 1) return true;
+      }
+    }
+  }
+  return false;
+}
+
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->dual = false;
@@ -12139,6 +12208,18 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = appendTsForImplicitTsFunc(pCxt, pSelect);
+  }
+  // After implicit ts params are appended to indef-row functions, wrap them with
+  // _select_value() so the Agg node can output them for IndefRows to consume.
+  // Block multiple selection funcs + indef-row funcs: the indef-row function operates
+  // on a single row from the Agg, but with multiple selection functions the column
+  // value is ambiguous (which selection result does the indef-row function see?).
+  if (TSDB_CODE_SUCCESS == code && pSelect->hasIndefiniteRowsFunc && hasMultiSelectAggFuncs(pSelect)) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "Indefinite rows function not allowed with multiple selection functions");
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteIndefColsForSelectAgg(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = appendPkParamForPkFunc(pCxt, pSelect);

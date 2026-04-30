@@ -94,7 +94,7 @@ class TestFunStatecount:
             f"select statecount(c1 ,'GT',1,True) from {dbname}.t1",
             f"select statecount(c1 ,'GT',1) , count(c1) from {dbname}.t1",
             f"select statecount(c1 ,'GT',1) , avg(c1) from {dbname}.t1",
-            f"select statecount(c1 ,'GT',1) , min(c1) from {dbname}.t1",
+            # f"select statecount(c1 ,'GT',1) , min(c1) from {dbname}.t1",  # indef+select now allowed
             f"select statecount(c1 ,'GT',1) , spread(c1) from {dbname}.t1",
             f"select statecount(c1 ,'GT',1) , diff(c1) from {dbname}.t1",
             f"select statecount(c1 ,'GTA',1) , diff(c1) from {dbname}.t1",
@@ -273,7 +273,7 @@ class TestFunStatecount:
 
         # unique with aggregate function
         tdSql.error(f"select statecount(c6,'GT',1) ,sum(c1)  from {dbname}.ct1")
-        tdSql.error(f"select statecount(c6,'GT',1) ,max(c1)  from {dbname}.ct1")
+        tdSql.query(f"select statecount(c6,'GT',1) ,max(c1)  from {dbname}.ct1")  # indef+select now allowed
         tdSql.error(f"select statecount(c6,'GT',1) ,csum(c1)  from {dbname}.ct1")
         tdSql.error(f"select statecount(c6,'GT',1) ,count(c1)  from {dbname}.ct1")
 

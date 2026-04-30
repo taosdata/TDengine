@@ -1,0 +1,497 @@
+taos> drop database if exists test_indef_sel;
+Drop OK, 0 row(s) affected (0.022196s)
+
+taos> create database test_indef_sel;
+Create OK, 0 row(s) affected (0.248071s)
+
+taos> use test_indef_sel;
+Database changed.
+
+taos> create table stb (ts timestamp, c1 int, c2 float, c3 bigint) tags (t1 int);
+Create OK, 0 row(s) affected (0.018413s)
+
+taos> create table ctb1 using stb tags(1);
+Create OK, 0 row(s) affected (0.005168s)
+
+taos> create table ctb2 using stb tags(2);
+Create OK, 0 row(s) affected (0.004799s)
+
+taos> create table ctb_empty using stb tags(3);
+Create OK, 0 row(s) affected (0.007651s)
+
+taos> create table ctb_null using stb tags(4);
+Create OK, 0 row(s) affected (0.004875s)
+
+taos> create table ctb_single using stb tags(5);
+Create OK, 0 row(s) affected (0.011734s)
+
+taos> insert into ctb1 values ('2020-09-14 02:13:20.000', 1, 1.1, 100) ('2020-09-14 02:13:21.000', 2, 2.2, 200) ('2020-09-14 02:13:22.000', 3, 3.3, 300) ('2020-09-14 02:13:23.000', 4, 4.4, 400) ('2020-09-14 02:13:24.000', 5, 5.5, 500) ('2020-09-14 02:13:25.000', 6, 6.6, 600) ('2020-09-14 02:13:26.000', 7, 7.7, 700) ('2020-09-14 02:13:27.000', 8, 8.8, 800) ('2020-09-14 02:13:28.000', 9, 9.9, 900) ('2020-09-14 02:13:29.000', 10, 11.0, 1000);
+Insert OK, 10 row(s) affected (0.004822s)
+
+taos> insert into ctb2 values ('2020-09-14 02:13:30.000', 100, 10.1, 1000) ('2020-09-14 02:13:31.000', 200, 20.2, 2000) ('2020-09-14 02:13:32.000', 300, 30.3, 3000);
+Insert OK, 3 row(s) affected (0.005250s)
+
+taos> insert into ctb_null values ('2020-09-14 02:13:20.000', NULL, NULL, NULL) ('2020-09-14 02:13:21.000', 1, 1.1, 100) ('2020-09-14 02:13:22.000', NULL, NULL, NULL) ('2020-09-14 02:13:23.000', 2, 2.2, 200) ('2020-09-14 02:13:24.000', 3, 3.3, 300);
+Insert OK, 5 row(s) affected (0.003576s)
+
+taos> insert into ctb_single values ('2020-09-14 02:14:00.000', 42, 4.2, 420);
+Insert OK, 1 row(s) affected (0.003425s)
+
+taos> select first(c1), diff(c1) from test_indef_sel.ctb1;
+
+taos> select first(c1), derivative(c1, 1s, 0) from test_indef_sel.ctb1;
+
+taos> select first(c1), csum(c1) from test_indef_sel.ctb1;
+  first(c1)  |       csum(c1)        |
+======================================
+           1 |                     1 |
+
+taos> select first(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb1;
+  first(c1)  | statecount(c1, 'GE', 0) |
+========================================
+           1 |                       1 |
+
+taos> select first(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb1;
+  first(c1)  | stateduration(c1, 'GE', 0, 1s) |
+===============================================
+           1 |                              0 |
+
+taos> select first(c1), lag(c1, 1) from test_indef_sel.ctb1;
+  first(c1)  | lag(c1, 1)  |
+============================
+           1 | NULL        |
+
+taos> select first(c1), lead(c1, 1) from test_indef_sel.ctb1;
+  first(c1)  | lead(c1, 1) |
+============================
+           1 | NULL        |
+
+taos> select first(c1), fill_forward(c1) from test_indef_sel.ctb1;
+  first(c1)  | fill_forward(c1) |
+=================================
+           1 |                1 |
+
+taos> select first(c1), tail(c1, 3) from test_indef_sel.ctb1;
+  first(c1)  | tail(c1, 3) |
+============================
+           1 |           1 |
+
+taos> select first(c1), unique(c1) from test_indef_sel.ctb1;
+  first(c1)  | unique(c1)  |
+============================
+           1 |           1 |
+
+taos> select last(c1), diff(c1) from test_indef_sel.ctb1;
+
+taos> select last(c1), derivative(c1, 1s, 0) from test_indef_sel.ctb1;
+
+taos> select last(c1), csum(c1) from test_indef_sel.ctb1;
+  last(c1)   |       csum(c1)        |
+======================================
+          10 |                    10 |
+
+taos> select last(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb1;
+  last(c1)   | statecount(c1, 'GE', 0) |
+========================================
+          10 |                       1 |
+
+taos> select last(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb1;
+  last(c1)   | stateduration(c1, 'GE', 0, 1s) |
+===============================================
+          10 |                              0 |
+
+taos> select last(c1), lag(c1, 1) from test_indef_sel.ctb1;
+  last(c1)   | lag(c1, 1)  |
+============================
+          10 | NULL        |
+
+taos> select last(c1), lead(c1, 1) from test_indef_sel.ctb1;
+  last(c1)   | lead(c1, 1) |
+============================
+          10 | NULL        |
+
+taos> select last(c1), fill_forward(c1) from test_indef_sel.ctb1;
+  last(c1)   | fill_forward(c1) |
+=================================
+          10 |               10 |
+
+taos> select last(c1), tail(c1, 3) from test_indef_sel.ctb1;
+  last(c1)   | tail(c1, 3) |
+============================
+          10 |          10 |
+
+taos> select last(c1), unique(c1) from test_indef_sel.ctb1;
+  last(c1)   | unique(c1)  |
+============================
+          10 |          10 |
+
+taos> select min(c1), diff(c1) from test_indef_sel.ctb1;
+
+taos> select min(c1), derivative(c1, 1s, 0) from test_indef_sel.ctb1;
+
+taos> select min(c1), csum(c1) from test_indef_sel.ctb1;
+   min(c1)   |       csum(c1)        |
+======================================
+           1 |                     1 |
+
+taos> select min(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb1;
+   min(c1)   | statecount(c1, 'GE', 0) |
+========================================
+           1 |                       1 |
+
+taos> select min(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb1;
+   min(c1)   | stateduration(c1, 'GE', 0, 1s) |
+===============================================
+           1 |                              0 |
+
+taos> select min(c1), lag(c1, 1) from test_indef_sel.ctb1;
+   min(c1)   | lag(c1, 1)  |
+============================
+           1 | NULL        |
+
+taos> select min(c1), lead(c1, 1) from test_indef_sel.ctb1;
+   min(c1)   | lead(c1, 1) |
+============================
+           1 | NULL        |
+
+taos> select min(c1), fill_forward(c1) from test_indef_sel.ctb1;
+   min(c1)   | fill_forward(c1) |
+=================================
+           1 |                1 |
+
+taos> select min(c1), tail(c1, 3) from test_indef_sel.ctb1;
+   min(c1)   | tail(c1, 3) |
+============================
+           1 |           1 |
+
+taos> select min(c1), unique(c1) from test_indef_sel.ctb1;
+   min(c1)   | unique(c1)  |
+============================
+           1 |           1 |
+
+taos> select max(c1), diff(c1) from test_indef_sel.ctb1;
+
+taos> select max(c1), derivative(c1, 1s, 0) from test_indef_sel.ctb1;
+
+taos> select max(c1), csum(c1) from test_indef_sel.ctb1;
+   max(c1)   |       csum(c1)        |
+======================================
+          10 |                    10 |
+
+taos> select max(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb1;
+   max(c1)   | statecount(c1, 'GE', 0) |
+========================================
+          10 |                       1 |
+
+taos> select max(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb1;
+   max(c1)   | stateduration(c1, 'GE', 0, 1s) |
+===============================================
+          10 |                              0 |
+
+taos> select max(c1), lag(c1, 1) from test_indef_sel.ctb1;
+   max(c1)   | lag(c1, 1)  |
+============================
+          10 | NULL        |
+
+taos> select max(c1), lead(c1, 1) from test_indef_sel.ctb1;
+   max(c1)   | lead(c1, 1) |
+============================
+          10 | NULL        |
+
+taos> select max(c1), fill_forward(c1) from test_indef_sel.ctb1;
+   max(c1)   | fill_forward(c1) |
+=================================
+          10 |               10 |
+
+taos> select max(c1), tail(c1, 3) from test_indef_sel.ctb1;
+   max(c1)   | tail(c1, 3) |
+============================
+          10 |          10 |
+
+taos> select max(c1), unique(c1) from test_indef_sel.ctb1;
+   max(c1)   | unique(c1)  |
+============================
+          10 |          10 |
+
+taos> select mode(c1), diff(c1) from test_indef_sel.ctb1;
+
+taos> select mode(c1), derivative(c1, 1s, 0) from test_indef_sel.ctb1;
+
+taos> select mode(c1), csum(c1) from test_indef_sel.ctb1;
+  mode(c1)   |       csum(c1)        |
+======================================
+           9 |                     9 |
+
+taos> select mode(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb1;
+  mode(c1)   | statecount(c1, 'GE', 0) |
+========================================
+           9 |                       1 |
+
+taos> select mode(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb1;
+  mode(c1)   | stateduration(c1, 'GE', 0, 1s) |
+===============================================
+           9 |                              0 |
+
+taos> select mode(c1), lag(c1, 1) from test_indef_sel.ctb1;
+  mode(c1)   | lag(c1, 1)  |
+============================
+           9 | NULL        |
+
+taos> select mode(c1), lead(c1, 1) from test_indef_sel.ctb1;
+  mode(c1)   | lead(c1, 1) |
+============================
+           9 | NULL        |
+
+taos> select mode(c1), fill_forward(c1) from test_indef_sel.ctb1;
+  mode(c1)   | fill_forward(c1) |
+=================================
+           9 |                9 |
+
+taos> select mode(c1), tail(c1, 3) from test_indef_sel.ctb1;
+  mode(c1)   | tail(c1, 3) |
+============================
+           9 |           9 |
+
+taos> select mode(c1), unique(c1) from test_indef_sel.ctb1;
+  mode(c1)   | unique(c1)  |
+============================
+           9 |           9 |
+
+taos> select last_row(c1), diff(c1) from test_indef_sel.ctb1;
+
+taos> select last_row(c1), derivative(c1, 1s, 0) from test_indef_sel.ctb1;
+
+taos> select last_row(c1), csum(c1) from test_indef_sel.ctb1;
+ last_row(c1) |       csum(c1)        |
+=======================================
+           10 |                    10 |
+
+taos> select last_row(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb1;
+ last_row(c1) | statecount(c1, 'GE', 0) |
+=========================================
+           10 |                       1 |
+
+taos> select last_row(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb1;
+ last_row(c1) | stateduration(c1, 'GE', 0, 1s) |
+================================================
+           10 |                              0 |
+
+taos> select last_row(c1), lag(c1, 1) from test_indef_sel.ctb1;
+ last_row(c1) | lag(c1, 1)  |
+=============================
+           10 | NULL        |
+
+taos> select last_row(c1), lead(c1, 1) from test_indef_sel.ctb1;
+ last_row(c1) | lead(c1, 1) |
+=============================
+           10 | NULL        |
+
+taos> select last_row(c1), fill_forward(c1) from test_indef_sel.ctb1;
+ last_row(c1) | fill_forward(c1) |
+==================================
+           10 |               10 |
+
+taos> select last_row(c1), tail(c1, 3) from test_indef_sel.ctb1;
+ last_row(c1) | tail(c1, 3) |
+=============================
+           10 |          10 |
+
+taos> select last_row(c1), unique(c1) from test_indef_sel.ctb1;
+ last_row(c1) | unique(c1)  |
+=============================
+           10 |          10 |
+
+taos> select diff(c1), first(c1) from test_indef_sel.ctb1;
+
+taos> select csum(c1), last(c1) from test_indef_sel.ctb1;
+       csum(c1)        |  last(c1)   |
+======================================
+                    10 |          10 |
+
+taos> select fill_forward(c1), min(c1) from test_indef_sel.ctb1;
+ fill_forward(c1) |   min(c1)   |
+=================================
+                1 |           1 |
+
+taos> select lag(c1, 1), max(c1) from test_indef_sel.ctb1;
+ lag(c1, 1)  |   max(c1)   |
+============================
+ NULL        |          10 |
+
+taos> select lead(c1, 1), mode(c1) from test_indef_sel.ctb1;
+ lead(c1, 1) |  mode(c1)   |
+============================
+ NULL        |           9 |
+
+taos> select first(c1), diff(c1) from test_indef_sel.ctb1 where ts >= '2020-09-14 02:13:20' and ts < '2020-09-14 02:13:25';
+
+taos> select first(c1), csum(c1) from test_indef_sel.ctb1 where ts >= '2020-09-14 02:13:20' and ts < '2020-09-14 02:13:25';
+  first(c1)  |       csum(c1)        |
+======================================
+           1 |                     1 |
+
+taos> select first(c1), fill_forward(c1) from test_indef_sel.ctb1 where ts >= '2020-09-14 02:13:20' and ts < '2020-09-14 02:13:25';
+  first(c1)  | fill_forward(c1) |
+=================================
+           1 |                1 |
+
+taos> select first(c1), diff(c1) from test_indef_sel.ctb_empty;
+
+taos> select first(c1), csum(c1) from test_indef_sel.ctb_empty;
+
+taos> select last(c1), fill_forward(c1) from test_indef_sel.ctb_empty;
+
+taos> select first(c1), diff(c1) from test_indef_sel.ctb_single;
+
+taos> select first(c1), csum(c1) from test_indef_sel.ctb_single;
+  first(c1)  |       csum(c1)        |
+======================================
+          42 |                    42 |
+
+taos> select first(c1), lag(c1, 1) from test_indef_sel.ctb_single;
+  first(c1)  | lag(c1, 1)  |
+============================
+          42 | NULL        |
+
+taos> select first(c1), lead(c1, 1) from test_indef_sel.ctb_single;
+  first(c1)  | lead(c1, 1) |
+============================
+          42 | NULL        |
+
+taos> select first(c1), fill_forward(c1) from test_indef_sel.ctb_single;
+  first(c1)  | fill_forward(c1) |
+=================================
+          42 |               42 |
+
+taos> select first(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb_single;
+  first(c1)  | statecount(c1, 'GE', 0) |
+========================================
+          42 |                       1 |
+
+taos> select first(c1), stateduration(c1, 'GE', 0, 1s) from test_indef_sel.ctb_single;
+  first(c1)  | stateduration(c1, 'GE', 0, 1s) |
+===============================================
+          42 |                              0 |
+
+taos> select first(c1), unique(c1) from test_indef_sel.ctb_single;
+  first(c1)  | unique(c1)  |
+============================
+          42 |          42 |
+
+taos> select first(c1), tail(c1, 1) from test_indef_sel.ctb_single;
+  first(c1)  | tail(c1, 1) |
+============================
+          42 |          42 |
+
+taos> select first(c1), diff(c1) from test_indef_sel.ctb_null;
+
+taos> select first(c1), csum(c1) from test_indef_sel.ctb_null;
+  first(c1)  |       csum(c1)        |
+======================================
+           1 |                     1 |
+
+taos> select first(c1), fill_forward(c1) from test_indef_sel.ctb_null;
+  first(c1)  | fill_forward(c1) |
+=================================
+           1 |                1 |
+
+taos> select first(c1), lag(c1, 1) from test_indef_sel.ctb_null;
+  first(c1)  | lag(c1, 1)  |
+============================
+           1 | NULL        |
+
+taos> select first(c1), lead(c1, 1) from test_indef_sel.ctb_null;
+  first(c1)  | lead(c1, 1) |
+============================
+           1 | NULL        |
+
+taos> select first(c1), statecount(c1, 'GE', 0) from test_indef_sel.ctb_null;
+  first(c1)  | statecount(c1, 'GE', 0) |
+========================================
+           1 |                       1 |
+
+taos> select first(c1), unique(c1) from test_indef_sel.ctb_null;
+  first(c1)  | unique(c1)  |
+============================
+           1 |           1 |
+
+taos> select first(c1), tail(c1, 3) from test_indef_sel.ctb_null;
+  first(c1)  | tail(c1, 3) |
+============================
+           1 |           1 |
+
+taos> select first(c1), diff(c1) from test_indef_sel.ctb_null where c1 is not null;
+
+taos> select first(c1), csum(c1) from test_indef_sel.ctb1 where c1 > 5;
+  first(c1)  |       csum(c1)        |
+======================================
+           6 |                     6 |
+
+taos> select min(c1), diff(c1) from test_indef_sel.ctb1 where c1 between 3 and 7;
+
+taos> select max(c1), csum(c1) from test_indef_sel.ctb1 where c1 is not null;
+   max(c1)   |       csum(c1)        |
+======================================
+          10 |                    10 |
+
+taos> select first(c2), diff(c2) from test_indef_sel.ctb1;
+
+taos> select last(c3), csum(c3) from test_indef_sel.ctb1;
+       last(c3)        |       csum(c3)        |
+================================================
+                  1000 |                  1000 |
+
+taos> select min(c2), fill_forward(c2) from test_indef_sel.ctb1;
+       min(c2)        |   fill_forward(c2)   |
+==============================================
+                  1.1 |                  1.1 |
+
+taos> select max(c3), lag(c3, 1) from test_indef_sel.ctb1;
+        max(c3)        |      lag(c3, 1)       |
+================================================
+                  1000 | NULL                  |
+
+taos> select first(c1), lag(c1, 1), lead(c1, 1) from test_indef_sel.ctb1;
+  first(c1)  | lag(c1, 1)  | lead(c1, 1) |
+==========================================
+           1 | NULL        | NULL        |
+
+taos> select * from (select first(c1) as fc, csum(c1) as cs from test_indef_sel.ctb1);
+     fc      |          cs           |
+======================================
+           1 |                     1 |
+
+taos> select * from (select first(c1) as fc, diff(c1) as df from test_indef_sel.ctb1);
+
+taos> select * from (select first(c1) as fc, fill_forward(c1) as ff from test_indef_sel.ctb1);
+     fc      |     ff      |
+============================
+           1 |           1 |
+
+taos> select * from (select first(c1) as fc, csum(c1) as cs from test_indef_sel.ctb1) where cs > 0;
+     fc      |          cs           |
+======================================
+           1 |                     1 |
+
+taos> select first(c1), c2, diff(c1) from test_indef_sel.ctb1;
+
+taos> select min(c1), c2, c3, csum(c1) from test_indef_sel.ctb1;
+   min(c1)   |          c2          |          c3           |       csum(c1)        |
+=====================================================================================
+           1 |                  1.1 |                   100 |                     1 |
+
+taos> select max(c1), c2, lag(c1, 1) from test_indef_sel.ctb1;
+   max(c1)   |          c2          | lag(c1, 1)  |
+===================================================
+          10 |                   11 | NULL        |
+
+taos> select last(c1), c2, c3, lead(c1, 1) from test_indef_sel.ctb1;
+  last(c1)   |          c2          |          c3           | lead(c1, 1) |
+===========================================================================
+          10 |                   11 |                  1000 | NULL        |
+
+taos> select first(c1), c2, fill_forward(c1) from test_indef_sel.ctb1;
+  first(c1)  |          c2          | fill_forward(c1) |
+========================================================
+           1 |                  1.1 |                1 |
+
