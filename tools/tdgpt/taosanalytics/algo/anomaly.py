@@ -43,22 +43,31 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
 
     plt.figure(figsize=(9, 6))
 
-    # for multi-variate (2-D) input, use only the first feature for visualization
-    if input_list and isinstance(input_list[0], list):
-        plot_data = input_list[0]
+    is_2darr = False
+    if isinstance(input_list[0], list):
+        for item in input_list:
+            plt.plot(item, 'b-', alpha=0.5)
+        is_2darr = True
     else:
-        plot_data = input_list
-
-    plt.plot(plot_data, 'b-', label='Data')
+        plt.plot(input_list, 'b-', label='Data')
 
     outlier_indices = np.where(np.array(res) != valid_code)
-    outlier_val = np.array(plot_data)[outlier_indices]
 
-    plt.scatter(outlier_indices, outlier_val,
-                color='red', s=100, marker='o',
-                edgecolors='darkred', linewidth=1.5,
-                label=f'Detected Anomaly Points: ({len(outlier_val)})',
-                zorder=5)
+    if is_2darr:
+        for item in input_list:
+            outlier_val = np.array(item)[outlier_indices]
+            plt.scatter(outlier_indices, outlier_val,
+                            color='red', s=100, marker='o',
+                            edgecolors='darkred', linewidth=1.5,
+                            label=f'Detected Anomaly Points: ({len(outlier_val)})',
+                            zorder=5)
+    else:
+        outlier_val = np.array(input_list)[outlier_indices]
+        plt.scatter(outlier_indices, outlier_val,
+                    color='red', s=100, marker='o',
+                    edgecolors='darkred', linewidth=1.5,
+                    label=f'Detected Anomaly Points: ({len(outlier_val)})',
+                    zorder=5)
 
     plt.title("Anomaly Detection", fontsize=14, fontweight='bold')
     plt.legend()
