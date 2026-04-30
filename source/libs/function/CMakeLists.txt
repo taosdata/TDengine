@@ -68,8 +68,6 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-if(${BUILD_TEST})
-    add_subdirectory(test)
-endif()
+add_subdirectory(test)
 
 endif(${BUILD_WITH_UDF})
