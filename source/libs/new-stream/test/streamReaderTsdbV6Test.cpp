@@ -38,7 +38,13 @@
 
 #include <gtest/gtest.h>
 
+#include <cstring>
+#include <string>
+#include <vector>
+
 extern "C" {
+#include "os.h"
+#include "stream.h"
 #include "streamMsg.h"
 #include "streamReader.h"
 }
@@ -162,45 +168,195 @@ TEST_F(StreamReaderTsdbV6Helpers, FirstNextPairsAreSymmetric) {
   }
 }
 
-// ----------------------------------------------------------------------------
-// Sanity: v6.1 protocol structs from streamMsg.h are present and have the
-// expected fields. These checks lock the wire-level shape so any accidental
-// removal during refactors triggers a compile error.
-// ----------------------------------------------------------------------------
+// ============================================================================
+// DS §12.3 C1: 8 new ESTriggerPullType values must round-trip through the
+// wire codec (tSerialize / tDeserialize / tDestroy) without losing fields.
+// ============================================================================
+class StreamMsgWireRoundTrip : public ::testing::Test {};
 
-TEST_F(StreamReaderTsdbV6Helpers, RequestStructsHaveExpectedFields) {
-  SSTriggerTsdbDataNewRequest req{};
-  req.ver = 1;
-  req.gid = 0;
-  req.skey = 100;
-  req.ekey = 200;
-  req.order = 1;
-  EXPECT_EQ(req.ver, 1);
-  EXPECT_EQ(req.gid, 0);   // gid==0 ⇒ cross-uid full table (DS §6.1.2)
-  EXPECT_EQ(req.skey, 100);
-  EXPECT_EQ(req.ekey, 200);
-  EXPECT_EQ(req.order, 1);
+namespace {
+struct PullPayload {
+  int64_t v1, v2, v3, v4;  // gid/skey/ekey or suid/uid/skey/ekey
+  int8_t  order;
+};
 
-  SSTriggerTsdbDataVTableNewRequest vreq{};
-  vreq.ver = 7;
-  vreq.uid = 2002;
-  EXPECT_EQ(vreq.ver, 7);
-  EXPECT_EQ(vreq.uid, 2002);
+static void encodeAndDecode(const SSTriggerPullRequest* in,
+                            SSTriggerPullRequestUnion* out) {
+  // Two-pass encode: probe size, then serialize into a sized buffer.
+  int32_t tlen = tSerializeSTriggerPullRequest(NULL, 0, in);
+  ASSERT_GT(tlen, 0);
+  std::vector<char> buf(tlen);
+  ASSERT_EQ(tSerializeSTriggerPullRequest(buf.data(), tlen, in), tlen);
+  ASSERT_EQ(tDeserializeSTriggerPullRequest(buf.data(), tlen, out), 0);
+}
+}  // namespace
+
+TEST_F(StreamMsgWireRoundTrip, NonVTableFirstAndCalcCarryGidSkeyEkeyOrder) {
+  for (auto type : {STRIGGER_PULL_TSDB_DATA_NEW, STRIGGER_PULL_TSDB_DATA_NEW_CALC}) {
+    SSTriggerTsdbDataNewRequest in = {};
+    in.base.type = type;
+    in.base.streamId = 0xaaaaaaaaLL;
+    in.base.readerTaskId = 0xbbbbbbbbLL;
+    in.base.sessionId = 0xccccccccLL;
+    in.gid = 0x1111;
+    in.skey = 0x2222;
+    in.ekey = 0x3333;
+    in.order = 1;
+
+    SSTriggerPullRequestUnion out = {};
+    encodeAndDecode((SSTriggerPullRequest*)&in, &out);
+    EXPECT_EQ(out.base.type, type);
+    EXPECT_EQ(out.base.streamId, in.base.streamId);
+    EXPECT_EQ(out.base.readerTaskId, in.base.readerTaskId);
+    EXPECT_EQ(out.base.sessionId, in.base.sessionId);
+    EXPECT_EQ(out.tsdbDataNewReq.gid, in.gid);
+    EXPECT_EQ(out.tsdbDataNewReq.skey, in.skey);
+    EXPECT_EQ(out.tsdbDataNewReq.ekey, in.ekey);
+    EXPECT_EQ(out.tsdbDataNewReq.order, in.order);
+    tDestroySTriggerPullRequest(&out);
+  }
 }
 
-// DS v7.0: response no longer carries an explicit `bool eof` field.
-// F5/F6 serialize a SArray<SSDataBlock*> via `buildArrayRsp` (sorted by uid via
-// `compareBlockInfo`); F7/F8 return a single accumulated `pResBlockDst`.
-// Implicit EOF: reader removes its cache entry on `!hasNext`, and the trigger
-// side judges round end by "returned rows < STREAM_RETURN_ROWS_TSDB_NUM".
+TEST_F(StreamMsgWireRoundTrip, NonVTableNextHasEmptyPayload) {
+  for (auto type :
+       {STRIGGER_PULL_TSDB_DATA_NEW_NEXT, STRIGGER_PULL_TSDB_DATA_NEW_CALC_NEXT}) {
+    SSTriggerPullRequest in = {};
+    in.type = type;
+    in.streamId = 1;
+    in.readerTaskId = 2;
+    in.sessionId = 3;
+
+    SSTriggerPullRequestUnion out = {};
+    encodeAndDecode(&in, &out);
+    EXPECT_EQ(out.base.type, type);
+    EXPECT_EQ(out.base.sessionId, 3);
+    tDestroySTriggerPullRequest(&out);
+  }
+}
+
+TEST_F(StreamMsgWireRoundTrip, VTableFirstAndCalcCarryFullPayload) {
+  for (auto type : {STRIGGER_PULL_TSDB_DATA_VTABLE_NEW,
+                    STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC}) {
+    SSTriggerTsdbDataVTableNewRequest in = {};
+    in.base.type = type;
+    in.base.streamId = 11;
+    in.base.readerTaskId = 22;
+    in.base.sessionId = 33;
+    in.suid = 0x4444;
+    in.uid = 0x5555;
+    in.skey = 0x6666;
+    in.ekey = 0x7777;
+    in.order = 2;
+
+    SSTriggerPullRequestUnion out = {};
+    encodeAndDecode((SSTriggerPullRequest*)&in, &out);
+    EXPECT_EQ(out.base.type, type);
+    EXPECT_EQ(out.tsdbDataVTableNewReq.suid, in.suid);
+    EXPECT_EQ(out.tsdbDataVTableNewReq.uid, in.uid);
+    EXPECT_EQ(out.tsdbDataVTableNewReq.skey, in.skey);
+    EXPECT_EQ(out.tsdbDataVTableNewReq.ekey, in.ekey);
+    EXPECT_EQ(out.tsdbDataVTableNewReq.order, in.order);
+    tDestroySTriggerPullRequest(&out);
+  }
+}
+
+TEST_F(StreamMsgWireRoundTrip, VTableNextOnlyCarriesUid) {
+  for (auto type : {STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_NEXT,
+                    STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC_NEXT}) {
+    SSTriggerTsdbDataVTableNewRequest in = {};
+    in.base.type = type;
+    in.base.streamId = 1;
+    in.base.readerTaskId = 2;
+    in.base.sessionId = 3;
+    in.uid = 0x9999;
+    // Other payload fields are not on the wire for NEXT requests.
+
+    SSTriggerPullRequestUnion out = {};
+    encodeAndDecode((SSTriggerPullRequest*)&in, &out);
+    EXPECT_EQ(out.base.type, type);
+    EXPECT_EQ(out.tsdbDataVTableNewReq.uid, in.uid);
+    tDestroySTriggerPullRequest(&out);
+  }
+}
+
+TEST_F(StreamMsgWireRoundTrip, SetTableHistorySharesEncodingWithSetTable) {
+  // C1 fall-through: SET_TABLE_HISTORY must travel through the same encode/
+  // decode case as SET_TABLE; tDestroy must release uidInfoTrigger/uidInfoCalc
+  // for both types. We construct two empty hash maps so the codec walks the
+  // SET_TABLE branch end-to-end without triggering meta lookups.
+  for (auto type : {STRIGGER_PULL_SET_TABLE, STRIGGER_PULL_SET_TABLE_HISTORY}) {
+    SSTriggerSetTableRequest in = {};
+    in.base.type = type;
+    in.base.streamId = 7;
+    in.base.readerTaskId = 8;
+    in.base.sessionId = 9;
+    in.uidInfoTrigger = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    in.uidInfoCalc = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(in.uidInfoTrigger, nullptr);
+    ASSERT_NE(in.uidInfoCalc, nullptr);
+
+    SSTriggerPullRequestUnion out = {};
+    encodeAndDecode((SSTriggerPullRequest*)&in, &out);
+    EXPECT_EQ(out.base.type, type);
+    EXPECT_EQ(out.base.sessionId, 9);
+    // Both ends own their hashes after decode; tDestroy must clean them up
+    // without leaking, and likewise for the source side.
+    tDestroySTriggerPullRequest(&out);
+    tDestroySTriggerPullRequest((SSTriggerPullRequestUnion*)&in);
+  }
+}
 
 // ============================================================================
-// v3.4.2 sub-project C DS v7.0 §6.6 - virtual-table slotId->colId mapping.
-// Old "post-read block-level remap" via qStreamRemapBlockBySlotColMap was
-// invented in v6.1 and never matched the production code. The real path is
-// "pre-read injection": pickSchemasHistory() builds cids[] + slotIdList[] and
-// feeds them into tsdbReaderOpen via options.schemas/pSlotList/isSchema=true,
-// so tsdbReader internally lays each colId at its target slot. There is no
-// reader-side block transform to test here. Coverage for pickSchemasHistory
-// belongs in a vnodeStream-side fixture (see DS §12.1).
+// DS §12.3 C7: SCMCreateStreamReq.isOldPlan must NOT enter the JSON wire.
+// The flag is only set on the receiving (mnode) side based on the loaded
+// sver; if it ever leaks into the JSON serializer, the rolling-upgrade path
+// silently breaks because old replicas would suddenly observe the field.
+//
+// Constructing a valid SCMCreateStreamReq end-to-end requires populating
+// dozens of nested arrays and a valid triggerType. We therefore reverse-
+// validate the invariant via source-level inspection: the codec source file
+// must not contain the canonical field name on any tjsonAdd*-prefixed line.
 // ============================================================================
+TEST(StreamCreateReqWire, IsOldPlanIsNotInJsonCodec) {
+  const char* candidates[] = {
+      "community/source/common/src/msg/streamJson.c",
+      "../community/source/common/src/msg/streamJson.c",
+      "../../community/source/common/src/msg/streamJson.c",
+      "../../../community/source/common/src/msg/streamJson.c",
+      "../../../../community/source/common/src/msg/streamJson.c",
+      "../../../../../community/source/common/src/msg/streamJson.c",
+  };
+  TdFilePtr fp = NULL;
+  for (auto path : candidates) {
+    fp = taosOpenFile(path, TD_FILE_READ);
+    if (fp != NULL) break;
+  }
+  ASSERT_NE(fp, nullptr) << "streamJson.c not reachable from test cwd";
+
+  std::string content;
+  char        buf[4096];
+  int64_t     n;
+  while ((n = taosReadFile(fp, buf, sizeof(buf))) > 0) {
+    content.append(buf, buf + n);
+  }
+  taosCloseFile(&fp);
+
+  // The codec source must not reference isOldPlan at all - neither as a
+  // tjsonAdd* serializer call nor as a json key constant. A bare textual
+  // scan is sufficient: the field name is unique to SCMCreateStreamReq.
+  EXPECT_EQ(content.find("isOldPlan"), std::string::npos)
+      << "isOldPlan leaked into the JSON codec; rolling upgrade will break";
+}
+
+// ============================================================================
+// DS §12.3 C8: F13 threshold constants must remain on their respective code
+// paths and must keep their committed values. A drift in either constant is a
+// silent perf / cache regression.
+// ============================================================================
+TEST(StreamThresholds, ConstantsHoldCommittedValues) {
+  EXPECT_EQ(STREAM_RETURN_ROWS_NUM, 4096);
+  EXPECT_EQ(STREAM_RETURN_ROWS_TSDB_NUM, 50000);
+  EXPECT_GT(STREAM_RETURN_ROWS_TSDB_NUM, STREAM_RETURN_ROWS_NUM)
+      << "TSDB threshold must dominate WAL threshold; otherwise the F13 "
+         "history-fast-path no longer pays off";
+}
