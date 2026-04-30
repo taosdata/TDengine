@@ -863,6 +863,61 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
   }
 
+  // For WINDOW/ASOF JOIN: addPrimCond (e.g. a.ts = b.ts) is NOT traversed by
+  // nodesCollectColumns (only pOnCond is walked). For external scans,
+  // addDefaultScanCol is not called either, so implicit join key columns
+  // (e.g. b.ts for WINDOW JOIN without ON clause) may be absent from
+  // pScanCols/pTargets. Ensure all addPrimCond columns are present in each
+  // external child scan. Apply only for WINDOW/ASOF JOIN subtypes since
+  // regular joins use pPrimKeyEqCond instead of addPrimEqCond.
+  if (TSDB_CODE_SUCCESS == code && pJoinTable->addPrimCond != NULL &&
+      (IS_WINDOW_JOIN(pJoinTable->subType) || IS_ASOF_JOIN(pJoinTable->subType))) {
+    SLogicNode* childNodes[2]  = {pLeft, pRight};
+    SNode*      childTables[2] = {pJoinTable->pLeft, pJoinTable->pRight};
+    for (int i = 0; i < 2 && TSDB_CODE_SUCCESS == code; ++i) {
+      if (!childNodes[i] || nodeType(childNodes[i]) != QUERY_NODE_LOGIC_PLAN_SCAN) {
+        continue;
+      }
+      SScanLogicNode* pChildScan = (SScanLogicNode*)childNodes[i];
+      if (pChildScan->scanType != SCAN_TYPE_EXTERNAL) {
+        continue;
+      }
+      if (nodeType(childTables[i]) != QUERY_NODE_REAL_TABLE) {
+        continue;
+      }
+      const char* alias     = ((SRealTableNode*)childTables[i])->table.tableAlias;
+      SNodeList*  pPrimCols = NULL;
+      code = nodesCollectColumnsFromNode(pJoinTable->addPrimCond, alias, COLLECT_COL_TYPE_ALL, &pPrimCols);
+      if (TSDB_CODE_SUCCESS == code && pPrimCols != NULL) {
+        SNode* pPrimColNode = NULL;
+        FOREACH(pPrimColNode, pPrimCols) {
+          SColumnNode* pPC    = (SColumnNode*)pPrimColNode;
+          bool         found  = false;
+          SNode*       pExist = NULL;
+          FOREACH(pExist, pChildScan->pScanCols) {
+            if (((SColumnNode*)pExist)->colId == pPC->colId) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            SNode* pColClone = NULL;
+            if (TSDB_CODE_SUCCESS == (code = nodesCloneNode((SNode*)pPC, &pColClone))) {
+              code = nodesListMakeStrictAppend(&pChildScan->pScanCols, pColClone);
+            }
+            if (TSDB_CODE_SUCCESS == code) {
+              SNode* pTgtClone = NULL;
+              if (TSDB_CODE_SUCCESS == (code = nodesCloneNode((SNode*)pPC, &pTgtClone))) {
+                code = nodesListMakeStrictAppend(&pChildScan->node.pTargets, pTgtClone);
+              }
+            }
+          }
+        }
+      }
+      nodesDestroyList(pPrimCols);
+    }
+  }
+
   // set on conditions
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pOnCond) {
     code = nodesCloneNode(pJoinTable->pOnCond, &pJoin->pFullOnCond);

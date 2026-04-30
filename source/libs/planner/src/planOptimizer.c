@@ -11137,6 +11137,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     if (taosArrayGetSize(pChain) == 0) {
       SLogicNode* pOutputSpec = NULL;
       bool        hasAggBetween = false;
+      bool        hasJoinBetween = false;
       for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
            pAnc != NULL; pAnc = pAnc->pParent) {
         ENodeType at = nodeType(pAnc);
@@ -11148,6 +11149,13 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
             at == QUERY_NODE_LOGIC_PLAN_FILL || at == QUERY_NODE_LOGIC_PLAN_PARTITION ||
             at == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || at == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
           hasAggBetween = true;
+        }
+        // Track whether a JOIN sits between Scan and the candidate.
+        // A JOIN's pTargets contain columns from BOTH tables; using them to
+        // overwrite pScanCols for one scan leg would include the other table's
+        // columns, causing slot-key-not-found in createMergeJoinPhysiNode.
+        if (at == QUERY_NODE_LOGIC_PLAN_JOIN) {
+          hasJoinBetween = true;
         }
         if ((at == QUERY_NODE_LOGIC_PLAN_SORT || at == QUERY_NODE_LOGIC_PLAN_PROJECT) &&
             pAnc->pTargets != NULL && LIST_LENGTH(pAnc->pTargets) > 0) {
@@ -11161,6 +11169,12 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
           // Skip if an Agg/Window node was found between Scan and this ancestor;
           // its pTargets carry derived column names, not real table columns.
           if (hasAggBetween) {
+            continue;
+          }
+          // Skip if a JOIN node was found between Scan and this ancestor;
+          // a JOIN's pTargets combine columns from all legs — using them to
+          // overwrite one scan's pScanCols/pTargets causes slot-key-not-found.
+          if (hasJoinBetween) {
             continue;
           }
           pOutputSpec = pAnc;
