@@ -7,7 +7,7 @@ TDengine ODBC is an ODBC driver implemented for TDengine, supporting application
 
 TDengine ODBC offers two types of connections to the TDengine database: WebSocket (recommended) and native connections. Different connection methods can be set for the TDengine data source when in use. WebSocket connection must be used when accessing cloud services.
 
-TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit version is only supported by the TSDB-Enterprise and only supports WebSocket connections.  
+TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit version is only supported by the TSDB-Enterprise and only supports WebSocket connections.
 
 :::note
 
@@ -20,7 +20,7 @@ TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit versi
 
 <font color="red">ODBC native connection is deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
 
-For detailed migration guide, please refer to: [Connection Methods](index.md#connection-methods)
+For a detailed migration guide, please refer to: [Connection Methods](index.md#connection-methods)
 
 :::
 
@@ -294,12 +294,12 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Configures data sources
-  
+
 - API: ConfigDriver
   - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Used to perform installation and configuration tasks related to a specific driver
-  
+
 - API: ConfigTranslator
   - **Supported**: No
   - **Standard**: ODBC
