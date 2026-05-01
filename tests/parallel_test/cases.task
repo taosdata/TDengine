@@ -1386,3 +1386,4 @@
 
 ,,n,system-test,python3 ./test.py -f 0-others/vst_inheritance_ddl.py
 ,,n,system-test,python3 ./test.py -f 2-query/vst_expand.py
+,,n,system-test,python3 ./test.py -f 2-query/vst_expand_scale.py
