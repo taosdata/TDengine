@@ -534,6 +534,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VSTABLE_INHERITS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -6824,9 +6831,50 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
   }
 
+  // Validate EXPAND: only allowed on virtual super tables that participate in inheritance
+  if (pRealTable->hasExpand) {
+    // For now, allow EXPAND on any VST — at runtime the executor will check
+    // if there are actually child VSTs to expand into. If the table has no
+    // inheritance relationships, EXPAND is a no-op (returns only own data).
+    pVTable->expandLevel = pRealTable->expandLevel;
+  }
+
   PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
   PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
   PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
+
+  // EXPAND: fetch descendants from mnode via catalog
+  if (pVTable->expandLevel != INT32_MIN && pVTable->expandLevel != 0) {
+    char dbFName[TSDB_DB_FNAME_LEN];
+    (void)tNameGetFullDbName(pName, dbFName);
+    SRequestConnInfo conn = {.pTrans = pCxt->pParseCxt->pTransporter,
+                             .requestId = pCxt->pParseCxt->requestId,
+                             .requestObjRefId = 0,
+                             .mgmtEps = pCxt->pParseCxt->mgmtEpSet};
+    SArray*          pDescArr = NULL;
+    int32_t          maxLvl = (pVTable->expandLevel == -1) ? -1 : pVTable->expandLevel;
+    code = catalogGetVstDescendants(pCxt->pParseCxt->pCatalog, &conn, dbFName, pName->tname, maxLvl, &pDescArr);
+    if (TSDB_CODE_SUCCESS == code && pDescArr && taosArrayGetSize(pDescArr) > 0) {
+      pVTable->pExpandDescendants = NULL;
+      PAR_ERR_JRET(nodesMakeList(&pVTable->pExpandDescendants));
+      for (int32_t di = 0; di < (int32_t)taosArrayGetSize(pDescArr); ++di) {
+        char*       descName = *(char**)taosArrayGet(pDescArr, di);
+        SValueNode* pVal = NULL;
+        PAR_ERR_JRET(nodesMakeValueNodeFromString(descName, &pVal));
+        PAR_ERR_JRET(nodesListStrictAppend(pVTable->pExpandDescendants, (SNode*)pVal));
+      }
+    }
+    if (pDescArr) {
+      for (int32_t di = 0; di < (int32_t)taosArrayGetSize(pDescArr); ++di) {
+        taosMemoryFree(*(char**)taosArrayGet(pDescArr, di));
+      }
+      taosArrayDestroy(pDescArr);
+    }
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_STB_NOT_EXIST) {
+      goto _return;
+    }
+    code = TSDB_CODE_SUCCESS;
+  }
 
   // Synthesize tagRef for super table from catalog-collected tag ref info
   if (pVTable->pMeta->tagRef == NULL || pVTable->pMeta->numOfTagRefs == 0) {
@@ -7146,6 +7194,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   }
 
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
+  pVTable->expandLevel = INT32_MIN;  // default: no EXPAND
   tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
   tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
   tstrncpy(pVTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pVTable->table.tableAlias));
@@ -14797,6 +14846,200 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   return code;
 }
 
+static int32_t translateCreateInheritedVStable(STranslateContext* pCxt, SCreateInheritedVStableStmt* pStmt) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  STableMeta*    pParentMeta = NULL;
+  SMCreateStbReq createReq = {0};
+
+  if (NULL != strchr(pStmt->tableName, '.')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The table name cannot contain '.'");
+  }
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot create table in system database: `%s`", pStmt->dbName);
+  }
+
+  // get parent table meta
+  code = getTableMeta(pCxt, pStmt->parentDbName, pStmt->parentTableName, &pParentMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code,
+                                   "Parent table `%s`.`%s` does not exist",
+                                   pStmt->parentDbName, pStmt->parentTableName);
+  }
+
+  // parent must be a virtual super table
+  if (TSDB_SUPER_TABLE != pParentMeta->tableType) {
+    taosMemoryFree(pParentMeta);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL,
+                                   "Parent `%s`.`%s` is not a super table",
+                                   pStmt->parentDbName, pStmt->parentTableName);
+  }
+
+  // check inheritance depth (max 10 levels)
+  // parent's inheritDepth is stored in tableInfo; for now we pass 0 and let mnode validate depth
+  int8_t parentDepth = 0;  // mnode will resolve actual depth
+
+  // check column name conflicts between new columns and parent columns
+  int32_t parentNumOfCols = pParentMeta->tableInfo.numOfColumns;
+  int32_t parentNumOfTags = pParentMeta->tableInfo.numOfTags;
+  SSchema* pParentSchema = getTableColumnSchema(pParentMeta);
+  SSchema* pParentTagSchema = getTableTagSchema(pParentMeta);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pNewCols) {
+    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+    for (int32_t i = 0; i < parentNumOfCols; ++i) {
+      if (0 == strcmp(pCol->colName, pParentSchema[i].name)) {
+        taosMemoryFree(pParentMeta);
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_VST_COL_NAME_CONFLICT,
+                                       "Column `%s` conflicts with parent column", pCol->colName);
+      }
+    }
+  }
+
+  FOREACH(pNode, pStmt->pNewTags) {
+    SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+    for (int32_t i = 0; i < parentNumOfTags; ++i) {
+      if (0 == strcmp(pTag->colName, pParentTagSchema[i].name)) {
+        taosMemoryFree(pParentMeta);
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_VST_COL_NAME_CONFLICT,
+                                       "Tag `%s` conflicts with parent tag", pTag->colName);
+      }
+    }
+  }
+
+  // build SMCreateStbReq with merged schema (parent cols + new cols, parent tags + new tags)
+  createReq.igExists = pStmt->ignoreExists;
+  createReq.colVer = 1;
+  createReq.tagVer = 1;
+  createReq.source = TD_REQ_FROM_APP;
+  createReq.virtualStb = 1;
+
+  // set inheritance fields
+  createReq.parentSuid = pParentMeta->suid;
+  SName parentName = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->parentDbName, pStmt->parentTableName, &parentName);
+  code = tNameExtractFullName(&parentName, createReq.parentStbFName);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pParentMeta);
+    tFreeSMCreateStbReq(&createReq);
+    return code;
+  }
+  createReq.inheritDepth = parentDepth + 1;
+  createReq.ownColStart = (int16_t)parentNumOfCols;
+  createReq.ownTagStart = (int16_t)parentNumOfTags;
+
+  // build merged columns array: parent columns + new columns
+  int32_t newColCount = LIST_LENGTH(pStmt->pNewCols);
+  int32_t totalCols = parentNumOfCols + newColCount;
+  createReq.pColumns = taosArrayInit(totalCols, sizeof(SFieldWithOptions));
+  if (NULL == createReq.pColumns) {
+    taosMemoryFree(pParentMeta);
+    return terrno;
+  }
+
+  // add parent columns first
+  for (int32_t i = 0; i < parentNumOfCols; ++i) {
+    SFieldWithOptions field = {0};
+    field.type = pParentSchema[i].type;
+    field.flags = pParentSchema[i].flags;
+    field.bytes = pParentSchema[i].bytes;
+    strcpy(field.name, pParentSchema[i].name);
+    field.compress = createDefaultColCmprByType(pParentSchema[i].type);
+    if (NULL == taosArrayPush(createReq.pColumns, &field)) {
+      taosMemoryFree(pParentMeta);
+      tFreeSMCreateStbReq(&createReq);
+      return terrno;
+    }
+  }
+
+  // add new columns
+  FOREACH(pNode, pStmt->pNewCols) {
+    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+    SFieldWithOptions field = {0};
+    field.type = pCol->dataType.type;
+    field.bytes = calcTypeBytes(pCol->dataType);
+    strcpy(field.name, pCol->colName);
+    field.compress = createDefaultColCmprByType(pCol->dataType.type);
+    if (NULL == taosArrayPush(createReq.pColumns, &field)) {
+      taosMemoryFree(pParentMeta);
+      tFreeSMCreateStbReq(&createReq);
+      return terrno;
+    }
+  }
+
+  // build merged tags array: parent tags + new tags
+  int32_t newTagCount = LIST_LENGTH(pStmt->pNewTags);
+  int32_t totalTags = parentNumOfTags + newTagCount;
+  createReq.pTags = taosArrayInit(totalTags, sizeof(SField));
+  if (NULL == createReq.pTags) {
+    taosMemoryFree(pParentMeta);
+    tFreeSMCreateStbReq(&createReq);
+    return terrno;
+  }
+
+  // add parent tags first
+  for (int32_t i = 0; i < parentNumOfTags; ++i) {
+    SField field = {0};
+    field.type = pParentTagSchema[i].type;
+    field.flags = pParentTagSchema[i].flags;
+    field.bytes = pParentTagSchema[i].bytes;
+    strcpy(field.name, pParentTagSchema[i].name);
+    if (NULL == taosArrayPush(createReq.pTags, &field)) {
+      taosMemoryFree(pParentMeta);
+      tFreeSMCreateStbReq(&createReq);
+      return terrno;
+    }
+  }
+
+  // add new tags
+  FOREACH(pNode, pStmt->pNewTags) {
+    SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+    SField field = {0};
+    field.type = pTag->dataType.type;
+    field.bytes = calcTypeBytes(pTag->dataType);
+    strcpy(field.name, pTag->colName);
+    if (NULL == taosArrayPush(createReq.pTags, &field)) {
+      taosMemoryFree(pParentMeta);
+      tFreeSMCreateStbReq(&createReq);
+      return terrno;
+    }
+  }
+
+  createReq.numOfColumns = totalCols;
+  createReq.numOfTags = totalTags;
+  createReq.commentLen = -1;
+
+  // set table name
+  SName tableName = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName);
+  code = tNameExtractFullName(&tableName, createReq.name);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(&tableName, pCxt->pTargetTables);
+  }
+
+  // options
+  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions) {
+    createReq.delay1 = pStmt->pOptions->maxDelay1;
+    createReq.delay2 = pStmt->pOptions->maxDelay2;
+    createReq.watermark1 = pStmt->pOptions->watermark1;
+    createReq.watermark2 = pStmt->pOptions->watermark2;
+    createReq.deleteMark1 = pStmt->pOptions->deleteMark1;
+    createReq.deleteMark2 = pStmt->pOptions->deleteMark2;
+    createReq.keep = pStmt->pOptions->keep;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_STB, (FSerializeFunc)tSerializeSMCreateStbReq, &createReq);
+  }
+
+  taosMemoryFree(pParentMeta);
+  tFreeSMCreateStbReq(&createReq);
+  return code;
+}
+
 static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* pTableName, bool ignoreNotExists) {
   int32_t code = collectUseTable(pTableName, pCxt->pTargetTables);
   if (TSDB_CODE_SUCCESS == code) {
@@ -22014,6 +22257,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT:
+      code = translateCreateInheritedVStable(pCxt, (SCreateInheritedVStableStmt*)pNode);
+      break;
     case QUERY_NODE_DROP_TABLE_STMT:
       code = translateDropTable(pCxt, (SDropTableStmt*)pNode);
       break;
@@ -27872,6 +28118,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       code = rewriteShowValidateVtable(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
+      code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = rewriteShowTableDist(pCxt, pQuery);

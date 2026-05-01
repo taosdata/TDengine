@@ -1773,6 +1773,65 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
   CTG_API_LEAVE(ctgGetDBCfg(pCtg, pConn, dbFName, pDbCfg));
 }
 
+int32_t catalogGetVstDescendants(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, const char* stbName,
+                                 int32_t maxLevel, SArray** pDescendants) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == dbFName || NULL == stbName || NULL == pDescendants) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  SVstDescendantsReq req = {0};
+  tstrncpy(req.dbFName, dbFName, sizeof(req.dbFName));
+  tstrncpy(req.stbName, stbName, sizeof(req.stbName));
+  req.maxLevel = maxLevel;
+
+  int32_t reqLen = tSerializeSVstDescendantsReq(NULL, 0, &req);
+  if (reqLen < 0) {
+    CTG_API_LEAVE(reqLen);
+  }
+  void* pBuf = rpcMallocCont(reqLen);
+  if (NULL == pBuf) {
+    CTG_API_LEAVE(terrno);
+  }
+  (void)tSerializeSVstDescendantsReq(pBuf, reqLen, &req);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_GET_VST_DESCENDANTS, .pCont = pBuf, .contLen = reqLen};
+  SRpcMsg rpcRsp = {0};
+  code = rpcSendRecvWithTimeout(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp, NULL, CATLOG_TIMEOUT);
+  if (code) {
+    CTG_API_LEAVE(code);
+  }
+  if (rpcRsp.code) {
+    rpcFreeCont(rpcRsp.pCont);
+    CTG_API_LEAVE(rpcRsp.code);
+  }
+
+  SVstDescendantsRsp rsp = {0};
+  code = tDeserializeSVstDescendantsRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp);
+  rpcFreeCont(rpcRsp.pCont);
+  if (code) {
+    CTG_API_LEAVE(code);
+  }
+
+  *pDescendants = taosArrayInit(rsp.numOfDescendants, sizeof(void*));
+  if (NULL == *pDescendants) {
+    tFreeSVstDescendantsRsp(&rsp);
+    CTG_API_LEAVE(terrno);
+  }
+  for (int32_t i = 0; i < rsp.numOfDescendants; ++i) {
+    char* name = rsp.pDescendants[i];
+    rsp.pDescendants[i] = NULL;  // transfer ownership
+    if (NULL == taosArrayPush(*pDescendants, &name)) {
+      taosMemoryFree(name);
+    }
+  }
+  tFreeSVstDescendantsRsp(&rsp);
+
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo) {
   CTG_API_ENTER();
 

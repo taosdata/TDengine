@@ -132,6 +132,11 @@ typedef struct SVtbScanDynCtrlInfo {
   // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
   SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation
   SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo> — columns needed by the filter (defines data block schema)
+  // EXPAND support
+  int32_t          expandLevel;             // INT32_MIN=none, 0=self+children, N>0=N levels, -1=all
+  SNodeList*       pExpandDescendants;      // borrowed from physi node — list of SValueNode(string: "db.stb")
+  SHashObj*        pExpandDescendantStbs;   // key: "db.stbName", value: NULL — descendant stb names for EXPAND
+  SHashObj*        pExpandTagNameToColId;   // key: tag name (string), value: col_id_t — parent's tag colId
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

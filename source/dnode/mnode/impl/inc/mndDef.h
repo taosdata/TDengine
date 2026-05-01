@@ -951,6 +951,11 @@ typedef struct {
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
+  int64_t     parentSuid;
+  int64_t     parentDbUid;
+  int8_t      inheritDepth;
+  int16_t     ownColStart;
+  int16_t     ownTagStart;
 } SStbObj;
 
 typedef struct {

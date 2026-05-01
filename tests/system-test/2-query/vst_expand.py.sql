@@ -1,0 +1,2 @@
+CREATE DATABASE IF NOT EXISTS db_expand VGROUPS 2;
+USE db_expand;

@@ -215,6 +215,8 @@ SNode*     createSubstrFunctionNodeExt(SAstCreateContext* pCxt, SNode* pExpr, SN
 SNode*     createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
 SNode*     createNodeListNodeEx(SAstCreateContext* pCxt, SNode* p1, SNode* p2);
 SNode*     createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pTableAlias);
+SNode*     createRealTableNodeWithExpand(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName,
+                                         SToken* pTableAlias, int32_t expandLevel);
 SNode*     createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type, SToken* pTableAlias);
 SNode*     createStreamNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pStreamName);
 SNode*     createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias);
@@ -325,6 +327,9 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags,
                                  SNodeList* pSpecificTagRefs, SNodeList* pTagRefs);
+SNode* createCreateInheritedVStableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                        SNode* pParentRealTable, SNodeList* pNewCols, SNodeList* pNewTags,
+                                        SNode* pOptions);
 SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
                                           SNodeList* pSpecificTags, const SToken* pFilePath);
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);

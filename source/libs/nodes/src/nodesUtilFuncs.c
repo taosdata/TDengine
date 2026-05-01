@@ -591,6 +591,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       code = makeNode(type, sizeof(SCreateVSubTableStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT:
+      code = makeNode(type, sizeof(SCreateInheritedVStableStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
       code = makeNode(type, sizeof(SCreateSubTableFromFileClause), &pNode);
       break;
@@ -1241,6 +1244,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       code = makeNode(type, sizeof(SShowValidateVirtualTable), &pNode);
       break;
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
+      code = makeNode(type, sizeof(SShowStmt), &pNode);
+      break;
     default:
 
       code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -1820,6 +1826,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pValsOfTags);
       nodesDestroyList(pStmt->pSpecificTagRefs);
       nodesDestroyList(pStmt->pTagRefs);
+      break;
+    }
+    case QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT: {
+      SCreateInheritedVStableStmt* pStmt = (SCreateInheritedVStableStmt*)pNode;
+      nodesDestroyList(pStmt->pNewCols);
+      nodesDestroyList(pStmt->pNewTags);
+      nodesDestroyNode((SNode*)pStmt->pOptions);
       break;
     }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {

@@ -37,7 +37,8 @@
 #define STB_VER_SUPPORT_COMP    2
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
-#define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
+#define STB_VER_SUPPORT_INHERIT 5
+#define STB_VER_NUMBER          STB_VER_SUPPORT_INHERIT
 #define STB_RESERVE_SIZE        55
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
@@ -54,6 +55,7 @@ static int32_t  mndProcessTrimDbWalRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t  mndRetrieveVstableInherits(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
@@ -68,6 +70,8 @@ static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessDropTbWithTsma(SRpcMsg *pReq);
 static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pReq);
 static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp);
+static int32_t mndProcessGetVstDescendants(SRpcMsg *pReq);
+static bool    mndStbHasChildren(SMnode *pMnode, SStbObj *pStb);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -107,12 +111,16 @@ int32_t mndInitStb(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
   // mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_AUDIT_RECORD_RSP, mndProcessAuditRecordRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_VST_DESCENDANTS, mndProcessGetVstDescendants);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COL, mndRetrieveStbCol);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_COL, mndCancelGetNextStb);
+
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VSTABLE_INHERITS, mndRetrieveVstableInherits);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VSTABLE_INHERITS, mndCancelGetNextStb);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -210,6 +218,12 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
+  // since STB_VER_SUPPORT_INHERIT
+  SDB_SET_INT64(pRaw, dataPos, pStb->parentSuid, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->parentDbUid, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pStb->inheritDepth, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pStb->ownColStart, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pStb->ownTagStart, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -367,6 +381,20 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT8(pRaw, dataPos, &pStb->secureDelete, _OVER)
   } else {
     pStb->secureDelete = 0;
+  }
+
+  if (sver < STB_VER_SUPPORT_INHERIT) {
+    pStb->parentSuid = 0;
+    pStb->parentDbUid = 0;
+    pStb->inheritDepth = 0;
+    pStb->ownColStart = 0;
+    pStb->ownTagStart = 0;
+  } else {
+    SDB_GET_INT64(pRaw, dataPos, &pStb->parentSuid, _OVER)
+    SDB_GET_INT64(pRaw, dataPos, &pStb->parentDbUid, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &pStb->inheritDepth, _OVER)
+    SDB_GET_INT16(pRaw, dataPos, &pStb->ownColStart, _OVER)
+    SDB_GET_INT16(pRaw, dataPos, &pStb->ownTagStart, _OVER)
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -1024,6 +1052,17 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
       pDst->pExtSchemas[i].typeMod = pField->typeMod;
     }
   }
+
+  // inheritance fields
+  pDst->parentSuid = pCreate->parentSuid;
+  pDst->inheritDepth = pCreate->inheritDepth;
+  pDst->ownColStart = pCreate->ownColStart;
+  pDst->ownTagStart = pCreate->ownTagStart;
+  if (pCreate->parentSuid != 0) {
+    // parentDbUid is same as current db since mnode resolved it
+    pDst->parentDbUid = pDb->uid;
+  }
+
   TAOS_RETURN(code);
 }
 int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname) {
@@ -1750,6 +1789,27 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(pDst.pCmpr);
     taosMemoryFreeClear(pDst.pExtSchemas);
   } else {
+    // validate inheritance if parentSuid is set
+    if (createReq.parentSuid != 0) {
+      SStbObj *pParentStb = mndAcquireStb(pMnode, createReq.parentStbFName);
+      if (pParentStb == NULL) {
+        code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
+        goto _OVER;
+      }
+      if (pParentStb->virtualStb != 1) {
+        mndReleaseStb(pMnode, pParentStb);
+        code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
+        goto _OVER;
+      }
+      // check inheritance depth (max 10)
+      int8_t parentDepth = pParentStb->inheritDepth;
+      mndReleaseStb(pMnode, pParentStb);
+      if (parentDepth + 1 > 10) {
+        code = TSDB_CODE_MND_VST_INHERIT_DEPTH_EXCEED;
+        goto _OVER;
+      }
+      createReq.inheritDepth = parentDepth + 1;
+    }
     code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -2950,6 +3010,11 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       code = mndAddSuperTableColumn(pOld, &stbObj, pAlter, pAlter->numOfFields, 0);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      // reject DROP COLUMN if this VST has children (inherited columns cannot be dropped)
+      if (pOld->virtualStb && mndStbHasChildren(pMnode, (SStbObj*)pOld)) {
+        code = TSDB_CODE_MND_VST_HAS_CHILDREN;
+        break;
+      }
       pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndDropSuperTableColumn(pMnode, pOld, &stbObj, pField0->name);
       break;
@@ -2975,6 +3040,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   }
 
   if (code != 0) goto _OVER;
+
   if (updateTagIndex == false) {
     code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
   } else {
@@ -3189,6 +3255,26 @@ static int32_t mndProcessTrimDbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbWalRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
 
+// Check if a VST has children (any STB with parentSuid == pStb->uid)
+static bool mndStbHasChildren(SMnode *pMnode, SStbObj *pStb) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  bool  hasChild = false;
+  while (1) {
+    SStbObj *pChild = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pChild);
+    if (pIter == NULL) break;
+    if (pChild->parentSuid == pStb->uid) {
+      hasChild = true;
+      sdbRelease(pSdb, pChild);
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
+    sdbRelease(pSdb, pChild);
+  }
+  return hasChild;
+}
+
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
@@ -3243,6 +3329,14 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
+  }
+
+  // reject DROP if this VST has child VSTs
+  if (pStb->parentSuid != 0 || pStb->virtualStb) {
+    if (mndStbHasChildren(pMnode, pStb)) {
+      code = TSDB_CODE_MND_VST_HAS_CHILDREN;
+      goto _OVER;
+    }
   }
 
   code = mndDropStb(pMnode, pReq, pDb, pStb);
@@ -4015,6 +4109,100 @@ static void mndCancelGetNextStb(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_STB);
 }
 
+static int32_t mndRetrieveVstableInherits(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode  *pMnode = pReq->info.node;
+  SSdb    *pSdb = pMnode->pSdb;
+  int32_t  numOfRows = 0;
+  SStbObj *pStb = NULL;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
+    if (pShow->pIter == NULL) break;
+
+    if (pStb->parentSuid == 0) {
+      sdbRelease(pSdb, pStb);
+      continue;
+    }
+
+    // Find parent STB to get its name
+    SStbObj *pParent = NULL;
+    void    *pParentIter = NULL;
+    bool     found = false;
+    while (1) {
+      pParentIter = sdbFetch(pSdb, SDB_STB, pParentIter, (void **)&pParent);
+      if (pParentIter == NULL) break;
+      if (pParent->uid == pStb->parentSuid) {
+        found = true;
+        sdbCancelFetchByType(pSdb, pParentIter, SDB_STB);
+        break;
+      }
+      sdbRelease(pSdb, pParent);
+    }
+
+    int32_t cols = 0;
+    SColumnInfoData *pColInfo;
+    char     buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+    // parent_db_name
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (found) {
+      const char *parentDbName = mndGetDbStr(pParent->db);
+      if (parentDbName == NULL) parentDbName = pParent->db;
+      STR_TO_VARSTR(buf, parentDbName);
+    } else {
+      STR_TO_VARSTR(buf, "");
+    }
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    // parent_stable_name
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (found) {
+      const char *parentStbName = mndGetStbStr(pParent->name);
+      STR_TO_VARSTR(buf, parentStbName);
+    } else {
+      STR_TO_VARSTR(buf, "");
+    }
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    // parent_uid
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->parentSuid, false);
+
+    // child_db_name
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    const char *childDbName = mndGetDbStr(pStb->db);
+    if (childDbName == NULL) childDbName = pStb->db;
+    STR_TO_VARSTR(buf, childDbName);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    // child_stable_name
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    const char *childStbName = mndGetStbStr(pStb->name);
+    STR_TO_VARSTR(buf, childStbName);
+    colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    // child_uid
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->uid, false);
+
+    // depth
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    int16_t depth = pStb->inheritDepth;
+    colDataSetVal(pColInfo, numOfRows, (const char *)&depth, false);
+
+    // create_time
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->createdTime, false);
+
+    numOfRows++;
+    if (found) sdbRelease(pSdb, pParent);
+    sdbRelease(pSdb, pStb);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
 const char *mndGetStbStr(const char *src) {
   char *posDb = strstr(src, TS_PATH_DELIMITER);
   if (posDb != NULL) ++posDb;
@@ -4024,6 +4212,118 @@ const char *mndGetStbStr(const char *src) {
   if (posStb != NULL) ++posStb;
   if (posStb == NULL) return posDb;
   return posStb;
+}
+
+static int32_t mndProcessGetVstDescendants(SRpcMsg *pReq) {
+  SMnode             *pMnode = pReq->info.node;
+  SSdb               *pSdb = pMnode->pSdb;
+  int32_t             code = 0;
+  SVstDescendantsReq  req = {0};
+  SVstDescendantsRsp  rsp = {0};
+
+  code = tDeserializeSVstDescendantsReq(pReq->pCont, pReq->contLen, &req);
+  if (code != 0) {
+    mError("vstDescendants: deserialize failed, code:%d", code);
+    goto _OVER;
+  }
+
+  mInfo("vstDescendants: dbFName=%s stbName=%s maxLevel=%d", req.dbFName, req.stbName, req.maxLevel);
+
+  // Find the parent STB by dbFName + stbName
+  char stbFName[TSDB_TABLE_FNAME_LEN];
+  (void)snprintf(stbFName, sizeof(stbFName), "%s.%s", req.dbFName, req.stbName);
+  SStbObj *pParent = mndAcquireStb(pMnode, stbFName);
+  if (NULL == pParent) {
+    mError("vstDescendants: parent stb not found: %s", stbFName);
+    code = TSDB_CODE_MND_STB_NOT_EXIST;
+    goto _OVER;
+  }
+  uint64_t parentUid = pParent->uid;
+  mndReleaseStb(pMnode, pParent);
+  mInfo("vstDescendants: found parent uid=%" PRIu64, parentUid);
+
+  // BFS to find all descendants
+  SArray *queue = taosArrayInit(4, sizeof(uint64_t));  // UIDs to process
+  SArray *result = taosArrayInit(4, sizeof(char *));   // "db.stb" names
+  if (NULL == queue || NULL == result) {
+    code = terrno;
+    goto _OVER;
+  }
+  (void)taosArrayPush(queue, &parentUid);
+
+  int32_t level = 0;
+  int32_t qStart = 0;
+  while (qStart < (int32_t)taosArrayGetSize(queue)) {
+    if (req.maxLevel > 0 && level >= req.maxLevel) break;
+    int32_t qEnd = (int32_t)taosArrayGetSize(queue);
+    for (int32_t qi = qStart; qi < qEnd; ++qi) {
+      uint64_t curUid = *(uint64_t *)taosArrayGet(queue, qi);
+      // Find all STBs with parentSuid == curUid
+      void    *pIter = NULL;
+      SStbObj *pStb = NULL;
+      while (1) {
+        pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+        if (NULL == pIter) break;
+        if (pStb->parentSuid == curUid) {
+          (void)taosArrayPush(queue, &pStb->uid);
+          // Build "db.stb" name
+          const char *dbName = mndGetDbStr(pStb->db);
+          if (NULL == dbName) dbName = pStb->db;
+          const char *stbName = mndGetStbStr(pStb->name);
+          char       *fullName = taosMemoryMalloc(TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 2);
+          if (fullName) {
+            (void)snprintf(fullName, TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 2, "%s.%s", dbName, stbName);
+            (void)taosArrayPush(result, &fullName);
+          }
+        }
+        sdbRelease(pSdb, pStb);
+      }
+    }
+    qStart = qEnd;
+    level++;
+  }
+
+  rsp.numOfDescendants = (int32_t)taosArrayGetSize(result);
+  mInfo("vstDescendants: BFS found %d descendants at %d levels", rsp.numOfDescendants, level);
+  if (rsp.numOfDescendants > 0) {
+    rsp.pDescendants = taosMemoryCalloc(rsp.numOfDescendants, sizeof(char *));
+    if (NULL == rsp.pDescendants) {
+      code = terrno;
+      goto _OVER;
+    }
+    for (int32_t i = 0; i < rsp.numOfDescendants; ++i) {
+      rsp.pDescendants[i] = *(char **)taosArrayGet(result, i);
+    }
+  }
+
+  int32_t rspLen = tSerializeSVstDescendantsRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = rspLen;
+    goto _OVER;
+  }
+  void *pRsp = rpcMallocCont(rspLen);
+  if (NULL == pRsp) {
+    code = terrno;
+    goto _OVER;
+  }
+  (void)tSerializeSVstDescendantsRsp(pRsp, rspLen, &rsp);
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+
+_OVER:
+  // Free the result array without freeing strings (they're owned by rsp or already freed)
+  if (code != 0 && result) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(result); ++i) {
+      char *name = *(char **)taosArrayGet(result, i);
+      taosMemoryFree(name);
+    }
+  }
+  taosArrayDestroy(queue);
+  taosArrayDestroy(result);
+  if (code != 0) {
+    taosMemoryFree(rsp.pDescendants);
+  }
+  return code;
 }
 
 static int32_t mndCheckIndexReq(SCreateTagIndexReq *pReq) {

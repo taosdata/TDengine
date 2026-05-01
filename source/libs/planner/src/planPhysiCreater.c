@@ -2001,6 +2001,10 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   // Clone TagRef fields from logic node to physical node
   pScanPhysiNode->hasTagRef = pScanLogicNode->hasTagRef;
   pScanPhysiNode->hasLocalTag = pScanLogicNode->hasLocalTag;
+  pScanPhysiNode->expandLevel = pScanLogicNode->expandLevel;
+  if (pScanLogicNode->pExpandDescendants) {
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pExpandDescendants, &pScanPhysiNode->pExpandDescendants));
+  }
 
   if (pScanLogicNode->pTagRefSources) {
     PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pTagRefSources, &pScanPhysiNode->pTagRefSources));
@@ -2287,6 +2291,11 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   pDynCtrl->vtbScan.tagRefSourceSuid = pLogicNode->vtbScan.tagRefSourceSuid;
   pDynCtrl->vtbScan.tagRefSourceColId = pLogicNode->vtbScan.tagRefSourceColId;
   pDynCtrl->vtbScan.tagRefSourceColType = pLogicNode->vtbScan.tagRefSourceColType;
+  pDynCtrl->vtbScan.expandLevel = pLogicNode->vtbScan.expandLevel;
+  if (pLogicNode->vtbScan.pExpandDescendants) {
+    code = nodesCloneList(pLogicNode->vtbScan.pExpandDescendants, &pDynCtrl->vtbScan.pExpandDescendants);
+    if (code) goto _return;
+  }
 
   return code;
 _return:

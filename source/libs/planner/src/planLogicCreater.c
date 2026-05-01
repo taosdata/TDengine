@@ -1138,6 +1138,10 @@ static int32_t makeVirtualScanLogicNode(SLogicPlanContext* pCxt, SVirtualTableNo
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
   tstrncpy(pScan->tableName.dbname, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pScan->tableName.tname, pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  pScan->expandLevel = pVirtualTable->expandLevel;
+  if (pVirtualTable->pExpandDescendants) {
+    PLAN_ERR_RET(nodesCloneList(pVirtualTable->pExpandDescendants, &pScan->pExpandDescendants));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2574,8 +2578,13 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(addInsColumnScanCol((SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
   ((SScanLogicNode *)pInsColumnsScan)->node.dynamicOp = true;
-  ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
-  ((SScanLogicNode *)pInsColumnsScan)->stableId = pVtableScan->stableId;
+  // When EXPAND is active (non-zero level), don't filter ins_vc_cols by stableId so that
+  // descendant VCTs are also returned. DynQueryCtrl's needCollect/needExpand
+  // logic handles proper filtering.
+  if (pVtableScan->expandLevel == INT32_MIN || pVtableScan->expandLevel == 0) {
+    ((SScanLogicNode *)pInsColumnsScan)->virtualStableScan = true;
+    ((SScanLogicNode *)pInsColumnsScan)->stableId = pVtableScan->stableId;
+  }
 
   // Dynamic query control node -> Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynCtrl));
@@ -2603,6 +2612,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
   tstrncpy(pDynCtrl->vtbScan.tbName, pVtableScan->tableName.tname, TSDB_TABLE_NAME_LEN);
+  pDynCtrl->vtbScan.expandLevel = pVtableScan->expandLevel;
+  if (pVtableScan->pExpandDescendants) {
+    PLAN_ERR_JRET(nodesCloneList(pVtableScan->pExpandDescendants, &pDynCtrl->vtbScan.pExpandDescendants));
+  }
 
   // Extract tag-ref source info for filter optimization (before split replaces children with Exchange)
   if (pVtableScan->hasTagRef) {

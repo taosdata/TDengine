@@ -169,6 +169,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateVirtualtableStmt";
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       return "CreateVirtualsubtableStmt";
+    case QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT:
+      return "CreateInheritedVStableStmt";
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return "CreateMultiTableStmt";
     case QUERY_NODE_DROP_TABLE_CLAUSE:
@@ -433,6 +435,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowInstancesStmt";
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       return "ShowValidateVirtualTableStmt";
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
+      return "ShowVStableInheritsStmt";
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return "ShowRetentionDetailsStmt";
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
@@ -2087,6 +2091,8 @@ static const char* jkVirtualTableScanLogicPlanRefTagCols = "RefTagCols";
 static const char* jkVirtualTableScanLogicPlanTagFilterCond = "TagFilterCond";
 static const char* jkVirtualTableScanLogicPlanHasTagRef = "HasTagRef";
 static const char* jkVirtualTableScanLogicPlanHasLocalTag = "HasLocalTag";
+static const char* jkVirtualTableScanLogicPlanExpandLevel = "ExpandLevel";
+static const char* jkVirtualTableScanLogicPlanExpandDescendants = "ExpandDescendants";
 static const char* jkTagRefSourceLogicPlanSourceTableName = "SourceTableName";
 static const char* jkTagRefSourceLogicPlanSourceSuid = "SourceSuid";
 static const char* jkTagRefSourceLogicPlanSourceId = "SourceId";
@@ -2138,6 +2144,12 @@ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasLocalTag, pNode->hasLocalTag);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanLogicPlanExpandLevel, pNode->expandLevel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanExpandDescendants, pNode->pExpandDescendants);
+  }
   return code;
 }
 
@@ -2184,6 +2196,12 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasLocalTag, &pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkVirtualTableScanLogicPlanExpandLevel, &pNode->expandLevel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanExpandDescendants, &pNode->pExpandDescendants);
   }
   return code;
 }
@@ -2774,6 +2792,8 @@ static const char* jkVirtualTableScanPhysiPlanRefTagCols = "RefTagCols";
 static const char* jkVirtualTableScanPhysiPlanTagFilterCond = "TagFilterCond";
 static const char* jkVirtualTableScanPhysiPlanHasTagRef = "HasTagRef";
 static const char* jkVirtualTableScanPhysiPlanHasLocalTag = "HasLocalTag";
+static const char* jkVirtualTableScanPhysiPlanExpandLevel = "ExpandLevel";
+static const char* jkVirtualTableScanPhysiPlanExpandDescendants = "ExpandDescendants";
 static const char* jkTagRefSourcePhysiPlanSourceTableName = "SourceTableName";
 static const char* jkTagRefSourcePhysiPlanSourceSuid = "SourceSuid";
 static const char* jkTagRefSourcePhysiPlanSourceId = "SourceId";
@@ -2837,6 +2857,12 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanHasLocalTag, pNode->hasLocalTag);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTableScanPhysiPlanExpandLevel, pNode->expandLevel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanExpandDescendants, pNode->pExpandDescendants);
+  }
 
   return code;
 }
@@ -2890,6 +2916,12 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanHasLocalTag, &pNode->hasLocalTag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkVirtualTableScanPhysiPlanExpandLevel, &pNode->expandLevel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanExpandDescendants, &pNode->pExpandDescendants);
   }
 
   return code;
@@ -4635,6 +4667,8 @@ static const char* jkDynQueryCtrlPhysiPlanRefTagCols = "RefTagCols";
 static const char* jkDynQueryCtrlPhysiPlanTagRefSourceSuid = "TagRefSourceSuid";
 static const char* jkDynQueryCtrlPhysiPlanTagRefSourceColId = "TagRefSourceColId";
 static const char* jkDynQueryCtrlPhysiPlanTagRefSourceColType = "TagRefSourceColType";
+static const char* jkDynQueryCtrlPhysiPlanExpandLevel = "ExpandLevel";
+static const char* jkDynQueryCtrlPhysiPlanExpandDescendants = "ExpandDescendants";
 
 
 static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
@@ -4742,6 +4776,12 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColType, pNode->vtbScan.tagRefSourceColType);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanExpandLevel, pNode->vtbScan.expandLevel);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanExpandDescendants, pNode->vtbScan.pExpandDescendants);
         }
         break;
       }
@@ -4865,6 +4905,12 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColType, pNode->vtbScan.tagRefSourceColType, code);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetIntValue(pJson, jkDynQueryCtrlPhysiPlanExpandLevel, &pNode->vtbScan.expandLevel);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanExpandDescendants, &pNode->vtbScan.pExpandDescendants);
         }
         break;
       }
@@ -6515,6 +6561,8 @@ static const char* jkRealTableMeta = "Meta";
 static const char* jkRealTableVgroupsInfoSize = "VgroupsInfoSize";
 static const char* jkRealTableVgroupsInfo = "VgroupsInfo";
 static const char* jkRealTableSmaIndexes = "SmaIndexes";
+static const char* jkRealTableHasExpand = "HasExpand";
+static const char* jkRealTableExpandLevel = "ExpandLevel";
 
 static int32_t realTableNodeToJson(const void* pObj, SJson* pJson) {
   const SRealTableNode* pNode = (const SRealTableNode*)pObj;
@@ -6534,6 +6582,12 @@ static int32_t realTableNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddTArray(pJson, jkRealTableSmaIndexes, tableIndexInfoToJson, pNode->pSmaIndexes);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRealTableHasExpand, pNode->hasExpand);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRealTableExpandLevel, pNode->expandLevel);
   }
 
   return code;
@@ -6559,6 +6613,12 @@ static int32_t jsonToRealTableNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code =
         tjsonToTArray(pJson, jkRealTableSmaIndexes, jsonToTableIndexInfo, &pNode->pSmaIndexes, sizeof(STableIndexInfo));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRealTableHasExpand, &pNode->hasExpand);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkRealTableExpandLevel, &pNode->expandLevel);
   }
 
   return code;

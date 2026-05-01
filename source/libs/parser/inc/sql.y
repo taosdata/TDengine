@@ -1049,6 +1049,10 @@ cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
   NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+cmd ::= CREATE VIRTUAL STABLE not_exists_opt(A) full_table_name(B) BASE ON full_table_name(C)
+  NK_LP column_def_list(D) NK_RP tags_def(E) table_options(F).                    { pCxt->pRootNode = createCreateInheritedVStableStmt(pCxt, A, B, C, D, E, F); }
+cmd ::= CREATE VIRTUAL STABLE not_exists_opt(A) full_table_name(B) BASE ON full_table_name(C)
+  NK_LP column_def_list(D) NK_RP table_options(E).                                { pCxt->pRootNode = createCreateInheritedVStableStmt(pCxt, A, B, C, D, NULL, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP.                                                 { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
@@ -1377,6 +1381,7 @@ cmd ::= SHOW SSMIGRATES.                                                        
 cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
 cmd ::= SHOW VTABLE VALIDATE FOR full_table_name(A).                             { pCxt->pRootNode = createShowValidateVirtualTableStmt(pCxt, QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT, A); 
 }
+cmd ::= SHOW VSTABLE INHERITS.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
@@ -2504,12 +2509,19 @@ table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).
 table_reference(A) ::= table_primary(B).                                          { A = B; }
 table_reference(A) ::= joined_table(B).                                           { A = B; }
 
-table_primary(A) ::= table_name(B) alias_opt(C).                                  { A = createRealTableNode(pCxt, NULL, &B, &C); }
-table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
+table_primary(A) ::= table_name(B) expand_opt(C) alias_opt(D).                    { A = createRealTableNodeWithExpand(pCxt, NULL, &B, &D, C); }
+table_primary(A) ::= db_name(B) NK_DOT table_name(C) expand_opt(D) alias_opt(E). { A = createRealTableNodeWithExpand(pCxt, &B, &C, &E, D); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
 table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
+
+%type expand_opt                                                                  { int32_t }
+%destructor expand_opt                                                            { }
+expand_opt(A) ::= .                                                               { A = INT32_MIN; }
+expand_opt(A) ::= EXPAND.                                                         { A = 0; }
+expand_opt(A) ::= EXPAND NK_LP NK_INTEGER(B) NK_RP.                               { A = taosStr2Int32(B.z, NULL, 10); }
+expand_opt(A) ::= EXPAND NK_LP NK_MINUS NK_INTEGER(B) NK_RP.                      { A = -taosStr2Int32(B.z, NULL, 10); }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { }

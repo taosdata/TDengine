@@ -1777,6 +1777,19 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
+        // For EXPAND: skip columns not needed by the current scan (descendant VCTs
+        // may have extra columns not in parent_vst's schema).
+        bool neededByOrgCond = false;
+        for (int32_t k = 0; k < pInfo->base.orgCond.numOfCols; ++k) {
+          if (pInfo->base.orgCond.colList[k].colId == kv->colId) {
+            neededByOrgCond = true;
+            break;
+          }
+        }
+        if (!neededByOrgCond) {
+          break;
+        }
+
         SDataType refType = {0};
         schemaToRefDataType(&schema->pSchema[j], extSchema ? extSchema[j].typeMod : 0, &refType);
         SColIdPair pPair = {.vtbColId = kv->colId,

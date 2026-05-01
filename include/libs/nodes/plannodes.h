@@ -196,6 +196,10 @@ typedef struct SVirtualScanLogicNode {
   // Flags
   bool          hasTagRef;        // true if has tag references
   bool          hasLocalTag;      // true if has local tags
+
+  // EXPAND support
+  int32_t       expandLevel;      // INT32_MIN=none, 0=self+children, N>0=N levels, -1=all
+  SNodeList*    pExpandDescendants;  // list of SValueNode (string "db.stb")
 } SVirtualScanLogicNode;
 
 // Tag reference column information
@@ -307,6 +311,9 @@ typedef struct SDynQueryCtrlVtbScan {
   uint64_t      tagRefSourceSuid;     // Source STB UID (0 = not available)
   col_id_t      tagRefSourceColId;    // Source tag column ID
   int8_t        tagRefSourceColType;  // Source tag column data type
+  // EXPAND support
+  int32_t       expandLevel;          // INT32_MIN=none, 0=self+children, N>0=N levels, -1=all
+  SNodeList*    pExpandDescendants;   // list of SValueNode(string: "db.stbName") — descendant VST names
 } SDynQueryCtrlVtbScan;
 
 
@@ -592,6 +599,10 @@ typedef struct SVirtualScanPhysiNode {
   // Flags
   bool           hasTagRef;        // true if has tag references
   bool           hasLocalTag;      // true if has local tags
+
+  // EXPAND support
+  int32_t        expandLevel;      // INT32_MIN=none, 0=self+children, N>0=N levels, -1=all
+  SNodeList*     pExpandDescendants;  // list of SValueNode (string "db.stb")
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
@@ -783,6 +794,9 @@ typedef struct SVtbScanDynCtrlBasic {
   uint64_t   tagRefSourceSuid;     // Source STB UID (0 = not available)
   col_id_t   tagRefSourceColId;    // Source tag column ID
   int8_t     tagRefSourceColType;  // Source tag column data type
+  // EXPAND support
+  int32_t    expandLevel;          // INT32_MIN=none, 0=self+children, N>0=N levels, -1=all
+  SNodeList* pExpandDescendants;   // list of SValueNode(string: "db.stbName") — descendant VST names
 } SVtbScanDynCtrlBasic;
 
 typedef struct SVtbWindowDynCtrlBasic {

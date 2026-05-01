@@ -174,11 +174,15 @@ static int32_t setTagColumnValue(SColumnInfoData* pDstCol, SColumnInfoData* pSrc
   int32_t code = TSDB_CODE_SUCCESS;
 
   colInfoDataCleanup(pDstCol, rows);
-  if (pSrcCol == NULL || colDataIsNull_s(pSrcCol, 0) || IS_JSON_NULL(pSrcCol->info.type, colDataGetData(pSrcCol, 0))) {
-    if (pResolvedTagVal != NULL) {
-      return setTagValueToColumn(pDstCol, pResolvedTagVal, rows);
-    }
 
+  // Prefer explicitly resolved tag value (from resolveTagValsForVtbChild) when available.
+  // For EXPAND descendants, the tag scan may return stale/garbage data for var-length columns
+  // because the descendant's colIds differ from the parent's. The resolved tag is always correct.
+  if (pResolvedTagVal != NULL) {
+    return setTagValueToColumn(pDstCol, pResolvedTagVal, rows);
+  }
+
+  if (pSrcCol == NULL || colDataIsNull_s(pSrcCol, 0) || IS_JSON_NULL(pSrcCol->info.type, colDataGetData(pSrcCol, 0))) {
     colDataSetNNULL(pDstCol, 0, rows);
     return TSDB_CODE_SUCCESS;
   }

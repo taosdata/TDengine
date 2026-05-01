@@ -5099,6 +5099,8 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_SUID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_ID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EXPAND_LEVEL,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EXPAND_DESCENDANTS,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5206,6 +5208,12 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeI8(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE, pNode->vtbScan.tagRefSourceColType);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EXPAND_LEVEL, pNode->vtbScan.expandLevel);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EXPAND_DESCENDANTS, nodeListToMsg, pNode->vtbScan.pExpandDescendants);
         }
         break;
       }
@@ -5327,6 +5335,12 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE:
         code = tlvDecodeI8(pTlv, &pNode->vtbScan.tagRefSourceColType);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EXPAND_LEVEL:
+        code = tlvDecodeI32(pTlv, &pNode->vtbScan.expandLevel);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EXPAND_DESCENDANTS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->vtbScan.pExpandDescendants);
         break;
       default:
         break;

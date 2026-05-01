@@ -216,6 +216,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_JOBS,
   TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
+  TSDB_MGMT_TABLE_VSTABLE_INHERITS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -569,6 +570,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
+  QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT,
+  QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1319,6 +1322,11 @@ typedef struct {
   int64_t  keep;
   int8_t   virtualStb;
   int8_t   secureDelete;
+  int64_t  parentSuid;
+  char     parentStbFName[TSDB_TABLE_FNAME_LEN];
+  int8_t   inheritDepth;
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -2158,6 +2166,24 @@ typedef struct {
 int32_t tSerializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
 int32_t tDeserializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
 void    tDestroySVStbRefDbsRsp(void* rsp);
+
+// VST descendants request/response
+typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    stbName[TSDB_TABLE_NAME_LEN];
+  int32_t maxLevel;  // -1 for all levels, N for N levels
+} SVstDescendantsReq;
+
+typedef struct {
+  int32_t numOfDescendants;
+  char**  pDescendants;  // array of "db.stb" full names
+} SVstDescendantsRsp;
+
+int32_t tSerializeSVstDescendantsReq(void* buf, int32_t bufLen, SVstDescendantsReq* pReq);
+int32_t tDeserializeSVstDescendantsReq(void* buf, int32_t bufLen, SVstDescendantsReq* pReq);
+int32_t tSerializeSVstDescendantsRsp(void* buf, int32_t bufLen, SVstDescendantsRsp* pRsp);
+int32_t tDeserializeSVstDescendantsRsp(void* buf, int32_t bufLen, SVstDescendantsRsp* pRsp);
+void    tFreeSVstDescendantsRsp(SVstDescendantsRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -4916,6 +4942,10 @@ typedef struct SVCreateStbReq {
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
   int8_t          secureDelete;
+  int64_t         parentSuid;
+  int8_t          inheritDepth;
+  int16_t         ownColStart;
+  int16_t         ownTagStart;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);

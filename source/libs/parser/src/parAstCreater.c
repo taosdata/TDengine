@@ -1678,6 +1678,17 @@ _err:
   return NULL;
 }
 
+SNode* createRealTableNodeWithExpand(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTableName,
+                                     SToken* pTableAlias, int32_t expandLevel) {
+  SNode* pNode = createRealTableNode(pCxt, pDbName, pTableName, pTableAlias);
+  if (NULL != pNode) {
+    SRealTableNode* pReal = (SRealTableNode*)pNode;
+    pReal->hasExpand = (expandLevel != INT32_MIN);
+    pReal->expandLevel = (expandLevel == INT32_MIN) ? 0 : expandLevel;
+  }
+  return pNode;
+}
+
 SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
 
@@ -3657,6 +3668,33 @@ _err:
   nodesDestroyNode(pRealTable);
   nodesDestroyList(pCols);
   nodesDestroyList(pTags);
+  nodesDestroyNode(pOptions);
+  return NULL;
+}
+
+SNode* createCreateInheritedVStableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                        SNode* pParentRealTable, SNodeList* pNewCols, SNodeList* pNewTags,
+                                        SNode* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateInheritedVStableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->parentDbName, ((SRealTableNode*)pParentRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->parentTableName, ((SRealTableNode*)pParentRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pNewCols = pNewCols;
+  pStmt->pNewTags = pNewTags;
+  pStmt->pOptions = (STableOptions*)pOptions;
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pParentRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pParentRealTable);
+  nodesDestroyList(pNewCols);
+  nodesDestroyList(pNewTags);
   nodesDestroyNode(pOptions);
   return NULL;
 }

@@ -308,6 +308,8 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
   bool               asSingleTable; // only used in stream calc query
+  bool               hasExpand;     // true if EXPAND keyword was present
+  int32_t            expandLevel;   // 0=self, N>0=N levels, -1=all descendants
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -327,6 +329,8 @@ typedef struct SVirtualTableNode {
   struct STableMeta* pMeta;
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
+  int32_t            expandLevel;  // INT32_MIN=none, 0=self+children, N>0=N levels, -1=all
+  SNodeList*         pExpandDescendants;  // list of SValueNode (string "db.stb")
 } SVirtualTableNode;
 
 typedef struct SViewNode {

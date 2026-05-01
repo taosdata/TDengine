@@ -395,6 +395,9 @@ int32_t catalogGetExpiredTsmas(SCatalog* pCtg, STSMAVersion** tsmas, uint32_t* n
 
 int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg);
 
+int32_t catalogGetVstDescendants(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, const char* stbName,
+                                 int32_t maxLevel, SArray** pDescendants);
+
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);

@@ -341,6 +341,18 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
 } SCreateVSubTableStmt;
 
+typedef struct SCreateInheritedVStableStmt {
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           parentDbName[TSDB_DB_NAME_LEN];
+  char           parentTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pNewCols;
+  SNodeList*     pNewTags;
+  STableOptions* pOptions;
+} SCreateInheritedVStableStmt;
+
 typedef struct SCreateSubTableClause {
   ENodeType      type;
   char           dbName[TSDB_DB_NAME_LEN];

@@ -344,6 +344,8 @@ static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDs
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   COPY_CHAR_ARRAY_FIELD(qualDbName);
   COPY_SCALAR_FIELD(ratio);
+  COPY_SCALAR_FIELD(hasExpand);
+  COPY_SCALAR_FIELD(expandLevel);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -693,6 +695,8 @@ static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtual
   CLONE_NODE_FIELD(pTagFilterCond);
   COPY_SCALAR_FIELD(hasTagRef);
   COPY_SCALAR_FIELD(hasLocalTag);
+  COPY_SCALAR_FIELD(expandLevel);
+  CLONE_NODE_LIST_FIELD(pExpandDescendants);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -947,6 +951,8 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_SCALAR_FIELD(vtbScan.tagRefSourceSuid);
   COPY_SCALAR_FIELD(vtbScan.tagRefSourceColId);
   COPY_SCALAR_FIELD(vtbScan.tagRefSourceColType);
+  COPY_SCALAR_FIELD(vtbScan.expandLevel);
+  CLONE_NODE_LIST_FIELD(vtbScan.pExpandDescendants);
   COPY_SCALAR_FIELD(vtbWindow.wstartSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wendSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wdurationSlotId);
@@ -1006,6 +1012,8 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   CLONE_NODE_FIELD(pTagFilterCond);
   COPY_SCALAR_FIELD(hasTagRef);
   COPY_SCALAR_FIELD(hasLocalTag);
+  COPY_SCALAR_FIELD(expandLevel);
+  CLONE_NODE_LIST_FIELD(pExpandDescendants);
   return TSDB_CODE_SUCCESS;
 }
 

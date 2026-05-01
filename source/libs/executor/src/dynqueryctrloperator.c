@@ -284,6 +284,14 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
     taosArrayDestroy(pVtbScan->pTagRefFilterColInfos);
     pVtbScan->pTagRefFilterColInfos = NULL;
   }
+  if (pVtbScan->pExpandDescendantStbs) {
+    taosHashCleanup(pVtbScan->pExpandDescendantStbs);
+    pVtbScan->pExpandDescendantStbs = NULL;
+  }
+  if (pVtbScan->pExpandTagNameToColId) {
+    taosHashCleanup(pVtbScan->pExpandTagNameToColId);
+    pVtbScan->pExpandTagNameToColId = NULL;
+  }
 }
 
 void destroyWinArray(void *info) {
@@ -461,7 +469,7 @@ static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, co
   STagVal dstVal = {.cid = dstColId, .type = pSchema->type};
 
   if (!tTagGet(pTagData, &srcVal)) {
-    qDebug("appendResolvedTagVal: tag cid=%d not found in source, treating as NULL", pSchema->colId);
+    qWarn("appendResolvedTagVal: tag cid=%d not found in source, treating as NULL", pSchema->colId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2343,6 +2351,52 @@ _ref_cleanup:
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
+  // EXPAND: resolve tags for descendant VCTs from metadata by name
+  // The tag scan uses parent's colIds which don't match descendant's colIds,
+  // so we fetch the VCT's table config and match tags by name.
+  if (pVtbScan->pExpandTagNameToColId != NULL && taosHashGetSize(pVtbScan->pExpandTagNameToColId) > 0 &&
+      vtbName != NULL && vtbName[0] != '\0') {
+    SName     vtbTbName = {0};
+    char      vtbDbFName[TSDB_DB_FNAME_LEN] = {0};
+    int32_t   vtbVgId = 0;
+    SDBVgInfo* vtbDbVgInfo = NULL;
+    STableCfgRsp vtbCfgRsp = {0};
+
+    toName(pVtbScan->acctId, pVtbScan->dbName, vtbName, &vtbTbName);
+    code = getDbVgInfo(pOperator, &vtbTbName, &vtbDbVgInfo);
+    if (code != TSDB_CODE_SUCCESS) goto _expand_cleanup;
+    code = tNameGetFullDbName(&vtbTbName, vtbDbFName);
+    if (code != TSDB_CODE_SUCCESS) goto _expand_cleanup;
+    code = getVgId(vtbDbVgInfo, vtbDbFName, &vtbVgId, vtbTbName.tname);
+    if (code != TSDB_CODE_SUCCESS) goto _expand_cleanup;
+
+    code = fetchRemoteTableCfg(pOperator, vtbDbVgInfo, vtbDbFName, vtbTbName.tname, vtbVgId, &vtbCfgRsp);
+    if (code != TSDB_CODE_SUCCESS) goto _expand_cleanup;
+
+    if (vtbCfgRsp.pTags != NULL && vtbCfgRsp.pSchemas != NULL) {
+      for (int32_t tagIdx = 0; tagIdx < vtbCfgRsp.numOfTags; ++tagIdx) {
+        SSchema* pSchema = &vtbCfgRsp.pSchemas[vtbCfgRsp.numOfColumns + tagIdx];
+        col_id_t* pParentColId = taosHashGet(pVtbScan->pExpandTagNameToColId,
+                                             pSchema->name, strlen(pSchema->name));
+        if (pParentColId == NULL) continue;
+
+        if (*ppResolvedTags == NULL) {
+          *ppResolvedTags = taosArrayInit(taosHashGetSize(pVtbScan->pExpandTagNameToColId), sizeof(STagVal));
+          QUERY_CHECK_NULL(*ppResolvedTags, code, lino, _expand_cleanup, terrno)
+        }
+        code = appendResolvedTagVal(*ppResolvedTags, *pParentColId, pSchema, (const STag*)vtbCfgRsp.pTags);
+        if (code != TSDB_CODE_SUCCESS) goto _expand_cleanup;
+      }
+    }
+
+_expand_cleanup:
+    tFreeSTableCfgRsp(&vtbCfgRsp);
+    if (code != TSDB_CODE_SUCCESS) {
+      qWarn("EXPAND tag resolution failed for VCT %s: %s (non-fatal)", vtbName, tstrerror(code));
+      code = TSDB_CODE_SUCCESS;  // non-fatal: tag will remain NULL
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 _return:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3567,6 +3621,24 @@ bool tableInfoNeedCollect(char *dbName, char *tbName, char *expectDbName, char *
   return false;
 }
 
+// Check if a child table belongs to a descendant VST (for EXPAND queries).
+// Returns true if the child's parent STB is a descendant of the queried STB.
+static bool tableInfoNeedCollectForExpand(SVtbScanDynCtrlInfo* pVtbScan, char *dbName, char *tbName) {
+  if (pVtbScan->pExpandDescendantStbs == NULL) {
+    return false;
+  }
+  // Build lookup key: "db.stbName"
+  char key[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 2];
+  int32_t dbLen = varDataLen(dbName);
+  int32_t tbLen = varDataLen(tbName);
+  memcpy(key, varDataVal(dbName), dbLen);
+  key[dbLen] = '.';
+  memcpy(key + dbLen + 1, varDataVal(tbName), tbLen);
+  key[dbLen + 1 + tbLen] = '\0';
+
+  return (taosHashGet(pVtbScan->pExpandDescendantStbs, key, strlen(key)) != NULL);
+}
+
 int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          line = 0;
@@ -4205,6 +4277,25 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     pSystableScanOp = pOperator->pDownstream[1];
   }
 
+  // EXPAND: build descendant hash from pre-computed list in plan node
+  if (pVtbScan->expandLevel != INT32_MIN && pVtbScan->pExpandDescendants) {
+    pVtbScan->pExpandDescendantStbs = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    QUERY_CHECK_NULL(pVtbScan->pExpandDescendantStbs, code, line, _return, terrno)
+
+    SNode* pNode = NULL;
+    FOREACH(pNode, pVtbScan->pExpandDescendants) {
+      if (nodeType(pNode) != QUERY_NODE_VALUE) continue;
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (pVal->literal && pVal->literal[0] != '\0') {
+        code = taosHashPut(pVtbScan->pExpandDescendantStbs, pVal->literal, strlen(pVal->literal), NULL, 0);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
+
+    qDebug("dynQueryCtrl EXPAND: built descendant hash with %d entries for %s.%s, expandLevel=%d",
+           taosHashGetSize(pVtbScan->pExpandDescendantStbs), pVtbScan->dbName, pVtbScan->tbName, pVtbScan->expandLevel);
+  }
+
   while (true) {
     SSDataBlock *pChildInfo = NULL;
     code = dynFetchInitialSysScanBlock(pSystableScanOp, &sysScanBootstrapped, &pChildInfo);
@@ -4226,7 +4317,11 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
         char* dbrawname = colDataGetData(pDbNameCol, i);
         char *ctbName = colDataGetData(pTableNameCol, i);
 
-        if (tableInfoNeedCollect(dbrawname, stbrawname, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName)) {
+        bool needCollect = tableInfoNeedCollect(dbrawname, stbrawname, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName);
+        bool needExpand = (pInfo->vtbScan.expandLevel != INT32_MIN &&
+             tableInfoNeedCollectForExpand(pVtbScan, dbrawname, stbrawname));
+
+        if (needCollect || needExpand) {
           SColRefInfo info = {0};
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
@@ -5367,6 +5462,8 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.suid = pPhyciNode->vtbScan.suid;
   pInfo->vtbScan.epSet = pPhyciNode->vtbScan.mgmtEpSet;
   pInfo->vtbScan.acctId = pPhyciNode->vtbScan.accountId;
+  pInfo->vtbScan.expandLevel = pPhyciNode->vtbScan.expandLevel;
+  pInfo->vtbScan.pExpandDescendants = pPhyciNode->vtbScan.pExpandDescendants;  // borrow reference, do not free
   pInfo->vtbScan.needRedeploy = false;
   pInfo->vtbScan.pMsgCb = pMsgCb;
   pInfo->vtbScan.pVnode = pVnode;
@@ -5409,6 +5506,22 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
     col_id_t colId = *(col_id_t*)taosArrayGet(pInfo->vtbScan.readColList, i);
     code = taosHashPut(pInfo->vtbScan.readColSet, &colId, sizeof(colId), NULL, 0);
     QUERY_CHECK_CODE(code, line, _return);
+  }
+
+  // EXPAND: build tag name → parent colId mapping for descendant VCT tag resolution
+  if (pInfo->vtbScan.expandLevel != INT32_MIN && pInfo->vtbScan.expandLevel != 0) {
+    pInfo->vtbScan.pExpandTagNameToColId =
+        taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    QUERY_CHECK_NULL(pInfo->vtbScan.pExpandTagNameToColId, code, line, _return, terrno)
+    SNode* pColNode2 = NULL;
+    FOREACH(pColNode2, pPhyciNode->vtbScan.pScanCols) {
+      SColumnNode* pCol = (SColumnNode*)pColNode2;
+      if (pCol && pCol->colType == COLUMN_TYPE_TAG) {
+        code = taosHashPut(pInfo->vtbScan.pExpandTagNameToColId, pCol->colName,
+                           strlen(pCol->colName), &pCol->colId, sizeof(col_id_t));
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
   }
 
   pInfo->vtbScan.refColGroups = NULL;

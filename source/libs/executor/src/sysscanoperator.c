@@ -1200,7 +1200,10 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-      if (!virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid)) {
+      // When pSubTableListInfo is NULL (EXPAND mode), allow all VCTs through;
+      // DynQueryCtrl's needCollect/needExpand handles proper filtering.
+      if (pInfo->pSubTableListInfo != NULL &&
+          !virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid)) {
         qDebug("skip virtual child table:%s uid:%" PRId64 " %s", varDataVal(tableName), pInfo->pCur->mr.me.uid,
                GET_TASKID(pTaskInfo));
         continue;

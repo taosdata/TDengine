@@ -1384,3 +1384,5 @@
 ,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
 
 
+,,n,system-test,python3 ./test.py -f 0-others/vst_inheritance_ddl.py
+,,n,system-test,python3 ./test.py -f 2-query/vst_expand.py
