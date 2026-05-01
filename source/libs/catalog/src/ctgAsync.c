@@ -5417,7 +5417,25 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
     case CTG_TASK_GET_DB_VGROUP: {
       SDBVgInfo* pDb = (SDBVgInfo*)pTask->subRes.res;
 
-      pCtx->pVgroups = taosArrayDup(pDb->vgArray, NULL);
+      if (pDb->vgArray) {
+        pCtx->pVgroups = taosArrayDup(pDb->vgArray, NULL);
+      } else if (pDb->vgHash) {
+        // cloneDbVgInfo only clones vgHash, not vgArray — build array from hash
+        int32_t vgNum = taosHashGetSize(pDb->vgHash);
+        pCtx->pVgroups = taosArrayInit(vgNum, sizeof(SVgroupInfo));
+        if (pCtx->pVgroups) {
+          void* pIter = taosHashIterate(pDb->vgHash, NULL);
+          while (pIter) {
+            if (NULL == taosArrayPush(pCtx->pVgroups, pIter)) {
+              taosHashCancelIterate(pDb->vgHash, pIter);
+              taosArrayDestroy(pCtx->pVgroups);
+              pCtx->pVgroups = NULL;
+              break;
+            }
+            pIter = taosHashIterate(pDb->vgHash, pIter);
+          }
+        }
+      }
       if (NULL == pCtx->pVgroups) {
         CTG_ERR_JRET(terrno);
       }

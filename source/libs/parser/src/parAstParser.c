@@ -495,6 +495,29 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
   return code;
 }
 
+static int32_t collectMetaKeyFromCreateInheritedVStable(SCollectMetaKeyCxt* pCxt, SCreateInheritedVStableStmt* pStmt) {
+  int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code && strlen(pStmt->parentDbName) > 0 &&
+      strcmp(pStmt->parentDbName, pStmt->dbName) != 0) {
+    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->parentDbName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->parentDbName, pStmt->parentTableName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
+                                  PRIV_OBJ_DB, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_TBL_CREATE,
+                                  PRIV_OBJ_DB, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
@@ -1982,6 +2005,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       code = collectMetaKeyFromCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pStmt);
+      break;
+    case QUERY_NODE_CREATE_INHERITED_VSTABLE_STMT:
+      code = collectMetaKeyFromCreateInheritedVStable(pCxt, (SCreateInheritedVStableStmt*)pStmt);
       break;
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       code = collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);

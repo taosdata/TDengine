@@ -193,6 +193,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, len) == 0) {
     type = TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VSTABLE_INHERITS, len) == 0) {
+    type = TSDB_MGMT_TABLE_VSTABLE_INHERITS;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
