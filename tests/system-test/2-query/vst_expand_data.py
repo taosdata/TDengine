@@ -522,6 +522,64 @@ class TDTestCase:
         tdSql.checkData(5, 3, "deep")   # vct_g1 val=51
 
     # ============================================================
+    # SHOW CREATE STABLE tests
+    # ============================================================
+
+    def test_show_create_parent_vst(self):
+        """SHOW CREATE STABLE on root virtual stable."""
+        tdLog.printNoPrefix("==========test23: SHOW CREATE STABLE parent_vst")
+
+        tdSql.query("SHOW CREATE STABLE parent_vst")
+        tdSql.checkRows(1)
+        create_sql = tdSql.queryResult[0][1]
+        tdLog.info(f"parent_vst: {create_sql}")
+        # Should be a normal CREATE STABLE with VIRTUAL 1
+        assert "CREATE STABLE" in create_sql, f"Expected 'CREATE STABLE' in: {create_sql}"
+        assert "VIRTUAL 1" in create_sql, f"Expected 'VIRTUAL 1' in: {create_sql}"
+        assert "BASE ON" not in create_sql, f"Should not have 'BASE ON' for root VST: {create_sql}"
+
+    def test_show_create_child_vst(self):
+        """SHOW CREATE STABLE on inherited virtual stable shows BASE ON parent."""
+        tdLog.printNoPrefix("==========test24: SHOW CREATE STABLE child_vst")
+
+        tdSql.query("SHOW CREATE STABLE child_vst")
+        tdSql.checkRows(1)
+        create_sql = tdSql.queryResult[0][1]
+        tdLog.info(f"child_vst: {create_sql}")
+        # Should show CREATE VIRTUAL STABLE with BASE ON
+        assert "CREATE VIRTUAL STABLE" in create_sql, \
+            f"Expected 'CREATE VIRTUAL STABLE' in: {create_sql}"
+        assert "BASE ON" in create_sql, \
+            f"Expected 'BASE ON' in: {create_sql}"
+        assert "parent_vst" in create_sql, \
+            f"Expected 'parent_vst' in: {create_sql}"
+        # Should show private column 'extra' but NOT inherited 'val'
+        assert "extra" in create_sql, f"Expected private col 'extra' in: {create_sql}"
+        # Private tag t2 should appear
+        assert "t2" in create_sql, f"Expected private tag 't2' in: {create_sql}"
+        assert "VIRTUAL 1" in create_sql, f"Expected 'VIRTUAL 1' in: {create_sql}"
+
+    def test_show_create_grandchild_vst(self):
+        """SHOW CREATE STABLE on deeply inherited virtual stable."""
+        tdLog.printNoPrefix("==========test25: SHOW CREATE STABLE grandchild_vst")
+
+        tdSql.query("SHOW CREATE STABLE grandchild_vst")
+        tdSql.checkRows(1)
+        create_sql = tdSql.queryResult[0][1]
+        tdLog.info(f"grandchild_vst: {create_sql}")
+        # Should show CREATE VIRTUAL STABLE with BASE ON child_vst
+        assert "CREATE VIRTUAL STABLE" in create_sql, \
+            f"Expected 'CREATE VIRTUAL STABLE' in: {create_sql}"
+        assert "BASE ON" in create_sql, \
+            f"Expected 'BASE ON' in: {create_sql}"
+        assert "child_vst" in create_sql, \
+            f"Expected 'child_vst' in: {create_sql}"
+        # Should show private column 'deep' but NOT inherited 'val'/'extra'
+        assert "deep" in create_sql, f"Expected private col 'deep' in: {create_sql}"
+        # Private tag t3 should appear
+        assert "t3" in create_sql, f"Expected private tag 't3' in: {create_sql}"
+
+    # ============================================================
     # Cleanup
     # ============================================================
 
@@ -554,6 +612,9 @@ class TDTestCase:
         self.test_grandchild_all_tags()
         self.test_binary_tag_expand_child()
         self.test_binary_tag_expand_parent()
+        self.test_show_create_parent_vst()
+        self.test_show_create_child_vst()
+        self.test_show_create_grandchild_vst()
         self.test_cleanup()
 
     def stop(self):

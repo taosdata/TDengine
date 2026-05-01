@@ -2115,6 +2115,9 @@ typedef struct {
   int32_t  numOfTagRefs;
   SColRef* pTagRefs;
   int8_t   secureDelete;
+  char     parentStbName[TSDB_TABLE_NAME_LEN];  // parent VST name for inherited virtual stables
+  int32_t  numOfParentColumns;                  // number of columns inherited from parent (0 if no parent)
+  int32_t  numOfParentTags;                     // number of tags inherited from parent (0 if no parent)
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;

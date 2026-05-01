@@ -2746,6 +2746,32 @@ static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *t
 
   code = mndBuildStbCfgImp(pDb, pStb, tbName, pRsp);
 
+  // Populate parent inheritance info for SHOW CREATE STABLE
+  if (code == TSDB_CODE_SUCCESS && pStb->parentSuid != 0) {
+    SSdb    *pSdb = pMnode->pSdb;
+    SStbObj *pParent = NULL;
+    void    *pIter = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pParent);
+      if (pIter == NULL) break;
+      if (pParent->uid == pStb->parentSuid) {
+        SName parentName = {0};
+        tNameFromString(&parentName, pParent->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+        tstrncpy(pRsp->parentStbName, tNameGetTableName(&parentName), TSDB_TABLE_NAME_LEN);
+        pRsp->numOfParentColumns = pStb->ownColStart;
+        pRsp->numOfParentTags = pStb->ownTagStart;
+        sdbRelease(pSdb, pParent);
+        sdbCancelFetch(pSdb, pIter);
+        break;
+      }
+      sdbRelease(pSdb, pParent);
+    }
+  } else {
+    pRsp->parentStbName[0] = '\0';
+    pRsp->numOfParentColumns = 0;
+    pRsp->numOfParentTags = 0;
+  }
+
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
   TAOS_RETURN(code);

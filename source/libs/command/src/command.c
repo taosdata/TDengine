@@ -710,6 +710,56 @@ static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
+// Output only private (non-inherited) columns starting from startIdx
+static void appendPrivateColumnFields(char* buf, int32_t* len, STableCfg* pCfg, int32_t startIdx) {
+  char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+  bool first = true;
+  for (int32_t i = startIdx; i < pCfg->numOfColumns; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + i;
+    char     type[LTYPE_LEN];
+    snprintf(type, LTYPE_LEN, "%s", tDataTypes[pSchema->type].name);
+    int typeLen = strlen(type);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
+        TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+      typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
+                          (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    } else if (IS_DECIMAL_TYPE(pSchema->type)) {
+      uint8_t precision = 0, scale = 0;
+      if (pCfg->pSchemaExt) {
+        decimalFromTypeMod(pCfg->pSchemaExt[i].typeMod, &precision, &scale);
+      }
+      typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d,%d)", precision, scale);
+    }
+    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                     "%s`%s` %s", (first ? "" : ", "), expandIdentifier(pSchema->name, expandName), type);
+    first = false;
+  }
+}
+
+// Output only private (non-inherited) tags starting from startIdx
+static void appendPrivateTagFields(char* buf, int32_t* len, STableCfg* pCfg, int32_t startIdx) {
+  char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
+  bool first = true;
+  for (int32_t i = startIdx; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    char     type[32];
+    snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
+        TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                     "%s`%s` %s", (first ? "" : ", "), expandIdentifier(pSchema->name, expandName), type);
+    first = false;
+  }
+}
+
 static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
@@ -936,7 +986,34 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 
   int32_t len = 0;
 
-  if (TSDB_SUPER_TABLE == pCfg->tableType) {
+  if (TSDB_SUPER_TABLE == pCfg->tableType && pCfg->parentStbName[0] != '\0') {
+    // Inherited virtual stable: output CREATE VIRTUAL STABLE ... BASE ON parent_name
+    char expandParent[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+    int32_t privateColStart = pCfg->numOfParentColumns;
+    int32_t privateTagStart = pCfg->numOfParentTags;
+    bool hasPrivateCols = (privateColStart < pCfg->numOfColumns);
+    bool hasPrivateTags = (privateTagStart < pCfg->numOfTags);
+
+    len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                    "CREATE VIRTUAL STABLE `%s`", expandIdentifier(tbName, buf1));
+    if (hasPrivateCols) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " (");
+      appendPrivateColumnFields(buf2, &len, pCfg, privateColStart);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    }
+    if (hasPrivateTags) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " TAGS (");
+      appendPrivateTagFields(buf2, &len, pCfg, privateTagStart);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    }
+    len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                    " BASE ON `%s`", expandIdentifier(pCfg->parentStbName, expandParent));
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
+  } else if (TSDB_SUPER_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE STABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
