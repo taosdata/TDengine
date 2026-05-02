@@ -128,9 +128,10 @@ class TestTaosdumpDataTypes:
 
         os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
         for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdLog.info(f"--- {tool_name} import+verify ---")            
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
+            print(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
             os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
 
             tdSql.query("show databases")

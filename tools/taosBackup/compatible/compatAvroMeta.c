@@ -468,9 +468,10 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                     avro_value_get_string(&stbBranch, (const char **)&stbName, &sz);
                 } else {
                     stbName = (char *)taosMemoryCalloc(1, AVRO_TABLE_NAME_LEN);
-                    // Parse stb name from filename: "stb.tb.avro-tbtags"
+                    // Parse stb name from filename: "db.stb.seq.avro-tbtags"
                     char *dup = taosStrdup(fileName);
                     char *run = dup;
+                    strsep(&run, ".");  // skip db name
                     char *tok = strsep(&run, ".");
                     if (tok) snprintf(stbName, AVRO_TABLE_NAME_LEN, "%s", tok);
                     taosMemoryFree(dup);
