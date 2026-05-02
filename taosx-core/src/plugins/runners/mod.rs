@@ -191,6 +191,37 @@ pub fn get_log_dir(plugin: &str) -> PathBuf {
     get_logs_home_dir().join(plugin)
 }
 
+pub const ENV_TAOSX_BACKUP_AUTO_CREATE_DIR: &str = "TAOSX_BACKUP_AUTO_CREATE_DIR";
+
+/// Push the resolved `auto_create_dir` flag into the process env so that
+/// [`get_backup_auto_create_dir`] can be queried from anywhere (e.g. inside
+/// `parse_backup_dir`) without threading config through every call site.
+pub fn set_env_backup_auto_create_dir(enabled: bool) {
+    unsafe {
+        std::env::set_var(
+            ENV_TAOSX_BACKUP_AUTO_CREATE_DIR,
+            if enabled { "true" } else { "false" },
+        );
+    }
+}
+
+/// Whether `parse_backup_dir` should auto-create user-specified backup
+/// directories that do not yet exist. Defaults to `false`.
+///
+/// Accepts the common truthy spellings: `1`, `true`, `yes`, `on` (case-insensitive).
+#[inline]
+pub fn get_backup_auto_create_dir() -> bool {
+    std::env::var(ENV_TAOSX_BACKUP_AUTO_CREATE_DIR)
+        .ok()
+        .map(|v| {
+            matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
 const ENV_TAOSX_LOGS_KEEP_DAYS: &str = "TAOSX_LOGS_KEEP_DAYS";
 
 pub fn set_env_log_keep_days(config: Option<i64>) {

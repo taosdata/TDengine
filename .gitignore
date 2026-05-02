@@ -76,6 +76,7 @@ docs/superpowers/
 CLAUDE.md
 .worktrees/
 .cowork/
+.github/copilot-instructions.md
 
 # Allow King Historian CSV template to be committed
 !crates/source-kinghistorian/example/*.csv
