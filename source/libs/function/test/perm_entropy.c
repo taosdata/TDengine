@@ -45,45 +45,52 @@ static int32_t ensure_capacity(PermEntropyState *state, int64_t required) {
 }
 
 static double compute_perm_entropy(const double *data, int n, int embed_dim, int delay) {
-    if (data == NULL || n < embed_dim || embed_dim <= 1 || embed_dim > MAX_EMBED_DIM)
-        return 0.0;
+  if (data == NULL || n < embed_dim || embed_dim <= 1 || embed_dim > MAX_EMBED_DIM) return 0.0;
 
-    int n_windows  = n - (embed_dim - 1) * delay;
-    if (n_windows <= 0) return 0.0;
-    int n_patterns = 1;
-    for (int i = 2; i <= embed_dim; i++) n_patterns *= i;
+  int n_windows = n - (embed_dim - 1) * delay;
+  if (n_windows <= 0) return 0.0;
+  int n_patterns = 1;
+  for (int i = 2; i <= embed_dim; i++) n_patterns *= i;
 
-    int *counts = (int *)calloc(n_patterns, sizeof(int));
-    if (counts == NULL) return NAN;
-        int    rank[MAX_EMBED_DIM];
-        for (int j = 0; j < embed_dim; j++) { v[j] = data[w + j * delay]; idx[j] = j; }
-        for (int j = 0; j < embed_dim - 1; j++)
-            for (int k = j + 1; k < embed_dim; k++)
-                if (v[idx[j]] > v[idx[k]] ||
-                    (v[idx[j]] == v[idx[k]] && idx[j] > idx[k])) {
-                    int t = idx[j]; idx[j] = idx[k]; idx[k] = t;
-                }
-        for (int j = 0; j < embed_dim; j++) rank[idx[j]] = j;
-        int pat = 0;
-        for (int j = 0; j < embed_dim; j++) {
-            int c = 0;
-            for (int k = j + 1; k < embed_dim; k++) if (rank[k] < rank[j]) c++;
-            pat = pat * (embed_dim - j) + c;
-        }
-        counts[pat]++;
+  int *counts = (int *)calloc(n_patterns, sizeof(int));
+  if (counts == NULL) return NAN;
+  for (int w = 0; w < n_windows; w++) {
+    double v[MAX_EMBED_DIM];
+    int    idx[MAX_EMBED_DIM];
+    int    rank[MAX_EMBED_DIM];
+    for (int j = 0; j < embed_dim; j++) {
+      v[j] = data[w + j * delay];
+      idx[j] = j;
     }
-
-    double entropy = 0.0;
-    for (int i = 0; i < n_patterns; i++) {
-        if (counts[i] > 0) {
-            double p = (double)counts[i] / n_windows;
-            entropy -= p * log2(p);
+    for (int j = 0; j < embed_dim - 1; j++)
+      for (int k = j + 1; k < embed_dim; k++)
+        if (v[idx[j]] > v[idx[k]] || (v[idx[j]] == v[idx[k]] && idx[j] > idx[k])) {
+          int t = idx[j];
+          idx[j] = idx[k];
+          idx[k] = t;
         }
+    for (int j = 0; j < embed_dim; j++) rank[idx[j]] = j;
+    int pat = 0;
+    for (int j = 0; j < embed_dim; j++) {
+      int c = 0;
+      for (int k = j + 1; k < embed_dim; k++)
+        if (rank[k] < rank[j]) c++;
+      pat = pat * (embed_dim - j) + c;
     }
-    free(counts);
+    counts[pat]++;
+  }
 
-    double max_entropy = log2((double)n_patterns);
-    return max_entropy > 0 ? entropy / max_entropy : 0.0;
+  double entropy = 0.0;
+  for (int i = 0; i < n_patterns; i++) {
+    if (counts[i] > 0) {
+      double p = (double)counts[i] / n_windows;
+      entropy -= p * log2(p);
+    }
+  }
+  free(counts);
+
+  double max_entropy = log2((double)n_patterns);
+  return max_entropy > 0 ? entropy / max_entropy : 0.0;
 }
 
 DLL_EXPORT int32_t perm_entropy_init()    { return TSDB_CODE_SUCCESS; }
