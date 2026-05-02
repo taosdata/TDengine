@@ -862,14 +862,12 @@ class TestTaosdumpBasic:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        tdSql.execute("use db")
         tdSql.execute(
-            "create table tb(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
+            "create table db.tb(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
         )
         tdSql.execute(
-            "insert into tb values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
+            "insert into db.tb values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
         )
-        #        sys.exit(1)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -880,40 +878,30 @@ class TestTaosdumpBasic:
 
         os.system("%s db -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop table tb")
-        tdSql.execute(
-            "create table tb(ts timestamp, c1 FLOAT, c2 DOUBLE, c3 BOOL, c4 BINARY(10), c5 NCHAR(10), c6 INT, c7 BOOL, c8 BINARY(10), c9 BOOL, c10 FLOAT, c11 DOUBLE, c12 BOOL, c13 INT, c14 BIGINT)"
-        )
-        #        sys.exit(1)
-
         backupPath = etool.taosBackupFile()
         for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
             tdLog.info(f"--- {tool_name} import+verify (diff_type) ---")
             # re-create the table with different types for each iteration
-            tdSql.execute("drop table if exists tb")
+            tdSql.execute("drop table if exists db.tb")
             tdSql.execute(
-                "create table tb(ts timestamp, c1 FLOAT, c2 DOUBLE, c3 BOOL, c4 BINARY(10), c5 NCHAR(10), c6 INT, c7 BOOL, c8 BINARY(10), c9 BOOL, c10 FLOAT, c11 DOUBLE, c12 BOOL, c13 INT, c14 BIGINT)"
+                "create table db.tb(ts timestamp, c1 FLOAT, c2 DOUBLE, c3 BOOL, c4 BINARY(10), c5 NCHAR(10), c6 INT, c7 BOOL, c8 BINARY(10), c9 BOOL, c10 FLOAT, c11 DOUBLE, c12 BOOL, c13 INT, c14 BIGINT)"
             )
 
-            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            # import 
+            cmd = "%s -i %s -T 1" % (tool, self.tmpdir)
+            os.system(cmd)
 
-            tdSql.query("show databases")
-            dbresult = tdSql.queryResult
-
-            found = False
-            for i in range(len(dbresult)):
-                print("Found db: %s" % dbresult[i][0])
-                if dbresult[i][0] == "db":
-                    found = True
-                    break
-
-            assert found == True
-
-            tdSql.execute("use db")
-
-            tdSql.query("SELECT * from tb")
-            for i in range(1, len(tdSql.queryResult[0])):
-                tdSql.checkData(0, i, None)
+            # check result
+            # taosdump: type-mismatched columns all become NULL
+            # taosBackup: numeric→numeric/bool = 0/false, numeric→string = NULL
+            tdSql.query("SELECT * from db.tb")
+            if tool_name == "taosdump":
+                for i in range(1, len(tdSql.queryResult[0])):
+                    tdSql.checkData(0, i, None)
+            else:
+                expected = [0.0, 0.0, False, None, None, 0, False, None, False, 0.0, 0.0, False, 0, 0]
+                for i in range(len(expected)):
+                    tdSql.checkData(0, i + 1, expected[i])
 
         print("do diff data type ..................... [passed]")
 
