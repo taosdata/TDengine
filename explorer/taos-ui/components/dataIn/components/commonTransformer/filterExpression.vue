@@ -25,6 +25,7 @@
 <script setup lang="ts">
 import { t } from 'locales';
 import type { ConditionExpr } from './type';
+import { getConditionExprText, updateConditionExprText } from './ruleAdapter';
 import { transformerState, supportTransform, resetTransformerPreviewState } from './util';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 import { ElMessage } from 'element-plus';
@@ -86,14 +87,12 @@ function executeFilter() {
 function changeFilterCont() {
   isexecuted.value = false;
   transformerState.transformerFilterParseData = {
-    filter: {
-      expr: ruleForm.filter_name
-    }
+    filter: updateConditionExprText(props.itemData.expression, ruleForm.filter_name)
   };
 }
 function initData(val: Recordable) {
   if (val) {
-    ruleForm.filter_name = val.expression;
+    ruleForm.filter_name = getConditionExprText(val.expression);
   }
 }
 function submit() {
@@ -212,14 +211,15 @@ function deleteFilter() {
 const generateInput: any = inject('generateInput');
 //提交
 function submitFilter() {
+  const filterExpr = updateConditionExprText(props.itemData.expression, ruleForm.filter_name.trim());
   let parser;
   if (supportTransform.is_sparkplugb) {
     parser = {
       parser: {
         parse: transformerState.topParse?.parser.parse,
         mutate: transformerState.transformExtractParseData
-          ? [{ ...transformerState.transformExtractParseData }, { filter: { expr: ruleForm.filter_name.trim() } }]
-          : [{ filter: { expr: ruleForm.filter_name.trim() } }]
+          ? [{ ...transformerState.transformExtractParseData }, { filter: filterExpr }]
+          : [{ filter: filterExpr }]
       },
       samples: Array.from(Object.values(generateInput()[0]))
     };
@@ -228,8 +228,8 @@ function submitFilter() {
       parser: {
         parse: transformerState.topParse?.parser.parse,
         mutate: transformerState.transformExtractParseData
-          ? [{ ...transformerState.transformExtractParseData }, { filter: { expr: ruleForm.filter_name.trim() } }]
-          : [{ filter: { expr: ruleForm.filter_name.trim() } }]
+          ? [{ ...transformerState.transformExtractParseData }, { filter: filterExpr }]
+          : [{ filter: filterExpr }]
       },
       input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
     };
@@ -241,9 +241,7 @@ function submitFilter() {
   }
 
   transformerState.transformerFilterParseData = {
-    filter: {
-      expr: ruleForm.filter_name
-    }
+    filter: filterExpr
   };
   isexecuted.value = true;
   getParserData(parser);

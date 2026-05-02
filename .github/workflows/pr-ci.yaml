@@ -797,15 +797,19 @@ jobs:
       - name: cache_playwright_browsers
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('explorer/pnpm-lock.yaml') }}
+          # Self-hosted UI test runners mount /data2 for browser binaries
+          # that should survive workspace cleanup between workflow runs.
+          path: /data2/taosx-playwright-cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/taos-ui/package.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
       - name: run_ui_tests
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:${{ steps.start_container.outputs.port_6060 }}
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+          # Keep CI browser binaries outside the workspace so self-hosted
+          # runners can reuse them across clean checkouts.
+          PLAYWRIGHT_BROWSERS_PATH: /data2/taosx-playwright-cache/ms-playwright
           CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
         run: |
           ./.github/scripts/run_ui_tests.sh
