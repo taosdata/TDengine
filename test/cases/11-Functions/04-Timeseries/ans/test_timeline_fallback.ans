@@ -1213,20 +1213,30 @@ taos> select tail(val, 2) from (select event_time, val from t_null_ts);
            40 |
 
 taos> select diff(val) from (select event_time, val from t_null_ts order by event_time);
+       diff(val)       |
+========================
+                    30 |
+                   -20 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select csum(val) from (select event_time, val from t_null_ts order by event_time);
 
 DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select derivative(val, 1s, 0) from (select event_time, val from t_null_ts order by event_time);
+  derivative(val, 1s, 0)   |
+============================
+      1.81538282573368e-08 |
+         -6.66666666666667 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select twa(val) from (select event_time, val from t_null_ts order by event_time);
+         twa(val)          |
+============================
+          25.0000000090769 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select irate(val) from (select event_time, val from t_null_ts order by event_time);
+        irate(val)         |
+============================
+          6.66666666666667 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select statecount(val, 'GT', 15) from (select event_time, val from t_null_ts order by event_time);
 
 DB error: Duplicate timestamps not allowed in function [0x80002805] 
@@ -1307,7 +1317,6 @@ taos> select _wstart, count(*) from (select event_time, val from t_all_null_ts) 
 
 taos> select diff(val) from (select event_time, val from t_all_null_ts order by event_time);
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select elapsed(event_time) from (select event_time, val from t_all_null_ts);
     elapsed(event_time)    |
 ============================
@@ -1415,13 +1424,8 @@ taos> select last_row(val) from (select event_time, val from t_rand_ts);
             50 |
 
 taos> select diff(val) from (select event_time, val from t_rand_ts);
-       diff(val)       |
-========================
-                    10 |
-                    10 |
-                    10 |
-                    10 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select diff(val) from (select event_time, val from t_rand_ts order by event_time);
        diff(val)       |
 ========================
@@ -1476,21 +1480,11 @@ taos> select _wstart, count(*), sum(val) from (select event_time, val from t_ran
  2022-05-15 00:00:02.000 |                     5 |                   150 |
 
 taos> select _wstart, count(*) from (select event_time, val from t_rand_ts) session(event_time, 1s);
-         _wstart         |       count(*)        |
-==================================================
- 2022-05-15 00:00:01.000 |                     1 |
- 2022-05-15 00:00:02.000 |                     1 |
- 2022-05-15 00:00:03.000 |                     1 |
- 2022-05-15 00:00:04.000 |                     1 |
- 2022-05-15 00:00:05.000 |                     1 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select _wstart, count(*) from (select event_time, val from t_rand_ts) session(event_time, 2s);
-         _wstart         |       count(*)        |
-==================================================
- 2022-05-15 00:00:01.000 |                     1 |
- 2022-05-15 00:00:03.000 |                     2 |
- 2022-05-15 00:00:04.000 |                     2 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select lag(val, 1) from (select event_time, val from t_rand_ts order by event_time);
  lag(val, 1) |
 ==============
@@ -1638,8 +1632,11 @@ taos> select csum(val) from (select event_time, val from t_null order by event_t
                     60 |
 
 taos> select diff(val) from (select event_time, val from t_dup order by event_time);
+       diff(val)       |
+========================
+                   -20 |
+                   -10 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select first(val), first(event_time) from (select event_time, val from t_null_ts);
  first(val)  |    first(event_time)    |
 ========================================

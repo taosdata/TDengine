@@ -8958,7 +8958,16 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     bool isStrict = false;
     PAR_ERR_JRET(getTimeRange(&pPrimaryKeyCond, pTimeRange, &isStrict));
   } else {
-    TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
+    // For degraded timeline (colId != PRIMARYKEY_TIMESTAMP_COL_ID),
+    // try extracting time range from the full condition directly
+    SNode* pCondCopy = NULL;
+    PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCondCopy));
+    bool isStrict = false;
+    int32_t rc = getTimeRange(&pCondCopy, pTimeRange, &isStrict);
+    nodesDestroyNode(pCondCopy);
+    if (TSDB_CODE_SUCCESS != rc) {
+      TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
+    }
   }
 
 _return:

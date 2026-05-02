@@ -3713,7 +3713,15 @@ int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) 
   char* pv = pRow->pData;
 
   if (pRow->ts == pDiffInfo->prevTs) {
-    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    return 1;  // signal caller to skip this row (not an error)
+  }
+  if (pDiffInfo->prevTs != -1) {
+    int32_t curDir = (pRow->ts > pDiffInfo->prevTs) ? 1 : -1;
+    if (pDiffInfo->detectedOrder == 0) {
+      pDiffInfo->detectedOrder = curDir;
+    } else if (curDir != pDiffInfo->detectedOrder) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    }
   }
   code = doHandleDiff(pDiffInfo, inputType, pv, pOutput, pos, pRow->ts);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3810,9 +3818,14 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
       if ((keepNull || hasNotNullValue) && !isFirstRow(pCtx, pRow)) {
         code = setDoDiffResult(pCtx, pRow, pos);
         if (code != TSDB_CODE_SUCCESS) {
-          goto _exit;
+          if (code == 1) {
+            code = TSDB_CODE_SUCCESS;
+          } else {
+            goto _exit;
+          }
+        } else {
+          newRow = true;
         }
-        newRow = true;
       } else {
         code = trySetPreVal(pCtx, pRow);
         if (code != TSDB_CODE_SUCCESS) {
@@ -4424,6 +4437,8 @@ static int32_t lagLeadFunctionByRowImpl(SArray* pCtxArray, bool isLead) {
 
   int32_t startOffset = pCtx0->offset;
   bool    result = false;
+  int64_t prevTs = INT64_MIN;
+  int32_t detectedOrder = 0;
   while (1) {
     code = funcInputGetNextRow(pCtx0, pRow0, &result);
     if (TSDB_CODE_SUCCESS != code) {
@@ -4432,6 +4447,17 @@ static int32_t lagLeadFunctionByRowImpl(SArray* pCtxArray, bool isLead) {
     if (!result) {
       break;
     }
+
+    if (prevTs != INT64_MIN && pRow0->ts != prevTs) {
+      int32_t curDir = (pRow0->ts > prevTs) ? 1 : -1;
+      if (detectedOrder == 0) {
+        detectedOrder = curDir;
+      } else if (curDir != detectedOrder) {
+        code = TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        goto _exit;
+      }
+    }
+    prevTs = pRow0->ts;
 
     {
       SArray*          pValues0 = *(SArray**)taosArrayGet(pValueArrays, 0);
@@ -4786,6 +4812,8 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
   }
   int32_t startOffset = pCtx0->offset;
   bool    result = false;
+  int64_t prevTs = INT64_MIN;
+  int32_t detectedOrder = 0;
   while (1) {
     code = funcInputGetNextRow(pCtx0, pRow0, &result);
     if (TSDB_CODE_SUCCESS != code) {
@@ -4794,6 +4822,17 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
     if (!result) {
       break;
     }
+
+    if (prevTs != INT64_MIN && pRow0->ts != prevTs) {
+      int32_t curDir = (pRow0->ts > prevTs) ? 1 : -1;
+      if (detectedOrder == 0) {
+        detectedOrder = curDir;
+      } else if (curDir != detectedOrder) {
+        code = TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        goto _exit;
+      }
+    }
+    prevTs = pRow0->ts;
 
     for (int i = 1; i < fillforwardColNum; ++i) {
       SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
@@ -7601,7 +7640,16 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       }
     }
     if (pInfo->p.key == st.key) {
-      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      continue;
+    }
+    // Monotonicity check
+    {
+      int32_t curDir = (st.key > pInfo->p.key) ? 1 : -1;
+      if (pInfo->detectedOrder == 0) {
+        pInfo->detectedOrder = curDir;
+      } else if (curDir != pInfo->detectedOrder) {
+        return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      }
     }
 
     pInfo->dOutput += twa_get_area(pInfo->p, st);
@@ -8087,6 +8135,13 @@ static int32_t DoDerivativeFunction(SqlFunctionCtx* pCtx) {
         pDerivInfo->valueSet = true;
       } else {
         if (row.ts == pDerivInfo->prevTs) {
+          continue;
+        }
+        // Monotonicity check
+        int32_t curDir = (row.ts > pDerivInfo->prevTs) ? 1 : -1;
+        if (pDerivInfo->detectedOrder == 0) {
+          pDerivInfo->detectedOrder = curDir;
+        } else if (curDir != pDerivInfo->detectedOrder) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
         double r = ((v - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (row.ts - pDerivInfo->prevTs);
@@ -8143,6 +8198,13 @@ static int32_t DoDerivativeFunction(SqlFunctionCtx* pCtx) {
         pDerivInfo->valueSet = true;
       } else {
         if (row.ts == pDerivInfo->prevTs) {
+          continue;
+        }
+        // Monotonicity check
+        int32_t curDir = (row.ts > pDerivInfo->prevTs) ? 1 : -1;
+        if (pDerivInfo->detectedOrder == 0) {
+          pDerivInfo->detectedOrder = curDir;
+        } else if (curDir != pDerivInfo->detectedOrder) {
           return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
         double r = ((pDerivInfo->prevValue - v) * pDerivInfo->tsWindow) / (pDerivInfo->prevTs - row.ts);
@@ -8249,6 +8311,9 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
 }
 
 static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo, bool isMerge) {
+  if (pRateInfo->prevTs == 0) {
+    pRateInfo->prevTs = INT64_MIN;
+  }
   if (pCtx->hasPrimaryKey) {
     if (!isMerge) {
       pRateInfo->pkType = pCtx->input.pPrimaryKey->info.type;
@@ -8299,6 +8364,17 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
+    // Monotonicity check
+    if (pRateInfo->prevTs != INT64_MIN && row.ts != pRateInfo->prevTs) {
+      int32_t curDir = (row.ts > pRateInfo->prevTs) ? 1 : -1;
+      if (pRateInfo->detectedOrder == 0) {
+        pRateInfo->detectedOrder = curDir;
+      } else if (curDir != pRateInfo->detectedOrder) {
+        return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      }
+    }
+    pRateInfo->prevTs = row.ts;
+
     if (INT64_MIN == pRateInfo->lastKey) {
       doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
       pRateInfo->hasResult = 1;
@@ -8312,13 +8388,13 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
       doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
       continue;
     } else if (row.ts == pRateInfo->lastKey) {
-      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      continue;
     }
 
     if ((INT64_MIN == pRateInfo->firstKey) || row.ts > pRateInfo->firstKey) {
       doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
     } else if (row.ts == pRateInfo->firstKey) {
-      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+      continue;
     }
   }
 
@@ -8378,7 +8454,7 @@ static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
   if ((pInput->firstKey != INT64_MIN &&
        (pInput->firstKey == pOutput->firstKey || pInput->firstKey == pOutput->lastKey)) ||
       (pInput->lastKey != INT64_MIN && (pInput->lastKey == pOutput->firstKey || pInput->lastKey == pOutput->lastKey))) {
-    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pOutput->hasResult == 0) {

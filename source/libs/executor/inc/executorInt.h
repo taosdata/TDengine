@@ -642,6 +642,7 @@ typedef struct SSessionAggOperatorInfo {
   SIndefRowsRuntime     indefRows;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
+  int32_t               detectedOrder;  // 0=unknown, 1=ASC, -1=DESC
 } SSessionAggOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {

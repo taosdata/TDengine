@@ -378,6 +378,7 @@ typedef struct SDiffInfo {
   } prev;
 
   int64_t prevTs;
+  int32_t detectedOrder;  // 0=unknown, 1=ASC, -1=DESC
 } SDiffInfo;
 
 typedef struct SElapsedInfo {
@@ -393,6 +394,7 @@ typedef struct STwaInfo {
   int64_t     numOfElems;
   SPoint1     p;
   STimeWindow win;
+  int32_t     detectedOrder;  // 0=unknown, 1=ASC, -1=DESC
 } STwaInfo;
 
 typedef struct SHistoFuncBin {
@@ -495,6 +497,7 @@ typedef struct SDerivInfo {
   bool    ignoreNegative;  // ignore the negative value
   int64_t tsWindow;        // time window for derivative
   bool    valueSet;        // the value has been set already
+  int32_t detectedOrder;   // 0=unknown, 1=ASC, -1=DESC
 } SDerivInfo;
 
 typedef struct SRateInfo {
@@ -503,6 +506,8 @@ typedef struct SRateInfo {
   double lastValue;
   TSKEY  lastKey;
   int8_t hasResult;  // flag to denote has value
+  int32_t detectedOrder;  // 0=unknown, 1=ASC, -1=DESC
+  TSKEY  prevTs;          // for monotonicity detection
 
   char*   firstPk;
   char*   lastPk;

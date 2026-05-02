@@ -256,23 +256,14 @@ taos> SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY val);
 
 DB error: Function 'irate' requires valid time series input [0x8000264F] 
 taos> SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY t2);
-  derivative(val, 1s, 0)   |
-============================
-                         5 |
-         -3.33333333333333 |
-                       2.5 |
-                        -5 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY t2);
-         twa(val)          |
-============================
-                         5 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY t2);
-        irate(val)         |
-============================
-                        20 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT derivative(val, 1s, 0) FROM t_dup;
   derivative(val, 1s, 0)   |
 ============================
@@ -409,13 +400,8 @@ taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER B
 
 DB error: Function 'stateduration' requires valid time series input [0x8000264F] 
 taos> SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY t2);
-       diff(val)       |
-========================
-                    10 |
-                    10 |
-                    10 |
-                    10 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY t2);
        csum(val)       |
 ========================
@@ -576,32 +562,14 @@ taos> SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY val);
 
 DB error: Function 'fill_forward' requires valid time series input [0x8000264F] 
 taos> SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
- lag(val, 1) |
-==============
- NULL        |
-          10 |
-          20 |
-          30 |
-          40 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
- lead(val, 1) |
-===============
-           20 |
-           30 |
-           40 |
-           50 |
- NULL         |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT fill_forward(val) FROM (SELECT * FROM t_base ORDER BY t2);
- fill_forward(val) |
-====================
-                10 |
-                20 |
-                30 |
-                40 |
-                50 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT lag(val, 1) FROM t_dup;
  lag(val, 1) |
 ==============
@@ -746,14 +714,8 @@ taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) INTERVAL(2s);
                      2 |
 
 taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) SESSION(ts, 1s);
-       count(*)        |
-========================
-                     1 |
-                     1 |
-                     1 |
-                     1 |
-                     1 |
 
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) STATE_WINDOW(st);
        count(*)        |
 ========================
@@ -893,5 +855,7 @@ taos> SELECT interp(val) FROM t_dup RANGE('2024-01-01 00:00:01', '2024-01-01 00:
           30 |
 
 taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          40 |
 
-DB error: Start(end) time of query range required or time range too large [0x8000263B] 

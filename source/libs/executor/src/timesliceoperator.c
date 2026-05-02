@@ -1054,7 +1054,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
     }
 
     EInvalidTimestampReason invalidReason = isInvalidTimestamp(pSliceInfo, ts,
-                                                               pPkCol, i);
+                                                                pPkCol, i);
     if (invalidReason != INVALID_TIMESTAMP_REASON_NONE) {
       if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL) {
         continue;
@@ -1062,7 +1062,6 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
         break;
       }
     }
-
     if (ts == pSliceInfo->current) {
       code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
                                    pResBlock, pBlock, i);
