@@ -97,6 +97,8 @@ static double compute_perm_entropy(const double *data, int n, int embed_dim, int
 
     int *counts = (int *)calloc(n_patterns, sizeof(int));
     if (counts == NULL) return NAN;
+    for (int w = 0; w < n_windows; w++) {
+        double v[MAX_EMBED_DIM];
         int    idx[MAX_EMBED_DIM];
         int    rank[MAX_EMBED_DIM];
 
