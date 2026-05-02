@@ -449,7 +449,7 @@ class TestTaosBackupExcept:
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_BCK)
 
         cmd = f"-T 2 -D {self._SRV_DB_SRC} -o {tmpdir}"
-        etool.taosbackup(cmd)
+        etool.taosbackup(cmd, checkRun=False)
 
         # Start dnode
         sc.dnodeStart(1)
@@ -461,7 +461,7 @@ class TestTaosBackupExcept:
         tdLog.info("=== step 4: restore ===")
         cmd = f" -T 2 -k 5 -z 2000 -W \"{self._SRV_DB_SRC}->{self._SRV_DB_DST}\" -i {tmpdir}"        
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_RST)
-        etool.taosbackup(cmd)
+        etool.taosbackup(cmd, checkRun=False)
 
         # Start dnode
         sc.dnodeStart(1)

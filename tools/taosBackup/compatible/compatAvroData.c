@@ -587,6 +587,27 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                             }
                         }
 
+                        // Legacy taosdump (e.g. v3.1.0.0) encodes column names
+                        // as positional col0, col1, ... in the AVRO schema.
+                        // When column count matches, detect this pattern and
+                        // treat as positional match to avoid false schema-change.
+                        if (!colsSame && backupCols == ntbDes->columns) {
+                            bool positional = true;
+                            for (int ci = 1; ci < backupCols; ci++) {
+                                char expected[32];
+                                snprintf(expected, sizeof(expected), "col%d", ci - 1);
+                                if (strcasecmp(rs->fields[ci + colAdj].name, expected) != 0) {
+                                    positional = false;
+                                    break;
+                                }
+                            }
+                            if (positional) {
+                                colsSame = true;
+                                logInfo("avro: %s uses legacy positional column "
+                                        "names, mapping by position", tbName);
+                            }
+                        }
+
                         if (!colsSame) {
                             AvroStbChange *sc = (AvroStbChange *)taosMemoryCalloc(
                                     1, sizeof(AvroStbChange));

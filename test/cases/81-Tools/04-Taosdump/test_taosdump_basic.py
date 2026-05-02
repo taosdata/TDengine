@@ -303,6 +303,7 @@ class TestTaosdumpBasic:
             tdSql.query("show stables")
             tdSql.checkRows(2)
 
+        tdSql.execute("drop database if exists db12312313231231321312312312_323abc")
         os.system("rm -rf ./taosdumptest/tmp1")
         os.system("rm -rf ./taosdumptest/tmp2")
         os.system("rm -rf ./dump_result.txt")
@@ -421,6 +422,8 @@ class TestTaosdumpBasic:
 
             tdSql.query("select * from stb")
             tdSql.checkRows(1)
+        tdSql.execute("drop database if exists test")
+        tdSql.execute("drop database if exists db")
         os.system("rm -rf dump_result.txt")
 
         print("do basic2 ............................. [passed]")

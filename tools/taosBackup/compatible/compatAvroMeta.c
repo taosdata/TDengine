@@ -200,6 +200,8 @@ static int32_t extractTagBinary(AvroFieldInfo *fi, avro_value_t *val,
                                 char *sql, int32_t pos) {
     avro_value_t branch;
     avro_value_get_current_branch(val, &branch);
+    if (avro_value_get_null(&branch) == 0)
+        return pos + sprintf(sql + pos, "NULL,");
     char *buf = NULL;
     size_t sz;
     avro_value_get_string(&branch, (const char **)&buf, &sz);
@@ -210,10 +212,12 @@ static int32_t extractTagBinary(AvroFieldInfo *fi, avro_value_t *val,
 
 static int32_t extractTagNChar(AvroFieldInfo *fi, avro_value_t *val,
                                char *sql, int32_t pos) {
-    void *buf = NULL;
-    size_t sz = 0;
     avro_value_t branch;
     avro_value_get_current_branch(val, &branch);
+    if (avro_value_get_null(&branch) == 0)
+        return pos + sprintf(sql + pos, "NULL,");
+    void *buf = NULL;
+    size_t sz = 0;
     avro_value_get_bytes(&branch, (const void **)&buf, &sz);
     if (!buf)
         return pos + sprintf(sql + pos, "NULL,");

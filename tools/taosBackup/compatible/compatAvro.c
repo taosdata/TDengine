@@ -47,12 +47,114 @@ bool isAvroBackupDir(const char *dbPath) {
 // Replace old database names with renamed target in SQL statements.
 // Handles: CREATE DATABASE/STABLE/TABLE/VTABLE IF NOT EXISTS `dbname`...
 // Returns malloc'd string on replacement, NULL if no change needed.
+
+// Replace database names after FROM/USING keywords in SQL (e.g. vtable
+// column mappings like  FROM `db`.`t1`.`c1`).
+// Returns taosMemoryMalloc'd string on change, NULL if nothing changed.
+static char *avroReplaceDbInFromUsing(const char *sql) {
+    if (!sql) return NULL;
+
+    const char *keys[] = {"FROM", "USING"};
+    const int nkeys = 2;
+    int n = (int)strlen(sql);
+    int cap = n + 256;
+    char *out = (char *)taosMemoryMalloc(cap);
+    if (!out) return NULL;
+
+    int i = 0, w = 0;
+    bool changed = false;
+
+#define AVRO_ENSURE(need) do { \
+    while (w + (need) + 1 >= cap) { \
+        cap *= 2; \
+        out = (char *)taosMemoryRealloc(out, cap); \
+        if (!out) return NULL; \
+    } \
+} while(0)
+
+    while (i < n) {
+        int matched = -1;
+        for (int k = 0; k < nkeys; k++) {
+            int klen = (int)strlen(keys[k]);
+            if (i + klen < n && strncasecmp(sql + i, keys[k], klen) == 0) {
+                matched = k;
+                AVRO_ENSURE(klen);
+                memcpy(out + w, sql + i, klen);
+                w += klen; i += klen;
+
+                // copy spaces
+                while (i < n && (sql[i] == ' ' || sql[i] == '\t')) {
+                    AVRO_ENSURE(1);
+                    out[w++] = sql[i++];
+                }
+
+                // optional backtick
+                bool bt = (i < n && sql[i] == '`');
+                if (bt) { AVRO_ENSURE(1); out[w++] = sql[i++]; }
+
+                // db name token
+                int dbStart = i;
+                while (i < n) {
+                    if (bt) { if (sql[i] == '`') break; }
+                    else { if (sql[i] == '.' || sql[i] == ' ' || sql[i] == '\t'
+                               || sql[i] == '\n' || sql[i] == '\r') break; }
+                    i++;
+                }
+                int dbLen = i - dbStart;
+
+                // look ahead past closing backtick for dot
+                int j2 = i;
+                if (bt && j2 < n && sql[j2] == '`') j2++;
+                bool hasDot = (j2 < n && sql[j2] == '.');
+
+                if (dbLen > 0 && dbLen < AVRO_DB_NAME_LEN && hasDot) {
+                    char oldDb[AVRO_DB_NAME_LEN] = {0};
+                    memcpy(oldDb, sql + dbStart, dbLen);
+                    const char *newDb = argRenameDb(oldDb);
+                    int newLen = (int)strlen(newDb);
+                    AVRO_ENSURE(newLen);
+                    memcpy(out + w, newDb, newLen);
+                    w += newLen;
+                    if (strcmp(oldDb, newDb) != 0) changed = true;
+                } else {
+                    AVRO_ENSURE(dbLen);
+                    memcpy(out + w, sql + dbStart, dbLen);
+                    w += dbLen;
+                }
+
+                // closing backtick
+                if (bt && i < n && sql[i] == '`') {
+                    AVRO_ENSURE(1);
+                    out[w++] = sql[i++];
+                }
+
+                break;
+            }
+        }
+        if (matched < 0) {
+            AVRO_ENSURE(1);
+            out[w++] = sql[i++];
+        }
+    }
+
+#undef AVRO_ENSURE
+
+    out[w] = '\0';
+    if (!changed) {
+        taosMemoryFree(out);
+        return NULL;
+    }
+    return out;
+}
+
 char *avroAfterRenameSql(AvroRestoreCtx *ctx, const char *sql) {
     if (!ctx || !sql) return NULL;
 
     // Use argRenameDb to check if db name in SQL needs renaming.
     // For simplicity, we do a direct name replacement approach.
     // This matches taosdump's afterRenameSql logic.
+
+    char *newSql = NULL;
 
     const char *prefixes[] = {
         "CREATE DATABASE IF NOT EXISTS ",
@@ -81,15 +183,15 @@ char *avroAfterRenameSql(AvroRestoreCtx *ctx, const char *sql) {
             }
             oldDbName[j] = '\0';
 
-            if (strlen(oldDbName) == 0) return NULL;
+            if (strlen(oldDbName) == 0) break;
 
             const char *newDbName = argRenameDb(oldDbName);
-            if (strcmp(oldDbName, newDbName) == 0) return NULL;
+            if (strcmp(oldDbName, newDbName) == 0) break;
 
             // Build new SQL with replaced name
             size_t newSqlLen = strlen(sql) + strlen(newDbName) + 64;
-            char *newSql = (char *)taosMemoryCalloc(1, newSqlLen);
-            if (!newSql) return NULL;
+            newSql = (char *)taosMemoryCalloc(1, newSqlLen);
+            if (!newSql) break;
 
             // Copy prefix
             memcpy(newSql, sql, prefixLen);
@@ -109,11 +211,19 @@ char *avroAfterRenameSql(AvroRestoreCtx *ctx, const char *sql) {
                 strcat(newSql + pos, rest);
             }
 
-            return newSql;
+            break;
         }
     }
 
-    return NULL;
+    // Second pass: replace db names after FROM/USING keywords
+    // (e.g. vtable column mappings: FROM `olddb`.`t1`.`c1`)
+    const char *base = newSql ? newSql : sql;
+    char *out2 = avroReplaceDbInFromUsing(base);
+    if (out2) {
+        if (newSql) taosMemoryFree(newSql);
+        return out2;
+    }
+    return newSql;
 }
 
 // ==================== dbs.sql execution ====================
