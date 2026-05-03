@@ -67,8 +67,9 @@ static char *avroReplaceDbInFromUsing(const char *sql) {
 #define AVRO_ENSURE(need) do { \
     while (w + (need) + 1 >= cap) { \
         cap *= 2; \
-        out = (char *)taosMemoryRealloc(out, cap); \
-        if (!out) return NULL; \
+        char *_tmp = (char *)taosMemoryRealloc(out, cap); \
+        if (!_tmp) { taosMemoryFree(out); return NULL; } \
+        out = _tmp; \
     } \
 } while(0)
 
@@ -504,7 +505,15 @@ static char **scanDataDirs(const char *dbPath, int *outCount) {
 
         if (*outCount >= capacity) {
             capacity *= 2;
-            dirs = (char **)taosMemoryRealloc(dirs, (capacity + 1) * sizeof(char *));
+            char **tmp = (char **)taosMemoryRealloc(dirs, (capacity + 1) * sizeof(char *));
+            if (!tmp) {
+                for (int j = 0; j < *outCount; j++) taosMemoryFree(dirs[j]);
+                taosMemoryFree(dirs);
+                taosCloseDir(&dir);
+                *outCount = 0;
+                return NULL;
+            }
+            dirs = tmp;
         }
         dirs[*outCount] = taosStrdup(fullPath);
         (*outCount)++;
@@ -645,6 +654,8 @@ int restoreAvroDatabase(const char *dbPath) {
     }
 
     int ret = 0;
+    int dataDirCount = 0;
+    char **dataDirs = NULL;
 
     // Step 1: Execute dbs.sql (CREATE DATABASE, USE, CREATE STABLE, ...)
     ret = avroRestoreDbSql(&ctx);
@@ -654,12 +665,12 @@ int restoreAvroDatabase(const char *dbPath) {
     }
 
     // Step 2: Scan data directories
-    int dataDirCount = 0;
-    char **dataDirs = scanDataDirs(dbPath, &dataDirCount);
+    dataDirs = scanDataDirs(dbPath, &dataDirCount);
 
     if (!dataDirs || dataDirCount == 0) {
         logWarn("avro: no data directories found in %s, trying top-level", dbPath);
         // Some single-db exports may have files directly under dbPath
+        taosMemoryFree(dataDirs);
         dataDirs = (char **)taosMemoryCalloc(2, sizeof(char *));
         dataDirs[0] = taosStrdup(dbPath);
         dataDirCount = 1;
@@ -723,13 +734,12 @@ int restoreAvroDatabase(const char *dbPath) {
     // Step 6: Virtual data — skip for now; virtual tables don't export data files
     // To support future virtual data files, data directories would need a virtual marker.
 
+cleanup:
     // Free data dirs
     if (dataDirs) {
         for (int d = 0; d < dataDirCount; d++) taosMemoryFree(dataDirs[d]);
         taosMemoryFree(dataDirs);
     }
-
-cleanup:
     if (ctx.pDbChange) avroFreeDbChange(ctx.pDbChange);
     if (ctx.conn) releaseConnection(ctx.conn);
 
