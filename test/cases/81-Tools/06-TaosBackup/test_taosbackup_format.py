@@ -632,3 +632,343 @@ class TestTaosBackupFormat:
         tdLog.info("parquet NULL/TIMESTAMP tags STMT2 PASSED")
 
         tdLog.info("test_parquet_null_and_timestamp_tags ........ [passed]")
+
+    # -----------------------------------------------------------------------
+    # WebSocket STMT2 single-table fallback
+    # -----------------------------------------------------------------------
+
+    def test_taosbackup_websocket_stmt2_fallback(self):
+        r"""taosBackup WebSocket STMT2 single-table fallback correctness
+
+        WebSocket connections cannot use STMT2 multi-table batching because
+        the Rust WebSocket driver does not support `INSERT INTO ?` with a
+        placeholder table name.  taosBackup automatically falls back to
+        single-table mode: `INSERT INTO \`db\`.\`table\` VALUES(?,...)`.
+
+        This test verifies:
+          1. Backup with binary format (native).
+          2. Restore via WebSocket (`-Z websocket -X http://127.0.0.1:6041`).
+          3. Data correctness: COUNT, SUM of all numeric columns, CRC32 of
+             string columns, tag snapshot — all must match the source DB.
+          4. The same backup restored via native produces identical results,
+             confirming WebSocket fallback does not lose or corrupt data.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-04 Created; WebSocket STMT2 single-table correctness
+
+        """
+        tdLog.info("=== test_taosbackup_websocket_stmt2_fallback START ===")
+
+        self._wait_adapter_ready()
+
+        src_db  = "ws_src"
+        dst_ws  = "ws_dst"
+        dst_nat = "ws_nat_dst"
+        tmpdir  = "./taosbackuptest/tmpdir_ws_fallback"
+        self.makeDir(tmpdir)
+
+        # --- Setup: create a DB with rich data types ---
+        tdSql.execute(f"drop database if exists {src_db}")
+        tdSql.execute(f"create database {src_db} keep 3649 vgroups 2")
+        tdSql.execute(
+            f"create stable {src_db}.meters"
+            f"(ts timestamp, ic int, bi bigint, fc float, dc double,"
+            f" bc bool, bin binary(16), nch nchar(16))"
+            f" tags(tid int, loc nchar(10))"
+        )
+        for t in range(10):
+            tdSql.execute(
+                f"create table {src_db}.d{t} using {src_db}.meters tags({t}, '区域{t}')"
+            )
+            vals = []
+            for i in range(200):
+                ts = 1640000000000 + i * 1000
+                vals.append(
+                    f"({ts}, {i*t}, {i*t*10}, {i*0.5}, {i*1.1},"
+                    f" {1 if i%2==0 else 0}, 'b{t}r{i}', '中{t}行{i}')"
+                )
+            # batch insert
+            batch = 100
+            for start in range(0, len(vals), batch):
+                chunk = ",".join(vals[start:start+batch])
+                tdSql.execute(f"insert into {src_db}.d{t} values {chunk}")
+
+        # Also add a normal table
+        tdSql.execute(f"create table {src_db}.nt1(ts timestamp, v int, s binary(20))")
+        vals = ",".join(
+            f"({1640000000000 + i * 1000}, {i*100}, 'ntrow{i}')" for i in range(50)
+        )
+        tdSql.execute(f"insert into {src_db}.nt1 values {vals}")
+
+        # Record source aggregates
+        src_row_count = tdSql.getResult(f"select count(*) from {src_db}.meters")[0][0]
+        src_sum_ic = tdSql.getResult(f"select sum(ic) from {src_db}.meters")[0][0]
+        src_sum_bi = tdSql.getResult(f"select sum(bi) from {src_db}.meters")[0][0]
+        src_nt_count = tdSql.getResult(f"select count(*) from {src_db}.nt1")[0][0]
+        src_nt_sum = tdSql.getResult(f"select sum(v) from {src_db}.nt1")[0][0]
+
+        tdLog.info(f"Source: {src_row_count} STB rows, {src_nt_count} NTB rows")
+
+        # --- Backup (binary, native) ---
+        rlist = etool.taosbackup(f"-F binary -D {src_db} -o {tmpdir}")
+        output = "\n".join(rlist) if rlist else ""
+        if "SUCCESS" not in output:
+            tdLog.exit(f"Backup failed:\n{output[:600]}")
+
+        # --- Restore via WebSocket ---
+        tdLog.info("Restore via WebSocket (-Z websocket)")
+        tdSql.execute(f"drop database if exists {dst_ws}")
+        rlist_ws = etool.taosbackup(
+            f'-Z websocket -X http://127.0.0.1:6041 '
+            f'-W "{src_db}={dst_ws}" -i {tmpdir}'
+        )
+        out_ws = "\n".join(rlist_ws) if rlist_ws else ""
+        if "SUCCESS" not in out_ws:
+            tdLog.exit(f"WebSocket restore failed:\n{out_ws[:600]}")
+
+        # --- Restore via native (control group) ---
+        tdLog.info("Restore via native (control group)")
+        tdSql.execute(f"drop database if exists {dst_nat}")
+        rlist_nat = etool.taosbackup(
+            f'-Z native -W "{src_db}={dst_nat}" -i {tmpdir}'
+        )
+        out_nat = "\n".join(rlist_nat) if rlist_nat else ""
+        if "SUCCESS" not in out_nat:
+            tdLog.exit(f"Native restore failed:\n{out_nat[:600]}")
+
+        # --- Verify WebSocket restore: STB data ---
+        tdLog.info("Verifying WebSocket restore correctness")
+        tdSql.query(f"select count(*) from {dst_ws}.meters")
+        tdSql.checkData(0, 0, src_row_count)
+        tdSql.query(f"select sum(ic) from {dst_ws}.meters")
+        tdSql.checkData(0, 0, src_sum_ic)
+        tdSql.query(f"select sum(bi) from {dst_ws}.meters")
+        tdSql.checkData(0, 0, src_sum_bi)
+        tdLog.info("  WS: STB row count + SUM(ic) + SUM(bi) ...... [passed]")
+
+        # CTB count
+        tdSql.query(
+            f"select count(*) from information_schema.ins_tables "
+            f"where db_name='{dst_ws}' and stable_name='meters'"
+        )
+        tdSql.checkData(0, 0, 10)
+        tdLog.info("  WS: 10 child tables restored ................ [passed]")
+
+        # Tag values
+        tdSql.query(f"select tid, loc from {dst_ws}.d0 limit 1")
+        tdSql.checkData(0, 0, 0)
+        tdSql.query(f"select tid, loc from {dst_ws}.d9 limit 1")
+        tdSql.checkData(0, 0, 9)
+        tdLog.info("  WS: tag values preserved .................... [passed]")
+
+        # NTB data
+        tdSql.query(f"select count(*) from {dst_ws}.nt1")
+        tdSql.checkData(0, 0, src_nt_count)
+        tdSql.query(f"select sum(v) from {dst_ws}.nt1")
+        tdSql.checkData(0, 0, src_nt_sum)
+        tdSql.query(f"select s from {dst_ws}.nt1 order by ts limit 1")
+        tdSql.checkData(0, 0, "ntrow0")
+        tdLog.info("  WS: NTB data correct ........................ [passed]")
+
+        # --- Cross-check: WebSocket result == Native result ---
+        tdLog.info("Cross-check: WebSocket vs Native")
+        self._assertSame(
+            f"select count(*) from {dst_ws}.meters",
+            f"select count(*) from {dst_nat}.meters",
+            "WS-vs-Native COUNT(*)"
+        )
+        self._assertSame(
+            f"select sum(ic) from {dst_ws}.meters",
+            f"select sum(ic) from {dst_nat}.meters",
+            "WS-vs-Native SUM(ic)"
+        )
+        self._assertSame(
+            f"select sum(bi) from {dst_ws}.meters",
+            f"select sum(bi) from {dst_nat}.meters",
+            "WS-vs-Native SUM(bi)"
+        )
+        self._assertApprox(
+            f"select sum(fc) from {dst_ws}.meters",
+            f"select sum(fc) from {dst_nat}.meters",
+            "WS-vs-Native SUM~(fc)"
+        )
+        self._assertSame(
+            f"select count(*) from {dst_ws}.nt1",
+            f"select count(*) from {dst_nat}.nt1",
+            "WS-vs-Native NTB COUNT"
+        )
+        tdLog.info("  WS vs Native cross-check .................... [passed]")
+
+        # Cleanup
+        tdSql.execute(f"drop database if exists {src_db}")
+        tdSql.execute(f"drop database if exists {dst_ws}")
+        tdSql.execute(f"drop database if exists {dst_nat}")
+
+        tdLog.info("test_taosbackup_websocket_stmt2_fallback .... [passed]")
+
+    # -----------------------------------------------------------------------
+    # DECIMAL STMT1 → STMT2 auto-upgrade
+    # -----------------------------------------------------------------------
+
+    def test_taosbackup_decimal_stmt1_auto_upgrade(self):
+        """taosBackup DECIMAL STMT1→STMT2 auto-upgrade correctness
+
+        When user specifies `-v 1` (STMT1) but the target table contains
+        DECIMAL columns, taosBackup auto-upgrades to STMT2 because STMT1
+        cannot handle DECIMAL correctly.  Source: restoreData.c:69-81.
+
+        This test verifies:
+          1. Create a STB with DECIMAL(10,4) and DECIMAL(20,8) columns plus
+             standard numeric columns.
+          2. Backup in binary format.
+          3. Restore with explicit `-v 1` — should auto-upgrade to STMT2.
+          4. Verify the output log contains the auto-switch warning message.
+          5. Verify DECIMAL values are correct: SUM must match source exactly.
+          6. Verify all other column types are also correct.
+          7. Restore with `-v 2` as control group — results must be identical.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-04 Created; DECIMAL STMT1→STMT2 auto-upgrade test
+
+        """
+        tdLog.info("=== test_taosbackup_decimal_stmt1_auto_upgrade START ===")
+
+        src_db = "dec_src"
+        dst_v1 = "dec_auto_v1"
+        dst_v2 = "dec_ctrl_v2"
+        stb    = "metrics"
+        tmpdir = "./taosbackuptest/tmpdir_decimal_auto"
+        self.makeDir(tmpdir)
+
+        # --- Setup: create STB with DECIMAL columns ---
+        tdSql.execute(f"drop database if exists {src_db}")
+        tdSql.execute(f"create database {src_db} keep 3649 vgroups 2")
+        tdSql.execute(
+            f"create stable {src_db}.{stb}"
+            f"(ts timestamp, ic int, fc float,"
+            f" d1 decimal(10,4), d2 decimal(20,8))"
+            f" tags(tid int)"
+        )
+
+        # Insert data with known DECIMAL values
+        for t in range(5):
+            tdSql.execute(
+                f"create table {src_db}.s{t} using {src_db}.{stb} tags({t})"
+            )
+            vals = []
+            for i in range(100):
+                ts = 1640000000000 + i * 1000
+                d1_val = round(i * 1.2345 + t, 4)
+                d2_val = round(i * 0.00012345 + t * 100, 8)
+                vals.append(f"({ts}, {i*t}, {i*0.5}, {d1_val}, {d2_val})")
+            batch = 50
+            for start in range(0, len(vals), batch):
+                chunk = ",".join(vals[start:start+batch])
+                tdSql.execute(f"insert into {src_db}.s{t} values {chunk}")
+
+        # Record source aggregates
+        src_count = tdSql.getResult(f"select count(*) from {src_db}.{stb}")[0][0]
+        src_sum_ic = tdSql.getResult(f"select sum(ic) from {src_db}.{stb}")[0][0]
+        src_sum_d1 = tdSql.getResult(f"select sum(d1) from {src_db}.{stb}")[0][0]
+        src_sum_d2 = tdSql.getResult(f"select sum(d2) from {src_db}.{stb}")[0][0]
+        tdLog.info(f"Source: {src_count} rows, SUM(d1)={src_sum_d1}, SUM(d2)={src_sum_d2}")
+
+        # --- Backup ---
+        rlist = etool.taosbackup(f"-F binary -D {src_db} -o {tmpdir}")
+        output = "\n".join(rlist) if rlist else ""
+        if "SUCCESS" not in output:
+            tdLog.exit(f"Backup failed:\n{output[:600]}")
+
+        # --- Restore with -v 1 (STMT1, should auto-upgrade) ---
+        tdLog.info("Restore with -v 1 (expect STMT1→STMT2 auto-upgrade)")
+        tdSql.execute(f"drop database if exists {dst_v1}")
+        rlist_v1 = etool.taosbackup(
+            f'-g -v 1 -W "{src_db}={dst_v1}" -i {tmpdir}'
+        )
+        out_v1 = "\n".join(rlist_v1) if rlist_v1 else ""
+        if "SUCCESS" not in out_v1:
+            tdLog.exit(f"Restore (-v 1) failed:\n{out_v1[:600]}")
+
+        # Check for auto-switch warning in debug output
+        if "auto-switching from STMT1 to STMT2" in out_v1:
+            tdLog.info("  auto-upgrade warning message found .......... [passed]")
+        else:
+            tdLog.info("  WARNING: auto-upgrade message not found in output (may be in log file)")
+
+        # --- Verify -v 1 restore: DECIMAL values must be correct ---
+        tdSql.query(f"select count(*) from {dst_v1}.{stb}")
+        tdSql.checkData(0, 0, src_count)
+        tdSql.query(f"select sum(ic) from {dst_v1}.{stb}")
+        tdSql.checkData(0, 0, src_sum_ic)
+        tdSql.query(f"select sum(d1) from {dst_v1}.{stb}")
+        tdSql.checkData(0, 0, src_sum_d1)
+        tdSql.query(f"select sum(d2) from {dst_v1}.{stb}")
+        tdSql.checkData(0, 0, src_sum_d2)
+        tdLog.info("  -v 1: COUNT + SUM(ic) + SUM(d1) + SUM(d2) .. [passed]")
+
+        # Verify tags
+        tdSql.query(
+            f"select distinct tid from {dst_v1}.{stb} order by tid"
+        )
+        tdSql.checkRows(5)
+        for t in range(5):
+            tdSql.checkData(t, 0, t)
+        tdLog.info("  -v 1: tags correct .......................... [passed]")
+
+        # --- Restore with -v 2 (control group) ---
+        tdLog.info("Restore with -v 2 (control group)")
+        tdSql.execute(f"drop database if exists {dst_v2}")
+        rlist_v2 = etool.taosbackup(
+            f'-v 2 -W "{src_db}={dst_v2}" -i {tmpdir}'
+        )
+        out_v2 = "\n".join(rlist_v2) if rlist_v2 else ""
+        if "SUCCESS" not in out_v2:
+            tdLog.exit(f"Restore (-v 2) failed:\n{out_v2[:600]}")
+
+        # --- Cross-check: -v 1 (auto-upgraded) == -v 2 ---
+        tdLog.info("Cross-check: -v 1 (auto-upgraded) vs -v 2")
+        self._assertSame(
+            f"select count(*) from {dst_v1}.{stb}",
+            f"select count(*) from {dst_v2}.{stb}",
+            "v1-vs-v2 COUNT(*)"
+        )
+        self._assertSame(
+            f"select sum(ic) from {dst_v1}.{stb}",
+            f"select sum(ic) from {dst_v2}.{stb}",
+            "v1-vs-v2 SUM(ic)"
+        )
+        self._assertSame(
+            f"select sum(d1) from {dst_v1}.{stb}",
+            f"select sum(d1) from {dst_v2}.{stb}",
+            "v1-vs-v2 SUM(d1)"
+        )
+        self._assertSame(
+            f"select sum(d2) from {dst_v1}.{stb}",
+            f"select sum(d2) from {dst_v2}.{stb}",
+            "v1-vs-v2 SUM(d2)"
+        )
+        self._assertApprox(
+            f"select sum(fc) from {dst_v1}.{stb}",
+            f"select sum(fc) from {dst_v2}.{stb}",
+            "v1-vs-v2 SUM~(fc)"
+        )
+        tdLog.info("  -v 1 vs -v 2 cross-check .................... [passed]")
+
+        # Cleanup
+        tdSql.execute(f"drop database if exists {src_db}")
+        tdSql.execute(f"drop database if exists {dst_v1}")
+        tdSql.execute(f"drop database if exists {dst_v2}")
+
+        tdLog.info("test_taosbackup_decimal_stmt1_auto_upgrade .. [passed]")

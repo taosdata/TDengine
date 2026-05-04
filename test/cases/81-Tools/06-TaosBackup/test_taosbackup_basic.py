@@ -1387,6 +1387,256 @@ class TestTaosBackupBasic:
         tdSql.execute("drop database newdb")
         tdLog.info("do_taosbackup_prefilter_spec_tables_time_filter [passed]")
 
+    # -----------------------------------------------------------------------
+    # 19. Table-level backup with positional args
+    # -----------------------------------------------------------------------
+
+    def do_taosbackup_table_level(self):
+        """Backup specific tables via positional args: taosBackup db tbl1 tbl2 ...
+
+        Verifies:
+          A. Multiple CTBs from the same STB — only named CTBs are backed up,
+             STB DDL is preserved, data values and tags are correct.
+          B. CTBs from different STBs — both parent STB DDLs preserved,
+             only the named CTBs are restored.
+          C. Mixed CTBs + NTBs — both types coexist in positional args.
+          D. NTB-only — positional args with only normal tables.
+        """
+        tmpdir = "./taosbackuptest/tmpdir_table_level"
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        # --- Setup: create DB with 2 STBs, 5 CTBs, 2 NTBs ---
+        tdSql.execute("drop database if exists tldb")
+        tdSql.execute("create database tldb keep 3649")
+        tdSql.execute("use tldb")
+
+        # STB st1: 3 child tables
+        tdSql.execute(
+            "create table st1(ts timestamp, v int, s binary(20)) tags(tid int, loc nchar(10))"
+        )
+        tdSql.execute("create table c1 using st1 tags(1, '北京')")
+        tdSql.execute("create table c2 using st1 tags(2, '上海')")
+        tdSql.execute("create table c3 using st1 tags(3, '深圳')")
+        vals = " ".join(
+            f"c1 values({1640000000000+i*1000}, {i}, 'c1row{i}')"
+            f" c2 values({1640000000000+i*1000}, {i+100}, 'c2row{i}')"
+            f" c3 values({1640000000000+i*1000}, {i+200}, 'c3row{i}')"
+            for i in range(20)
+        )
+        tdSql.execute(f"insert into {vals}")
+
+        # STB st2: 2 child tables
+        tdSql.execute(
+            "create table st2(ts timestamp, f float) tags(area int)"
+        )
+        tdSql.execute("create table d1 using st2 tags(10)")
+        tdSql.execute("create table d2 using st2 tags(20)")
+        vals = " ".join(
+            f"d1 values({1640000000000+i*1000}, {i*1.5})"
+            f" d2 values({1640000000000+i*1000}, {i*2.5})"
+            for i in range(15)
+        )
+        tdSql.execute(f"insert into {vals}")
+
+        # Normal tables
+        tdSql.execute("create table nt1(ts timestamp, v int)")
+        tdSql.execute("create table nt2(ts timestamp, s nchar(20))")
+        vals = " ".join(
+            f"nt1 values({1640000000000+i*1000}, {i*100})"
+            f" nt2 values({1640000000000+i*1000}, '行{i}')"
+            for i in range(10)
+        )
+        tdSql.execute(f"insert into {vals}")
+
+        # Record source sums for verification
+        src_sum_c1 = tdSql.getResult("select sum(v) from tldb.c1")[0][0]
+        src_sum_c3 = tdSql.getResult("select sum(v) from tldb.c3")[0][0]
+        src_sum_d1 = tdSql.getResult("select sum(f) from tldb.d1")[0][0]
+        src_sum_nt1 = tdSql.getResult("select sum(v) from tldb.nt1")[0][0]
+
+        # --- Case A: Multiple CTBs from same STB (c1, c3) ---
+        tdLog.info("Case A: multiple CTBs from same STB")
+        self.makeDir(tmpdir)
+        self.exec(f"{binPath} tldb c1 c3 -o {tmpdir} -T 1")
+        tdSql.execute("drop database tldb")
+        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tla"')
+
+        assert self.dbFound("tla"), "tla not found after restore"
+        # st1 DDL must be preserved (parent of c1, c3)
+        tdSql.query("select stable_name from information_schema.ins_stables where db_name='tla'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "st1")
+        # Only c1 and c3 restored, NOT c2, d1, d2, nt1, nt2
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='tla' order by table_name")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "c1")
+        tdSql.checkData(1, 0, "c3")
+        # Data values correct
+        tdSql.query("select sum(v) from tla.c1")
+        tdSql.checkData(0, 0, src_sum_c1)
+        tdSql.query("select sum(v) from tla.c3")
+        tdSql.checkData(0, 0, src_sum_c3)
+        tdSql.query("select count(*) from tla.c1")
+        tdSql.checkData(0, 0, 20)
+        # Tags preserved
+        tdSql.query("select tid, loc from tla.c1 limit 1")
+        tdSql.checkData(0, 0, 1)
+        tdSql.query("select tid, loc from tla.c3 limit 1")
+        tdSql.checkData(0, 0, 3)
+        # String data intact
+        tdSql.query("select s from tla.c1 order by ts limit 1")
+        tdSql.checkData(0, 0, "c1row0")
+        tdSql.execute("drop database tla")
+        tdLog.info("  Case A: multi-CTB same STB .................. [passed]")
+
+        # --- Recreate source for next cases ---
+        tdSql.execute("drop database if exists tldb")
+        tdSql.execute("create database tldb keep 3649")
+        tdSql.execute("use tldb")
+        tdSql.execute("create table st1(ts timestamp, v int, s binary(20)) tags(tid int, loc nchar(10))")
+        tdSql.execute("create table c1 using st1 tags(1, '北京')")
+        tdSql.execute("create table c3 using st1 tags(3, '深圳')")
+        tdSql.execute("create table st2(ts timestamp, f float) tags(area int)")
+        tdSql.execute("create table d1 using st2 tags(10)")
+        tdSql.execute("create table nt1(ts timestamp, v int)")
+        tdSql.execute("create table nt2(ts timestamp, s nchar(20))")
+        vals = " ".join(
+            f"c1 values({1640000000000+i*1000}, {i}, 'c1row{i}')"
+            f" c3 values({1640000000000+i*1000}, {i+200}, 'c3row{i}')"
+            for i in range(20)
+        )
+        tdSql.execute(f"insert into {vals}")
+        vals = " ".join(
+            f"d1 values({1640000000000+i*1000}, {i*1.5})" for i in range(15)
+        )
+        tdSql.execute(f"insert into {vals}")
+        vals = " ".join(
+            f"nt1 values({1640000000000+i*1000}, {i*100})"
+            f" nt2 values({1640000000000+i*1000}, '行{i}')"
+            for i in range(10)
+        )
+        tdSql.execute(f"insert into {vals}")
+
+        # --- Case B: CTBs from different STBs (c1 from st1, d1 from st2) ---
+        tdLog.info("Case B: CTBs from different STBs")
+        self.makeDir(tmpdir)
+        self.exec(f"{binPath} tldb c1 d1 -o {tmpdir} -T 1")
+        tdSql.execute("drop database tldb")
+        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tlb"')
+
+        assert self.dbFound("tlb"), "tlb not found after restore"
+        # Both st1 and st2 DDLs must be preserved
+        tdSql.query("select stable_name from information_schema.ins_stables where db_name='tlb' order by stable_name")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "st1")
+        tdSql.checkData(1, 0, "st2")
+        # Only c1 and d1 restored
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='tlb' order by table_name")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "c1")
+        tdSql.checkData(1, 0, "d1")
+        # Data correct
+        tdSql.query("select sum(v) from tlb.c1")
+        tdSql.checkData(0, 0, src_sum_c1)
+        tdSql.query("select count(*) from tlb.d1")
+        tdSql.checkData(0, 0, 15)
+        tdSql.execute("drop database tlb")
+        tdLog.info("  Case B: cross-STB CTBs ...................... [passed]")
+
+        # --- Recreate source for next cases ---
+        tdSql.execute("drop database if exists tldb")
+        tdSql.execute("create database tldb keep 3649")
+        tdSql.execute("use tldb")
+        tdSql.execute("create table st1(ts timestamp, v int, s binary(20)) tags(tid int, loc nchar(10))")
+        tdSql.execute("create table c1 using st1 tags(1, '北京')")
+        tdSql.execute("create table nt1(ts timestamp, v int)")
+        tdSql.execute("create table nt2(ts timestamp, s nchar(20))")
+        vals = " ".join(
+            f"c1 values({1640000000000+i*1000}, {i}, 'c1row{i}')" for i in range(20)
+        )
+        tdSql.execute(f"insert into {vals}")
+        vals = " ".join(
+            f"nt1 values({1640000000000+i*1000}, {i*100})"
+            f" nt2 values({1640000000000+i*1000}, '行{i}')"
+            for i in range(10)
+        )
+        tdSql.execute(f"insert into {vals}")
+
+        # --- Case C: Mixed CTBs + NTBs (c1 + nt1) ---
+        tdLog.info("Case C: mixed CTBs + NTBs")
+        self.makeDir(tmpdir)
+        self.exec(f"{binPath} tldb c1 nt1 -o {tmpdir} -T 1")
+        tdSql.execute("drop database tldb")
+        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tlc"')
+
+        assert self.dbFound("tlc"), "tlc not found after restore"
+        # st1 DDL preserved (for c1), nt1 also restored
+        tdSql.query("select stable_name from information_schema.ins_stables where db_name='tlc'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "st1")
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='tlc' order by table_name")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "c1")
+        tdSql.checkData(1, 0, "nt1")
+        # nt2 must NOT be restored
+        # Data values correct
+        tdSql.query("select sum(v) from tlc.c1")
+        tdSql.checkData(0, 0, src_sum_c1)
+        tdSql.query("select sum(v) from tlc.nt1")
+        tdSql.checkData(0, 0, src_sum_nt1)
+        tdSql.execute("drop database tlc")
+        tdLog.info("  Case C: mixed CTB + NTB ..................... [passed]")
+
+        # --- Recreate source for Case D ---
+        tdSql.execute("drop database if exists tldb")
+        tdSql.execute("create database tldb keep 3649")
+        tdSql.execute("use tldb")
+        tdSql.execute("create table st1(ts timestamp, v int, s binary(20)) tags(tid int, loc nchar(10))")
+        tdSql.execute("create table c1 using st1 tags(1, '北京')")
+        tdSql.execute("create table nt1(ts timestamp, v int)")
+        tdSql.execute("create table nt2(ts timestamp, s nchar(20))")
+        vals = " ".join(
+            f"c1 values({1640000000000+i*1000}, {i}, 'c1row{i}')" for i in range(20)
+        )
+        tdSql.execute(f"insert into {vals}")
+        vals = " ".join(
+            f"nt1 values({1640000000000+i*1000}, {i*100})"
+            f" nt2 values({1640000000000+i*1000}, '行{i}')"
+            for i in range(10)
+        )
+        tdSql.execute(f"insert into {vals}")
+
+        # --- Case D: NTB-only (nt1, nt2) ---
+        tdLog.info("Case D: NTB-only positional args")
+        self.makeDir(tmpdir)
+        self.exec(f"{binPath} tldb nt1 nt2 -o {tmpdir} -T 1")
+        tdSql.execute("drop database tldb")
+        self.exec(f'{binPath} -i {tmpdir} -T 1 -W "tldb=tld"')
+
+        assert self.dbFound("tld"), "tld not found after restore"
+        # No STBs restored
+        tdSql.query("select stable_name from information_schema.ins_stables where db_name='tld'")
+        tdSql.checkRows(0)
+        # Only nt1 and nt2
+        tdSql.query("select table_name from information_schema.ins_tables where db_name='tld' order by table_name")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "nt1")
+        tdSql.checkData(1, 0, "nt2")
+        # Data correct
+        tdSql.query("select sum(v) from tld.nt1")
+        tdSql.checkData(0, 0, src_sum_nt1)
+        tdSql.query("select count(*) from tld.nt2")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select s from tld.nt2 order by ts limit 1")
+        tdSql.checkData(0, 0, "行0")
+        tdSql.execute("drop database tld")
+        tdLog.info("  Case D: NTB-only ............................ [passed]")
+
+        tdLog.info("do_taosbackup_table_level .................... [passed]")
+
     #
     # ------------------- main test method ----------------
     #
@@ -1411,6 +1661,7 @@ class TestTaosBackupBasic:
         16. Pre-filter empty CTBs via last(ts): mixed CTBs, no time filter; all non-empty rows intact
         17. Pre-filter empty CTBs via last_row(ts): time filter; in-range rows correct, out-of-range skipped
         18. Pre-filter empty CTBs with spec-tables + time filter; -S/-E applies to named CTBs
+        19. Table-level backup with positional args: multi-CTB, cross-STB, mixed CTB+NTB, NTB-only
 
         Since: v3.0.0.0
 
@@ -1440,3 +1691,4 @@ class TestTaosBackupBasic:
         self.do_taosbackup_prefilter_empty_ctb()
         self.do_taosbackup_prefilter_empty_ctb_time_filter()
         self.do_taosbackup_prefilter_spec_tables_time_filter()
+        self.do_taosbackup_table_level()

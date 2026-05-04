@@ -358,6 +358,22 @@ class TestTaosBackupEdge:
         tdLog.info("do_hot_backup ................................ [passed]")
 
     # -----------------------------------------------------------------------
+    # 6. Error cases: invalid parameters, missing DB, permission denied, etc.
+    # -----------------------------------------------------------------------
+
+    def do_error_cases(self):
+        tmpdir = "./taosbackuptest/tmpdir_error"
+        self.makeDir(tmpdir)
+        tdSql.execute("create database errordb")
+
+        # Case A: missing database
+        rlist = etool.taosbackup(f"-D nonexistdb -o {tmpdir}", checkRun=False)
+        self.checkListString(rlist, "0x80000388 Database not exist")
+
+        tdLog.info("do_error_cases ................................ [passed]")
+
+
+    # -----------------------------------------------------------------------
     # Main test entry point
     # -----------------------------------------------------------------------
 
@@ -399,6 +415,7 @@ class TestTaosBackupEdge:
         self.do_debug_mode()
         self.do_auth_user()
         self.do_hot_backup()
+        self.do_error_cases()
 
         os.system("rm -rf ./taosbackuptest/")
         tdLog.info("test_taosbackup_edge ......................... [passed]")
