@@ -323,9 +323,9 @@ class TestTaosBackupExcept:
         )
         self.stop_thread.start()
 
-    def _stop_pause_thread(self):
-        """Cancel pre-sleep (if still waiting) and join.  The try/finally in
-        stopTaosdTask guarantees sc.dnodeStart is called before the thread exits."""
+    def _restart_taosd(self):
+        """Wait for the pause thread to finish — its try/finally guarantees
+        sc.dnodeStart is called, so taosd is restarted before this returns."""
         self._pause_stop_evt.set()
         self.stop_thread.join(timeout=self._SRV_PAUSETIME + 10)
         if self.stop_thread.is_alive():
@@ -451,8 +451,8 @@ class TestTaosBackupExcept:
         cmd = f"-T 2 -D {self._SRV_DB_SRC} -o {tmpdir}"
         etool.taosbackup(cmd, checkRun=False)
 
-        # Start dnode
-        sc.dnodeStart(1)
+        # Wait for pause thread to finish (its finally block restarts taosd)
+        self._restart_taosd()
         self._wait_dnode_ready()
 
         # Continue backup with checkpoint
@@ -463,11 +463,11 @@ class TestTaosBackupExcept:
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_RST)
         etool.taosbackup(cmd, checkRun=False)
 
-        # Start dnode
-        sc.dnodeStart(1)
+        # Wait for pause thread to finish (its finally block restarts taosd)
+        self._restart_taosd()
         self._wait_dnode_ready()
 
-        # Continue backup with checkpoint
+        # Continue restore with checkpoint
         etool.taosbackup(f"-C {cmd}")
 
         # verify
