@@ -23,9 +23,14 @@ class TestTaosBackupBasic:
     def exec(self, command):
         """Run a shell command, stream output, and fail the test on non-zero exit code."""
         tdLog.info(command)
+        # Unset LD_PRELOAD so ASAN (preloaded for taosd) does not instrument
+        # standalone tools which would otherwise crash or report false positives.
+        env = os.environ.copy()
+        env.pop("LD_PRELOAD", None)
         result = subprocess.run(
             command, shell=True, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=env
         )
         if result.stdout:
             for line in result.stdout.splitlines():
@@ -1597,14 +1602,14 @@ class TestTaosBackupBasic:
         tdSql.execute("create table st1(ts timestamp, v int, s binary(20)) tags(tid int, loc nchar(10))")
         tdSql.execute("create table c1 using st1 tags(1, '北京')")
         tdSql.execute("create table nt1(ts timestamp, v int)")
-        tdSql.execute("create table nt2(ts timestamp, s nchar(20))")
+        tdSql.execute("create table nt2(ts timestamp, s binary(20))")
         vals = " ".join(
             f"c1 values({1640000000000+i*1000}, {i}, 'c1row{i}')" for i in range(20)
         )
         tdSql.execute(f"insert into {vals}")
         vals = " ".join(
             f"nt1 values({1640000000000+i*1000}, {i*100})"
-            f" nt2 values({1640000000000+i*1000}, '行{i}')"
+            f" nt2 values({1640000000000+i*1000}, 'row{i}')"
             for i in range(10)
         )
         tdSql.execute(f"insert into {vals}")
@@ -1631,7 +1636,7 @@ class TestTaosBackupBasic:
         tdSql.query("select count(*) from tld.nt2")
         tdSql.checkData(0, 0, 10)
         tdSql.query("select s from tld.nt2 order by ts limit 1")
-        tdSql.checkData(0, 0, "行0")
+        tdSql.checkData(0, 0, "row0")
         tdSql.execute("drop database tld")
         tdLog.info("  Case D: NTB-only ............................ [passed]")
 

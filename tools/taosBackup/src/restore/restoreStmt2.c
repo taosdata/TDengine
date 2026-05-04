@@ -93,6 +93,29 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
                       ctx->colBindsCap < numCols ||
                       ctx->rowBufCap  < targetCap);
 
+    /* Force re-allocation when a reused buffer slot changes between
+     * fixed-size and variable-size types (e.g. INT → NCHAR across NTBs).
+     * Variable types need a per-row `length` array that fixed types don't
+     * allocate; reusing a fixed-type slot for a variable-type column would
+     * leave `length` as NULL, causing a SIGSEGV in the STMT2 bind path. */
+    if (!needAlloc && ctx->colBinds) {
+        for (int i = 0; i < numCols; i++) {
+            int backupColIdx = i;
+            if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->colMappings &&
+                i < ctx->stbChange->matchColCount) {
+                backupColIdx = ctx->stbChange->colMappings[i].backupIdx;
+            }
+            FieldInfo       *fi   = &fieldInfos[backupColIdx];
+            TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
+            bool oldNeedsLen = IS_VAR_DATA_TYPE(bind->buffer_type) || IS_DECIMAL_TYPE(bind->buffer_type);
+            bool newNeedsLen = IS_VAR_DATA_TYPE(fi->type) || IS_DECIMAL_TYPE(fi->type);
+            if (oldNeedsLen != newNeedsLen || fi->type != bind->buffer_type) {
+                needAlloc = true;
+                break;
+            }
+        }
+    }
+
     /* Space-for-time: before a fresh alloc, check if the spare buffer set from
      * the previous flush cycle can satisfy the new requirements (same or more
      * columns, same or larger row capacity).  Reclaiming the spare avoids the
