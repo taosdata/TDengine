@@ -1148,12 +1148,12 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         INC_DIR          include
         LIB              ${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}
     )
-    # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-    # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-    get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
+    # URL https://github.com/facebook/rocksdb/archive/refs/tags/v9.7.4.tar.gz
+    # URL_HASH MD5=204ed2b16eb1850b56d8e91e24ce7c0d
+    get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v9.7.4.tar.gz")
     ExternalProject_Add(ext_rocksdb
         URL ${_url}
-        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+        URL_HASH MD5=204ed2b16eb1850b56d8e91e24ce7c0d
         # GIT_SHALLOW TRUE
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
