@@ -152,16 +152,18 @@ static int restoreDbSql(const char *dbName) {
     TAOS_RES *res = taos_query(conn, execContent);
     code = taos_errno(res);
 
-    if (code != TSDB_CODE_SUCCESS) {
-        // try USE database instead - database may already exist
-        logDebug("database may already exist(0x%08X %s), so need not create. `%s`: %s", code, taos_errstr(res), targetDb, execContent);
-    }
-    if (res) taos_free_result(res);
-
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_MND_DB_ALREADY_EXIST) {
+        // database already exists — fall back to USE (APPEND mode)
+        logDebug("database already exists(0x%08X %s), so need not create. `%s`: %s", code, taos_errstr(res), targetDb, execContent);
+        if (res) taos_free_result(res);
         char useSql[256];
         snprintf(useSql, sizeof(useSql), "USE `%s`", targetDb);
         code = execSql(conn, useSql);
+    } else if (code != TSDB_CODE_SUCCESS) {
+        logError("create database failed(0x%08X %s): %s", code, taos_errstr(res), execContent);
+        if (res) taos_free_result(res);
+    } else {
+        if (res) taos_free_result(res);
     }
 
     releaseConnection(conn);
