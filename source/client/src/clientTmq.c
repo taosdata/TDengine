@@ -79,8 +79,8 @@ enum {
 };
 
 typedef struct {
-  tmr_h               timer;
-  int32_t             rsetId;
+  volatile tmr_h      timer;
+  volatile int32_t    rsetId;
   TdThreadMutex       lock;
 } SMqMgmt;
 

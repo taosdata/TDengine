@@ -38,7 +38,7 @@
 #include "wal.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
-int32_t             fetchObjRefPool = -1;
+volatile int32_t    fetchObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
 
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
