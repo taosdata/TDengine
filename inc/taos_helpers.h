@@ -905,8 +905,17 @@ static inline int call_taos_get_current_db(const char *file, int line, const cha
   return r;
 }
 
+static inline int call_taos_set_conn_mode(const char *file, int line, const char *func, TAOS *taos, int mode, int value)
+{
+  LOGD_TAOS(file, line, func, "taos_set_conn_mode(taos:%p,mode:%d,value:%d) ...", taos, mode, value);
+  int r = taos_set_conn_mode(taos, mode, value);
+  LOGD_TAOS(file, line, func, "taos_set_conn_mode(taos:%p,mode:%d,value:%d) => %d", taos, mode, value, r);
+  return r;
+}
+
 #define CALL_taos_cleanup(...) call_taos_cleanup(__FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define CALL_taos_options(...) call_taos_options(__FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define CALL_taos_set_conn_mode(...) call_taos_set_conn_mode(__FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define CALL_taos_set_config(...) call_taos_set_config(__FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define CALL_taos_init(...) call_taos_init(__FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define CALL_taos_connect(...) call_taos_connect(__FILE__, __LINE__, __func__, ##__VA_ARGS__)

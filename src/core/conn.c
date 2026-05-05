@@ -703,6 +703,16 @@ static SQLRETURN _do_conn_connect(conn_t *conn)
     conn_append_err_format(conn, "08001", taos_errno(NULL), "Client unable to establish connection:[%s][%s]", buffer.buf, taos_errstr(NULL));
     return SQL_ERROR;
   }
+
+  if (cfg->conn_mode) {
+    int e = CALL_taos_set_conn_mode(conn->ds_conn.taos, TAOS_CONN_MODE_BI, 1);
+    if (e) {
+      conn_append_err_format(conn, "HY000", e, "General error:taos_set_conn_mode(BI) failed: %s", taos_errstr(NULL));
+      conn_disconnect(conn);
+      return SQL_ERROR;
+    }
+  }
+
   if (conn->cfg.db && db == NULL) {
     // FIXME: vulnerability!!!
     int e = CALL_taos_select_db(conn->ds_conn.taos, conn->cfg.db);

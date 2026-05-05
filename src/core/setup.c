@@ -315,11 +315,22 @@ static void check_taos_connection(HWND hDlg, config_t *config)
     snprintf(buf, sizeof(buf), "%s:[%d/0x%x]%s", message, e, e, taos_errstr(NULL));
     MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
   } else {
+    if (config->conn_mode) {
+      int e = CALL_taos_set_conn_mode(taos, TAOS_CONN_MODE_BI, 1);
+      if (e) {
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "taos_set_conn_mode(BI) failed:[%d/0x%x]%s", e, e, taos_errstr(NULL));
+        MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
+        CALL_taos_close(taos);
+        url_parser_param_release(&url_param);
+        return;
+      }
+    }
     LoadString(hInstance, IDS_TEST_CONN_NATIVE_MSG_SUCCESS, message, sizeof(message));
     MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
   }
   if (taos) {
-    taos_close(taos);
+    CALL_taos_close(taos);
   }
   url_parser_param_release(&url_param);
 }

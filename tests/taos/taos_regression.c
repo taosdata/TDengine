@@ -1724,6 +1724,64 @@ static int _prepare_get_tag_col_fields(const arg_t *arg, const stage_t stage, TA
   return 0;
 }
 
+static int _conn_mode(const arg_t *arg, const stage_t stage, TAOS *taos, TAOS_STMT *stmt)
+{
+  (void)arg;
+  (void)stmt;
+
+  if (stage != STAGE_CONNECTED) return 0;
+
+  int r = 0;
+
+  // Test 1: set BI mode (conn_mode=1) on a valid connection
+  DUMP("test: taos_set_conn_mode(TAOS_CONN_MODE_BI, 1) on valid connection");
+  r = CALL_taos_set_conn_mode(taos, TAOS_CONN_MODE_BI, 1);
+  if (r) {
+    E("taos_set_conn_mode(TAOS_CONN_MODE_BI, 1) failed:[%d]%s", r, taos_errstr(NULL));
+    return -1;
+  }
+  DUMP("  => success");
+
+  // Test 2: verify the connection still works after setting BI mode
+  DUMP("test: query after setting BI mode");
+  {
+    TAOS_RES *res = CALL_taos_query(taos, "select 1");
+    int e = taos_errno(res);
+    if (e) {
+      E("query after taos_set_conn_mode failed:[%d]%s", e, taos_errstr(res));
+      if (res) CALL_taos_free_result(res);
+      return -1;
+    }
+    if (res) CALL_taos_free_result(res);
+  }
+  DUMP("  => success");
+
+  // Test 3: disable BI mode
+  DUMP("test: taos_set_conn_mode(TAOS_CONN_MODE_BI, 0) to disable");
+  r = CALL_taos_set_conn_mode(taos, TAOS_CONN_MODE_BI, 0);
+  if (r) {
+    E("taos_set_conn_mode(TAOS_CONN_MODE_BI, 0) failed:[%d]%s", r, taos_errstr(NULL));
+    return -1;
+  }
+  DUMP("  => success");
+
+  // Test 4: verify the connection still works after disabling BI mode
+  DUMP("test: query after disabling BI mode");
+  {
+    TAOS_RES *res = CALL_taos_query(taos, "select 1");
+    int e = taos_errno(res);
+    if (e) {
+      E("query after disabling BI mode failed:[%d]%s", e, taos_errstr(res));
+      if (res) CALL_taos_free_result(res);
+      return -1;
+    }
+    if (res) CALL_taos_free_result(res);
+  }
+  DUMP("  => success");
+
+  return 0;
+}
+
 #define RECORD(x) {x, #x}
 
 static struct {
@@ -1740,6 +1798,7 @@ static struct {
   RECORD(_prepare_insert_normals_dynamic),
   RECORD(_prepare_normal_get_col_fields),
   RECORD(_prepare_get_tag_col_fields),
+  RECORD(_conn_mode),
 };
 
 #undef RECORD
