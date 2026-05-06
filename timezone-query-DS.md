@@ -115,7 +115,9 @@ SET TIMEZONE '<timezone_string>';
 
 校验策略：
 - 先按固定偏移规则校验
-- 失败后尝试 `tzalloc(name)`
+- 失败后按内置 tzdata 校验 IANA 名称
+- 不能仅以 `tzalloc(name)` 返回非 NULL 作为合法条件，需显式拒绝 `CST` 等无法唯一映射到 IANA 条目的模糊缩写
+- 上述校验逻辑应抽成共享 helper，供 `SET TIMEZONE`、`TO_ISO8601`、`TO_CHAR`、`TIMETRUNCATE` 复用
 
 ### 5.2 F8: `SET FIRST_DAY_OF_WEEK`
 
@@ -257,14 +259,24 @@ TIMEZONE(0)
 TIMEZONE(1)
 ```
 
-#### 5.9.2 行为
+#### 5.9.2 行为与执行位置
 
+**无参数或参数为 0**：
 - `TIMEZONE()` / `TIMEZONE(0)`：保持现有单字符串兼容
-- `TIMEZONE(1)`：返回 JSON 字符串，包含 `session/client/server`
+- 可在客户端执行，直接返回客户端时区字符串
 
-实现点：
+**参数为 1**：
+- `TIMEZONE(1)`：返回 JSON 字符串，包含三层时区信息 (`session/client/server`)
+- **需下发服务端执行**（新增）：原因是需要访问服务端的 `tsTimezoneStr` 配置与 `firstDayOfWeek` 等信息
+- 服务端收集三层数据后组装 JSON 返回
+
+#### 5.9.3 实现点
+
 - builtins 参数从 0 参改为可选 1 参（取值 0/1）
-- scalar `timezoneFunction` 按参数分支组装输出
+- scalar `timezoneFunction` 按参数分支：
+  - 参数 `0` 或无参：客户端执行，返回客户端时区字符串
+  - 参数 `1`：标记为需服务端执行的函数，通过服务端 scalar 函数收集并输出三层信息
+- 服务端对应的 scalar 函数可访问 `tsTimezoneStr` 全局配置与请求上下文中的时区信息
 
 ## 6. 数据结构与接口变更
 
@@ -317,6 +329,18 @@ FS 中定义：
 
 需在版本说明与升级指南明确提示。
 
+### 8.3 执行路径变化
+
+`TIMEZONE()` 函数执行位置变化：
+
+- `TIMEZONE()` / `TIMEZONE(0)`：可在客户端执行，返回客户端时区字符串
+- `TIMEZONE(1)`：**需下发服务端执行**，以访问服务端的 `tsTimezoneStr` 和其他全局配置
+
+这要求：
+1. Planner 识别 `TIMEZONE(1)` 为"需服务端参与"的表达式
+2. Server-side scalar 函数 `timezoneFunction` 支持参数 `1` 的分支逻辑
+3. 确保请求路径可携带必要的时区与周起始日信息下发到服务端
+
 ## 9. 实施顺序（建议）
 
 1. P1：语法与配置基础设施
@@ -339,7 +363,8 @@ FS 中定义：
 - rebase 合并 `q` PR
 - 与 parser/translator/executor 联调验收
 
-6. P6：`TIMEZONE(1)`
+6. P6：`TIMEZONE(1)` 服务端扩展
+- 因涉及服务端执行路径，排在后期并与 P2 协同完成
 
 ## 10. 验收要点
 
@@ -348,10 +373,14 @@ FS 中定义：
 3. 函数：
 - `TO_ISO8601/TO_CHAR` 支持 IANA
 - `TIMETRUNCATE` 支持字符串时区与自然单位
-- `TIMEZONE(1)` 输出三级信息
+- `TIMEZONE()` / `TIMEZONE(0)` 返回单字符串（客户端执行）
+- `TIMEZONE(1)` 返回三层信息 JSON（服务端执行，正确收集 session/client/server 数据）
 4. 周/季度：
 - `1w` 对齐符合 `firstDayOfWeek`
 - `INTERVAL(1q)` 与 `INTERVAL(3n)` 等价（按 FS 语义）
+5. 执行路径：
+- 服务端可访问连接级时区与 `firstDayOfWeek`
+- 必要时下发请求到服务端（如 `TIMEZONE(1)`、`TIMETRUNCATE` 带 IANA 等）
 
 ## 11. 参考文件
 
