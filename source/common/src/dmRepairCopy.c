@@ -62,16 +62,16 @@ typedef struct SRepairVnodeResult {
 // Shell quoting can expand a single quote to 4 chars ('\''). PATH_MAX*2 handles
 // paths with a reasonable number of special chars; SSH_CMD_BUF covers two quoted
 // paths + host + command prefix.
-#define DM_SHELL_QUOTED_PATH_LEN  (PATH_MAX * 2)
-#define DM_SSH_CMD_BUF_LEN        (PATH_MAX * 2 * 2 + 512)
+#define DM_SHELL_QUOTED_PATH_LEN (PATH_MAX * 2)
+#define DM_SSH_CMD_BUF_LEN       (PATH_MAX * 2 * 2 + 512)
 
 // Shell-quote a string for safe use in sh/bash commands.
 // Produces output wrapped in single quotes with embedded single quotes escaped as '\''.
 // Returns the number of bytes written (excluding null), or -1 if buffer too small.
 static int32_t dmShellQuote(const char *in, char *out, size_t outLen) {
   if (in == NULL || out == NULL || outLen < 3) return -1;
-  char  *p = out;
-  char  *end = out + outLen - 1;
+  char *p = out;
+  char *end = out + outLen - 1;
 
   *p++ = '\'';
   while (*in != '\0') {
@@ -161,7 +161,8 @@ _err:
 // Returns 0 on success, -1 on error.
 static int32_t dmSshFetchFile(const char *host, const char *remotePath, const char *localPath) {
   char qHost[320], qRemote[DM_SHELL_QUOTED_PATH_LEN], qLocal[DM_SHELL_QUOTED_PATH_LEN];
-  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0 || dmShellQuote(localPath, qLocal, sizeof(qLocal)) < 0) {
+  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0 ||
+      dmShellQuote(localPath, qLocal, sizeof(qLocal)) < 0) {
     uError("repair: shell quote failed in dmSshFetchFile");
     return -1;
   }
@@ -173,7 +174,8 @@ static int32_t dmSshFetchFile(const char *host, const char *remotePath, const ch
     return -1;
   }
   char buf[256];
-  while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {}
+  while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {
+  }
   taosCloseCmd(&pCmd);
 
   // Verify file has content
@@ -435,9 +437,9 @@ static bool dmCheckBakExists(STfs *pTgtTfs, int32_t vnodeId) {
   for (int32_t level = 0; level < nlevel; level++) {
     int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
     for (int32_t id = 0; id < ndisk; id++) {
-      SDiskID did = {.level = level, .id = id};
+      SDiskID     did = {.level = level, .id = id};
       const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
-      char fullPath[PATH_MAX];
+      char        fullPath[PATH_MAX];
       snprintf(fullPath, sizeof(fullPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
       if (taosDirExist(fullPath)) return true;
     }
@@ -455,13 +457,12 @@ static void dmDestroyRepairFileSets(SArray *pSets) {
 }
 
 // File type suffix strings for all types including STT.
-static const char *gRepairFTypeSuffixAll[] = {
-    [0] = "head", [1] = "data", [2] = "sma", [3] = "tomb",
-    [4] = NULL, [5] = "stt"};
+static const char *gRepairFTypeSuffixAll[] = {[0] = "head", [1] = "data", [2] = "sma",
+                                              [3] = "tomb", [4] = NULL,   [5] = "stt"};
 
 // Read a JSON number field as int64_t via tjsonGetDoubleValue.
 static int32_t dmJsonGetInt64FromDouble(SJson *pJson, const char *pName, int64_t *pVal) {
-  double tmp = 0;
+  double  tmp = 0;
   int32_t code = tjsonGetDoubleValue(pJson, pName, &tmp);
   if (code == 0) *pVal = (int64_t)tmp;
   return code;
@@ -532,7 +533,7 @@ static SArray *dmParseCurrentJson(const char *content) {
   }
 
   for (int32_t i = 0; i < nFsets; i++) {
-    SJson *pFsetJson = tjsonGetArrayItem(pFsetArr, i);
+    SJson         *pFsetJson = tjsonGetArrayItem(pFsetArr, i);
     SRepairFileSet fset = {0};
 
     tjsonGetInt32ValueFromDouble(pFsetJson, "fid", fset.fid, code);
@@ -566,7 +567,7 @@ static SArray *dmParseCurrentJson(const char *content) {
         if (pFilesArr == NULL) continue;
         int32_t nFiles = tjsonGetArraySize(pFilesArr);
         for (int32_t f = 0; f < nFiles; f++) {
-          SJson *pSttJson = tjsonGetArrayItem(pFilesArr, f);
+          SJson      *pSttJson = tjsonGetArrayItem(pFilesArr, f);
           SRepairFile rf = {0};
           if (dmParseRepairFileJson(pSttJson, 5, &rf) != 0) {  // 5 = TSDB_FTYPE_STT
             taosArrayDestroy(fset.files);
@@ -605,9 +606,9 @@ _err:
 // Returns parsed SArray of SRepairFileSet, or NULL if file doesn't exist or fails to parse.
 static SArray *dmReadLocalCurrentJson(STfs *pTgtTfs, int32_t vnodeId) {
   const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
-  char path[PATH_MAX];
-  snprintf(path, sizeof(path), "%s%svnode%svnode%d%stsdb%scurrent.json",
-           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+  char        path[PATH_MAX];
+  snprintf(path, sizeof(path), "%s%svnode%svnode%d%stsdb%scurrent.json", primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId,
+           TD_DIRSEP, TD_DIRSEP);
 
   char *content = NULL;
   if (dmReadFileContent(path, &content, NULL) != 0) return NULL;
@@ -619,17 +620,15 @@ static SArray *dmReadLocalCurrentJson(STfs *pTgtTfs, int32_t vnodeId) {
 // Build the on-disk filename for a SRepairFile.
 // Pattern: {diskPath}/vnode/vnode{vid}/tsdb/v{vid}f{fid}ver{cid}.{suffix}
 // S3 variant (lcn>0): ...ver{cid}.{lcn}.{suffix}
-static void dmBuildTsdbFilePath(const char *diskPath, int32_t vnodeId,
-                                const SRepairFile *pFile, char *buf, int32_t bufLen) {
+static void dmBuildTsdbFilePath(const char *diskPath, int32_t vnodeId, const SRepairFile *pFile, char *buf,
+                                int32_t bufLen) {
   const char *suffix = gRepairFTypeSuffixAll[pFile->type];
   if (pFile->lcn > 0) {
-    snprintf(buf, bufLen, "%s%svnode%svnode%d%stsdb%sv%df%dver%" PRId64 ".%d.%s",
-             diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP,
-             vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
+    snprintf(buf, bufLen, "%s%svnode%svnode%d%stsdb%sv%df%dver%" PRId64 ".%d.%s", diskPath, TD_DIRSEP, TD_DIRSEP,
+             vnodeId, TD_DIRSEP, TD_DIRSEP, vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
   } else {
-    snprintf(buf, bufLen, "%s%svnode%svnode%d%stsdb%sv%df%dver%" PRId64 ".%s",
-             diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP,
-             vnodeId, pFile->fid, pFile->cid, suffix);
+    snprintf(buf, bufLen, "%s%svnode%svnode%d%stsdb%sv%df%dver%" PRId64 ".%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId,
+             TD_DIRSEP, TD_DIRSEP, vnodeId, pFile->fid, pFile->cid, suffix);
   }
 }
 
@@ -639,8 +638,7 @@ static void dmBuildTsdbFilePath(const char *diskPath, int32_t vnodeId,
 // Otherwise it needs copying from source.
 // Sets *ppCopyFids to a new SArray of int32_t fids that need copying (caller frees).
 // Sets *ppRetainFids to a new SArray of int32_t fids that can be hard-linked from backup.
-static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
-                              STfs *pTgtTfs, int32_t vnodeId,
+static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets, STfs *pTgtTfs, int32_t vnodeId,
                               SArray **ppCopyFids, SArray **ppRetainFids) {
   int32_t nSrc = taosArrayGetSize(srcSets);
   *ppCopyFids = taosArrayInit(nSrc, sizeof(int32_t));
@@ -655,8 +653,8 @@ static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
 
   for (int32_t s = 0; s < nSrc; s++) {
     SRepairFileSet *pSrc = taosArrayGet(srcSets, s);
-    int32_t srcFid = pSrc->fid;
-    bool retained = false;
+    int32_t         srcFid = pSrc->fid;
+    bool            retained = false;
 
     if (localSets != NULL) {
       int32_t nLocal = taosArrayGetSize(localSets);
@@ -665,12 +663,15 @@ static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
         if (pLocal->fid != srcFid) continue;
 
         // Same fid exists locally — verify every local file exists on disk
-        bool allExist = true;
+        bool    allExist = true;
         int32_t nLocalFiles = taosArrayGetSize(pLocal->files);
         for (int32_t f = 0; f < nLocalFiles; f++) {
           SRepairFile *lf = taosArrayGet(pLocal->files, f);
-          const char *diskPath = tfsGetDiskPath(pTgtTfs, lf->did);
-          if (diskPath == NULL) { allExist = false; break; }
+          const char  *diskPath = tfsGetDiskPath(pTgtTfs, lf->did);
+          if (diskPath == NULL) {
+            allExist = false;
+            break;
+          }
 
           char filePath[PATH_MAX];
           dmBuildTsdbFilePath(diskPath, vnodeId, lf, filePath, sizeof(filePath));
@@ -702,9 +703,9 @@ static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
 // Returns NULL on error (file missing, SSH failure, or parse error).
 static SArray *dmReadSourceCurrentJson(const SRepairTfs *pSrcTfs, const char *host, int32_t vnodeId) {
   const char *primaryDir = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
-  char srcPath[PATH_MAX];
-  snprintf(srcPath, sizeof(srcPath), "%s%svnode%svnode%d%stsdb%scurrent.json",
-           primaryDir, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+  char        srcPath[PATH_MAX];
+  snprintf(srcPath, sizeof(srcPath), "%s%svnode%svnode%d%stsdb%scurrent.json", primaryDir, TD_DIRSEP, TD_DIRSEP,
+           vnodeId, TD_DIRSEP, TD_DIRSEP);
 
   char *content = NULL;
   if (host == NULL || host[0] == '\0') {
@@ -736,10 +737,10 @@ static int32_t dmBackupVnode(STfs *pTgtTfs, int32_t vnodeId) {
   for (int32_t level = 0; level < nlevel; level++) {
     int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
     for (int32_t id = 0; id < ndisk; id++) {
-      SDiskID did = {.level = level, .id = id};
+      SDiskID     did = {.level = level, .id = id};
       const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
-      char srcPath[PATH_MAX];
-      char dstPath[PATH_MAX];
+      char        srcPath[PATH_MAX];
+      char        dstPath[PATH_MAX];
       snprintf(srcPath, sizeof(srcPath), "%s%s%s", diskPath, TD_DIRSEP, relVnode);
       snprintf(dstPath, sizeof(dstPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
 
@@ -774,8 +775,8 @@ static int32_t dmCreateVnodeDirs(STfs *pTgtTfs, int32_t vnodeId) {
 
 // Step f: Hard-link retained tsdb files from vnodeN.bak to vnodeN.
 // Each file is hard-linked on the same disk (same filesystem).
-static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId,
-                                       const SArray *retainFids, const SArray *localFileSets) {
+static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId, const SArray *retainFids,
+                                       const SArray *localFileSets) {
   int32_t nRetain = taosArrayGetSize(retainFids);
   int32_t nLocal = taosArrayGetSize(localFileSets);
 
@@ -786,31 +787,37 @@ static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId,
     SRepairFileSet *pLocal = NULL;
     for (int32_t l = 0; l < nLocal; l++) {
       SRepairFileSet *pSet = taosArrayGet(localFileSets, l);
-      if (pSet->fid == fid) { pLocal = pSet; break; }
+      if (pSet->fid == fid) {
+        pLocal = pSet;
+        break;
+      }
     }
     if (pLocal == NULL) continue;
 
     int32_t nFiles = taosArrayGetSize(pLocal->files);
     for (int32_t f = 0; f < nFiles; f++) {
       SRepairFile *pFile = taosArrayGet(pLocal->files, f);
-      const char *diskPath = tfsGetDiskPath(pTgtTfs, pFile->did);
+      const char  *diskPath = tfsGetDiskPath(pTgtTfs, pFile->did);
       if (diskPath == NULL) {
         uError("repair: vnode%d fid=%d invalid disk level=%d id=%d", vnodeId, fid, pFile->did.level, pFile->did.id);
         return -1;
       }
 
       const char *suffix = gRepairFTypeSuffixAll[pFile->type];
-      char fileName[256];
+      char        fileName[256];
       if (pFile->lcn > 0) {
-        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%d.%s", vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%d.%s", vnodeId, pFile->fid, pFile->cid, pFile->lcn,
+                 suffix);
       } else {
         snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%s", vnodeId, pFile->fid, pFile->cid, suffix);
       }
 
       char bakPath[PATH_MAX];
       char newPath[PATH_MAX];
-      snprintf(bakPath, sizeof(bakPath), "%s%svnode%svnode%d.bak%stsdb%s%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP, fileName);
-      snprintf(newPath, sizeof(newPath), "%s%svnode%svnode%d%stsdb%s%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP, fileName);
+      snprintf(bakPath, sizeof(bakPath), "%s%svnode%svnode%d.bak%stsdb%s%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId,
+               TD_DIRSEP, TD_DIRSEP, fileName);
+      snprintf(newPath, sizeof(newPath), "%s%svnode%svnode%d%stsdb%s%s", diskPath, TD_DIRSEP, TD_DIRSEP, vnodeId,
+               TD_DIRSEP, TD_DIRSEP, fileName);
 
       if (taosLinkFile(bakPath, newPath) != 0) {
         uError("repair: vnode%d failed to hard-link %s", vnodeId, fileName);
@@ -826,8 +833,7 @@ static int32_t dmHardLinkRetainedFiles(STfs *pTgtTfs, int32_t vnodeId,
 // When skipSubDir is non-NULL and matches a top-level entry, that subtree is skipped.
 // For files: copies with taosCopyFile(), verifies size, logs name+size.
 // For dirs: creates target dir, recurses (skipSubDir only applies at depth 0).
-static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir,
-                                  const char *skipSubDir, int32_t vnodeId) {
+static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir, const char *skipSubDir, int32_t vnodeId) {
   TdDirPtr pDir = taosOpenDir(srcDir);
   if (pDir == NULL) {
     uError("repair: vnode%d cannot open source dir %s", vnodeId, srcDir);
@@ -878,8 +884,8 @@ static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir,
 
       int64_t dstSize = 0;
       if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != srcSize) {
-        uError("repair: vnode%d size mismatch after copy: %s (src=%" PRId64 " dst=%" PRId64 ")",
-               vnodeId, name, srcSize, dstSize);
+        uError("repair: vnode%d size mismatch after copy: %s (src=%" PRId64 " dst=%" PRId64 ")", vnodeId, name, srcSize,
+               dstSize);
         taosCloseDir(&pDir);
         return -1;
       }
@@ -892,131 +898,137 @@ static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir,
 // Step g: Copy non-tsdb files from source vnodeN to target primary disk.
 // Local mode: recursive copy skipping tsdb/.
 // Remote mode: scp -r then remove tsdb/ from the copy.
-static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
-                                  const char *host, int32_t vnodeId) {
+static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs, const char *host, int32_t vnodeId) {
   const char *tgtPrimary = tfsGetPrimaryPath(pTgtTfs);
-  char dstVnodeDir[PATH_MAX];
-  snprintf(dstVnodeDir, sizeof(dstVnodeDir), "%s%svnode%svnode%d",
-           tgtPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
+  char        dstVnodeDir[PATH_MAX];
+  snprintf(dstVnodeDir, sizeof(dstVnodeDir), "%s%svnode%svnode%d", tgtPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
 
   if (host == NULL || host[0] == '\0') {
     // Local mode: recursive copy skipping "tsdb"
     const char *srcPrimary = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
-    char srcVnodeDir[PATH_MAX];
+    char        srcVnodeDir[PATH_MAX];
     snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d", srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
 
     return dmCopyDirRecursive(srcVnodeDir, dstVnodeDir, "tsdb", vnodeId);
-  } else {
-    // Remote mode: list source vnodeN/ entries, scp each non-tsdb item individually
-    const char *srcPrimary = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
-    char srcVnodeDir[PATH_MAX];
-    snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d", srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
+  }
 
-    // List remote directory entries with type and size via ls -lA
-    struct SRemoteEntry { char name[256]; bool isDir; int64_t size; };
-    char qHost[320], qSrcDir[DM_SHELL_QUOTED_PATH_LEN];
-    if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcVnodeDir, qSrcDir, sizeof(qSrcDir)) < 0) {
-      uError("repair: vnode%d shell quote failed", vnodeId);
-      return -1;
-    }
-    char cmd[DM_SSH_CMD_BUF_LEN];
-    snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s ls -lA %s/ 2>/dev/null", qHost, qSrcDir);
-    TdCmdPtr pCmd = taosOpenCmd(cmd);
-    if (pCmd == NULL) {
-      uError("repair: vnode%d ssh ls command failed to start", vnodeId);
-      return -1;
-    }
+  // Remote mode: list source vnodeN/ entries, scp each non-tsdb item individually
+  const char *srcPrimary = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
+  char        srcVnodeDir[PATH_MAX];
+  snprintf(srcVnodeDir, sizeof(srcVnodeDir), "%s%svnode%svnode%d", srcPrimary, TD_DIRSEP, TD_DIRSEP, vnodeId);
 
-    // Collect entries with type and size
-    SArray *entries = taosArrayInit(8, sizeof(struct SRemoteEntry));
-    if (entries == NULL) {
+  // List remote directory entries with type and size via ls -lA
+  struct SRemoteEntry {
+    char    name[256];
+    bool    isDir;
+    int64_t size;
+  };
+  char qHost[320], qSrcDir[DM_SHELL_QUOTED_PATH_LEN];
+  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcVnodeDir, qSrcDir, sizeof(qSrcDir)) < 0) {
+    uError("repair: vnode%d shell quote failed", vnodeId);
+    return -1;
+  }
+  char cmd[DM_SSH_CMD_BUF_LEN];
+  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s ls -lA %s/ 2>/dev/null", qHost, qSrcDir);
+  TdCmdPtr pCmd = taosOpenCmd(cmd);
+  if (pCmd == NULL) {
+    uError("repair: vnode%d ssh ls command failed to start", vnodeId);
+    return -1;
+  }
+
+  // Collect entries with type and size
+  SArray *entries = taosArrayInit(8, sizeof(struct SRemoteEntry));
+  if (entries == NULL) {
+    taosCloseCmd(&pCmd);
+    uError("repair: vnode%d memory allocation failed", vnodeId);
+    return -1;
+  }
+  char line[512];
+  while (taosGetsCmd(pCmd, sizeof(line), line) > 0) {
+    // Strip trailing newline
+    int32_t len = (int32_t)strlen(line);
+    while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) line[--len] = '\0';
+    if (len == 0) continue;
+    // Skip "total NNN" line
+    if (strncmp(line, "total ", 6) == 0) continue;
+
+    // Parse: perms nlinks user group size mon day time name
+    char    perms[16] = {0}, user[64] = {0}, group[64] = {0}, name[256] = {0};
+    char    mon[8] = {0}, day[8] = {0}, timeOrYear[16] = {0};
+    int32_t nlinks = 0;
+    int64_t fsize = 0;
+    if (sscanf(line, "%15s %d %63s %63s %" PRId64 " %7s %7s %15s %255s", perms, &nlinks, user, group, &fsize, mon, day,
+               timeOrYear, name) < 9) {
+      continue;
+    }
+    if (strcmp(name, "tsdb") == 0) continue;
+
+    struct SRemoteEntry re = {.isDir = (perms[0] == 'd'), .size = fsize};
+    tstrncpy(re.name, name, sizeof(re.name));
+    if (taosArrayPush(entries, &re) == NULL) {
+      taosArrayDestroy(entries);
       taosCloseCmd(&pCmd);
       uError("repair: vnode%d memory allocation failed", vnodeId);
       return -1;
     }
-    char line[512];
-    while (taosGetsCmd(pCmd, sizeof(line), line) > 0) {
-      // Strip trailing newline
-      int32_t len = (int32_t)strlen(line);
-      while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) line[--len] = '\0';
-      if (len == 0) continue;
-      // Skip "total NNN" line
-      if (strncmp(line, "total ", 6) == 0) continue;
+  }
+  taosCloseCmd(&pCmd);
 
-      // Parse: perms nlinks user group size mon day time name
-      char perms[16] = {0}, user[64] = {0}, group[64] = {0}, name[256] = {0};
-      char mon[8] = {0}, day[8] = {0}, timeOrYear[16] = {0};
-      int32_t nlinks = 0;
-      int64_t fsize = 0;
-      if (sscanf(line, "%15s %d %63s %63s %" PRId64 " %7s %7s %15s %255s", perms, &nlinks, user, group, &fsize, mon, day, timeOrYear, name) < 9) {
-        continue;
-      }
-      if (strcmp(name, "tsdb") == 0) continue;
+  // scp each entry
+  int32_t nEntries = taosArrayGetSize(entries);
+  for (int32_t i = 0; i < nEntries; i++) {
+    struct SRemoteEntry *re = taosArrayGet(entries, i);
+    if (re->isDir) {
+      uInfo("repair: vnode%d scp dir: %s", vnodeId, re->name);
+    } else {
+      uInfo("repair: vnode%d scp file: %s (%" PRId64 " bytes)", vnodeId, re->name, re->size);
+    }
 
-      struct SRemoteEntry re = {.isDir = (perms[0] == 'd'), .size = fsize};
-      tstrncpy(re.name, name, sizeof(re.name));
-      if (taosArrayPush(entries, &re) == NULL) {
-        taosArrayDestroy(entries);
-        taosCloseCmd(&pCmd);
-        uError("repair: vnode%d memory allocation failed", vnodeId);
-        return -1;
-      }
+    char qSrcFile[DM_SHELL_QUOTED_PATH_LEN], qDstDir[DM_SHELL_QUOTED_PATH_LEN];
+    char srcFilePath[PATH_MAX];
+    snprintf(srcFilePath, sizeof(srcFilePath), "%s/%s", srcVnodeDir, re->name);
+    if (dmShellQuote(srcFilePath, qSrcFile, sizeof(qSrcFile)) < 0 ||
+        dmShellQuote(dstVnodeDir, qDstDir, sizeof(qDstDir)) < 0) {
+      uError("repair: vnode%d shell quote failed for %s", vnodeId, re->name);
+      taosArrayDestroy(entries);
+      return -1;
+    }
+    snprintf(cmd, sizeof(cmd), "scp -r -o BatchMode=yes %s:%s %s/ 2>/dev/null", qHost, qSrcFile, qDstDir);
+    pCmd = taosOpenCmd(cmd);
+    if (pCmd == NULL) {
+      uError("repair: vnode%d scp failed for %s", vnodeId, re->name);
+      taosArrayDestroy(entries);
+      return -1;
+    }
+    char buf[256];
+    while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {
     }
     taosCloseCmd(&pCmd);
 
-    // scp each entry
-    int32_t nEntries = taosArrayGetSize(entries);
-    for (int32_t i = 0; i < nEntries; i++) {
-      struct SRemoteEntry *re = taosArrayGet(entries, i);
-      if (re->isDir) {
-        uInfo("repair: vnode%d scp dir: %s", vnodeId, re->name);
-      } else {
-        uInfo("repair: vnode%d scp file: %s (%" PRId64 " bytes)", vnodeId, re->name, re->size);
-      }
-
-      char qSrcFile[DM_SHELL_QUOTED_PATH_LEN], qDstDir[DM_SHELL_QUOTED_PATH_LEN];
-      char srcFilePath[PATH_MAX];
-      snprintf(srcFilePath, sizeof(srcFilePath), "%s/%s", srcVnodeDir, re->name);
-      if (dmShellQuote(srcFilePath, qSrcFile, sizeof(qSrcFile)) < 0 || dmShellQuote(dstVnodeDir, qDstDir, sizeof(qDstDir)) < 0) {
-        uError("repair: vnode%d shell quote failed for %s", vnodeId, re->name);
+    // Verify file size after copy
+    if (!re->isDir) {
+      char dstPath[PATH_MAX];
+      snprintf(dstPath, sizeof(dstPath), "%s%s%s", dstVnodeDir, TD_DIRSEP, re->name);
+      int64_t dstSize = 0;
+      if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != re->size) {
+        uError("repair: vnode%d scp size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")", vnodeId, re->name, re->size,
+               dstSize);
         taosArrayDestroy(entries);
         return -1;
       }
-      snprintf(cmd, sizeof(cmd), "scp -r -o BatchMode=yes %s:%s %s/ 2>/dev/null", qHost, qSrcFile, qDstDir);
-      pCmd = taosOpenCmd(cmd);
-      if (pCmd == NULL) {
-        uError("repair: vnode%d scp failed for %s", vnodeId, re->name);
-        taosArrayDestroy(entries);
-        return -1;
-      }
-      char buf[256];
-      while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {}
-      taosCloseCmd(&pCmd);
-
-      // Verify file size after copy
-      if (!re->isDir) {
-        char dstPath[PATH_MAX];
-        snprintf(dstPath, sizeof(dstPath), "%s%s%s", dstVnodeDir, TD_DIRSEP, re->name);
-        int64_t dstSize = 0;
-        if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != re->size) {
-          uError("repair: vnode%d scp size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")", vnodeId, re->name, re->size, dstSize);
-          taosArrayDestroy(entries);
-          return -1;
-        }
-      }
     }
-    taosArrayDestroy(entries);
-
-    // Verify at least vnode.json was copied
-    char vnodeJson[PATH_MAX];
-    snprintf(vnodeJson, sizeof(vnodeJson), "%s%svnode.json", dstVnodeDir, TD_DIRSEP);
-    if (!taosCheckExistFile(vnodeJson)) {
-      uError("repair: vnode%d scp failed — vnode.json not found after copy", vnodeId);
-      return -1;
-    }
-    uInfo("repair: vnode%d remote non-tsdb files copied via scp", vnodeId);
-    return 0;
   }
+  taosArrayDestroy(entries);
+
+  // Verify at least vnode.json was copied
+  char vnodeJson[PATH_MAX];
+  snprintf(vnodeJson, sizeof(vnodeJson), "%s%svnode.json", dstVnodeDir, TD_DIRSEP);
+  if (!taosCheckExistFile(vnodeJson)) {
+    uError("repair: vnode%d scp failed — vnode.json not found after copy", vnodeId);
+    return -1;
+  }
+  uInfo("repair: vnode%d remote non-tsdb files copied via scp", vnodeId);
+  return 0;
 }
 
 // Lookup source disk path by disk ID {level, id}.
@@ -1052,8 +1064,8 @@ typedef struct SRepairDiskAlloc {
 // Remap a source file to a target disk using round-robin allocation.
 // Rules: same tier if exists → fold to highest available tier → skip disabled → check space.
 // Returns 0 on success, -1 if no disk has enough space.
-static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize,
-                             SRepairDiskAlloc *pAlloc, SDiskID *pTgtDid) {
+static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize, SRepairDiskAlloc *pAlloc,
+                             SDiskID *pTgtDid) {
   int32_t tgtNlevel = tfsGetLevel(pTgtTfs);
   int32_t level = srcLevel;
   if (level >= tgtNlevel) level = tgtNlevel - 1;
@@ -1067,7 +1079,7 @@ static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize,
       int32_t id = (startId + attempt) % ndisk;
       if (dmIsTgtDiskDisabled(tryLevel, id)) continue;
 
-      SDiskID did = {.level = tryLevel, .id = id};
+      SDiskID     did = {.level = tryLevel, .id = id};
       const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
       if (diskPath == NULL) continue;
 
@@ -1094,7 +1106,7 @@ static int64_t dmGetRemoteFileSize(const char *host, const char *remotePath) {
   if (pCmd == NULL) return -1;
 
   int64_t size = -1;
-  char buf[64] = {0};
+  char    buf[64] = {0};
   if (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {
     int32_t len = (int32_t)strlen(buf);
     while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) buf[--len] = '\0';
@@ -1109,13 +1121,11 @@ static int64_t dmGetRemoteFileSize(const char *host, const char *remotePath) {
 // copy the file (local or remote), and verify size.
 // On success, *ppRemappedSets is set to a new SArray of SRepairFileSet with
 // target disk IDs (caller must free with dmDestroyRepairFileSets).
-static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
-                                    const char *host, int32_t vnodeId,
-                                    const SArray *srcFileSets, const SArray *copyFids,
-                                    SArray **ppRemappedSets) {
+static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs, const char *host, int32_t vnodeId,
+                                    const SArray *srcFileSets, const SArray *copyFids, SArray **ppRemappedSets) {
   SRepairDiskAlloc alloc = {0};
-  int32_t nCopy = taosArrayGetSize(copyFids);
-  SArray *remapped = taosArrayInit(nCopy > 0 ? nCopy : 1, sizeof(SRepairFileSet));
+  int32_t          nCopy = taosArrayGetSize(copyFids);
+  SArray          *remapped = taosArrayInit(nCopy > 0 ? nCopy : 1, sizeof(SRepairFileSet));
   if (remapped == NULL) return -1;
 
   for (int32_t c = 0; c < nCopy; c++) {
@@ -1123,16 +1133,23 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
 
     // Find source file set for this fid
     SRepairFileSet *pSrcSet = NULL;
-    int32_t nSets = taosArrayGetSize(srcFileSets);
+    int32_t         nSets = taosArrayGetSize(srcFileSets);
     for (int32_t s = 0; s < nSets; s++) {
       SRepairFileSet *pSet = taosArrayGet(srcFileSets, s);
-      if (pSet->fid == fid) { pSrcSet = pSet; break; }
+      if (pSet->fid == fid) {
+        pSrcSet = pSet;
+        break;
+      }
     }
-    if (pSrcSet == NULL) continue;
+    if (pSrcSet == NULL) {
+      uError("repair: vnode%d fid=%d file set not found", vnodeId, fid);
+      return -1;
+    }
 
     SRepairFileSet newSet = {.fid = fid};
     newSet.files = taosArrayInit(taosArrayGetSize(pSrcSet->files), sizeof(SRepairFile));
     if (newSet.files == NULL) {
+      uError("repair: vnode%d fid=%d memory allocation failed", vnodeId, fid);
       dmDestroyRepairFileSets(remapped);
       return -1;
     }
@@ -1144,8 +1161,8 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
       // Resolve source disk path
       const char *srcDiskPath = dmGetSourceDiskPath(pSrcTfs, pFile->did);
       if (srcDiskPath == NULL) {
-        uError("repair: vnode%d fid=%d source disk not found level=%d id=%d",
-               vnodeId, fid, pFile->did.level, pFile->did.id);
+        uError("repair: vnode%d fid=%d source disk not found level=%d id=%d", vnodeId, fid, pFile->did.level,
+               pFile->did.id);
         taosArrayDestroy(newSet.files);
         dmDestroyRepairFileSets(remapped);
         return -1;
@@ -1176,8 +1193,7 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
       // Remap to target disk
       SDiskID tgtDid = {0};
       if (dmRemapDiskId(pTgtTfs, pFile->did.level, srcSize, &alloc, &tgtDid) != 0) {
-        uError("repair: vnode%d fid=%d no disk with enough space for %" PRId64 " bytes",
-               vnodeId, fid, srcSize);
+        uError("repair: vnode%d fid=%d no disk with enough space for %" PRId64 " bytes", vnodeId, fid, srcSize);
         taosArrayDestroy(newSet.files);
         dmDestroyRepairFileSets(remapped);
         return -1;
@@ -1187,22 +1203,21 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
       SRepairFile tgtFile = *pFile;
       tgtFile.did = tgtDid;
       const char *tgtDiskPath = tfsGetDiskPath(pTgtTfs, tgtDid);
-      char dstPath[PATH_MAX];
+      char        dstPath[PATH_MAX];
       dmBuildTsdbFilePath(tgtDiskPath, vnodeId, &tgtFile, dstPath, sizeof(dstPath));
 
       // Build display name
       const char *suffix = gRepairFTypeSuffixAll[pFile->type];
-      char fileName[256];
+      char        fileName[256];
       if (pFile->lcn > 0) {
-        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%d.%s",
-                 vnodeId, pFile->fid, pFile->cid, pFile->lcn, suffix);
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%d.%s", vnodeId, pFile->fid, pFile->cid, pFile->lcn,
+                 suffix);
       } else {
-        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%s",
-                 vnodeId, pFile->fid, pFile->cid, suffix);
+        snprintf(fileName, sizeof(fileName), "v%df%dver%" PRId64 ".%s", vnodeId, pFile->fid, pFile->cid, suffix);
       }
 
-      uInfo("repair: vnode%d copy %s (%" PRId64 " bytes) -> level=%d id=%d",
-            vnodeId, fileName, srcSize, tgtDid.level, tgtDid.id);
+      uInfo("repair: vnode%d copy %s (%" PRId64 " bytes) -> level=%d id=%d", vnodeId, fileName, srcSize, tgtDid.level,
+            tgtDid.id);
 
       // Copy file
       if (host == NULL || host[0] == '\0') {
@@ -1215,7 +1230,8 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
         }
       } else {
         char qHost[320], qSrc[DM_SHELL_QUOTED_PATH_LEN], qDst[DM_SHELL_QUOTED_PATH_LEN];
-        if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcPath, qSrc, sizeof(qSrc)) < 0 || dmShellQuote(dstPath, qDst, sizeof(qDst)) < 0) {
+        if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(srcPath, qSrc, sizeof(qSrc)) < 0 ||
+            dmShellQuote(dstPath, qDst, sizeof(qDst)) < 0) {
           uError("repair: vnode%d shell quote failed for %s", vnodeId, fileName);
           taosArrayDestroy(newSet.files);
           dmDestroyRepairFileSets(remapped);
@@ -1231,21 +1247,23 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
           return -1;
         }
         char buf[256];
-        while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {}
+        while (taosGetsCmd(pCmd, sizeof(buf), buf) > 0) {
+        }
         taosCloseCmd(&pCmd);
       }
 
       // Verify destination file size
       int64_t dstSize = 0;
       if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != srcSize) {
-        uError("repair: vnode%d size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")",
-               vnodeId, fileName, srcSize, dstSize);
+        uError("repair: vnode%d size mismatch: %s (src=%" PRId64 " dst=%" PRId64 ")", vnodeId, fileName, srcSize,
+               dstSize);
         taosArrayDestroy(newSet.files);
         dmDestroyRepairFileSets(remapped);
         return -1;
       }
 
       if (taosArrayPush(newSet.files, &tgtFile) == NULL) {
+        uError("repair: vnode%d fid=%d failed to push target file", vnodeId, pFile->fid);
         taosArrayDestroy(newSet.files);
         dmDestroyRepairFileSets(remapped);
         return -1;
@@ -1268,9 +1286,9 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
 // remapped file sets (copied from source with new disk IDs) into one
 // current.json written to the target primary disk.
 // The JSON format follows save_fs() in tsdbFS2.c.
-static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
-                                     const SArray *retainFids, const SArray *localFileSets,
-                                     const SArray *remappedSets, const SArray *srcFileSets) {
+static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId, const SArray *retainFids,
+                                     const SArray *localFileSets, const SArray *remappedSets,
+                                     const SArray *srcFileSets) {
   // Collect all file sets into one sorted array
   // retained: use localFileSets entries with matching fids (they have correct target disk IDs)
   // copied: use remappedSets entries (already have target disk IDs)
@@ -1279,8 +1297,13 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
   int32_t totalSets = nRetain + nRemapped;
 
   // Build sorted array of {fid, pointer to SRepairFileSet, pointer to source SRepairFileSet}
-  typedef struct { int32_t fid; const SRepairFileSet *pSet; const SRepairFileSet *pSrcSet; } FSEntry;
-  FSEntry *sorted = (totalSets > 0) ? taosMemoryCalloc(totalSets, sizeof(FSEntry)) : taosMemoryCalloc(1, sizeof(FSEntry));
+  typedef struct {
+    int32_t               fid;
+    const SRepairFileSet *pSet;
+    const SRepairFileSet *pSrcSet;
+  } FSEntry;
+  FSEntry *sorted =
+      (totalSets > 0) ? taosMemoryCalloc(totalSets, sizeof(FSEntry)) : taosMemoryCalloc(1, sizeof(FSEntry));
   if (sorted == NULL) return -1;
 
   int32_t idx = 0;
@@ -1293,10 +1316,13 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
       if (pLocal->fid == fid) {
         // Find source file set for timestamps
         const SRepairFileSet *pSrcSet = NULL;
-        int32_t nSrc = srcFileSets ? taosArrayGetSize(srcFileSets) : 0;
+        int32_t               nSrc = srcFileSets ? taosArrayGetSize(srcFileSets) : 0;
         for (int32_t s = 0; s < nSrc; s++) {
           SRepairFileSet *ps = taosArrayGet(srcFileSets, s);
-          if (ps->fid == fid) { pSrcSet = ps; break; }
+          if (ps->fid == fid) {
+            pSrcSet = ps;
+            break;
+          }
         }
         sorted[idx++] = (FSEntry){.fid = fid, .pSet = pLocal, .pSrcSet = pSrcSet};
         break;
@@ -1308,10 +1334,13 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
     SRepairFileSet *pRemap = taosArrayGet(remappedSets, c);
     // Find source file set for timestamps
     const SRepairFileSet *pSrcSet = NULL;
-    int32_t nSrc = srcFileSets ? taosArrayGetSize(srcFileSets) : 0;
+    int32_t               nSrc = srcFileSets ? taosArrayGetSize(srcFileSets) : 0;
     for (int32_t s = 0; s < nSrc; s++) {
       SRepairFileSet *ps = taosArrayGet(srcFileSets, s);
-      if (ps->fid == pRemap->fid) { pSrcSet = ps; break; }
+      if (ps->fid == pRemap->fid) {
+        pSrcSet = ps;
+        break;
+      }
     }
     sorted[idx++] = (FSEntry){.fid = pRemap->fid, .pSet = pRemap, .pSrcSet = pSrcSet};
   }
@@ -1330,11 +1359,18 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
 
   // Build JSON: {"fmtv":1, "fset":[...]}
   SJson *pRoot = tjsonCreateObject();
-  if (pRoot == NULL) { taosMemoryFree(sorted); return -1; }
+  if (pRoot == NULL) {
+    taosMemoryFree(sorted);
+    return -1;
+  }
   (void)tjsonAddDoubleToObject(pRoot, "fmtv", 1);
 
   SJson *pFsetArr = tjsonAddArrayToObject(pRoot, "fset");
-  if (pFsetArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+  if (pFsetArr == NULL) {
+    tjsonDelete(pRoot);
+    taosMemoryFree(sorted);
+    return -1;
+  }
 
   for (int32_t i = 0; i < totalSets; i++) {
     const SRepairFileSet *pSet = sorted[i].pSet;
@@ -1342,7 +1378,11 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
     if (pSet == NULL) continue;
 
     SJson *pFsetJson = tjsonCreateObject();
-    if (pFsetJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+    if (pFsetJson == NULL) {
+      tjsonDelete(pRoot);
+      taosMemoryFree(sorted);
+      return -1;
+    }
     (void)tjsonAddItemToArray(pFsetArr, pFsetJson);
     (void)tjsonAddDoubleToObject(pFsetJson, "fid", pSet->fid);
 
@@ -1354,12 +1394,19 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
       const SRepairFile *pFile = NULL;
       for (int32_t f = 0; f < nFiles; f++) {
         SRepairFile *pf = taosArrayGet(pSet->files, f);
-        if (pf->type == t) { pFile = pf; break; }
+        if (pf->type == t) {
+          pFile = pf;
+          break;
+        }
       }
       if (pFile == NULL) continue;
 
       SJson *pFileJson = tjsonCreateObject();
-      if (pFileJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+      if (pFileJson == NULL) {
+        tjsonDelete(pRoot);
+        taosMemoryFree(sorted);
+        return -1;
+      }
       (void)tjsonAddItemToObject(pFsetJson, gRepairFTypeSuffixAll[t], pFileJson);
       (void)tjsonAddDoubleToObject(pFileJson, "did.level", pFile->did.level);
       (void)tjsonAddDoubleToObject(pFileJson, "did.id", pFile->did.id);
@@ -1382,38 +1429,61 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
       if (pf->type != 5) continue;
       bool found = false;
       for (int32_t sl = 0; sl < nSttLevels; sl++) {
-        if (sttLevels[sl] == pf->sttLevel) { found = true; break; }
+        if (sttLevels[sl] == pf->sttLevel) {
+          found = true;
+          break;
+        }
       }
-      if (!found && nSttLevels < tListLen(sttLevels)) sttLevels[nSttLevels++] = pf->sttLevel;
+      if (!found && nSttLevels < tListLen(sttLevels)) {
+        sttLevels[nSttLevels++] = pf->sttLevel;
+      }
     }
     // Sort STT levels ascending
     for (int32_t a = 0; a < nSttLevels - 1; a++) {
       for (int32_t b = a + 1; b < nSttLevels; b++) {
         if (sttLevels[b] < sttLevels[a]) {
-          int32_t tmp = sttLevels[a]; sttLevels[a] = sttLevels[b]; sttLevels[b] = tmp;
+          int32_t tmp = sttLevels[a];
+          sttLevels[a] = sttLevels[b];
+          sttLevels[b] = tmp;
         }
       }
     }
 
     {
       SJson *pSttLvlArr = tjsonAddArrayToObject(pFsetJson, "stt lvl");
-      if (pSttLvlArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+      if (pSttLvlArr == NULL) {
+        tjsonDelete(pRoot);
+        taosMemoryFree(sorted);
+        return -1;
+      }
 
       for (int32_t sl = 0; sl < nSttLevels; sl++) {
         SJson *pLvlJson = tjsonCreateObject();
-        if (pLvlJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+        if (pLvlJson == NULL) {
+          tjsonDelete(pRoot);
+          taosMemoryFree(sorted);
+          return -1;
+        }
         (void)tjsonAddItemToArray(pSttLvlArr, pLvlJson);
         (void)tjsonAddDoubleToObject(pLvlJson, "level", sttLevels[sl]);
 
         SJson *pFilesArr = tjsonAddArrayToObject(pLvlJson, "files");
-        if (pFilesArr == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+        if (pFilesArr == NULL) {
+          tjsonDelete(pRoot);
+          taosMemoryFree(sorted);
+          return -1;
+        }
 
         for (int32_t f = 0; f < nFiles; f++) {
           SRepairFile *pf = taosArrayGet(pSet->files, f);
           if (pf->type != 5 || pf->sttLevel != sttLevels[sl]) continue;
 
           SJson *pSttJson = tjsonCreateObject();
-          if (pSttJson == NULL) { tjsonDelete(pRoot); taosMemoryFree(sorted); return -1; }
+          if (pSttJson == NULL) {
+            tjsonDelete(pRoot);
+            taosMemoryFree(sorted);
+            return -1;
+          }
           (void)tjsonAddItemToArray(pFilesArr, pSttJson);
           (void)tjsonAddDoubleToObject(pSttJson, "did.level", pf->did.level);
           (void)tjsonAddDoubleToObject(pSttJson, "did.id", pf->did.id);
@@ -1447,9 +1517,9 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
   }
 
   const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
-  char outPath[PATH_MAX];
-  snprintf(outPath, sizeof(outPath), "%s%svnode%svnode%d%stsdb%scurrent.json",
-           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+  char        outPath[PATH_MAX];
+  snprintf(outPath, sizeof(outPath), "%s%svnode%svnode%d%stsdb%scurrent.json", primaryPath, TD_DIRSEP, TD_DIRSEP,
+           vnodeId, TD_DIRSEP, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(outPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
@@ -1462,8 +1532,7 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
   int64_t len = (int64_t)strlen(jsonStr);
   int64_t written = taosWriteFile(pFile, jsonStr, len);
   if (written != len) {
-    uError("repair: vnode%d failed to write current.json (wrote %" PRId64 "/%" PRId64 ")",
-           vnodeId, written, len);
+    uError("repair: vnode%d failed to write current.json (wrote %" PRId64 "/%" PRId64 ")", vnodeId, written, len);
     ret = -1;
   }
   if (taosFsyncFile(pFile) != 0) {
@@ -1489,8 +1558,8 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
 
   // --- Update vnode.json ---
   char vnodeJsonPath[PATH_MAX];
-  snprintf(vnodeJsonPath, sizeof(vnodeJsonPath), "%s%svnode%svnode%d%svnode.json",
-           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP);
+  snprintf(vnodeJsonPath, sizeof(vnodeJsonPath), "%s%svnode%svnode%d%svnode.json", primaryPath, TD_DIRSEP, TD_DIRSEP,
+           vnodeId, TD_DIRSEP);
 
   char *content = NULL;
   if (dmReadFileContent(vnodeJsonPath, &content, NULL) != 0) {
@@ -1513,12 +1582,12 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
   }
 
   // Find myIndex by matching dnodeId in syncCfg.nodeInfo[]
-  SJson *pNodeInfoArr = tjsonGetObjectItem(pConfig, "syncCfg.nodeInfo");
+  SJson  *pNodeInfoArr = tjsonGetObjectItem(pConfig, "syncCfg.nodeInfo");
   int32_t myIndex = -1;
   if (pNodeInfoArr != NULL) {
     int32_t nNodes = tjsonGetArraySize(pNodeInfoArr);
     for (int32_t i = 0; i < nNodes; i++) {
-      SJson *pNode = tjsonGetArrayItem(pNodeInfoArr, i);
+      SJson  *pNode = tjsonGetArrayItem(pNodeInfoArr, i);
       int32_t nodeId = 0;
       int32_t code = 0;
       tjsonGetNumberValue(pNode, "nodeId", nodeId, code);
@@ -1576,8 +1645,8 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
 
   // --- Update raft_config.json ---
   char raftCfgPath[PATH_MAX];
-  snprintf(raftCfgPath, sizeof(raftCfgPath), "%s%svnode%svnode%d%ssync%sraft_config.json",
-           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
+  snprintf(raftCfgPath, sizeof(raftCfgPath), "%s%svnode%svnode%d%ssync%sraft_config.json", primaryPath, TD_DIRSEP,
+           TD_DIRSEP, vnodeId, TD_DIRSEP, TD_DIRSEP);
 
   content = NULL;
   if (dmReadFileContent(raftCfgPath, &content, NULL) != 0) {
@@ -1602,12 +1671,12 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
   }
 
   // Find myIndex by matching dnodeId in nodeInfo[]
-  SJson *pRaftNodeInfo = tjsonGetObjectItem(pSyncCfg, "nodeInfo");
+  SJson  *pRaftNodeInfo = tjsonGetObjectItem(pSyncCfg, "nodeInfo");
   int32_t raftMyIndex = -1;
   if (pRaftNodeInfo != NULL) {
     int32_t nNodes = tjsonGetArraySize(pRaftNodeInfo);
     for (int32_t i = 0; i < nNodes; i++) {
-      SJson *pNode = tjsonGetArrayItem(pRaftNodeInfo, i);
+      SJson  *pNode = tjsonGetArrayItem(pRaftNodeInfo, i);
       int32_t nodeId = 0;
       int32_t code = 0;
       tjsonGetNumberValue(pNode, "nodeId", nodeId, code);
@@ -1668,9 +1737,8 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
 // Step k: Clean sync state — delete raft_store.json and *.bak files in sync/.
 static int32_t dmCleanSyncState(STfs *pTgtTfs, int32_t vnodeId) {
   const char *primaryPath = tfsGetPrimaryPath(pTgtTfs);
-  char syncDir[PATH_MAX];
-  snprintf(syncDir, sizeof(syncDir), "%s%svnode%svnode%d%ssync",
-           primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP);
+  char        syncDir[PATH_MAX];
+  snprintf(syncDir, sizeof(syncDir), "%s%svnode%svnode%d%ssync", primaryPath, TD_DIRSEP, TD_DIRSEP, vnodeId, TD_DIRSEP);
 
   // Delete raft_store.json
   char raftStore[PATH_MAX];
@@ -1709,9 +1777,9 @@ static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
   for (int32_t level = 0; level < nlevel; level++) {
     int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
     for (int32_t id = 0; id < ndisk; id++) {
-      SDiskID did = {.level = level, .id = id};
+      SDiskID     did = {.level = level, .id = id};
       const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
-      char fullPath[PATH_MAX];
+      char        fullPath[PATH_MAX];
       snprintf(fullPath, sizeof(fullPath), "%s%s%s", diskPath, TD_DIRSEP, relBak);
       if (taosDirExist(fullPath)) {
         taosRemoveDir(fullPath);
@@ -1737,7 +1805,7 @@ static void dmRollbackVnode(STfs *pTgtTfs, int32_t vnodeId) {
   for (int32_t level = 0; level < nlevel; level++) {
     int32_t ndisk = tfsGetDisksAtLevel(pTgtTfs, level);
     for (int32_t id = 0; id < ndisk; id++) {
-      SDiskID did = {.level = level, .id = id};
+      SDiskID     did = {.level = level, .id = id};
       const char *diskPath = tfsGetDiskPath(pTgtTfs, did);
 
       char vnodePath[PATH_MAX];
@@ -1773,7 +1841,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     uInfo("repair: source host: %s", pOpts->sourceHost);
   }
   int32_t nVnodes = taosArrayGetSize(pOpts->vnodeIds);
-  uInfo("repair: vnodes to repair: %d", nVnodes);
+  uInfo("repair: number of vnodes to repair: %d", nVnodes);
 
   // Phase 2: Parse source config file
   const char *cfgPathToLoad = pOpts->sourceCfg;
@@ -1811,18 +1879,19 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   }
   taosMemoryFree(srcDisks);
 
-  uInfo("repair: source TFS: %d level(s), %d disk(s), primary=%s", srcTfs.nlevel, srcTfs.ndisk, srcTfs.disks[srcTfs.primaryIdx].dir);
+  uInfo("repair: source TFS: %d level(s), %d disk(s), primary=%s", srcTfs.nlevel, srcTfs.ndisk,
+        srcTfs.disks[srcTfs.primaryIdx].dir);
 
   // Validate source disk paths exist
   if (isRemote) {
     if (dmValidateSourceDisksRemote(pOpts->sourceHost, &srcTfs) != 0) {
-      uError("repair: source disk validation failed (exit code 2)");
+      uError("repair: remote source disk validation failed");
       dmDestroyRepairTfs(&srcTfs);
       return 2;
     }
   } else {
     if (dmValidateSourceDisksLocal(&srcTfs) != 0) {
-      uError("repair: source disk validation failed");
+      uError("repair: local source disk validation failed");
       dmDestroyRepairTfs(&srcTfs);
       return 1;
     }
@@ -1848,7 +1917,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   uInfo("repair: target TFS: %d level(s), primary=%s", tfsGetLevel(pTgtTfs), tfsGetPrimaryPath(pTgtTfs));
 
   // Phase 4: Per-vnode repair loop
-  const char *remoteHost = isRemote ? pOpts->sourceHost : NULL;
+  const char         *remoteHost = isRemote ? pOpts->sourceHost : NULL;
   SRepairVnodeResult *vnResults = taosMemoryCalloc(nVnodes, sizeof(SRepairVnodeResult));
   if (vnResults == NULL) {
     uError("repair: memory allocation failed");
@@ -1882,7 +1951,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     int32_t nTotalFiles = 0;
     for (int32_t s = 0; s < nSets; s++) {
       SRepairFileSet *pSet = taosArrayGet(srcFileSets, s);
-      int32_t nFiles = taosArrayGetSize(pSet->files);
+      int32_t         nFiles = taosArrayGetSize(pSet->files);
       nTotalFiles += nFiles;
       for (int32_t f = 0; f < nFiles; f++) {
         SRepairFile *pf = taosArrayGet(pSet->files, f);
@@ -1995,7 +2064,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
       goto _vnodeCleanup;
     }
 
-_vnodeCleanup:
+  _vnodeCleanup:
     if (vnResults[v].result == 1) {
       dmRollbackVnode(pTgtTfs, vnodeId);
     }
@@ -2008,7 +2077,7 @@ _vnodeCleanup:
 
   // Phase 5: Summary report
   uInfo("repair: ========== SUMMARY ==========");
-  bool hasS3Files = false;
+  bool    hasS3Files = false;
   int32_t nSuccess = 0, nSkipped = 0, nFailed = 0;
   for (int32_t v = 0; v < nVnodes; v++) {
     int32_t vnodeId = *(int32_t *)taosArrayGet(pOpts->vnodeIds, v);
