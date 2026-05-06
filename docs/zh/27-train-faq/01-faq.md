@@ -367,3 +367,69 @@ TDengine 3.3.5.0 及以上的版本，有些用户可能会遇到一个问题：
 这种情况通常不会产生乱序，首先我们来解释下 TDengine 中乱序是指什么？TDengine 中的乱序是指从时间戳为 0 开始按数据库设置的 Duration 参数（默认是 10 天）切割成时间窗口，在每个时间窗口中写入的数据不按顺序时间写入导致的现象为乱序现象，只要保证同一窗口是顺序写入的，即使窗口之间写入并非顺序，也不会产生乱序。
 
 再看上面场景，补旧数据和新数据同时写入，新旧数据之间一般会存在较大距离，不会落在同一窗口中，只要保证新老数据都是顺序写的，即不会产生乱序现象。
+
+### 39 如何正确地向多级存储的某一级添加新挂载点？
+
+**必须将新的 `dataDir` 行追加到该级所有现有条目的末尾**，不可插入到列表中间。
+
+**原因说明：** TDengine 启动时按 `taos.cfg` 中的声明顺序，为同一级别的每块磁盘依次分配一个数字 ID（`did_id`）：0 级主挂载点固定分配 `id=0`，其余磁盘按出现顺序编号为 `1, 2, 3 …`。这些 ID 会被持久化写入每个 vnode 的 `tsdb/current.json` 元数据文件，并在下次启动时用于还原各数据文件的绝对路径。若将新磁盘插入列表中间，其后所有磁盘都会获得新的 ID，导致 TDengine 在启动时去错误的磁盘路径查找现有数据文件。
+
+**正确做法——追加到末尾：**
+
+```shell
+dataDir /mnt/data1 0 1   # 已有主挂载点
+dataDir /mnt/data2 0 0   # 已有磁盘
+dataDir /mnt/data3 0 0   # 新磁盘追加在末尾 ✓
+```
+
+**错误做法——插入到中间（禁止）：**
+
+```shell
+dataDir /mnt/data1 0 1   # 已有主挂载点
+dataDir /mnt/data3 0 0   # 新磁盘插在此处，导致 data2 的 ID 发生偏移 ✗
+dataDir /mnt/data2 0 0
+```
+
+添加完成后重启 taosd 即可，无需做任何数据迁移。
+
+### 40 误将新挂载点插入到 taos.cfg 中间导致 TDengine 找不到数据文件，如何恢复？
+
+如果不小心将新 `dataDir` 插入到某一级现有条目的中间，该级别后续磁盘的 ID 会发生偏移，`current.json` 中记录的 ID 与实际磁盘布局不再匹配，TDengine 会报如下错误：
+
+```
+TSD ERROR tsdbFSDoScanAndFixFile failed since file: … does not exist
+VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
+MND ERROR failed to process since Vnode is closed or removed
+```
+
+> **重要警告：** 在修复元数据之前，**切勿启动 taosd**。TDengine 的启动扫描（`tsdbFSDoSanAndFix`）会主动**删除**磁盘上所有未被 `current.json` 引用的文件。带错误配置启动 taosd 可能导致**数据永久丢失**。
+
+使用 `fix-tdengine-disks.sh` 工具（位于 `community/tools/fix-disk-mounts/`）可在**不移动任何数据文件**的前提下，修复 `current.json` 和 `vnodes.json` 中的元数据。
+
+**依赖：** `bash` ≥ 4、`jq`（`apt/yum install jq`），无需 Python。
+
+**恢复步骤：**
+
+1. 停止 taosd。
+2. 确认 `taos.cfg` 中的 `dataDir` 条目能反映当前实际的磁盘布局。
+3. 先以预览模式运行，不写入任何文件：
+
+```shell
+bash fix-tdengine-disks.sh
+```
+
+4. 如果只有某几个 vnode 受影响，可通过 `--vnode` 参数限制修复范围：
+
+```shell
+bash fix-tdengine-disks.sh --vnode 2,3
+```
+
+5. 确认无误后执行修复：
+
+```shell
+bash fix-tdengine-disks.sh --apply
+```
+
+6. 启动 taosd 并验证数据。
+
+该工具会扫描所有已配置磁盘以定位每个数据文件的真实位置，更新 `current.json` 中的 `did.level`/`did.id` 字段，删除任何磁盘上均找不到的文件条目，并根据 `current.json` 所在磁盘更新 `vnodes.json` 中的 `diskPrimary` 字段。每个被修改的文件在写入前均会自动备份为 `<文件名>.pre-fix.bak`。

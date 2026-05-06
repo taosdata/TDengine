@@ -354,3 +354,69 @@ If you understand the function of configuration parameter persistence but still 
 In this situation, out-of-order issues generally won't occur. First, let's explain what out-of-order means in TDengine. In TDengine, out-of-order refers to the situation where, starting from a timestamp of 0, time windows are cut according to the Duration parameter set in the database (the default is 10 days). The out-of-order phenomenon occurs when the data written in each time window is not written in chronological order. As long as the data written in the same window is in order, even if the writing between windows is not sequential, there will be no out-of-order situation.
 
 Then, looking at the above scenario, when the backfill of old data and the writing of new data are carried out simultaneously, there is generally a large time gap between the old and new data, and they won't fall within the same window. As long as both the old and new data are written in order, there will be no out-of-order phenomenon.
+
+### 39 How do I correctly add a new mount point to an existing multi-tier storage tier?
+
+Always **append** the new `dataDir` line at the **end** of all existing entries for the target level. Never insert it in the middle of the list.
+
+**Why this matters:** TDengine assigns each disk a sequential numeric ID (`did_id`) based on its declaration order within a level. The primary disk at level 0 always receives `id=0`; all other disks are numbered `1, 2, 3 …` in the order they appear in `taos.cfg`. These IDs are persisted inside each vnode's `tsdb/current.json` metadata file and are used to reconstruct the absolute path to every data file at startup. Inserting a new disk anywhere other than the end shifts the IDs of all subsequent disks, causing TDengine to look for existing data on the wrong disks.
+
+**Correct — append at the end:**
+
+```shell
+dataDir /mnt/data1 0 1   # existing primary
+dataDir /mnt/data2 0 0   # existing disk
+dataDir /mnt/data3 0 0   # new disk added at the end ✓
+```
+
+**Incorrect — inserted in the middle (never do this):**
+
+```shell
+dataDir /mnt/data1 0 1   # existing primary
+dataDir /mnt/data3 0 0   # new disk inserted here — shifts data2's ID ✗
+dataDir /mnt/data2 0 0
+```
+
+After adding the new entry at the end, simply restart taosd. No data migration is required.
+
+### 40 A mount point was added out of order in taos.cfg and TDengine can no longer find data files. How do I recover?
+
+If a new `dataDir` was accidentally inserted in the middle of an existing tier's list, the disk IDs stored in `current.json` no longer match the current disk layout. TDengine will report errors such as:
+
+```
+TSD ERROR tsdbFSDoScanAndFixFile failed since file: … does not exist
+VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
+MND ERROR failed to process since Vnode is closed or removed
+```
+
+> **Critical warning:** Do **not** start taosd with a mismatched configuration before repairing the metadata. TDengine's startup scan (`tsdbFSDoSanAndFix`) actively **deletes** any on-disk file that is not referenced in `current.json`. Starting taosd in this state may result in **permanent data loss**.
+
+Use the `fix-tdengine-disks.sh` tool (located in `community/tools/fix-disk-mounts/`) to repair `current.json` and `vnodes.json` without moving any data files.
+
+**Requirements:** `bash` ≥ 4, `jq` (`apt/yum install jq`). No Python required.
+
+**Recovery steps:**
+
+1. Stop taosd.
+2. Restore the correct `taos.cfg` — ensure `dataDir` entries reflect the actual current disk layout.
+3. Preview what the tool will change (no files are modified):
+
+```shell
+bash fix-tdengine-disks.sh
+```
+
+4. Optionally limit the repair to affected vnodes only:
+
+```shell
+bash fix-tdengine-disks.sh --vnode 2,3
+```
+
+5. Apply the repairs:
+
+```shell
+bash fix-tdengine-disks.sh --apply
+```
+
+6. Start taosd and verify.
+
+The tool scans all configured disks to locate where each data file actually lives, updates `did.level`/`did.id` in `current.json`, removes entries for missing files, and corrects `diskPrimary` in `vnodes.json`. Every modified file is backed up to `<file>.pre-fix.bak` before writing.
