@@ -381,6 +381,9 @@ static int32_t processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
   RAW_LOG_START
   // decode and process req
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -407,6 +410,9 @@ static int32_t processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode and process req
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -572,6 +578,9 @@ static int32_t processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   SVCreateTbReq*     pCreateReq;
   RAW_LOG_START
   // decode
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -671,6 +680,9 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -908,6 +920,9 @@ static int32_t processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -938,6 +953,9 @@ static int32_t processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode and process req
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
 
@@ -972,6 +990,9 @@ static int32_t processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   int32_t          lino = 0;
   RAW_LOG_START
   // decode
+  if (metaRsp->metaRspLen <= sizeof(SMsgHead)) {
+    RAW_RETURN_CHECK(TSDB_CODE_INVALID_DATA_FMT);
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
