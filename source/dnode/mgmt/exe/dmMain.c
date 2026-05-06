@@ -364,6 +364,13 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   if (global.repairCopy.enabled) {
     if (global.repairCopy.modeStr[0] == '\0') {
       // -r without --mode: legacy meta regeneration
+      if (global.repairCopy.vnodeIds != NULL) {
+        taosArrayDestroy(global.repairCopy.vnodeIds);
+        global.repairCopy.vnodeIds = NULL;
+      }
+      global.repairCopy.nodeType[0] = '\0';
+      global.repairCopy.sourceCfg[0] = '\0';
+      global.repairCopy.modeStr[0] = '\0';
       global.repairCopy.enabled = false;
       generateNewMeta = true;
     } else if (strcmp(global.repairCopy.modeStr, "copy") == 0) {
