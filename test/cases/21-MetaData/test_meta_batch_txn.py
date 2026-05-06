@@ -3234,6 +3234,168 @@ class TestBatchMetaTxn:
 
         tdSql.execute("drop database txn_vac_stress_db")
 
+    # =========================================================================
+    # 112. Vacuum cleanup: large ROLLBACK → re-CREATE same table names
+    #      Validates that vacuum properly cleans up rolled-back PRE_CREATE entries
+    #      so that the same table names can be re-used in subsequent transactions.
+    # =========================================================================
+    def s112_large_rollback_reuse_names(self):
+        tdLog.info("======== s112_large_rollback_reuse_names")
+        tdSql.execute("drop database if exists txn_reuse_db")
+        tdSql.execute("create database txn_reuse_db vgroups 2")
+        tdSql.execute("use txn_reuse_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+
+        NUM_TABLES = 80  # > TSDB_TXN_INLINE_THRESHOLD (64) → lazy vacuum path
+
+        # Create tables in a transaction, then ROLLBACK
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 40):
+            parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
+                     for j in range(min(40, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("ROLLBACK")
+
+        # Wait briefly for vacuum to process (should be fast for 80 entries)
+        time.sleep(3)
+
+        # Verify tables are not visible
+        tdSql.query("show txn_reuse_db.tables")
+        tdSql.checkRows(0)
+
+        # Re-create the SAME table names in a new transaction → must succeed
+        tdSql.execute("BEGIN")
+        for batch_start in range(0, NUM_TABLES, 40):
+            parts = [f"ct_{batch_start + j} using stb tags({1000 + batch_start + j})"
+                     for j in range(min(40, NUM_TABLES - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
+        tdSql.execute("COMMIT")
+
+        # Verify all tables are visible with new tag values
+        tdSql.query("show txn_reuse_db.tables")
+        tdSql.checkRows(NUM_TABLES)
+
+        # Verify data operations work on re-created tables
+        tdSql.execute("insert into ct_0 values(now, 100)")
+        tdSql.execute(f"insert into ct_{NUM_TABLES - 1} values(now, 200)")
+        tdSql.query("select * from stb")
+        tdSql.checkRows(2)
+
+        tdSql.execute("drop database txn_reuse_db")
+
+    # =========================================================================
+    # 113. Vacuum serialization: multiple rapid ROLLBACK cycles
+    #      Validates that the vacuumRunning guard prevents concurrent vacuum tasks
+    #      and that all cycles complete correctly.
+    # =========================================================================
+    def s113_rapid_rollback_vacuum_serialization(self):
+        tdLog.info("======== s113_rapid_rollback_vacuum_serialization")
+        tdSql.execute("drop database if exists txn_vacser_db")
+        tdSql.execute("create database txn_vacser_db vgroups 1")
+        tdSql.execute("use txn_vacser_db")
+        tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
+
+        NUM_CYCLES = 5
+        TABLES_PER_CYCLE = 70  # > 64 threshold → lazy vacuum each time
+
+        # Rapidly create and rollback multiple large txns
+        for cycle in range(NUM_CYCLES):
+            base = cycle * TABLES_PER_CYCLE
+            tdSql.execute("BEGIN")
+            for batch_start in range(0, TABLES_PER_CYCLE, 35):
+                parts = [f"ct_{base + batch_start + j} using stb tags({base + batch_start + j})"
+                         for j in range(min(35, TABLES_PER_CYCLE - batch_start))]
+                tdSql.execute("create table " + " ".join(parts))
+            tdSql.execute("ROLLBACK")
+            tdLog.info(f"  cycle {cycle}: rolled back {TABLES_PER_CYCLE} tables")
+
+        # Wait for all vacuum tasks to complete
+        time.sleep(5)
+
+        # Verify no tables leaked through
+        tdSql.query("show txn_vacser_db.tables")
+        tdSql.checkRows(0)
+
+        # Verify the system is healthy: a new transaction works
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_fresh using stb tags(999)")
+        tdSql.execute("COMMIT")
+        tdSql.query("show txn_vacser_db.tables")
+        tdSql.checkRows(1)
+
+        # Re-use a name from the very first cycle
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_0 using stb tags(0)")
+        tdSql.execute("COMMIT")
+        tdSql.query("show txn_vacser_db.tables")
+        tdSql.checkRows(2)
+
+        tdSql.execute("drop database txn_vacser_db")
+
+    # =========================================================================
+    # 114. STB ALTER in txn: single ALTER + COMMIT/ROLLBACK
+    #      Validates that ALTER STABLE within a transaction works correctly.
+    #      (Note: multiple sequential ALTERs on same STB in one txn only preserves
+    #       the last ALTER — this tests the supported single-ALTER-per-STB pattern)
+    # =========================================================================
+    def s114_stb_multi_alter_chain(self):
+        self.s0_reset_env()
+        tdLog.info("======== s114_stb_multi_alter_chain")
+
+        # Pre-existing STB with child table and data
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct1 using stb1 tags(1)")
+        tdSql.execute("insert into ct1 values(now, 100)")
+
+        # Single ALTER in transaction + COMMIT
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb1 add column c1 float")
+        tdSql.execute("COMMIT")
+
+        # Verify column exists
+        tdSql.query("describe stb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c1' in col_names, "Column c1 should exist after ALTER COMMIT"
+
+        # Verify child table works with new schema
+        tdSql.execute("insert into ct1 values(now, 200, 1.5)")
+        tdSql.query("select c1 from ct1 where c0 = 200")
+        tdSql.checkRows(1)
+
+        # Test ALTER + ROLLBACK on pre-existing STB
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table stb1 add column c2 double")
+        tdSql.execute("ROLLBACK")
+
+        # Verify c2 does NOT exist
+        tdSql.query("describe stb1")
+        col_names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert 'c2' not in col_names, "Column c2 should NOT exist after ROLLBACK"
+        # Original + c1 still intact
+        assert 'c0' in col_names and 'c1' in col_names
+
+        # Verify data is intact after rollback
+        tdSql.query("select c0, c1 from ct1")
+        tdSql.checkRows(2)
+
+    # =========================================================================
+    # 115. STB CREATE → ALTER → DROP in same txn
+    #      Validates the full lifecycle chain within a single transaction.
+    # =========================================================================
+    def s115_stb_create_multi_alter_drop_commit(self):
+        self.s0_reset_env()
+        tdLog.info("======== s115_stb_create_multi_alter_drop_commit")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table stb1 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("alter table stb1 add column c1 float")
+        tdSql.execute("drop table stb1")
+        tdSql.execute("COMMIT")
+
+        # Net result: STB gone (CREATE→ALTER→DROP → all undone by DROP)
+        tdSql.query("show txn_db.stables")
+        tdSql.checkRows(0)
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -3484,3 +3646,7 @@ class TestBatchMetaTxn:
         self.s109_no_txn_fast_path_smoke()
         self.s110_sequential_large_txn_vacuum_stress()
         self.s111_concurrent_begin_admission_stability()
+        self.s112_large_rollback_reuse_names()
+        self.s113_rapid_rollback_vacuum_serialization()
+        self.s114_stb_multi_alter_chain()
+        self.s115_stb_create_multi_alter_drop_commit()

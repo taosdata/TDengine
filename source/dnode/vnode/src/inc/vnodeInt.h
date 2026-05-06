@@ -562,6 +562,7 @@ struct SVnode {
   TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
   int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
   SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
+  int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

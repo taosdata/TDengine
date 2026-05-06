@@ -135,8 +135,10 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
   pReq->uid = *(tb_uid_t *)value;
   tdbFreeClear(value);
 
-  // Batch meta txn: check if the entry is a finalized shadow that should be treated as non-existent
-  {
+  // Batch meta txn: check if the entry is a finalized shadow that should be treated as non-existent.
+  // Skip for internal operations (version == -1, e.g., vacuum cleanup) which need to physically
+  // delete these entries.
+  if (version >= 0) {
     SMetaEntry *pExist = NULL;
     if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
       if (pExist->txnId != 0) {

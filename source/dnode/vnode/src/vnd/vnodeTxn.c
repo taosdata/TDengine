@@ -1055,6 +1055,7 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
     // would overwrite vacuumTask with a new ID, causing vnodeClose to miss it.
     if (vnodeAsyncHasQueuedTask(SCAN_TASK_ASYNC) && !atomic_load_8(&pVnode->closing)) {
       vDebug("vgId:%d, async vacuum yielding after %d UIDs (scan tasks queued)", TD_VID(pVnode), totalProcessed);
+      atomic_store_8(&pVnode->vacuumRunning, 0);
       vnodeTxnSubmitVacuumAsync(pVnode);
       return 0;
     }
@@ -1062,6 +1063,11 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
 
   if (totalProcessed > 0) {
     vDebug("vgId:%d, async vacuum done: processed %d UIDs total", TD_VID(pVnode), totalProcessed);
+  }
+  atomic_store_8(&pVnode->vacuumRunning, 0);
+  if (totalProcessed > 0 && !atomic_load_8(&pVnode->closing) && pVnode->pFinalizedTxns &&
+      taosHashGetSize(pVnode->pFinalizedTxns) > 0) {
+    vnodeTxnSubmitVacuumAsync(pVnode);
   }
   return 0;
 }
@@ -1072,14 +1078,22 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
  * Task ID stored in pVnode->vacuumTask; vnodeClose() calls vnodeAWait()
  * on it to prevent use-after-free.
  *
- * Safe to call multiple times: each call overwrites vacuumTask with the new
- * task ID. Earlier tasks run to completion independently. vnodeAWait on the
- * latest ID guarantees the last submission is done before VNode destruction.
+ * Safe to call multiple times: vacuumRunning ensures at most one vacuum task is
+ * queued/running for a VNode, so vacuumIdx and txn.idx cleanup are serialized.
  */
 static void vnodeTxnSubmitVacuumAsync(SVnode *pVnode) {
+  if (atomic_load_8(&pVnode->closing)) {
+    return;
+  }
+
+  if (atomic_val_compare_exchange_8(&pVnode->vacuumRunning, 0, 1) != 0) {
+    return;
+  }
+
   int32_t code =
       vnodeAsync(SCAN_TASK_ASYNC, EVA_PRIORITY_LOW, vnodeTxnVacuumExecute, NULL, pVnode, &pVnode->vacuumTask);
   if (code != 0) {
+    atomic_store_8(&pVnode->vacuumRunning, 0);
     vError("vgId:%d, failed to submit async vacuum task, code:0x%x", TD_VID(pVnode), code);
   }
 }

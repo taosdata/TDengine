@@ -459,6 +459,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   pVnode->blocked = false;
   pVnode->disableWrite = false;
   pVnode->closing = 0;
+  pVnode->vacuumRunning = 0;
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));

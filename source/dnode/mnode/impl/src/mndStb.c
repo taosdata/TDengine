@@ -3448,13 +3448,46 @@ static int32_t mndStbBuildAlterChain(const SStbObj *pStb, const void *pReqData, 
                                      void **ppChain, int32_t *pChainLen) {
   int32_t oldLen = pStb->txnAlterReqsLen;
   int32_t oldCount = 0;
+  if (pReqData == NULL || reqDataLen <= 0 || ppChain == NULL || pChainLen == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (oldLen < 0 || (oldLen > 0 && oldLen < (int32_t)sizeof(int32_t)) || (oldLen > 0 && pStb->pTxnAlterReqs == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (oldLen >= (int32_t)sizeof(int32_t) && pStb->pTxnAlterReqs != NULL) {
     memcpy(&oldCount, pStb->pTxnAlterReqs, sizeof(int32_t));
+  }
+  if (oldCount < 0 || oldCount > TSDB_META_TXN_MAX_DDL_OPS_PER_VG) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (oldLen > 0) {
+    int32_t offset = (int32_t)sizeof(int32_t);
+    for (int32_t i = 0; i < oldCount; ++i) {
+      int32_t itemLen = 0;
+      if (offset > oldLen - (int32_t)sizeof(int32_t)) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      memcpy(&itemLen, (const char *)pStb->pTxnAlterReqs + offset, sizeof(int32_t));
+      if (itemLen <= 0 || itemLen > oldLen - offset - (int32_t)sizeof(int32_t)) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      offset += (int32_t)sizeof(int32_t) + itemLen;
+    }
+    if (offset != oldLen) {
+      return TSDB_CODE_INVALID_MSG;
+    }
   }
 
   int32_t newCount = oldCount + 1;
   int32_t headerLen = (oldLen > 0 ? oldLen : (int32_t)sizeof(int32_t));
+  if (reqDataLen > INT32_MAX - headerLen - (int32_t)sizeof(int32_t)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t newLen = headerLen + (int32_t)sizeof(int32_t) + reqDataLen;
+  if (newLen < headerLen || newLen < reqDataLen) {
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   void *pNew = taosMemoryMalloc(newLen);
   if (pNew == NULL) return TSDB_CODE_OUT_OF_MEMORY;
