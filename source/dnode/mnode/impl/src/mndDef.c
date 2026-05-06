@@ -47,8 +47,11 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_EXIT(terrno);
   }
   
-  if (MND_STREAM_VER_NUMBER == sver) {
+  if (sver >= MND_STREAM_OLD_TRIGGER_COLS) {
     TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
+    // Legacy sver=8 records share the JSON wire format with sver=9 but their
+    // serialized plan bytes are the old form; mark so reader runs dual-mode.
+    pObj->pCreate->isOldPlan = (sver == MND_STREAM_OLD_TRIGGER_COLS);
   } else {
     TAOS_CHECK_RETURN(
       tDeserializeSCMCreateStreamReqImplOld(pDecoder, pObj->pCreate, 21));

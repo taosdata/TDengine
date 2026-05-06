@@ -7,6 +7,7 @@
 #include "plannodes.h"
 #include "stream.h"
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
 
@@ -41,12 +42,18 @@ typedef struct StreamTableListInfo {
   int64_t          version;
 } StreamTableListInfo;
 
+typedef struct slotInfo{
+  SArray*   schemas;
+  int32_t*  slotIdList;
+} SlotInfo;
+
 typedef struct SStreamTriggerReaderInfo {
   void*        pTask;
   int32_t      order;
   STimeWindow  twindows;
   uint64_t     suid;
   uint64_t     uid;
+  int8_t       isOldPlan;
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
   int8_t       isVtableOnlyTs;
@@ -54,10 +61,9 @@ typedef struct SStreamTriggerReaderInfo {
   int8_t       deleteOutTbl;
   SNode*       pTagCond;
   SNode*       pTagIndexCond;
-  SNode*       pConditions;
   SNodeList*   partitionCols;
   SNodeList*   triggerCols;
-  SNodeList*   triggerPseudoCols;
+  SNodeList*   calcCols;
   SHashObj*    streamTaskMap;
   SHashObj*    groupIdMap;
   SSubplan*    triggerAst;
@@ -73,10 +79,8 @@ typedef struct SStreamTriggerReaderInfo {
   int32_t      numOfExprTriggerTag;
   SExprInfo*   pExprInfoCalcTag;
   int32_t      numOfExprCalcTag;
-  SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
-  SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
-  void*        historyTableList;
-  SFilterInfo* pFilterInfo;
+  SFilterInfo* pFilterInfoTrigger;
+  SFilterInfo* pFilterInfoCalc;
   SHashObj*    pTableMetaCacheTrigger;
   SHashObj*    pTableMetaCacheCalc;
   SHashObj*    triggerTableSchemaMapVTable; // key: uid, value: STSchema*
@@ -87,9 +91,59 @@ typedef struct SStreamTriggerReaderInfo {
   SRWLatch     lock;
 
   StreamTableListInfo        tableList;
-  StreamTableListInfo        vSetTableList;
 
+  StreamTableListInfo        vSetTableList;
+  SSHashObj*                 uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*                 uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
+
+  // ===== v3.4.2 sub-project C DS v6.1 §6.1.3 =====
+  // F7/F8 virtual-table two-layer cache; outer key = getSessionKey(sessionId, firstType),
+  // value = SHashObj* uidTaskMap (inner key = uid, value = SStreamReaderTaskInner*).
+  SHashObj* vtableTaskMap;
+
+  // F9 history-side triple (replaced atomically by STRIGGER_PULL_SET_TABLE_HISTORY; see DS §6.4).
+  StreamTableListInfo vSetTableListHistory;
+  SSHashObj*          uidHashTriggerHistory;  // <(suid,uid)[2] -> SHashObj<slotId,colId>>
+  SSHashObj*          uidHashCalcHistory;     // <(suid,uid)[2] -> SHashObj<slotId,colId>>
+  SSHashObj*          uidHashTriggerHistorySlotInfo;     // <uid -> SlotInfo>
+  SSHashObj*          uidHashCalcHistorySlotInfo;        // <uid -> SlotInfo>
 } SStreamTriggerReaderInfo;
+
+// v3.4.2 DS v6.1 §6.1.3 - normalize NEXT type to the FIRST pull type used as cache key.
+// Cache key always derives from the first type, regardless of whether the request is a
+// first pull or a continuation pull (see DS §6.2.1 / §6.3.2).
+static inline ESTriggerPullType getFirstTypeFromNext(ESTriggerPullType t) {
+  switch (t) {
+    case STRIGGER_PULL_TSDB_DATA_NEW_NEXT:              return STRIGGER_PULL_TSDB_DATA_NEW;
+    case STRIGGER_PULL_TSDB_DATA_NEW_CALC_NEXT:         return STRIGGER_PULL_TSDB_DATA_NEW_CALC;
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_NEXT:       return STRIGGER_PULL_TSDB_DATA_VTABLE_NEW;
+    case STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC_NEXT:  return STRIGGER_PULL_TSDB_DATA_VTABLE_NEW_CALC;
+    default:                                            return t;
+  }
+}
+
+static inline bool isFirstPullType(ESTriggerPullType t) {
+  return getFirstTypeFromNext(t) == t;
+}
+
+// dual-mode helper: only true plan reuses a calc-side filter; old plans share trigger filter
+static inline bool isNewCalc(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return !pInfo->isOldPlan && isCalc;
+}
+
+// Resource-selection helpers: pick calc-side or trigger-side resource depending on
+// dual-mode state. Eliminates repeated verbose ternary chains across TSDB handlers.
+static inline SSDataBlock* getResBlock(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return isNewCalc(pInfo, isCalc) ? pInfo->calcResBlock : pInfo->triggerResBlock;
+}
+
+static inline SNodeList* getScanCols(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return isNewCalc(pInfo, isCalc) ? pInfo->calcCols : pInfo->triggerCols;
+}
+
+static inline SFilterInfo* getFilterInfo(SStreamTriggerReaderInfo* pInfo, bool isCalc) {
+  return isNewCalc(pInfo, isCalc) ? pInfo->pFilterInfoCalc : pInfo->pFilterInfoTrigger;
+}
 
 typedef struct SStreamTriggerReaderCalcInfo {
   void*       pTask;
@@ -139,7 +193,12 @@ void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
 
-int32_t qBuildVTableList(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t qBuildVTableList(SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst,
+                             SSHashObj** uidInfoTrigger, SSHashObj** uidInfoCalc);
+
+int32_t qBuildVTableListInto(SStreamTriggerReaderInfo* sStreamReaderInfo,
+                             StreamTableListInfo* dst,
+                             SSHashObj* uidInfoTrigger);
 
 int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTaskInner** ppTask,
                          SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
@@ -156,8 +215,7 @@ int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo
 int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
-uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
-uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
+uint64_t qStreamGetGroupId(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid, bool lock);
 int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int64_t uid);
 
 #ifdef __cplusplus

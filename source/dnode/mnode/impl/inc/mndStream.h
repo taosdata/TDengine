@@ -102,8 +102,13 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_ACT_RECALC     (1 << 4)
 
 #define MND_STREAM_RESERVE_SIZE      64
-#define MND_STREAM_VER_NUMBER        8
+#define MND_STREAM_VER_NUMBER        9
 #define MND_STREAM_COMPATIBLE_VER_NUMBER 7
+// sver value at which the JSON-encoded SCMCreateStreamReq still carries the
+// legacy plan-execution form. SDB records persisted under this sver are
+// loaded via the JSON path but flagged isOldPlan=true so reader picks the
+// legacy execution path (dual-mode runtime). See PR#35196 / project B.
+#define MND_STREAM_OLD_TRIGGER_COLS  8
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200

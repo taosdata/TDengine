@@ -30,7 +30,12 @@ extern "C" {
 #define STREAM_MAX_THREAD_NUM 5
 #define STREAM_RETURN_ROWS_NUM  4096
 #define STREAM_RETURN_BLOCK_NUM 4096
+// v3.4.2 sub-project C DS v6.1 §6.1.4 / §7.3 - TSDB-only batch threshold (F13).
+// WAL keeps 4096 (latency); TSDB scales ~12x (throughput). Only TSDB-data-new helpers
+// reference this constant; WAL paths must keep STREAM_RETURN_ROWS_NUM.
+#define STREAM_RETURN_ROWS_TSDB_NUM 50000
 // #define STREAM_RETURN_ROWS_NUM_NEW 1000000
+#define STREAM_READER_MAX_VTABLE_INNERS_PER_TASK  1000000
 
 #define STREAM_ACT_MIN_DELAY_MSEC (STREAM_MAX_GROUP_NUM * STREAM_HB_INTERVAL_MS)
 
