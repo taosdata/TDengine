@@ -12102,7 +12102,38 @@ static int32_t rewriteVstExpandToUnionAll(STranslateContext* pCxt, SSelectStmt* 
   // their tableAlias. The outer SELECT resolves columns via the TempTable alias.
   // If these don't match, the planner will fail with "slot key not found".
   if (QUERY_NODE_SET_OPERATOR == nodeType(pUnionTree)) {
-    snprintf(((SSetOperator*)pUnionTree)->stmtName, TSDB_TABLE_NAME_LEN, "%s", pVTable->table.tableAlias);
+    SSetOperator* pSetOp = (SSetOperator*)pUnionTree;
+    snprintf(pSetOp->stmtName, TSDB_TABLE_NAME_LEN, "%s", pVTable->table.tableAlias);
+
+    // Only add ORDER BY ts when the outer query requires a timeline (INTERVAL/SESSION/STATE window).
+    // Without this, queries like SELECT * would get an unnecessary Sort operator.
+    if (NULL != pSelect->pWindow) {
+      SOrderByExprNode* pOrderByExpr = NULL;
+      code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pUnionTree);
+        return code;
+      }
+      pOrderByExpr->order = ORDER_ASC;
+      pOrderByExpr->nullOrder = NULL_ORDER_FIRST;
+      SValueNode* pPosVal = NULL;
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pPosVal);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pOrderByExpr);
+        nodesDestroyNode(pUnionTree);
+        return code;
+      }
+      pPosVal->datum.i = 1;
+      pPosVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pPosVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pPosVal->translate = true;
+      pOrderByExpr->pExpr = (SNode*)pPosVal;
+      code = nodesListMakeStrictAppend(&pSetOp->pOrderByList, (SNode*)pOrderByExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pUnionTree);
+        return code;
+      }
+    }
   }
 
   // Force sync mode for the branch translation — descendant tables are not in the
