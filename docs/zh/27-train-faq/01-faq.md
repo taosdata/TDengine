@@ -396,7 +396,7 @@ dataDir /mnt/data2 0 0
 
 如果不小心将新 `dataDir` 插入到某一级现有条目的中间，该级别后续磁盘的 ID 会发生偏移，`current.json` 中记录的 ID 与实际磁盘布局不再匹配，TDengine 会报如下错误：
 
-```
+```text
 TSD ERROR tsdbFSDoScanAndFixFile failed since file: … does not exist
 VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
 MND ERROR failed to process since Vnode is closed or removed

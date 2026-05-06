@@ -383,7 +383,7 @@ After adding the new entry at the end, simply restart taosd. No data migration i
 
 If a new `dataDir` was accidentally inserted in the middle of an existing tier's list, the disk IDs stored in `current.json` no longer match the current disk layout. TDengine will report errors such as:
 
-```
+```text
 TSD ERROR tsdbFSDoScanAndFixFile failed since file: … does not exist
 VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
 MND ERROR failed to process since Vnode is closed or removed

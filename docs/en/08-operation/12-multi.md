@@ -44,7 +44,7 @@ dataDir /mnt/data5 2 0
 dataDir /mnt/data6 2 0
 ```
 
-**Note:**
+**Note**:
 
 1. Multi-tier storage does not allow cross-level configuration, legal configuration schemes are: only Level 0, only Level 0 + Level 1, and Level 0 + Level 1 + Level 2. It is not allowed to only configure level=0 and level=2 without configuring level=1.
 2. It is forbidden to manually remove a mount disk in use, and currently, mount disks do not support non-local network disks.

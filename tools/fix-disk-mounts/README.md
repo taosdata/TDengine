@@ -22,7 +22,7 @@ reconstruct the absolute path to every data file.
 current `taos.cfg` order causes TDengine to look for files on the wrong
 disk**, leading to errors such as:
 
-```
+```text
 TSD ERROR tsdbFSDoScanAndFixFile failed since file: … does not exist
 VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
 MND ERROR failed to process since Vnode is closed or removed
@@ -35,7 +35,7 @@ MND ERROR failed to process since Vnode is closed or removed
 > lost.  Always run the script first, with `--apply`, and only then
 > start taosd.
 
-**Typical scenarios that require this script:**
+**Typical scenarios that require this script**:
 
 | Scenario | What went wrong |
 |---|---|
@@ -132,7 +132,7 @@ bash fix-tdengine-disks.sh --cfg /data/taos/taos.cfg --apply
 
 ### Recommended workflow
 
-```
+```text
 1. Stop taosd
 2. Back up your data directories (optional but strongly recommended)
 3. bash fix-tdengine-disks.sh          ← review the dry-run output
@@ -144,7 +144,7 @@ bash fix-tdengine-disks.sh --cfg /data/taos/taos.cfg --apply
 
 ## Output Example
 
-```
+```text
 =================================================================
   TDengine disk fixer  (pure bash + jq)
 =================================================================
