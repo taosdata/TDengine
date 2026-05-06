@@ -216,6 +216,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_JOBS,
   TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
+  TSDB_MGMT_TABLE_SECURITY_POLICIES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -569,6 +570,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
+  QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+  QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -890,7 +893,7 @@ typedef struct {
       uint8_t sysInfo : 1;
       uint8_t isAudit : 1;
       uint8_t privCat : 3;  // ESysTblPrivCat
-      uint8_t reserved : 3;
+      uint8_t secLvl : 3;
     };
   };
   int64_t     ownerId;
@@ -1319,6 +1322,7 @@ typedef struct {
   int64_t  keep;
   int8_t   virtualStb;
   int8_t   secureDelete;
+  int8_t   securityLevel;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1360,6 +1364,7 @@ typedef struct {
   int64_t keep;
   SArray* pTypeMods;
   int8_t  secureDelete;
+  int8_t  securityLevel;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -1424,6 +1429,16 @@ typedef struct {
   int8_t        enableAuditSelect;
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t minSecLevel : 3;  // per-user
+      uint32_t maxSecLevel : 3;  // per-user
+      uint32_t sodInitial  : 1;  // cluster-wide: 1 = SoD still in initial phase
+      uint32_t macActive   : 1;  // cluster-wide: 1 = MAC mandatory mode activated
+      uint32_t reserved    : 24;
+    };
+  };
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1636,6 +1651,7 @@ typedef struct {
   int8_t hasPasswordGraceTime;
   int8_t hasInactiveAccountTime;
   int8_t hasAllowTokenNum;
+  int8_t hasSecurityLevel;
 
   int8_t superUser;  // denote if it is a super user or not
   int8_t ignoreExists;
@@ -1649,6 +1665,8 @@ typedef struct {
   int8_t isImport;
   int8_t changepass;
   int8_t enable;
+  int8_t minSecLevel;
+  int8_t maxSecLevel;
 
   int8_t negIpRanges;
   int8_t negTimeRanges;
@@ -1734,11 +1752,14 @@ typedef struct {
   int8_t hasPasswordGraceTime;
   int8_t hasInactiveAccountTime;
   int8_t hasAllowTokenNum;
+  int8_t hasSecurityLevel;
 
   int8_t enable;
   int8_t sysinfo;
   int8_t createdb;
   int8_t changepass;
+  int8_t minSecLevel;
+  int8_t maxSecLevel;
 
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USER_PASSWORD_LONGLEN];
@@ -1885,9 +1906,10 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
-      uint8_t privLevel : 3;
+      uint8_t minSecLevel    : 3;
       uint8_t withInsertCond : 1;
-      uint8_t reserve : 4;
+      uint8_t maxSecLevel    : 3;
+      uint8_t reserved       : 1;
     };
   };
   SPrivSet  sysPrivs;
@@ -2100,7 +2122,8 @@ typedef struct {
     struct {
       uint8_t virtualStb : 1;  // no compatibility problem for little-endian arch
       uint8_t isAudit : 1;
-      uint8_t reserve : 6;
+      uint8_t securityLevel : 3;
+      uint8_t reserve : 3;
     };
   };
   SColRef* pColRefs;
@@ -2211,6 +2234,7 @@ typedef struct {
   int8_t  isAudit;
   int8_t  allowDrop;
   int8_t  secureDelete;
+  int8_t  securityLevel;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -2251,7 +2275,8 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
-  int8_t  secureDelete;
+  int8_t  secureDelete;  
+  int8_t  securityLevel;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2481,7 +2506,8 @@ typedef struct {
     struct {
       uint8_t isMount : 1;    // TS-5868
       uint8_t allowDrop : 1;  // TS-7232
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3;   // 6671585124
+      uint8_t padding : 3;
     };
   };
   int8_t  compactTimeOffset;
@@ -3104,7 +3130,8 @@ typedef struct {
     struct {
       uint8_t isAudit : 1;
       uint8_t allowDrop : 1;
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3;   // 6671585124
+      uint8_t padding : 3;
     };
   };
   int8_t secureDelete;
@@ -3279,6 +3306,7 @@ typedef struct {
   int8_t  ssCompact;
   int8_t  allowDrop;
   int8_t  secureDelete;
+  int8_t  securityLevel;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -4916,6 +4944,7 @@ typedef struct SVCreateStbReq {
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
   int8_t          secureDelete;
+  int8_t          securityLevel;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -5326,6 +5355,14 @@ typedef struct {
   int8_t        enableAuditSelect;
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t sodInitial : 1;   // cluster-wide: 1 = SoD still in initial phase
+      uint32_t macActive  : 1;   // cluster-wide: 1 = MAC mandatory mode activated
+      uint32_t reserved   : 30;
+    };
+  };
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
@@ -6697,7 +6734,8 @@ typedef struct {
     struct {
       uint8_t isAudit : 1;
       uint8_t allowDrop : 1;
-      uint8_t reserved : 6;
+      uint8_t securityLevel : 3;
+      uint8_t reserved : 3;
     };
   };
   int8_t secureDelete;

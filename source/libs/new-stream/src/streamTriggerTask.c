@@ -90,6 +90,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
 static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp);
 // Process the calc responses from runners.
 static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp);
+static int32_t stTriggerCalcExpr(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, SNode *pExpr,
+                                 SColumnInfoData *pResCol);
 
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask);
 static void    stHistoryContextDestroy(void *ptr);
@@ -129,6 +131,803 @@ static EDealRes nodeRewriteSlotid(SNode *pNode, void *pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
+}
+
+static void stDestroyExprStateCols(SArray *pExprStateCols);
+
+static FORCE_INLINE int32_t stGetStateKeyCount(const SArray *pSlotIds, const SNodeList *pExprs) {
+  if (pSlotIds != NULL) {
+    return taosArrayGetSize((SArray *)pSlotIds);
+  }
+  return pExprs != NULL ? LIST_LENGTH(pExprs) : 0;
+}
+
+static FORCE_INLINE int32_t stCountExprKeys(const SArray *pSlotIds) {
+  if (pSlotIds == NULL) return 0;
+  int32_t count = 0;
+  for (int32_t i = 0; i < taosArrayGetSize((SArray *)pSlotIds); ++i) {
+    if (*(int16_t *)taosArrayGet((SArray *)pSlotIds, i) == -1) count++;
+  }
+  return count;
+}
+
+static void stRefreshStateTaskCompatFields(SStreamTriggerTask *pTask) {
+  pTask->histStateSlotId = -1;
+  pTask->histStateExpr = NULL;
+
+  if (pTask->histStateExprs != NULL && LIST_LENGTH(pTask->histStateExprs) == 1) {
+    pTask->histStateExpr = nodesListGetNode(pTask->histStateExprs, 0);
+  }
+
+  if (pTask->pHistStateSlotIds != NULL && taosArrayGetSize(pTask->pHistStateSlotIds) == 1 && pTask->histStateExpr != NULL &&
+      nodeType(pTask->histStateExpr) == QUERY_NODE_COLUMN) {
+    pTask->histStateSlotId = *(int16_t *)taosArrayGet(pTask->pHistStateSlotIds, 0);
+  }
+}
+
+static int32_t stRewriteStateSlotIds(const SArray *pNewSlotIds, SArray *pStateSlotIds) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pStateSlotIds == NULL) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pStateSlotIds); ++i) {
+    int16_t *pSlotId = taosArrayGet(pStateSlotIds, i);
+    QUERY_CHECK_NULL(pSlotId, code, lino, _end, terrno);
+    if (*pSlotId == -1) {
+      continue;
+    }
+    void *px = taosArrayGet((SArray *)pNewSlotIds, *pSlotId);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    int32_t newSlot = *(int32_t *)px;
+    /* slotId is wire-encoded as int16; flag truncation rather than wrap. */
+    QUERY_CHECK_CONDITION(newSlot >= INT16_MIN && newSlot <= INT16_MAX, code, lino, _end,
+                          TSDB_CODE_INVALID_PARA);
+    *pSlotId = (int16_t)newSlot;
+  }
+
+_end:
+  return code;
+}
+
+static void stDestroyStateValueArray(SArray **ppStateVals) {
+  if (ppStateVals == NULL || *ppStateVals == NULL) {
+    return;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(*ppStateVals); ++i) {
+    SValue *pVal = taosArrayGet(*ppStateVals, i);
+    if (pVal != NULL && pVal->type != 0) {
+      // TSDB_DATA_TYPE_NULL == 0, so this block only runs for real types
+      valueClearDatum(pVal, pVal->type);
+      pVal->type = 0;
+    }
+  }
+  taosArrayDestroy(*ppStateVals);
+  *ppStateVals = NULL;
+}
+
+static int32_t stPrepareStateValueArray(const SArray *pStateCols, SArray **ppStateVals) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = taosArrayGetSize((SArray *)pStateCols);
+
+  if (*ppStateVals == NULL) {
+    *ppStateVals = taosArrayInit(size, sizeof(SValue));
+    QUERY_CHECK_NULL(*ppStateVals, code, lino, _end, terrno);
+    for (int32_t i = 0; i < size; ++i) {
+      SValue val = {0};
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateVals, &val), code, lino, _end, terrno);
+    }
+  }
+
+  QUERY_CHECK_CONDITION(taosArrayGetSize(*ppStateVals) == size, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  for (int32_t i = 0; i < size; ++i) {
+    SColumnInfoData *pCol = *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue          *pVal = taosArrayGet(*ppStateVals, i);
+    QUERY_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    if (pVal->type == 0) {
+      pVal->type = pCol->info.type;
+    }
+    QUERY_CHECK_CONDITION(pVal->type == pCol->info.type, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    if ((IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) && pVal->pData == NULL) {
+      pVal->pData = taosMemoryCalloc(1, pCol->info.bytes);
+      QUERY_CHECK_NULL(pVal->pData, code, lino, _end, terrno);
+    }
+  }
+
+_end:
+  return code;
+}
+
+static FORCE_INLINE int32_t stGetStateDatumBytes(const SColumnInfoData *pCol, const char *pData) {
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    return varDataTLen(pData);
+  }
+  return pCol->info.bytes;
+}
+
+/*
+ * Return true only when ALL state key columns are NULL.
+ * Partial NULL rows are handled by per-column comparison.
+ */
+static bool stStateRowAllNull(
+    const SArray *pStateCols, int32_t rowIdx) {
+  int32_t n = taosArrayGetSize((SArray *)pStateCols);
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    if (pCol != NULL && !colDataIsNull_s(pCol, rowIdx)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
+ * Return true if at least one state key column is NULL.
+ */
+static bool stStateRowHasNull(
+    const SArray *pStateCols, int32_t rowIdx) {
+  int32_t n = taosArrayGetSize((SArray *)pStateCols);
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    if (pCol != NULL && colDataIsNull_s(pCol, rowIdx)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void stResetStateKeysDefined(bool *pDefined, int32_t n) {
+  if (pDefined != NULL) {
+    memset(pDefined, 0, sizeof(bool) * n);
+  }
+}
+
+static bool stStateKeysAllDefined(const bool *pDefined, int32_t n) {
+  if (pDefined == NULL) {
+    return false;
+  }
+  for (int32_t i = 0; i < n; ++i) {
+    if (!pDefined[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t stEnsureBoolArray(bool **pp, int32_t n) {
+  if (*pp == NULL) {
+    *pp = taosMemoryCalloc(n, sizeof(bool));
+    if (*pp == NULL) return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Sync pPendingStateVals from pStateVals.  Called when a new
+ * window opens or when pending rows are committed.
+ */
+static int32_t stSyncPendingFromState(SArray *pStateVals, SArray **ppPendingVals,
+                                      const SArray *pStateCols, bool *pDefined,
+                                      bool *pTouched, int32_t n,
+                                      bool *pHasPending) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = stPrepareStateValueArray(pStateCols, ppPendingVals);
+  QUERY_CHECK_CODE(code, lino, _end);
+  /* copy values that are defined */
+  for (int32_t i = 0; i < n; ++i) {
+    if (pDefined != NULL && pDefined[i]) {
+      SValue *pSrc = taosArrayGet(pStateVals, i);
+      SValue *pDst = taosArrayGet(*ppPendingVals, i);
+      if (pSrc == NULL || pDst == NULL) continue;
+      if (IS_VAR_DATA_TYPE(pSrc->type) || pSrc->type == TSDB_DATA_TYPE_DECIMAL) {
+        int32_t bytes = pSrc->nData;
+        memcpy(pDst->pData, pSrc->pData, bytes);
+        pDst->nData = bytes;
+      } else {
+        pDst->val = pSrc->val;
+      }
+    }
+  }
+  if (pTouched != NULL) memset(pTouched, 0, sizeof(bool) * n);
+  if (pHasPending != NULL) *pHasPending = false;
+_end:
+  return code;
+}
+
+/*
+ * Read-only comparison against pendingStateVals.
+ * Returns *pEqual = false if any column changed.
+ *
+ * KEEP IN SYNC with checkPendingKeysCompatible() in timewindowoperator.c.
+ * The two use different data structures (SValue vs SStateKeys) but must
+ * implement identical comparison semantics for query / stream consistency.
+ */
+static int32_t stCheckPendingCompatible(
+    const SArray *pPendingVals, const SArray *pStateCols,
+    int32_t rowIdx, const bool *pDefined, const bool *pTouched, bool *pEqual) {
+  *pEqual = false;
+  int32_t n = taosArrayGetSize((SArray *)pPendingVals);
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue *pVal = taosArrayGet((SArray *)pPendingVals, i);
+    if (pCol == NULL || pVal == NULL) return TSDB_CODE_INVALID_PARA;
+    if (colDataIsNull_s(pCol, rowIdx)) continue;
+    /*
+     * Undefined column is compatible (init, not change) only when it has not
+     * been initialized in either committed state or pending shadow.
+     */
+    if (pDefined != NULL && !pDefined[i] && (pTouched == NULL || !pTouched[i])) {
+      continue;
+    }
+    const char *pData = colDataGetData(pCol, rowIdx);
+    int32_t bytes = stGetStateDatumBytes(pCol, pData);
+    const void *pStored = VALUE_GET_DATUM(pVal, pVal->type);
+    if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
+      if (pVal->nData != bytes || memcmp(pStored, pData, bytes) != 0) {
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      if (memcmp(pStored, pData, bytes) != 0) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+  *pEqual = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Check whether deferred partial-NULL rows are dual-side
+ * compatible with the new window's first row.
+ *
+ * KEEP IN SYNC with checkPendingDualSideCompatible() in timewindowoperator.c.
+ */
+static int32_t stCheckDualSideCompatible(
+    const SArray *pPendingVals, const SArray *pStateCols,
+    int32_t newRowIdx, const bool *pTouched,
+    bool hasPending, bool *pCompatible) {
+  *pCompatible = true;
+  if (!hasPending) return TSDB_CODE_SUCCESS;
+
+  int32_t n = taosArrayGetSize((SArray *)pPendingVals);
+  for (int32_t i = 0; i < n; ++i) {
+    if (!pTouched[i]) continue;
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue *pVal = taosArrayGet((SArray *)pPendingVals, i);
+    if (pCol == NULL || pVal == NULL) return TSDB_CODE_INVALID_PARA;
+    if (colDataIsNull_s(pCol, newRowIdx)) continue;
+    /* pDefined is not checked here; if touched, the pending val is always defined */
+    const char *pData = colDataGetData(pCol, newRowIdx);
+    int32_t bytes = stGetStateDatumBytes(pCol, pData);
+    const void *pStored = VALUE_GET_DATUM(pVal, pVal->type);
+    if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
+      if (pVal->nData != bytes || memcmp(pStored, pData, bytes) != 0) {
+        *pCompatible = false;
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      if (memcmp(pStored, pData, bytes) != 0) {
+        *pCompatible = false;
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Commit pending partial-NULL rows to current (old) window:
+ * copy pendingStateVals → pStateVals for defined columns,
+ * sync stateKeyDefined from pending pDefined.
+ *
+ * KEEP IN SYNC with commitPendingToOldWindow() in timewindowoperator.c.
+ */
+static void stCommitPendingToState(SArray *pStateVals, SArray *pPendingVals,
+                                   bool *pDefined, bool *pTouched,
+                                   int32_t n, bool *pHasPending) {
+  for (int32_t i = 0; i < n; ++i) {
+    /*
+     * Commit all defined pending columns to state.
+     * This is required for "undefined -> defined (no cut)" cases:
+     * compare() may initialize a previously undefined column in pending state
+     * without marking pTouched (pTouched tracks deferred partial-NULL rows).
+     */
+    bool defined = (pDefined != NULL) ? pDefined[i] : false;
+    bool touched = (pTouched != NULL) ? pTouched[i] : false;
+    if (!defined && !touched) continue;
+    SValue *pSrc = taosArrayGet(pPendingVals, i);
+    SValue *pDst = taosArrayGet(pStateVals, i);
+    if (pSrc == NULL || pDst == NULL) continue;
+    if (IS_VAR_DATA_TYPE(pSrc->type) || pSrc->type == TSDB_DATA_TYPE_DECIMAL) {
+      memcpy(pDst->pData, pSrc->pData, pSrc->nData);
+      pDst->nData = pSrc->nData;
+    } else {
+      pDst->val = pSrc->val;
+    }
+    if (pDefined != NULL) pDefined[i] = true;
+  }
+  if (pTouched != NULL) memset(pTouched, 0, sizeof(bool) * n);
+  if (pHasPending != NULL) *pHasPending = false;
+}
+
+static void stResetPendingState(bool *pTouched, int32_t n, bool *pHasPending) {
+  if (pTouched != NULL) memset(pTouched, 0, sizeof(bool) * n);
+  if (pHasPending != NULL) *pHasPending = false;
+}
+
+static FORCE_INLINE void stResetDeferredPartialMeta(int32_t *pNumDeferred, int32_t *pNumTailAllNull,
+                                                    TSKEY *pFirstTs, TSKEY *pLastTs) {
+  if (pNumDeferred != NULL) {
+    *pNumDeferred = 0;
+  }
+  if (pNumTailAllNull != NULL) {
+    *pNumTailAllNull = 0;
+  }
+  if (pFirstTs != NULL) {
+    *pFirstTs = INT64_MIN;
+  }
+  if (pLastTs != NULL) {
+    *pLastTs = INT64_MIN;
+  }
+}
+
+/*
+ * Accumulate a compatible partial-NULL row into the deferred state.
+ * Called when pending compatibility check succeeds.
+ *
+ * KEEP IN SYNC with updatePendingKeysFromRow() in timewindowoperator.c.
+ */
+static int32_t stAccumulateCompatiblePartialNull(
+    SArray *pPendingStateVals, SArray *pStateCols, int32_t rowIdx,
+    bool *stateKeyDefined, bool *pendingColTouched, bool *pHasPendingPartialNull,
+    int32_t *pNumPendingNull, int64_t *pPendingNullStart,
+    int32_t *pNumDeferredPartialNull, int32_t *pNumDeferredTailAllNull,
+    TSKEY *pFirstDeferredTs, TSKEY *pLastDeferredTs,
+    TSKEY rowTs) {
+  /* inline: update pending shadow from row */
+  int32_t n = taosArrayGetSize(pPendingStateVals);
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue *pVal = taosArrayGet(pPendingStateVals, i);
+    if (pCol == NULL || pVal == NULL) return TSDB_CODE_INVALID_PARA;
+    if (colDataIsNull_s(pCol, rowIdx)) continue;
+    bool stateUndefined = (stateKeyDefined != NULL && !stateKeyDefined[i]);
+    bool pendingInitialized = (pendingColTouched != NULL && pendingColTouched[i]);
+    if (stateUndefined && !pendingInitialized) {
+      const char *pData = colDataGetData(pCol, rowIdx);
+      int32_t bytes = stGetStateDatumBytes(pCol, pData);
+      if (IS_VAR_DATA_TYPE(pCol->info.type)
+          || pCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
+        memcpy(pVal->pData, pData, bytes);
+        pVal->nData = bytes;
+      } else {
+        memcpy(&pVal->val, pData, bytes);
+      }
+    }
+    if (pendingColTouched != NULL) pendingColTouched[i] = true;
+  }
+  if (pHasPendingPartialNull != NULL) *pHasPendingPartialNull = true;
+
+  /* inline: absorb tail all-NULL rows into deferred count */
+  if (pNumDeferredPartialNull != NULL && pNumDeferredTailAllNull != NULL &&
+      *pNumDeferredTailAllNull > 0) {
+    *pNumDeferredPartialNull += *pNumDeferredTailAllNull;
+    *pNumDeferredTailAllNull = 0;
+  }
+  if (*pNumPendingNull == 0) *pPendingNullStart = rowTs;
+  (*pNumPendingNull)++;
+  if (*pNumDeferredPartialNull == 0) *pFirstDeferredTs = rowTs;
+  (*pNumDeferredPartialNull)++;
+  *pLastDeferredTs = rowTs;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Result of resolving deferred partial-NULL rows when cutting a window.
+ * Computed by stResolveDeferredOnCut(); caller applies window-specific ops.
+ */
+typedef struct SStateCutResult {
+  bool    committedDeferredToOld;
+  bool    splitStandalone;
+  TSKEY   splitStandaloneStartTs;
+  TSKEY   splitStandaloneEndTs;
+  int64_t startTs;
+} SStateCutResult;
+
+/*
+ * Resolve deferred partial-NULL rows and compute extend-option adjustments
+ * when a window cut is triggered (state change or incompatible partial-NULL).
+ *
+ * This function consolidates the split/standalone decision, pending-to-state
+ * commit, and extend-option ekey/startTs computation that is shared between
+ * the realtime and history state-check paths.
+ *
+ * KEEP IN SYNC with doKeepCurStateWindowEndInfo() and
+ * shouldSplitDeferredPartialStandalone() in timewindowoperator.c.
+ * The decision table (dualSide × EXTEND) must produce identical results.
+ *
+ * The caller must clear any unclosed mask from *pOldWinEkey before calling.
+ * Window-specific operations (zeroth check, close, open) remain in the caller.
+ */
+static void stResolveDeferredOnCut(
+    int32_t stateExtend, bool dualSide, int32_t stateKeyCnt,
+    SStateDeferredState *pDs, TSKEY curTs,
+    int64_t *pOldWinWrownum, TSKEY *pOldWinEkey,
+    SStateCutResult *pResult) {
+  pResult->splitStandalone =
+      (!dualSide && stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD &&
+       pDs->numDeferredPartialNull > 0 &&
+       stStateKeysAllDefined(pDs->stateKeyDefined, stateKeyCnt));
+  TSKEY lastDeferredTs = pDs->lastDeferredPartialNullTs;
+  pResult->splitStandaloneEndTs = lastDeferredTs;
+  pResult->splitStandaloneStartTs = INT64_MIN;
+  pResult->committedDeferredToOld = false;
+
+  if (!dualSide && !pResult->splitStandalone) {
+    pResult->committedDeferredToOld = pDs->numDeferredPartialNull > 0;
+    *pOldWinWrownum += pDs->numDeferredPartialNull;
+    pDs->numPendingNull -= pDs->numDeferredPartialNull;
+    stResetDeferredPartialMeta(&pDs->numDeferredPartialNull, &pDs->numDeferredTailAllNull,
+                               &pDs->firstDeferredPartialNullTs, &pDs->lastDeferredPartialNullTs);
+    stCommitPendingToState(pDs->pStateVals, pDs->pPendingStateVals,
+                           pDs->stateKeyDefined, pDs->pendingColTouched,
+                           stateKeyCnt, &pDs->hasPendingPartialNull);
+  }
+
+  pResult->startTs = pDs->numPendingNull > 0 ? pDs->pendingNullStart : curTs;
+
+  if (stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
+    *pOldWinWrownum += pDs->numPendingNull;
+    *pOldWinEkey = curTs - 1;
+  } else if (stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+    if (pResult->committedDeferredToOld) {
+      *pOldWinEkey = lastDeferredTs;
+    }
+    pResult->startTs = *pOldWinEkey + 1;
+    if (pResult->splitStandalone) {
+      pResult->splitStandaloneStartTs = pResult->startTs;
+    }
+  } else {
+    /*
+     * EXTEND(0): deferred partial-NULL rows must belong to old window.
+     * Remaining all-NULL rows still follow default null behavior.
+     *
+     * When !dualSide, step 1 above already committed deferred rows and
+     * zeroed numDeferredPartialNull.  This branch then only updates
+     * ekey (via committedDeferredToOld).  When dualSide, step 1 was
+     * skipped, so this branch does both commit and ekey update.
+     */
+    if (pResult->committedDeferredToOld || pDs->numDeferredPartialNull > 0) {
+      *pOldWinWrownum += pDs->numDeferredPartialNull;
+      *pOldWinEkey = lastDeferredTs;
+      pDs->numPendingNull -= pDs->numDeferredPartialNull;
+      stResetDeferredPartialMeta(&pDs->numDeferredPartialNull, &pDs->numDeferredTailAllNull,
+                                 &pDs->firstDeferredPartialNullTs, &pDs->lastDeferredPartialNullTs);
+    }
+  }
+}
+
+static int32_t stRealtimeAppendStandaloneDeferredWindow(
+    SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup, TSKEY startTs) {
+  if (pGroup->ds.numDeferredPartialNull <= 0 || pGroup->ds.firstDeferredPartialNullTs == INT64_MIN) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSTriggerNotifyWindow standalone = {0};
+  standalone.range.skey = startTs;
+  standalone.range.ekey = pGroup->ds.lastDeferredPartialNullTs;
+  standalone.wrownum = pGroup->ds.numDeferredPartialNull;
+  void *px = taosArrayPush(pContext->pWindows, &standalone);
+  if (px == NULL) {
+    return terrno;
+  }
+
+  pGroup->ds.numPendingNull -= pGroup->ds.numDeferredPartialNull;
+  stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                             &pGroup->ds.numDeferredTailAllNull,
+                             &pGroup->ds.firstDeferredPartialNullTs,
+                             &pGroup->ds.lastDeferredPartialNullTs);
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Assign non-NULL columns from the row into pStateVals
+ * and mark them defined.  NULL columns are skipped.
+ */
+static int32_t stAssignStateRowToValues(const SArray *pStateCols,
+                                        int32_t rowIdx, SArray *pStateVals,
+                                        bool *pDefined) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t n = taosArrayGetSize(pStateVals);
+
+  QUERY_CHECK_CONDITION(taosArrayGetSize((SArray *)pStateCols) == n, code, lino,
+                        _end, TSDB_CODE_INTERNAL_ERROR);
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue *pVal = taosArrayGet(pStateVals, i);
+    QUERY_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+    if (colDataIsNull_s(pCol, rowIdx)) continue;
+
+    const char *pData = colDataGetData(pCol, rowIdx);
+    int32_t bytes = stGetStateDatumBytes(pCol, pData);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)
+        || pCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
+      memcpy(pVal->pData, pData, bytes);
+      pVal->nData = bytes;
+    } else {
+      memcpy(&pVal->val, pData, bytes);
+    }
+    if (pDefined != NULL) pDefined[i] = true;
+  }
+
+_end:
+  return code;
+}
+
+static int32_t stBuildStateRowSnapshot(const SArray *pStateCols, int32_t rowIdx,
+                                       SArray **ppSnapshot, bool **ppDefined) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  *ppSnapshot = NULL;
+  *ppDefined = NULL;
+  code = stPrepareStateValueArray(pStateCols, ppSnapshot);
+  QUERY_CHECK_CODE(code, lino, _end);
+  int32_t n = taosArrayGetSize(*ppSnapshot);
+  *ppDefined = taosMemoryCalloc(n, sizeof(bool));
+  QUERY_CHECK_NULL(*ppDefined, code, lino, _end, terrno);
+  code = stAssignStateRowToValues(pStateCols, rowIdx, *ppSnapshot, *ppDefined);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stDestroyStateValueArray(ppSnapshot);
+    taosMemoryFreeClear(*ppDefined);
+  }
+  return code;
+}
+
+/*
+ * Two-phase per-column compare.
+ *
+ * Phase 1 (read-only): detect whether any column changed.
+ *   ri NULL                    → skip
+ *   ri non-NULL, pi undefined  → not a change
+ *   ri non-NULL, pi defined    → compare, differ ⇒ changed
+ *
+ * "Defined" means committed (pDefined[i]) OR initialized
+ * by a deferred partial-NULL row (pTouched[i]).  This keeps
+ * the semantic aligned with stCheckPendingCompatible().
+ *
+ * Phase 2 (commit): only when no change, init undefined
+ * columns (pi = ri).  This prevents the old window state
+ * from being contaminated before cut-window decisions
+ * (zeroth check, notify content).
+ *
+ * When *pEqual is false (cut window), the caller must reset pDefined
+ * and assign state for the new window.
+ *
+ * KEEP IN SYNC with compareStateWindowKeys() in timewindowoperator.c.
+ * Both use a two-phase (read-only scan then commit) approach and must
+ * produce identical cut/no-cut decisions for the same input.
+ */
+static int32_t stCompareStateValuesWithRow(
+    const SArray *pStateVals, const SArray *pStateCols,
+    int32_t rowIdx, bool *pDefined, const bool *pTouched,
+    bool *pEqual) {
+  *pEqual = false;
+  int32_t n = taosArrayGetSize((SArray *)pStateVals);
+  if (taosArrayGetSize((SArray *)pStateCols) != n) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  /* --- phase 1: read-only scan for changes --- */
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue *pVal = taosArrayGet((SArray *)pStateVals, i);
+    if (pCol == NULL || pVal == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (colDataIsNull_s(pCol, rowIdx)) continue;
+
+    /*
+     * Skip only when both committed state and pending shadow
+     * are undefined.  If pTouched[i] is set, the pending shadow
+     * has been initialized by a deferred partial-NULL row and
+     * must participate in comparison.
+     */
+    if (pDefined != NULL && !pDefined[i]
+        && (pTouched == NULL || !pTouched[i])) {
+      continue;
+    }
+
+    const char *pData = colDataGetData(pCol, rowIdx);
+    int32_t bytes = stGetStateDatumBytes(pCol, pData);
+    const void *pStored = VALUE_GET_DATUM(pVal, pVal->type);
+    if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
+      if (pVal->nData != bytes || memcmp(pStored, pData, bytes) != 0) {
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      if (memcmp(pStored, pData, bytes) != 0) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
+  /* --- phase 2: no change, initialize undefined columns --- */
+  for (int32_t i = 0; i < n; ++i) {
+    SColumnInfoData *pCol =
+      *(SColumnInfoData **)taosArrayGet((SArray *)pStateCols, i);
+    SValue *pVal = taosArrayGet((SArray *)pStateVals, i);
+    if (pCol == NULL || pVal == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (colDataIsNull_s(pCol, rowIdx)) continue;
+    if (pDefined != NULL && pDefined[i]) continue;
+    if (pTouched != NULL && pTouched[i]) continue;
+
+    const char *pData = colDataGetData(pCol, rowIdx);
+    int32_t bytes = stGetStateDatumBytes(pCol, pData);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)
+        || pCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
+      memcpy(pVal->pData, pData, bytes);
+      pVal->nData = bytes;
+    } else {
+      memcpy(&pVal->val, pData, bytes);
+    }
+    if (pDefined != NULL) pDefined[i] = true;
+  }
+
+  *pEqual = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+  NOTE: ppStateCols stores pointers into pDataBlock->pDataBlock or dynamically
+  allocated SColumnInfoData in ppExprStateCols. The caller must keep pDataBlock
+  alive and free ppExprStateCols (via stDestroyExprStateCols) after use.
+*/
+static int32_t stBuildStateCols(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock,
+                                SArray *pSlotIds, SNodeList *pExprs,
+                                SArray **ppStateCols, SArray **ppExprStateCols) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t stateKeyCount = stGetStateKeyCount(pSlotIds, pExprs);
+
+  *ppStateCols = taosArrayInit(stateKeyCount, POINTER_BYTES);
+  QUERY_CHECK_NULL(*ppStateCols, code, lino, _end, terrno);
+  *ppExprStateCols = NULL;
+
+  if (stateKeyCount > 0) {
+    QUERY_CHECK_NULL(pSlotIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  }
+
+  for (int32_t i = 0; i < stateKeyCount; ++i) {
+    int16_t slotId = *(int16_t *)taosArrayGet(pSlotIds, i);
+    if (slotId >= 0) {
+      SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
+      QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pCol), code, lino, _end, terrno);
+    } else {
+      SNode *pExpr = nodesListGetNode(pExprs, i);
+      SColumnInfoData *pExprCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pExprCol, code, lino, _end, terrno);
+      if (*ppExprStateCols == NULL) {
+        *ppExprStateCols = taosArrayInit(1, POINTER_BYTES);
+        QUERY_CHECK_NULL(*ppExprStateCols, code, lino, _end, terrno);
+      }
+      QUERY_CHECK_NULL(taosArrayPush(*ppExprStateCols, &pExprCol), code, lino, _end, terrno);
+      code = stTriggerCalcExpr(pTask, pDataBlock, pExpr, pExprCol);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pExprCol), code, lino, _end, terrno);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    stDestroyExprStateCols(*ppExprStateCols);
+    *ppExprStateCols = NULL;
+    taosArrayDestroy(*ppStateCols);
+    *ppStateCols = NULL;
+  }
+  return code;
+}
+
+/*
+ * Fast path for slot-based state columns: reuse a pre-allocated SArray
+ * instead of alloc/free per data block.  All entries in pSlotIds must
+ * have slotId >= 0 (no expr keys).
+ */
+static int32_t stRebuildSlotStateCols(SSDataBlock *pDataBlock, SArray *pSlotIds, SArray *pStateCols) {
+  taosArrayClear(pStateCols);
+  int32_t n = taosArrayGetSize(pSlotIds);
+  for (int32_t i = 0; i < n; ++i) {
+    int16_t slotId = *(int16_t *)taosArrayGet(pSlotIds, i);
+    SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
+    if (pCol == NULL || taosArrayPush(pStateCols, &pCol) == NULL) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void stDestroyExprStateCols(SArray *pExprStateCols) {
+  if (pExprStateCols == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pExprStateCols); ++i) {
+    SColumnInfoData *pCol = *(SColumnInfoData **)taosArrayGet(pExprStateCols, i);
+    if (pCol != NULL) {
+      colDataDestroy(pCol);
+      taosMemoryFree(pCol);
+    }
+  }
+  taosArrayDestroy(pExprStateCols);
+}
+
+static int32_t stIsStateValuesEqualZeroths(
+    const SArray *pStateVals,
+    const SNodeList *pZeroths,
+    const bool *pDefined, bool *pIsEqual) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  bool    hasZeroth = false;
+
+  *pIsEqual = false;
+  if (pStateVals == NULL || pZeroths == NULL) {
+    return code;
+  }
+
+  int32_t n = taosArrayGetSize((SArray *)pStateVals);
+  QUERY_CHECK_CONDITION(n == LIST_LENGTH(pZeroths), code, lino, _end,
+                        TSDB_CODE_INTERNAL_ERROR);
+  for (int32_t i = 0; i < n; ++i) {
+    SValue *pVal = taosArrayGet((SArray *)pStateVals, i);
+    SValueNode *pZeroth = (SValueNode *)nodesListGetNode((SNodeList *)pZeroths, i);
+    QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    QUERY_CHECK_NULL(pZeroth, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    if (pZeroth->isNull) {
+      continue;
+    }
+    if (pDefined != NULL && !pDefined[i]) {
+      goto _end;
+    }
+    hasZeroth = true;
+    /* inline: compare one state value against zeroth */
+    int8_t type = pZeroth->node.resType.type;
+    bool   equal = false;
+    if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
+      int32_t bytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(pZeroth->datum.p) : pZeroth->node.resType.bytes;
+      equal = (pVal->nData == bytes && memcmp(pVal->pData, pZeroth->datum.p, bytes) == 0);
+    } else {
+      equal = memcmp(&pVal->val, nodesGetValueFromNode((SValueNode *)pZeroth), pZeroth->node.resType.bytes) == 0;
+    }
+    if (!equal) {
+      goto _end;
+    }
+  }
+
+  *pIsEqual = hasZeroth;
+
+_end:
+  return code;
 }
 
 static TdThreadOnce     gStreamTriggerModuleInit = PTHREAD_ONCE_INIT;
@@ -2273,16 +3072,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   pTask->histCalcPkIndex = -1;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    if (pTask->histStateSlotId != -1) {
-      void *px = taosArrayGet(pTrigSlotids, pTask->histStateSlotId);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      pTask->histStateSlotId = *(int32_t *)px;
-    }
-    if (pTask->histStateExpr != NULL) {
-      nodesWalkExpr(pTask->histStateExpr, nodeRewriteSlotid, &cxt);
+    code = stRewriteStateSlotIds(pTrigSlotids, pTask->pHistStateSlotIds);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pTask->histStateExprs != NULL) {
+      nodesWalkExprs(pTask->histStateExprs, nodeRewriteSlotid, &cxt);
       code = cxt.errCode;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+    stRefreshStateTaskCompatFields(pTask);
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     nodesWalkExpr(pTask->histStartCond, nodeRewriteSlotid, &cxt);
     code = cxt.errCode;
@@ -2471,18 +3268,19 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     case WINDOW_TYPE_STATE: {
       pTask->triggerType = STREAM_TRIGGER_STATE;
       const SStateWinTrigger *pState = &pMsg->trigger.stateWin;
-      pTask->stateSlotId = pState->slotId;
+      if (pState->pSlotIds != NULL) {
+        pTask->pStateSlotIds = taosArrayDup(pState->pSlotIds, NULL);
+        QUERY_CHECK_NULL(pTask->pStateSlotIds, code, lino, _end, terrno);
+      }
       pTask->stateExtend = pState->extend;
-      code = nodesStringToNode(pState->zeroth, &pTask->pStateZeroth);
+      code = nodesStringToList(pState->zeroth, &pTask->pStateZeroths);
       QUERY_CHECK_CODE(code, lino, _end);
       pTask->stateTrueForInfo.trueForType = pState->trueForType;
       pTask->stateTrueForInfo.count = pState->trueForCount;
       pTask->stateTrueForInfo.duration = pState->trueForDuration;
-      code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
+      code = nodesStringToList(pState->expr, &pTask->pStateExprs);
       QUERY_CHECK_CODE(code, lino, _end);
-      if (pTask->pStateExpr != NULL && nodeType(pTask->pStateExpr) != QUERY_NODE_COLUMN) {
-        pTask->stateSlotId = -1;
-      }
+      stRefreshStateTaskCompatFields(pTask);
       break;
     }
     case WINDOW_TYPE_EVENT: {
@@ -2606,9 +3404,13 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     QUERY_CHECK_CODE(code, lino, _end);
   }
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    pTask->histStateSlotId = pTask->stateSlotId;
-    code = nodesCloneNode(pTask->pStateExpr, &pTask->histStateExpr);
+    if (pTask->pStateSlotIds != NULL) {
+      pTask->pHistStateSlotIds = taosArrayDup(pTask->pStateSlotIds, NULL);
+      QUERY_CHECK_NULL(pTask->pHistStateSlotIds, code, lino, _end, terrno);
+    }
+    code = nodesCloneList(pTask->pStateExprs, &pTask->histStateExprs);
     QUERY_CHECK_CODE(code, lino, _end);
+    stRefreshStateTaskCompatFields(pTask);
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     code = nodesCloneNode(pTask->pStartCond, &pTask->histStartCond);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2742,15 +3544,32 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   }
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 
+  /*
+   * Destroy the realtime/history contexts (which destroy per-group
+   * pStateVals) BEFORE tearing down task-level descriptors like
+   * pStateSlotIds / pStateExprs.
+   */
+  if (pTask->pRealtimeContext != NULL) {
+    stRealtimeContextDestroy(&pTask->pRealtimeContext);
+  }
+  if (pTask->pHistoryContext != NULL) {
+    stHistoryContextDestroy(&pTask->pHistoryContext);
+  }
+
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    if (pTask->pStateZeroth != NULL) {
-      nodesDestroyNode(pTask->pStateZeroth);
-      pTask->pStateZeroth = NULL;
+    if (pTask->pStateZeroths != NULL) {
+      nodesDestroyList(pTask->pStateZeroths);
+      pTask->pStateZeroths = NULL;
     }
-    if (pTask->pStateExpr != NULL) {
-      nodesDestroyNode(pTask->pStateExpr);
-      pTask->pStateExpr = NULL;
+    if (pTask->pStateExprs != NULL) {
+      nodesDestroyList(pTask->pStateExprs);
+      pTask->pStateExprs = NULL;
     }
+    if (pTask->pStateSlotIds != NULL) {
+      taosArrayDestroy(pTask->pStateSlotIds);
+      pTask->pStateSlotIds = NULL;
+    }
+
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     if (pTask->pStartCond != NULL) {
       nodesDestroyNode(pTask->pStartCond);
@@ -2779,9 +3598,15 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     nodesDestroyNode(pTask->histTriggerFilter);
     pTask->histTriggerFilter = NULL;
   }
-  if (pTask->histStateExpr != NULL) {
-    nodesDestroyNode(pTask->histStateExpr);
+  if (pTask->histStateExprs != NULL) {
+    nodesDestroyList(pTask->histStateExprs);
+    pTask->histStateExprs = NULL;
     pTask->histStateExpr = NULL;
+  }
+  if (pTask->pHistStateSlotIds != NULL) {
+    taosArrayDestroy(pTask->pHistStateSlotIds);
+    pTask->pHistStateSlotIds = NULL;
+    pTask->histStateSlotId = -1;
   }
   if (pTask->histStartCond != NULL) {
     nodesDestroyNode(pTask->histStartCond);
@@ -2818,12 +3643,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->runnerList = NULL;
   }
 
-  if (pTask->pRealtimeContext != NULL) {
-    stRealtimeContextDestroy(&pTask->pRealtimeContext);
-  }
-  if (pTask->pHistoryContext != NULL) {
-    stHistoryContextDestroy(&pTask->pHistoryContext);
-  }
   if (pTask->pHistoryCutoffTime != NULL) {
     tSimpleHashCleanup(pTask->pHistoryCutoffTime);
     pTask->pHistoryCutoffTime = NULL;
@@ -3447,11 +4266,10 @@ _end:
 //   pGroup->newThreshold = pGroup->oldThreshold;
 // }
 
-static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSDataBlock *pDataBlock, SNode *pExpr,
-                                         SColumnInfoData *pResCol) {
+static int32_t stTriggerCalcExpr(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, SNode *pExpr,
+                                 SColumnInfoData *pResCol) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pContext->pTask;
   SArray             *pList = NULL;
   SColumnInfoData    *pTmpCol = NULL;
 
@@ -3651,8 +4469,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     int32_t verColBias = 0;
     if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
       verColBias = 2;
-    } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
-      verColBias = 1;
+    } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+      verColBias = stCountExprKeys(pTask->pStateSlotIds);
     }
     code = stNewTimestampSorterInit(pContext->pSorter, pTask, verColBias);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -6412,21 +7230,35 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           pEndCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
           QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
           pStartCol = pEndCol - 1;
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStartCond, pStartCol);
+          code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pStartCond, pStartCol);
           QUERY_CHECK_CODE(code, lino, _end);
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
+          code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
           QUERY_CHECK_CODE(code, lino, _end);
-        } else if (pTask->triggerType == STREAM_TRIGGER_STATE && pTask->stateSlotId == -1) {
-          SColumnInfoData *pStateCol = NULL;
-          if (firstDataBlock) {
-            SColumnInfoData stateCol = {0};
-            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &stateCol);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+          int32_t exprKeyCount = stCountExprKeys(pTask->pStateSlotIds);
+          if (exprKeyCount > 0) {
+            int32_t stateKeyCount = stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs);
+            if (firstDataBlock) {
+              for (int32_t k = 0; k < exprKeyCount; ++k) {
+                SColumnInfoData stateCol = {0};
+                void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &stateCol);
+                QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+              }
+            }
+            int32_t baseIdx = taosArrayGetSize(pProgress->pTrigBlock->pDataBlock) - exprKeyCount;
+            int32_t exprIdx = 0;
+            for (int32_t k = 0; k < stateKeyCount; ++k) {
+              int16_t slotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, k);
+              if (slotId == -1) {
+                SNode           *pExpr = nodesListGetNode(pTask->pStateExprs, k);
+                SColumnInfoData *pStateCol = taosArrayGet(pProgress->pTrigBlock->pDataBlock, baseIdx + exprIdx);
+                QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+                code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pExpr, pStateCol);
+                QUERY_CHECK_CODE(code, lino, _end);
+                exprIdx++;
+              }
+            }
           }
-          pStateCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
-          QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
-          code = stRealtimeContextCalcExpr(pContext, pProgress->pTrigBlock, pTask->pStateExpr, pStateCol);
-          QUERY_CHECK_CODE(code, lino, _end);
         }
       }
 
@@ -7207,99 +8039,6 @@ static int32_t stHistoryContextCompareGroup(const HeapNode *a, const HeapNode *b
   SSTriggerHistoryGroup *pGroup1 = container_of(a, SSTriggerHistoryGroup, heapNode);
   SSTriggerHistoryGroup *pGroup2 = container_of(b, SSTriggerHistoryGroup, heapNode);
   return pGroup1->pPendingCalcParams.neles > pGroup2->pPendingCalcParams.neles;
-}
-
-static int32_t stHistoryContextCalcExpr(SSTriggerHistoryContext *pContext, SSDataBlock *pDataBlock, SNode *pExpr,
-                                        SColumnInfoData *pResCol) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pContext->pTask;
-  SArray             *pList = NULL;
-  SColumnInfoData    *pTmpCol = NULL;
-
-  pList = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
-  void *px = taosArrayPush(pList, &pDataBlock);
-  QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-
-  if (pExpr == NULL || nodeType(pExpr) == QUERY_NODE_NODE_LIST) {
-    pResCol->info.type = TSDB_DATA_TYPE_UINT;
-    pResCol->info.bytes = 1;
-    pResCol->info.scale = 0;
-    pResCol->info.precision = 0;
-
-    int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(pDataBlock->info.capacity));
-    TAOS_MEMSET(pResCol->pData, 0, pDataBlock->info.capacity);
-
-    uint8_t        idx = 1;
-    SNode         *pNode = NULL;
-    SNodeListNode *pListNode = (SNodeListNode *)pExpr;
-    SNodeList     *pNodeList = (pListNode != NULL) ? pListNode->pNodeList : NULL;
-    FOREACH(pNode, pNodeList) {
-      if (pTmpCol == NULL) {
-        pTmpCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-        QUERY_CHECK_NULL(pTmpCol, code, lino, _end, terrno);
-      }
-      SDataType *pType = &((SExprNode *)pNode)->resType;
-      pTmpCol->info.type = pType->type;
-      pTmpCol->info.bytes = pType->bytes;
-      pTmpCol->info.scale = pType->scale;
-      pTmpCol->info.precision = pType->precision;
-
-      SScalarParam output = {.columnData = pTmpCol};
-      code = scalarCalculate(pNode, pList, &output, NULL);
-      QUERY_CHECK_CODE(code, lino, _end);
-      uint8_t *pTmpData = (uint8_t *)pTmpCol->pData;
-      uint8_t *pResData = (uint8_t *)pResCol->pData;
-      for (int32_t i = 0; i < nrows; i++) {
-        if (pResData[i] == 0 && pTmpData[i]) {
-          pResData[i] = idx;
-        }
-      }
-      idx++;
-    }
-  } else {
-    SDataType *pType = &((SExprNode *)pExpr)->resType;
-    pResCol->info.type = pType->type;
-    pResCol->info.bytes = pType->bytes;
-    pResCol->info.scale = pType->scale;
-    pResCol->info.precision = pType->precision;
-
-    if (pTmpCol == NULL) {
-      pTmpCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-      QUERY_CHECK_NULL(pTmpCol, code, lino, _end, terrno);
-    }
-    pTmpCol->info.type = pType->type;
-    pTmpCol->info.bytes = pType->bytes;
-    pTmpCol->info.scale = pType->scale;
-    pTmpCol->info.precision = pType->precision;
-
-    SScalarParam output = {.columnData = pTmpCol};
-    code = scalarCalculate(pExpr, pList, &output, NULL);
-    QUERY_CHECK_CODE(code, lino, _end);
-    int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-    QUERY_CHECK_CONDITION(output.numOfRows == nrows, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = colDataAssign(pResCol, pTmpCol, nrows, NULL);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-_end:
-  if (pTmpCol != NULL) {
-    colDataDestroy(pTmpCol);
-    taosMemoryFreeClear(pTmpCol);
-  }
-  if (pList != NULL) {
-    taosArrayDestroy(pList);
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
 }
 
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
@@ -8380,9 +9119,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
             if (pTask->triggerType == STREAM_TRIGGER_STATE) {
               // for state trigger, check if state equals to the zeroth state
               bool  stEqualZeroth = false;
-              void *pStateData = IS_VAR_DATA_TYPE(pGroup->stateVal.type) ? (void *)pGroup->stateVal.pData
-                                                                         : (void *)&pGroup->stateVal.val;
-              code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
+              code = stIsStateValuesEqualZeroths(pGroup->ds.pStateVals, pTask->pStateZeroths, pGroup->ds.stateKeyDefined, &stEqualZeroth);
               QUERY_CHECK_CODE(code, lino, _end);
               if (stEqualZeroth) {
                 TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
@@ -9153,7 +9890,10 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   pGroup->newThreshold = pGroup->oldThreshold;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    pGroup->pendingNullStart = INT64_MIN;
+    pGroup->ds.pendingNullStart = INT64_MIN;
+    pGroup->ds.numDeferredTailAllNull = 0;
+    pGroup->ds.firstDeferredPartialNullTs = INT64_MIN;
+    pGroup->ds.lastDeferredPartialNullTs = INT64_MIN;
   }
   pGroup->prevWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   code = taosObjListInit(&pGroup->windows, &pContext->windowPool);
@@ -9190,8 +9930,11 @@ static void stRealtimeGroupDestroy(void *ptr) {
   }
   taosObjListClear(&pGroup->tableUids);
 
-  if ((pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_STATE) && IS_VAR_DATA_TYPE(pGroup->stateVal.type)) {
-    taosMemoryFreeClear(pGroup->stateVal.pData);
+  if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_STATE) {
+    stDestroyStateValueArray(&pGroup->ds.pStateVals);
+    stDestroyStateValueArray(&pGroup->ds.pPendingStateVals);
+    taosMemoryFreeClear(pGroup->ds.stateKeyDefined);
+    taosMemoryFreeClear(pGroup->ds.pendingColTouched);
   } else if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_EVENT) {
     stRealtimeContextDestroyWindow(&pGroup->parentWindow);
   }
@@ -9843,6 +10586,15 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
 
   SSTriggerNotifyWindow *pWin = taosArrayGetLast(pContext->pWindows);
 
+  /* pre-allocate pStateCols for the slot-only fast path (no expr keys) */
+  bool    slotOnlyPath = (stCountExprKeys(pTask->pStateSlotIds) == 0);
+  int32_t preAllocKeyCnt = stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs);
+  SArray *pPreAllocStateCols = NULL;
+  if (slotOnlyPath && preAllocKeyCnt > 0) {
+    pPreAllocStateCols = taosArrayInit(preAllocKeyCnt, POINTER_BYTES);
+    QUERY_CHECK_NULL(pPreAllocStateCols, code, lino, _end, terrno);
+  }
+
   while (true) {
     code = stRealtimeGroupNextDataBlock(pGroup, &pDataBlock, &startIdx, &endIdx);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -9851,95 +10603,280 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     }
     SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-    int64_t         *pTsData = (int64_t *)pTsCol->pData;
-    SColumnInfoData *pStateCol = NULL;
-    if (pTask->stateSlotId != -1) {
-      pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
-      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
-    } else if (pTask->isVirtualTable) {
-      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStateExpr, &pContext->stateCol);
+    int64_t          *pTsData = (int64_t *)pTsCol->pData;
+    SArray           *pStateCols = NULL;
+    SArray           *pExprStateCols = NULL;
+    /* pOldDefined is a per-row pointer to the pre-mutation snapshot of
+     * stateKeyDefined (or NULL when there is no old window).  The backing
+     * memory is a per-block scratch buffer reused across rows to avoid
+     * hot-path malloc/free churn.  Only allocated when window-open notify
+     * is enabled, since otherwise the snapshot is never consumed. */
+    bool             *pOldDefined = NULL;
+    bool             *pOldDefinedScratch = NULL;
+    bool              needOldSnapshot =
+        (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) != 0;
+
+    if (pPreAllocStateCols != NULL) {
+      code = stRebuildSlotStateCols(pDataBlock, pTask->pStateSlotIds, pPreAllocStateCols);
       QUERY_CHECK_CODE(code, lino, _end);
-      pStateCol = &pContext->stateCol;
+      pStateCols = pPreAllocStateCols;
     } else {
-      pStateCol = taosArrayGetLast(pDataBlock->pDataBlock);
-      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+      code = stBuildStateCols(pTask, pDataBlock, pTask->pStateSlotIds, pTask->pStateExprs, &pStateCols, &pExprStateCols);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
-    bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
-    void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (pGroup->stateVal.type == 0) {
-      // initialize state value
-      SValue *pStateVal = &pGroup->stateVal;
-      pStateVal->type = pStateCol->info.type;
-      if (isVarType && pStateVal->pData == NULL) {
-        pStateVal->nData = pStateCol->info.bytes;
-        pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
-        QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
-        pStateData = pStateVal->pData;
+    {
+      int32_t stateKeyCnt = taosArrayGetSize(pStateCols);
+      code = stPrepareStateValueArray(pStateCols, &pGroup->ds.pStateVals);
+      QUERY_CHECK_CODE(code, lino, _end_block);
+      code = stEnsureBoolArray(&pGroup->ds.stateKeyDefined, stateKeyCnt);
+      QUERY_CHECK_CODE(code, lino, _end_block);
+      code = stEnsureBoolArray(&pGroup->ds.pendingColTouched, stateKeyCnt);
+      QUERY_CHECK_CODE(code, lino, _end_block);
+      if (needOldSnapshot && stateKeyCnt > 0) {
+        pOldDefinedScratch = taosMemoryMalloc(stateKeyCnt * sizeof(bool));
+        QUERY_CHECK_NULL(pOldDefinedScratch, code, lino, _end_block, terrno);
       }
-    }
-    for (int32_t i = startIdx; i < endIdx; i++) {
-      bool isNull = colDataIsNull_s(pStateCol, i);
-      if (isNull) {
-        if (pGroup->numPendingNull == 0) {
-          pGroup->pendingNullStart = pTsData[i];
+      for (int32_t i = startIdx; i < endIdx; i++) {
+        bool          isNull = stStateRowAllNull(pStateCols, i);
+        bool          hasNull = !isNull && stStateRowHasNull(pStateCols, i);
+        const SArray *pOldStates = (pWin != NULL) ? pGroup->ds.pStateVals : NULL;
+        if (pOldStates != NULL && pOldDefinedScratch != NULL) {
+          memcpy(pOldDefinedScratch, pGroup->ds.stateKeyDefined, stateKeyCnt * sizeof(bool));
+          pOldDefined = pOldDefinedScratch;
+        } else {
+          pOldDefined = NULL;
         }
-        pGroup->numPendingNull++;
-      } else {
-        char   *oldVal = (pWin != NULL) ? pStateData : NULL;
-        char   *newVal = colDataGetData(pStateCol, i);
-        int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[i];
-        if (pWin != NULL) {
-          if (memcmp(pStateData, newVal, bytes) == 0) {
-            pWin->wrownum += pGroup->numPendingNull + 1;
+        if (isNull) {
+          if (pGroup->ds.numPendingNull == 0) {
+            pGroup->ds.pendingNullStart = pTsData[i];
+          }
+          pGroup->ds.numPendingNull++;
+          if (pGroup->ds.numDeferredPartialNull > 0) {
+            pGroup->ds.numDeferredTailAllNull++;
+          }
+        } else if (hasNull && pWin != NULL) {
+          /* partial-NULL row: check compatibility against pending shadow */
+          code = stPrepareStateValueArray(pStateCols, &pGroup->ds.pPendingStateVals);
+          QUERY_CHECK_CODE(code, lino, _end_block);
+          if (!pGroup->ds.hasPendingPartialNull) {
+            code = stSyncPendingFromState(pGroup->ds.pStateVals, &pGroup->ds.pPendingStateVals,
+                                          pStateCols, pGroup->ds.stateKeyDefined,
+                                          pGroup->ds.pendingColTouched, stateKeyCnt,
+                                          &pGroup->ds.hasPendingPartialNull);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+          }
+          bool pendingEqual = false;
+          code = stCheckPendingCompatible(pGroup->ds.pPendingStateVals, pStateCols, i,
+                                          pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
+                                          &pendingEqual);
+          QUERY_CHECK_CODE(code, lino, _end_block);
+          if (pendingEqual) {
+            code = stAccumulateCompatiblePartialNull(
+                pGroup->ds.pPendingStateVals, pStateCols, i,
+                pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
+                &pGroup->ds.hasPendingPartialNull,
+                &pGroup->ds.numPendingNull, &pGroup->ds.pendingNullStart,
+              &pGroup->ds.numDeferredPartialNull,
+              &pGroup->ds.numDeferredTailAllNull,
+                &pGroup->ds.firstDeferredPartialNullTs,
+                &pGroup->ds.lastDeferredPartialNullTs, pTsData[i]);
+            QUERY_CHECK_CODE(code, lino, _end_block);
           } else {
-            // mark window as closed
+            /* not compatible with old window → cut */
+            bool dualSide = false;
+            code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, i,
+                                              pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            SStateCutResult cut = {0};
             pWin->range.ekey = pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
-            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-              pWin->wrownum += pGroup->numPendingNull;
-              pWin->range.ekey = pTsData[i] - 1;
-            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              startTs = pWin->range.ekey + 1;
-            }
+            stResolveDeferredOnCut(
+                pTask->stateExtend, dualSide, stateKeyCnt,
+                &pGroup->ds, pTsData[i],
+                &pWin->wrownum, &pWin->range.ekey, &cut);
+            int64_t startTs = cut.startTs;
             bool stEqualZeroth = false;
-            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
-            QUERY_CHECK_CODE(code, lino, _end);
+            code = stIsStateValuesEqualZeroths(pGroup->ds.pStateVals, pTask->pStateZeroths, pGroup->ds.stateKeyDefined, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end_block);
             if (stEqualZeroth) {
               pWin = taosArrayPop(pContext->pWindows);
               stRealtimeContextDestroyWindow((void *)pWin);
             } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-              code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
-                                                   &pWin->pWinCloseNotify);
-              QUERY_CHECK_CODE(code, lino, _end);
+              SArray *pNextStates = NULL;
+              bool   *pNextDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, i, &pNextStates, &pNextDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                        pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined,
+                                                        pNextStates, pNextDefined,
+                                                        &pWin->pWinCloseNotify);
+              stDestroyStateValueArray(&pNextStates);
+              taosMemoryFreeClear(pNextDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
             }
             pWin = NULL;
+            if (cut.splitStandalone) {
+              code = stRealtimeAppendStandaloneDeferredWindow(pContext, pGroup, cut.splitStandaloneStartTs);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              startTs = cut.splitStandaloneEndTs + 1;
+            }
+            stResetStateKeysDefined(pGroup->ds.stateKeyDefined, stateKeyCnt);
+            stResetPendingState(pGroup->ds.pendingColTouched, stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
+            /* open new window with partial-NULL row */
+            {
+              SSTriggerNotifyWindow newWin = {0};
+              newWin.range.skey = pTsData[i];
+              newWin.range.ekey = INT64_MAX;
+              newWin.wrownum = 1;
+              if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+                newWin.range.skey = startTs;
+                newWin.wrownum += pGroup->ds.numPendingNull;
+              }
+              pWin = taosArrayPush(pContext->pWindows, &newWin);
+              QUERY_CHECK_NULL(pWin, code, lino, _end_block, terrno);
+              if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+                SArray *pCurStates = NULL;
+                bool   *pCurDefined = NULL;
+                code = stBuildStateRowSnapshot(pStateCols, i, &pCurStates, &pCurDefined);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                          pOldStates, pOldDefined,
+                                                          pCurStates, pCurDefined,
+                                                          &pWin->pWinOpenNotify);
+                stDestroyStateValueArray(&pCurStates);
+                taosMemoryFreeClear(pCurDefined);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+              }
+              code = stAssignStateRowToValues(pStateCols, i, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+            pGroup->ds.numPendingNull = 0;
+            stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                       &pGroup->ds.numDeferredTailAllNull,
+                                       &pGroup->ds.firstDeferredPartialNullTs,
+                                       &pGroup->ds.lastDeferredPartialNullTs);
           }
+        } else {
+          /* all non-NULL row (or partial-NULL when pWin==NULL, handled as first row) */
+          bool    stateEqual = false;
+          int64_t startTs = pGroup->ds.numPendingNull > 0 ? pGroup->ds.pendingNullStart : pTsData[i];
+          SArray *pNextStates = NULL;
+
+          if (pWin != NULL) {
+            code = stPrepareStateValueArray(pStateCols, &pGroup->ds.pPendingStateVals);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            if (!pGroup->ds.hasPendingPartialNull) {
+              code = stSyncPendingFromState(pGroup->ds.pStateVals, &pGroup->ds.pPendingStateVals,
+                                            pStateCols, pGroup->ds.stateKeyDefined,
+                                            pGroup->ds.pendingColTouched, stateKeyCnt,
+                                            &pGroup->ds.hasPendingPartialNull);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            code = stCompareStateValuesWithRow(pGroup->ds.pPendingStateVals, pStateCols, i, pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched, &stateEqual);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            if (stateEqual) {
+              /* flush pending → commit to current window */
+              stCommitPendingToState(pGroup->ds.pStateVals, pGroup->ds.pPendingStateVals,
+                                     pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
+                                     stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
+              pWin->wrownum += pGroup->ds.numPendingNull + 1;
+              stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                         &pGroup->ds.numDeferredTailAllNull,
+                                         &pGroup->ds.firstDeferredPartialNullTs,
+                                         &pGroup->ds.lastDeferredPartialNullTs);
+            } else {
+              /* not compatible → resolve pending, then cut */
+              bool dualSide = false;
+              code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, i,
+                                                pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              SStateCutResult cut = {0};
+              pWin->range.ekey = pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+              stResolveDeferredOnCut(
+                  pTask->stateExtend, dualSide, stateKeyCnt,
+                  &pGroup->ds, pTsData[i],
+                  &pWin->wrownum, &pWin->range.ekey, &cut);
+              startTs = cut.startTs;
+
+              bool stEqualZeroth = false;
+              code = stIsStateValuesEqualZeroths(pGroup->ds.pStateVals, pTask->pStateZeroths, pGroup->ds.stateKeyDefined, &stEqualZeroth);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              if (stEqualZeroth) {
+                pWin = taosArrayPop(pContext->pWindows);
+                stRealtimeContextDestroyWindow((void *)pWin);
+              } else if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
+                bool   *pNextDefined = NULL;
+                code = stBuildStateRowSnapshot(pStateCols, i, &pNextStates, &pNextDefined);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                          pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined,
+                                                          pNextStates, pNextDefined,
+                                                          &pWin->pWinCloseNotify);
+                stDestroyStateValueArray(&pNextStates);
+                taosMemoryFreeClear(pNextDefined);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+              }
+              pWin = NULL;
+              if (cut.splitStandalone) {
+                code = stRealtimeAppendStandaloneDeferredWindow(pContext, pGroup, cut.splitStandaloneStartTs);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+                startTs = cut.splitStandaloneEndTs + 1;
+              }
+              stResetStateKeysDefined(pGroup->ds.stateKeyDefined, stateKeyCnt);
+              stResetPendingState(pGroup->ds.pendingColTouched, stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
+            }
+          }
+
+          if (pWin == NULL) {
+            SSTriggerNotifyWindow newWin = {0};
+            newWin.range.skey = pTsData[i];
+            newWin.range.ekey = INT64_MAX;
+            newWin.wrownum = 1;
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              newWin.range.skey = startTs;
+              newWin.wrownum += pGroup->ds.numPendingNull;
+            }
+            pWin = taosArrayPush(pContext->pWindows, &newWin);
+            QUERY_CHECK_NULL(pWin, code, lino, _end_block, terrno);
+            if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+              SArray *pCurStates = NULL;
+              bool   *pCurDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, i, &pCurStates, &pCurDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                        pOldStates, pOldDefined,
+                                                        pCurStates, pCurDefined,
+                                                        &pWin->pWinOpenNotify);
+              stDestroyStateValueArray(&pCurStates);
+              taosMemoryFreeClear(pCurDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            code = stAssignStateRowToValues(pStateCols, i, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+          }
+
+          pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+          pGroup->ds.numPendingNull = 0;
+          stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                     &pGroup->ds.numDeferredTailAllNull,
+                                     &pGroup->ds.firstDeferredPartialNullTs,
+                                     &pGroup->ds.lastDeferredPartialNullTs);
         }
-        if (pWin == NULL) {
-          SSTriggerNotifyWindow newWin = {0};
-          newWin.range.skey = pTsData[i];
-          newWin.range.ekey = INT64_MAX;
-          newWin.wrownum = 1;
-          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-            newWin.range.skey = startTs;
-            newWin.wrownum += pGroup->numPendingNull;
-          }
-          pWin = taosArrayPush(pContext->pWindows, &newWin);
-          QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
-          if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, oldVal, newVal,
-                                                 &pWin->pWinOpenNotify);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          memcpy(pStateData, newVal, bytes);
-        }
-        pWin->range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
-        pGroup->numPendingNull = 0;
       }
     }
+
+_end_block:
+    taosMemoryFreeClear(pOldDefinedScratch);
+    pOldDefined = NULL;
+    if (pStateCols != pPreAllocStateCols) {
+      taosArrayDestroy(pStateCols);
+    }
+    stDestroyExprStateCols(pExprStateCols);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
+  taosArrayDestroy(pPreAllocStateCols);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -9991,9 +10928,9 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     SColumnInfoData *psCol = NULL;
     SColumnInfoData *peCol = NULL;
     if (pTask->isVirtualTable) {
-      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pStartCond, &pContext->eventStartCol);
+      code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pStartCond, &pContext->eventStartCol);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = stRealtimeContextCalcExpr(pContext, pDataBlock, pTask->pEndCond, &pContext->eventEndCol);
+      code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pEndCond, &pContext->eventEndCol);
       QUERY_CHECK_CODE(code, lino, _end);
       psCol = &pContext->eventStartCol;
       peCol = &pContext->eventEndCol;
@@ -10821,7 +11758,10 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    pGroup->pendingNullStart = INT64_MIN;
+    pGroup->ds.pendingNullStart = INT64_MIN;
+    pGroup->ds.numDeferredTailAllNull = 0;
+    pGroup->ds.firstDeferredPartialNullTs = INT64_MIN;
+    pGroup->ds.lastDeferredPartialNullTs = INT64_MIN;
   }
   code = taosObjListInit(&pGroup->pPendingParWinCalcParams, &pContext->calcParamPool);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -10851,8 +11791,11 @@ static void stHistoryGroupDestroy(void *ptr) {
   }
 
   TRINGBUF_DESTROY(&pGroup->winBuf);
-  if ((pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_STATE) && IS_VAR_DATA_TYPE(pGroup->stateVal.type)) {
-    taosMemoryFreeClear(pGroup->stateVal.pData);
+  if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_STATE) {
+    stDestroyStateValueArray(&pGroup->ds.pStateVals);
+    stDestroyStateValueArray(&pGroup->ds.pPendingStateVals);
+    taosMemoryFreeClear(pGroup->ds.stateKeyDefined);
+    taosMemoryFreeClear(pGroup->ds.pendingColTouched);
   } else if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_EVENT) {
     stRealtimeContextDestroyWindow(&pGroup->parentWindow);
   }
@@ -12049,8 +12992,15 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
   char                    *pExtraNotifyContent = NULL;
-  SArray                  *pList = NULL;
-  SScalarParam             output = {0};
+
+  /* pre-allocate pStateCols for the slot-only fast path (no expr keys) */
+  bool    histSlotOnlyPath = (stCountExprKeys(pTask->pHistStateSlotIds) == 0);
+  int32_t histPreAllocKeyCnt = stGetStateKeyCount(pTask->pHistStateSlotIds, pTask->histStateExprs);
+  SArray *pPreAllocStateCols = NULL;
+  if (histSlotOnlyPath && histPreAllocKeyCnt > 0) {
+    pPreAllocStateCols = taosArrayInit(histPreAllocKeyCnt, POINTER_BYTES);
+    QUERY_CHECK_NULL(pPreAllocStateCols, code, lino, _end, terrno);
+  }
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
@@ -12065,126 +13015,295 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
     }
     SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->histTrigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-    int64_t         *pTsData = (int64_t *)pTsCol->pData;
-    SColumnInfoData *pStateCol = NULL;
-    if (pTask->histStateSlotId != -1) {
-      pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->histStateSlotId);
-      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+    int64_t          *pTsData = (int64_t *)pTsCol->pData;
+    SArray           *pStateCols = NULL;
+    SArray           *pExprStateCols = NULL;
+    /* See realtime variant: per-block scratch buffer for the pre-mutation
+     * stateKeyDefined snapshot, only allocated when window-open notify is
+     * enabled for history replay. */
+    bool             *pOldDefined = NULL;
+    bool             *pOldDefinedScratch = NULL;
+    bool              needOldSnapshot =
+        pTask->notifyHistory &&
+        (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) != 0;
+
+    if (pPreAllocStateCols != NULL) {
+      code = stRebuildSlotStateCols(pDataBlock, pTask->pHistStateSlotIds, pPreAllocStateCols);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pStateCols = pPreAllocStateCols;
     } else {
-      if (pList == NULL) {
-        pList = taosArrayInit(1, POINTER_BYTES);
-        QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
-      } else {
-        taosArrayClear(pList);
-      }
-      void *px = taosArrayPush(pList, &pDataBlock);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-
-      if (output.columnData == NULL) {
-        SDataType       *pType = &((SExprNode *)pTask->pStateExpr)->resType;
-        SColumnInfoData *pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
-        QUERY_CHECK_NULL(pColumnData, code, lino, _end, terrno);
-        pColumnData->info.type = pType->type;
-        pColumnData->info.bytes = pType->bytes;
-        pColumnData->info.scale = pType->scale;
-        pColumnData->info.precision = pType->precision;
-        output.columnData = pColumnData;
-        output.colAlloced = true;
-      }
-      SColumnInfoData *pColumnData = output.columnData;
-      int32_t          numOfRows = blockDataGetNumOfRows(pDataBlock);
-      code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
+      code = stBuildStateCols(pTask, pDataBlock, pTask->pHistStateSlotIds, pTask->histStateExprs, &pStateCols, &pExprStateCols);
       QUERY_CHECK_CODE(code, lino, _end);
-      output.numOfRows = numOfRows;
-
-      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL);
-      QUERY_CHECK_CODE(code, lino, _end);
-      pStateCol = output.columnData;
-      QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
     }
-    bool  isVarType = IS_VAR_DATA_TYPE(pStateCol->info.type);
-    void *pStateData = isVarType ? (void *)pGroup->stateVal.pData : (void *)&pGroup->stateVal.val;
-    if (pGroup->stateVal.type == 0) {
-      // initialize state value
-      SValue *pStateVal = &pGroup->stateVal;
-      pStateVal->type = pStateCol->info.type;
-      if (isVarType && pStateVal->pData == NULL) {
-        pStateVal->nData = pStateCol->info.bytes;
-        pStateVal->pData = taosMemoryCalloc(pStateVal->nData, 1);
-        QUERY_CHECK_CONDITION(pStateVal->pData, code, lino, _end, terrno);
-        pStateData = pStateVal->pData;
+    {
+      int32_t stateKeyCnt = taosArrayGetSize(pStateCols);
+      code = stPrepareStateValueArray(pStateCols, &pGroup->ds.pStateVals);
+      QUERY_CHECK_CODE(code, lino, _end_block);
+      code = stEnsureBoolArray(&pGroup->ds.stateKeyDefined, stateKeyCnt);
+      QUERY_CHECK_CODE(code, lino, _end_block);
+      code = stEnsureBoolArray(&pGroup->ds.pendingColTouched, stateKeyCnt);
+      QUERY_CHECK_CODE(code, lino, _end_block);
+      if (needOldSnapshot && stateKeyCnt > 0) {
+        pOldDefinedScratch = taosMemoryMalloc(stateKeyCnt * sizeof(bool));
+        QUERY_CHECK_NULL(pOldDefinedScratch, code, lino, _end_block, terrno);
       }
-    }
-
-    for (int32_t r = startIdx; r < endIdx; r++) {
-      bool isNull = colDataIsNull_s(pStateCol, r);
-      if (isNull) {
-        if (pGroup->numPendingNull == 0) {
-          pGroup->pendingNullStart = pTsData[r];
+      for (int32_t r = startIdx; r < endIdx; r++) {
+        bool          isNull = stStateRowAllNull(pStateCols, r);
+        bool          hasNull = !isNull && stStateRowHasNull(pStateCols, r);
+        const SArray *pOldStates = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pGroup->ds.pStateVals : NULL;
+        if (pOldStates != NULL && pOldDefinedScratch != NULL) {
+          memcpy(pOldDefinedScratch, pGroup->ds.stateKeyDefined, stateKeyCnt * sizeof(bool));
+          pOldDefined = pOldDefinedScratch;
+        } else {
+          pOldDefined = NULL;
         }
-        pGroup->numPendingNull++;
-      } else {
-        char   *oldVal = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? pStateData : NULL;
-        char   *newVal = colDataGetData(pStateCol, r);
-        int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
-        int64_t startTs = pGroup->numPendingNull > 0 ? pGroup->pendingNullStart : pTsData[r];
-        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
-          if (memcmp(pStateData, newVal, bytes) == 0) {
-            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull + 1;
-            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+        if (isNull) {
+          if (pGroup->ds.numPendingNull == 0) {
+            pGroup->ds.pendingNullStart = pTsData[r];
+          }
+          pGroup->ds.numPendingNull++;
+          if (pGroup->ds.numDeferredPartialNull > 0) {
+            pGroup->ds.numDeferredTailAllNull++;
+          }
+        } else if (hasNull && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          /* partial-NULL row: defer like all-NULL if compatible */
+          code = stPrepareStateValueArray(pStateCols, &pGroup->ds.pPendingStateVals);
+          QUERY_CHECK_CODE(code, lino, _end_block);
+          if (!pGroup->ds.hasPendingPartialNull) {
+            code = stSyncPendingFromState(pGroup->ds.pStateVals, &pGroup->ds.pPendingStateVals,
+                                          pStateCols, pGroup->ds.stateKeyDefined,
+                                          pGroup->ds.pendingColTouched, stateKeyCnt,
+                                          &pGroup->ds.hasPendingPartialNull);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+          }
+          bool pendingEqual = false;
+          code = stCheckPendingCompatible(pGroup->ds.pPendingStateVals, pStateCols, r,
+                                          pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
+                                          &pendingEqual);
+          QUERY_CHECK_CODE(code, lino, _end_block);
+          if (pendingEqual) {
+            code = stAccumulateCompatiblePartialNull(
+                pGroup->ds.pPendingStateVals, pStateCols, r,
+                pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
+                &pGroup->ds.hasPendingPartialNull,
+                &pGroup->ds.numPendingNull, &pGroup->ds.pendingNullStart,
+              &pGroup->ds.numDeferredPartialNull,
+              &pGroup->ds.numDeferredTailAllNull,
+                &pGroup->ds.firstDeferredPartialNullTs,
+                &pGroup->ds.lastDeferredPartialNullTs, pTsData[r]);
+            QUERY_CHECK_CODE(code, lino, _end_block);
           } else {
-            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
-              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r] - 1;
-            } else if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              startTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey + 1;
-            }
+            /* not compatible with old window → cut */
+            bool dualSide = false;
+            code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, r,
+                                              pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            SStateCutResult cut = {0};
+            stResolveDeferredOnCut(
+                pTask->stateExtend, dualSide, stateKeyCnt,
+                &pGroup->ds, pTsData[r],
+                &TRINGBUF_HEAD(&pGroup->winBuf)->wrownum,
+                &TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey, &cut);
+            int64_t startTs = cut.startTs;
             bool stEqualZeroth = false;
-            code = stIsStateEqualZeroth(pStateData, pTask->pStateZeroth, &stEqualZeroth);
-            QUERY_CHECK_CODE(code, lino, _end);
+            code = stIsStateValuesEqualZeroths(pGroup->ds.pStateVals, pTask->pStateZeroths, pGroup->ds.stateKeyDefined, &stEqualZeroth);
+            QUERY_CHECK_CODE(code, lino, _end_block);
             if (stEqualZeroth) {
               TRINGBUF_DEQUEUE(&pGroup->winBuf);
             } else {
               if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-                code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, oldVal, newVal,
-                                                     &pExtraNotifyContent);
-                QUERY_CHECK_CODE(code, lino, _end);
+                SArray *pNextStates = NULL;
+                bool   *pNextDefined = NULL;
+                code = stBuildStateRowSnapshot(pStateCols, r, &pNextStates, &pNextDefined);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+                code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                          pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined,
+                                                          pNextStates, pNextDefined,
+                                                          &pExtraNotifyContent);
+                stDestroyStateValueArray(&pNextStates);
+                taosMemoryFreeClear(pNextDefined);
+                QUERY_CHECK_CODE(code, lino, _end_block);
               }
               code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
-              QUERY_CHECK_CODE(code, lino, _end);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            if (cut.splitStandalone) {
+              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
+              code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              pGroup->ds.numPendingNull -= pGroup->ds.numDeferredPartialNull;
+              stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                         &pGroup->ds.numDeferredTailAllNull,
+                                         &pGroup->ds.firstDeferredPartialNullTs,
+                                         &pGroup->ds.lastDeferredPartialNullTs);
+              startTs = cut.splitStandaloneEndTs + 1;
+            }
+            /* open new window with this partial-NULL row */
+            stResetStateKeysDefined(pGroup->ds.stateKeyDefined, stateKeyCnt);
+            stResetPendingState(pGroup->ds.pendingColTouched, stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
+            if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+              SArray *pCurStates = NULL;
+              bool   *pCurDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, r, &pCurStates, &pCurDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                        pOldStates, pOldDefined,
+                                                        pCurStates, pCurDefined,
+                                                        &pExtraNotifyContent);
+              stDestroyStateValueArray(&pCurStates);
+              taosMemoryFreeClear(pCurDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+            } else {
+              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            code = stAssignStateRowToValues(pStateCols, r, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            pGroup->ds.numPendingNull = 0;
+            stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                       &pGroup->ds.numDeferredTailAllNull,
+                                       &pGroup->ds.firstDeferredPartialNullTs,
+                                       &pGroup->ds.lastDeferredPartialNullTs);
+          }
+        } else {
+          /* all non-NULL row (or partial-NULL when no open window) */
+          bool    stateEqual = false;
+          int64_t startTs = pGroup->ds.numPendingNull > 0 ? pGroup->ds.pendingNullStart : pTsData[r];
+          SArray *pNextStates = NULL;
+
+          if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+            code = stPrepareStateValueArray(pStateCols, &pGroup->ds.pPendingStateVals);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            if (!pGroup->ds.hasPendingPartialNull) {
+              code = stSyncPendingFromState(pGroup->ds.pStateVals, &pGroup->ds.pPendingStateVals,
+                                            pStateCols, pGroup->ds.stateKeyDefined,
+                                            pGroup->ds.pendingColTouched, stateKeyCnt,
+                                            &pGroup->ds.hasPendingPartialNull);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            code = stCompareStateValuesWithRow(pGroup->ds.pPendingStateVals, pStateCols, r, pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched, &stateEqual);
+            QUERY_CHECK_CODE(code, lino, _end_block);
+            if (stateEqual) {
+              stCommitPendingToState(pGroup->ds.pStateVals, pGroup->ds.pPendingStateVals,
+                                     pGroup->ds.stateKeyDefined, pGroup->ds.pendingColTouched,
+                                     stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull + 1;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+              stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                         &pGroup->ds.numDeferredTailAllNull,
+                                         &pGroup->ds.firstDeferredPartialNullTs,
+                                         &pGroup->ds.lastDeferredPartialNullTs);
+            } else {
+              bool dualSide = false;
+              code = stCheckDualSideCompatible(pGroup->ds.pPendingStateVals, pStateCols, r,
+                                                pGroup->ds.pendingColTouched, pGroup->ds.hasPendingPartialNull, &dualSide);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              SStateCutResult cut = {0};
+              stResolveDeferredOnCut(
+                  pTask->stateExtend, dualSide, stateKeyCnt,
+                  &pGroup->ds, pTsData[r],
+                  &TRINGBUF_HEAD(&pGroup->winBuf)->wrownum,
+                  &TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey, &cut);
+              startTs = cut.startTs;
+              bool stEqualZeroth = false;
+              code = stIsStateValuesEqualZeroths(pGroup->ds.pStateVals, pTask->pStateZeroths, pGroup->ds.stateKeyDefined, &stEqualZeroth);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              if (stEqualZeroth) {
+                TRINGBUF_DEQUEUE(&pGroup->winBuf);
+              } else {
+                if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+                  bool   *pNextDefined = NULL;
+                  code = stBuildStateRowSnapshot(pStateCols, r, &pNextStates, &pNextDefined);
+                  QUERY_CHECK_CODE(code, lino, _end_block);
+                  code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCols,
+                                                            pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined,
+                                                            pNextStates, pNextDefined,
+                                                            &pExtraNotifyContent);
+                  stDestroyStateValueArray(&pNextStates);
+                  taosMemoryFreeClear(pNextDefined);
+                  QUERY_CHECK_CODE(code, lino, _end_block);
+                }
+                code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+              }
+              if (cut.splitStandalone) {
+                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+                TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
+                TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
+                code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
+                QUERY_CHECK_CODE(code, lino, _end_block);
+                pGroup->ds.numPendingNull -= pGroup->ds.numDeferredPartialNull;
+                stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                           &pGroup->ds.numDeferredTailAllNull,
+                                           &pGroup->ds.firstDeferredPartialNullTs,
+                                           &pGroup->ds.lastDeferredPartialNullTs);
+                startTs = cut.splitStandaloneEndTs + 1;
+              }
             }
           }
-        }
-        if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
-          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-            code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, oldVal, newVal,
-                                                 &pExtraNotifyContent);
-            QUERY_CHECK_CODE(code, lino, _end);
+
+          if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+            stResetStateKeysDefined(pGroup->ds.stateKeyDefined, stateKeyCnt);
+            stResetPendingState(pGroup->ds.pendingColTouched, stateKeyCnt, &pGroup->ds.hasPendingPartialNull);
+            if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+              SArray *pCurStates = NULL;
+              bool   *pCurDefined = NULL;
+              code = stBuildStateRowSnapshot(pStateCols, r, &pCurStates, &pCurDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              code = streamBuildMultiStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCols,
+                                                        pOldStates, pOldDefined,
+                                                        pCurStates, pCurDefined,
+                                                        &pExtraNotifyContent);
+              stDestroyStateValueArray(&pCurStates);
+              taosMemoryFreeClear(pCurDefined);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
+              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+              TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull;
+              TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+            } else {
+              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+              QUERY_CHECK_CODE(code, lino, _end_block);
+            }
+            code = stAssignStateRowToValues(pStateCols, r, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
+            QUERY_CHECK_CODE(code, lino, _end_block);
           }
-          if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-            code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
-            QUERY_CHECK_CODE(code, lino, _end);
-            TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->numPendingNull;
-            TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
-          } else {
-            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          memcpy(pStateData, newVal, bytes);
+          pGroup->ds.numPendingNull = 0;
+          stResetDeferredPartialMeta(&pGroup->ds.numDeferredPartialNull,
+                                     &pGroup->ds.numDeferredTailAllNull,
+                                     &pGroup->ds.firstDeferredPartialNullTs,
+                                     &pGroup->ds.lastDeferredPartialNullTs);
         }
-        pGroup->numPendingNull = 0;
       }
     }
+
+_end_block:
+    taosMemoryFreeClear(pOldDefinedScratch);
+    pOldDefined = NULL;
+    if (pStateCols != pPreAllocStateCols) {
+      taosArrayDestroy(pStateCols);
+    }
+    stDestroyExprStateCols(pExprStateCols);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
+  taosArrayDestroy(pPreAllocStateCols);
   if (pExtraNotifyContent != NULL) {
     taosMemoryFreeClear(pExtraNotifyContent);
   }
-  if (pList != NULL) {
-    taosArrayDestroy(pList);
-  }
-  sclFreeParam(&output);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -12216,9 +13335,9 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
     SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->histTrigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t *pTsData = (int64_t *)pTsCol->pData;
-    code = stHistoryContextCalcExpr(pContext, pDataBlock, pTask->histStartCond, &startCol);
+    code = stTriggerCalcExpr(pTask, pDataBlock, pTask->histStartCond, &startCol);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = stHistoryContextCalcExpr(pContext, pDataBlock, pTask->histEndCond, &endCol);
+    code = stTriggerCalcExpr(pTask, pDataBlock, pTask->histEndCond, &endCol);
     QUERY_CHECK_CODE(code, lino, _end);
     uint8_t *ps = (uint8_t *)startCol.pData;
     uint8_t *pe = (uint8_t *)endCol.pData;
@@ -12351,11 +13470,15 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
 
 int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual) {
   int32_t code = TSDB_CODE_SUCCESS;
+  *pIsEqual = false;
   if (pStateData == NULL || pZeroth == NULL) {
     return code;
   }
 
   SValueNode *pZerothState = (SValueNode *)pZeroth;
+  if (pZerothState->isNull || pZerothState->node.resType.type == TSDB_DATA_TYPE_NULL) {
+    return code;
+  }
   int8_t      type = pZerothState->node.resType.type;
   if (IS_VAR_DATA_TYPE(type)) {
     *pIsEqual = compareLenPrefixedStr(pStateData, pZerothState->datum.p) == 0;

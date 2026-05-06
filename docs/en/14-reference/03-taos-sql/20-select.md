@@ -54,11 +54,11 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
-  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 
 interp_clause:
@@ -109,7 +109,7 @@ true_for_expr: {
 - join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](24-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
-  - STATE_WINDOW: State window, expr specifies the state expression. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
+  - STATE_WINDOW: State window, using one or more state keys to divide windows. Multiple state keys are supported from v3.4.2.0. `state_expr` can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`, and its result type must be integer, boolean, or `VARCHAR`; tag columns are not supported. A window is cut when any state key changes. `EXTEND(extend_val)` specifies the boundary extension strategy: `0` is the default behavior; `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts; `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends. If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows. If only some state-key columns are `NULL`, consecutive partial-`NULL` rows are handled as a whole and, depending on `EXTEND(0|1|2)`, may merge into the previous window, merge into the next window, or become an independent window. `ZEROTH_STATE(...)` specifies the zero state; the number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position is ignored in zero-state matching. A window is filtered only when all constrained positions match their zero-state values. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
     - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
     - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
     - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
@@ -125,11 +125,11 @@ true_for_expr: {
 
     Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
-  - EXTERNAL_WINDOW: External window. The time range of each window is explicitly defined by a subquery instead of being generated by built-in rules. The first two columns of the subquery must be of timestamp type, representing the window start and end times. Columns from the third column onward become window attribute columns and can be referenced through `window_alias.column_name`. The outer query calculates aggregate results independently within each window. It supports PARTITION BY alignment, HAVING filtering, nested usage, and more. For details, see [TDengine Distinctive Queries](24-distinguished.md#external-window).
+  - EXTERNAL_WINDOW: External window. The time range of each window is explicitly defined by a subquery instead of being generated by built-in rules. The first two columns of the subquery must be of timestamp type, representing the window start and end times. Columns from the third column onward become window attribute columns and can be referenced through `window_alias.column_name`. The outer query calculates aggregate results independently within each window. It supports PARTITION BY alignment, HAVING filtering, nested usage, and `FILL` for empty windows. For details, see [TDengine Distinctive Queries](24-distinguished.md#external-window).
 - interp_clause: Interp clause, used in conjunction with the interp function, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
   - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type. Such as ```RANGE('2023-10-01T00:00:00.000')``` or ```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```.
   - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
-- fill_clause: Fill clause, can be used with interp function or interval window, to specify the data filling method when data is missing.
+- fill_clause: Fill clause, can be used with the interp function, INTERVAL window, or EXTERNAL_WINDOW to specify the data filling method when data is missing. The supported modes differ by context.
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, columns, and aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
@@ -342,7 +342,7 @@ The INTERP clause is a dedicated syntax for the [INTERP function](./22-function.
 
 ## FILL Clause
 
-The FILL statement specifies the filling mode when data is missing in a window interval. The filling modes include:
+The FILL statement specifies how missing values are produced in INTERVAL queries, EXTERNAL_WINDOW queries, and INTERP queries. The filling modes include:
 
 1. No filling: NONE (default filling mode).
 2. VALUE filling: Fixed value filling, where the fill value must be specified. For example `FILL(VALUE, 1.23)`. Note that the final fill value is determined by the type of the corresponding column, such as `FILL(VALUE, 1.23)`, if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the `partition key` (like tbname) used with `partition by` do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
@@ -366,6 +366,8 @@ The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different
 - INTERVAL clause: NULL_F, VALUE_F are forced filling modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
 - Stream computing's INTERVAL clause: NULL_F behaves the same as NULL, both are non-forced modes; VALUE_F behaves the same as VALUE, both are non-forced modes. Thus, there are no forced modes in the INTERVAL of stream computing.
 - INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
+
+For EXTERNAL_WINDOW queries, the supported modes are `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`, `PREV`, and `NEXT`. `LINEAR`, `NEAR`, and `SURROUND` are not supported in EXTERNAL_WINDOW.
 
 :::info
 
@@ -660,7 +662,7 @@ A non-correlated scalar subquery is a type of independent executable subquery in
 
 Non-correlated scalar subqueries can independently compute the result first, and then substitute that result into the outer query as a filter condition or reference value. They are commonly used in scenarios involving filtering based on aggregate values (such as average, maximum) or combining results from multiple table queries. Non-correlated scalar subqueries have higher execution efficiency than correlated subqueries.
 
-Since version 3.4.0.0, TDengine TSDB has begun to support non-correlated scalar subqueries in query statements. Other statements (such as stream computations, subscriptions, DDL, DML, etc.) are not yet supported.
+Since version 3.4.0.0, TDengine TSDB supports non-correlated scalar subqueries in query statements. Starting from version 3.4.1.0, stream computing also supports them. Other statements (such as subscriptions, DDL, and DML, except for INSERT INTO ... SELECT) are not yet supported.
 
 Examples of non-correlated scalar subqueries appearing in SELECT and WHERE clauses are as follows:
 
@@ -671,7 +673,7 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 
 ## Subquery expression
 
-Starting from version 3.4.1.0, TDengine TSDB began to support the following subquery expressions, where the subqueries are limited to non-correlated subqueries, currently only supported for use in query statements, and not yet supported in statements such as stream computing, subscriptions, DDL (Data Definition Language), and DML (Data Manipulation Language).
+Starting from version 3.4.1.0, TDengine TSDB supports the following subquery expressions. These subqueries must be non-correlated and are currently supported in query statements and stream computing, but not yet in subscriptions, DDL (Data Definition Language), or DML (Data Manipulation Language) statements (except for INSERT INTO ... SELECT).
 
 ### IN Subquery
 

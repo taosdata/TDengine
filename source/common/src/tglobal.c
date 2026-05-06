@@ -68,9 +68,6 @@ int8_t        tsEnableAdvancedSecurity = 0;
 #endif
 int8_t        tsEnableGrantLegacySyntax = 0;
 
-char          tsEncryptPassAlgorithm[16] = {0};
-EEncryptAlgor tsiEncryptPassAlgorithm = 0;
-
 char tsTLSCaPath[PATH_MAX] = {0};
 char tsTLSSvrCertPath[PATH_MAX] = {0};
 char tsTLSSvrKeyPath[PATH_MAX] = {0};
@@ -148,6 +145,12 @@ int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
 int32_t tsSecureEraseMode = 0;
 
+// cpu affinity
+bool    tsEnableCpuAffinity = 0;
+int32_t tsManagementCpuCores = 1;
+int32_t tsReadCpuCores = 1;
+int32_t tsOtherCpuCores = 1;
+
 // sync raft
 int32_t tsElectInterval = 4000;
 int32_t tsHeartbeatInterval = 1000;
@@ -170,6 +173,7 @@ int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 bool    tsForceKillTrans = false;
+int8_t  tsSodEnforceMode = 0;
 
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
@@ -250,7 +254,11 @@ int32_t tsAuditInterval = 5000;
 int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+#ifdef TD_ENABLE_ADVANCED_SECURITY
+bool tsAuditSaveInSelf = true;
+#else
 bool    tsAuditSaveInSelf = false;
+#endif
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
@@ -382,13 +390,6 @@ char    tsMetaEntryCache = 0;
 
 int32_t tsBypassFlag = 0;
 
-// the maximum allowed query buffer size during query processing for each data node.
-// -1 no limit (default)
-// 0  no query allowed, queries are disabled
-// positive value (in MB)
-int32_t tsQueryBufferSize = -1;
-int64_t tsQueryBufferSizeBytes = -1;
-int32_t tsCacheLazyLoadThreshold = 500;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
@@ -994,7 +995,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableGrantLegacySyntax", tsEnableGrantLegacySyntax, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsInterval", tsMetricsInterval, 1, 3600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1005,11 +1005,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusSRTimeoutMs", tsStatusSRTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusTimeoutMs", tsStatusTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "secureEraseMode", tsSecureEraseMode, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCpuAffinity", tsEnableCpuAffinity, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "managementCpuCores", tsManagementCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readCpuCores", tsReadCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "otherCpuCores", tsOtherCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -1120,8 +1123,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "udf", tsStartUdfd, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "udfdLdLibPath", tsUdfdLdLibPath, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddFloat(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1298,6 +1299,16 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     pItem->i64 = tsSyncApplyQueueSize;
     pItem->stype = stype;
+  }
+
+  // Compute dynamic defaults for readCpuCores and otherCpuCores
+  pItem = cfgGetItem(tsCfg, "managementCpuCores");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1768,9 +1779,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minIntervalTime");
   tsMinIntervalTime = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryBufferSize");
-  tsQueryBufferSize = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
   tstrncpy(tsEncryptAlgorithm, pItem->str, 16);
@@ -1790,18 +1798,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableGrantLegacySyntax");
   tsEnableGrantLegacySyntax = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
-  tstrncpy(tsEncryptPassAlgorithm, pItem->str, 16);
-
-  if (strlen(tsEncryptPassAlgorithm) > 0) {
-    if (strcmp(tsEncryptPassAlgorithm, "sm4") == 0) {
-      tsiEncryptPassAlgorithm = DND_CA_SM4;
-    } else {
-      uError("invalid tsEncryptAlgorithm:%s", tsEncryptPassAlgorithm);
-    }
-  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcThreads");
   tsNumOfRpcThreads = pItem->i32;
@@ -1826,6 +1822,32 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secureEraseMode");
   tsSecureEraseMode = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCpuAffinity");
+  tsEnableCpuAffinity = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "managementCpuCores");
+  tsManagementCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readCpuCores");
+  bool readCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
+  tsReadCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "otherCpuCores");
+  bool otherCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
+  tsOtherCpuCores = pItem->i32;
+
+  // Recompute dynamic defaults for readCpuCores/otherCpuCores when they were
+  // not explicitly set by user but managementCpuCores was changed from default.
+  // The initial dynamic defaults in taosAddServerCfg() are computed with the
+  // default managementCpuCores=1 before the config file is loaded.
+  if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
@@ -2128,13 +2150,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "udfdLdLibPath");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsUdfdLdLibPath)));
   tstrncpy(tsUdfdLdLibPath, pItem->str, sizeof(tsUdfdLdLibPath));
-  if (tsQueryBufferSize >= 0) {
-    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
-  }
 #endif
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "cacheLazyLoadThreshold");
-  tsCacheLazyLoadThreshold = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "fPrecision");
   tsFPrecision = pItem->fval;
 
@@ -3039,8 +3055,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"enableCoreFile", &tsEnableCoreFile},
 
                                          {"telemetryInterval", &tsTelemInterval},
-
-                                         {"cacheLazyLoadThreshold", &tsCacheLazyLoadThreshold},
 
                                          {"retentionSpeedLimitMB", &tsRetentionSpeedLimitMB},
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},

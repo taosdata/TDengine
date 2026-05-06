@@ -107,7 +107,7 @@ class TestStreamCompatibility:
 
             tdCb.prepareDataOnOldVersion(base_version, bPath,corss_major_version)
 
-            tdCb.killAllDnodes()
+            tdCb.stopTaosdCompletely()
 
             tdCb.updateNewVersion(bPath,cPaths=[cPath],upgrade=2)
 

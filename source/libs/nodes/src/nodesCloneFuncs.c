@@ -408,8 +408,10 @@ static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
 
 static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
-  CLONE_NODE_FIELD(pExpr);
+  CLONE_NODE_LIST_FIELD(pExprList);
   CLONE_NODE_FIELD(pTrueForLimit);
+  CLONE_NODE_FIELD(pExtend);
+  CLONE_NODE_LIST_FIELD(pZerothList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -432,6 +434,20 @@ static int32_t anomalyWindowNodeCopy(const SAnomalyWindowNode* pSrc, SAnomalyWin
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t externalWindowNodeCopy(const SExternalWindowNode* pSrc, SExternalWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_LIST_FIELD(pAggFuncList);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  // timezone is never set for external_window nodes; propagate NULL
+  pDst->timezone = NULL;
+  CLONE_NODE_FIELD(pSubquery);
+  CLONE_NODE_FIELD(pFill);
+  COPY_CHAR_ARRAY_FIELD(aliasName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -813,7 +829,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
-  CLONE_NODE_FIELD(pStateExpr);
+  CLONE_NODE_LIST_FIELD(pStateExprs);
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
   COPY_SCALAR_FIELD(trueForType);
@@ -831,6 +847,9 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(needGroupSort);
   COPY_SCALAR_FIELD(extWinSplit);
   COPY_SCALAR_FIELD(calcWithPartition);
+  COPY_SCALAR_FIELD(extFill.mode);
+  CLONE_NODE_LIST_FIELD(extFill.pFillExprs);
+  CLONE_NODE_FIELD(extFill.pFillValues);
   COPY_SCALAR_FIELD(extendOption);
   COPY_SCALAR_FIELD(orgTableUid);
   COPY_SCALAR_FIELD(orgTableVgId);
@@ -1083,6 +1102,24 @@ static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiN
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiExternalCopy(const SExternalWindowPhysiNode* pSrc, SExternalWindowPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  COPY_SCALAR_FIELD(isSingleTable);
+  COPY_SCALAR_FIELD(inputHasOrder);
+  COPY_SCALAR_FIELD(extWinSplit);
+  COPY_SCALAR_FIELD(needGroupSort);
+  COPY_SCALAR_FIELD(calcWithPartition);
+  COPY_SCALAR_FIELD(extFill.mode);
+  CLONE_NODE_LIST_FIELD(extFill.pFillExprs);
+  CLONE_NODE_FIELD(extFill.pFillValues);
+  COPY_SCALAR_FIELD(orgTableVgId);
+  COPY_SCALAR_FIELD(orgTableUid);
+  CLONE_NODE_FIELD(pSubquery);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1344,6 +1381,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_ANOMALY_WINDOW:
       code = anomalyWindowNodeCopy((const SAnomalyWindowNode*)pNode, (SAnomalyWindowNode*)pDst);
       break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      code = externalWindowNodeCopy((const SExternalWindowNode*)pNode, (SExternalWindowNode*)pDst);
+      break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
       break;
@@ -1494,6 +1534,11 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+      code = physiExternalCopy((const SExternalWindowPhysiNode*)pNode, (SExternalWindowPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);

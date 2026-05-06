@@ -2413,7 +2413,8 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
     if (NULL == pMeta) {
       res->withInsertCond = (req->authInfo.withInsertCond == 1);
       if (pReq->smlInsert) {
-        if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+        if (pReq->dbOwner ||
+            privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
           res->pRawRes->pass[AUTH_RES_BASIC] = true;
           goto _return;
         }
@@ -2618,7 +2619,8 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       }
       return TSDB_CODE_SUCCESS;
     } else if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, &privInfo, true)) {
+      if (taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1) ||
+          privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, &privInfo, true)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }

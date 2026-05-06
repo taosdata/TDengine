@@ -45,11 +45,11 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
-  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
@@ -123,26 +123,83 @@ When using time windows, note:
 
 ### State Window
 
-Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes after the value changes. As shown in the diagram below, the state windows determined by the state value are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
+State windows are divided according to the continuity of one or more state keys. Multiple state keys have been supported since v3.4.2.0. State keys support integers, booleans, and strings, and can also be `CASE WHEN` or `IF` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
 ![State windows](./assets/time-series-extensions-02-state-window.png)
 
-Use STATE_WINDOW to determine the column that divides the state window. For example:
+The syntax is:
+
+```sql
+STATE_WINDOW(state_expr [, state_expr ...])
+  [EXTEND(extend_val)]
+  [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
+  [TRUE_FOR(true_for_expr)]
+```
+
+Where:
+
+- `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
+- `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
+- `ZEROTH_STATE(...)` optionally specifies the zero state. A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. By specifying these baseline values with `ZEROTH_STATE`, matching windows are filtered out automatically and are neither calculated nor returned, which keeps the result set focused. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
+- `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both.
+
+`NULL` values in state keys are handled as follows:
+
+- Consecutive rows with the same state key pattern, meaning the `NULL` positions are the same and the non-`NULL` state-key values are also identical, are handled as a whole. Depending on `EXTEND`, that whole segment may merge into the previous window, merge into the next window, or become an independent window.
+- Two state windows are considered compatible when all non-`NULL` state-key positions are identical. Compatible windows may merge under the effect of `EXTEND`.
+- All-`NULL` rows enclosed by a consecutive same-pattern state-key segment are handled together with that segment.
+- When all state-key columns are `NULL`, the row itself does not trigger a state change. Its ownership depends on surrounding data and the selected `EXTEND` mode.
+- When only some state-key columns are `NULL`, which only happens in the multi-key case, those `NULL` positions do not participate in key-by-key comparison and the remaining non-`NULL` positions determine the window split.
+
+The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
+
+| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
+| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
+
+If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
+
+#### Examples
+
+##### State Key Examples
+
+Single-key example:
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
-Only interested in the state window information when status is 2. For example:
+If you are interested only in windows where `status = 2`, you can still filter in an outer query:
 
 ```sql
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
-TDengine also supports using CASE expressions in state quantities, which can express that the start of a certain state is triggered by meeting a certain condition, and the end of this state is triggered by meeting another condition. For example, the normal voltage range for a smart meter is 205V to 235V, so you can monitor the voltage to determine if the circuit is normal.
+Multi-key example:
+
+```sql
+SELECT _wstart, _wend, count(*), c_int, c_bool
+FROM ntb1
+STATE_WINDOW(c_int, c_bool);
+```
+
+The query above uses `c_int` and `c_bool` together as the state key. The current window closes when either `c_int` or `c_bool` changes.
+
+TDengine also supports using `CASE` or `IF` expressions as state keys. For example, the normal voltage range for a smart meter is 205V to 235V, so you can monitor the voltage to determine whether the circuit is normal. Multiple discrete status dimensions can also be combined in the same `STATE_WINDOW(...)` clause.
 
 ```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
+```
+
+The same logic can be expressed more concisely with `IF`:
+
+```sql
+SELECT tbname, _wstart, IF(voltage >= 205 AND voltage <= 235, 1, 0) AS status FROM meters PARTITION BY tbname STATE_WINDOW(IF(voltage >= 205 AND voltage <= 235, 1, 0));
 ```
 
 In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns visible in the current query context, as long as the final expression result type is still integer, boolean, or string. For example, you can adjust the threshold dynamically with the `groupId` tag:
@@ -157,13 +214,9 @@ STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
 
 Note that `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
 
-The `Extend` parameter can set the extension strategy for the start and end of a window, with optional values of 0 (default), 1, and 2.
+##### EXTEND Parameter
 
-- By default, the start and end times of the window are the timestamps corresponding to the first and last piece of data in that state.
-- When the `extend` value is 1, the window start time remains unchanged, and the window end time is extended backward to just before the start of the next window.
-- When the `extend` value is 2, the window start time is extended forward to just after the end of the previous window, while the window end time remains unchanged.
-
-Data with a NULL status value at the start of the entire query result set will be included in the first window. Similarly, data with a NULL status value at the end of the entire query result set will be included in the last window. Take the following data as an example:
+Take the following data as an example to show how `EXTEND` affects window splitting and the ownership of `NULL` rows:
 
 ```text
 taos> select * from state_window_example;
@@ -180,48 +233,72 @@ taos> select * from state_window_example;
  2025-01-01 00:00:08.000 | NULL        |
 ```
 
+The `EXTEND` parameter controls the extension strategy for the start and end of a window, with possible values `0` (default), `1`, and `2`.
+
 When `extend` is 0:
 
+The start and end timestamps of a window are the first and last non-`NULL` rows of the current state. Leading `NULL` rows, trailing `NULL` rows, and `NULL` rows between different states are discarded, while `NULL` rows enclosed by the same state value remain in the current window.
+
 ```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
- 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:01.000 |                  2000 | 2025-01-01 00:00:03.000 |                     3 |
  2025-01-01 00:00:05.000 |                  1000 | 2025-01-01 00:00:06.000 |                     2 |
- 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+ 2025-01-01 00:00:07.000 |                     0 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
 When `extend` is 1:
 
+The window start remains unchanged, while the window end extends forward to just before the next window starts. `NULL` rows between different states and trailing `NULL` rows are merged into the previous window, while leading `NULL` rows are discarded.
+
 ```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 1);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(1);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
- 2025-01-01 00:00:00.000 |                  4999 | 2025-01-01 00:00:04.999 |                     5 |
+ 2025-01-01 00:00:01.000 |                  3999 | 2025-01-01 00:00:04.999 |                     4 |
  2025-01-01 00:00:05.000 |                  1999 | 2025-01-01 00:00:06.999 |                     2 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
 When `extend` is 2:
 
+The window end remains unchanged, while the window start extends backward to just after the previous window ends. `NULL` rows between different states and leading `NULL` rows are merged into the next window, while trailing `NULL` rows are discarded.
+
 ```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 2);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
- 2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+ 2025-01-01 00:00:06.001 |                   999 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
-The zeroth_state parameter specifies the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. When `zeroth_state` is specified, `extend` becomes a mandatory argument and must not be left blank or omitted. Take previous data as an example:
+##### ZEROTH_STATE Parameter
+
+The `ZEROTH_STATE` parameter specifies the "zero state". A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. In the multi-key case, a window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
+
+For a single-key example, `ZEROTH_STATE` filters out windows whose state is `2`:
 
 ```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0) zeroth_state(2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
+
+Multi-key `ZEROTH_STATE` example:
+
+```sql
+SELECT _wstart, _wend, count(*), c1, c2
+FROM ntb_null
+STATE_WINDOW(c1, c2) EXTEND(0) ZEROTH_STATE(1, 10);
+```
+
+The query above filters windows whose state key is exactly `(1, 10)`, but keeps windows such as `(1, 20)` and `(2, 20)`. If only one position should be constrained, use `NO_ZEROTH`, for example `ZEROTH_STATE(1, NO_ZEROTH)`.
+
+##### TRUE_FOR Parameter
 
 The state window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
 
@@ -338,6 +415,7 @@ FROM table_name
 EXTERNAL_WINDOW (
   (subquery_that_defines_windows) window_alias
 )
+[FILL(fill_mode_and_val)]
 [HAVING condition]
 [ORDER BY ...]
 ```
@@ -430,6 +508,50 @@ ORDER BY w.groupid, event_start_time;
 - `w.groupid` and `w.location` are window attribute columns from the tag columns of the subquery and are used to display grouping information.
 - The `HAVING` condition uses the aggregate function `COUNT` to filter out windows with fewer than one alert.
 - `PARTITION BY` alignment means that both inner and outer queries are grouped by `groupid`, ensuring that each meter group's alerts only match that group's anomaly windows.
+
+#### FILL for Empty Windows
+
+EXTERNAL_WINDOW supports using `FILL` to control how empty windows are handled. By default, if a window has no matching rows from the outer table, it produces no result row. Adding `FILL` allows the query to keep that window and populate aggregate columns according to the selected mode.
+
+Supported modes in EXTERNAL_WINDOW are:
+
+| Mode | Behavior |
+|:----:|:---------|
+| `NONE` | Default behavior; empty windows do not produce result rows |
+| `NULL` | Empty windows produce one row with aggregate columns filled as `NULL`, but no output is produced when the full query range has no data |
+| `NULL_F` | Same as `NULL`, but empty-window rows are still produced when the full query range has no data |
+| `VALUE` | Empty windows produce one row with user-specified fill values, but no output is produced when the full query range has no data |
+| `VALUE_F` | Same as `VALUE`, but empty-window rows are still produced when the full query range has no data |
+| `PREV` | Empty windows use the aggregate result from the previous non-empty window; `NULL` is used if no previous value exists |
+| `NEXT` | Empty windows use the aggregate result from the next non-empty window; `NULL` is used if no next value exists |
+
+`LINEAR`, `NEAR`, and `SURROUND` are not supported in EXTERNAL_WINDOW.
+
+`FILL` is evaluated before `HAVING`, so rows generated by filling also participate in `HAVING` filtering.
+
+For the general FILL syntax, see [FILL Clause](./20-select.md#fill-clause).
+
+Example:
+
+```sql
+SELECT _wstart, AVG(voltage) AS avg_vol, COUNT(*) AS cnt
+FROM meters
+EXTERNAL_WINDOW (
+  (SELECT '2022-01-01 00:00:00'::TIMESTAMP,
+     '2022-01-01 00:01:00'::TIMESTAMP
+   UNION ALL
+   SELECT '2022-01-01 00:01:00'::TIMESTAMP,
+     '2022-01-01 00:02:00'::TIMESTAMP
+   UNION ALL
+   SELECT '2022-01-01 00:02:00'::TIMESTAMP,
+     '2022-01-01 00:03:00'::TIMESTAMP
+  ) w
+)
+FILL(VALUE, 0, 0)
+ORDER BY _wstart;
+```
+
+The SQL above defines three one-minute external windows. If a window contains no data from `meters`, `avg_vol` and `cnt` are both filled with `0`.
 
 #### Constraints and Limitations
 

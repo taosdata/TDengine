@@ -613,6 +613,8 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
       if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
         if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0)
           return PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER);
+        if (t2 && t2->n == 6 && taosStrncasecmp(t2->z, TSDB_WORD_POLICY, 6) == 0)
+          return PRIV_SET_TYPE(PRIV_SECURITY_POLICY_ALTER);
       }
     }
   } else if (type == 1) { // read
@@ -662,6 +664,8 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
       if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
         if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0)
           return PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW);
+        if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_POLICIES, 8) == 0)
+          return PRIV_SET_TYPE(PRIV_SECURITY_POLICIES_SHOW);
       }
     }
   } else if (type == 3) { // set user
@@ -777,6 +781,20 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   val->translate = false;
   val->tz = pCxt->pQueryCxt->timezone;
   val->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  return (SNode*)val;
+_err:
+  return NULL;
+}
+
+SNode* createNullValueNode(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
+  CHECK_MAKE_NODE(val);
+  val->isNull = true;
+  val->translate = true;
+  val->node.resType.type = TSDB_DATA_TYPE_NULL;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
   return (SNode*)val;
 _err:
   return NULL;
@@ -1842,30 +1860,70 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
+static SNode* createStateWindowNodeImpl(SAstCreateContext* pCxt, SNodeList* pExprList, SNode* pExtend,
+                                        SNodeList* pZerothList, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
   CHECK_MAKE_NODE(state);
+
+  state->pExprList = pExprList;
+  state->pExtend = pExtend;
+  state->pZerothList = pZerothList;
+  state->pTrueForLimit = pTrueForLimit;
+  pExprList = NULL;
+  pExtend = NULL;
+  pZerothList = NULL;
+  pTrueForLimit = NULL;
+
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(state->pCol);
-  state->pExpr = pExpr;
-  state->pTrueForLimit = pTrueForLimit;
-  if (pOptions != NULL) {
-    if (pOptions->length >= 1) {
-      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 0), &state->pExtend);
-      CHECK_MAKE_NODE(state->pExtend);
-    }
-    if (pOptions->length == 2) {
-      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 1), &state->pZeroth);
-      CHECK_MAKE_NODE(state->pZeroth);
-    }
-    nodesDestroyList(pOptions);
-  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
-  nodesDestroyNode(pExpr);
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
+  nodesDestroyNode(pTrueForLimit);
+  return NULL;
+}
+
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList, SNodeList* pOptions, SNode* pTrueForLimit) {
+  SNode* pExtend = NULL;
+  SNodeList* pZerothList = NULL;
+
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      SNode* pOpt = nodesListGetNode(pOptions, 0);
+      if (pOpt == NULL) {
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+        goto _err;
+      }
+      if (nodeType(pOpt) == QUERY_NODE_NODE_LIST) {
+        pCxt->errCode = nodesCloneList(((SNodeListNode*)pOpt)->pNodeList, &pZerothList);
+        CHECK_PARSER_STATUS(pCxt);
+      } else {
+        pCxt->errCode = nodesCloneNode(pOpt, &pExtend);
+        CHECK_MAKE_NODE(pExtend);
+      }
+    }
+    if (pOptions->length == 2) {
+      SNode* pOpt2 = nodesListGetNode(pOptions, 1);
+      if (pOpt2 == NULL || nodeType(pOpt2) != QUERY_NODE_NODE_LIST) {
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+        goto _err;
+      }
+      pCxt->errCode = nodesCloneList(((SNodeListNode*)pOpt2)->pNodeList, &pZerothList);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+    nodesDestroyList(pOptions);
+  }
+
+  return createStateWindowNodeImpl(pCxt, pExprList, pExtend, pZerothList, pTrueForLimit);
+_err:
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
   nodesDestroyNode(pTrueForLimit);
   nodesDestroyList(pOptions);
   return NULL;
@@ -2615,8 +2673,15 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
     ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
   }
 
-    pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
-    CHECK_MAKE_NODE(pExtWin->pCol);
+  pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pExtWin->pCol);
+
+  if (NULL != pFill) {
+    SFillNode* pFillClause = (SFillNode*)pFill;
+    nodesDestroyNode(pFillClause->pWStartTs);
+    pFillClause->pWStartTs = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pFillClause->pWStartTs);
+  }
 
   // Attach subquery and optional fill node
   pExtWin->pSubquery = pSubquery;
@@ -2785,6 +2850,8 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
   pOptions->secureDelete = 0;
+  pOptions->allowDrop = INT8_MIN;  // -1 means not set
+  pOptions->securityLevel = -1;  // -1 means "not specified"
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2838,6 +2905,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->isAudit = -1;
   pOptions->allowDrop = -1;
   pOptions->secureDelete = -1;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3015,6 +3083,13 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ALLOW_DROP:
       pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      if(pDbOptions->allowDrop != 0 && pDbOptions->allowDrop != 1) {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Invalid value for allow_drop, should be 0 or 1");
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      }
+      break;
+    case DB_OPTION_SECURITY_LEVEL:
+      pDbOptions->securityLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_SECURE_DELETE:
       pDbOptions->secureDelete = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
@@ -3245,6 +3320,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->virtualStb = false;
   pOptions->commentNull = true;  // mark null
   pOptions->secureDelete = 0;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3259,6 +3335,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   pOptions->commentNull = true;  // mark null
   pOptions->keep = -1;
   pOptions->secureDelete = -1;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3320,6 +3397,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
         pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
       } else {
         ((STableOptions*)pOptions)->secureDelete = (int8_t)secureDelete;
+      }
+      break;
+    }
+    case TABLE_OPTION_SECURITY_LEVEL: {
+      int64_t securityLevel = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (securityLevel < TSDB_MIN_SECURITY_LEVEL || securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        ((STableOptions*)pOptions)->securityLevel = securityLevel;
       }
       break;
     }
@@ -4917,6 +5003,15 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     b->pDropTimeRanges = NULL;
   }
 
+  if (b->pSecurityLevels != NULL) {
+    if (a->pSecurityLevels == NULL) {
+      a->pSecurityLevels = b->pSecurityLevels;
+      b->pSecurityLevels = NULL;
+    } else {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SECURITY_LEVELS");
+    }
+  }
+
   nodesDestroyNode((SNode*)b);
   return a;
 }
@@ -5157,6 +5252,8 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
     SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
     pStmt->pTimeRanges[i++] = node->range;
   }
+  pStmt->userOps = *opts;  // only for privilege checking
+  TSWAP(pStmt->pSecurityLevels, opts->pSecurityLevels);
 
   nodesDestroyNode((SNode*)opts);
   return (SNode*)pStmt;

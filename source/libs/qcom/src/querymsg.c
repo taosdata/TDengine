@@ -735,6 +735,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->rversion = msg->rversion;
   pTableMeta->ownerId = msg->ownerId;
   pTableMeta->flag = msg->flag;
+  pTableMeta->secLvl = msg->secLvl;  // explicit copy: bit-field positions differ between STableMetaRsp and STableMeta
   pTableMeta->secureDelete = msg->secureDelete;
   if (msg->virtualStb) {
     pTableMeta->virtualStb = 1;

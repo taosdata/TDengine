@@ -81,6 +81,7 @@ tools/tdgpt/packaging/bin/uv.exe
 .claude/
 
 .agents/
+.worktrees/
 skills-lock.json
 debug_coverage/
 build_test/

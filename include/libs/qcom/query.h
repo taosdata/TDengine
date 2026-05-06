@@ -152,7 +152,8 @@ typedef struct STableMeta {
     struct {
       uint8_t virtualStb : 1;
       uint8_t isAudit : 1;
-      uint8_t reserved : 6;
+      uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
+      uint8_t reserved : 3;
     };
   };
   int64_t ownerId;
@@ -445,6 +446,8 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
 int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam);
+bool    beginAsyncWorkShutdown();
+bool    mayCreateAsyncWork();
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 

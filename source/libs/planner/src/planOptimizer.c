@@ -2860,21 +2860,239 @@ static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLog
   return cxt.errCode;
 }
 
+static EDealRes pdcSetOpCondHasNonPrimKeyImpl(SNode* pNode, void* pCtx) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (!isPrimaryKeyImpl(pNode)) {
+      *(bool*)pCtx = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/* Returns true only when every column reference in pCond is the primary
+ * timestamp column.  Conditions that reference other columns (e.g. tbname,
+ * tag columns) cannot be safely rewritten through a branch project's column
+ * mapping because of tableAlias mismatches, so they must stay on the setop
+ * project node and must not be pushed to children. */
+static bool pdcSetOpCondOnlyRefsPrimaryKey(SNode* pCond) {
+  bool hasNonPrimKey = false;
+  nodesWalkExpr(pCond, pdcSetOpCondHasNonPrimKeyImpl, &hasNonPrimKey);
+  return !hasNonPrimKey;
+}
+
+/* Extract the primary-timestamp-only sub-conditions from pCond and return
+ * them as a new node (owned by caller) suitable for pushing to branch scans.
+ * Sets *pIsPureTsCond = true when the entire condition is primary-ts-only.
+ *
+ * - Pure-ts condition:  returns a clone of the entire condition.
+ * - Top-level AND with some pure-ts sub-terms: returns AND of those clones.
+ * - Non-AND mixed condition (OR, single non-ts term): returns NULL.
+ *
+ * The returned node is used only as an I/O hint pushed to branch scans;
+ * the original pCond stays on the setop project for definitive filtering.
+ */
+static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsPureTsCond) {
+  *ppOut         = NULL;
+  *pIsPureTsCond = false;
+
+  /* A top-level AND or simple comparison that references only the primary key
+   * can be cloned and pushed as an I/O hint to branch scans.
+   * OR conditions (e.g. ts < X OR ts > Y) cannot be expressed as a single
+   * contiguous scan time range and must stay as a Filter on the setop project;
+   * pushing them would cause a slot-key resolution failure in the physical
+   * planner because the column reference context changes at the branch boundary. */
+  bool isOrCond = (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
+                   LOGIC_COND_TYPE_OR == ((SLogicConditionNode*)pCond)->condType);
+  if (!isOrCond && pdcSetOpCondOnlyRefsPrimaryKey(pCond)) {
+    *pIsPureTsCond = true;
+    return nodesCloneNode(pCond, ppOut);
+  }
+
+  /* Non-AND top-level condition with non-ts refs or OR: nothing pushable. */
+  if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond) ||
+      LOGIC_COND_TYPE_AND != ((SLogicConditionNode*)pCond)->condType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* AND: collect clones of pure-ts sub-terms. */
+  SNodeList* pTsList = NULL;
+  int32_t    code    = TSDB_CODE_SUCCESS;
+  SNode*     pItem   = NULL;
+  FOREACH(pItem, ((SLogicConditionNode*)pCond)->pParameterList) {
+    if (!pdcSetOpCondOnlyRefsPrimaryKey(pItem)) continue;
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pItem, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pTsList);
+      return code;
+    }
+    code = nodesListMakeAppend(&pTsList, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pClone);
+      nodesDestroyList(pTsList);
+      return code;
+    }
+  }
+
+  if (NULL == pTsList) return TSDB_CODE_SUCCESS;
+
+  /* nodesMergeConds: single item → unwrap; multiple → AND wrapper.
+   * On failure it does not free *pSrc, so destroy pTsList explicitly. */
+  code = nodesMergeConds(ppOut, &pTsList);
+  if (TSDB_CODE_SUCCESS != code) {
+    *ppOut = NULL;
+    nodesDestroyList(pTsList);
+  }
+  return code;
+}
+
+/*
+ * Distribute the primary-timestamp part of the condition from a set-operator
+ * project (UNION ALL) to child nodes for I/O pruning.
+ *
+ * - If the setop project itself has LIMIT/SLIMIT, do not distribute at all.
+ * - For pure-ts conditions with no LIMIT on any child: clear the condition
+ *   from the setop project (it is now fully handled by branch scans).
+ * - For mixed AND conditions (ts + non-ts): push only the ts sub-conditions
+ *   as I/O hints; keep the full original condition on the setop project for
+ *   final filtering of non-ts predicates.
+ * - Children that have their own LIMIT/SLIMIT are skipped (cannot push past
+ *   a LIMIT boundary); if any child is skipped the setop project retains
+ *   the condition for those children.
+ */
+/* Returns the 0-based index of the primary-key column in the setop output
+ * projection list, or -1 if not found. */
+static int32_t pdcSetOpFindPkProjIdx(SProjectLogicNode* pSetOpProj) {
+  int32_t idx  = 0;
+  SNode*  pCol = NULL;
+  FOREACH(pCol, pSetOpProj->pProjections) {
+    if (QUERY_NODE_COLUMN == nodeType(pCol) &&
+        PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCol)->colId) {
+      return idx;
+    }
+    idx++;
+  }
+  return -1;
+}
+
+/* Returns true when the projected expression at position pkIdx of a UNION ALL
+ * branch project node is an arithmetic operator (e.g. _rowts + 3600000).
+ * In that case the outer ts condition must NOT be pushed to the scan: pushing
+ * ts >= X to the scan as _rowts >= X is wrong because the actual scan boundary
+ * should be _rowts >= X - offset.  The condition must stay on the setop project
+ * to be applied correctly after the arithmetic is evaluated. */
+static bool pdcSetOpBranchProjAtIdxIsArithExpr(SLogicNode* pBranch, int32_t pkIdx) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pBranch) || pkIdx < 0) {
+    return false;
+  }
+  SProjectLogicNode* pProj = (SProjectLogicNode*)pBranch;
+  if (NULL == pProj->pProjections || LIST_LENGTH(pProj->pProjections) <= pkIdx) {
+    return false;
+  }
+  SNode* pPkExpr = nodesListGetNode(pProj->pProjections, pkIdx);
+  return QUERY_NODE_OPERATOR == nodeType(pPkExpr);
+}
+
+static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  /* Do not push through the setop project's own LIMIT/SLIMIT boundary. */
+  if (NULL != pSetOpProj->node.pLimit || NULL != pSetOpProj->node.pSlimit) {
+    OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return code;
+  }
+
+  /* Extract the pushable (primary-timestamp-only) part of the condition in a
+   * single pass.  pdcExtractPrimKeyPushCond also tells us whether the entire
+   * condition is pure-ts (isPureTsCond) so we do not need a second traversal. */
+  bool   isPureTsCond = false;
+  SNode* pTsPushCond  = NULL;
+  code = pdcExtractPrimKeyPushCond(pSetOpProj->node.pConditions, &pTsPushCond, &isPureTsCond);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  if (NULL == pTsPushCond) {
+    /* No pushable ts sub-condition (non-ts predicate or OR with non-ts). */
+    OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return code;
+  }
+
+  /* Clone-push the ts condition into each child that has no LIMIT/SLIMIT and
+   * whose primary-key projected column is not an arithmetic expression on _rowts.
+   * Arithmetic expressions (e.g. _rowts + offset) require the outer condition
+   * to be applied after evaluation; pushing ts >= X to the scan would
+   * incorrectly interpret it as _rowts >= X, ignoring the offset. */
+  int32_t pkIdx          = pdcSetOpFindPkProjIdx(pSetOpProj);
+  bool   anyChildSkipped = false;
+  bool   pushedAny       = false;
+  SNode* pChildNode      = NULL;
+  FOREACH(pChildNode, pSetOpProj->node.pChildren) {
+    SLogicNode* pChild = (SLogicNode*)pChildNode;
+    if (NULL != pChild->pLimit || NULL != pChild->pSlimit) {
+      anyChildSkipped = true;
+      continue;
+    }
+    if (pdcSetOpBranchProjAtIdxIsArithExpr(pChild, pkIdx)) {
+      anyChildSkipped = true;
+      continue;
+    }
+    SNode* pPushCond = NULL;
+    code = nodesCloneNode(pTsPushCond, &pPushCond);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pTsPushCond);
+      return code;
+    }
+    code = nodesMergeNode(&pChild->pConditions, &pPushCond);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pPushCond);
+      nodesDestroyNode(pTsPushCond);
+      return code;
+    }
+    pushedAny = true;
+  }
+
+  nodesDestroyNode(pTsPushCond);
+
+  if (pushedAny) {
+    /* For a pure-ts condition fully delivered to all children, remove it
+     * from the setop project (redundant re-filter).  For mixed conditions
+     * or when some children had LIMIT or arithmetic-expression aliases, the
+     * original full condition must stay on the setop project for final
+     * filtering. */
+    if (isPureTsCond && !anyChildSkipped) {
+      nodesDestroyNode(pSetOpProj->node.pConditions);
+      pSetOpProj->node.pConditions = NULL;
+    }
+    pCxt->optimized = true;
+  }
+
+  OPTIMIZE_FLAG_SET_MASK(pSetOpProj->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+  return code;
+}
+
 static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject) {
   if (NULL == pProject->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
+
+  /* UNION ALL merge-point: distribute ts conditions to branch children. */
+  if (pProject->isSetOpProj) {
+    return pdcDealSetOpProject(pCxt, pProject);
+  }
+
   // TODO: remove it after full implementation of pushing down to child
   if (1 != LIST_LENGTH(pProject->node.pChildren)) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+
   if (NULL != pProject->node.pLimit || NULL != pProject->node.pSlimit) {
     return TSDB_CODE_SUCCESS;
   }
-  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
-  if(pChild->pLimit != NULL) {
+
+  if (NULL != pChild->pLimit || NULL != pChild->pSlimit) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2897,6 +3115,14 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
 static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   if (NULL == pLogicNode->pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  /* Do not push a condition past a LIMIT/SLIMIT boundary on the current node.
+   * The condition must be evaluated on this node's output (after LIMIT is
+   * applied), so pushing it to a child would change how many rows the LIMIT
+   * sees and alter query semantics. */
+  if (NULL != pLogicNode->pLimit || NULL != pLogicNode->pSlimit) {
+    OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pLogicNode->pChildren, 0);
@@ -3468,6 +3694,17 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 }
 
 static int32_t sortPrimaryKeyOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SSortLogicNode* pSort) {
+  /* Do not eliminate a SORT that carries WHERE conditions or a LIMIT/SLIMIT.
+   * Both must be evaluated on the sort's output; removing the SORT would
+   * destroy them and silently change query semantics. */
+  if (NULL != pSort->node.pConditions ||
+      NULL != pSort->node.pLimit || NULL != pSort->node.pSlimit) {
+    pSort->skipPKSortOpt = true;
+    optSetParentOrder(pSort->node.pParent, sortPriKeyOptGetPriKeyOrder(pSort), NULL);
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNodeList* pSequencingNodes = NULL;
   bool       keepSort = true;
   int32_t    code = sortPriKeyOptGetSequencingNodes(pSort, pSort->groupSort, &pSequencingNodes, &keepSort);
@@ -3487,7 +3724,7 @@ static int32_t sortPrimaryKeyOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan*
       pCxt->optimized = true;
     } else {
       // if we decided not to push down sort info to children, we should propagate output ts order to parents of pSort
-      optSetParentOrder(pSort->node.pParent, sortPriKeyOptGetPriKeyOrder(pSort), 0);
+      optSetParentOrder(pSort->node.pParent, sortPriKeyOptGetPriKeyOrder(pSort), NULL);
       // we need to prevent this pSort from being chosen to do optimization again
       pSort->skipPKSortOpt = true;
       pCxt->optimized = true;
@@ -9119,6 +9356,156 @@ static bool functionHasTagRefParam(SFunctionNode* pFunc) {
   return false;
 }
 
+// forward declarations for helpers used by trimVirtualScanForStateCols
+static bool hasTargetInColumnList(SColumnNode* pTargetCol, SNodeList* pCols);
+static void removeUselessTargetFromNodeByColumnList(SLogicNode* pNode, SNodeList* pCols);
+
+/*
+ * Check whether all state key columns resolve to the same origin table scan.
+ *
+ * When true, sets *ppDepScan to a cloned copy of that scan node.
+ * When false, the state columns span multiple origin tables.
+ */
+static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtualScanLogicNode* pVScan,
+                                                 bool* pSameOrigin, SNode** ppDepScan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  *pSameOrigin = true;
+  *ppDepScan = NULL;
+
+  SNode* pFirstScan = NULL;
+  SNode* pOtherScan = NULL;
+
+  SNode* pFirstExpr = nodesListGetNode(pStateExprs, 0);
+  if (pFirstExpr == NULL || nodeType(pFirstExpr) != QUERY_NODE_COLUMN) {
+    planError("%s first state expr is not a column node, nodeType:%d",
+              __func__, pFirstExpr ? nodeType(pFirstExpr) : -1);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pFirstExpr, pVScan, &pFirstScan));
+  const char* firstTable = ((SScanLogicNode*)pFirstScan)->tableName.tname;
+
+  SNode* pExpr = NULL;
+  int32_t idx = 0;
+  FOREACH(pExpr, pStateExprs) {
+    if (idx++ == 0) {
+      continue;
+    }
+    if (nodeType(pExpr) != QUERY_NODE_COLUMN) {
+      planError("%s state expr at index %d is not a column node, nodeType:%d",
+                __func__, idx - 1, nodeType(pExpr));
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _return;
+    }
+    PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pExpr, pVScan, &pOtherScan));
+    if (strcmp(((SScanLogicNode*)pOtherScan)->tableName.tname, firstTable) != 0) {
+      *pSameOrigin = false;
+    }
+    NODES_DESTORY_NODE(pOtherScan);
+    if (!(*pSameOrigin)){
+      break;
+    }
+  }
+
+  if (*pSameOrigin) {
+    *ppDepScan = pFirstScan;
+    pFirstScan = NULL;
+  }
+
+_return:
+  nodesDestroyNode(pFirstScan);
+  nodesDestroyNode(pOtherScan);
+  return code;
+}
+
+// Helper: trim a single child origin scan's targets and scanCols using ref relationship
+static bool isChildColNeededByStateExprs(SColumnNode* pCol, SNodeList* pStateExprs) {
+  SListCell* pCell = (pStateExprs ? pStateExprs->pHead : NULL);
+  while (pCell) {
+    SColumnNode* pStateCol = (SColumnNode*)pCell->pNode;
+    if (pStateCol->hasRef && pCol->hasDep &&
+        strcmp(pCol->dbName, pStateCol->refDbName) == 0 &&
+        strcmp(pCol->tableAlias, pStateCol->refTableName) == 0 &&
+        strcmp(pCol->colName, pStateCol->refColName) == 0) {
+      return true;
+    }
+    pCell = pCell->pNext;
+  }
+  return false;
+}
+
+static void trimChildScanForStateCols(SScanLogicNode* pScan, SNodeList* pStateExprs) {
+  // trim child's pTargets
+  {
+    SNode* pTarget = NULL;
+    WHERE_EACH(pTarget, pScan->node.pTargets) {
+      if (nodeType(pTarget) == QUERY_NODE_COLUMN) {
+        SColumnNode* pTgtCol = (SColumnNode*)pTarget;
+        if (pTgtCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || pTgtCol->isPrimTs) {
+          WHERE_NEXT;
+          continue;
+        }
+        if (!isChildColNeededByStateExprs(pTgtCol, pStateExprs)) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(pScan->node.pTargets);
+          continue;
+        }
+      }
+      WHERE_NEXT;
+    }
+  }
+
+  // trim child's pScanCols
+  {
+    SNode* pSc = NULL;
+    WHERE_EACH(pSc, pScan->pScanCols) {
+      if (nodeType(pSc) == QUERY_NODE_COLUMN) {
+        SColumnNode* pScCol = (SColumnNode*)pSc;
+        if (pScCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || pScCol->isPrimTs) {
+          WHERE_NEXT;
+          continue;
+        }
+        if (!isChildColNeededByStateExprs(pScCol, pStateExprs)) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(pScan->pScanCols);
+          continue;
+        }
+      }
+      WHERE_NEXT;
+    }
+  }
+}
+
+static void trimVirtualScanForStateCols(SVirtualScanLogicNode* pVScan, SNodeList* pStateExprs) {
+  // trim VirtualScan's own targets
+  removeUselessTargetFromNodeByColumnList((SLogicNode*)pVScan, pStateExprs);
+
+  // trim VirtualScan's pScanCols (these have origin table aliases, so match via ref)
+  SNode* pCol = NULL;
+  WHERE_EACH(pCol, pVScan->pScanCols) {
+    if (nodeType(pCol) == QUERY_NODE_COLUMN) {
+      SColumnNode* pScanCol = (SColumnNode*)pCol;
+      if (pScanCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || pScanCol->isPrimTs) {
+        // keep timestamp
+      } else if (isChildColNeededByStateExprs(pScanCol, pStateExprs)) {
+        // keep state column (matched via ref relationship)
+      } else {
+        REPLACE_NODE(NULL);
+        ERASE_NODE(pVScan->pScanCols);
+        continue;
+      }
+    }
+    WHERE_NEXT;
+  }
+
+  // trim each child origin scan
+  SNode* pChild = NULL;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+      trimChildScanForStateCols((SScanLogicNode*)pChild, pStateExprs);
+    }
+  }
+}
+
 static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW)) {
     return false;
@@ -9136,8 +9523,14 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (pWindow->winType != WINDOW_TYPE_STATE) {
     return false;
   }
-  if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+  if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) < 1) {
     return false;
+  }
+  SNode* pStateExpr = NULL;
+  FOREACH(pStateExpr, pWindow->pStateExprs) {
+    if (nodeType(pStateExpr) != QUERY_NODE_COLUMN) {
+      return false;
+    }
   }
 
   SNode* pFunc = NULL;
@@ -9172,6 +9565,7 @@ static int32_t rebuildPlanForVtableWindowOptimize(SColumnNode* pCol, SFunctionNo
     PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pExtWindow));
     pExtWindow->winType = WINDOW_TYPE_EXTERNAL;
     pExtWindow->isSingleTable = true;
+    pExtWindow->extFill.mode = FILL_MODE_NONE;
     PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->pFuncs, (SNode*)pAggFunc));
     PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->node.pChildren, (SNode*)pDepScan));
     PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(pDepScan->pScanCols, 0), (SNode**)&pExtWindow->pTspk));
@@ -9346,21 +9740,39 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   SHashObj*               pExtWinMap = NULL;
   SDynQueryCtrlLogicNode* pDynWindowNode = NULL;
   SNode*                  pFunc = NULL;
+  SVirtualScanLogicNode*  pTrimmedVScan = NULL;
+  bool                    sameOrigin = true;
 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pWindow, (SNode**)&pNewWindow));
   pVirtualScan = (SVirtualScanLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScan, code, lino, _return, terrno)
 
-  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pNewWindow->pStateExpr, pVirtualScan, &pStateColScan));
+  PLAN_ERR_JRET(checkAllStateExprsSameOriginTable(pNewWindow->pStateExprs, pVirtualScan,
+                                                  &sameOrigin, &pStateColScan));
   pNewWindow->node.pChildren = NULL;
-  pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
-  QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
-  nodesDestroyNode(pNewWindow->pTspk);
-  pNewWindow->pTspk = NULL;
-  PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
-  PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
-  ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
-  // pNewWindow --> pStateColScan
+
+  if (sameOrigin) {
+    // same origin table: attach StateWindow directly to the single origin TableScan
+    pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
+    QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    nodesDestroyNode(pNewWindow->pTspk);
+    pNewWindow->pTspk = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
+    ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
+  } else {
+    // cross origin tables: keep a trimmed VirtualScan under StateWindow
+    PLAN_ERR_JRET(nodesCloneNode((SNode*)pVirtualScan, (SNode**)&pTrimmedVScan));
+    trimVirtualScanForStateCols(pTrimmedVScan, pNewWindow->pStateExprs);
+    pMatchedTspk = findWindowTspkFromScanCols(pTrimmedVScan->pScanCols, pNewWindow->pTspk);
+    QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    nodesDestroyNode(pNewWindow->pTspk);
+    pNewWindow->pTspk = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, (SNode*)pTrimmedVScan));
+    pTrimmedVScan->node.pParent = (SLogicNode*)pNewWindow;
+    pTrimmedVScan = NULL; // ownership transferred
+  }
 
   pExtWinMap = taosHashInit(LIST_LENGTH(pNewWindow->pFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pExtWinMap, code, lino, _return, terrno)
@@ -9404,6 +9816,7 @@ _return:
   if (code) {
     planError("failed to optimize vtable window at line %d, error code: %d", lino, code);
   }
+  nodesDestroyNode((SNode*)pTrimmedVScan);
   taosHashCleanup(pExtWinMap);
   return code;
 }
@@ -9485,8 +9898,14 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       break;
     }
     case WINDOW_TYPE_STATE: {
-      if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+      if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) < 1) {
         return false;
+      }
+      SNode* pStateExpr = NULL;
+      FOREACH(pStateExpr, pWindow->pStateExprs) {
+        if (nodeType(pStateExpr) != QUERY_NODE_COLUMN) {
+          return false;
+        }
       }
       // fall through
     }
@@ -9772,6 +10191,7 @@ static int32_t createExternalWindowFromOriginWindow(SWindowLogicNode* pSrcWindow
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pExtWindow));
   pExtWindow->winType = WINDOW_TYPE_EXTERNAL;
   pExtWindow->isSingleTable = false;
+  pExtWindow->extFill.mode = FILL_MODE_NONE;
   OPTIMIZE_FLAG_SET_MASK(pExtWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
   PLAN_ERR_JRET(nodesCloneNode(pSrcWindow->pTspk, (SNode**)&pExtWindow->pTspk));
@@ -10150,11 +10570,15 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       break;
     }
     case WINDOW_TYPE_STATE: {
-      // only keep col needed by window, remove other cols from pWinScan
-      removeUselessTargetFromNode((SLogicNode*)pWinScan, (SColumnNode*)pNewWindow->pStateExpr);
+      if (pNewWindow->pStateExprs == NULL || LIST_LENGTH(pNewWindow->pStateExprs) < 1) {
+        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        goto _return;
+      }
+      // only keep state columns needed by window, remove other cols from pWinScan
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pWinScan, pNewWindow->pStateExprs);
       // also remove these targets from virtual scan node and table scan node
-      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
-      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pVirtualScanNode, pNewWindow->pStateExprs);
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pScanNode, pNewWindow->pStateExprs);
       pSysScan->node.pParent = (SLogicNode*)pWinScan;
       pVirtualScanNode->node.pParent = (SLogicNode*)pWinScan;
       pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;

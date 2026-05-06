@@ -213,6 +213,10 @@ int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecor
   reader = BUFFER_READER_INITIALIZER(idx * sizeof(record->count), &statisBlock->counts);
   TAOS_CHECK_RETURN(tBufferGetI64(&reader, &record->count));
 
+  if (statisBlock->numOfPKs > TD_MAX_PK_COLS) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   // primary keys
   for (record->firstKey.numOfPKs = 0; record->firstKey.numOfPKs < statisBlock->numOfPKs; record->firstKey.numOfPKs++) {
     TAOS_CHECK_RETURN(tValueColumnGet(&statisBlock->firstKeyPKs[record->firstKey.numOfPKs], idx,

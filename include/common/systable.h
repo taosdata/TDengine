@@ -57,6 +57,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VNODES              "ins_vnodes"
 #define TSDB_INS_TABLE_CONFIGS             "ins_configs"
 #define TSDB_INS_TABLE_DNODE_VARIABLES     "ins_dnode_variables"
+#define TSDB_INS_TABLE_CPU_ALLOCATION             "ins_cpu_allocation"
 #define TSDB_INS_TABLE_SUBSCRIPTIONS       "ins_subscriptions"
 #define TSDB_INS_TABLE_TOPICS              "ins_topics"
 #define TSDB_INS_TABLE_STREAMS             "ins_streams"
@@ -87,6 +88,7 @@ extern "C" {
 #define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
 #define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
 #define TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING "ins_virtual_tables_referencing"
+#define TSDB_INS_TABLE_SECURITY_POLICIES   "ins_security_policies"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
@@ -130,6 +132,8 @@ void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size);
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size);
 void getVisibleInfosTablesNum(bool sysInfo, size_t* size);
 bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags);
+
+const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName);
 
 #ifdef __cplusplus
 }

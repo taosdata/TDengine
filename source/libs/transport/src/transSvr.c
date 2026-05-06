@@ -384,7 +384,6 @@ int32_t uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteListDual* pl
     }
 
     pUserList->ver = ver;
-
     pUserList->pList = plist;
 
     code = taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
@@ -850,6 +849,12 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
 
   if (pHead->withUserInfo) {
+    const int32_t required = (int32_t)sizeof(STransMsgHead) + offset;
+    if (len < required) {
+      // reject packets that cannot contain the declared user info
+      tError("conn:%p, withUserInfo set but msgLen %d too short (need %d)", pConn, len, required);
+      return false;
+    }
     STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
@@ -1786,6 +1791,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 void* transAcceptThread(void* arg) {
   // opt
   setThreadName("trans-accept");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SServerObj* srv = (SServerObj*)arg;
   TAOS_UNUSED(uv_run(srv->loop, UV_RUN_DEFAULT));
 
@@ -1939,6 +1945,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
 void* transWorkerThread(void* arg) {
   int32_t code = 0;
   setThreadName("trans-svr-work");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SWorkThrd* pThrd = (SWorkThrd*)arg;
   tsEnableRandErr = true;
   code = uv_run(pThrd->loop, UV_RUN_DEFAULT);

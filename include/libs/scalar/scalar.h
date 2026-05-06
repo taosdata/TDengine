@@ -24,14 +24,17 @@ extern "C" {
 #include "querynodes.h"
 
 typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
+typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
 
 typedef struct SScalarExtraInfo {
-  void*   pStreamInfo;
-  void*   pStreamRange;
-  void*   pSubJobCtx;
+  void*              pStreamInfo;
+  void*              pStreamRange;
+  void*              pSubJobCtx;
   sclFetchFromRemote fp;
+  void*              pTaskInfo;    // opaque task handle for kill check
+  sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
@@ -92,6 +95,7 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -128,6 +132,11 @@ int32_t crc32Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// Maximum capture-group index accepted by regexp_extract() — shared between
+// translate-time validation (builtins.c) and runtime validation (sclfunc.c).
+#define REGEXP_EXTRACT_MAX_GROUP_IDX 512
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 

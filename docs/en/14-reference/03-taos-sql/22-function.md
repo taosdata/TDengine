@@ -865,6 +865,49 @@ LTRIM(expr)
 
 **Applicable to**: Tables and supertables.
 
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**Function Description**: Applies the POSIX extended regular expression `pattern` to `expr` and returns the substring matched by capture group `group_idx`. Returns NULL when there is no match or when `expr` or `pattern` is NULL.
+
+**Return Type**: Same as `expr` (VARCHAR or NCHAR).
+
+**Applicable Data Types**: `expr`: VARCHAR, NCHAR. `pattern`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If omitted, `group_idx` defaults to `1`.
+- If provided as a non-`NULL` value, `group_idx` must be a non-negative integer constant. `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
+- If `group_idx` is SQL `NULL`, the function returns `NULL`.
+- Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
+- `pattern` must be provided as a constant literal or parameter placeholder; it cannot reference a column or be computed from other expressions.
+
+**Example**:
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
+
 #### REGEXP_IN_SET
 
 ```sql
@@ -1461,6 +1504,15 @@ Query OK, 1 row(s) in set (0.000569s)
 ```
 
 ### Data Masking Functions
+
+TDengine supports two approaches to data masking, each suited to different use cases:
+
+| Approach | Description | Typical Usage |
+|----------|-------------|---------------|
+| **Masking functions** (this section) | Explicitly called by the user in a SQL query to transform a given expression before returning results. Available to any user with query privileges; masking logic is determined by the query itself. | `SELECT MASK_FULL(phone, '*') FROM t;` |
+| **Grant-based column masking** (`GRANT MASK(col)`) | An administrator binds a masking policy to a column via `GRANT`. The masking is applied transparently for the specified user — the system automatically replaces the real value with `'*'` without requiring the user to modify their queries. **Enterprise Edition only.** | `GRANT SELECT (MASK(phone)) ON db.t TO user1;` |
+
+For detailed syntax and behavior of grant-based column masking, see [GRANT — Column Permissions](./61-grant.md#column-permissions).
 
 #### MASK_FULL
 
@@ -3243,6 +3295,40 @@ SELECT CURRENT_USER();
 ```
 
 **Description**: Retrieves the current user.
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
+
+**Parameters**:
+
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative or NULL values skip the sleep and return 0
+
+**Return value**: INT - Returns 0 on success or for negative/NULL arguments
+
+**Examples**:
+
+```sql
+-- Sleep for 2 seconds
+SELECT SLEEP(2);
+
+-- Sleep for 500 milliseconds
+SELECT SLEEP(0.5);
+
+-- Negative argument returns 0 immediately
+SELECT SLEEP(-1);
+
+-- NULL argument returns 0 immediately
+SELECT SLEEP(NULL);
+
+-- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- total wait time equals the sum of each row's duration
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## Geometry Functions
 

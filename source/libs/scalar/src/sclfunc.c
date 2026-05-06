@@ -1817,6 +1817,228 @@ static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
   return outLen;
 }
 
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t          numOfRows  = pInput[0].numOfRows;
+  SColumnInfoData *pStrData   = pInput[0].columnData;
+  SColumnInfoData *pPatData   = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (colDataIsNull_s(pPatData, 0)) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Get group_idx (default 1; param[2] is an optional integer constant).
+  // Read into int64_t first to avoid silent truncation/wrap for BIGINT/UBIGINT
+  // placeholder values before the range check, then cast after validation.
+  // An explicit SQL NULL group_idx propagates NULL to all output rows.
+  int64_t groupIdxRaw = 1;
+  if (inputNum == 3) {
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) || colDataIsNull_s(pInput[2].columnData, 0)) {
+      colDataSetNNULL(pOutputData, 0, numOfRows);
+      pOutput->numOfRows = numOfRows;
+      return TSDB_CODE_SUCCESS;
+    }
+    GET_TYPED_DATA(groupIdxRaw, int64_t, GET_PARAM_TYPE(&pInput[2]),
+                   colDataGetData(pInput[2].columnData, 0),
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  }
+  if (groupIdxRaw < 0 || groupIdxRaw > REGEXP_EXTRACT_MAX_GROUP_IDX) {
+    pOutput->numOfRows = numOfRows;
+    SCL_ERR_RET(TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+  }
+  int32_t groupIdx = (int32_t)groupIdxRaw;
+
+  // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
+  char    patBuf[512];
+  char   *patStr     = patBuf;
+  int32_t patLen     = 0;
+  bool    needFreePat = false;
+  {
+    char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
+    int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
+    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      if (rawPatLen == 0) {
+        patLen = 0;
+        patStr = patBuf;
+        patStr[0] = '\0';
+      } else {
+        patStr = NULL;  // ensure convNcharToVarchar always mallocs a fresh heap buffer
+        code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
+        if (code != TSDB_CODE_SUCCESS) goto _exit;
+        needFreePat = true;
+        // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
+        // UTF-8 output fills the buffer entirely there is no room for a terminator.
+        // threadGetRegComp requires a NUL-terminated string — grow by one byte.
+        char *tmp = taosMemoryRealloc(patStr, patLen + 1);
+        if (tmp == NULL) {
+          taosMemoryFree(patStr);
+          needFreePat = false;
+          code = terrno;
+          goto _exit;
+        }
+        patStr = tmp;
+        patStr[patLen] = '\0';
+      }
+    } else {
+      patLen = rawPatLen;
+      if (patLen >= (int32_t)sizeof(patBuf)) {
+        patStr = taosMemoryMalloc(patLen + 1);
+        if (patStr == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+        needFreePat = true;
+      }
+      (void)memcpy(patStr, rawPat, patLen);
+      patStr[patLen] = '\0';
+    }
+  }
+
+  // Compile (or retrieve cached) regex — pattern is constant so cache hits every row
+  regex_t *regex = NULL;
+  code = threadGetRegComp(&regex, patStr);
+  if (code != 0) {
+    terrno = code;
+    goto _exit;
+  }
+
+  // regmatch_t array: index 0 = whole match, 1..groupIdx = capture groups.
+  // Initialize all entries to -1 so any submatch slots not written by regexec
+  // (for example when groupIdx exceeds regex->re_nsub) remain deterministic.
+  int32_t     nmatch  = groupIdx + 1;
+  regmatch_t *pmatch  = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
+  if (pmatch == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
+
+  // Each output cell is a VarData value, and for var-length types info.bytes
+  // already includes the VARSTR_HEADER_SIZE length prefix plus payload space.
+  int32_t outBufLen = pStrData->info.bytes;
+  char   *outBuf    = taosMemoryMalloc(outBufLen);
+  if (outBuf == NULL) {
+    taosMemoryFree(pmatch);
+    code = terrno;
+    goto _exit;
+  }
+
+  int32_t strType = GET_PARAM_TYPE(&pInput[0]);
+  bool    isNchar = (strType == TSDB_DATA_TYPE_NCHAR);
+
+  // Null-termination buffer shared across rows — grown via realloc only when needed
+  char   *strNt    = NULL;
+  int32_t strNtCap = 0;
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pStrData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *strRaw = colDataGetData(pStrData, i);
+    char   *strVal = varDataVal(strRaw);
+    int32_t strLen = varDataLen(strRaw);
+
+    // Grow the null-termination buffer only when the current row needs more space.
+    // For NCHAR: UTF-8 output is at most strLen bytes (UCS-4 byte count >= UTF-8 byte count),
+    // so strLen + 1 is a safe upper bound for both NCHAR and VARCHAR paths.
+    if (strLen + 1 > strNtCap) {
+      char *tmp = taosMemoryRealloc(strNt, strLen + 1);
+      if (tmp == NULL) {
+        code = terrno;
+        break;
+      }
+      strNt    = tmp;
+      strNtCap = strLen + 1;
+    }
+
+    // Convert input into the NUL-terminated UTF-8 scratch buffer.
+    // For NCHAR: convert UCS-4 directly into strNt — avoids per-row malloc/free.
+    // For VARCHAR: data is already UTF-8, just copy it.
+    int32_t strUtf8Len;
+    if (isNchar) {
+      strUtf8Len = taosUcs4ToMbs((TdUcs4 *)strVal, strLen, strNt, pInput[0].charsetCxt);
+      if (strUtf8Len < 0) {
+        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+        terrno = code;
+        break;
+      }
+    } else {
+      (void)memcpy(strNt, strVal, strLen);
+      strUtf8Len = strLen;
+    }
+    strNt[strUtf8Len] = '\0';
+
+    int ret = regexec(regex, strNt, nmatch, pmatch, 0);
+    if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
+      // no match, or the requested capture group did not participate
+      colDataSetNULL(pOutputData, i);
+    } else if (ret != 0) {
+      // real regex execution error — capture the reason for production debugging
+      char msgbuf[256] = {0};
+      (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
+      qDebug("REGEXP_EXTRACT: regexec failed for pattern '%s', reason: %s", patStr, msgbuf);
+      code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+      terrno = code;
+      break;
+    } else {
+      int32_t matchStart = pmatch[groupIdx].rm_so;
+      int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;
+
+      if (isNchar) {
+        // Convert matched UTF-8 bytes back to NCHAR (UCS-4) directly into outBuf
+        // to avoid a per-row malloc/free cycle.
+        // outBuf data capacity (outBufLen - VARSTR_HEADER_SIZE) >= N*TSDB_NCHAR_SIZE
+        // which is always >= matchedCodepoints*TSDB_NCHAR_SIZE.
+        int32_t matchedNcharLen = 0;
+        bool    ok = taosMbsToUcs4(strNt + matchStart, matchLen,
+                                   (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
+                                   outBufLen - VARSTR_HEADER_SIZE,
+                                   &matchedNcharLen, pInput[0].charsetCxt);
+        if (!ok) {
+          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          terrno = code;
+          break;
+        }
+        *(VarDataLenT *)outBuf = matchedNcharLen;
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      } else {
+        *(VarDataLenT *)outBuf = matchLen;
+        (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      }
+    }
+
+    if (code != TSDB_CODE_SUCCESS) break;
+  }
+
+  taosMemoryFree(strNt);
+  taosMemoryFree(outBuf);
+  taosMemoryFree(pmatch);
+_exit:
+  if (needFreePat) taosMemoryFree(patStr);
+  pOutput->numOfRows = numOfRows;
+  return code;
+}
+
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -4477,6 +4699,45 @@ int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     double random_value = (double)(taosRand() % RAND_MAX) / RAND_MAX;
     colDataSetDouble(pOutput->columnData, i, &random_value);
   }
+  pOutput->numOfRows = numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t numOfRows = pInput[0].numOfRows;
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      int32_t zero = 0;
+      colDataSetInt32(pOutput->columnData, i, &zero);
+      continue;
+    }
+
+    double sleepSec;
+    GET_TYPED_DATA(sleepSec, double, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i),
+                   typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+
+    int32_t result = 0;
+    if (sleepSec > 0) {
+      int64_t totalMs = (int64_t)(TMIN(sleepSec, (double)(INT64_MAX / 1000 - 1)) * 1000);
+      int64_t elapsed = 0;
+      while (elapsed < totalMs) {
+        if (gTaskScalarExtra.isTaskKilled && gTaskScalarExtra.isTaskKilled(gTaskScalarExtra.pTaskInfo)) {
+          result = 1;
+          break;
+        }
+        int32_t chunk = (int32_t)TMIN(100LL, totalMs - elapsed);
+        taosMsleep(chunk);
+        elapsed += chunk;
+      }
+    }
+    colDataSetInt32(pOutput->columnData, i, &result);
+  }
+
   pOutput->numOfRows = numOfRows;
   return TSDB_CODE_SUCCESS;
 }

@@ -1,0 +1,5 @@
+use test_ext_fill_mvg;
+
+select t1, w.mark, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(value, 888) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(null) order by t1, ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from src_a external_window((select ts, endtime, mark from win) w) fill(prev) order by ws;

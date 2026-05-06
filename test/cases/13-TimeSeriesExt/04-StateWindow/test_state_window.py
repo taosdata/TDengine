@@ -232,8 +232,174 @@ class TestStateWindow:
         self.check_crash_for_state_window4()
         self.check_crash_for_state_window5()
         self.test_state_window_start_with_null()
+        self.check_multi_column_state_window_expr()
 
-        #tdSql.close()
+
+    def check_multi_column_state_window_expr(self):
+        tdSql.execute("drop database if exists test_multi_state_window_expr", show=True)
+        tdSql.execute("create database test_multi_state_window_expr keep 3650", show=True)
+        tdSql.execute("use test_multi_state_window_expr", show=True)
+        tdSql.execute("create table ntb (ts timestamp, s1 int, s2 binary(10), v int)", show=True)
+        tdSql.execute("""insert into ntb values
+                      ('2026-03-30 12:00:00', 1, 'a', 10)
+                    , ('2026-03-30 12:00:01', 1, 'a', 11)
+                    , ('2026-03-30 12:00:02', 2, 'a', 12)
+                    , ('2026-03-30 12:00:03', 2, 'b', 13)
+                    , ('2026-03-30 12:00:04', 2, 'b', 14)""", show=True)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*) from ntb "
+            "state_window(case when s1 >= 2 then 1 else 0 end, "
+            "case when s2 = 'b' then 'hot' else 'cold' end) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2026-03-30 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-03-30 12:00:01.000")
+        tdSql.checkData(0, 2, 2)
+
+        tdSql.checkData(1, 0, "2026-03-30 12:00:02.000")
+        tdSql.checkData(1, 1, "2026-03-30 12:00:02.000")
+        tdSql.checkData(1, 2, 1)
+
+        tdSql.checkData(2, 0, "2026-03-30 12:00:03.000")
+        tdSql.checkData(2, 1, "2026-03-30 12:00:04.000")
+        tdSql.checkData(2, 2, 2)
+
+    def prepare_multi_column_state_window_invalid_env(self):
+        tdSql.execute("drop database if exists test_multi_state_window_invalid", show=True)
+        tdSql.execute("create database test_multi_state_window_invalid keep 3650", show=True)
+        tdSql.execute("use test_multi_state_window_invalid", show=True)
+        tdSql.execute(
+            "create table ntb (ts timestamp, s1 int, s2 bool, s3 binary(10), v double)",
+            show=True,
+        )
+        tdSql.execute(
+            "create stable stb (ts timestamp, c1 int, c2 binary(10), v int) tags (tg1 int, tg2 binary(10))",
+            show=True,
+        )
+        tdSql.execute("create table ctb0 using stb tags(1, 'g0')", show=True)
+        tdSql.execute(
+            "insert into ntb values ('2026-03-31 09:00:00', 1, true, 'a', 10.5)",
+            show=True,
+        )
+        tdSql.execute(
+            "insert into ctb0 values ('2026-03-31 09:00:00', 1, 'a', 10)",
+            show=True,
+        )
+
+    def check_multi_column_state_window_invalid(self):
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, ts)",
+            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ctb0 state_window(c1, tg1)",
+            expectErrInfo="Not support STATE_WINDOW on tag column",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, s3) extend(3)",
+            expectErrInfo="Invalid state window extend option",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, s3) zeroth_state(NO_ZEROTH)",
+            expectErrInfo="ZEROTH_STATE argument count must match STATE_WINDOW key count",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, s3) zeroth_state(0, s3)",
+            expectErrInfo="syntax error near",
+            fullMatched=False,
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, case when s1 > 0 then v else v end)",
+            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            show=True,
+        )
+
+    def check_multi_column_state_window_zeroth(self):
+        tdSql.execute("drop database if exists test_multi_state_window_zeroth", show=True)
+        tdSql.execute("create database test_multi_state_window_zeroth keep 3650", show=True)
+        tdSql.execute("use test_multi_state_window_zeroth", show=True)
+        tdSql.execute("create table ntb (ts timestamp, s1 int, s2 binary(10), v int)", show=True)
+        tdSql.execute("""insert into ntb values
+            ('2026-03-30 11:00:00', 1, 'a', 10),
+            ('2026-03-30 11:00:01', 1, 'a', 11),
+            ('2026-03-30 11:00:02', 2, 'a', 12),
+            ('2026-03-30 11:00:03', 2, 'b', 13),
+            ('2026-03-30 11:00:04', 1, 'b', 14),
+            ('2026-03-30 11:00:05', 3, 'c', 15)""", show=True)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), s1, s2 from ntb "
+            "state_window(s1, s2) extend(0) zeroth_state(1, NO_ZEROTH) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 0, "2026-03-30 11:00:02.000")
+        tdSql.checkData(0, 1, "2026-03-30 11:00:02.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 4, "a")
+
+        tdSql.checkData(1, 0, "2026-03-30 11:00:03.000")
+        tdSql.checkData(1, 1, "2026-03-30 11:00:03.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, "b")
+
+        tdSql.checkData(2, 0, "2026-03-30 11:00:05.000")
+        tdSql.checkData(2, 1, "2026-03-30 11:00:05.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 3)
+        tdSql.checkData(2, 4, "c")
+
+    def test_multi_column_state_window_zeroth(self):
+        """summary: test multi-column state window zeroth_state
+
+        description: verify multi-column state window honors NO_ZEROTH on
+            non-leading columns while filtering on the constrained column.
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-04-01: Tony Zhang created
+        """
+
+        self.check_multi_column_state_window_zeroth()
+
+    def test_multi_column_state_window_invalid(self):
+        """summary: test invalid multi-column state window
+
+        description: verify parser and semantic checks reject invalid
+            multi-column state window inputs with stable error messages.
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Jira: None
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-04-02: Tony Zhang created
+
+        """
+
+        self.prepare_multi_column_state_window_invalid_env()
+        self.check_multi_column_state_window_invalid()
 
     
     def test_state_window_start_with_null(self):
@@ -283,7 +449,7 @@ class TestStateWindow:
         tdSql.query("""
             select _wstart, _wduration, _wend, count(*), count(s), count(v),
             avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-            from ntb state_window(s, 2)
+            from ntb state_window(s) extend(2)
         """, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
@@ -334,7 +500,7 @@ class TestStateWindow:
         tdSql.checkData(3, 9, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 10, "b")
         
-        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s, 2)"
+        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s) extend(2)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
@@ -354,19 +520,19 @@ class TestStateWindow:
         tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 3, "b")
         
-        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s) extend(2) ) state_window(ss)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
 
-        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s) extend(2) ) state_window(ss)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
                 
-        sql = "select 1 from ntb state_window(s, 2)"
+        sql = "select 1 from ntb state_window(s) extend(2)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
-        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
+        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s) extend(2)"
         tdSql.error(sql, show=True)
     
     def test_state_window_group(self):
@@ -405,7 +571,7 @@ class TestStateWindow:
         tdSql.execute("insert into ctb3 values('2026-01-12 12:00:11', NULL, 1);")
         tdSql.execute("insert into ctb3 values('2026-01-12 12:00:12', NULL, 1);")
 
-        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb, 1);")
+        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb) extend(1);")
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2026-01-12 12:00:04.000")
         tdSql.checkData(0, 1, "2026-01-12 12:00:04.999")

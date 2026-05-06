@@ -336,7 +336,24 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern) {
+#ifdef TD_ENTERPRISE
+static bool showVarPrivAllowed(uint8_t showPrivMask, int8_t cfgPrivType) {
+  switch (cfgPrivType) {
+    case CFG_PRIV_SYSTEM:
+      return (showPrivMask & SHOW_VAR_PRIV_SYSTEM) != 0;
+    case CFG_PRIV_SECURITY:
+      return (showPrivMask & SHOW_VAR_PRIV_SECURITY) != 0;
+    case CFG_PRIV_AUDIT:
+      return (showPrivMask & SHOW_VAR_PRIV_AUDIT) != 0;
+    case CFG_PRIV_DEBUG:
+      return (showPrivMask & SHOW_VAR_PRIV_DEBUG) != 0;
+    default:
+      return false;
+  }
+}
+#endif
+
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern, uint8_t showPrivMask) {
   int32_t  code = 0;
   SConfig* pConf = taosGetCfg();
   if (pConf == NULL) {
@@ -373,6 +390,11 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePat
     if (likePattern && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
       continue;
     }
+#ifdef TD_ENTERPRISE
+    if (!showVarPrivAllowed(showPrivMask, pItem->privType)) {
+      continue;
+    }
+#endif
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
 
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);

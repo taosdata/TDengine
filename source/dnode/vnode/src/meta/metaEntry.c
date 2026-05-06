@@ -445,6 +445,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (pME->type == TSDB_SUPER_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
     TAOS_CHECK_RETURN(tEncodeI64v(pCoder, pME->stbEntry.ownerId));
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->stbEntry.securityLevel));
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
@@ -548,6 +549,9 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(tDecodeI64v(pCoder, &pME->stbEntry.ownerId));
+    }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->stbEntry.securityLevel));
     }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {

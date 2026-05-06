@@ -184,7 +184,6 @@ Additional Notes:
 | tagFilterCache           |                   | Supported, effective immediately   | Whether to cache tag filter results                          |
 | stableTagFilterCache     | since 3.3.8.6     | Supported, effective immediately   | In stream computing, whether to cache filter results of equal condition of tags. It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
 | metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
-| queryBufferSize          |                   | Supported, effective after restart | Not effective yet                                            |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |
 | minReservedMemorySize    |                   | Supported, effective immediately   | The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default value: 0 (when set to 0, the system will automatically calculate the reserved memory size), value range 1024-1000000000 |
@@ -306,7 +305,6 @@ The effective value of charset is UTF-8.
 | ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
 | ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
 | diskIDCheckEnabled       | After 3.3.5.0     | Not supported                      | Check if the disk ID where dataDir is located has changed when restarting dnode; 0: perform check, 1: do not perform check; default value 1 |
-| cacheLazyLoadThreshold   |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
 
 ### Cluster Related
 
@@ -478,6 +476,15 @@ The effective value of charset is UTF-8.
 | enableAuditInsert    |                   | Not supported                    | Internal parameter, used for testing audit functions         |
 | slowLogThresholdTest |                   | Not supported                    | Internal parameter, used for testing slow logs               |
 | bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for  short-circuit testing          |
+
+### CPU Affinity
+
+| Parameter Name       | Supported Version | Dynamic Modification             | Description                                                  |
+| -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| enableCpuAffinity    | After 3.3.6.0     | Not supported                    | Master switch for CPU affinity binding. When enabled (1), taosd threads are pinned to specific CPU cores by category (management, write, read). When disabled (0, default), all threads run freely on all available cores. Requires restart to take effect. Systems with fewer than 3 CPU cores will auto-disable affinity with a warning. |
+| managementCpuCores   | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to management threads (cluster coordination, networking, system-level tasks). Cores are assigned sequentially starting from core 0. Range: 1-256; default value is 1. Only effective when enableCpuAffinity is 1. |
+| readCpuCores         | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to read (query) threads. Cores are assigned sequentially after management and write cores. Range: 1-256; default value is dynamically computed as half of remaining cores (totalCores - managementCpuCores) / 2. Only effective when enableCpuAffinity is 1. |
+| otherCpuCores        | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to write threads. Cores are assigned sequentially after management cores. Range: 1-256; default value is dynamically computed as the other half of remaining cores. Only effective when enableCpuAffinity is 1. The sum managementCpuCores + readCpuCores + otherCpuCores must not exceed total available CPU cores. |
 
 ### Compression Parameters
 

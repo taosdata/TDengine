@@ -759,6 +759,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
   qTrace("%s exchange op:%p", __func__, pOperator);
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL,
                                          destroyExchangeOperatorInfo, optrDefaultBufFn,

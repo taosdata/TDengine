@@ -29,7 +29,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
@@ -153,14 +153,14 @@ SESSION(ts_col, session_val)
 ##### 状态窗口触发
 
 ```sql
-STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
 ```
 
 状态窗口触发是指对触发表的写入数据按照状态表达式的计算结果进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
-- expr：状态表达式，最终结果类型必须为整型、布尔型或字符串类型。
-- extend：可选，窗口开始结束时的扩展策略：extend 值为 0 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend 值为 2 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
-- zeroth_state：可选，指定“零状态”，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 `zeroth_state` 时，`extend` 值为强制输入项，不允许留空或省略。
+- state_expr：一个或多个状态键。可以是列引用，也可以是 `CASE WHEN`、`IF`、`CAST` 等表达式；返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列。
+- extend_val：可选，窗口开始结束时的扩展策略：`EXTEND(0)` 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；`EXTEND(1)` 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；`EXTEND(2)` 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
+- zeroth_val：可选，指定“零状态”。参数个数必须与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，并且可以转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断。只有所有已配置零状态的位置都命中时，该窗口才会被计算为零状态窗口并被过滤。
 - true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
   - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
   - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
@@ -172,8 +172,21 @@ STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
+- 状态窗口支持单列或多列状态键；当任一状态键变化时，会关闭当前窗口并自当前记录开启新窗口。
 - 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+- 当所有状态键列都是 `NULL` 时，该行按现有状态窗口的 `NULL` 规则处理；当只有部分状态键列为 `NULL` 时，连续的部分 `NULL` 行会作为一个整体，决定是并入前一个窗口、并入后一个窗口，还是独立成窗。
+- 下面的表格展示了状态窗口触发里最常见的合并结果。表中“并入前窗 / 并入后窗 / 独立成窗”都指中间那段连续的部分 `NULL` 行：
+
+| 输入序列（状态键） | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | 并入前窗 | 并入前窗 | 并入后窗 |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | 并入前窗 | 并入前窗 | 独立成窗 |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | 并入后窗 | 独立成窗 | 并入后窗 |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | 独立成窗 | 独立成窗 | 独立成窗 |
+
+- 如果一段连续的部分 `NULL` 行中夹杂全 `NULL` 行，夹在中间的全 `NULL` 行随这一段一起处理。例如 `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')` 中间三行会一起处理：`EXTEND(0)` 和 `EXTEND(1)` 并入前窗，`EXTEND(2)` 独立成窗。
+- `ZEROTH_STATE(...)` 按位置逐列判断；只有所有参与判断的位置都等于各自的零状态值时，该窗口才会被过滤。如果某个位置写成 `NO_ZEROTH`，该位置不参与零状态判断。
 - 状态表达式可以引用触发表上下文中可见的 tag 列。例如：
 
 ```sql
@@ -186,6 +199,20 @@ CREATE STREAM s_tag_state
 ```
 
 - 但 `STATE_WINDOW(groupId)` 这种直接将 tag 列作为状态表达式的写法仍然不支持；如果要使用 tag 列，需要让它参与到状态表达式中。
+
+多列状态窗口示例：
+
+```sql
+CREATE STREAM s_multi_state
+  STATE_WINDOW(s1, s2) EXTEND(0) ZEROTH_STATE(1, NO_ZEROTH)
+  FROM ntb
+  PARTITION BY tbname
+  INTO result_table
+  AS
+    SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+上面的流会在 `s1` 或 `s2` 任一变化时切窗，只对 `s1 = 1` 做零状态过滤，`s2` 不参与零状态判断。
 
 适用场景：需要通过状态窗口驱动计算和（或）通知的场景。
 
@@ -452,10 +479,20 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 事件信息视窗口类型而定：
 
 - 时间窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
-- 状态窗口：开始时发送起始时间、前一个窗口的状态值、当前窗口的状态值；结束时发送起始时间、结束时间、计算结果、当前窗口的状态值、下一个窗口的状态值。
+- 状态窗口：开始时发送起始时间、前一个窗口的状态键值、当前窗口的状态键值；结束时发送起始时间、结束时间、计算结果、当前窗口的状态键值、下一个窗口的状态键值。状态键值统一使用按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口为长度 1 的数组，多列状态窗口为长度等于状态键个数的数组。
 - 会话窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
 - 事件窗口：开始时发送起始时间，触发窗口打开的数据值和对应条件编号；结束时发送起始时间、结束时间、计算结果、触发窗口关闭的数据值和对应条件编号。
 - 计数窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+
+状态窗口通知示例如下：
+
+```json
+{"prevState":[1],"curState":[2]}
+```
+
+```json
+{"curState":[2, "a"],"nextState":[2, "b"]}
+```
 
 通知消息的结构示例如下：
 
@@ -594,13 +631,13 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-  - prevState：与状态表达式结果的类型相同，表示上一个窗口的状态值。如果没有上一个窗口 (即：现在是第一个窗口)，则为 NULL。
-  - curState：与状态表达式结果的类型相同，表示当前窗口的状态值。
+  - prevState：表示上一个窗口的状态键值。如果存在上一个窗口，则为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。如果没有上一个窗口（即当前是第一个 `WINDOW_OPEN`），则为 JSON `NULL`。
+  - curState：表示当前窗口的状态键值，为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
-  - curState：与状态表达式结果的类型相同，表示当前窗口的状态值。
-  - nextState：与状态表达式结果的类型相同，表示下一个窗口的状态值。
+  - curState：表示当前窗口的状态键值，为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。
+  - nextState：表示下一个窗口的状态键值，为按 `STATE_WINDOW` 参数顺序排列的数组；单列状态窗口时该数组长度为 1。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
 ###### 会话窗口相关字段

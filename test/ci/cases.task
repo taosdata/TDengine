@@ -472,6 +472,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_iso8601.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_regexp_extract.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_today.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
@@ -530,6 +531,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-others/test_resinfo.py
 ## 06-System
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_info.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_sleep.py
 ## 07-Geometry
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
 ## 08-Window
@@ -568,6 +570,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_block.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_extend.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_zeroth.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_multi_col.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_regression.py
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
@@ -576,6 +581,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
 ## 08-ExternalWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external_fill.py
 
 # 14-JoinQueries
 
@@ -802,6 +808,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
 ## 05-Notify
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify.py
+,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
 ## 06-ResultSaved
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
@@ -942,6 +949,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_control.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_dac_mac.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
 # 26-NodeManager
@@ -994,11 +1002,21 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/07-EncryptionMultiLevel/test_encryption_mlevel.py -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_buffer_overflow.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_blacklist.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_whitelist.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/12-EncryptPassword/test_encrypt_user_login.py
 
 # 32-Grants
 ,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
+
+# 34-CpuAffinity
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_switch.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_management_cores.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_read_write_ratio.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_show_allocation.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_edge_cases.py
 
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
@@ -1065,6 +1083,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
 
+# 73-TLS
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py
+
 
 # 80-Components
 
@@ -1074,6 +1095,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_metadata.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_core_e2e.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_stt_e2e.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_wal_force_repair_e2e.py
 ,,n,.,pytest cases/80-Components/01-Taosd/test_com_taosd_log.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3

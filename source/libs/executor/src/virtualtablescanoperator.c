@@ -1547,6 +1547,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   VTS_ERR_JRET(filterInitFromNode((SNode*)pVirtualScanPhyNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo,
                                   0, pTaskInfo->pStreamRuntimeInfo));
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   if (tsMetaEntryCache) {
     pVirtualScanInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(tsMetaEntryCacheSize, -1, .5);

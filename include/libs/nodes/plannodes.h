@@ -380,6 +380,12 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef struct SExtWindowFillInfo {
+  EFillMode  mode;
+  SNodeList* pFillExprs;
+  SNode*     pFillValues;
+} SExtWindowFillInfo;
+
 #define WINDOW_PART_HAS  0x01
 #define WINDOW_PART_TB   0x02
 
@@ -403,7 +409,7 @@ typedef struct SWindowLogicNode {
   int64_t               sessionGap;
   SNode*                pTsEnd;
   // for state window
-  SNode*                pStateExpr;
+  SNodeList*            pStateExprs;
   EStateWinExtendOption extendOption;
   // for event window
   SNode*                pStartCond;
@@ -424,6 +430,7 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -614,14 +621,16 @@ typedef struct SSystemTableScanPhysiNode {
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode   : 1;    // 1 = MAC mandatory
+      uint16_t reserved : 3;
     };
   };
 } SSystemTableScanPhysiNode;
@@ -898,7 +907,7 @@ typedef struct SSessionWinodwPhysiNode {
 
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pStateKey;
+  SNodeList*       pStateKeys;
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
@@ -935,6 +944,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;

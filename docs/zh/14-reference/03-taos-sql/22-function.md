@@ -1044,6 +1044,47 @@ taos> select position('d' in 'cba');
                       0 |
 ```
 
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**功能说明**：对 `expr` 应用 POSIX 扩展正则表达式 `pattern`，返回第 `group_idx` 个捕获组匹配的子串。无匹配、`expr` 或 `pattern` 为 NULL 时返回 NULL。
+
+**返回结果类型**：与 `expr` 相同（VARCHAR 或 NCHAR）。
+
+**适用数据类型**：`expr`：VARCHAR、NCHAR；`pattern`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- `group_idx` 通常为非负整数常量，默认为 `1`。`0` 返回整个匹配串，`1` 返回第一个捕获组，`2` 返回第二个，以此类推，最大值为 512。若 `group_idx` 为 SQL `NULL`，则返回 `NULL`。
+- 若 `group_idx` 超过 `pattern` 中的捕获组数量，或对应捕获组未参与匹配，返回 NULL。
+- `pattern` 必须为常量（字面量或预处理占位符），不可引用列；不支持 `concat('a','b')` 这类常量表达式。
+
+**举例**：
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
+
 #### REGEXP_IN_SET
 
 ```sql
@@ -1509,6 +1550,15 @@ Query OK, 1 row(s) in set (0.000569s)
 ```
 
 ### 脱敏函数
+
+TDengine 提供两种数据脱敏方式，适用于不同场景：
+
+| 方式 | 说明 | 典型用法 |
+|------|------|----------|
+| **脱敏函数**（本节） | 在 SQL 查询中由用户**显式调用**，对指定表达式做脱敏转换后返回结果。任何有查询权限的用户均可使用，脱敏逻辑由查询语句本身决定。 | `SELECT MASK_FULL(phone, '*') FROM t;` |
+| **授权列脱敏**（`GRANT MASK(col)`） | 由管理员通过 `GRANT` 语句将列绑定脱敏策略，对**特定用户**透明生效。该用户查询该列时，系统自动将原始值替换为 `'*'`，无需用户在 SQL 中显式调用函数。**仅企业版支持。** | `GRANT SELECT (MASK(phone)) ON db.t TO user1;` |
+
+授权列脱敏的详细语法及行为说明，请参阅 [GRANT — 列权限（脱敏）](./61-grant.md#列权限)。
 
 #### MASK_FULL
 
@@ -3321,6 +3371,39 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**说明**：暂停执行指定的秒数。在表查询中，`SLEEP` 对每行各求值一次（MySQL 兼容），总等待时间等于各行 duration 之和。
+
+**参数**：
+
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数或 NULL 跳过休眠并返回 0；非数值类型报类型不匹配错误
+
+**返回值**：INT - 正常结束或参数为负数/NULL 时返回 0
+
+**示例**：
+
+```sql
+-- 休眠 2 秒
+SELECT SLEEP(2);
+
+-- 休眠 500 毫秒
+SELECT SLEEP(0.5);
+
+-- 负数参数立即返回 0
+SELECT SLEEP(-1);
+
+-- NULL 参数立即返回 0
+SELECT SLEEP(NULL);
+
+-- 表查询中对每行各求值一次（MySQL 兼容），此例总等待约 N 秒（N = 行数）
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## 地理信息函数​​
 

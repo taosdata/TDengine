@@ -170,44 +170,6 @@ int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   }
 }
 
-static int64_t getQuerySupportBufSize(size_t numOfTables) {
-  size_t s1 = sizeof(STableQueryInfo);
-  //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
-  return (int64_t)(s1 * 1.5 * numOfTables);
-}
-
-int32_t checkForQueryBuf(size_t numOfTables) {
-  int64_t t = getQuerySupportBufSize(numOfTables);
-  if (tsQueryBufferSizeBytes < 0) {
-    return TSDB_CODE_SUCCESS;
-  } else if (tsQueryBufferSizeBytes > 0) {
-    while (1) {
-      int64_t s = tsQueryBufferSizeBytes;
-      int64_t remain = s - t;
-      if (remain >= 0) {
-        if (atomic_val_compare_exchange_64(&tsQueryBufferSizeBytes, s, remain) == s) {
-          return TSDB_CODE_SUCCESS;
-        }
-      } else {
-        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
-      }
-    }
-  }
-
-  // disable query processing if the value of tsQueryBufferSize is zero.
-  return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
-}
-
-void releaseQueryBuf(size_t numOfTables) {
-  if (tsQueryBufferSizeBytes < 0) {
-    return;
-  }
-
-  int64_t t = getQuerySupportBufSize(numOfTables);
-
-  // restore value is not enough buffer available
-  (void)atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
-}
 
 typedef enum {
   OPTR_FN_RET_CONTINUE = 0x1,
