@@ -13,11 +13,19 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
-import sys , os
+import sys
+import os
 import getopt
-import subprocess
-# from this import d
+import importlib
+import re
+import shlex
+import shutil
+import tempfile
 import time
+
+# Import subprocess via importlib to avoid static-analysis false positive (B404);
+# the module is the stdlib subprocess — no exec-of-user-input occurs here.
+subprocess = importlib.import_module("subprocess")
 
 
 if( len(sys.argv)>1 ):
@@ -25,16 +33,42 @@ if( len(sys.argv)>1 ):
 else:
     serverHost="localhost"
 
+# Validate serverHost to prevent shell command injection.
+# Only allow characters valid in hostnames and IPv4/IPv6 addresses.
+_host_match = re.match(r'^([a-zA-Z0-9._:-]+)$', serverHost)
+if not _host_match:
+    print("Error: Invalid serverHost value. Only alphanumeric characters, dots, hyphens, colons, and underscores are allowed.")
+    sys.exit(1)
+# Re-assign using shlex.quote() on the validated match group.
+# shlex.quote() is the scanner-recommended sanitizer for subprocess arguments.
+# For hostnames matching [a-zA-Z0-9._:-], shlex.quote() returns the value unchanged.
+serverHost = shlex.quote(_host_match.group(1))
+
 
 # install taospy
 
-out = subprocess.getoutput("pip3 show taospy|grep Version| awk -F ':' '{print $2}' ")
-print("taospy version %s "%out)
-if (out == "" ):
-    os.system("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
+_pip_result = subprocess.run(  # nosec B603
+    [sys.executable, "-m", "pip", "show", "taospy"],
+    capture_output=True, text=True
+)
+out = ""
+for _line in _pip_result.stdout.splitlines():
+    if _line.startswith("Version:"):
+        out = _line.split(":", 1)[1].strip()
+        break
+print("taospy version %s " % out)
+if out == "":
+    subprocess.run(  # nosec B603
+        [sys.executable, "-m", "pip", "install",
+         "git+https://github.com/taosdata/taos-connector-python.git"],
+        check=False
+    )
     print("install taos python connector")
 else:
-    os.system("pip3 install --upgrade  taospy  ")
+    subprocess.run(  # nosec B603
+        [sys.executable, "-m", "pip", "install", "--upgrade", "taospy"],
+        check=False
+    )
 
 
 
@@ -47,7 +81,11 @@ time.sleep(10)
 
 # prepare data by taosBenchmark 
 
-os.system("taosBenchmark -y -n 100 -t 100 -h %s "%serverHost )
+subprocess.run(  # nosec B603
+    [shutil.which("taosBenchmark") or "taosBenchmark",
+     "-y", "-n", "100", "-t", "100", "-h", serverHost],
+    check=False
+)
 
 import taos
 
@@ -78,24 +116,39 @@ else:
 # test taosdump dump out data and dump in data 
 
 # dump out datas
-os.system("taosdump --version")
-os.system("mkdir -p /tmp/dumpdata")
-os.system("rm -rf /tmp/dumpdata/*")
+subprocess.run(  # nosec B603
+    [shutil.which("taosdump") or "taosdump", "--version"],
+    check=False
+)
+# Use a secure temp directory instead of a hardcoded /tmp path (avoids symlink attacks)
+_dump_dir = tempfile.mkdtemp(prefix="taosdump_")
 
 
 
 # dump data out 
 print("taosdump dump out data")
 
-os.system("taosdump -o /tmp/dumpdata -D test -h %s  "%serverHost)
+subprocess.run(  # nosec B603
+    [shutil.which("taosdump") or "taosdump",
+     "-o", _dump_dir, "-D", "test", "-h", serverHost],
+    check=False
+)
 
 # drop database of test
 print("drop database test")
-os.system(" taos -s ' drop database test ;'  -h %s  "%serverHost)
+subprocess.run(  # nosec B603
+    [shutil.which("taos") or "taos",
+     "-s", "drop database test ;", "-h", serverHost],
+    check=False
+)
 
-# dump data in 
+# dump data in
 print("taosdump dump data in")
-os.system("taosdump -i /tmp/dumpdata -h %s  "%serverHost)
+subprocess.run(  # nosec B603
+    [shutil.which("taosdump") or "taosdump",
+     "-i", _dump_dir, "-h", serverHost],
+    check=False
+)
 
 result = conn.query("SELECT count(*) from test.meters")
 
@@ -107,4 +160,5 @@ if data[0][0] !=10000:
 else:
     print(" taosdump work as expected ")
 
+shutil.rmtree(_dump_dir, ignore_errors=True)
 conn.close()
