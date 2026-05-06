@@ -1,0 +1,950 @@
+# =============================================================================
+# TDengine TSDB — 调试用完整流水线（基于 .gitlab-ci.yml，含并行双构建 NoSan + San）
+# =============================================================================
+# 改动说明（相比 .gitlab-ci.yml）：
+#   1. 三步构建（build stage）：
+#        build-externals (串行)  → 构建全部第三方库，stamps → externals-core-amd64/
+#            ↓ needs
+#        build-noasan (NoSan)  → TSDB_SRC/debug/       → externals-core-amd64（读 stamps 跳过）
+#        build-asan  (ASAN)   → TSDB_SRC_SAN/debug/   → externals-core-amd64（读 stamps 跳过）
+#      build-noasan / build-asan 在 build-externals 完成后并行运行，各自独立源码目录，
+#      externals stamps 位于 TD_EXTERNALS_BASE_DIR（cache/externals-core-amd64/ 挂载为
+#      /mnt/.externals），与 debug/ 无关，--clean 不会清除，并行安全。
+#   2. upload-nexus（verify 通过后）打包两份产物上传 Nexus：
+#        ${NEXUS_PATH}/nosan/linux-x64-nosan.tar.gz   ← 来自 build-noasan
+#        ${NEXUS_PATH}/san/linux-x64-san.tar.gz       ← 来自 build-asan
+#      二进制清单新增: replay_test, sml_test, get_db_name_test, varbinary_test,
+#        write_raw_block_test, tmq_* (对齐 legacy transfer_debug_dirs)
+#      lib/: cp -rP 保留 .so 符号链接（libtaos.so → libtaos.so.3 等）
+#      share/: 随产物一起打包（taosd 配置模板）
+#   3. 测试 job 移除 SANITIZER 变量（现在 cases.task 第3字段 y/n 按用例路由）
+#   4. CI_NO_ASAN=1 始终设置（ASAN 内置于 debugSan 二进制，无需 LD_PRELOAD 注入）
+# =============================================================================
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible   # 新 commit 推送时自动取消标记了 interruptible 的旧 pipeline
+  rules:
+    # 只接受目标为 main 分支的 MR 触发
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+    # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # - if: $CI_COMMIT_BRANCH =~ /^(main|3\.0|3\.3\.6|3\.3\.6\.citest)$/ && $CI_PIPELINE_SOURCE == "push"
+    # - if: $CI_PIPELINE_SOURCE == "schedule"
+    # - if: $CI_PIPELINE_SOURCE == "web"
+
+stages:
+  - prepare
+  - build
+  - quality    # check-assert + check-void（并行，任意失败终止后续所有流程）
+  - verify     # unit-test
+  - upload
+  - test
+  - cleanup
+
+variables:
+  NEXUS_URL: "https://nexus.tdengine.net"
+  NEXUS_REPO: "tdtest"
+  # ── 基础路径配置（按部署环境修改这两个变量即可）──────────────────────────
+  CI_BASE_DIR: "/data1/tdengine-ci"        # CI 工作根目录（workspace、platform、fail-logs 均在此）
+  CI_CACHE_DIR: "/data/cache/tsdb-builder" # 构建缓存目录（externals stamps、Docker layer 等）
+  BUILDER_IMAGE_TAG: "0.21"                 # 构建镜像版本（修改此处即可同步 build.sh --image 与 docker run）
+  BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/core:${BUILDER_IMAGE_TAG}-amd64"
+
+.rules-code-change:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.{c,h,cpp,cmake}"
+        - "CMakeLists.txt"
+        - "source/**"
+        - "tests/ci/scripts/**"
+        - ".gitlab/.gitlab-ci.yml"
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event"
+
+# =============================================================================
+# Stage: prepare
+# =============================================================================
+prepare-workspace:
+  stage: prepare
+  tags: [tsdb-builder]
+  timeout: 10 minutes
+  interruptible: true
+  extends: .rules-code-change
+
+  script:
+    - |
+      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+        WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}"
+      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+        WORKSPACE="${CI_BASE_DIR}/daily-${CI_COMMIT_BRANCH}-$(date +%Y%m%d)"
+      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+        WORKSPACE="${CI_BASE_DIR}/web-${CI_PIPELINE_ID}"
+      else
+        WORKSPACE="${CI_BASE_DIR}/push-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}"
+      fi
+      TSDB_SRC="${WORKSPACE}/tsdb"
+      TSDB_SRC_SAN="${WORKSPACE}/tsdb-san"
+      echo "WORKSPACE=${WORKSPACE}"
+      echo "TSDB_SRC=${TSDB_SRC}"
+      echo "TSDB_SRC_SAN=${TSDB_SRC_SAN}"
+      echo "WORKSPACE=${WORKSPACE}"     > build.env
+      echo "TSDB_SRC=${TSDB_SRC}"      >> build.env
+      echo "TSDB_SRC_SAN=${TSDB_SRC_SAN}" >> build.env
+
+    - |
+      # 清理旧 workspace（Docker 容器可能产生 root 所有的文件，普通用户无法直接删除）
+      if [ -d "${WORKSPACE}" ]; then
+        chmod -R u+w "${WORKSPACE}" 2>/dev/null || true
+        rm -rf "${WORKSPACE}" 2>/dev/null || true
+      fi
+      # 如果常规删除失败，通过 Docker 容器以 root 身份清理
+      # 注意：shell glob * 不匹配 dotfile/dotdir（如 .git/），必须用 find 代替 rm -rf /cleanup/*
+      if [ -d "${WORKSPACE}" ]; then
+        echo "[WARN] rm -rf failed, retrying via Docker (root)..."
+        docker run --rm -v "${WORKSPACE}":/cleanup "${BUILDER_IMAGE}" \
+          sh -c 'chmod -R 777 /cleanup && find /cleanup -mindepth 1 -delete' 2>/dev/null || true
+        rm -rf "${WORKSPACE}" 2>/dev/null || true
+      fi
+      mkdir -p "${WORKSPACE}"
+      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+        _BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+      else
+        _BRANCH="${CI_COMMIT_BRANCH}"
+      fi
+      # NoSan 源码目录
+      git clone --branch "${_BRANCH}" --depth 50 \
+        git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC}"
+      cd "${TSDB_SRC}" && git checkout "${CI_COMMIT_SHA}"
+      # San 独立源码目录（与 NoSan 并行构建，互不干扰）
+      git clone --branch "${_BRANCH}" --depth 50 \
+        git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC_SAN}"
+      cd "${TSDB_SRC_SAN}" && git checkout "${CI_COMMIT_SHA}"
+
+    - |
+      # 确保 platform 工具仓库存在并为最新；flock 防止多 MR 并发时同时 clone/pull
+      PLATFORM_DIR="${CI_BASE_DIR}/platform"
+      PLATFORM_BRANCH="feat/add_make_target"
+      mkdir -p "$(dirname "${PLATFORM_DIR}")"
+      (
+        flock -x 9
+        if [ ! -d "${PLATFORM_DIR}/.git" ]; then
+          echo "[prepare] Cloning platform repo (branch: ${PLATFORM_BRANCH})..."
+          git clone --branch "${PLATFORM_BRANCH}" \
+            git@git.tdengine.net:rd-public/platform.git "${PLATFORM_DIR}"
+        else
+          echo "[prepare] Updating platform repo (branch: ${PLATFORM_BRANCH})..."
+          git -C "${PLATFORM_DIR}" fetch origin
+          git -C "${PLATFORM_DIR}" checkout "${PLATFORM_BRANCH}"
+          git -C "${PLATFORM_DIR}" pull --ff-only origin "${PLATFORM_BRANCH}" || true
+        fi
+      ) 9>${CI_BASE_DIR}/.platform-clone.lock
+
+  artifacts:
+    reports:
+      dotenv: build.env
+    expire_in: 1 day
+
+# =============================================================================
+# Stage: build — 串行三步：externals 预构建 → NoSan 与 San 并行
+# =============================================================================
+# 流水线设计：
+#   build-externals (串行) → 构建全部第三方库，stamps 写入 externals-core-amd64/
+#       ↓ needs
+#   build-noasan (NoSan)   build-asan (ASAN)     ← 并行，各用独立源码目录
+#   TSDB_SRC/debug/      TSDB_SRC_SAN/debug/
+#
+# 关键：ExternalProject stamp 存储在 TD_EXTERNALS_BASE_DIR（= /mnt/.externals =
+#   cache/externals-core-amd64/），而非 debug/ 内。--clean 只清 debug/，stamps
+#   始终存活。build-externals 完成后，两个并行 job 的 cmake 均发现 stamps 已存在，
+#   跳过所有 externals，仅编译 TDengine 主体代码，彻底消除并行 externals 竞态。
+# =============================================================================
+build-externals:
+  stage: build
+  tags: [tsdb-builder]
+  timeout: 60 minutes
+  interruptible: true
+  needs: [prepare-workspace]
+  extends: .rules-code-change
+
+  script:
+    - |
+      echo "=== [build-externals] Pre-building all external dependencies ==="
+      # flock: 多 MR 并发时排队，防止同时写入同一 externals 缓存目录导致踩踏
+      # 使用 exclusive lock 保证写入互斥；build-noasan / build-asan 使用 shared lock
+      # 防止读写竞态（另一 pipeline 的 build-externals 在 build job 链接期间修改缓存）
+      (
+        flock -x 9
+        echo "[build-externals] acquired exclusive lock, starting build..."
+        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+          --image core:${BUILDER_IMAGE_TAG} \
+          --src "${TSDB_SRC}" \
+          --cache ${CI_CACHE_DIR}/ \
+          --clean \
+          --make-target build_externals \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_TEST=ON \
+          -DBUILD_COVERAGE=ON \
+          -DBUILD_ENTERPRISE=ON \
+          -DBUILD_ENGINE=ON \
+          -DBUILD_ASSERT_NOT_CORE=OFF \
+          -DBUILD_TOOLS=ON \
+          -DBUILD_KEEPER=ON \
+          -DBUILD_ADAPTER=ON \
+          -DBUILD_RUST=ON \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+          -DBUILD_SANITIZER=OFF \
+          -DBUILD_CONTRIB=ON
+      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+      echo "=== [build-externals] Externals done ==="
+
+  after_script:
+    - |
+      echo "=== externals cache size ==="
+      du -sh ${CI_CACHE_DIR}/externals-core-amd64/ 2>/dev/null || true
+
+build-noasan:
+  stage: build
+  tags: [tsdb-builder]
+  timeout: 60 minutes
+  interruptible: true
+  needs: [prepare-workspace, build-externals]
+  extends: .rules-code-change
+
+  script:
+    - |
+      echo "=== [build-noasan] Building NoSan ==="
+      # shared lock: 允许多个 build job 并行读取 externals 缓存，但阻止
+      # 另一 pipeline 的 build-externals 在链接期间修改缓存（排他锁互斥）
+      _EXT_INSTALL="${CI_CACHE_DIR}/externals-core-amd64/install"
+      (
+        flock -s 9
+        echo "[build-noasan] acquired shared lock on externals"
+        # 验证关键 externals 文件存在（提前失败，避免晦涩的链接错误）
+        for _p in ext_libs3/Debug/lib/liblibs3.a ext_curl/Debug/lib/libcurl.a ext_zlib/Debug/lib/libz.a; do
+          if [ ! -f "${_EXT_INSTALL}/${_p}" ]; then
+            echo "FATAL: Missing external: ${_EXT_INSTALL}/${_p}"
+            echo "Available externals:"
+            find "${_EXT_INSTALL}" -name '*.a' -type f 2>/dev/null | head -30
+            exit 1
+          fi
+        done
+        echo "[build-noasan] externals validation passed"
+        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+          --image core:${BUILDER_IMAGE_TAG} \
+          --src "${TSDB_SRC}" \
+          --cache ${CI_CACHE_DIR}/ \
+          --clean \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_TEST=ON \
+          -DBUILD_COVERAGE=ON \
+          -DBUILD_ENTERPRISE=ON \
+          -DBUILD_ENGINE=ON \
+          -DBUILD_ASSERT_NOT_CORE=OFF \
+          -DBUILD_TOOLS=ON \
+          -DBUILD_KEEPER=ON \
+          -DBUILD_ADAPTER=ON \
+          -DBUILD_RUST=ON \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+          -DBUILD_SANITIZER=OFF \
+          -DROCKSDB_USE_DEPS=OFF \
+          -DTD_EXTERNALS_USE_ONLY=ON
+      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+      echo "=== [build-noasan] NoSan done: $(ls ${TSDB_SRC}/debug/build/bin | wc -l) binaries ==="
+
+  after_script:
+    - mkdir -p "${CI_PROJECT_DIR}/build-logs"
+    - cp "${TSDB_SRC}/build.log" "${CI_PROJECT_DIR}/build-logs/build-nosan.log" 2>/dev/null || true
+
+  artifacts:
+    when: always
+    paths:
+      - build-logs/build-nosan.log
+    expire_in: 7 days
+
+build-asan:
+  stage: build
+  tags: [tsdb-builder]
+  timeout: 90 minutes
+  interruptible: true
+  needs: [prepare-workspace, build-externals]
+  extends: .rules-code-change
+
+  script:
+    - |
+      echo "=== [build-asan] Building ASAN ==="
+      # externals 与 NoSan 共用同一缓存（第三方 .a 无需 ASAN 插桩，first-party 代码由 cmake 插桩）
+      # shared lock: 防止另一 pipeline 的 build-externals 在链接期间修改缓存
+      _EXT_INSTALL="${CI_CACHE_DIR}/externals-core-amd64/install"
+      (
+        flock -s 9
+        echo "[build-asan] acquired shared lock on externals"
+        # 验证关键 externals 文件存在
+        for _p in ext_libs3/Debug/lib/liblibs3.a ext_curl/Debug/lib/libcurl.a ext_zlib/Debug/lib/libz.a; do
+          if [ ! -f "${_EXT_INSTALL}/${_p}" ]; then
+            echo "FATAL: Missing external: ${_EXT_INSTALL}/${_p}"
+            echo "Available externals:"
+            find "${_EXT_INSTALL}" -name '*.a' -type f 2>/dev/null | head -30
+            exit 1
+          fi
+        done
+        echo "[build-asan] externals validation passed"
+        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+          --image core:${BUILDER_IMAGE_TAG} \
+          --src "${TSDB_SRC_SAN}" \
+          --cache ${CI_CACHE_DIR}/ \
+          --clean \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DBUILD_TEST=OFF \
+          -DBUILD_ENTERPRISE=ON \
+          -DBUILD_ENGINE=ON \
+          -DBUILD_ASSERT_NOT_CORE=OFF \
+          -DBUILD_TOOLS=ON \
+          -DBUILD_KEEPER=ON \
+          -DBUILD_ADAPTER=ON \
+          -DBUILD_RUST=ON \
+          -DBUILD_SANITIZER=ON \
+          -DTOOLS_SANITIZE=ON \
+          -DJEMALLOC_ENABLED=0 \
+          -DROCKSDB_USE_DEPS=OFF \
+          -DTD_EXTERNALS_USE_ONLY=ON
+      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+      echo "=== [build-asan] ASAN done: $(ls ${TSDB_SRC_SAN}/debug/build/bin | wc -l) binaries ==="
+
+  after_script:
+    - mkdir -p "${CI_PROJECT_DIR}/build-logs"
+    - cp "${TSDB_SRC_SAN}/build.log" "${CI_PROJECT_DIR}/build-logs/build-asan.log" 2>/dev/null || true
+
+  artifacts:
+    when: always
+    paths:
+      - build-logs/build-asan.log
+    expire_in: 7 days
+
+# =============================================================================
+# Stage: quality — 代码质量检查（两个并行 job，任意失败终止后续所有流程）
+# =============================================================================
+check-assert:
+  stage: quality
+  tags: [tsdb-builder]
+  timeout: 10 minutes
+  interruptible: true
+  needs: [prepare-workspace, build-noasan]
+  extends: .rules-code-change
+
+  script:
+    - |
+      # count_assert.py 通过 self_path.find("community") 推算项目根目录；
+      # 在 /mnt/source/taos-community/… 路径下会截断错误，故建立 symlink
+      # 让脚本看到期望的 /check/community 和 /check/enterprise 结构。
+      docker run --rm \
+        -v "${TSDB_SRC}/source/taos-community":/check/community:ro \
+        -v "${TSDB_SRC}/source/taos-internal":/check/enterprise:ro \
+        ${BUILDER_IMAGE} bash -c "
+          pip3 install loguru -q
+          python3 /check/community/test/ci/count_assert.py
+        "
+
+  after_script:
+    - echo "[check-assert] done"
+
+  artifacts:
+    when: on_failure
+    paths:
+      - build-logs/
+    expire_in: 7 days
+
+check-void:
+  stage: quality
+  tags: [tsdb-builder]
+  timeout: 10 minutes
+  interruptible: true
+  needs: [prepare-workspace, build-noasan]
+  extends: .rules-code-change
+
+  script:
+    - |
+      docker run --rm \
+        -v "${TSDB_SRC}":/mnt \
+        ${BUILDER_IMAGE} bash -c "
+          bash /mnt/source/taos-community/test/ci/check_void.sh \
+            -c /mnt/source/taos-community/test/ci/func.txt \
+            -f /mnt/source/taos-community/source/
+        "
+
+  after_script:
+    - mkdir -p "${CI_PROJECT_DIR}/build-logs"
+    - cp "${TSDB_SRC}/check-void.log" "${CI_PROJECT_DIR}/build-logs/" 2>/dev/null || true
+
+  artifacts:
+    when: always
+    paths:
+      - build-logs/check-void.log
+    expire_in: 7 days
+
+# =============================================================================
+# Stage: verify — 单元测试（code-quality 通过后才执行）
+# =============================================================================
+unit-test:
+  stage: verify
+  tags: [tsdb-builder]
+  timeout: 40 minutes
+  interruptible: true
+  needs: [prepare-workspace, build-noasan, check-assert, check-void]
+  extends: .rules-code-change
+
+  script:
+    - |
+      # ── 在容器内运行 ctest，生成 JUnit XML + 原始日志 ──────────────────────
+      cat > "${TSDB_SRC}/.ctest-runner.sh" << 'RUNNER_EOF'
+      #!/bin/bash
+      set -e
+      # 提高文件描述符限制，避免 stmt2Test 等用例 "Too many open files"
+      ulimit -n 1048576 2>/dev/null || ulimit -n 65536 2>/dev/null || true
+      pgrep taosd > /dev/null 2>&1 || /mnt/debug/build/bin/taosd > /dev/null 2>&1 &
+      sleep 10
+      cd /mnt/debug/source/taos-community
+      ctest -E 'cunit_test|pcre*|example*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|decompressTest|idxFstTest|sessionTest' \
+          --output-on-failure --output-junit /mnt/junit.xml --timeout 1200 -j8 2>&1 | tee /mnt/ctest.log
+      ctest_ret=${PIPESTATUS[0]}
+      if grep -q 'No tests were found' /mnt/ctest.log; then
+          echo 'ERROR: No tests were found' | tee -a /mnt/ctest.log
+          exit 1
+      fi
+      /mnt/debug/build/bin/clientTest 2>&1 | tee -a /mnt/ctest.log
+      client_ret=${PIPESTATUS[0]}
+      /mnt/debug/build/bin/connectOptionsTest 2>&1 | tee -a /mnt/ctest.log
+      connect_ret=${PIPESTATUS[0]}
+      overall=0
+      [ "${ctest_ret}" -eq 0 ]   || { overall=${ctest_ret};   echo "[FAIL] ctest exited ${ctest_ret}" | tee -a /mnt/ctest.log; }
+      [ "${client_ret}" -eq 0 ]  || { overall=${client_ret};  echo "[FAIL] clientTest exited ${client_ret}" | tee -a /mnt/ctest.log; }
+      [ "${connect_ret}" -eq 0 ] || { overall=${connect_ret}; echo "[FAIL] connectOptionsTest exited ${connect_ret}" | tee -a /mnt/ctest.log; }
+      exit ${overall}
+      RUNNER_EOF
+      chmod +x "${TSDB_SRC}/.ctest-runner.sh"
+      timeout 1200 docker run --rm --privileged \
+        -v "${TSDB_SRC}":/mnt \
+        ${BUILDER_IMAGE} bash /mnt/.ctest-runner.sh
+      ctest_rc=$?
+      [ $ctest_rc -eq 124 ] && echo '[ERROR] unit-test TIMEOUT' | tee -a "${TSDB_SRC}/ctest.log"
+
+    - |
+      # ── 解析失败用例，在 job 日志中打印折叠的详情 + 汇总表 ─────────────────
+      LOG="${TSDB_SRC}/ctest.log"
+
+      # 提取失败用例名（ctest 输出格式："  N - TestName (Failed)"）
+      mapfile -t FAILED_NAMES < <(
+        grep -E '^\s+[0-9]+ - .+ \(Failed\)' "${LOG}" 2>/dev/null \
+          | sed 's/^\s*[0-9]* - //' | sed 's/ (Failed)$//' || true
+      )
+
+      if [ ${#FAILED_NAMES[@]} -gt 0 ]; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "  FAILED UNIT TESTS: ${#FAILED_NAMES[@]}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        for name in "${FAILED_NAMES[@]}"; do
+          sec_id="ut_$(echo "${name}" | tr -dc 'a-zA-Z0-9' | head -c 40)"
+          # 折叠块：默认收起，点击展开
+          echo -e "\e[0Ksection_start:$(date +%s):${sec_id}[collapsed=true]\r\e[0K❌ ${name}"
+          # 提取该用例的输出块（在两行 "---------" 之间）
+          awk "/^Output from ${name}:/{found=1; next}
+               found && /^-{40}/{count++; if(count==2){found=0; count=0; next}}
+               found{print}" "${LOG}" | head -300
+          echo -e "\e[0Ksection_end:$(date +%s):${sec_id}\r\e[0K"
+        done
+
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "  SUMMARY — Failed test cases:"
+        for name in "${FAILED_NAMES[@]}"; do
+          echo "    ❌  ${name}"
+        done
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      else
+        # 从 ctest 汇总行提取通过数
+        PASS_LINE=$(grep -E 'tests passed' "${LOG}" 2>/dev/null | tail -1 || true)
+        echo ""
+        echo "✅  All unit tests passed. ${PASS_LINE}"
+      fi
+      exit ${ctest_rc}
+
+  after_script:
+    - mkdir -p "${CI_PROJECT_DIR}/build-logs"
+    - cp "${TSDB_SRC}/ctest.log"  "${CI_PROJECT_DIR}/build-logs/" 2>/dev/null || true
+    - cp "${TSDB_SRC}/junit.xml"  "${CI_PROJECT_DIR}/build-logs/" 2>/dev/null || true
+
+  artifacts:
+    when: always
+    paths:
+      - build-logs/ctest.log
+    reports:
+      junit: build-logs/junit.xml
+    expire_in: 7 days
+
+
+
+# =============================================================================
+# Stage: upload — 追加 San 构建，打包两份产物上传 Nexus
+# =============================================================================
+# 产物目录结构（Nexus）：
+#   ${NEXUS_PATH}/nosan/linux-x64-nosan.tar.gz  — 非 ASAN 二进制
+#   ${NEXUS_PATH}/san/linux-x64-san.tar.gz      — ASAN 内置二进制
+#
+# 二进制清单（对齐 legacy transfer_debug_dirs）：
+#   taos*, taosd, taosadapter, taoskeeper, taosBenchmark, taosudf*
+#   tmq_*, sml_test, get_db_name_test, replay_test, varbinary_test, write_raw_block_test
+#   create_table, asyncdemo
+# lib/：cp -rP 保留 .so 符号链接（libtaos.so → libtaos.so.3 → libtaos.so.3.X.Y.Z）
+# share/：taosd 配置模板等运行时资源
+#
+# CI_NO_ASAN=1 用法：
+#   始终由 run_container.sh 注入（不论用例 san 字段为 y/n）。
+#   debugSan 二进制通过 -DBUILD_SANITIZER=1 内置 ASAN，运行时自动激活，
+#   不需要外部 LD_PRELOAD 注入；而 Python fork + LD_PRELOAD=libasan 在
+#   Ubuntu 24.04（kernel 6.8）会导致死锁，因此两种构建均设置 CI_NO_ASAN=1。
+# =============================================================================
+upload-nexus:
+  stage: upload
+  tags: [tsdb-builder]
+  timeout: 30 minutes
+  # unit-test 与 upload-nexus 均在 quality 通过后并行执行。
+  needs: [prepare-workspace, build-noasan, build-asan, check-assert, check-void]
+  extends: .rules-code-change
+
+  script:
+    # ── Step 1: 打包两份产物 ─────────────────────────────────────────────────
+    # NoSan: ${TSDB_SRC}/debug/         (来自 build-noasan job)
+    # San:   ${TSDB_SRC_SAN}/debug/     (来自 build-asan  job，独立源码目录)
+    # 内部结构：debug/build/{bin,lib,share}/
+    # 下载端（pull-artifacts.sh）解压后 mv debug/ → debugNoSan/ 或 debugSan/
+    - |
+      pack_variant() {
+        local label=$1     # nosan | san
+        local src_debug=$2 # 源 debug 目录的绝对路径（${TSDB_SRC}/debugNoSan 等）
+        local out_tar=$3   # 输出 tar.gz 路径
+
+        local BIN_SRC="${src_debug}/build/bin"
+        local LIB_SRC="${src_debug}/build/lib"
+        local SHARE_SRC="${src_debug}/build/share"
+
+        echo "[pack] [${label}] Validating binaries..."
+        for bin in taos taosd taosadapter taoskeeper taosBenchmark; do
+          [ -f "${BIN_SRC}/${bin}" ] || { echo "[FAIL] [${label}] ${bin}: NOT FOUND"; return 1; }
+          echo "  [OK] ${bin}: $(du -h "${BIN_SRC}/${bin}" | cut -f1)"
+        done
+        [ -f "${LIB_SRC}/libtaos.so" ] || \
+          ls "${LIB_SRC}"/libtaos.so* > /dev/null 2>&1 || \
+          { echo "[FAIL] [${label}] libtaos.so: NOT FOUND"; return 1; }
+
+        # ctest 二进制
+        echo "[pack] [${label}] ctest binaries:"
+        for bin in replay_test sml_test get_db_name_test varbinary_test write_raw_block_test; do
+          [ -f "${BIN_SRC}/${bin}" ] && echo "  [OK] ${bin}" \
+            || echo "  [MISSING] ${bin} (check cmake BUILD_TEST=ON)"
+        done
+
+        local TAR_ROOT="${TSDB_SRC}/staging-${label}"
+        local TAR_BIN="${TAR_ROOT}/debug/build/bin"
+        local TAR_LIB="${TAR_ROOT}/debug/build/lib"
+        local TAR_SHARE="${TAR_ROOT}/debug/build/share"
+        mkdir -p "${TAR_BIN}" "${TAR_LIB}"
+
+        # 运行时 + ctest 二进制（对齐 legacy transfer_debug_dirs 列表）
+        find "${BIN_SRC}" -maxdepth 1 -type f -executable \
+          | grep -E '/(taos[^/]*|taosd[^/]*|tmq_[^/]*|sml_[^/]*|get_db[^/]*|replay_test|varbinary_test|write_raw_block_test|create_table|asyncdemo|taosudf[^/]*|grantTest)$' \
+          | xargs -I{} cp {} "${TAR_BIN}/" 2>/dev/null || true
+        # taosd 可能被 taos* 通配覆盖，单独确保
+        [ -f "${BIN_SRC}/taosd" ] && cp "${BIN_SRC}/taosd" "${TAR_BIN}/" || true
+
+        # lib：cp -rP 保留相对符号链接（libtaos.so → libtaos.so.3 → libtaos.so.3.X.Y.Z）
+        # 包含 libtaos, libtaosnative, libtaosws, librocksdb 等所有 .so*
+        if ls "${LIB_SRC}"/*.so* > /dev/null 2>&1; then
+          cp -rP "${LIB_SRC}/." "${TAR_LIB}/"
+        fi
+        # 清理 lib 中非 .so 文件（cmake 产物：.a, .cmake 等）防止打包过大
+        find "${TAR_LIB}" -maxdepth 1 -not -name '*.so*' -not -type d -delete 2>/dev/null || true
+
+        # share/（taosd 配置模板等运行时资源）
+        if [[ -d "${SHARE_SRC}" ]]; then
+          mkdir -p "${TAR_SHARE}"
+          cp -r "${SHARE_SRC}/." "${TAR_SHARE}/"
+        fi
+
+        # include/：打包 C 头文件供测试容器 -I 使用
+        local TAR_INC="${TAR_ROOT}/debug/include"
+        mkdir -p "${TAR_INC}"
+        local COMM_SRC="${TSDB_SRC}/source/taos-community"
+        for hdr in \
+            "${COMM_SRC}/include/client/taos.h" \
+            "${COMM_SRC}/include/common/taosdef.h" \
+            "${COMM_SRC}/include/util/taoserror.h" \
+            "${COMM_SRC}/include/libs/function/taosudf.h"; do
+          [ -f "${hdr}" ] && cp "${hdr}" "${TAR_INC}/" \
+            || echo "[WARN] [${label}] header not found: $(basename ${hdr})"
+        done
+        # taosws.h 由 Rust connector 构建时生成
+        local TAOSWS_H="${src_debug}/build/taos-connector-rust/target/debug/taosws.h"
+        [ -f "${TAOSWS_H}" ] && cp "${TAOSWS_H}" "${TAR_INC}/" \
+          || echo "[WARN] [${label}] taosws.h not found at rust target dir"
+
+        # libtaosws.so：若 build/lib 中不存在，从 rust target output 补充
+        if ! ls "${TAR_LIB}"/libtaosws.so* > /dev/null 2>&1; then
+          local TAOSWS_SO="${src_debug}/build/taos-connector-rust/output/libtaosws.so"
+          if [ -f "${TAOSWS_SO}" ]; then
+            cp "${TAOSWS_SO}" "${TAR_LIB}/"
+            echo "[pack] [${label}] added libtaosws.so from rust output dir"
+          else
+            echo "[WARN] [${label}] libtaosws.so not found in build/lib or rust output"
+          fi
+        fi
+
+        echo "[pack] [${label}] $(ls "${TAR_BIN}" | wc -l) binaries, $(ls "${TAR_LIB}" | wc -l) libs, $(ls "${TAR_INC}" | wc -l) headers"
+        (cd "${TAR_ROOT}" && tar czf "${out_tar}" debug/)
+        rm -rf "${TAR_ROOT}"
+        echo "[pack] [${label}] $(du -h "${out_tar}" | cut -f1) → $(basename ${out_tar})"
+      }
+
+      STAGING="${TSDB_SRC}/staging"
+      mkdir -p "${STAGING}/noasan" "${STAGING}/asan"
+      pack_variant "noasan" "${TSDB_SRC}/debug"     "${STAGING}/noasan/linux-x64-noasan.tar.gz"
+      pack_variant "asan"   "${TSDB_SRC_SAN}/debug" "${STAGING}/asan/linux-x64-asan.tar.gz"
+      echo "=== Staging contents ==="
+      ls -lh "${STAGING}/noasan/" "${STAGING}/asan/"
+
+    # ── Step 4: 安装 platform-cli 并上传至 Nexus ───────────────────────────
+    - |
+      # 多个 MR 并发时可能同时写 $HOME/.local/bin/platform-cli，用 flock 串行化安装；
+      # 每次都执行安装（不跳过），以确保始终使用最新版本；串行运行不会产生写冲突。
+      # install.sh 内部的子 curl 偶发 exit 23（写入目标失败），外层加重试覆盖该情况。
+      (
+        flock -x 9
+        echo "[upload-nexus] Installing platform-cli..."
+        for _cli_retry in 1 2 3; do
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 3 \
+            https://nexus.tdengine.net/repository/platform/platform-cli/install.sh | \
+            NEXUS_URL=https://nexus.tdengine.net NEXUS_REPO=platform bash && break
+          _exit=$?
+          echo "[upload-nexus] Install attempt ${_cli_retry}/3 failed (exit ${_exit}), retrying in 5s..."
+          sleep 5
+          [ "${_cli_retry}" -eq 3 ] && { echo "[FATAL] platform-cli install failed after 3 attempts"; exit 1; }
+        done
+      ) 9>${CI_CACHE_DIR}/.platform-cli-install.lock
+      export PATH="$HOME/.local/bin:$PATH"
+
+      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+        NEXUS_PATH="tsdb/ci/mr${CI_MERGE_REQUEST_IID}/linux/x64"
+      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+        NEXUS_PATH="tsdb/daily/$(date +%Y%m%d)/${CI_COMMIT_BRANCH}/linux/x64"
+      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+        NEXUS_PATH="tsdb/release/${RELEASE_VERSION:-${CI_COMMIT_TAG:-manual}}/linux/x64"
+      else
+        NEXUS_PATH="tsdb/ci/branch-${CI_COMMIT_BRANCH}/linux/x64"
+      fi
+      echo "Nexus dest: ${NEXUS_PATH}"
+
+      HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        -u "${NEXUS_USERNAME}:${NEXUS_PASSWORD}" \
+        "${NEXUS_URL}/service/rest/v1/status/check")
+      [ "${HTTP_STATUS}" = "200" ] || { echo "ERROR: Nexus auth failed (${HTTP_STATUS})"; exit 1; }
+
+      STAGING="${TSDB_SRC}/staging"
+      # 分别上传 nosan/ 和 san/ 子目录，对应 Nexus 路径 ${NEXUS_PATH}/nosan/  和  /san/
+      platform-cli nexus \
+        --url "${NEXUS_URL}" --repo "${NEXUS_REPO}" \
+        --username "${NEXUS_USERNAME}" --password "${NEXUS_PASSWORD}" \
+        upload \
+        --dir "${STAGING}/noasan" \
+        --dest "${NEXUS_PATH}/noasan" \
+        || { echo "ERROR: NoAsan upload failed"; exit 1; }
+
+      platform-cli nexus \
+        --url "${NEXUS_URL}" --repo "${NEXUS_REPO}" \
+        --username "${NEXUS_USERNAME}" --password "${NEXUS_PASSWORD}" \
+        upload \
+        --dir "${STAGING}/asan" \
+        --dest "${NEXUS_PATH}/asan" \
+        || { echo "ERROR: Asan upload failed"; exit 1; }
+
+      echo "Upload complete."
+      echo "  noasan: ${NEXUS_URL}/repository/${NEXUS_REPO}/${NEXUS_PATH}/noasan/"
+      echo "  asan:   ${NEXUS_URL}/repository/${NEXUS_REPO}/${NEXUS_PATH}/asan/"
+
+  after_script:
+    - rm -rf "${TSDB_SRC}/staging" 2>/dev/null || true
+
+  artifacts:
+    expire_in: 7 days
+
+# =============================================================================
+# Stage: test — 分布式执行系统测试（per-case NoSan/San 路由）
+# =============================================================================
+# 用例路由机制：
+#   cases.task 第3字段 y → run_container.sh 使用 $WORKDIR/debugSan/ 
+#                          (ASAN 内置，不注入 LD_PRELOAD)
+#   cases.task 第3字段 n → run_container.sh 使用 $WORKDIR/debugNoSan/
+#   两种情况均设置 CI_NO_ASAN=1（见 run_container.sh 注释）
+# =============================================================================
+.test-linux-base:
+  stage: test
+  timeout: 240 minutes
+  needs: [upload-nexus]
+  extends: .rules-code-change
+  interruptible: true
+
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "1"
+    # TEST_CONCURRENCY 不再硬编码：run-test-dynamic.sh 通过 flock 计数器感知
+    # 本机同时在跑的 pipeline 数，自动计算 floor(nproc*0.8/active_pipelines)，
+    # 限定在 [2, 16]。10 条并行 PR 和 1 条 PR 均能自适应，互不踩踏。
+    # 如需手动覆盖，在具体 job 的 variables 中设置 TEST_CONCURRENCY: "N"。
+    POLL_INTERVAL: "3"
+    MAX_IDLE_SECONDS: "1200"
+    # 协调器地址：指向 builder u2-104（coordinator job 运行在 tsdb-builder tag 对应的 runner）
+    COORDINATOR_HOST: "192.168.2.104"
+
+  script:
+    - export WORKDIR="${CI_BASE_DIR}/job-${CI_JOB_ID}"
+    - export PATH="$HOME/.local/bin:$PATH"
+    - |
+      echo "=== Test Node ${CI_NODE_INDEX} (dynamic coordinator mode) ==="
+      echo "Runner: $(hostname)  Job: ${CI_JOB_ID}"
+      echo "MR/Pipeline: ${CI_MERGE_REQUEST_IID:-N/A} / ${CI_PIPELINE_ID}"
+      echo "WORKDIR: ${WORKDIR}"
+    - bash "${CI_PROJECT_DIR}/tests/ci/scripts/sparse-checkout.sh"
+    - |
+      # pull-artifacts.sh 自动计算 BASE_PATH，下载 noasan/ 和 asan/ 两份产物
+      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+        export OVERRIDE_NEXUS_PATH="tsdb/ci/mr${CI_MERGE_REQUEST_IID}/linux/x64"
+      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+        export OVERRIDE_NEXUS_PATH="tsdb/daily/$(date +%Y%m%d)/${CI_COMMIT_BRANCH}/linux/x64"
+      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+        export OVERRIDE_NEXUS_PATH="tsdb/release/${RELEASE_VERSION:-manual}/linux/x64"
+      else
+        export OVERRIDE_NEXUS_PATH="tsdb/ci/branch-${CI_COMMIT_BRANCH}/linux/x64"
+      fi
+      echo "Nexus path: ${OVERRIDE_NEXUS_PATH}"
+    - bash "${CI_PROJECT_DIR}/tests/ci/scripts/pull-artifacts.sh"
+    - |
+      # ── Step 3: 等待协调器就绪 ──────────────────────────────────────────
+      _COORD_PORT=$(( CI_PIPELINE_ID % 10000 + 20000 ))
+      export COORDINATOR_URL="http://${COORDINATOR_HOST}:${_COORD_PORT}"
+      echo "Waiting for coordinator at ${COORDINATOR_URL}/api/status ..."
+      for i in $(seq 1 30); do
+        if curl -sf --max-time 3 "${COORDINATOR_URL}/api/status" >/dev/null 2>&1; then
+          echo "Coordinator is ready."
+          break
+        fi
+        echo "  attempt ${i}/30, retrying in 5s..."
+        sleep 5
+      done
+    - bash "${CI_PROJECT_DIR}/tests/ci/scripts/run-test-dynamic.sh"
+
+  artifacts:
+    when: always
+    reports:
+      junit: "results/junit-${CI_NODE_INDEX}.xml"
+    paths:
+      - "results/"
+    expire_in: 7 days
+
+  after_script:
+    - |
+      WORKDIR="${CI_BASE_DIR}/job-${CI_JOB_ID}"
+      SLOT_DIR="${WORKDIR}/slots-n${CI_NODE_INDEX}"
+      LOGS_DIR="${CI_PROJECT_DIR}/results/logs"
+      echo "=== [after_script] Stopping containers for job ${CI_JOB_ID} ==="
+      docker ps --filter "name=tdci-${CI_JOB_ID}" --format "{{.Names}}" 2>/dev/null \
+        | xargs -r docker stop --time 15 2>/dev/null || true
+      sleep 2
+      docker ps --filter "name=tdci-${CI_JOB_ID}" --format "{{.Names}}" 2>/dev/null \
+        | xargs -r docker kill 2>/dev/null || true
+      echo "=== [after_script] Collecting partial logs ==="
+      mkdir -p "${LOGS_DIR}"
+      # 遍历所有 thread_volume 下每个线程号目录
+      find "${WORKDIR}/tmp/thread_volume" -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+        | sort | while IFS= read -r tvol; do
+          tnum=$(basename "${tvol}")
+          # 直接读 tnum 级 slug 映射，无需计算 TEST_CONCURRENCY
+          slug_file="${SLOT_DIR}/tnum-${tnum}.slug"
+          if [[ -f "${slug_file}" ]]; then
+            dest="${LOGS_DIR}/$(cat "${slug_file}")"
+          else
+            dest=""   # 未知用例（超时/killed），fallback 到 t{tnum}-* 平铺
+          fi
+          # sim/ 下保留原始路径结构，补充 process_finished_slot 可能遗漏的文件
+          # 收集 psim/log、psim/cfg、dnode*/log、dnode*/cfg、var_taoslog、asan
+          if [[ -d "${tvol}/sim" ]]; then
+            find "${tvol}/sim" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | while IFS= read -r _sd; do
+              _sn=$(basename "${_sd}")
+              if [[ "${_sn}" == "psim" || "${_sn}" == "dnode"* ]]; then
+                for _sub in log cfg; do
+                  if [[ -d "${_sd}/${_sub}" && "$(ls -A "${_sd}/${_sub}" 2>/dev/null)" ]]; then
+                    if [[ -n "${dest}" ]]; then
+                      mkdir -p "${dest}/sim/${_sn}/${_sub}"
+                      cp -rn "${_sd}/${_sub}/." "${dest}/sim/${_sn}/${_sub}/" 2>/dev/null || true
+                    else
+                      find "${_sd}/${_sub}" -type f 2>/dev/null | while IFS= read -r f; do
+                        cp "$f" "${LOGS_DIR}/t${tnum}-$(basename "$f")" 2>/dev/null || true
+                      done
+                    fi
+                  fi
+                done
+              elif [[ "${_sn}" == "asan" || "${_sn}" == "var_taoslog" ]]; then
+                if [[ "$(find "${_sd}" -type f 2>/dev/null | head -1)" ]]; then
+                  if [[ -n "${dest}" ]]; then
+                    mkdir -p "${dest}/sim/${_sn}"
+                    cp -rn "${_sd}/." "${dest}/sim/${_sn}/" 2>/dev/null || true
+                  else
+                    find "${_sd}" -type f 2>/dev/null | while IFS= read -r f; do
+                      cp "$f" "${LOGS_DIR}/t${tnum}-$(basename "$f")" 2>/dev/null || true
+                    done
+                  fi
+                fi
+              fi
+            done
+          fi
+          # case-*.log（in-flight 用例的运行日志，slug 未知时才收集）
+          if [[ -z "${dest}" ]]; then
+            find "${tvol}" -maxdepth 2 -name 'case-*.log' -type f 2>/dev/null | while IFS= read -r f; do
+              cp "$f" "${LOGS_DIR}/t${tnum}-$(basename "$f")" 2>/dev/null || true
+            done
+          fi
+        done || true
+      echo "=== [after_script] Cleaning up WORKDIR ==="
+      rm -rf "${WORKDIR}" 2>/dev/null || true
+
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# =============================================================================
+# coordinator — 运行于 test-builder，为所有 worker 提供用例队列服务
+# 端口 = CI_PIPELINE_ID % 10000 + 20000（所有 job 中相同）
+# =============================================================================
+coordinator:
+  stage: test
+  tags: [tsdb-builder]
+  timeout: 300 minutes
+  needs: [upload-nexus]
+  extends: .rules-code-change
+  interruptible: true
+
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "1"
+    SANITIZER: "n"
+    PROMETHEUS_URL: "http://192.168.1.42:9090"
+    PROM_INTERVAL: "30"
+    PYTHONUNBUFFERED: "1"   # 确保 Python print() 即时刷出，GitLab section 标记不被缓冲截断
+    # ── Rerun 模式（Retry 时自动生效，无需额外操作）──────────────────────
+    # auto = 自动检测：存在上次结果时仅重跑失败 case，否则全量（默认）
+    # 空   = 强制全量跑所有 case
+    # failed = 仅重跑上次失败的 case
+    # worker:HOST = 仅重跑上次分配给 HOST 的全部 case（如 worker:u3-141）
+    # failed:HOST = 仅重跑上次 HOST 上失败的 case（如 failed:u3-141）
+    RERUN_MODE: "auto"
+
+  script:
+    - export RESULTS_DIR="${CI_PROJECT_DIR}/results"
+    - export CASES_TASK="${CI_PROJECT_DIR}/source/taos-community/test/ci/cases.task"
+    - mkdir -p "${RESULTS_DIR}"
+    - |
+      _COORD_PORT=$(( CI_PIPELINE_ID % 10000 + 20000 ))
+      echo "[coordinator] Pipeline: ${CI_PIPELINE_ID}  Port: ${_COORD_PORT}"
+      echo "[coordinator] CASES_TASK: ${CASES_TASK}"
+      echo "[coordinator] Prometheus: ${PROMETHEUS_URL}"
+      [ -f "${CASES_TASK}" ] || { echo "ERROR: cases.task not found"; exit 1; }
+    - python3 "${CI_PROJECT_DIR}/tests/ci/scripts/coordinator.py"
+
+  artifacts:
+    when: always
+    reports:
+      junit: "results/junit-aggregate.xml"
+    paths:
+      - "results/"
+    expire_in: 14 days
+
+# test-linux-1~7 均为纯 worker
+test-linux-1:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-141]
+  variables:
+    CI_NODE_INDEX: "1"
+
+test-linux-2:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-142]
+  variables:
+    CI_NODE_INDEX: "2"
+
+test-linux-3:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-143]
+  variables:
+    CI_NODE_INDEX: "3"
+
+test-linux-4:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u0-210]
+  variables:
+    CI_NODE_INDEX: "4"
+
+test-linux-5:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u1-63]
+  variables:
+    CI_NODE_INDEX: "5"
+    WORKER_CAPS: "large-mem"    # u1-63 负责执行大内存用例
+
+test-linux-6:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u1-59]
+  variables:
+    CI_NODE_INDEX: "6"
+    WORKER_CAPS: "large-mem"    # u1-59 负责执行大内存用例
+
+test-linux-7:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u0-212]
+  variables:
+    CI_NODE_INDEX: "7"
+
+# =============================================================================
+# Stage: cleanup
+# =============================================================================
+# cleanup-workspace 暂时禁用（隐藏 job，不会被 GitLab 执行），待后续决定是否启用
+.cleanup-workspace:
+  stage: cleanup
+  tags: [tsdb-builder]
+  timeout: 5 minutes
+  when: manual   # 手动触发：调试期间保留工作区，调试完毕后手动运行此 job 清理
+  needs:
+    - job: upload-nexus
+      optional: true
+
+  script:
+    - |
+      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+        WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}"
+      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+        WORKSPACE="${CI_BASE_DIR}/daily-${CI_COMMIT_BRANCH}-$(date +%Y%m%d)"
+      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+        WORKSPACE="${CI_BASE_DIR}/web-${CI_PIPELINE_ID}"
+      else
+        WORKSPACE="${CI_BASE_DIR}/push-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}"
+      fi
+      echo "Cleaning up workspace: ${WORKSPACE}"
+      if [ -d "${WORKSPACE}" ]; then
+        chmod -R u+w "${WORKSPACE}" 2>/dev/null || true
+        rm -rf "${WORKSPACE}" 2>/dev/null || true
+      fi
+      if [ -d "${WORKSPACE}" ]; then
+        docker run --rm -v "${WORKSPACE}":/cleanup "${BUILDER_IMAGE}" \
+          sh -c 'chmod -R 777 /cleanup && find /cleanup -mindepth 1 -delete' 2>/dev/null || true
+        rm -rf "${WORKSPACE}" 2>/dev/null || true
+      fi
+      echo "Done."
