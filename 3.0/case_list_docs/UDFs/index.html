@@ -2094,28 +2094,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy" class="md-nav__link">
-        perm_entropy aggregate UDF – accumulate-all-data-then-compute pattern 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy_rss_leak" class="md-nav__link">
-        perm_entropy aggregate UDF – repeated query to exercise accumulate/finish path. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#12-UDFs.test_udf_main.TestUdfpyMain.test_udf_main" class="md-nav__link">
         Udf basic for python 
       </a>
@@ -3946,28 +3924,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy" class="md-nav__link">
-        perm_entropy aggregate UDF – accumulate-all-data-then-compute pattern 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy_rss_leak" class="md-nav__link">
-        perm_entropy aggregate UDF – repeated query to exercise accumulate/finish path. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#12-UDFs.test_udf_main.TestUdfpyMain.test_udf_main" class="md-nav__link">
         Udf basic for python 
       </a>
@@ -4327,86 +4283,6 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. basic udf query test</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. multi columns udf test</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. restart taosd and query udf functions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/test_udf_restart_taosd.py" target="_blank">
-                      cases/12-UDFs/test_udf_restart_taosd.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy" class="doc doc-heading">
-
-<a href="#12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>perm_entropy aggregate UDF – accumulate-all-data-then-compute pattern</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">perm_entropy is a special aggregate UDF: it cannot produce any result</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">until ALL rows in the window have been delivered.  During processing</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(AGG_PROC calls) it only accumulates values into a heap-allocated array</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">carried inside the intermediate buffer.  The actual permutation-entropy</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">computation happens entirely inside perm_entropy_finish after all data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">has been collected.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests:</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Locate libperm_entropy.so in the build tree.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create a database with monotonically increasing and mixed data.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Register the perm_entropy aggregate UDF (BUFSIZE 256).</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify correctness:</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - Monotonically increasing data → entropy = 0.0 (single permutation pattern).</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - Fewer rows than embed_dim (5) → NULL result (no result).</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - Interval window partitioning → each window returns its own entropy.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify the UDF survives a taosd restart and returns the same results.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/test_udf_restart_taosd.py" target="_blank">
-                      cases/12-UDFs/test_udf_restart_taosd.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy_rss_leak" class="doc doc-heading">
-
-<a href="#12-UDFs.test_udf_restart_taosd.TestUdfRestartTaosd.test_perm_entropy_rss_leak" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>perm_entropy aggregate UDF – repeated query to exercise accumulate/finish path.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Runs REPEAT_ROUNDS of diverse aggregate queries (supertable partition,</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">interval window, single-table) and logs taosudf RSS across rounds.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Memory leak detection is handled by ASAN on taosd shutdown.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Tests:</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Register perm_entropy UDF from the build tree.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert synthetic data into a supertable with multiple child tables.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Run REPEAT_ROUNDS of aggregate queries per round.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
