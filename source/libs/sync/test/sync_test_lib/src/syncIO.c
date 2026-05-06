@@ -23,6 +23,10 @@
 #include "tutil.h"
 #include "tversion.h"
 
+#ifndef TDMT_SYNC_PING
+#define TDMT_SYNC_PING TDMT_SYNC_HEARTBEAT
+#endif
+
 bool     gRaftDetailLog = false;
 SSyncIO *gSyncIO = NULL;
 
@@ -97,8 +101,9 @@ int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   snprintf(logBuf, sizeof(logBuf), "==syncIOEqMsg== msgType:%d", pMsg->msgType);
   syncRpcMsgLog2(logBuf, pMsg);
 
-  SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
+  SRpcMsg *pTemp = NULL;
+  int32_t  code = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void **)&pTemp);
+  ASSERT(code == 0);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   STaosQueue *pMsgQ = gSyncIO->pMsgQ;
@@ -136,8 +141,10 @@ static SSyncIO *syncIOCreate(char *host, uint16_t port) {
   SSyncIO *io = (SSyncIO *)taosMemoryMalloc(sizeof(SSyncIO));
   memset(io, 0, sizeof(*io));
 
-  io->pMsgQ = taosOpenQueue();
-  io->pQset = taosOpenQset();
+  int32_t code = taosOpenQueue(&io->pMsgQ);
+  ASSERT(code == 0);
+  code = taosOpenQset(&io->pQset);
+  ASSERT(code == 0);
   taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
 
   io->myAddr.inUse = 0;
@@ -189,7 +196,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.idleTime = 100;
     rpcInit.user = "sync-io";
     rpcInit.connType = TAOS_CONN_CLIENT;
-    taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
     io->clientRpc = rpcOpen(&rpcInit);
     if (io->clientRpc == NULL) {
       sError("failed to initialize RPC");
@@ -210,7 +217,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.idleTime = 2 * 1500;
     rpcInit.parent = io;
     rpcInit.connType = TAOS_CONN_SERVER;
-    taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
     void *pRpc = rpcOpen(&rpcInit);
     if (pRpc == NULL) {
       sError("failed to start RPC server");
@@ -245,7 +252,9 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 
 static void *syncIOConsumerFunc(void *param) {
   SSyncIO   *io = param;
-  STaosQall *qall = taosAllocateQall();
+  STaosQall *qall = NULL;
+  int32_t    code = taosAllocateQall(&qall);
+  ASSERT(code == 0);
   SRpcMsg   *pRpcMsg, rpcMsg;
   SQueueInfo qinfo = {0};
 
@@ -381,8 +390,9 @@ static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   syncRpcMsgLog2((char *)"==syncIOProcessRequest==", pMsg);
   SSyncIO *io = pParent;
-  SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
+  SRpcMsg *pTemp = NULL;
+  int32_t  code = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void **)&pTemp);
+  ASSERT(code == 0);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   taosWriteQitem(io->pMsgQ, pTemp);
 }
@@ -441,8 +451,9 @@ static void syncIOTickQ(void *param, void *tmrId) {
 
   SRpcMsg rpcMsg;
   syncPingReply2RpcMsg(pMsg, &rpcMsg);
-  SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
+  SRpcMsg *pTemp = NULL;
+  int32_t  code = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void **)&pTemp);
+  ASSERT(code == 0);
   memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
   syncRpcMsgLog2((char *)"==syncIOTickQ==", &rpcMsg);
   taosWriteQitem(io->pMsgQ, pTemp);

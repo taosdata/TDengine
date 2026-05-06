@@ -16,6 +16,18 @@
 #define _DEFAULT_SOURCE
 #include "syncTest.h"
 
+#ifndef TDMT_SYNC_PING
+#define TDMT_SYNC_PING TDMT_SYNC_HEARTBEAT
+#endif
+
+#ifndef TDMT_SYNC_PRE_SNAPSHOT
+#define TDMT_SYNC_PRE_SNAPSHOT TDMT_SYNC_PREP_SNAPSHOT
+#endif
+
+#ifndef TDMT_SYNC_PRE_SNAPSHOT_REPLY
+#define TDMT_SYNC_PRE_SNAPSHOT_REPLY TDMT_SYNC_PREP_SNAPSHOT_REPLY
+#endif
+
 // ---- message process SyncPing----
 SyncPing* syncPingBuild(uint32_t dataLen) {
   uint32_t  bytes = sizeof(SyncPing) + dataLen;
@@ -737,7 +749,7 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->snapStartTime);
     cJSON_AddStringToObject(pRoot, "startTime", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->beginIndex);
@@ -1018,6 +1030,13 @@ SyncRequestVote* syncRequestVoteBuild(int32_t vgId) {
   pMsg->bytes = bytes;
   pMsg->vgId = vgId;
   pMsg->msgType = TDMT_SYNC_REQUEST_VOTE;
+  pMsg->candidateAppliedIndex = SYNC_INDEX_INVALID;
+  return pMsg;
+}
+
+SyncRequestVote* syncRequestVoteBuildWithAppliedIndex(int32_t vgId, SyncIndex appliedIndex) {
+  SyncRequestVote* pMsg = syncRequestVoteBuild(vgId);
+  pMsg->candidateAppliedIndex = appliedIndex;
   return pMsg;
 }
 
@@ -1118,6 +1137,8 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
     cJSON_AddStringToObject(pRoot, "lastLogIndex", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->lastLogTerm);
     cJSON_AddStringToObject(pRoot, "lastLogTerm", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->candidateAppliedIndex);
+    cJSON_AddStringToObject(pRoot, "candidateAppliedIndex", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

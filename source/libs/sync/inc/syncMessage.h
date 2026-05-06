@@ -70,6 +70,7 @@ typedef struct SyncRequestVote {
   SyncTerm  term;
   SyncIndex lastLogIndex;
   SyncTerm  lastLogTerm;
+  SyncIndex candidateAppliedIndex;
   int16_t   reserved;
 } SyncRequestVote;
 

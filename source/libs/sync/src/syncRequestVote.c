@@ -86,6 +86,32 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
   return false;
 }
 
+bool syncNodeOnRequestVoteAppliedIndexOK(SSyncNode* ths, const SyncRequestVote* pMsg, SyncIndex* pLocalApplied) {
+  *pLocalApplied = syncNodeGetAppliedIndex(ths);
+
+  if (*pLocalApplied < SYNC_INDEX_BEGIN || pMsg->candidateAppliedIndex < SYNC_INDEX_BEGIN) {
+    sNInfo(ths,
+           "appliedok:1, fallback due to unavailable applied index, {my-applied:%" PRId64 ", recv-applied:%" PRId64
+           ", recv-term:%" PRIu64 "}",
+           *pLocalApplied, pMsg->candidateAppliedIndex, pMsg->term);
+    return true;
+  }
+
+  if (pMsg->candidateAppliedIndex < *pLocalApplied) {
+    sNWarn(ths,
+           "appliedok:0, candidate applied index behind local state, {my-applied:%" PRId64 ", recv-applied:%" PRId64
+           ", recv-term:%" PRIu64 "}",
+           *pLocalApplied, pMsg->candidateAppliedIndex, pMsg->term);
+    return false;
+  }
+
+  sNInfo(ths,
+         "appliedok:1, candidate applied index acceptable, {my-applied:%" PRId64 ", recv-applied:%" PRId64
+         ", recv-term:%" PRIu64 "}",
+         *pLocalApplied, pMsg->candidateAppliedIndex, pMsg->term);
+  return true;
+}
+
 int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;
@@ -101,6 +127,8 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
+  SyncIndex localAppliedIndex = SYNC_INDEX_INVALID;
+  bool      appliedOK = syncNodeOnRequestVoteAppliedIndexOK(ths, pMsg, &localAppliedIndex);
   // maybe update term
   if (pMsg->term > raftStoreGetTerm(ths)) {
     syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "requestVote-1");
@@ -109,11 +137,12 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   bool hasVoted = raftStoreHasVoted(ths);
-  bool grant =
-      (pMsg->term == currentTerm) && logOK && ((!hasVoted) || syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId));
+  bool grant = (pMsg->term == currentTerm) && logOK && appliedOK &&
+               ((!hasVoted) || syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId));
   sInfo("vgId:%d, grant:%d, hasVoted:%d, voteFor:0x%" PRIx64 ", srcId:0x%" PRIx64 ", logOK:%d, msg term:%" PRId64
-        ", current term:%" PRId64,
-        ths->vgId, grant, hasVoted, ths->raftStore.voteFor.addr, pMsg->srcId.addr, logOK, pMsg->term, currentTerm);
+        ", current term:%" PRId64 ", appliedOK:%d, my applied:%" PRId64 ", recv applied:%" PRId64,
+        ths->vgId, grant, hasVoted, ths->raftStore.voteFor.addr, pMsg->srcId.addr, logOK, pMsg->term, currentTerm,
+        appliedOK, localAppliedIndex, pMsg->candidateAppliedIndex);
   if (grant) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm

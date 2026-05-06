@@ -86,33 +86,12 @@ void syncEntryLog2(char* s, const SSyncRaftEntry* pObj) {
 
 //-----------------------------------
 cJSON* raftCache2Json(SRaftEntryHashCache* pCache) {
-  char   u64buf[128] = {0};
+  char   ptrbuf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pCache != NULL) {
-    taosThreadMutexLock(&pCache->mutex);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pCache->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-    cJSON_AddNumberToObject(pRoot, "currentCount", pCache->currentCount);
-    cJSON_AddNumberToObject(pRoot, "maxCount", pCache->maxCount);
-    cJSON* pEntries = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "entries", pEntries);
-
-    SSyncRaftEntry* pIter = (SSyncRaftEntry*)taosHashIterate(pCache->pEntryHash, NULL);
-    if (pIter != NULL) {
-      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pIter;
-      cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-    }
-    while (pIter) {
-      pIter = taosHashIterate(pCache->pEntryHash, pIter);
-      if (pIter != NULL) {
-        SSyncRaftEntry* pEntry = (SSyncRaftEntry*)pIter;
-        cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-      }
-    }
-
-    taosThreadMutexUnlock(&pCache->mutex);
+    snprintf(ptrbuf, sizeof(ptrbuf), "%p", pCache);
+    cJSON_AddStringToObject(pRoot, "opaqueCache", ptrbuf);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -156,29 +135,12 @@ void raftCacheLog2(char* s, SRaftEntryHashCache* pCache) {
 }
 
 cJSON* raftEntryCache2Json(SRaftEntryCache* pCache) {
-  char   u64buf[128] = {0};
+  char   ptrbuf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pCache != NULL) {
-    taosThreadMutexLock(&pCache->mutex);
-
-    snprintf(u64buf, sizeof(u64buf), "%p", pCache->pSyncNode);
-    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
-    cJSON_AddNumberToObject(pRoot, "currentCount", pCache->currentCount);
-    cJSON_AddNumberToObject(pRoot, "maxCount", pCache->maxCount);
-    cJSON* pEntries = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "entries", pEntries);
-
-    SSkipListIterator* pIter = tSkipListCreateIter(pCache->pSkipList);
-    while (tSkipListIterNext(pIter)) {
-      SSkipListNode* pNode = tSkipListIterGet(pIter);
-      ASSERT(pNode != NULL);
-      SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
-      cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-    }
-    tSkipListDestroyIter(pIter);
-
-    taosThreadMutexUnlock(&pCache->mutex);
+    snprintf(ptrbuf, sizeof(ptrbuf), "%p", pCache);
+    cJSON_AddStringToObject(pRoot, "opaqueCache", ptrbuf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

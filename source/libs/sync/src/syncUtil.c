@@ -733,17 +733,17 @@ void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, i
   snprintf(statusMsg, sizeof(statusMsg), "granted:%d", voteGranted);
   sNInfo(pSyncNode,
          "%s sync-request-vote from dnode:%d, {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64
-         "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
-         opt, DID(&pMsg->srcId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm,
+         ", applied-index:%" PRId64 "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+         opt, DID(&pMsg->srcId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, pMsg->candidateAppliedIndex,
          (voteGranted != -1) ? statusMsg : errmsg, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
 }
 
 void syncLogSendRequestVote(SSyncNode* pNode, const SyncRequestVote* pMsg, const char* s, const STraceId* trace) {
   sNInfo(pNode,
          "send sync-request-vote to dnode:%d {term:%" PRId64 ", last-index:%" PRId64 ", last-term:%" PRId64
-         "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
-         DID(&pMsg->destId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, s, trace ? trace->rootId : 0,
-         trace ? trace->msgId : 0);
+         ", applied-index:%" PRId64 "}, %s, QID:0x%" PRIx64 ":0x%" PRIx64,
+         DID(&pMsg->destId), pMsg->term, pMsg->lastLogIndex, pMsg->lastLogTerm, pMsg->candidateAppliedIndex, s,
+         trace ? trace->rootId : 0, trace ? trace->msgId : 0);
 }
 
 void syncLogRecvRequestVoteReply(SSyncNode* pSyncNode, const SyncRequestVoteReply* pMsg, const char* s,

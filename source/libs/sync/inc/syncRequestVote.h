@@ -44,6 +44,7 @@ extern "C" {
 //                 m)
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
+bool    syncNodeOnRequestVoteAppliedIndexOK(SSyncNode* pNode, const SyncRequestVote* pMsg, SyncIndex* pLocalApplied);
 int32_t syncNodeOnRequestVote(SSyncNode* pNode, const SRpcMsg* pMsg);
 
 #ifdef __cplusplus

@@ -28,19 +28,8 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
     snprintf(u64buf, sizeof(u64buf), "%p", pSender->pReader);
     cJSON_AddStringToObject(pRoot, "pReader", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pCurrentBlock);
-    cJSON_AddStringToObject(pRoot, "pCurrentBlock", u64buf);
-    cJSON_AddNumberToObject(pRoot, "blockLen", pSender->blockLen);
-
-    if (pSender->pCurrentBlock != NULL) {
-      char *s;
-      s = syncUtilPrintBin((char *)(pSender->pCurrentBlock), pSender->blockLen);
-      cJSON_AddStringToObject(pRoot, "pCurrentBlock", s);
-      taosMemoryFree(s);
-      s = syncUtilPrintBin2((char *)(pSender->pCurrentBlock), pSender->blockLen);
-      cJSON_AddStringToObject(pRoot, "pCurrentBlock2", s);
-      taosMemoryFree(s);
-    }
+    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pSndBuf);
+    cJSON_AddStringToObject(pRoot, "pSndBuf", u64buf);
 
     cJSON *pSnapshot = cJSON_CreateObject();
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pSender->snapshot.lastApplyIndex);
@@ -115,7 +104,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pReceiver->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pReceiver->startTime);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pReceiver->receiverStartTime);
     cJSON_AddStringToObject(pRoot, "startTime", u64buf);
   }
 
