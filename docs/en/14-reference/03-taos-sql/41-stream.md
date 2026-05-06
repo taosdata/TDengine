@@ -895,11 +895,9 @@ Temporary Restrictions:
 
 - Grouping by regular data columns is not yet supported.
 - The Geometry data type is not yet supported.
-- User-defined functions (UDFs) are not yet supported.
 - The DELETE_OUTPUT_TABLE option is not yet supported.
 - The ON_FAILURE_PAUSE option in NOTIFY_OPTIONS is not yet supported.
 - The Cast function is not yet supported in state window triggers.
-- The Windows platform is not yet supported.
 
 ### Compatibility Notes
 
