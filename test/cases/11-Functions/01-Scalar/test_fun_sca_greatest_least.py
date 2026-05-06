@@ -323,6 +323,78 @@ class TestFunGreatestLeast:
         tdSql.error(f"select greatest(j, 1) from {self.db}.t_json")
 
     # ==================================================================
+    # 7. Boundary / scale cases (PR follow-ups)
+    # ==================================================================
+
+    # GTL-BND-001: empty table + all-NULL columns.
+    # Exercises the numOfRows==0 fast-path in greatestLeastImpl: no
+    # allocations, output column finalized at zero rows, no crash.
+    def case_bnd_empty_all_null(self):
+        tdSql.execute(
+            f"create table if not exists {self.db}.t_empty "
+            "(ts timestamp, a int, b int)"
+        )
+        tdSql.execute(f"delete from {self.db}.t_empty")
+        # Default config and ignoreNullInGreatest=1, both with NULL literal
+        # and column-only forms: each must return zero rows.
+        tdSql.execute("alter local 'ignoreNullInGreatest' '0'")
+        tdSql.query(f"select greatest(a, b) from {self.db}.t_empty")
+        tdSql.checkRows(0)
+        tdSql.query(f"select least(a, NULL, b) from {self.db}.t_empty")
+        tdSql.checkRows(0)
+        tdSql.execute("alter local 'ignoreNullInGreatest' '1'")
+        tdSql.query(f"select greatest(a, b, NULL) from {self.db}.t_empty")
+        tdSql.checkRows(0)
+        tdSql.execute("alter local 'ignoreNullInGreatest' '0'")
+
+    # GTL-BND-002: many-column boundary (50 args).
+    # Verifies the inner per-column scan in vectorCompareAndSelect scales
+    # past the small-N defaults and that argument parsing accepts wide
+    # variadic invocations.
+    def case_bnd_many_columns(self):
+        args = ", ".join(str(i) for i in range(1, 51))  # 1..50
+        tdSql.query(f"select greatest({args})")
+        tdSql.checkData(0, 0, 50)
+        tdSql.query(f"select least({args})")
+        tdSql.checkData(0, 0, 1)
+        # Mix in a NULL literal at the tail; default config -> NULL.
+        tdSql.query(f"select greatest({args}, NULL)")
+        tdSql.checkData(0, 0, None)
+        # ignoreNullInGreatest=1 should drop the NULL and still pick 50.
+        tdSql.execute("alter local 'ignoreNullInGreatest' '1'")
+        tdSql.query(f"select greatest({args}, NULL)")
+        tdSql.checkData(0, 0, 50)
+        tdSql.execute("alter local 'ignoreNullInGreatest' '0'")
+
+    # GTL-BND-003: mixed constant + multi-row column broadcast.
+    # Constant params have numOfRows=1 and are read at slot 0 for every
+    # output row; column params advance with the outer loop. Guards the
+    # broadcast row-index used in vectorCompareAndSelect.
+    def case_bnd_mixed_const_column(self):
+        # Reuse t1(ts, v=-3,4,0  a=5,7,1  b=9,2,1) seeded in setup.
+        tdSql.query(
+            f"select greatest(10, v, a) from {self.db}.t1 order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 10)  # max(10, -3, 5) = 10
+        tdSql.checkData(1, 0, 10)  # max(10,  4, 7) = 10
+        tdSql.checkData(2, 0, 10)  # max(10,  0, 1) = 10
+        tdSql.query(
+            f"select least(10, v, a) from {self.db}.t1 order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, -3)  # min(10, -3, 5) = -3
+        tdSql.checkData(1, 0,  4)  # min(10,  4, 7) =  4
+        tdSql.checkData(2, 0,  0)  # min(10,  0, 1) =  0
+        # Constant beats every column value -> picked on every row.
+        tdSql.query(
+            f"select greatest(100, v, a, b) from {self.db}.t1 order by ts"
+        )
+        tdSql.checkRows(3)
+        for r in range(3):
+            tdSql.checkData(r, 0, 100)
+
+    # ==================================================================
     # main
     # ==================================================================
     def test_fun_sca_greatest_least(self):
@@ -380,5 +452,9 @@ class TestFunGreatestLeast:
             self.case_err_002()
             self.case_err_003()
             self.case_err_004()
+            # Boundary / scale (PR follow-ups)
+            self.case_bnd_empty_all_null()
+            self.case_bnd_many_columns()
+            self.case_bnd_mixed_const_column()
         finally:
             self._set_compare_as_str(1)
