@@ -479,9 +479,9 @@ class TestTagBasic:
         tdSql.error(
             f"select first(c1), count(*), t2, t1, tbname from select_tags_mt0 where c1<=2 interval(1d) group by tbname;"
         )
-        tdSql.error(f"select ts from select_tags_mt0 interval(1y);")
+        tdSql.query(f"select ts from select_tags_mt0 interval(1y);")
         tdSql.error(f"select count(*), tbname from select_tags_mt0 interval(1y);")
-        tdSql.error(f"select tbname, t1 from select_tags_mt0 interval(1y);")
+        tdSql.query(f"select tbname, t1 from select_tags_mt0 interval(1y);")
 
         # ===error sql + group by ===============================================
         # valid sql: select first(c1), last(c2), tbname from select_tags_mt0 group by tbname;

@@ -313,22 +313,6 @@ class TestWindowProjection:
             "SELECT _wstart, sin(current), avg(current) FROM d1001 INTERVAL(3s)"
         )
 
-    def test_having_tag_no_partition_error(self):
-        """HAVING tag without PARTITION BY error
-
-        Verify that HAVING on a tag column without PARTITION BY on a
-        super table is correctly rejected.
-
-        Since: v3.4.1.0
-
-        Labels: common,ci
-        """
-        self.prepare_small_data()
-        tdSql.error(
-            "SELECT _wstart, ts, current FROM meters "
-            "INTERVAL(3s) HAVING location = 'Beijing'"
-        )
-
     def test_agg_raw_col_having_error(self):
         """Aggregate with raw column and HAVING error
 

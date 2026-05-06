@@ -5351,6 +5351,49 @@ static bool IsEqualTbNameFuncNode(SSelectStmt* pSelect, SNode* pFunc1, SNode* pF
   return false;
 }
 
+typedef struct SCheckProjectionModeContext {
+  SSelectStmt* pSelect;
+  bool         hasScalarExpr;
+} SCheckProjectionModeContext;
+
+static EDealRes checkProjectionModeHasScalarExpr(SNode* pNode, void* pCtx) {
+  SCheckProjectionModeContext *ctx = (SCheckProjectionModeContext*)pCtx;
+  SSelectStmt                 *pSelect = ctx->pSelect;
+  if (!nodesIsExprNode(pNode) || isAliasColumn(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (isVectorFunc(pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+
+  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
+      if (nodesEqualNode(pExpr, pNode)) {
+        return DEAL_RES_CONTINUE;
+      }
+    }
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_COLUMN) {
+    ctx->hasScalarExpr = true;
+    return DEAL_RES_CONTINUE;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
+  if (pSelect->pProjectionList == NULL || pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc || pSelect->pGroupByList) {
+    return false;
+  }
+
+  SCheckProjectionModeContext ctx = {.pSelect = pSelect, .hasScalarExpr = false};
+  nodesWalkExprs(pSelect->pProjectionList, checkProjectionModeHasScalarExpr, &ctx);
+
+  return ctx.hasScalarExpr;
+}
+
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -5361,6 +5404,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   bool   isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
+  bool   isScalarMode = checkWindowProjectionMode(pSelect);
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
@@ -5378,66 +5422,38 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
   }
-  if (pSelect->pWindow && isSingleTable &&
-      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
-    // In projection mode, HAVING/ORDER BY tags must use _group_key (not _select_value)
-    // because _select_value requires companion agg functions that don't exist in projection mode.
-    bool isProjMode = (nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
-                       !pSelect->hasAggFuncs &&
-                       !(pSelect->hasIndefiniteRowsFunc && pSelect->hasSelectFunc));
-    if (isProjMode && (pCxt->currClause == SQL_CLAUSE_HAVING || pCxt->currClause == SQL_CLAUSE_ORDER_BY)) {
+
+  if (!isScalarMode) {
+    if (pSelect->pWindow && isSingleTable &&
+        ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
+      return rewriteExprToSelectTagFunc(pCxt, pNode);
+    }
+    if (pSelect->pWindow && isSingleTable && isTbnameFuction(*pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
-    return rewriteExprToSelectTagFunc(pCxt, pNode);
-  }
-  if (pSelect->pWindow && isSingleTable && isTbnameFuction(*pNode)) {
-    return rewriteExprToGroupKeyFunc(pCxt, pNode);
-  }
 
-  SNode* pPartKey = NULL;
-  bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
-
-  // Projection mode: window query with no agg functions and no real select/indef-rows functions.
-  // During SELECT processing: hasIndefiniteRowsFunc is not yet set (false).
-  // During HAVING processing: hasIndefiniteRowsFunc is artificially true but hasSelectFunc is still false.
-  // In both cases, skip rewriting — columns stay as-is for the projection list path.
-  // For csum mode (hasIndefiniteRowsFunc=true AND hasSelectFunc=true), this does NOT fire.
-  // Exception: TAG columns in HAVING/ORDER BY must fall through to the partition-by loop for
-  // _group_key rewrite, so the planner can create output slots for tags not in SELECT.
-  if (NULL != pSelect->pWindow &&
-      nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
-      !pSelect->hasAggFuncs &&
-      !(pSelect->hasIndefiniteRowsFunc && pSelect->hasSelectFunc) &&
-      (QUERY_NODE_COLUMN == nodeType(*pNode) || isScanPseudoColumnFunc(*pNode))) {
-    bool isClauseTag = ((pCxt->currClause == SQL_CLAUSE_HAVING || pCxt->currClause == SQL_CLAUSE_ORDER_BY) &&
-                        QUERY_NODE_COLUMN == nodeType(*pNode) &&
-                        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG);
-    if (!isClauseTag) {
-      return DEAL_RES_CONTINUE;
-    }
-  }
-
-  FOREACH(pPartKey, pSelect->pPartitionByList) {
-    if (nodesEqualNode(pPartKey, *pNode)) {
-      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
-                                                        : DEAL_RES_IGNORE_CHILD;
-    }
-    if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
-        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
-      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
-                                                        : DEAL_RES_IGNORE_CHILD;
-    }
-    if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
-      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
-                                                        : DEAL_RES_IGNORE_CHILD;
-    }
-  }
-  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
-    SNode* pExpr = NULL;
-    FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
-      if (nodesEqualNode(pExpr, *pNode)) {
-        pSelect->hasStateKey = true;
+    SNode* pPartKey = NULL;
+    bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
+    FOREACH(pPartKey, pSelect->pPartitionByList) {
+      if (nodesEqualNode(pPartKey, *pNode)) {
+        return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                          : DEAL_RES_IGNORE_CHILD;
+      }
+      if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+          ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
         return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      }
+      if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
+        return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      }
+    }
+    if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+      SNode* pExpr = NULL;
+      FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
+        if (nodesEqualNode(pExpr, *pNode)) {
+          pSelect->hasStateKey = true;
+          return rewriteExprToGroupKeyFunc(pCxt, pNode);
+        }
       }
     }
   }
@@ -5464,8 +5480,17 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
 
-    if ((pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
+    if (pSelect->hasOtherVectorFunc && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
+    }
+
+    if (!pSelect->hasSelectFunc && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
+      if (!pSelect->pGroupByList) {
+        pSelect->hasScalarExpr = true;
+        return DEAL_RES_CONTINUE;
+      } else {
+        return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
+      }
     }
 
     return rewriteColToSelectValFunc(pCxt, pNode);
@@ -12145,11 +12170,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code &&
       NULL != pSelect->pWindow &&
       nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
-      !pSelect->hasAggFuncs &&
-      !pSelect->hasIndefiniteRowsFunc &&
-      !pSelect->hasInterpFunc &&
-      !pSelect->hasForecastFunc) {
-    pSelect->hasIndefiniteRowsFunc = true;
+     (pSelect->hasScalarExpr || pSelect->hasIndefiniteRowsFunc)) {
     if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
       if (NULL != pInterval->pFill) {
