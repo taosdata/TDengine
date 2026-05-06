@@ -686,10 +686,13 @@ static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets,
       }
     }
 
-    if (retained) {
-      (void)taosArrayPush(*ppRetainFids, &srcFid);
-    } else {
-      (void)taosArrayPush(*ppCopyFids, &srcFid);
+    SArray *arr = retained ? *ppRetainFids : *ppCopyFids;
+    if (taosArrayPush(arr, &srcFid) == NULL) {
+      taosArrayDestroy(*ppCopyFids);
+      taosArrayDestroy(*ppRetainFids);
+      *ppCopyFids = NULL;
+      *ppRetainFids = NULL;
+      return -1;
     }
   }
   return 0;
@@ -952,7 +955,12 @@ static int32_t dmCopyNonTsdbFiles(const SRepairTfs *pSrcTfs, STfs *pTgtTfs,
 
       struct SRemoteEntry re = {.isDir = (perms[0] == 'd'), .size = fsize};
       tstrncpy(re.name, name, sizeof(re.name));
-      (void)taosArrayPush(entries, &re);
+      if (taosArrayPush(entries, &re) == NULL) {
+        taosArrayDestroy(entries);
+        taosCloseCmd(&pCmd);
+        uError("repair: vnode%d memory allocation failed", vnodeId);
+        return -1;
+      }
     }
     taosCloseCmd(&pCmd);
 
@@ -1450,21 +1458,28 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId,
     return -1;
   }
 
+  int32_t ret = 0;
   int64_t len = (int64_t)strlen(jsonStr);
   int64_t written = taosWriteFile(pFile, jsonStr, len);
   if (written != len) {
     uError("repair: vnode%d failed to write current.json (wrote %" PRId64 "/%" PRId64 ")",
            vnodeId, written, len);
-    taosCloseFile(&pFile);
-    taosMemoryFree(jsonStr);
-    return -1;
+    ret = -1;
   }
-  (void)taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
+  if (taosFsyncFile(pFile) != 0) {
+    uError("repair: vnode%d failed to fsync current.json", vnodeId);
+    ret = -1;
+  }
+  if (taosCloseFile(&pFile) != 0) {
+    uError("repair: vnode%d failed to close current.json", vnodeId);
+    ret = -1;
+  }
   taosMemoryFree(jsonStr);
 
-  uInfo("repair: vnode%d current.json generated (%d file set(s))", vnodeId, totalSets);
-  return 0;
+  if (ret == 0) {
+    uInfo("repair: vnode%d current.json generated (%d file set(s))", vnodeId, totalSets);
+  }
+  return ret;
 }
 
 // Step j: Update syncCfg.myIndex in vnode.json and raft_config.json.
@@ -1538,14 +1553,24 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
     taosMemoryFree(jsonStr);
     return -1;
   }
+  int32_t ret = 0;
   int64_t len = (int64_t)strlen(jsonStr);
   int64_t written = taosWriteFile(pFile, jsonStr, len);
-  (void)taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-  taosMemoryFree(jsonStr);
   if (written != len) {
-    uError("repair: vnode%d failed to write vnode.json", vnodeId);
-    return -1;
+    uError("repair: vnode%d failed to write vnode.json (wrote %" PRId64 "/%" PRId64 ")", vnodeId, written, len);
+    ret = -1;
+  }
+  if (taosFsyncFile(pFile) != 0) {
+    uError("repair: vnode%d failed to fsync vnode.json", vnodeId);
+    ret = -1;
+  }
+  if (taosCloseFile(&pFile) != 0) {
+    uError("repair: vnode%d failed to close vnode.json", vnodeId);
+    ret = -1;
+  }
+  taosMemoryFree(jsonStr);
+  if (ret != 0) {
+    return ret;
   }
   uInfo("repair: vnode%d vnode.json syncCfg.myIndex updated to %d", vnodeId, myIndex);
 
@@ -1617,14 +1642,24 @@ static int32_t dmUpdateSyncIndex(STfs *pTgtTfs, int32_t vnodeId, int32_t dnodeId
     taosMemoryFree(jsonStr);
     return -1;
   }
+  ret = 0;
   len = (int64_t)strlen(jsonStr);
   written = taosWriteFile(pFile, jsonStr, len);
-  (void)taosFsyncFile(pFile);
-  taosCloseFile(&pFile);
-  taosMemoryFree(jsonStr);
   if (written != len) {
-    uError("repair: vnode%d failed to write raft_config.json", vnodeId);
-    return -1;
+    uError("repair: vnode%d failed to write raft_config.json (wrote %" PRId64 "/%" PRId64 ")", vnodeId, written, len);
+    ret = -1;
+  }
+  if (taosFsyncFile(pFile) != 0) {
+    uError("repair: vnode%d failed to fsync raft_config.json", vnodeId);
+    ret = -1;
+  }
+  if (taosCloseFile(&pFile) != 0) {
+    uError("repair: vnode%d failed to close raft_config.json", vnodeId);
+    ret = -1;
+  }
+  taosMemoryFree(jsonStr);
+  if (ret != 0) {
+    return ret;
   }
   uInfo("repair: vnode%d raft_config.json myIndex updated to %d", vnodeId, raftMyIndex);
   return 0;
@@ -1715,9 +1750,13 @@ static void dmRollbackVnode(STfs *pTgtTfs, int32_t vnodeId) {
 
       if (hasVnode && hasBak) {
         taosRemoveDir(vnodePath);
-        (void)taosRenameFile(bakPath, vnodePath);
+        if (taosRenameFile(bakPath, vnodePath) != 0) {
+          uError("repair: vnode%d failed to rollback %s (rename failed)", vnodeId, vnodePath);
+        }
       } else if (!hasVnode && hasBak) {
-        (void)taosRenameFile(bakPath, vnodePath);
+        if (taosRenameFile(bakPath, vnodePath) != 0) {
+          uError("repair: vnode%d failed to rollback %s (rename failed)", vnodeId, vnodePath);
+        }
       }
       // If only vnodeN exists (no .bak) or neither exists: do nothing
     }

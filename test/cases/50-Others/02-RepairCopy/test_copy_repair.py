@@ -471,9 +471,41 @@ class TestCopyModeRepair:
         tdSql.checkEqual(not os.path.exists(bak_dir), True, "Backup dir should be deleted after success")
 
     def test_basic_copy_local(self):
+        """Basic local mode copy test 
+
+        1. Copy vnode from local source.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_basic_copy()
 
     def test_basic_copy_remote(self):
+        """Basic remote mode copy test
+
+        1. Copy vnode from remote source via SSH.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_basic_copy(source_host=self.source_host)
@@ -520,9 +552,41 @@ class TestCopyModeRepair:
         tdSql.checkEqual(stt_lvl[1]["level"], 1, "Incorrect stt level 1 in current.json")
 
     def test_stt_files_local(self):
+        """STT files local mode copy test
+
+        1. Copy vnode with STT files at multiple levels from local source.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_stt_files()
 
     def test_stt_files_remote(self):
+        """STT files remote mode copy test
+
+        1. Copy vnode with STT files at multiple levels from remote source via SSH.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_stt_files(source_host=self.source_host)
@@ -551,9 +615,41 @@ class TestCopyModeRepair:
         tdSql.checkEqual(os.path.isfile(os.path.join(tgt_tsdb, fname)), True, f"Missing file: {fname}")
 
     def test_empty_target_no_local_current_json_local(self):
+        """Empty target local mode copy test
+
+        1. Copy vnode when target has no vnode directory at all (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_empty_target_no_local_current_json()
 
     def test_empty_target_no_local_current_json_remote(self):
+        """Empty target remote mode copy test
+
+        1. Copy vnode when target has no vnode directory at all (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_empty_target_no_local_current_json(source_host=self.source_host)
@@ -584,9 +680,41 @@ class TestCopyModeRepair:
             tdSql.checkEqual(os.path.isfile(os.path.join(tgt_tsdb, "current.json")), True, "Missing file: current.json")
 
     def test_multiple_vnodes_local(self):
+        """Multiple vnodes local mode copy test
+
+        1. Repair multiple vnodes in one invocation from local source.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_multiple_vnodes()
 
     def test_multiple_vnodes_remote(self):
+        """Multiple vnodes remote mode copy test
+
+        1. Repair multiple vnodes in one invocation from remote source via SSH.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_multiple_vnodes(source_host=self.source_host)
@@ -601,9 +729,41 @@ class TestCopyModeRepair:
         tdSql.checkEqual(result.returncode, 0, "Vnode repair failed for missing source vnode")
 
     def test_skip_missing_source_vnode_local(self):
+        """Skip missing source vnode local mode test
+
+        1. Verify missing source vnode is skipped without failure (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_skip_missing_source_vnode()
 
     def test_skip_missing_source_vnode_remote(self):
+        """Skip missing source vnode remote mode test
+
+        1. Verify missing source vnode is skipped without failure (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_skip_missing_source_vnode(source_host=self.source_host)
@@ -636,15 +796,62 @@ class TestCopyModeRepair:
         tdSql.checkEqual(os.path.isdir(bak_dir), True, "Missing .bak directory")
 
     def test_skip_existing_bak_local(self):
+        """Skip existing .bak local mode test
+
+        1. Verify vnode is skipped when .bak already exists on target (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_skip_existing_bak()
 
     def test_skip_existing_bak_remote(self):
+        """Skip existing .bak remote mode test
+
+        1. Verify vnode is skipped when .bak already exists on target (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_skip_existing_bak(source_host=self.source_host)
 
     def test_exit_code_bad_args(self):
-        """Missing required arguments should return exit code 1."""
+        """Bad arguments exit code test
+
+        1. Verify missing required arguments returns non-zero exit code.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         env = self._setup_env()
         # Missing --vnode
         cmd = [
@@ -657,7 +864,22 @@ class TestCopyModeRepair:
         tdSql.checkEqual(result.returncode != 0, True, "Expected non-zero exit code for bad args")
 
     def test_exit_code_missing_source_cfg(self):
-        """Non-existent --source-cfg path: config falls back to defaults, vnodes skipped."""
+        """Missing source config exit code test
+
+        1. Verify non-existent --source-cfg path causes vnode to be skipped or non-zero exit.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         env = self._setup_env()
         bogus_cfg = os.path.join(SIM_PATH, "nonexistent", "taos.cfg")
         cmd = [
@@ -719,9 +941,41 @@ class TestCopyModeRepair:
                     tdSql.checkEqual(fset[key]["did.level"], 0, f"{key} should be on level 0")
 
     def test_two_tier_to_single_tier_local(self):
+        """Two-tier to single-tier local mode copy test
+
+        1. Copy vnode from 2-tier source to 1-tier target with tier folding (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_two_tier_to_single_tier()
 
     def test_two_tier_to_single_tier_remote(self):
+        """Two-tier to single-tier remote mode copy test
+
+        1. Copy vnode from 2-tier source to 1-tier target with tier folding (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_two_tier_to_single_tier(source_host=self.source_host)
@@ -776,9 +1030,41 @@ class TestCopyModeRepair:
                     tdSql.checkEqual(os.path.isfile(fpath), True, f"Missing on disk {did_id}: {fname}")
 
     def test_multi_disk_round_robin_local(self):
+        """Multi-disk round-robin local mode copy test
+
+        1. Verify files are distributed across multiple target disks at same tier (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_multi_disk_round_robin()
 
     def test_multi_disk_round_robin_remote(self):
+        """Multi-disk round-robin remote mode copy test
+
+        1. Verify files are distributed across multiple target disks at same tier (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_multi_disk_round_robin(source_host=self.source_host)
@@ -830,9 +1116,41 @@ class TestCopyModeRepair:
             tdSql.checkEqual(read_bin(tgt_path), expected_content, f"Mismatch: {fname}")
 
     def test_multi_source_disks_same_level_local(self):
+        """Multi-source-disk same level local mode copy test
+
+        1. Copy files from multiple source disks at same level to single target disk (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_multi_source_disks_same_level()
 
     def test_multi_source_disks_same_level_remote(self):
+        """Multi-source-disk same level remote mode copy test
+
+        1. Copy files from multiple source disks at same level to single target disk (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_multi_source_disks_same_level(source_host=self.source_host)
@@ -889,9 +1207,41 @@ class TestCopyModeRepair:
             f"Expected S3 warning in output, got:\n{combined_output}")
 
     def test_s3_warning_lcn_gt_1_local(self):
+        """S3 warning for lcn>1 local mode test
+
+        1. Verify S3 warning is produced for file sets with lcn > 1 (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_s3_warning_lcn_gt_1()
 
     def test_s3_warning_lcn_gt_1_remote(self):
+        """S3 warning for lcn>1 remote mode test
+
+        1. Verify S3 warning is produced for file sets with lcn > 1 (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_s3_warning_lcn_gt_1(source_host=self.source_host)
@@ -953,9 +1303,41 @@ class TestCopyModeRepair:
                     tdSql.checkEqual(fset[key]["did.id"], 0, f"fid={fset['fid']} {key} should be on disk 0")
 
     def test_three_tier_to_single_tier_local(self):
+        """Three-tier to single-tier local mode copy test
+
+        1. Copy vnode from 3-tier source to 1-tier target, all files map to {0,0} (local source).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         self._do_test_three_tier_to_single_tier()
 
     def test_three_tier_to_single_tier_remote(self):
+        """Three-tier to single-tier remote mode copy test
+
+        1. Copy vnode from 3-tier source to 1-tier target, all files map to {0,0} (remote source via SSH).
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-6 Bomin Zhang created
+        """
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_three_tier_to_single_tier(source_host=self.source_host)
