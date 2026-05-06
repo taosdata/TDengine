@@ -415,7 +415,6 @@ class TestVstInheritance:
     # =================================================================
     # 4. ALTER CASCADE
     # =================================================================
-    @pytest.mark.skip(reason="ALTER CASCADE not implemented in mnode yet")
     def test_alter_parent_add_column_cascades(self):
         """DDL: parent ADD COLUMN cascades to all descendants
 
@@ -482,7 +481,6 @@ class TestVstInheritance:
 
         self._cleanup_model()
 
-    @pytest.mark.skip(reason="ALTER CASCADE not implemented in mnode yet")
     def test_alter_parent_modify_column_cascades(self):
         """DDL: parent MODIFY TAG cascades to descendants
 
@@ -550,7 +548,6 @@ class TestVstInheritance:
     # =================================================================
     # 5. SHOW VSTABLE INHERITS / ins_inherits
     # =================================================================
-    @pytest.mark.skip(reason="SHOW VSTABLE INHERITS grammar not added to parser yet")
     def test_show_vstable_inherits(self):
         """DDL: SHOW VSTABLE INHERITS and ins_inherits
 
@@ -574,7 +571,7 @@ class TestVstInheritance:
         # Should have at least 3 rows: mid←root, mid2←root, leaf←mid
         tdSql.checkRows(3)
 
-        tdSql.query("SELECT * FROM information_schema.ins_inherits;")
+        tdSql.query("SELECT * FROM information_schema.ins_vstable_inherits;")
         tdSql.checkRows(3)
 
         self._cleanup_model()

@@ -2997,6 +2997,209 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// Cascade ADD COLUMN from parent to a single child VST (modifies childNew in-place)
+static int32_t mndCascadeAddColumnToChild(const SStbObj *pChild, SStbObj *pChildNew,
+                                          const SMAlterStbReq *pAlter, int32_t ncols) {
+  int32_t code = 0;
+  int32_t maxColumns = TSDB_MAX_COLUMNS;
+  if (pChild->numOfColumns + ncols + pChild->numOfTags > maxColumns) {
+    code = TSDB_CODE_MND_TOO_MANY_COLUMNS;
+    TAOS_RETURN(code);
+  }
+
+  pChildNew->numOfColumns = pChild->numOfColumns + ncols;
+  pChildNew->pColumns = taosMemoryCalloc(pChildNew->numOfColumns, sizeof(SSchema));
+  pChildNew->pTags = taosMemoryCalloc(pChild->numOfTags, sizeof(SSchema));
+  pChildNew->pCmpr = taosMemoryCalloc(pChildNew->numOfColumns, sizeof(SColCmpr));
+  if (!pChildNew->pColumns || !pChildNew->pTags || !pChildNew->pCmpr) {
+    TAOS_RETURN(terrno);
+  }
+
+  // Copy tags as-is
+  memcpy(pChildNew->pTags, pChild->pTags, sizeof(SSchema) * pChild->numOfTags);
+
+  // Insert new columns at ownColStart position (inherited section)
+  int16_t insertPos = pChild->ownColStart;
+  // Copy columns [0, insertPos)
+  memcpy(pChildNew->pColumns, pChild->pColumns, sizeof(SSchema) * insertPos);
+  memcpy(pChildNew->pCmpr, pChild->pCmpr, sizeof(SColCmpr) * insertPos);
+
+  // Insert new columns at insertPos
+  for (int32_t i = 0; i < ncols; i++) {
+    SField *pField = taosArrayGet(pAlter->pFields, i);
+    SSchema *pSchema = &pChildNew->pColumns[insertPos + i];
+    pSchema->bytes = pField->bytes;
+    pSchema->type = pField->type;
+    memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+    pSchema->colId = pChildNew->nextColId++;
+    pSchema->flags = 0;
+
+    SColCmpr *pCmpr = &pChildNew->pCmpr[insertPos + i];
+    pCmpr->id = pSchema->colId;
+    pCmpr->alg = createDefaultColCmprByType(pSchema->type);
+  }
+
+  // Copy remaining columns [insertPos, numOfColumns)
+  int32_t remaining = pChild->numOfColumns - insertPos;
+  memcpy(pChildNew->pColumns + insertPos + ncols, pChild->pColumns + insertPos, sizeof(SSchema) * remaining);
+  memcpy(pChildNew->pCmpr + insertPos + ncols, pChild->pCmpr + insertPos, sizeof(SColCmpr) * remaining);
+
+  // Update ownColStart
+  pChildNew->ownColStart = pChild->ownColStart + ncols;
+  pChildNew->colVer++;
+  pChildNew->updateTime = taosGetTimestampMs();
+
+  mInfo("stb:%s, cascaded add %d column(s) from parent, ownColStart %d -> %d",
+        pChildNew->name, ncols, pChild->ownColStart, pChildNew->ownColStart);
+  TAOS_RETURN(code);
+}
+
+// Cascade MODIFY TAG BYTES from parent to a single child VST
+static int32_t mndCascadeModifyTagToChild(const SStbObj *pChild, SStbObj *pChildNew, const SField *pField) {
+  int32_t code = 0;
+  int32_t tag = mndFindSuperTableTagIndex(pChild, pField->name);
+  if (tag < 0) {
+    // Child doesn't have this tag (shouldn't happen for inherited tags)
+    TAOS_RETURN(0);
+  }
+
+  pChildNew->pTags = taosMemoryCalloc(pChild->numOfTags, sizeof(SSchema));
+  pChildNew->pColumns = taosMemoryCalloc(pChild->numOfColumns, sizeof(SSchema));
+  pChildNew->pCmpr = taosMemoryCalloc(pChild->numOfColumns, sizeof(SColCmpr));
+  if (!pChildNew->pTags || !pChildNew->pColumns || !pChildNew->pCmpr) {
+    TAOS_RETURN(terrno);
+  }
+  memcpy(pChildNew->pColumns, pChild->pColumns, sizeof(SSchema) * pChild->numOfColumns);
+  memcpy(pChildNew->pTags, pChild->pTags, sizeof(SSchema) * pChild->numOfTags);
+  memcpy(pChildNew->pCmpr, pChild->pCmpr, sizeof(SColCmpr) * pChild->numOfColumns);
+
+  SSchema *pTag = &pChildNew->pTags[tag];
+  if (pField->bytes > pTag->bytes) {
+    pTag->bytes = pField->bytes;
+    pChildNew->tagVer++;
+    pChildNew->updateTime = taosGetTimestampMs();
+    mInfo("stb:%s, cascaded modify tag %s bytes to %d", pChildNew->name, pField->name, pField->bytes);
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Cascade ALTER to all descendants of a VST within the same transaction
+static int32_t mndCascadeAlterToDescendants(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
+                                            SStbObj *pParent, const SMAlterStbReq *pAlter) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  while (1) {
+    SStbObj *pChild = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pChild);
+    if (pIter == NULL) break;
+
+    if (pChild->parentSuid != pParent->uid) {
+      sdbRelease(pSdb, pChild);
+      continue;
+    }
+
+    // Found a direct child - apply cascade
+    SStbObj childNew = {0};
+    taosRLockLatch(&pChild->lock);
+    memcpy(&childNew, pChild, sizeof(SStbObj));
+    taosRUnLockLatch(&pChild->lock);
+    childNew.pColumns = NULL;
+    childNew.pTags = NULL;
+    childNew.pFuncs = NULL;
+    childNew.pCmpr = NULL;
+    childNew.pExtSchemas = NULL;
+    childNew.lock = 0;
+
+    bool modified = false;
+    if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_COLUMN ||
+        pAlter->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
+      code = mndCascadeAddColumnToChild(pChild, &childNew, pAlter, pAlter->numOfFields);
+      modified = (code == 0);
+    } else if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_BYTES) {
+      SField *pField0 = taosArrayGet(pAlter->pFields, 0);
+      code = mndCascadeModifyTagToChild(pChild, &childNew, pField0);
+      modified = (code == 0 && childNew.pTags != NULL);
+    }
+
+    if (code != 0) {
+      taosMemoryFreeClear(childNew.pColumns);
+      taosMemoryFreeClear(childNew.pTags);
+      taosMemoryFreeClear(childNew.pCmpr);
+      sdbRelease(pSdb, pChild);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_RETURN(code);
+    }
+
+    if (modified) {
+      // Add child to the same transaction
+      TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &childNew), NULL, _CHILD_ERR);
+      TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &childNew), NULL, _CHILD_ERR);
+      TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &childNew, NULL, 0), NULL, _CHILD_ERR);
+
+      // Recursively cascade to grandchildren
+      TAOS_CHECK_GOTO(mndCascadeAlterToDescendants(pMnode, pTrans, pDb, &childNew, pAlter), NULL, _CHILD_ERR);
+
+      goto _CHILD_OK;
+_CHILD_ERR:
+      taosMemoryFreeClear(childNew.pColumns);
+      taosMemoryFreeClear(childNew.pTags);
+      taosMemoryFreeClear(childNew.pCmpr);
+      sdbRelease(pSdb, pChild);
+      sdbCancelFetch(pSdb, pIter);
+      TAOS_RETURN(code);
+_CHILD_OK:
+      taosMemoryFreeClear(childNew.pColumns);
+      taosMemoryFreeClear(childNew.pTags);
+      taosMemoryFreeClear(childNew.pCmpr);
+    }
+
+    sdbRelease(pSdb, pChild);
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Extended mndAlterStbImp that also cascades to children
+static int32_t mndAlterStbWithCascade(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
+                                      void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter) {
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "alter-stb-cascade");
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  mInfo("trans:%d, used to alter stb:%s with cascade", pTrans->id, pStb->name);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+
+  if (needRsp) {
+    void   *pCont = NULL;
+    int32_t contLen = 0;
+    TAOS_CHECK_GOTO(mndBuildSMAlterStbRsp(pDb, pStb, &pCont, &contLen), NULL, _OVER);
+    mndTransSetRpcRsp(pTrans, pCont, contLen);
+  }
+
+  // Parent logs and actions
+  TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+
+  // Cascade to all descendants
+  TAOS_CHECK_GOTO(mndCascadeAlterToDescendants(pMnode, pTrans, pDb, pStb, pAlter), NULL, _OVER);
+
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
   bool    needRsp = true;
   int32_t code = -1;
@@ -3067,7 +3270,16 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
 
   if (code != 0) goto _OVER;
 
-  if (updateTagIndex == false) {
+  // Use cascade variant for virtual STBs with children when adding columns or modifying tag bytes
+  bool needCascade = (pOld->virtualStb &&
+                      (pAlter->alterType == TSDB_ALTER_TABLE_ADD_COLUMN ||
+                       pAlter->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION ||
+                       pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_BYTES) &&
+                      mndStbHasChildren(pMnode, (SStbObj*)pOld));
+
+  if (needCascade) {
+    code = mndAlterStbWithCascade(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen, pAlter);
+  } else if (updateTagIndex == false) {
     code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
   } else {
     code = mndAlterStbAndUpdateTagIdxImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen, pAlter);
