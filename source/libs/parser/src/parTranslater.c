@@ -60,6 +60,9 @@
     }                               \
   } while (0)
 
+// Forward declarations
+static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode);
+
 typedef struct SRewriteTbNameContext {
   int32_t errCode;
   char*   pTbName;
@@ -6128,6 +6131,24 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    // VStbRefDbs not in cache (e.g., descendant table in EXPAND UNION ALL rewrite).
+    // Fallback: use catalogGetTableDistVgInfo to get vgroups directly.
+    SRequestConnInfo conn = {.pTrans = pCxt->pParseCxt->pTransporter,
+                             .requestId = pCxt->pParseCxt->requestId,
+                             .requestObjRefId = pCxt->pParseCxt->requestRid,
+                             .mgmtEps = pCxt->pParseCxt->mgmtEpSet};
+    code = catalogGetTableDistVgInfo(pCxt->pParseCxt->pCatalog, &conn, pName, &tmpVgroupList);
+    if (TSDB_CODE_SUCCESS == code && tmpVgroupList) {
+      QUERY_CHECK_NULL(taosArrayAddAll(vgroupList, tmpVgroupList), code, lino, _return, terrno);
+      taosArrayDestroy(tmpVgroupList);
+      tmpVgroupList = NULL;
+    }
+    PAR_ERR_JRET(code);
+    taosMemoryFreeClear(pRefScanTable->pVgroupList);
+    PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
+    goto _return;
+  }
   PAR_ERR_JRET(code);
 
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -11909,10 +11930,231 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
   return code;
 }
 
+// Build a SELECT statement for one branch of the EXPAND UNION ALL rewrite.
+// Each branch selects only the columns from the parent VST's schema (not SELECT *),
+// ensuring all UNION ALL branches have identical column counts.
+static int32_t buildExpandBranchSelect(STranslateContext* pCxt, const char* dbName, const char* tableName,
+                                       STableMeta* pParentMeta, SSelectStmt** ppSelect) {
+  SSelectStmt* pSelect = NULL;
+  int32_t      code = nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
+  pSelect->isSubquery = true;
+
+  SRealTableNode* pRealTable = NULL;
+  code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRealTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    return code;
+  }
+  snprintf(pRealTable->table.dbName, sizeof(pRealTable->table.dbName), "%s", dbName);
+  snprintf(pRealTable->table.tableName, sizeof(pRealTable->table.tableName), "%s", tableName);
+  snprintf(pRealTable->table.tableAlias, sizeof(pRealTable->table.tableAlias), "%s", tableName);
+
+  pSelect->pFromTable = (SNode*)pRealTable;
+
+  // Build explicit projection list from parent VST's schema (columns + tags).
+  // This ensures all branches project exactly the parent's columns regardless of
+  // any extra columns the descendant may have.
+  int32_t totalCols = TABLE_TOTAL_COL_NUM(pParentMeta);
+  code = nodesMakeList(&pSelect->pProjectionList);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    return code;
+  }
+  for (int32_t i = 0; i < totalCols; ++i) {
+    SColumnNode* pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+    tstrncpy(pCol->colName, pParentMeta->schema[i].name, sizeof(pCol->colName));
+    snprintf(pCol->node.aliasName, sizeof(pCol->node.aliasName), "%s", pParentMeta->schema[i].name);
+    snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pParentMeta->schema[i].name);
+    code = nodesListStrictAppend(pSelect->pProjectionList, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+  }
+
+  *ppSelect = pSelect;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Build a binary UNION ALL tree from a list of SELECT statements (left-leaning).
+// Takes ownership of all SELECTs in the array.
+static int32_t buildUnionAllBinaryTree(SNodeList* pSelectList, SNode** ppUnionTree) {
+  if (NULL == pSelectList || pSelectList->length == 0) return TSDB_CODE_INVALID_PARA;
+
+  SListCell* pCell = pSelectList->pHead;
+  SNode*     pTree = pCell->pNode;
+  pCell = pCell->pNext;
+
+  while (pCell) {
+    SSetOperator* pSetOp = NULL;
+    int32_t       code = nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pSetOp);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    pSetOp->opType = SET_OP_TYPE_UNION_ALL;
+    pSetOp->pLeft = pTree;
+    pSetOp->pRight = pCell->pNode;
+    snprintf(pSetOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSetOp);
+
+    pTree = (SNode*)pSetOp;
+    pCell = pCell->pNext;
+  }
+
+  *ppUnionTree = pTree;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Rewrite VST EXPAND query to UNION ALL:
+// SELECT * FROM parent_vst EXPAND(-1)  →  (SELECT col1,col2 FROM parent_vst) UNION ALL (SELECT col1,col2 FROM child_vst1) ...
+// Each branch projects only the parent's schema columns.  The rewritten tree is fully translated and wrapped in a STempTableNode.
+static int32_t rewriteVstExpandToUnionAll(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SVirtualTableNode* pVTable = (SVirtualTableNode*)pSelect->pFromTable;
+
+  // Need at least one descendant to do a rewrite
+  if (NULL == pVTable->pExpandDescendants || pVTable->pExpandDescendants->length == 0) {
+    // No descendants — just proceed as a normal VST query (no EXPAND effect)
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNodeList* pBranches = NULL;
+  PAR_ERR_RET(nodesMakeList(&pBranches));
+
+  // Branch 0: self (parent VST)
+  char dbName[TSDB_DB_NAME_LEN] = {0};
+  snprintf(dbName, sizeof(dbName), "%s", pVTable->table.dbName);
+  char tableName[TSDB_TABLE_NAME_LEN] = {0};
+  snprintf(tableName, sizeof(tableName), "%s", pVTable->table.tableName);
+
+  STableMeta* pParentMeta = pVTable->pMeta;
+
+  SSelectStmt* pSelfSelect = NULL;
+  code = buildExpandBranchSelect(pCxt, dbName, tableName, pParentMeta, &pSelfSelect);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pBranches);
+    return code;
+  }
+  code = nodesListStrictAppend(pBranches, (SNode*)pSelfSelect);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pBranches);
+    return code;
+  }
+
+  // Branches 1..N: each descendant VST
+  SNode* pDescNode = NULL;
+  FOREACH(pDescNode, pVTable->pExpandDescendants) {
+    SValueNode* pVal = (SValueNode*)pDescNode;
+    // Format is "db.stbName"
+    char descDb[TSDB_DB_NAME_LEN] = {0};
+    char descTbl[TSDB_TABLE_NAME_LEN] = {0};
+    char* dot = strchr(pVal->literal, '.');
+    if (dot) {
+      int32_t dbLen = (int32_t)(dot - pVal->literal);
+      if (dbLen >= TSDB_DB_NAME_LEN) dbLen = TSDB_DB_NAME_LEN - 1;
+      memcpy(descDb, pVal->literal, dbLen);
+      descDb[dbLen] = '\0';
+      snprintf(descTbl, sizeof(descTbl), "%s", dot + 1);
+    } else {
+      snprintf(descDb, sizeof(descDb), "%s", dbName);
+      snprintf(descTbl, sizeof(descTbl), "%s", pVal->literal);
+    }
+
+    SSelectStmt* pDescSelect = NULL;
+    code = buildExpandBranchSelect(pCxt, descDb, descTbl, pParentMeta, &pDescSelect);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pBranches);
+      return code;
+    }
+    code = nodesListStrictAppend(pBranches, (SNode*)pDescSelect);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pBranches);
+      return code;
+    }
+  }
+
+  // Build binary UNION ALL tree
+  SNode* pUnionTree = NULL;
+  code = buildUnionAllBinaryTree(pBranches, &pUnionTree);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pBranches);
+    return code;
+  }
+
+  // The nodes are now owned by the union tree; clear list without destroying nodes
+  nodesClearList(pBranches);
+
+  // Reset namespace at current level — the old virtual table is being replaced
+  code = resetHighLevelTranslateNamespace(pCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pUnionTree);
+    return code;
+  }
+
+  // Align the top-level SSetOperator's stmtName with the TempTable alias BEFORE
+  // translateQuery. translateSetOperProject builds output columns using stmtName as
+  // their tableAlias. The outer SELECT resolves columns via the TempTable alias.
+  // If these don't match, the planner will fail with "slot key not found".
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pUnionTree)) {
+    snprintf(((SSetOperator*)pUnionTree)->stmtName, TSDB_TABLE_NAME_LEN, "%s", pVTable->table.tableAlias);
+  }
+
+  // Force sync mode for the branch translation — descendant tables are not in the
+  // parser's first-pass meta cache, so we need sync catalog RPCs for table meta and vgroups.
+  bool savedAsync = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+
+  // Translate the union tree using translateTableSubquery — this increments the
+  // namespace level (just like translateTempTable does), ensuring branch-internal
+  // namespaces don't contaminate the outer SELECT's level.
+  code = translateTableSubquery(pCxt, pUnionTree);
+  pCxt->pParseCxt->async = savedAsync;
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pUnionTree);
+    return code;
+  }
+
+  // Wrap in STempTableNode
+  STempTableNode* pTempTable = NULL;
+  code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pUnionTree);
+    return code;
+  }
+  pTempTable->pSubquery = pUnionTree;
+  snprintf(pTempTable->table.tableAlias, sizeof(pTempTable->table.tableAlias), "%s", pVTable->table.tableAlias);
+  pTempTable->table.precision = pVTable->table.precision;
+
+  // Replace pFromTable — destroy old virtual table node
+  nodesDestroyNode(pSelect->pFromTable);
+  pSelect->pFromTable = (SNode*)pTempTable;
+
+  // Register the temp table in namespace so outer SELECT can resolve columns
+  code = addNamespace(pCxt, pTempTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->dual = false;
   int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
+  // EXPAND rewrite: if FROM is a virtual table with EXPAND (expandLevel != 0 and != INT32_MIN), rewrite to UNION ALL
+  if (TSDB_CODE_SUCCESS == code && nodeType(pSelect->pFromTable) == QUERY_NODE_VIRTUAL_TABLE) {
+    SVirtualTableNode* pVTable = (SVirtualTableNode*)pSelect->pFromTable;
+    if (pVTable->expandLevel != INT32_MIN && pVTable->expandLevel != 0) {
+      code = rewriteVstExpandToUnionAll(pCxt, pSelect);
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;
     code = translateWhere(pCxt, pSelect);

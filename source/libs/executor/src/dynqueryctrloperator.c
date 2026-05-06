@@ -3929,7 +3929,9 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       pVtbScan->useTagScan = true;
     }
 
-    if (pKV->colrefName != NULL && needResolve) {
+    if (pKV->colrefName != NULL && pKV->refType != 1) {
+      // Always resolve non-tag-ref source tables so otbNameToOtbInfoMap knows which tables to scan.
+      // Without this, queries like COUNT(*) that only need ts would leave the map empty and return 0 rows.
       SDynResolvedColRef* pResolved = NULL;
       SName               name = {0};
       char                orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -3937,7 +3939,7 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       code = dynResolveFinalColRef(pOperator, pKV->colrefName, &pResolved);
       QUERY_CHECK_CODE(code, line, _return);
 
-      if (ppRefMap != NULL && pKV->refType != 1) {
+      if (ppRefMap != NULL && needResolve) {
         // Only ordinary col-ref slots participate in virtual-scan ref-slot grouping.
         // TagRef is handled by TagRefSource operators and must not be merged/copied as row data.
         if (refMap == NULL) {
@@ -3946,14 +3948,6 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         }
         code = addRefColIdToRefMap(refMap, pResolved->fullColRef, pKV->colId);
         QUERY_CHECK_CODE(code, line, _return);
-      }
-
-      // TagRef columns get their values from the Tag Scan path (useTagScan=true set above),
-      // not from the Table Scan exchange. Do not add tag-ref source tables to otbNameToOtbInfoMap
-      // because that would cause the Table Scan to scan the tag-ref source's data rows, producing
-      // extra NULL rows in the result.
-      if (pKV->refType == 1) {
-        continue;
       }
 
       toName(pInfo->vtbScan.acctId, pResolved->dbName, pResolved->tbName, &name);
@@ -3967,18 +3961,34 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         tstrncpy(orgTbInfo.tbName, orgTbFName, sizeof(orgTbInfo.tbName));
         orgTbInfo.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
         QUERY_CHECK_NULL(orgTbInfo.colMap, code, line, _return, terrno)
-        SColIdNameKV colIdNameKV = {0};
-        colIdNameKV.colId = pKV->colId;
-        tstrncpy(colIdNameKV.colName, pResolved->colName, sizeof(colIdNameKV.colName));
-        QUERY_CHECK_NULL(taosArrayPush(orgTbInfo.colMap, &colIdNameKV), code, line, _return, terrno)
+        if (needResolve) {
+          SColIdNameKV colIdNameKV = {0};
+          colIdNameKV.colId = pKV->colId;
+          tstrncpy(colIdNameKV.colName, pResolved->colName, sizeof(colIdNameKV.colName));
+          QUERY_CHECK_NULL(taosArrayPush(orgTbInfo.colMap, &colIdNameKV), code, line, _return, terrno)
+        }
         code = taosHashPut(pVtbScan->otbNameToOtbInfoMap, orgTbFName, sizeof(orgTbFName), &orgTbInfo, sizeof(orgTbInfo));
         QUERY_CHECK_CODE(code, line, _return);
-      } else {
+      } else if (needResolve) {
         SOrgTbInfo *tbInfo = (SOrgTbInfo *)pVal;
         SColIdNameKV colIdNameKV = {0};
         colIdNameKV.colId = pKV->colId;
         tstrncpy(colIdNameKV.colName, pResolved->colName, sizeof(colIdNameKV.colName));
         QUERY_CHECK_NULL(taosArrayPush(tbInfo->colMap, &colIdNameKV), code, line, _return, terrno)
+      }
+    } else if (pKV->colrefName != NULL && pKV->refType == 1 && needResolve) {
+      // Tag-ref columns: resolve for refMap only, do NOT add to otbNameToOtbInfoMap
+      SDynResolvedColRef* pResolved = NULL;
+      code = dynResolveFinalColRef(pOperator, pKV->colrefName, &pResolved);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      if (ppRefMap != NULL) {
+        if (refMap == NULL) {
+          refMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+          QUERY_CHECK_NULL(refMap, code, line, _return, terrno)
+        }
+        code = addRefColIdToRefMap(refMap, pResolved->fullColRef, pKV->colId);
+        QUERY_CHECK_CODE(code, line, _return);
       }
     }
   }
