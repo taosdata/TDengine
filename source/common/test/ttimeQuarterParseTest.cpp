@@ -72,6 +72,8 @@ TEST_F(QuarterParseTest, OverflowProtection) {
   EXPECT_NE(code, TSDB_CODE_SUCCESS);
 }
 
+/* INT64_MIN/3 - 1 is a negative literal; negativeAllow=true is required so
+ * taosStr2Int64 does not reject the sign before the overflow check runs. */
 TEST_F(QuarterParseTest, UnderflowProtection) {
   char    buf[64];
   int     len = snprintf(buf, sizeof(buf), "%" PRId64 "q", (int64_t)(INT64_MIN / 3 - 1));

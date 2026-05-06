@@ -23,14 +23,14 @@ _quarter_db_initialized = False
 
 
 def _ensure_quarter_db():
-        global _quarter_db_initialized
+    global _quarter_db_initialized
 
-        if not _quarter_db_initialized:
-                tdSql.execute(f"drop database if exists {QUARTER_TEST_DB}")
-                tdSql.execute(f"create database {QUARTER_TEST_DB} precision 'ms'")
-                _quarter_db_initialized = True
+    if not _quarter_db_initialized:
+        tdSql.execute(f"drop database if exists {QUARTER_TEST_DB}")
+        tdSql.execute(f"create database {QUARTER_TEST_DB} precision 'ms'")
+        _quarter_db_initialized = True
 
-        tdSql.execute(f"use {QUARTER_TEST_DB}")
+    tdSql.execute(f"use {QUARTER_TEST_DB}")
 
 
 class TestQuarterInterval:
@@ -684,16 +684,13 @@ class TestQuarterInterval:
             "select _wstart, _wend, count(*), sum(val) "
             f"from {table_name} interval(3n) order by _wstart"
         )
-        rows_3n = tdSql.queryResult
+        rows_3n = tdSql.queryResult if tdSql.queryResult is not None else []
 
         tdSql.query(
             "select _wstart, _wend, count(*), sum(val) "
             f"from {table_name} interval(1q) order by _wstart"
         )
-        if tdSql.queryResult is not None:
-            rows_1q: list = tdSql.queryResult
-        else:
-            rows_1q = []
+        rows_1q: list = tdSql.queryResult if tdSql.queryResult is not None else []
 
         assert rows_3n == rows_1q, (
             f"[{label}] interval(1q) != interval(3n)\n"

@@ -795,9 +795,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
 
       /* here is the 1u/1a/2s/3m/9y/1q */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' ||
-           z[i] == 'n' || z[i] == 'y' || z[i] == 'w' || z[i] == 'q' || z[i] == 'B' || z[i] == 'U' || z[i] == 'A' ||
-           z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' || z[i] == 'Y' || z[i] == 'W' ||
-           z[i] == 'Q') &&
+           z[i] == 'n' || z[i] == 'y' || z[i] == 'w' || z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' ||
+           z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' || z[i] == 'Y' || z[i] == 'W' ||
+           z[i] == 'q' || z[i] == 'Q') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenId = TK_NK_VARIABLE;
         i += 1;

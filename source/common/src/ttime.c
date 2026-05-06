@@ -824,7 +824,7 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
   /* natural month/year/quarter are not allowed in absolute duration */
   *unit = token[tokenlen - 1];
-  if (IS_CALENDAR_TIME_DURATION(*unit) || *unit == 'q' || *unit == 'Q') {
+  if (IS_CALENDAR_TIME_DURATION(*unit)) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 

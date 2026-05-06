@@ -10341,6 +10341,9 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
     code = createDefaultEveryNode(pCxt, pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    /* translateExpr must run before checkEvery so pInterval->unit reflects the
+     * normalized unit: 'q'/'Q' is rewritten to 'n' inside parseNatualDuration.
+     * Reversing the order would silently allow every(1q) to pass. */
     code = translateExpr(pCxt, pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
