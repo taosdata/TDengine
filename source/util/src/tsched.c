@@ -147,6 +147,7 @@ void *taosProcessSchedQueue(void *scheduler) {
   char name[16] = {0};
   snprintf(name, tListLen(name), "%s-taskQ", pSched->label);
   setThreadName(name);
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   int64_t pid = taosGetSelfPthreadId();
   uInfo("scheduler %s is started, thread:%" PRId64, name, pid);
 

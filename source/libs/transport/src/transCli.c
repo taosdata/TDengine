@@ -2471,6 +2471,7 @@ static void* cliWorkThread(void* arg) {
   tsEnableRandErr = true;
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   TAOS_UNUSED(uv_run(pThrd->loop, UV_RUN_DEFAULT));
 

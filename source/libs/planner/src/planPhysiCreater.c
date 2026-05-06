@@ -1017,7 +1017,9 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     pSubplan->execNode.nodeId = MNODE_HANDLE;
     pSubplan->execNode.epSet = pCxt->pPlanCxt->mgmtEpSet;
   }
-  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES) && pScanLogicNode->pVgroupList) {
+  if ((0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES) ||
+       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_CPU_ALLOCATION)) &&
+      pScanLogicNode->pVgroupList) {
     pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
   } else {
     pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
