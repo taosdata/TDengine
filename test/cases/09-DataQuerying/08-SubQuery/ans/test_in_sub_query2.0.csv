@@ -589,10 +589,10 @@ taos> select avg(f1) from st1 SESSION(1 not in (select 1 from v1), 1d);
 DB error: syntax error near "1 not in (select 1 from v1), 1d);" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 in (select 1 from st1));
 
-DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "1 in (select 1 from st1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 

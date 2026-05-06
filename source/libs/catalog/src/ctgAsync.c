@@ -1637,8 +1637,11 @@ _return:
   ctgUpdateJobErrCode(pJob, rspCode);
 
   int32_t newCode = taosAsyncExec(ctgCallUserCb, pJob, NULL);
-  if (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS != newCode) {
-    code = newCode;
+  if (TSDB_CODE_SUCCESS != newCode) {
+    (void)ctgCallUserCb(pJob);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = newCode;
+    }
   }
 
   CTG_RET(code);
@@ -4766,7 +4769,11 @@ int32_t ctgLaunchJob(SCtgJob* pJob) {
     qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog call user callback with rsp %s", pJob->queryId,
            pJob->refId, tstrerror(pJob->jobResCode));
 
-    CTG_ERR_RET(taosAsyncExec(ctgCallUserCb, pJob, NULL));
+    int32_t cbCode = taosAsyncExec(ctgCallUserCb, pJob, NULL);
+    if (TSDB_CODE_SUCCESS != cbCode) {
+      (void)ctgCallUserCb(pJob);
+      CTG_ERR_RET(cbCode);
+    }
 #if CTG_BATCH_FETCH
   } else {
     CTG_ERR_RET(ctgLaunchBatchs(pJob->pCtg, pJob, pJob->pBatchs));

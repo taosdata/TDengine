@@ -49,7 +49,6 @@ toc_max_heading_level: 4
 | countAlwaysReturnValue | both | count/hyperloglog 函数在输入数据为空或者 NULL 的情况下是否返回值 |
 | tagFilterCache | taosd | 是否缓存标签过滤结果 |
 | stableTagFilterCache | taosd | 流计算中，是否缓存标签等值条件的过滤结果，不会因为增删子表、更新标签值或修改超级表标签而失效 |
-| queryBufferSize | taosd | 查询可用的缓存大小 |
 | queryRspPolicy | taosd | 查询响应策略 |
 | queryUseMemoryPool | taosd | 查询是否使用内存池管理内存 |
 | minReservedMemorySize | taosd | 内存池开启时，最小预留的系统可用内存数量 |
@@ -93,7 +92,6 @@ toc_max_heading_level: 4
 | ssAccessString | taosd | 共享存储访问参数字符串 |
 | ssPageCacheSize | taosd | 共享存储 page cache 缓存页数目 |
 | ssUploadDelaySec | taosd | data 文件持续多长时间不再变动后上传至共享存储 |
-| cacheLazyLoadThreshold | taosd | 缓存的装载策略 |
 | **集群相关** | | |
 | supportVnodes | taosd | dnode 支持的最大 vnode 数目 |
 | numOfCommitThreads | taosd | 落盘线程的最大数量 |

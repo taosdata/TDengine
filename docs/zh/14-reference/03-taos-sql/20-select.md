@@ -56,7 +56,7 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
@@ -111,21 +111,9 @@ true_for_expr: {
 - join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
-  - STATE_WINDOW: 状态窗口，expr 指定状态表达式；extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定"零状态"，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
-    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-
-    其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(1a)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
+  - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 3.4.2.0 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 interval_val(2d)、SLIDING(1d)。
-  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
-    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-
-    其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周）。示例：`TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
+  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
   - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
@@ -663,7 +651,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 非相关标量子查询是 SQL 中一种独立可执行的子查询类型，其核心特征为仅返回单个值（一行一列），且执行过程完全不依赖外层查询的任何字段，任何符合这一特征的查询语句都可以作为非相关标量子查询，也可以在查询语句的任意子句、函数、表达式中使用非相关标量子查询，只要语法定义为表达式的部分均可以使用非相关标量子查询，非相关标量子查询也可以嵌套使用。
 非相关标量子查询可以先独立计算出结果，再将该结果代入外层查询作为筛选条件或参考值，常用于基于聚合值（如平均值、最大值）的过滤或多表查询结果结合的场景，执行效率高于相关子查询。
 
-从 3.4.0.0 版本开始，TDengine TSDB 开始在查询语句中支持非相关标量子查询，其他语句（流计算、订阅、DDL、DML 等）暂不支持。
+从 3.4.0.0 版本开始，TDengine TSDB 在查询语句中支持非相关标量子查询。从 3.4.1.0 版本开始，流计算中也支持非相关标量子查询。订阅、DDL 以及除 INSERT INTO ... SELECT 外的 DML 等其他语句暂不支持。
 
 以出现在 SELECT、WHERE 子句中的非相关标量子查询示例如下：
 
@@ -674,7 +662,7 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 
 ## 子查询表达式
 
-从 3.4.1.0 版本开始，TDengine TSDB 开始支持下列子查询表达式，其中的子查询仅限非相关子查询，目前只支持在查询语句中使用，流计算、订阅、DDL（数据定义语言）、DML（数据操纵语言）语句中暂不支持。
+从 3.4.1.0 版本开始，TDengine TSDB 支持下列子查询表达式。其中的子查询仅限非相关子查询，目前支持在查询和流计算语句中使用，订阅、DDL（数据定义语言）以及除 INSERT INTO ... SELECT 外的 DML（数据操纵语言）语句中暂不支持。
 
 ### IN 子查询
 

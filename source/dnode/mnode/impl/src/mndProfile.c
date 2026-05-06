@@ -17,20 +17,22 @@
 #include "mndProfile.h"
 #include "audit.h"
 #include "crypt.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
+#include "mndToken.h"
 #include "mndUser.h"
 #include "mndView.h"
-#include "mndToken.h"
 #include "tglobal.h"
-#include "tversion.h"
 #include "totp.h"
+#include "tversion.h"
 
 typedef struct {
   uint32_t id;
@@ -308,10 +310,7 @@ static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
   (void)memcpy(pass, inputPass, TSDB_PASSWORD_LEN);
   pass[TSDB_PASSWORD_LEN - 1] = 0;
 
-  if (pUser->passEncryptAlgorithm != 0) {
-    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
-      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-    }
+  if (pUser->passEncryptAlgorithm != 0 && strlen(tsDataKey) > 0) {
     code = mndEncryptPass(pass, pUser->salt, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -425,6 +424,10 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.acctId = pUser->acctId;
   connectRsp.superUser = pUser->superUser;
   connectRsp.sysInfo = pUser->sysInfo;
+  connectRsp.minSecLevel = pUser->minSecLevel;
+  connectRsp.maxSecLevel = pUser->maxSecLevel;
+  connectRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
+  connectRsp.macActive = (pMnode->macActive == MAC_MODE_MANDATORY ? 1 : 0);
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
@@ -867,6 +870,8 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.enableAuditInsert = tsEnableAuditInsert;
   batchRsp.auditLevel = tsAuditLevel;
   batchRsp.enableStrongPass = tsEnableStrongPassword;
+  batchRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
+  batchRsp.macActive = (pMnode->macActive == MAC_MODE_MANDATORY ? 1 : 0);
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {

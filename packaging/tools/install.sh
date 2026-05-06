@@ -6,6 +6,9 @@
 set -e
 # set -x
 
+# cluster(enterprise)/ edge(community)/
+# entMode lite(enterprise lite)
+# pkgMode lite(community lite, only taosd and taos)
 verMode=edge
 pkgMode=full
 entMode=full
@@ -39,6 +42,7 @@ inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
+taosk_name="${PREFIX}k"
 xnode_name="xnoded"
 
 # Color setting
@@ -237,11 +241,20 @@ function setup_env() {
 
   # 2. User mode detection
   if [[ "$(id -u)" -ne 0 ]]; then
+    # Check systemd version >= 232 for user service support
+    local sd_ver
+    sd_ver=$(systemctl --version 2>/dev/null | head -1 | awk '{print $2}')
+    if [ -z "$sd_ver" ] || [ "$sd_ver" -lt 232 ] 2>/dev/null; then
+      echo -e "${RED}Non-root install requires systemd >= 232, current version: ${sd_ver:-unknown}${NC}"
+      echo -e "Supported: CentOS/RHEL 8+, Ubuntu 18.04+, Debian 9+, SUSE 15+"
+      echo -e "CentOS/RHEL 7 (systemd 219) does not support non-root installation."
+      exit 1
+    fi
     if ! systemctl --user show-environment &>/dev/null; then
       echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
-      echo -e "A systemd user session is required so the installer can manage per-user systemd services."
       echo -e "Please use ssh to log in as this user and then run the installer, for example:"
       echo -e "${BOLD}ssh <username>@<host>${NC}"
+      echo -e "If the problem persists, ask root to run: loginctl enable-linger $(whoami)"
       exit 1
     fi
     user_mode=1
@@ -282,6 +295,24 @@ function setup_env() {
       echo
   fi
   
+  # 3.5 Read previous install path from .install_path if not explicitly set via -d
+  if [[ $taos_dir_set -eq 0 ]]; then
+    local candidate_path=""
+    if [ -n "${taosd_parent_dir:-}" ] && [ -f "${taosd_parent_dir}/.install_path" ]; then
+      candidate_path=$(cat "${taosd_parent_dir}/.install_path")
+    elif [ -f "/usr/local/${PREFIX}/.install_path" ]; then
+      candidate_path=$(cat "/usr/local/${PREFIX}/.install_path")
+    elif [ -f "$HOME/${PREFIX}/.install_path" ]; then
+      candidate_path=$(cat "$HOME/${PREFIX}/.install_path")
+    fi
+
+    if [ -n "$candidate_path" ] && [ -d "$candidate_path" ] && \
+       [[ "$candidate_path" == */"${PREFIX}" ]]; then
+      taos_dir="$candidate_path"
+      taos_dir_set=1
+      log info "Detected previous installation path: ${taos_dir}"
+    fi
+  fi
 
   # 4. Install directory setting
   log info "Detected install mode: $mode_desc"
@@ -384,18 +415,13 @@ function setup_env() {
     remove_name="remove_client.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
     services=()
-    
   else
     # server/默认，按 verMode/pkgMode/entMode 细分
     # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
-    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
     if [ "${verMode}" == "cluster" ]; then
-      if [ "${entMode}" == "lite" ]; then
-        services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
-      else
-        services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
-      fi
+      services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     elif [ "${verMode}" == "edge" ]; then
       if [ "${pkgMode}" == "full" ]; then
         services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
@@ -428,21 +454,20 @@ function install_services() {
 }
 
 function kill_process() {
-    # use pkill if available, otherwise fallback to pgrep + xargs
+    # use pkill if available, otherwise fallback to pgrep + while-read
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true
     else
-        pgrep -x "$1" | xargs -r kill -9 2>/dev/null || true
+        pgrep -x "$1" | while read p; do kill -9 "$p" 2>/dev/null || :; done || :
     fi
 }
 
 function install_main_path() {
   #create install main dir and all sub dir
-  if [[ $user_mode -eq 0 ]]; then
-    rm -rf "${data_link_dir}" || :
-    rm -rf "${log_link_dir}" || :
-    rm -rf "${cfg_link_dir}" || :
-  fi
+  # Note: do NOT rm data/log/cfg link dirs here.
+  # - Real directories from old versions must be preserved (data loss risk)
+  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
+  # - data_link_dir is not recreated during upgrade (install_data not called)
   rm -rf "${bin_dir}" || :
   rm -rf "${driver_dir}" || :
   rm -rf "${install_main_dir}/examples" || :
@@ -718,6 +743,10 @@ function install_header() {
 }
 
 function add_newHostname_to_hosts() {
+  if [ "$user_mode" -eq 1 ]; then
+    echo "Warning: non-root install, skipping /etc/hosts modification"
+    return
+  fi
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
   IFS=" "
@@ -732,9 +761,10 @@ function add_newHostname_to_hosts() {
 
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
-  else
-    chmod 666 /etc/hosts
+  elif [ -w /etc/hosts ]; then
     echo "127.0.0.1  $1" >>/etc/hosts
+  else
+    echo "Warning: /etc/hosts is not writable, skipping hostname addition"
   fi
 }
 
@@ -1126,7 +1156,7 @@ function install_service_on_sysvinit() {
     chkconfig --add $1 || :
     chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    insserv $1} || :
+    insserv $1 || :
     insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
     update-rc.d $1 defaults || :
@@ -1299,6 +1329,15 @@ function finished_install_info(){
     # header
     echo
     log info_color "${productName} has been installed successfully!"
+
+    if [ "$user_mode" -eq 1 ]; then
+      if ! loginctl show-user "$(whoami)" 2>/dev/null | grep -q "Linger=yes"; then
+        echo
+        echo -e "${RED}IMPORTANT: To ensure services auto-start after reboot, ask root to run:${NC}"
+        echo -e "  loginctl enable-linger $(whoami)"
+      fi
+    fi
+
     echo
 
     # collect pairs "label|value"

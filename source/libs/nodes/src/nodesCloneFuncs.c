@@ -398,8 +398,10 @@ static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
 
 static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
-  CLONE_NODE_FIELD(pExpr);
+  CLONE_NODE_LIST_FIELD(pExprList);
   CLONE_NODE_FIELD(pTrueForLimit);
+  CLONE_NODE_FIELD(pExtend);
+  CLONE_NODE_LIST_FIELD(pZerothList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -422,6 +424,20 @@ static int32_t anomalyWindowNodeCopy(const SAnomalyWindowNode* pSrc, SAnomalyWin
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t externalWindowNodeCopy(const SExternalWindowNode* pSrc, SExternalWindowNode* pDst) {
+  CLONE_NODE_FIELD(pCol);
+  CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_LIST_FIELD(pAggFuncList);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  // timezone is never set for external_window nodes; propagate NULL
+  pDst->timezone = NULL;
+  CLONE_NODE_FIELD(pSubquery);
+  CLONE_NODE_FIELD(pFill);
+  COPY_CHAR_ARRAY_FIELD(aliasName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -797,7 +813,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
-  CLONE_NODE_FIELD(pStateExpr);
+  CLONE_NODE_LIST_FIELD(pStateExprs);
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
   COPY_SCALAR_FIELD(trueForType);
@@ -1310,6 +1326,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_ANOMALY_WINDOW:
       code = anomalyWindowNodeCopy((const SAnomalyWindowNode*)pNode, (SAnomalyWindowNode*)pDst);
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      code = externalWindowNodeCopy((const SExternalWindowNode*)pNode, (SExternalWindowNode*)pDst);
       break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);

@@ -1804,7 +1804,9 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
   varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
   if (!showAll) {
-    (void)mndAcquireTopic(pMnode, topic, &pTopic);
+    char topicFName[TSDB_TOPIC_FNAME_LEN + 1] = {0};
+    (void)snprintf(topicFName, sizeof(topicFName), "%d.%s", pOperUser->acctId, varDataVal(topic));
+    (void)mndAcquireTopic(pMnode, topicFName, &pTopic);
     if (pTopic) {
       SName name = {0};  // 1.topic1
       if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
