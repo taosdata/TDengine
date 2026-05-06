@@ -1098,7 +1098,7 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
       return;
     }
 
-    if (!sslIsInited(conn->pTls) || !saslAuthIsInited(conn->saslConn)) {
+    if (!sslIsInited(conn->pTls) || (conn->saslConn && !saslAuthIsInited(conn->saslConn))) {
       return;
     }
 
