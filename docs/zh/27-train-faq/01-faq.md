@@ -372,9 +372,9 @@ TDengine 3.3.5.0 及以上的版本，有些用户可能会遇到一个问题：
 
 **必须将新的 `dataDir` 行追加到该级所有现有条目的末尾**，不可插入到列表中间。
 
-**原因说明：** TDengine 启动时按 `taos.cfg` 中的声明顺序，为同一级别的每块磁盘依次分配一个数字 ID（`did_id`）：0 级主挂载点固定分配 `id=0`，其余磁盘按出现顺序编号为 `1, 2, 3 …`。这些 ID 会被持久化写入每个 vnode 的 `tsdb/current.json` 元数据文件，并在下次启动时用于还原各数据文件的绝对路径。若将新磁盘插入列表中间，其后所有磁盘都会获得新的 ID，导致 TDengine 在启动时去错误的磁盘路径查找现有数据文件。
+**原因说明**：TDengine 启动时按 `taos.cfg` 中的声明顺序，为同一级别的每块磁盘依次分配一个数字 ID（`did_id`）：0 级主挂载点固定分配 `id=0`，其余磁盘按出现顺序编号为 `1, 2, 3 …`。这些 ID 会被持久化写入每个 vnode 的 `tsdb/current.json` 元数据文件，并在下次启动时用于还原各数据文件的绝对路径。若将新磁盘插入列表中间，其后所有磁盘都会获得新的 ID，导致 TDengine 在启动时去错误的磁盘路径查找现有数据文件。
 
-**正确做法——追加到末尾：**
+**正确做法——追加到末尾**：
 
 ```shell
 dataDir /mnt/data1 0 1   # 已有主挂载点
@@ -382,7 +382,7 @@ dataDir /mnt/data2 0 0   # 已有磁盘
 dataDir /mnt/data3 0 0   # 新磁盘追加在末尾 ✓
 ```
 
-**错误做法——插入到中间（禁止）：**
+**错误做法——插入到中间（禁止）**：
 
 ```shell
 dataDir /mnt/data1 0 1   # 已有主挂载点
@@ -402,13 +402,13 @@ VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
 MND ERROR failed to process since Vnode is closed or removed
 ```
 
-> **重要警告：** 在修复元数据之前，**切勿启动 taosd**。TDengine 的启动扫描（`tsdbFSDoSanAndFix`）会主动**删除**磁盘上所有未被 `current.json` 引用的文件。带错误配置启动 taosd 可能导致**数据永久丢失**。
+> **重要警告**：在修复元数据之前，**切勿启动 taosd**。TDengine 的启动扫描（`tsdbFSDoSanAndFix`）会主动**删除**磁盘上所有未被 `current.json` 引用的文件。带错误配置启动 taosd 可能导致**数据永久丢失**。
 
 使用 `fix-tdengine-disks.sh` 工具（位于 `community/tools/fix-disk-mounts/`）可在**不移动任何数据文件**的前提下，修复 `current.json` 和 `vnodes.json` 中的元数据。
 
-**依赖：** `bash` ≥ 4、`jq`（`apt/yum install jq`），无需 Python。
+**依赖**：`bash` ≥ 4、`jq`（`apt/yum install jq`），无需 Python。
 
-**恢复步骤：**
+**恢复步骤**：
 
 1. 停止 taosd。
 2. 确认 `taos.cfg` 中的 `dataDir` 条目能反映当前实际的磁盘布局。

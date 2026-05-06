@@ -359,9 +359,9 @@ Then, looking at the above scenario, when the backfill of old data and the writi
 
 Always **append** the new `dataDir` line at the **end** of all existing entries for the target level. Never insert it in the middle of the list.
 
-**Why this matters:** TDengine assigns each disk a sequential numeric ID (`did_id`) based on its declaration order within a level. The primary disk at level 0 always receives `id=0`; all other disks are numbered `1, 2, 3 …` in the order they appear in `taos.cfg`. These IDs are persisted inside each vnode's `tsdb/current.json` metadata file and are used to reconstruct the absolute path to every data file at startup. Inserting a new disk anywhere other than the end shifts the IDs of all subsequent disks, causing TDengine to look for existing data on the wrong disks.
+**Why this matters**: TDengine assigns each disk a sequential numeric ID (`did_id`) based on its declaration order within a level. The primary disk at level 0 always receives `id=0`; all other disks are numbered `1, 2, 3 …` in the order they appear in `taos.cfg`. These IDs are persisted inside each vnode's `tsdb/current.json` metadata file and are used to reconstruct the absolute path to every data file at startup. Inserting a new disk anywhere other than the end shifts the IDs of all subsequent disks, causing TDengine to look for existing data on the wrong disks.
 
-**Correct — append at the end:**
+**Correct — append at the end**:
 
 ```shell
 dataDir /mnt/data1 0 1   # existing primary
@@ -369,7 +369,7 @@ dataDir /mnt/data2 0 0   # existing disk
 dataDir /mnt/data3 0 0   # new disk added at the end ✓
 ```
 
-**Incorrect — inserted in the middle (never do this):**
+**Incorrect — inserted in the middle (never do this)**:
 
 ```shell
 dataDir /mnt/data1 0 1   # existing primary
@@ -389,13 +389,13 @@ VND ERROR failed to open vnode from vnode/vnode2 since No such file or directory
 MND ERROR failed to process since Vnode is closed or removed
 ```
 
-> **Critical warning:** Do **not** start taosd with a mismatched configuration before repairing the metadata. TDengine's startup scan (`tsdbFSDoSanAndFix`) actively **deletes** any on-disk file that is not referenced in `current.json`. Starting taosd in this state may result in **permanent data loss**.
+> **Critical warning**: Do **not** start taosd with a mismatched configuration before repairing the metadata. TDengine's startup scan (`tsdbFSDoSanAndFix`) actively **deletes** any on-disk file that is not referenced in `current.json`. Starting taosd in this state may result in **permanent data loss**.
 
 Use the `fix-tdengine-disks.sh` tool (located in `community/tools/fix-disk-mounts/`) to repair `current.json` and `vnodes.json` without moving any data files.
 
-**Requirements:** `bash` ≥ 4, `jq` (`apt/yum install jq`). No Python required.
+**Requirements**: `bash` ≥ 4, `jq` (`apt/yum install jq`). No Python required.
 
-**Recovery steps:**
+**Recovery steps**:
 
 1. Stop taosd.
 2. Restore the correct `taos.cfg` — ensure `dataDir` entries reflect the actual current disk layout.
