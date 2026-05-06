@@ -78,7 +78,8 @@
 | 场景 | 回退链 |
 | --- | --- |
 | 客户端本地展示（普通列读取 F1、SHOW/EXPLAIN F2） | L2 → L3 → L5 |
-| 服务端日历计算（函数、INTERVAL、TIMETRUNCATE） | L1 → L2 → L4 → L5 |
+| 客户端格式化函数（TO_ISO8601、TO_CHAR） | L1 → L2 → L3 → L5 |
+| 服务端日历计算（TIMETRUNCATE、INTERVAL、WEEK 等） | L1 → L2 → L4 → L5 |
 | 按当前连接时区解析的时间字符串（INSERT、WHERE/CAST/JOIN 中的时间字面量） | L2 → L3 → L5 |
 
 ### 4.3 日期时间函数回退链
@@ -89,8 +90,10 @@
 
 | 函数 / 场景 | 时区参数 | 回退链 |
 | --- | --- | --- |
-| `TO_ISO8601(ts, tz)` / `TO_CHAR(ts, fmt, tz)` / `TIMETRUNCATE(ts, unit, tz)` | 有（L1 生效） | **L1** → L2 → L4 → L5 |
-| `TO_ISO8601(ts)` / `TO_CHAR(ts, fmt)` / `TIMETRUNCATE(ts, unit)` | 无 | L2 → L4 → L5 |
+| `TO_ISO8601(ts, tz)` / `TO_CHAR(ts, fmt, tz)` | 有（L1 生效） | **L1** → L2 → L3 → L5 |
+| `TO_ISO8601(ts)` / `TO_CHAR(ts, fmt)` | 无 | L2 → L3 → L5 |
+| `TIMETRUNCATE(ts, unit, tz)` | 有（L1 生效） | **L1** → L2 → L4 → L5 |
+| `TIMETRUNCATE(ts, unit)` | 无 | L2 → L4 → L5 |
 | `TODAY()` / `NOW()` | 无 | L2 → L3 → L5 |
 | `DAYOFWEEK` / `WEEK` / `WEEKDAY` / `WEEKOFYEAR` 等 | 无 | L2 → L4 → L5 |
 | `INTERVAL`（`d`/`w`/`n`/`q`/`y` 自然单位） | 无 | L2 → L4 → L5 |
@@ -518,7 +521,7 @@ SELECT TO_CHAR(ts, 'YYYY-MM-DD HH24:MI:SS') FROM t;
 -- 改造后: 2026-03-15 20:00:00  (连接时区 America/New_York)
 ```
 
-未设置 `SET TIMEZONE` 时，两个函数均回退到原行为，完全兼容。
+未设置 L2 时，两个函数回退到客户端全局时区（L3→L5）。
 
 ## 10. TIMETRUNCATE 改造（F6, F9, F10）
 
