@@ -1939,8 +1939,7 @@ NOW()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units include:
-        b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 
 #### TIMEDIFF
@@ -1969,7 +1968,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - Returns NULL if `expr1` or `expr2` is NULL.
 - Returns NULL if the input contains strings that do not conform to any date-time format.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
-- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - If `time_unit` is NULL, it is equivalent to the time unit not being specified.
 
 **Example**:
@@ -2007,8 +2006,7 @@ use_current_timezone: {
 
 **Usage Instructions**:
 
-- Supported time units `time_unit` include:
-          1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
@@ -2050,8 +2048,7 @@ TODAY()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units include:
-                b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
 
 #### WEEK
