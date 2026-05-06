@@ -120,6 +120,7 @@ static SKeyword keywordTable[] = {
     {"EXPLAIN",              TK_EXPLAIN},
     {"EVENT_TYPE",           TK_EVENT_TYPE},
     {"EVENT_WINDOW",         TK_EVENT_WINDOW},
+    {"EXTEND",               TK_EXTEND},
     {"EXTERNAL_WINDOW",      TK_EXTERNAL_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
@@ -214,6 +215,7 @@ static SKeyword keywordTable[] = {
     {"NOW",                  TK_NOW},
     {"NOTIFY_OPTIONS",       TK_NOTIFY_OPTIONS},
     {"NO_BATCH_SCAN",        TK_NO_BATCH_SCAN},
+    {"NO_ZEROTH",            TK_NO_ZEROTH},
     {"NULL",                 TK_NULL},
     {"NULL_F",               TK_NULL_F},
     {"NULLIF",               TK_NULLIF},
@@ -493,6 +495,7 @@ static SKeyword keywordTable[] = {
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
+    {"ZEROTH_STATE",         TK_ZEROTH_STATE},
     {"CPU_ALLOCATION",       TK_CPU_ALLOCATION},
 };
 // clang-format on

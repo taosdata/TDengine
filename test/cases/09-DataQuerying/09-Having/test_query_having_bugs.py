@@ -169,15 +169,17 @@ class TestHavingBugs:
         tdSql.checkData(2, 2, 100)
         tdSql.checkData(3, 2, 100)
         # percentile min for state window
-        tdSql.query("select _wstart, _wend, percentile(c2,0) from tb1 state_window(1);")
-        tdSql.checkRows(1)
+        tdSql.query("select _wstart, _wend, percentile(c2,0) from tb1 state_window(c1);")
+        tdSql.checkRows(2)
         tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 2, 1)
         # percentile max for state window
         tdSql.query(
-            "select _wstart, _wend, percentile(c2,100) from tb1 state_window(1);"
+            "select _wstart, _wend, percentile(c2,100) from tb1 state_window(c1);"
         )
-        tdSql.checkRows(1)
+        tdSql.checkRows(2)
         tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 2, 100)
         # percentile min for session window
         tdSql.query("select _wstart, _wend, percentile(c2,0) from tb1 session(ts, 3s);")
         tdSql.checkRows(2)

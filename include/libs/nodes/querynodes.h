@@ -429,12 +429,12 @@ typedef enum EStateWinExtendOption {
 } EStateWinExtendOption;
 
 typedef struct SStateWindowNode {
-  ENodeType type;  // QUERY_NODE_STATE_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  SNode*    pTrueForLimit;
-  SNode*    pExtend;  // SValueNode
-  SNode*    pZeroth;  // SValueNode
+  ENodeType  type;         // QUERY_NODE_STATE_WINDOW
+  SNode*     pCol;         // timestamp primary key
+  SNodeList* pExprList;    // list of SColumnNode, state keys
+  SNode*     pTrueForLimit;
+  SNode*     pExtend;      // SValueNode
+  SNodeList* pZerothList;  // list of SValueNode
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {

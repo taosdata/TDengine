@@ -60,7 +60,7 @@ extern "C" {
 #define EXPLAIN_MERGE_ALIGNED_EXTERNAL_FORMAT "Merge Aligned External on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
-#define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
+#define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Columns %s"
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
@@ -93,6 +93,9 @@ extern "C" {
 #define EXPLAIN_COUNT_INFO_FORMAT "Window Count Info"
 #define EXPLAIN_JOIN_EQ_LEFT_FORMAT "Left Equal Cond: "
 #define EXPLAIN_JOIN_EQ_RIGHT_FORMAT "Right Equal Cond: "
+
+/* Reserve space for trailing metadata appended after state key description. */
+#define EXPLAIN_STATE_KEY_DESC_RESERVED_SIZE 256
 #define EXPLAIN_COUNT_NUM_FORMAT "Window Count=%" PRId64
 #define EXPLAIN_COUNT_SLIDING_FORMAT "Window Sliding=%" PRId64
 #define EXPLAIN_TABLE_TIMERANGE_FORMAT "%s Table Time Range: [%" PRId64 ", %" PRId64 "]"

@@ -817,12 +817,13 @@ GRANT SELECT, INSERT, DELETE ON power.meters WITH ts >= '2024-01-01' AND ts < '2
 
 #### Column Permissions
 
-Column permissions are used to restrict users to only access specific columns in tables. Only supported in `SELECT` or `INSERT` permissions.
+Column permissions are used to restrict users to only access specific columns in tables. Only supported in `SELECT` or `INSERT` permissions. For `SELECT` permissions, `mask(col)` can be used to mask sensitive columns, returning `'*'` instead of the real value.
 
 **Syntax:**
 
 ```sql
 GRANT SELECT (col1, col2, ...) ON table_name TO user_name;
+GRANT SELECT (col1, mask(col2), ...) ON table_name TO user_name;
 GRANT INSERT (col1, col2, ...) ON table_name TO user_name;
 REVOKE SELECT,INSERT ON table_name FROM user_name;
 REVOKE ALL ON table_name FROM user_name;
@@ -834,6 +835,17 @@ REVOKE ALL ON table_name FROM user_name;
 - Can only specify supertables or regular tables, not subtables
 - Only one rule per table per operation
 - Can be used together with row permissions
+- `mask()` only supports VARCHAR and NCHAR columns. Other types (e.g. INT, VARBINARY, GEOMETRY, JSON) are not supported for masking currently
+- **Masking scope**: `mask()` implements display-level Dynamic Data Masking (DDM). The masking rewrite applies to column references in the `SELECT` projection list, including references nested inside projection expressions such as function calls and `CASE WHEN` expressions. Column references in `WHERE`, `GROUP BY`, `HAVING`, and `ORDER BY` are not rewritten and continue to operate on original values. For example:
+  - `SELECT length(masked_col)` returns `1` (in the projection, `masked_col` is replaced with `'*'`)
+  - `SELECT CASE WHEN masked_col = 'hello' THEN 1 ELSE 0 END` evaluates against the masked value in the projection rewrite, not the original column value
+  - `WHERE masked_col = 'hello'` still matches rows whose original value is `'hello'`
+  - `GROUP BY masked_col` groups by the original cardinality; however, projected masked output may display the grouped values as `'*'`
+- **Design rationale**: This design keeps filtering, grouping, aggregation input, and sorting clauses (`WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`) operating on original values, which helps preserve query semantics for those clauses. However, because projection-list column references are rewritten, expressions evaluated in the `SELECT` list reflect masked values. As a result, projection-level operations such as `SELECT DISTINCT masked_col` or `COUNT(DISTINCT masked_col)` may collapse multiple original values to the same masked value. Full-pipeline masking (rewriting all clauses uniformly) would further change filtering and grouping behavior by making `WHERE`/`GROUP BY`/`HAVING` also operate on masked values
+- **Anti-probing recommendations**: Display-level masking does not prevent users from probing original values through conditional clauses like `WHERE masked_col = 'xxx'`. To mitigate such side-channel inference attacks, consider the following measures:
+  - Use column-level permission control to withhold direct query access to sensitive columns entirely (i.e. do not include the column in the GRANT list), eliminating the access path at its root
+  - Use row-level permissions (`WITH` clause) to restrict the accessible data scope, reducing the probing surface
+  - Enable audit logging to monitor high-frequency conditional queries against masked columns
 
 **Example - Permission by Column:**
 
@@ -846,6 +858,16 @@ GRANT INSERT (ts, temperature) ON power.meters TO writer;
 
 -- User limited_user can only see device_id and status columns
 GRANT SELECT (device_id, status) ON power.meters TO limited_user;
+```
+
+**Example - Column-Level Data Masking:**
+
+```sql
+-- User can see ts and device_id, but name and address are masked as '*'
+GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analyst;
+
+-- Combine row permissions with column masking
+GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
 ```
 
 **Example - Combining Row and Column Permissions:**

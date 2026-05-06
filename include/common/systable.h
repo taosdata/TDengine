@@ -133,6 +133,8 @@ void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size);
 void getVisibleInfosTablesNum(bool sysInfo, size_t* size);
 bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags);
 
+const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName);
+
 #ifdef __cplusplus
 }
 #endif

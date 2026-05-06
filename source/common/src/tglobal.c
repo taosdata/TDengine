@@ -254,7 +254,11 @@ int32_t tsAuditInterval = 5000;
 int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+#ifdef TD_ENABLE_ADVANCED_SECURITY
+bool tsAuditSaveInSelf = true;
+#else
 bool    tsAuditSaveInSelf = false;
+#endif
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;

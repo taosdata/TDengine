@@ -715,7 +715,6 @@ static const SSysDbTableSchema userRolesSchema[] = {
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
     {.name = "role_type", .bytes =  7 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "subroles", .bytes = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-    {.name = "sec_level", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userRoleColumnPrivilegesSchema[] = {
@@ -1009,4 +1008,26 @@ bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags) {
     return false;
   }
   return 0 != (flags & COL_IS_SYSINFO);
+}
+
+/**
+ * information_schema or performance_schema
+ */
+const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName) {
+  const SSysTableMeta* pMeta = NULL;
+  size_t               size = 0;
+  if (!dbName || !tbName) {
+    return NULL;
+  }
+  if (dbName[0] == 'i' || dbName[0] == 'I') {
+    getInfosDbMeta(&pMeta, &size);
+  } else {
+    getPerfDbMeta(&pMeta, &size);
+  }
+  for (size_t i = 0; i < size; ++i) {
+    if (strcasecmp(pMeta[i].name, tbName) == 0) {
+      return pMeta + i;
+    }
+  }
+  return NULL;
 }

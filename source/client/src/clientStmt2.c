@@ -3210,7 +3210,8 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
-  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
+  code = stmtSwitchStatus(pStmt, STMT_EXECUTE);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {

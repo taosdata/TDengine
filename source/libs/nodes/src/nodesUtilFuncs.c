@@ -1474,10 +1474,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
-      nodesDestroyNode(pState->pExpr);
+      nodesDestroyList(pState->pExprList);
       nodesDestroyNode(pState->pTrueForLimit);
       nodesDestroyNode(pState->pExtend);
-      nodesDestroyNode(pState->pZeroth);
+      nodesDestroyList(pState->pZerothList);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -2310,12 +2310,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTspk);
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
-      nodesDestroyNode(pLogicNode->pStateExpr);
+      nodesDestroyList(pLogicNode->pStateExprs);
       nodesDestroyNode(pLogicNode->pStartCond);
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
       nodesDestroyList(pLogicNode->pProjs);
       destroyExtWindowFillInfo(&pLogicNode->extFill);
+      nodesDestroyNode(pLogicNode->pSubquery);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
@@ -2547,7 +2548,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWindowPhysiNode* pPhyNode = (SStateWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pStateKey);
+      nodesDestroyList(pPhyNode->pStateKeys);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT: {
@@ -3973,12 +3974,18 @@ int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode) {
     pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
     char* p = taosMemoryMalloc(lenStr + 1 + VARSTR_HEADER_SIZE);
     if (p == NULL) {
+      nodesDestroyNode((SNode*)pValNode);
       return terrno;
     }
     varDataSetLen(p, lenStr);
     memcpy(varDataVal(p), literal, lenStr + 1);
     pValNode->datum.p = p;
     pValNode->literal = tstrdup(literal);
+    if(pValNode->literal == NULL) {
+      taosMemoryFree(p);
+      nodesDestroyNode((SNode*)pValNode);
+      return terrno;
+    }
     pValNode->translate = true;
     pValNode->isNull = false;
     *ppValNode = pValNode;
@@ -4359,5 +4366,3 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
-
-

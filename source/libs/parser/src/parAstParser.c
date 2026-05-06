@@ -1496,7 +1496,12 @@ static int32_t collectMetaKeyFromShowMounts(SCollectMetaKeyCxt* pCxt, SShowStmt*
 }
 
 static int32_t collectMetaKeyFromShowCreateDatabase(SCollectMetaKeyCxt* pCxt, SShowCreateDatabaseStmt* pStmt) {
-  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
+                                  PRIV_CM_SHOW_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShowCreateTableStmt* pStmt) {
@@ -1972,6 +1977,31 @@ static int32_t collectMetaKeyFromAlterLocalStmt(SCollectMetaKeyCxt* pCxt, SAlter
   return TSDB_CODE_SUCCESS;
 }
 
+EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* pStmt) {
+  EPrivType     privType = PRIV_USER_ALTER;
+  SUserOptions* pOptions = pStmt->pUserOptions;
+  if ((pOptions->hasPassword) &&
+      !(pOptions->hasTotpseed || pOptions->hasEnable || pOptions->hasSysinfo || pOptions->hasIsImport ||
+        pOptions->hasChangepass || pOptions->hasCreatedb || pOptions->hasSessionPerUser || pOptions->hasConnectTime ||
+        pOptions->hasConnectIdleTime || pOptions->hasCallPerSession || pOptions->hasVnodePerCall ||
+        pOptions->hasFailedLoginAttempts || pOptions->hasPasswordLifeTime || pOptions->hasPasswordReuseTime ||
+        pOptions->hasPasswordReuseMax || pOptions->hasPasswordLockTime || pOptions->hasPasswordGraceTime ||
+        pOptions->hasInactiveAccountTime || pOptions->hasAllowTokenNum || pOptions->pSecurityLevels)) {
+    if (pCurrentUser && strcmp(pCurrentUser, pStmt->userName) == 0) {
+      privType = PRIV_PASS_ALTER_SELF;
+    } else {
+      privType = PRIV_PASS_ALTER;
+    }
+  }
+  return privType;
+}
+
+static int32_t collectMetaKeyFromAlterUserStmt(SCollectMetaKeyCxt* pCxt, SAlterUserStmt* pStmt) {
+  EPrivType privType = getAlterUserPrivType(pCxt->pParseCxt->pUser, pStmt);
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType, 0,
+                                pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromSysPrivStmt(SCollectMetaKeyCxt* pCxt, EPrivType privType) {
   return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType, 0,
                                 pCxt->pMetaCache);
@@ -2373,7 +2403,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_CREATE);
       break;
     case QUERY_NODE_ALTER_USER_STMT:
-      code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_ALTER);
+      code = collectMetaKeyFromAlterUserStmt(pCxt, (SAlterUserStmt*)pStmt);
       break;
     case QUERY_NODE_DROP_USER_STMT:
       code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_DROP);
