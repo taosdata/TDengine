@@ -351,4 +351,4 @@ Displays the `CREATE STREAM` statement for the stream identified by `stream_name
 
 Notes
 
-- Available since v3.4.3.4
+- Available since v3.4.1.8

@@ -18,7 +18,7 @@ class TestShowCreateStream:
         Catalog:
             - Streams:ShowCommands
 
-        Since: v3.4.0
+        Since: v3.4.1.8
 
         Labels: common,ci
 
