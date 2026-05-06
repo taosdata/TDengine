@@ -360,7 +360,7 @@ static int32_t dmReadFileContent(const char *path, char **ppContent, int64_t *pS
   }
   int64_t nread = taosReadFile(pFile, buf, fsize);
   taosCloseFile(&pFile);
-  if (nread <= 0) {
+  if (nread != fsize) {
     taosMemoryFree(buf);
     return -1;
   }
@@ -1143,6 +1143,7 @@ static int32_t dmCopySourceFileSets(const SRepairTfs *pSrcTfs, STfs *pTgtTfs, co
     }
     if (pSrcSet == NULL) {
       uError("repair: vnode%d fid=%d file set not found", vnodeId, fid);
+      dmDestroyRepairFileSets(remapped);
       return -1;
     }
 
@@ -1833,6 +1834,13 @@ static void dmRollbackVnode(STfs *pTgtTfs, int32_t vnodeId) {
 }
 
 int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
+#ifdef WINDOWS
+
+    uError("repair: copy-mode repair is not supported on Windows");
+    return 2;
+
+#else
+
   bool isRemote = (pOpts->sourceHost[0] != '\0');
 
   uInfo("repair: starting copy-mode repair (%s mode)", isRemote ? "remote" : "local");
@@ -2108,4 +2116,6 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   if (nFailed > 0 && nSuccess == 0) return 4;
   if (nFailed > 0) return 3;
   return 0;
+
+#endif // WINDOWS
 }
