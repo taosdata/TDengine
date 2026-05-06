@@ -57,3 +57,4 @@ vendor/
 
 sim/
 taos-/
+.history/*
