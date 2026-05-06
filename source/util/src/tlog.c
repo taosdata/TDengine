@@ -1090,6 +1090,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 static int8_t tsLogRotateRunning = 0;
 static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   int32_t code = 0;
   if (0 != atomic_val_compare_exchange_8(&tsLogRotateRunning, 0, 1)) {
     uInfo("log rotation is already in progress");
@@ -1192,6 +1193,7 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pSlowBuf = (SLogBuff *)tsLogObj.slowHandle;
 
   setThreadName("log");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   int32_t count = 0;
   int32_t updateCron = 0;
   int32_t writeInterval = 0;

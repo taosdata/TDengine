@@ -477,6 +477,15 @@ The effective value of charset is UTF-8.
 | slowLogThresholdTest |                   | Not supported                    | Internal parameter, used for testing slow logs               |
 | bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for  short-circuit testing          |
 
+### CPU Affinity
+
+| Parameter Name       | Supported Version | Dynamic Modification             | Description                                                  |
+| -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| enableCpuAffinity    | After 3.3.6.0     | Not supported                    | Master switch for CPU affinity binding. When enabled (1), taosd threads are pinned to specific CPU cores by category (management, write, read). When disabled (0, default), all threads run freely on all available cores. Requires restart to take effect. Systems with fewer than 3 CPU cores will auto-disable affinity with a warning. |
+| managementCpuCores   | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to management threads (cluster coordination, networking, system-level tasks). Cores are assigned sequentially starting from core 0. Range: 1-256; default value is 1. Only effective when enableCpuAffinity is 1. |
+| readCpuCores         | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to read (query) threads. Cores are assigned sequentially after management and write cores. Range: 1-256; default value is dynamically computed as half of remaining cores (totalCores - managementCpuCores) / 2. Only effective when enableCpuAffinity is 1. |
+| otherCpuCores        | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to write threads. Cores are assigned sequentially after management cores. Range: 1-256; default value is dynamically computed as the other half of remaining cores. Only effective when enableCpuAffinity is 1. The sum managementCpuCores + readCpuCores + otherCpuCores must not exceed total available CPU cores. |
+
 ### Compression Parameters
 
 | Parameter Name | Supported Version | Dynamic Modification               | Description                                                  |

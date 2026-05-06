@@ -57,6 +57,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VNODES              "ins_vnodes"
 #define TSDB_INS_TABLE_CONFIGS             "ins_configs"
 #define TSDB_INS_TABLE_DNODE_VARIABLES     "ins_dnode_variables"
+#define TSDB_INS_TABLE_CPU_ALLOCATION             "ins_cpu_allocation"
 #define TSDB_INS_TABLE_SUBSCRIPTIONS       "ins_subscriptions"
 #define TSDB_INS_TABLE_TOPICS              "ins_topics"
 #define TSDB_INS_TABLE_STREAMS             "ins_streams"
