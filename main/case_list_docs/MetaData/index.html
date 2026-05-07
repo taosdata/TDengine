@@ -3015,28 +3015,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#21-MetaData.test_meta_batch_txn_cluster.TestBatchMetaTxnCluster.test_meta_batch_txn_cluster" class="md-nav__link">
-        Batch meta txn: cluster-mode tests 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="md-nav__link">
-        Batch meta txn: full lifecycle 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_bugs.TestMetaBugs.test_meta_bugs" class="md-nav__link">
         Meta bugs 
       </a>
@@ -3083,17 +3061,6 @@
     <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_sysdb2.TestMetaSysDb2.test_meta_sysdb" class="md-nav__link">
         Meta system database 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#21-MetaData.test_taosx_txn.TestTaosxTxn.test_taosx_txn" class="md-nav__link">
-        taosX target-side STB transaction replication via TMQ 
       </a>
       
     </li>
@@ -3913,28 +3880,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#21-MetaData.test_meta_batch_txn_cluster.TestBatchMetaTxnCluster.test_meta_batch_txn_cluster" class="md-nav__link">
-        Batch meta txn: cluster-mode tests 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="md-nav__link">
-        Batch meta txn: full lifecycle 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_bugs.TestMetaBugs.test_meta_bugs" class="md-nav__link">
         Meta bugs 
       </a>
@@ -3987,17 +3932,6 @@
   
 
       
-        
-  
-    <li class="md-nav__item">
-      <a href="#21-MetaData.test_taosx_txn.TestTaosxTxn.test_taosx_txn" class="md-nav__link">
-        taosX target-side STB transaction replication via TMQ 
-      </a>
-      
-    </li>
-  
-
-      
     </ul>
   
 </nav>
@@ -4017,201 +3951,6 @@
 
 <h1 id="21-meta-data">21-Meta Data<a class="headerlink" href="#21-meta-data" title="Permanent link">&para;</a></h1>
 
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="doc doc-heading">
-
-<a href="#21-MetaData.test_meta_batch_txn.TestBatchMetaTxn.test_meta_batch_txn" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Batch meta txn: full lifecycle</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. BEGIN and COMMIT create multiple child tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. BEGIN and ROLLBACK create tables, verify not visible</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. BEGIN and COMMIT drop existing tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. BEGIN and ROLLBACK drop tables, verify restored</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. BEGIN and COMMIT alter table add column</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. BEGIN and ROLLBACK alter table, column not added</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Mixed DDL (CREATE+DROP+ALTER) with COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Mixed DDL (CREATE+DROP+ALTER) with ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. PRE_CREATE visibility filtering</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. PRE_DROP visibility filtering</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Double BEGIN guard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. COMMIT without active transaction guard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. ROLLBACK without active transaction guard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. START TRANSACTION syntax equivalence</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Normal table create and commit</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Normal table create and rollback</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Empty transaction (no-op BEGIN/COMMIT/ROLLBACK)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. Cross vgroup commit (2 vgroups, 20 tables)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">19. Cross vgroup rollback</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">20. Sequential transactions reuse</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">21. Batch CREATE TABLE syntax in transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">22. Batch DROP TABLE syntax in transaction</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">23. CREATE STB in txn + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">24. CREATE STB in txn + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">25. STB transaction isolation (cross-session)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">26. Same-txn child table creation using same-txn STB</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">27. Same-txn STB + child table + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">28. ALTER TABLE visibility via DESC within txn</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">29. SHOW CREATE TABLE for child table within txn</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">30. Mixed STB + child + normal + ALTER in single txn</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">31. DROP STABLE in txn + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">32. DROP STABLE in txn + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">33. ALTER STABLE add column in txn + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">34. ALTER STABLE add column in txn + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">35. DROP STABLE cross-session isolation</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">36. ALTER STABLE cross-session isolation</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">37. CREATE STB catalog isolation (other session can&#39;t use uncommitted STB)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">38. Same-txn CREATE→DROP→re-CREATE chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">39. Same-txn CREATE→DROP→re-CREATE chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">40. Same-txn CREATE→ALTER→DROP chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">41. Same-txn CREATE→ALTER→DROP chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">42. Pre-existing ALTER→DROP chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">43. Pre-existing ALTER→DROP chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">44. Same-txn data ops: DESC works, INSERT blocked, SELECT on committed data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">45. Cross-VNode mixed DDL (CREATE+DROP+ALTER) + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">46. Cross-VNode mixed DDL (CREATE+DROP+ALTER) + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">47. Conflict detection: PRE_CREATE blocks concurrent CREATE</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">48. Conflict detection: PRE_DROP blocks concurrent DROP/ALTER</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">49. Conflict detection: PRE_ALTER blocks concurrent ALTER/DROP</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">50. Conflict detection: cross-txn (two sessions with txns)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">51. Timeout auto-rollback on client disconnect</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">52. Compaction protection: META_ONLY compact during txn → COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">53. Compaction protection: META_ONLY compact during txn → ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">54. STB same-txn CREATE→DROP chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">55. STB same-txn CREATE→DROP chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">56. STB same-txn CREATE→ALTER chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">57. STB same-txn CREATE→ALTER chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">58. Pre-existing STB ALTER→DROP chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">59. Pre-existing STB ALTER→DROP chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">60. STB conflict: non-txn CREATE blocked by PRE_CREATE</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">61. STB conflict: non-txn DROP/ALTER blocked by PRE_DROP</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">62. STB conflict: non-txn ALTER/DROP blocked by PRE_ALTER</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">63. STB + child tables mixed chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">64. STB + child tables mixed chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">65. Virtual Normal Table (VNT) CREATE + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">66. VNT CREATE + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">67. VNT DROP + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">68. VNT DROP + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">69. VNT ALTER (add column) + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">70. VNT ALTER (add column) + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">71. Virtual STB CREATE + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">72. Virtual STB CREATE + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">73. Virtual Child Table (VCTB) CREATE + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">74. VCTB CREATE + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">75. VCTB DROP + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">76. VCTB DROP + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">77. Mixed virtual DDL (VNT+VCTB CREATE + DROP) + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">78. Mixed virtual DDL + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">79. Virtual STB + VCTB chain: COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">80. Virtual STB + VCTB chain: ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">81. Virtual STB ALTER + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">82. Virtual STB ALTER + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">83. Virtual STB DROP + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">84. Virtual STB DROP + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">85. Virtual STB: CREATE→ALTER→DROP chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">86. Virtual STB: CREATE→ALTER→DROP chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">87. VNT: CREATE→ALTER→DROP chain + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">88. VNT: CREATE→ALTER→DROP chain + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">89. Mixed virtual + non-virtual DDL in single txn + COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">90. Mixed virtual + non-virtual DDL in single txn + ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">91. High-concurrency BEGIN across many sessions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">92. Resource limit reject code on excessive active BEGINs</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">93. Retry succeeds after timeout auto-rollback recovery</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">94. Multi-txn conflict stress (10 sessions competing for same tables)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">95. Long-running txn with sustained activity (keepalive)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">96. Sequential rapid txn stress (50 txn cycles)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">97. Compaction during active multi-table txn</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">98. Cross-session conflict matrix (systematic)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">99. SHOW TRANSACTIONS visibility during active txn</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">100. Multiple sequential ALTERs on same table in single txn</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">101. Large batch table creation (100 tables)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">102. Large batch ROLLBACK (100 tables)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">103. Txn after DROP DATABASE + re-create</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">104. DDL count limit per VNode (TXN_TOO_MANY_DDL_OPS error)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">105. Transaction max lifetime (timeout scan infrastructure)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">106. Large txn lazy vacuum COMMIT (&gt;64 UIDs async vacuum path)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">107. Large txn lazy vacuum ROLLBACK (&gt;64 UIDs async vacuum cleanup)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">108. Finalized txn + immediate new txn on same tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">109. No-txn fast-path smoke test (metaHasPendingTxnEntries guard)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">110. Sequential large txn cycles (vacuum pipeline stress)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">111. Concurrent BEGIN admission stability near 200 limit</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn.py" target="_blank">
-                      cases/21-MetaData/test_meta_batch_txn.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="21-MetaData.test_meta_batch_txn_cluster.TestBatchMetaTxnCluster.test_meta_batch_txn_cluster" class="doc doc-heading">
-
-<a href="#21-MetaData.test_meta_batch_txn_cluster.TestBatchMetaTxnCluster.test_meta_batch_txn_cluster" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Batch meta txn: cluster-mode tests</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">40. MNode leader switch during active txn -&gt; COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">41. MNode leader switch during active txn -&gt; ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">42. Client disconnect -&gt; auto-rollback</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">43. VNode follower restart -&gt; COMMIT succeeds</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">44. VNode leader restart -&gt; COMMIT after recovery</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">45. Full cluster restart -&gt; txn survives, COMMIT works</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">46. Full cluster restart after COMMIT -&gt; data survives</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">47. Fencing: VNode leader switch (term change) -&gt; COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">48. Fencing: VNode leader switch (term change) -&gt; ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">49. Cross-VNode multi-dnode (replica 1, vgroups 3) -&gt; COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">50. Cross-VNode multi-dnode (replica 1, vgroups 3) -&gt; ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">51. Cross-VNode fencing: kill VNode leader mid-txn -&gt; COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">52. Snapshot sync: follower restart + WAL advance -&gt; COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">53. Snapshot sync: active txn + follower restart -&gt; COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">54. Snapshot sync: active txn + follower restart -&gt; ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">55. VNode crash after COMMIT WAL write -&gt; restart -&gt; WAL replay</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">56. MNode leader kill -&gt; BEGIN on new leader -&gt; retry</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">57. Full cluster restart after DROP txn ROLLBACK -&gt; tables restored</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">58. Concurrent txns on different VGroups + VNode leader switch</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">59. Multiple sequential txns with cluster restarts between them</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">60. Lazy vacuum × snapshot: large txn COMMIT + follower restart</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">61. Lazy vacuum × snapshot: large txn ROLLBACK + follower restart</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">62. STB CREATE in txn → cluster restart → COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">63. STB ALTER in txn → cluster restart → COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">64. STB DROP in txn → cluster restart → ROLLBACK</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">65. STB CREATE+ALTER chain in txn → cluster restart → COMMIT</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_cluster.py" target="_blank">
-                      cases/21-MetaData/test_meta_batch_txn_cluster.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
   
 <div class="doc doc-object doc-function">
   
@@ -4414,44 +4153,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_sysdb2.py" target="_blank">
                       cases/21-MetaData/test_meta_sysdb2.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="21-MetaData.test_taosx_txn.TestTaosxTxn.test_taosx_txn" class="doc doc-heading">
-
-<a href="#21-MetaData.test_taosx_txn.TestTaosxTxn.test_taosx_txn" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>taosX target-side STB transaction replication via TMQ</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. CREATE STB + child tables → COMMIT → target verified</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. CREATE STB + child tables → ROLLBACK → target empty</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. CREATE STB → ALTER STB → COMMIT → target has altered schema</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. CREATE STB → DROP STB → COMMIT → target no STB</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Idempotent COMMIT replay</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Low-watermark replay (crash recovery)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Pre-existing STB → ALTER STB → COMMIT (first MNode DDL = ALTER)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Pre-existing STB → ALTER STB → ROLLBACK (first MNode DDL = ALTER)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Pre-existing STB → DROP STB → ROLLBACK (first MNode DDL = DROP)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_taosx_txn.py" target="_blank">
-                      cases/21-MetaData/test_taosx_txn.py
                     </a>
                   </div>
         </div>
