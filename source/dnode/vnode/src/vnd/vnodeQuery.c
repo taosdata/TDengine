@@ -1199,7 +1199,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   SVnode      *pVnodeObj = pVnode;
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
   if (NULL == pCur) {
-    qError("vnode get all table list failed");
+    qError("vnode get ctb id list failed, suid:%" PRId64, suid);
     return terrno;
   }
 

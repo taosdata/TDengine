@@ -2276,7 +2276,57 @@ static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColR
     }
   }
 
-  if (pTagList == NULL) {
+  if (pTagList == NULL && !pVtbScan->isSuperTable) {
+    // For non-VSTB (virtual child table) streams, tag cache is not pre-populated.
+    // Fetch the virtual child table's own tag metadata on-demand.
+    SName          vtbTblName = {0};
+    char           vtbDbFName[TSDB_DB_FNAME_LEN] = {0};
+    SDBVgInfo*     vtbDbVgInfo = NULL;
+    int32_t        vtbVgId = 0;
+    STableCfgRsp   vtbCfgRsp = {0};
+
+    toName(pVtbScan->acctId, pVtbScan->dbName, pVtbScan->tbName, &vtbTblName);
+    code = getDbVgInfo(pOperator, &vtbTblName, &vtbDbVgInfo);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = tNameGetFullDbName(&vtbTblName, vtbDbFName);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = getVgId(vtbDbVgInfo, vtbDbFName, &vtbVgId, vtbTblName.tname);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    code = fetchRemoteTableCfg(pOperator, vtbDbVgInfo, vtbDbFName, vtbTblName.tname, vtbVgId, &vtbCfgRsp);
+    if (code == TSDB_CODE_SUCCESS && vtbCfgRsp.pTags != NULL && vtbCfgRsp.pSchemas != NULL) {
+      *ppResolvedTags = taosArrayInit(vtbCfgRsp.numOfTags, sizeof(STagVal));
+      QUERY_CHECK_NULL(*ppResolvedTags, code, lino, _vtb_tag_cleanup, terrno)
+      for (int32_t tagIdx = 0; tagIdx < vtbCfgRsp.numOfTags; ++tagIdx) {
+        SSchema* pSchema = &vtbCfgRsp.pSchemas[vtbCfgRsp.numOfColumns + tagIdx];
+        code = appendResolvedTagVal(*ppResolvedTags, pSchema->colId, pSchema, (const STag*)vtbCfgRsp.pTags);
+        if (code != TSDB_CODE_SUCCESS) {
+          tFreeSTableCfgRsp(&vtbCfgRsp);
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
+      }
+      // Cache in vtbUidTagListMap so subsequent calls skip the metadata fetch.
+      if (pVtbScan->vtbUidTagListMap == NULL) {
+        pVtbScan->vtbUidTagListMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+        if (pVtbScan->vtbUidTagListMap != NULL) {
+          taosHashSetFreeFp(pVtbScan->vtbUidTagListMap, destroyTagList);
+        }
+      }
+      if (pVtbScan->vtbUidTagListMap != NULL && *ppResolvedTags != NULL) {
+        SArray* pCachedCopy = NULL;
+        code = cloneTagList(*ppResolvedTags, &pCachedCopy);
+        if (code == TSDB_CODE_SUCCESS && pCachedCopy != NULL) {
+          int32_t putCode = taosHashPut(pVtbScan->vtbUidTagListMap, &pRefInfo->uid, sizeof(pRefInfo->uid), &pCachedCopy, POINTER_BYTES);
+          if (putCode != TSDB_CODE_SUCCESS) {
+            destroyTagList(&pCachedCopy);
+          }
+        }
+      }
+    }
+_vtb_tag_cleanup:
+    tFreeSTableCfgRsp(&vtbCfgRsp);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else if (pTagList == NULL) {
     // keep going: TagRef columns in dynamic VSTB scan do not use DynQueryCtrl tag cache
     // and must be resolved from their source child table metadata below.
   } else {
@@ -4541,6 +4591,9 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             }
             iter = taosHashIterate(pVtbScan->childTableMap, iter);
           }
+        } else if (!pVtbScan->isSuperTable && pVtbScan->tbName) {
+          vtbChildName = pVtbScan->tbName;
+          vtbChildNameLen = strlen(pVtbScan->tbName);
         }
 
         if (vtbChildName != NULL) {
