@@ -30,8 +30,6 @@
 #include "log.h"
 #include "taos_helpers.h"
 
-static unsigned int         _taos_init_failed      = 0;
-
 static void _exit_routine(void)
 {
 #ifdef _WIN32
@@ -48,10 +46,6 @@ static void _init_once(void)
   // NOTE: taos_cleanup would be hung-up under windows-ODBC
   //       need to check later
 #else
-  if (CALL_taos_init()) {
-    _taos_init_failed = 1;
-    return;
-  }
   atexit(_exit_routine);
 #endif
 }
@@ -65,8 +59,6 @@ static int _env_init(env_t *env)
   env->debug_bison = tod_get_debug_bison();
 
   errs_init(&env->errs);
-
-  if (_taos_init_failed) return -1;
 
   env->refc = 1;
 

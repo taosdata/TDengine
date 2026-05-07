@@ -1688,16 +1688,29 @@ __attribute__((unused)) static int test(const char *conn_str, int ws)
   return 0;
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
   int r = 0;
-#ifndef FAKE_TAOS
-  if (r == 0) r = test("DSN=TAOS_ODBC_DSN", 0);
+  const char *dsn_filter = NULL;
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--dsn") == 0 && i + 1 < argc) {
+      dsn_filter = argv[++i];
+    }
+    if (strcmp(argv[i], "mysql") == 0) {
+      // existing mysql support
+      return test("DSN=MYSQL_ODBC_DSN", 0);
+    }
+  }
+
+#ifdef HAVE_NATIVE
+  if (!dsn_filter || strcmp(dsn_filter, "TAOS_ODBC_DSN") == 0) {
+    if (r == 0) r = test("DSN=TAOS_ODBC_DSN", 0);
+  }
 #endif
 
-#ifdef HAVE_TAOSWS               /* { */
-  if (r == 0) r = test("DSN=TAOS_ODBC_WS_DSN", 1);
-#endif                           /* } */
+  if (!dsn_filter || strcmp(dsn_filter, "TAOS_ODBC_WS_DSN") == 0) {
+    if (r == 0) r = test("DSN=TAOS_ODBC_WS_DSN", 1);
+  }
 
   fprintf(stderr, "==%s==\n", r ? "failure" : "success");
 

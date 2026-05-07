@@ -1938,9 +1938,47 @@ static int test_charset_step2(TAOS_RES *res)
   return 0;
 }
 
+static int test_charset_step2_raw_block(TAOS_RES *res)
+{
+  int numOfRows                = 0;
+  void *pData                  = NULL;
+  TAOS_FIELD *fields           = NULL;
+  int nr_fields                = 0;
+  int time_precision = CALL_taos_result_precision(res);
+
+  int r = 0;
+  nr_fields = CALL_taos_field_count(res);
+  if (nr_fields == -1) return -1;
+  A(nr_fields == 2, "internal logic error");
+
+  fields = CALL_taos_fetch_fields(res);
+  if (!fields) return -1;
+
+  r = CALL_taos_fetch_raw_block(res, &numOfRows, &pData);
+  if (r) return -1;
+  A(numOfRows == 1, "internal logic error");
+
+  char buf[4096];
+
+  tsdb_data_t name = {0};
+  r = helper_get_tsdb_from_raw_block(pData, numOfRows, fields, time_precision, 0, 0, &name, buf, sizeof(buf));
+  if (r) return -1;
+
+  tsdb_data_t wname = {0};
+  r = helper_get_tsdb_from_raw_block(pData, numOfRows, fields, time_precision, 0, 1, &wname, buf, sizeof(buf));
+  if (r) return -1;
+
+  D("raw_block name:%.*s", (int)name.str.len, name.str.str);
+  D("raw_block wname:%.*s", (int)wname.str.len, wname.str.str);
+
+  return 0;
+}
+
 static int test_charset_step1(TAOS *taos)
 {
   const char *sql = "select name, wname from wall.t";
+  int r = 0;
+
   TAOS_RES *res = CALL_taos_query(taos,sql);
   int e = CALL_taos_errno(res);
   if (e) {
@@ -1950,8 +1988,21 @@ static int test_charset_step1(TAOS *taos)
   }
   if (!res) return -1;
 
-  int r = test_charset_step2(res);
+  r = test_charset_step2(res);
+  CALL_taos_free_result(res);
+  if (r) return r;
 
+  // also test via taos_fetch_raw_block path
+  res = CALL_taos_query(taos,sql);
+  e = CALL_taos_errno(res);
+  if (e) {
+    if (res) CALL_taos_free_result(res);
+    E("query failed");
+    return -1;
+  }
+  if (!res) return -1;
+
+  r = test_charset_step2_raw_block(res);
   CALL_taos_free_result(res);
 
   return r;
@@ -2649,6 +2700,54 @@ static int conformance_fetch_imple(TAOS_RES *res, int block, char *name, size_t 
   return 0;
 }
 
+static int conformance_fetch_raw_block_imple(TAOS_RES *res, char *name, size_t nr)
+{
+  int r = 0;
+
+  int nr_fields = CALL_taos_field_count(res);
+  if (nr_fields != 2) {
+    E("expected to have 2 fields, but got ==%d==", nr_fields);
+    return -1;
+  }
+
+  TAOS_FIELD *fields = CALL_taos_fetch_fields(res);
+  if (!fields) {
+    E("fields expected, but got ==null==");
+    return -1;
+  }
+
+  int time_precision = CALL_taos_result_precision(res);
+
+  int numOfRows = 0;
+  void *pData = NULL;
+  r = CALL_taos_fetch_raw_block(res, &numOfRows, &pData);
+  if (r) return -1;
+  if (numOfRows == 0 || pData == NULL) {
+    E("raw block data expected, but got ==null==");
+    return -1;
+  }
+
+  char buf[4096];
+  tsdb_data_t tsdb = {0};
+
+  r = helper_get_tsdb_from_raw_block(pData, numOfRows, fields, time_precision, 0, 1, &tsdb, buf, sizeof(buf));
+  if (r) {
+    E("failed:%s", buf);
+    return -1;
+  }
+  if (tsdb.type != TSDB_DATA_TYPE_VARCHAR) {
+    E("TSDB_DATA_TYPE_VARCHAR is expected, but got ==%s==", taos_data_type(tsdb.type));
+    return -1;
+  }
+  if (tsdb.is_null) {
+    E("non-null is expected, but got ==null==");
+    return -1;
+  }
+  snprintf(name, nr, "%.*s", (int)tsdb.str.len, tsdb.str.str);
+
+  return 0;
+}
+
 static int conformance_fetch_one_row_or_block(TAOS *taos)
 {
   int r = 0;
@@ -2666,7 +2765,7 @@ static int conformance_fetch_one_row_or_block(TAOS *taos)
   if (r) return -1;
 
   const char *sql = "select * from foo.demo";
-  char name_one_row[4096], name_block[4096];
+  char name_one_row[4096], name_block[4096], name_raw_block[4096];
 
   res = CALL_taos_query(taos, sql);
   int e = CALL_taos_errno(res);
@@ -2694,6 +2793,24 @@ static int conformance_fetch_one_row_or_block(TAOS *taos)
 
   if (strcmp(name_one_row, name_block)) {
     E("differ:%s<>%s", name_one_row, name_block);
+    return -1;
+  }
+
+  // also verify taos_fetch_raw_block + helper_get_tsdb_from_raw_block
+  res = CALL_taos_query(taos, sql);
+  e = CALL_taos_errno(res);
+  if (e) {
+    if (res) CALL_taos_free_result(res);
+    E("query failed");
+    return -1;
+  }
+  if (!res) return -1;
+  r = conformance_fetch_raw_block_imple(res, name_raw_block, sizeof(name_raw_block));
+  CALL_taos_free_result(res);
+  if (r) return -1;
+
+  if (strcmp(name_one_row, name_raw_block)) {
+    E("raw_block differ:%s<>%s", name_one_row, name_raw_block);
     return -1;
   }
 

@@ -558,6 +558,7 @@ __attribute__((unused)) static int test_with_conn_str(const char *conn_str, int 
   return r;
 }
 
+static int test(void) __attribute__((unused));
 static int test(void)
 {
   srand((unsigned int)time(0));
@@ -612,26 +613,42 @@ static int test(void)
 #endif               /* } */
 
   int r = 0;
-#ifndef FAKE_TAOS
+#ifdef HAVE_NATIVE
   r = test_with_conn_str("DSN=TAOS_ODBC_DSN", 0);
   if (r) return -1;
 #endif
 
-#ifdef HAVE_TAOSWS                /* { */
   r = test_with_conn_str("DSN=TAOS_ODBC_WS_DSN", 1);
   if (r) return -1;
-#endif                            /* } */
   return r;
 }
 
 int main(int argc, char *argv[])
 {
-  (void)argc;
-  (void)argv;
+  const char *dsn_filter = NULL;
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--dsn") == 0 && i + 1 < argc) {
+      dsn_filter = argv[++i];
+    }
+  }
+
+  srand((unsigned int)time(0));
+
+  CHECK(!test_connect(NULL, "xTAOS_ODBC_DSN", NULL, NULL));
+
   int r = 0;
-  r = test();
+#ifdef HAVE_NATIVE
+  if (!dsn_filter || strcmp(dsn_filter, "TAOS_ODBC_DSN") == 0) {
+    r = test_with_conn_str("DSN=TAOS_ODBC_DSN", 0);
+    if (r) { fprintf(stderr, "==failure==\n"); return 1; }
+  }
+#endif
 
-  fprintf(stderr, "==%s==\n", r ? "failure" : "success");
+  if (!dsn_filter || strcmp(dsn_filter, "TAOS_ODBC_WS_DSN") == 0) {
+    r = test_with_conn_str("DSN=TAOS_ODBC_WS_DSN", 1);
+    if (r) { fprintf(stderr, "==failure==\n"); return 1; }
+  }
 
-  return !!r;
+  fprintf(stderr, "==success==\n");
+  return 0;
 }

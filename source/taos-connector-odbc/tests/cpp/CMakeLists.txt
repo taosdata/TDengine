@@ -35,8 +35,13 @@ else()
   target_link_libraries(SQLBindCol odbc32)
 endif()
 
-add_test(NAME SQLBindCol
-    COMMAND SQLBindCol)
+if(HAVE_NATIVE)
+    add_test(NAME SQLBindCol
+        COMMAND SQLBindCol --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_SQLBindCol
+    COMMAND SQLBindCol --dsn TAOS_ODBC_WS_DSN)
 
 if(ENABLE_VALGRIND)
   add_test(NAME VSQLBindCol

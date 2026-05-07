@@ -1596,38 +1596,36 @@ static int test_json_tag(handles_t *handles, const char *connstr, int ws)
   r = _execute_batches_of_statements(handles, sqls);
   if (r) return -1;
 
-  if (!ws) {
-    sql = "insert into foo.s1_1 using foo.s1 tags (?) values (?, ?)";
-    r = INSERT_WITH_VALUES(handles, sql, 2, 3,
-      "{\"k1\":\"值1\"}", "{\"k1\":\"值1\"}",
-      "2023-05-14 12:13:14.567", "2023-05-14 12:13:14.568",
-      "1", "2");
-    if (r) return -1;
+  sql = "insert into foo.s1_1 using foo.s1 tags (?) values (?, ?)";
+  r = INSERT_WITH_VALUES(handles, sql, 2, 3,
+    "{\"k1\":\"值1\"}", "{\"k1\":\"值1\"}",
+    "2023-05-14 12:13:14.567", "2023-05-14 12:13:14.568",
+    "1", "2");
+  if (r) return -1;
 
-    sql = "select * from foo.s1";
-    r = CHECK_WITH_VALUES(handles, 0, sql, 2, 3,
-      "2023-05-14 12:13:14.567", "1", "{\"k1\":\"值1\"}",
-      "2023-05-14 12:13:14.568", "2", "{\"k1\":\"值1\"}");
-    if (r) return -1;
+  sql = "select * from foo.s1";
+  r = CHECK_WITH_VALUES(handles, 0, sql, 2, 3,
+    "2023-05-14 12:13:14.567", "1", "{\"k1\":\"值1\"}",
+    "2023-05-14 12:13:14.568", "2", "{\"k1\":\"值1\"}");
+  if (r) return -1;
 
-    sql = "select info->'k1' from foo.s1";
-    r = CHECK_WITH_VALUES(handles, 0, sql, 2, 1,
-      "\"值1\"",
-      "\"值1\"");
-    if (r) return -1;
+  sql = "select info->'k1' from foo.s1";
+  r = CHECK_WITH_VALUES(handles, 0, sql, 2, 1,
+    "\"值1\"",
+    "\"值1\"");
+  if (r) return -1;
 
-    sql = "select v1 from foo.s1 where info contains 'k1'";
-    r = CHECK_WITH_VALUES(handles, 0, sql, 2, 1,
-      "1",
-      "2");
-    if (r) return -1;
+  sql = "select v1 from foo.s1 where info contains 'k1'";
+  r = CHECK_WITH_VALUES(handles, 0, sql, 2, 1,
+    "1",
+    "2");
+  if (r) return -1;
 
-    sql = "select v1 from foo.s1 where info->'k1' match '值1'";
-    r = CHECK_WITH_VALUES(handles, 0, sql, 2, 1,
-      "1",
-      "2");
-    if (r) return -1;
-  }
+  sql = "select v1 from foo.s1 where info->'k1' match '值1'";
+  r = CHECK_WITH_VALUES(handles, 0, sql, 2, 1,
+    "1",
+    "2");
+  if (r) return -1;
 
   return 0;
 }
@@ -1643,7 +1641,6 @@ static int test_pool_stmt(handles_t *handles)
   return 0;
 }
 
-#ifdef HAVE_TAOSWS               /* { */
 static int test_taosws_conn(handles_t *handles, const char *conn_str, int ws)
 {
   (void)handles;
@@ -1659,7 +1656,6 @@ static int test_taosws_conn(handles_t *handles, const char *conn_str, int ws)
 
   return 0;
 }
-#endif                           /* }*/
 
 static int test_pool(handles_t *handles, const char *connstr, int ws)
 {
@@ -1710,22 +1706,28 @@ static case_t* find_case(case_t *cases, size_t nr_cases, const char *name)
   return NULL;
 }
 
+static const char *s_dsn_filter = NULL;
+
 static int running_case(handles_t *handles, case_t *_case)
 {
   int r = 0;
+
   (void)handles;
   (void)_case;
-#ifndef FAKE_TAOS
-  r = _case->routine(handles, "DSN=TAOS_ODBC_DSN", 0);
-  handles_disconnect(handles);
-  if (r) return -1;
+
+#ifdef HAVE_NATIVE
+  if (!s_dsn_filter || strcmp(s_dsn_filter, "TAOS_ODBC_DSN") == 0) {
+    r = _case->routine(handles, "DSN=TAOS_ODBC_DSN", 0);
+    handles_disconnect(handles);
+    if (r) return -1;
+  }
 #endif
 
-#ifdef HAVE_TAOSWS                /* { */
-  r = _case->routine(handles, "DSN=TAOS_ODBC_WS_DSN", 1);
-  handles_disconnect(handles);
-  if (r) return -1;
-#endif                            /* } */
+  if (!s_dsn_filter || strcmp(s_dsn_filter, "TAOS_ODBC_WS_DSN") == 0) {
+    r = _case->routine(handles, "DSN=TAOS_ODBC_WS_DSN", 1);
+    handles_disconnect(handles);
+    if (r) return -1;
+  }
   return r;
 }
 
@@ -1763,6 +1765,11 @@ static int running_with_args(int argc, char *argv[], handles_t *handles, case_t 
     if (strcmp(arg, "-l")==0) {
       list_cases(_cases, _nr_cases);
       return 0;
+    }
+    if (strcmp(arg, "--dsn")==0) {
+      ++i;
+      if (i<argc) s_dsn_filter = argv[i];
+      continue;
     }
     if (strcmp(arg, "--pooling")==0) {
       // ref: https://www.unixodbc.org/doc/conn_pool.html
@@ -1805,9 +1812,7 @@ int main(int argc, char *argv[])
     RECORD(test_topic),
     RECORD(test_params_with_all_chars),
     RECORD(test_json_tag),
-#ifdef HAVE_TAOSWS               /* { */
     RECORD(test_taosws_conn),
-#endif                           /* } */
     // ref: https://www.unixodbc.org/doc/conn_pool.html
     RECORD(test_pool),  // NOTE: for the test purpose, this must keep in the last!!!
   };
