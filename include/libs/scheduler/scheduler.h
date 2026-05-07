@@ -69,6 +69,7 @@ typedef struct SSchedulerReq {
   int8_t             source;
   int8_t             secureDelete;
   void*              pWorkerCb;
+  int8_t             firstDayOfWeek;  // -1 = unset (server uses tsFirstDayOfWeek), 0-6 = connection override
 } SSchedulerReq;
 
 int32_t schedulerInit(void);

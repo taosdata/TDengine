@@ -245,6 +245,10 @@ const char* nodesNodeName(ENodeType type) {
       return "DropConsumerGroupStmt";
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return "AlterLocalStmt";
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+      return "SetTimezoneStmt";
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return "SetFirstDayOfWeekStmt";
     case QUERY_NODE_EXPLAIN_STMT:
       return "ExplainStmt";
     case QUERY_NODE_DESCRIBE_STMT:
@@ -3532,6 +3536,7 @@ static const char* jkIntervalPhysiPlanOffset = "Offset";
 static const char* jkIntervalPhysiPlanSliding = "Sliding";
 static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit = "slidingUnit";
+static const char* jkIntervalPhysiPlanFirstDayOfWeek = "firstDayOfWeek";
 static const char* jkIntervalPhysiPlanStartTime = "StartTime";
 static const char* jkIntervalPhysiPlanEndTime = "EndTime";
 
@@ -3553,6 +3558,9 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanSlidingUnit, pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanStartTime, pNode->timeRange.skey);
@@ -3582,6 +3590,11 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanSlidingUnit, &pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    /* tolerate old plans that omit this field: default -1 (unset) */
+    pNode->firstDayOfWeek = -1;
+    (void)tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkIntervalPhysiPlanStartTime, &pNode->timeRange.skey);
@@ -10831,6 +10844,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropConsumerGroupStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return alterLocalStmtToJson(pObj, pJson);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;  // local-only statement, intentionally not serialized for network transmission.
     case QUERY_NODE_EXPLAIN_STMT:
       return explainStmtToJson(pObj, pJson);
     case QUERY_NODE_DESCRIBE_STMT:
@@ -11323,6 +11339,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDropConsumerGroupStmt(pJson, pObj);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return jsonToAlterLocalStmt(pJson, pObj);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;  // local-only statement, intentionally not deserialized from network.
     case QUERY_NODE_EXPLAIN_STMT:
       return jsonToExplainStmt(pJson, pObj);
     case QUERY_NODE_DESCRIBE_STMT:

@@ -94,6 +94,7 @@ extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int64_t tsSecTimes[3];
 extern int32_t tsCountAlwaysReturnValue;
+extern int32_t tsFirstDayOfWeek;  // 0-6; int32_t required by config framework (cfgAddInt32)
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;

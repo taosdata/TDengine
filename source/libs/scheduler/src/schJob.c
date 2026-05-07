@@ -988,6 +988,7 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->attr.explainMode = pParent->attr.explainMode;
   pJob->attr.localExec = false;
   pJob->conn = pParent->conn;
+  pJob->firstDayOfWeek = pParent->firstDayOfWeek;
   
   // TODO COPY SQL
   /*
@@ -1062,6 +1063,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
+  pJob->firstDayOfWeek = pReq->firstDayOfWeek;
   
   if (pReq->sql) {
     pJob->sql = taosStrdup(pReq->sql);
