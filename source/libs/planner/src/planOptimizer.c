@@ -145,6 +145,9 @@ typedef bool (*FShouldBeOptimized)(SLogicNode* pNode, void* pInfo);
 
 static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHashObj* pTables);
 static bool joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin);
+static const char* getJoinCondPKTable(SNode* pNode);
+static EOperatorType asofJoinGetReverseOp(EOperatorType opType);
+static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType);
 
 #if 0
 static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
@@ -1011,11 +1014,14 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
       }
       SNodeList** ppCopyList =
           (COND_ACTION_COPY_RIGHT_CHILD == condAction) ? &pRightChildConds : &pLeftChildConds;
-      code = nodesListMakeAppend(ppCopyList, pNew);
+      code = nodesListMakeAppend(&pRemainConds, pNew2);
       if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListMakeAppend(&pRemainConds, pNew2);
-      }
-      if (TSDB_CODE_SUCCESS != code) {
+        code = nodesListMakeAppend(ppCopyList, pNew);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode(pNew);
+        }
+      } else {
+        nodesDestroyNode(pNew);
         nodesDestroyNode(pNew2);
       }
     } else {
@@ -1165,38 +1171,106 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
   return pdcJoinColInTableList(pNode, pTables);
 }
 
-static bool asofJoinCanDeriveMatchedUpperBound(SJoinLogicNode* pJoin) {
-  if (NULL == pJoin->pPrimKeyEqCond || QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
+static EOperatorType asofJoinGetReverseOp(EOperatorType opType) {
+  switch (opType) {
+    case OP_TYPE_GREATER_THAN:
+      return OP_TYPE_LOWER_THAN;
+    case OP_TYPE_GREATER_EQUAL:
+      return OP_TYPE_LOWER_EQUAL;
+    case OP_TYPE_LOWER_THAN:
+      return OP_TYPE_GREATER_THAN;
+    case OP_TYPE_LOWER_EQUAL:
+      return OP_TYPE_GREATER_EQUAL;
+    case OP_TYPE_EQUAL:
+      return OP_TYPE_EQUAL;
+    default:
+      break;
+  }
+
+  return opType;
+}
+
+static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType) {
+  if (NULL == pMatchedOpType || NULL == pJoin->pPrimKeyEqCond || QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
     return false;
   }
 
-  EOperatorType opType = ((SOperatorNode*)pJoin->pPrimKeyEqCond)->opType;
-  if (JOIN_TYPE_LEFT == pJoin->joinType) {
-    return OP_TYPE_GREATER_THAN == opType || OP_TYPE_GREATER_EQUAL == opType || OP_TYPE_EQUAL == opType;
+  SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+  const char*    pLeftTable = getJoinCondPKTable(pOp->pLeft);
+  const char*    pRightTable = getJoinCondPKTable(pOp->pRight);
+  if (NULL == pLeftTable || NULL == pRightTable) {
+    return false;
   }
 
-  if (JOIN_TYPE_RIGHT == pJoin->joinType) {
-    return OP_TYPE_LOWER_THAN == opType || OP_TYPE_LOWER_EQUAL == opType || OP_TYPE_EQUAL == opType;
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  int32_t    code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    return false;
+  }
+
+  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(pLeftTables);
+    return false;
+  }
+
+  bool leftExprOnLeft = NULL != tSimpleHashGet(pLeftTables, pLeftTable, strlen(pLeftTable));
+  bool leftExprOnRight = NULL != tSimpleHashGet(pRightTables, pLeftTable, strlen(pLeftTable));
+  bool rightExprOnLeft = NULL != tSimpleHashGet(pLeftTables, pRightTable, strlen(pRightTable));
+  bool rightExprOnRight = NULL != tSimpleHashGet(pRightTables, pRightTable, strlen(pRightTable));
+
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+
+  bool matchedOnLeftExpr = false;
+  bool probeOnRightExpr = false;
+  bool probeOnLeftExpr = false;
+  bool matchedOnRightExpr = false;
+  if (JOIN_TYPE_LEFT == pJoin->joinType) {
+    matchedOnLeftExpr = leftExprOnRight;
+    probeOnRightExpr = rightExprOnLeft;
+    probeOnLeftExpr = leftExprOnLeft;
+    matchedOnRightExpr = rightExprOnRight;
+  } else if (JOIN_TYPE_RIGHT == pJoin->joinType) {
+    matchedOnLeftExpr = leftExprOnLeft;
+    probeOnRightExpr = rightExprOnRight;
+    probeOnLeftExpr = leftExprOnRight;
+    matchedOnRightExpr = rightExprOnLeft;
+  } else {
+    return false;
+  }
+
+  if (matchedOnLeftExpr && probeOnRightExpr) {
+    *pMatchedOpType = pOp->opType;
+    return true;
+  }
+
+  if (probeOnLeftExpr && matchedOnRightExpr) {
+    *pMatchedOpType = asofJoinGetReverseOp(pOp->opType);
+    return true;
   }
 
   return false;
 }
 
-static bool asofJoinCanDeriveMatchedLowerBound(SJoinLogicNode* pJoin) {
-  if (NULL == pJoin->pPrimKeyEqCond || QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
+static bool asofJoinCanDeriveMatchedUpperBound(SJoinLogicNode* pJoin) {
+  EOperatorType matchedOpType = OP_TYPE_EQUAL;
+  if (!asofJoinGetMatchedCmpOp(pJoin, &matchedOpType)) {
     return false;
   }
 
-  EOperatorType opType = ((SOperatorNode*)pJoin->pPrimKeyEqCond)->opType;
-  if (JOIN_TYPE_LEFT == pJoin->joinType) {
-    return OP_TYPE_LOWER_THAN == opType || OP_TYPE_LOWER_EQUAL == opType || OP_TYPE_EQUAL == opType;
+  return OP_TYPE_LOWER_THAN == matchedOpType || OP_TYPE_LOWER_EQUAL == matchedOpType || OP_TYPE_EQUAL == matchedOpType;
+}
+
+static bool asofJoinCanDeriveMatchedLowerBound(SJoinLogicNode* pJoin) {
+  EOperatorType matchedOpType = OP_TYPE_EQUAL;
+  if (!asofJoinGetMatchedCmpOp(pJoin, &matchedOpType)) {
+    return false;
   }
 
-  if (JOIN_TYPE_RIGHT == pJoin->joinType) {
-    return OP_TYPE_GREATER_THAN == opType || OP_TYPE_GREATER_EQUAL == opType || OP_TYPE_EQUAL == opType;
-  }
-
-  return false;
+  return OP_TYPE_GREATER_THAN == matchedOpType || OP_TYPE_GREATER_EQUAL == matchedOpType ||
+         OP_TYPE_EQUAL == matchedOpType;
 }
 
 static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHashObj* pTables) {

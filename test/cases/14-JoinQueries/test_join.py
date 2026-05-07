@@ -1372,6 +1372,8 @@ class TestJoin:
         tdSql.execute("create table sb4 using sb tags(4)")
         tdSql.execute("create table sa5 using sa tags(5)")
         tdSql.execute("create table sb5 using sb tags(5)")
+        tdSql.execute("create table sa6 using sa tags(6)")
+        tdSql.execute("create table sb6 using sb tags(6)")
 
         # Base timestamp: 2026-01-01 00:00:01 UTC in ms
         base_ts = 1767196801000
@@ -1411,6 +1413,11 @@ class TestJoin:
         tdSql.execute(f"insert into sa5 values({base_ts + 3}, 13)")
         for i in range(4):
             tdSql.execute(f"insert into sb5 values({base_ts + i}, {i})")
+
+        # Forward RIGHT ASOF with probe column on the left side of "<".
+        tdSql.execute(f"insert into sa6 values({base_ts + 5}, 15)")
+        tdSql.execute(f"insert into sb6 values({base_ts + 0}, 0)")
+        tdSql.execute(f"insert into sb6 values({base_ts + 1}, 1)")
 
     def do_asof_join_right_ts_pushdown(self):
         """Verify ASOF JOIN pushdown/copy/range-derivation behavior with result-file comparison."""
