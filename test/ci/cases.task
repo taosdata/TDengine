@@ -765,6 +765,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable2.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
