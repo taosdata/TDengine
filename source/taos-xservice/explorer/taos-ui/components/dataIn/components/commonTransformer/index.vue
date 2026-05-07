@@ -32,12 +32,12 @@
                 :before-remove="beforeRemove"
                 :on-success="handleSuccess"
                 :on-progress="handleStart"
-                 :on-error="handleError"
-                 :on-exceed="handleExceed"
-                 :file-list="fileList"
-                 :show-file-list="false"
-                 :with-credentials="true"
-               >
+                :on-error="handleError"
+                :on-exceed="handleExceed"
+                :file-list="fileList"
+                :show-file-list="false"
+                :with-credentials="true"
+              >
                 <el-button
                   size="default"
                   :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -194,12 +194,12 @@
                 :data="uploadData"
                 :headers="uploadHeaders"
                 :before-remove="beforeRemove"
-                 :on-success="handleSuccessUdt"
-                 :on-error="handleError"
-                 :file-list="fileList"
-                 :show-file-list="false"
-                 :with-credentials="true"
-               >
+                :on-success="handleSuccessUdt"
+                :on-error="handleError"
+                :file-list="fileList"
+                :show-file-list="false"
+                :with-credentials="true"
+              >
                 <el-button
                   size="default"
                   plain
@@ -418,7 +418,9 @@
                       </el-button>
                       <template #dropdown>
                         <el-dropdown-menu>
-                          <el-dropdown-item command="sqlCreate">{{ t('dataIn.transformer.createstb') }}</el-dropdown-item>
+                          <el-dropdown-item command="sqlCreate">{{
+                            t('dataIn.transformer.createstb')
+                          }}</el-dropdown-item>
                           <el-dropdown-item command="templateCreate">{{
                             t('dataIn.transformer.templatestb')
                           }}</el-dropdown-item>
@@ -444,7 +446,10 @@
                     <el-table-column prop="Name" show-overflow-tooltip label="Name" width="120px">
                       <template #default="scope">
                         <div style="display: flex; align-items: end">
-                          <el-icon v-if="scope.row.Expression.toString()" style="margin-right: 2px; color: rgb(56 155 255)">
+                          <el-icon
+                            v-if="scope.row.Expression.toString()"
+                            style="margin-right: 2px; color: rgb(56 155 255)"
+                          >
                             <SuccessFilled />
                           </el-icon>
                           <Icon
@@ -475,109 +480,19 @@
                         </el-tooltip>
                       </template>
                       <template #default="scope">
-                        <div class="box-expression">
-                          <template v-if="scope.row['Name'] == 'SubTableName'">
-                            <el-input v-model="scope.row.Expression" size="default" :placeholder="exprformat"></el-input>
-                          </template>
-                          <template v-else>
-                            <el-select
-                              v-model="scope.row.exprname"
-                              size="default"
-                              class="mapping-rule-select"
-                              style="width: 110px; min-width: 110px"
-                              @change="changeCurrentMapExpr(scope)"
-                            >
-                              <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
-                                item
-                              }}</el-option>
-                            </el-select>
-
-                            <el-select
-                              v-if="
-                                scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
-                              "
-                              v-model="scope.row.Expression"
-                              :placeholder="t('dataIn.transformer.coltip')"
-                              :clearable="scope.row.exprname == 'mapping'"
-                              size="default"
-                              filterable
-                              class="mapping-rule-expression"
-                              :multiple="scope.row.exprname != 'mapping'"
-                              @clear="onMappingExpressionCleared(scope.row)"
-                            >
-                              <el-option
-                                v-for="val in mappingcolumns"
-                                :key="val.label"
-                                :value="val.value"
-                                :label="val.label"
-                              ></el-option>
-                            </el-select>
-                            <el-input
-                              v-else
-                              :key="'expr'"
-                              v-model="scope.row.Expression"
-                              class="mapping-rule-expression"
-                              :placeholder="
-                                scope.row.exprname == 'format'
-                                  ? exprformat
-                                  : scope.row.exprname == 'expr'
-                                    ? exprexpression
-                                    : scope.row.exprname == 'value'
-                                      ? t('dataIn.transformer.valuetip')
-                                      : ''
-                              "
-                              size="default"
-                              :disabled="scope.row['exprname'] == 'generator'"
-                              @change="
-                                statisticCol;
-                                relayout();
-                              "
-                            ></el-input>
-                            <el-input
-                              v-if="scope.row.exprname == 'join'"
-                              :key="'exprjoin'"
-                              v-model="scope.row.joinwith"
-                              size="default"
-                              class="mapping-rule-extra"
-                              style="height: 32px"
-                            >
-                              <template #prepend>with</template>
-                            </el-input>
-                            <el-input
-                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
-                              :key="'default-value-of-' + scope.row['Name']"
-                              v-model="scope.row.default"
-                              size="default"
-                              type="number"
-                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                              :maxlength="scope.row.dataRange[2]"
-                              class="mapping-rule-extra"
-                              @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
-                            >
-                            </el-input>
-                            <el-select
-                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
-                              v-model="scope.row.default"
-                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                              size="default"
-                              class="mapping-rule-extra"
-                            >
-                              <el-option label="true" value="true"></el-option>
-                              <el-option label="false" value="false"></el-option>
-                              <el-option label="null" value="null"></el-option>
-                            </el-select>
-                            <el-input
-                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
-                              v-model="scope.row.default"
-                              size="default"
-                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                              class="mapping-rule-extra"
-                            ></el-input>
-                          </template>
-                          <div v-if="scope.row.defaultValueError" class="default-value-error">
-                            {{ scope.row.defaultValueError }}
-                          </div>
-                        </div>
+                        <MappingExpressionCell
+                          :row="scope.row"
+                          :mapping-types="mappingTypes"
+                          :mappingcolumns="mappingcolumns"
+                          :exprformat="exprformat"
+                          :exprexpression="exprexpression"
+                          :on-default-value-input="onDefaultValueInput"
+                          @changed="
+                            statisticCol();
+                            relayout();
+                          "
+                          @cleared="onMappingExpressionCleared"
+                        />
                       </template>
                     </el-table-column>
                   </el-table>
@@ -818,126 +733,19 @@
                 </el-tooltip>
               </template>
               <template #default="scope">
-                <div class="box-expression">
-                  <template v-if="scope.row['Name'] == 'SubTableName'">
-                    <el-input
-                      v-model="scope.row.Expression"
-                      size="default"
-                      :placeholder="exprformat"
-                      @blur="scope.row.Expression = scope.row.Expression.trim()"
-                    ></el-input>
-                  </template>
-                  <template v-else>
-                    <el-select
-                      v-model="scope.row.exprname"
-                      size="default"
-                      class="mapping-rule-select"
-                      style="width: 110px; min-width: 110px"
-                      @change="changeCurrentMapExpr(scope)"
-                    >
-                      <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
-                        item
-                      }}</el-option>
-                    </el-select>
-
-                    <el-select
-                      v-if="
-                        scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
-                      "
-                      v-model="scope.row.Expression"
-                      :placeholder="t('dataIn.transformer.coltip')"
-                      :clearable="scope.row.exprname == 'mapping'"
-                      size="default"
-                      filterable
-                      class="mapping-rule-expression"
-                      :multiple="scope.row.exprname != 'mapping'"
-                      @clear="onMappingExpressionCleared(scope.row)"
-                    >
-                      <el-option
-                        v-for="val in mappingcolumns"
-                        :key="val.label"
-                        :value="val.value"
-                        :label="val.label"
-                      ></el-option>
-                    </el-select>
-                    <el-input
-                      v-else
-                      :key="'expr'"
-                      v-model="scope.row.Expression"
-                      class="mapping-rule-expression"
-                      :placeholder="
-                        scope.row.exprname == 'format'
-                          ? exprformat
-                          : scope.row.exprname == 'expr'
-                            ? exprexpression
-                            : scope.row.exprname == 'value'
-                              ? t('dataIn.transformer.valuetip')
-                              : ''
-                      "
-                      size="default"
-                      :disabled="scope.row['exprname'] == 'generator'"
-                      @change="
-                        statisticCol;
-                        relayout();
-                      "
-                    ></el-input>
-                    <el-tooltip
-                      v-if="scope.row.PrimaryKey && scope.row.exprname === 'generator'"
-                      :content="t('dataIn.transformer.generatorPkWarning')"
-                      placement="top"
-                      effect="light"
-                      :open-delay="0"
-                    >
-                      <el-icon style="margin-left: 4px; color: #f0a020; cursor: pointer; flex-shrink: 0">
-                        <WarningFilled />
-                      </el-icon>
-                    </el-tooltip>
-                    <!-- 第三列组件 -->
-                    <el-input
-                      v-if="scope.row.exprname == 'join'"
-                      :key="'exprjoin'"
-                      v-model="scope.row.joinwith"
-                      size="default"
-                      class="mapping-rule-extra"
-                      style="height: 32px"
-                    >
-                      <template #prepend>with</template>
-                    </el-input>
-                    <el-input
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
-                      :key="'default-value-of-' + scope.row['Name']"
-                      v-model="scope.row.default"
-                      size="default"
-                      type="number"
-                      :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                      :maxlength="scope.row.dataRange[2]"
-                      class="mapping-rule-extra"
-                      @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
-                    >
-                    </el-input>
-                    <el-select
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
-                      v-model="scope.row.default"
-                      :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                      size="default"
-                      class="mapping-rule-extra"
-                    >
-                      <el-option label="true" value="true"></el-option>
-                      <el-option label="false" value="false"></el-option>
-                      <el-option label="null" value="null"></el-option>
-                    </el-select>
-                    <el-input
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
-                      v-model="scope.row.default"
-                      size="default"
-                      :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                      class="mapping-rule-extra"
-                    ></el-input>
-                  </template>
-                  <div v-if="scope.row.defaultValueError" class="default-value-error">
-                    {{ scope.row.defaultValueError }}
-                  </div>
-                </div>
+                <MappingExpressionCell
+                  :row="scope.row"
+                  :mapping-types="mappingTypes"
+                  :mappingcolumns="mappingcolumns"
+                  :exprformat="exprformat"
+                  :exprexpression="exprexpression"
+                  :on-default-value-input="onDefaultValueInput"
+                  @changed="
+                    statisticCol();
+                    relayout();
+                  "
+                  @cleared="onMappingExpressionCleared"
+                />
               </template>
             </el-table-column>
           </el-table>
@@ -991,12 +799,21 @@
 import type { ComponentInternalInstance } from 'vue';
 import ExtractSplit from './extractSplit.vue';
 import FilterExpression from './filterExpression.vue';
+import MappingExpressionCell from './mappingExpressionCell.vue';
+import { hasConfiguredExpression } from './mappingExpressionState';
 import RuleBlockCard from './ruleBlockCard.vue';
 import { resolveActiveRuleIdAfterRemoval } from './ruleBlockState';
 import DocsContent from 'components/MdRender.vue';
 import CusSelect from './cusSelect.vue';
 import CreateStable from './createSTB.vue';
-import { getTransformCapabilities, normalizeConditionExpr, toBackendPayload, toRuleFormState } from './ruleAdapter';
+import {
+  getConditionExprText,
+  getTransformCapabilities,
+  normalizeConditionExpr,
+  toBackendPayload,
+  toRuleFormState,
+  updateConditionExprText
+} from './ruleAdapter';
 import { getDataInProps, uploadHeaders } from '../../model/useDataIn.js';
 import { t } from 'locales';
 import {
@@ -1358,9 +1175,7 @@ async function previewMatches(ruleId: string) {
       parse: topParse.parser?.parse,
       mutate: topParse.parser?.mutate
     },
-    input: supportTransform.is_sparkplugb
-      ? topParse.samples
-      : generateInput(),
+    input: supportTransform.is_sparkplugb ? topParse.samples : generateInput(),
     matches: block.matches
   };
 
@@ -1555,20 +1370,7 @@ onMounted(async () => {
 });
 
 function statisticCol() {
-  configuredCount.value = tableData.value.filter(item => item['Expression'] != '').length;
-}
-function changeCurrentMapExpr(scope: Recordable) {
-  nextTick(() => {
-    pageTableData.value[scope.$index].Expression = '';
-    if (pageTableData.value[scope.$index].default != undefined && pageTableData.value[scope.$index].default !== '') {
-      pageTableData.value[scope.$index].default = '';
-      pageTableData.value[scope.$index].defaultValueError = '';
-    }
-    if (scope.row.exprname == 'generator') {
-      pageTableData.value[scope.$index].Expression = 'now';
-    }
-    mappingTable.value?.doLayout?.();
-  });
+  configuredCount.value = tableData.value.filter(item => hasConfiguredExpression(item.Expression)).length;
 }
 function relayout() {
   nextTick(() => {
@@ -1580,7 +1382,7 @@ function relayout() {
   });
 }
 function onMappingExpressionCleared(row?: TableRow) {
-  // 清空 mapping/select 时，重置当前行的表达式和默认值，避免表格状态与布局不一致
+  // Keep row state and configured-count display in sync after select clear actions.
   if (row) {
     row.Expression = '';
     if (row.exprname === 'mapping') {
@@ -1592,7 +1394,7 @@ function onMappingExpressionCleared(row?: TableRow) {
       }
     }
   }
-  // 重新计算表格布局，避免列宽错乱
+  statisticCol();
   relayout();
 }
 async function getMsgBody() {
@@ -2080,44 +1882,54 @@ function setPageTableData() {
   );
   relayout();
 }
-function onDefaultValueInput(name: any, val: string, range: number[]) {
-  if (val === undefined || val.trim() === '') {
+function onDefaultValueInput(name: any, val: string | number | null | undefined, range?: (bigint | number)[]) {
+  const text = val == null ? '' : String(val).trim();
+  if (text === '' || !range) {
     setDefaultValueError(name, '');
     return;
   }
 
-  if (range[2] <= 20) {
-    // 整数
-    if (val.indexOf('.') >= 0 || isNaN(Number(val)) || val.length > range[2]) {
-      alertDataRange(name, val, range);
+  const maxLen = Number(range[2]);
+  const integerPattern = /^-?\d+$/;
+  if (maxLen <= 20) {
+    if (!integerPattern.test(text) || text.length > maxLen) {
+      alertDataRange(name, text, range);
       return;
     }
-    let ival;
-    if (range[2] < 20) {
-      ival = parseInt(val);
+    let ival: number | bigint;
+    if (maxLen < 20) {
+      ival = Number(text);
+      if (!Number.isSafeInteger(ival)) {
+        alertDataRange(name, text, range);
+        return;
+      }
     } else {
-      ival = eval(val + 'n');
+      try {
+        ival = BigInt(text);
+      } catch {
+        alertDataRange(name, text, range);
+        return;
+      }
     }
     if (ival < range[0] || ival > range[1]) {
-      alertDataRange(name, val, range);
+      alertDataRange(name, text, range);
       return;
     }
   } else {
-    // 浮点数
-    if (isNaN(Number(val)) || val.length > range[2]) {
-      alertDataRange(name, val, range);
+    if (isNaN(Number(text)) || text.length > maxLen) {
+      alertDataRange(name, text, range);
       return;
     }
-    const fval = parseFloat(val);
-    if (fval < range[0] || fval > range[1]) {
-      alertDataRange(name, val, range);
+    const fval = parseFloat(text);
+    if (fval < Number(range[0]) || fval > Number(range[1])) {
+      alertDataRange(name, text, range);
       return;
     }
   }
 
   setDefaultValueError(name, '');
 }
-function alertDataRange(name: any, _val: string, range: number[]) {
+function alertDataRange(name: any, _val: string, range: (bigint | number)[]) {
   const dataRangeInputTip = t('dataIn.transformer.dataRangeInputTip', [range[0], range[1]]);
   setDefaultValueError(name, dataRangeInputTip);
 }
@@ -2322,11 +2134,15 @@ function echoFilterData(mutate: Recordable[]) {
   mutate.forEach(item => {
     if (Object.keys(item).toString() == 'filter') {
       isincludeFilter = true;
+      const normalizedFilter = normalizeConditionExpr(item.filter);
       const obj = {
-        expression: item.filter,
+        expression: normalizedFilter,
         key: Math.random()
       };
       filterArr.value.splice(0, filterArr.value.length, obj);
+      transformerState.transformerFilterParseData = {
+        filter: normalizedFilter
+      };
     }
     if (Object.keys(item).toString() == 'map') {
       echoMapData = (Object.entries(item['map']) as Recordable).map((val: any) => {
@@ -2355,7 +2171,11 @@ function echoMappingData(transformEchoMapData: Recordable) {
   nextTick(async () => {
     sruleForm.s_name = transformEchoMapData.model?.using;
     transformerState.s_model = transformEchoMapData.s_model;
-    await getSTbaleList(true, !!(transformEchoMapData.s_model && Object.keys(transformEchoMapData.s_model).length), transformEchoMapData);
+    await getSTbaleList(
+      true,
+      !!(transformEchoMapData.s_model && Object.keys(transformEchoMapData.s_model).length),
+      transformEchoMapData
+    );
     echoFetchMap(transformEchoMapData);
     if (sourceForm.type !== 'csv' && !supportTransform.supportSQL) {
       selectJson();
@@ -2653,7 +2473,7 @@ function changeFilter(key: any, value: string, ruleId?: string) {
     return;
   }
   const index = filterArr.value.findIndex(val => val.key == key);
-  filterArr.value[index]['expression'] = value;
+  filterArr.value[index]['expression'] = updateConditionExprText(filterArr.value[index]['expression'], value);
 }
 //extract的expression赋值
 function changeExtractExpr(colname: string, value: string, ruleId?: string) {
@@ -2742,10 +2562,9 @@ async function getTransformerParams() {
     }
 
     const ruleFormState = toRuleFormState(parserData as TransformConfig, sourceForm.type);
-    transformerState.transformerfullparams = toBackendPayload(
-      ruleFormState,
-      sourceForm.type
-    ) as TransformerfullparamsType | TransformerSpbfullparamsType;
+    transformerState.transformerfullparams = toBackendPayload(ruleFormState, sourceForm.type) as
+      | TransformerfullparamsType
+      | TransformerSpbfullparamsType;
     return;
   }
 
@@ -3062,9 +2881,10 @@ async function deleteFilter(key: number, ruleId?: string) {
       transformerState.transformerFilterParseData = null;
     } else {
       transformerState.transformerFilterParseData = {
-        filter: {
-          expr: filterArr.value[0].expression || ''
-        }
+        filter: updateConditionExprText(
+          filterArr.value[0].expression,
+          getConditionExprText(filterArr.value[0].expression)
+        )
       };
     }
 
@@ -3362,30 +3182,8 @@ $color-description: rgb(137 130 130);
 
   .box-expression {
     display: flex;
-    flex-wrap: wrap;
-
-    .mapping-rule-select {
-      width: 100px;
-      margin-right: 5px;
-    }
-
-    .mapping-rule-expression {
-      flex: 1;
-    }
-
-    .mapping-rule-extra {
-      width: 100px;
-      margin-left: 5px;
-    }
-
-    .default-value-error {
-      width: 100%;
-      margin-top: 5px;
-      font-size: 12px;
-      line-height: 1;
-      color: #ff4949;
-      text-align: right;
-    }
+    flex-direction: column;
+    width: 100%;
   }
 
   :deep(.el-table) {

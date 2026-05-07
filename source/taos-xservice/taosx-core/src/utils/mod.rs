@@ -420,6 +420,28 @@ pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<P
 
 /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
 pub fn parse_backup_dir(dsn: &Dsn, task_job_id: Option<(i64, i64)>) -> anyhow::Result<PathBuf> {
+    // 用户原始路径（未 canonicalize），用于在路径不存在时主动创建目录。
+    let raw_user_dir = dsn
+        .path
+        .as_ref()
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from);
+
+    // 当用户显式指定的目录不存在，且开启了 auto_create_dir 时主动创建，
+    // 这样后续的 parse_dir_in_dsn -> canonicalize 可以成功。
+    if let Some(ref dir) = raw_user_dir
+        && !dir.exists()
+        && crate::get_backup_auto_create_dir()
+    {
+        std::fs::create_dir_all(dir).map_err(|err| {
+            anyhow::Error::new(err).context(format!(
+                "backup dir not exists and failed to create: {}",
+                dir.display()
+            ))
+        })?;
+        tracing::info!("auto-created user-specified backup dir: {}", dir.display());
+    }
+
     let mut dir = match parse_dir_in_dsn(dsn, None)? {
         // dir 为空，使用默认路径: $TAOSX_DATA_DIR/backup
         None => {
@@ -789,6 +811,60 @@ mod tests {
             .join("123")
             .join("1");
         assert_eq!(backup_dir, cur_dir);
+    }
+
+    /// 用户指定的备份目录不存在时：
+    /// - 默认（开关关闭）应报错；
+    /// - 开启 `auto_create_dir` 后应自动创建并返回 canonical 路径。
+    ///
+    /// 两个场景合并到一个 `#[test]` 里串行执行，避免对全局环境变量
+    /// `TAOSX_BACKUP_AUTO_CREATE_DIR` 的并发竞争。
+    #[test]
+    fn test_parse_backup_dir_auto_create() {
+        use crate::{
+            ENV_TAOSX_BACKUP_AUTO_CREATE_DIR, get_backup_auto_create_dir,
+            set_env_backup_auto_create_dir,
+        };
+
+        // 保存并在测试结束时恢复环境变量，避免污染其它测试。
+        let saved = std::env::var(ENV_TAOSX_BACKUP_AUTO_CREATE_DIR).ok();
+        let restore = crate::utils::defer::defer(|| unsafe {
+            match saved.as_deref() {
+                Some(v) => std::env::set_var(ENV_TAOSX_BACKUP_AUTO_CREATE_DIR, v),
+                None => std::env::remove_var(ENV_TAOSX_BACKUP_AUTO_CREATE_DIR),
+            }
+        });
+
+        let tmp = tempfile::tempdir().unwrap();
+        // 用户指定一个尚不存在的子目录
+        let missing = tmp.path().join("nested").join("backup");
+        let dsn = format!("local:{}", missing.display())
+            .as_str()
+            .into_dsn()
+            .unwrap();
+
+        // 1) 关闭：应报错并保留 "invalid path" / "backup dir not exists" 语义
+        set_env_backup_auto_create_dir(false);
+        assert!(!get_backup_auto_create_dir());
+        let err = parse_backup_dir(&dsn, None).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("invalid path") || msg.contains("backup dir not exists"),
+            "expected error to mention missing path, got: {msg}"
+        );
+        assert!(!missing.exists(), "should NOT have been auto-created");
+
+        // 2) 开启：自动创建并返回 canonicalized 路径
+        set_env_backup_auto_create_dir(true);
+        assert!(get_backup_auto_create_dir());
+        let resolved = parse_backup_dir(&dsn, Some((123, 1))).unwrap();
+        assert!(missing.exists(), "expected backup dir auto-created");
+        assert_eq!(
+            resolved,
+            missing.canonicalize().unwrap().join("123").join("1")
+        );
+
+        drop(restore);
     }
 
     /// 测试解析备份文件的压缩等级

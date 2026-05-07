@@ -16,6 +16,11 @@ export interface TableRow {
   joinwith?: string;
 }
 
+export interface MappingColumnOption {
+  label: string;
+  value: string;
+}
+
 export interface TransformCapabilities {
   supportsRuleBlocks: boolean;
   supportsMultipleRules: boolean;
