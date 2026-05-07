@@ -55,7 +55,7 @@ window_clause: {
 
 Here, `interval_val` and `sliding_val` both represent time periods, and `interval_offset` represents the window offset, which must be less than `interval_val`. The syntax supports three forms, explained as follows:
 
-- INTERVAL(1s, 500a) SLIDING(1s), with time units in single character form, where: a (milliseconds), b (nanoseconds), d (days), h (hours), m (minutes), n (months), s (seconds), u (microseconds), w (weeks), y (years).
+- INTERVAL(1s, 500a) SLIDING(1s), with time units in single character form. See [Time Units](./01-datatype.md#time-units).
 - INTERVAL(1000, 500) SLIDING(1000), without time units, using the time precision of the query library as the default time unit, and when multiple libraries are present, the one with higher precision is used by default.
 - INTERVAL('1s', '500a') SLIDING('1s'), with time units in string form, where the string must not contain any spaces or other characters.
 

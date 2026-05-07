@@ -74,7 +74,7 @@ PERIOD(period_time[, offset_time])
 
 定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)、周 (w)、月 (n)、年 (y)，支持的时间范围为 `[10a, 3650d]`。
+- period_time：定时间隔，支持的时间单位详见[时间单位](./01-datatype.md#时间单位)（支持毫秒至年），支持的时间范围为 `[10a, 3650d]`。
 - offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。对于周/月/年单位，offset 必须严格小于触发周期；对于月单位，以 28 天/月为基准静态校验（如 `PERIOD(1n, 28d)` 非法）。
 
 使用说明：
@@ -167,7 +167,7 @@ STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(z
   - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
   - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
 
-  其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
+  其中 `duration_time` 为时间范围正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
 
 使用说明：
 
@@ -232,7 +232,7 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
   - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
   - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
 
-  其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
+  其中 `duration_time` 为时间范围正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
 
 使用说明：
 
@@ -268,7 +268,7 @@ EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH e
   - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
   - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
 
-  其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
+  其中 `duration_time` 为时间范围正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
 
 使用说明：
 

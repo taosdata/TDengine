@@ -2,6 +2,26 @@
 title: Data Types
 ---
 
+## Time Units
+
+Wherever a time duration is required in TDengine SQL (time arithmetic, INTERVAL, EVERY, SLIDING, etc.), a single-character suffix is used to denote the unit. Supported time units, from smallest to largest, are:
+
+| Unit | Meaning        | Notes                                                        |
+| :--: | -------------- | ------------------------------------------------------------ |
+| `b`  | Nanoseconds    | Smallest precision unit; meaningful only when database precision is nanoseconds |
+| `u`  | Microseconds   | Meaningful only when database precision is microseconds or nanoseconds |
+| `a`  | Milliseconds   | Default database precision                                   |
+| `s`  | Seconds        |                                                              |
+| `m`  | Minutes        |                                                              |
+| `h`  | Hours          |                                                              |
+| `d`  | Days           |                                                              |
+| `w`  | Weeks (7 days) |                                                              |
+| `n`  | Natural month  | Calendar unit; only allowed in INTERVAL windows, not in time arithmetic, EVERY, SURROUND, etc. |
+| `q`  | Natural quarter | Calendar unit; equivalent to 3 natural months; only allowed in INTERVAL windows, not in time arithmetic, EVERY, SURROUND, etc. |
+| `y`  | Natural year   | Calendar unit; only allowed in INTERVAL windows, not in time arithmetic, EVERY, SURROUND, etc. |
+
+Unit letters are case-insensitive (e.g., `1S` equals `1s`).
+
 ## Timestamp
 
 Using TDengine, the most important aspect is the timestamp. When creating and inserting records, or querying historical records, specifying the timestamp is necessary. The rules for timestamps are as follows:
@@ -10,7 +30,7 @@ Using TDengine, the most important aspect is the timestamp. When creating and in
 - The internal function NOW represents the current time of the client
 - When inserting records, if the timestamp is NOW, the current time of the client submitting the record is used
 - Epoch Time: The timestamp can also be a long integer, representing the number of milliseconds since UTC time 1970-01-01 00:00:00. Accordingly, if the time precision of the Database is set to "microseconds", the meaning of the long integer format timestamp corresponds to the number of microseconds since UTC time 1970-01-01 00:00:00; the logic for nanoseconds precision is similar.
-- Time can be added or subtracted, such as NOW-2h, which indicates pushing the query time forward by 2 hours (the last 2 hours). The time unit after the number can be b (nanoseconds), u (microseconds), a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). For example `SELECT * FROM t1 WHERE ts > NOW-2w AND ts <= NOW-1w`, represents querying data for a whole week two weeks ago. When specifying the time window (Interval) for Down Sampling operations, the time unit can also use n (natural month) and y (natural year).
+- Time can be added or subtracted, such as NOW-2h, which indicates pushing the query time forward by 2 hours (the last 2 hours). Supported time units are described in the [Time Units](#time-units) section. For example `SELECT * FROM t1 WHERE ts > NOW-2w AND ts <= NOW-1w`, represents querying data for a whole week two weeks ago.
 
 TDengine's default timestamp precision is milliseconds, but microseconds and nanoseconds are also supported by passing the `PRECISION` parameter during `CREATE DATABASE`.
 
