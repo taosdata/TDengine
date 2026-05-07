@@ -548,11 +548,20 @@ class TestStateWindow:
         tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(72, 1, 248)  
         
-        # Only support SESSION on primary timestamp column
+        # SESSION on the secondary timestamp column b works once the input keeps a valid timeline.
         tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(b, 10s)") 
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")    
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")    
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
 
         # event_window
         tdSql.query("select last(a) as d, b, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b desc) event_window start with vol > 240 end with vol < 239 order by d desc;")

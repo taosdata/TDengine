@@ -8958,16 +8958,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     bool isStrict = false;
     PAR_ERR_JRET(getTimeRange(&pPrimaryKeyCond, pTimeRange, &isStrict));
   } else {
-    // For degraded timeline (colId != PRIMARYKEY_TIMESTAMP_COL_ID),
-    // try extracting time range from the full condition directly
-    SNode* pCondCopy = NULL;
-    PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCondCopy));
-    bool isStrict = false;
-    int32_t rc = getTimeRange(&pCondCopy, pTimeRange, &isStrict);
-    nodesDestroyNode(pCondCopy);
-    if (TSDB_CODE_SUCCESS != rc) {
-      TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
-    }
+    TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
   }
 
 _return:
@@ -10122,6 +10113,24 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, &pSelect->pRange, &pFill->timeRange, &pFill->pTimeRange, pSelect->pFromTable);
+  }
+  // For degraded timeline interp, RANGE clause has a non-primary timestamp col.
+  // getQueryTimeRange returns TSWINDOW_INITIALIZER since filterPartitionCond won't
+  // recognize it as primary key. Retry extraction directly from pRange.
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pRange) {
+    STimeWindow initWin = TSWINDOW_INITIALIZER;
+    if (0 == memcmp(&pFill->timeRange, &initWin, sizeof(STimeWindow))) {
+      SNode* pCondCopy = NULL;
+      code = nodesCloneNode(pSelect->pRange, &pCondCopy);
+      if (TSDB_CODE_SUCCESS == code && NULL != pCondCopy) {
+        bool isStrict = false;
+        int32_t rc = getTimeRange(&pCondCopy, &pFill->timeRange, &isStrict);
+        nodesDestroyNode(pCondCopy);
+        if (TSDB_CODE_SUCCESS != rc) {
+          TAOS_SET_OBJ_ALIGNED(&pFill->timeRange, TSWINDOW_INITIALIZER);
+        }
+      }
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSurroundingTime(pCxt, pFill->pSurroundingTime);

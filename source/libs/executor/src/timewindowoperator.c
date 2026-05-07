@@ -1891,17 +1891,6 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
       // Duplicate timestamp - keep in current window
       doKeepTuple(pRowSup, tsList[j], j, gid);
     } else {
-      // Monotonicity check for disorder detection (skip when NULL/epoch-0 involved)
-      if (tsList[j] != 0 && pRowSup->prevTs != 0) {
-        int32_t curDir = (tsList[j] > pRowSup->prevTs) ? 1 : -1;
-        if (pInfo->detectedOrder == 0) {
-          pInfo->detectedOrder = curDir;
-        } else if (curDir != pInfo->detectedOrder) {
-          pTaskInfo->code = TSDB_CODE_FUNC_DUP_TIMESTAMP;
-          T_LONG_JMP(pTaskInfo->env, TSDB_CODE_FUNC_DUP_TIMESTAMP);
-        }
-      }
-
       int64_t absDiff = (tsList[j] > pRowSup->prevTs) ? (tsList[j] - pRowSup->prevTs) : (pRowSup->prevTs - tsList[j]);
       if (absDiff <= gap) {
         // Gap within threshold - belongs to current session window

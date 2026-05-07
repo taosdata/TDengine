@@ -742,8 +742,9 @@ static int32_t checkPrimTS(SNode* pNode, bool* isMatch) {
 // Used by elapsed() to support timeline-fallback subqueries.
 static int32_t checkTSColumn(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type)) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_PRIMTS;
+  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
+      ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     *isMatch = false;
   }
   return code;

@@ -482,7 +482,7 @@ class TestFunElapsed:
         """
         # incorrect parameter
         table_list = self.table_dic["super_table"] + self.table_dic["child_table"] + self.table_dic["common_table"]
-        incorrect_parameter_list = ["()", "(null)", "(*)", "(c_ts)", "(c_ts, 1s)", "(c_int)", "(c_bigint)", "(c_double)", "(c_nchar)", "(ts, null)",
+        incorrect_parameter_list = ["()", "(null)", "(*)", "(c_int)", "(c_bigint)", "(c_double)", "(c_nchar)", "(ts, null)",
                                     "(ts, *)", "(2024-01-09 17:00:00)", "(2024-01-09 17:00:00, 1s)", "(t1)", "(t1, 1s)", "(t2)", "(t3)"]
         for table in table_list:
             for param in incorrect_parameter_list:
@@ -1793,8 +1793,8 @@ class TestFunElapsed:
         tdSql.error("select elapsed(tsc ,1s) from (select q_int tsc from stable_1) ;")
         tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from stable_1);")
         tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from stable_1);")
-        # # bug fix
-        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
+        # # bug fix - elapsed now supports degraded timestamp columns
+        tdSql.query("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
 
         #TD-19911
         tdSql.error("select elapsed(ts,1s,123) from (select ts,tbname from stable_1 order by ts asc );")

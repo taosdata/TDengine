@@ -259,8 +259,9 @@ class TestIntervalBugFix:
         tdSql.checkData(2, 0, 1763617920000)
         
         # interval window: subquery is union all window with order by non-pk column
+        # With timeline fallback, t2 (TIMESTAMP from first(event_time)) ordered by ASC establishes valid timeline
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`) as t2, `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s)) order by t2 asc) interval(3s)"
-        tdSql.error(sql)
+        tdSql.query(sql)
 
         # union all window without order by
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`), `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s))) interval(3s)"
