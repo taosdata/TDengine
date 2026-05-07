@@ -19,7 +19,9 @@ def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
     '''
     sh '''
         cd ''' + internal_root + '''/enterprise/src/plugins/taosx
-        [ -e release/taosx ] && rm -rf release/taosx > /dev/null
+        if [ -e release/taosx ]; then
+            rm -rf release/taosx > /dev/null
+        fi
         git checkout main -f
         git branch
         git pull origin main
