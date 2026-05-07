@@ -1219,6 +1219,237 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_case_insensitive_Q" class="md-nav__link">
+        1Q (upper case) must work identically to 1q 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_leap_year_quarter" class="md-nav__link">
+        2024-02-29 must belong to Q1 (2024-01-01 ~ 2024-04-01) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_wstart_wend_quarter_boundaries" class="md-nav__link">
+        _wstart should align to Q1(Jan), Q2(Apr), Q3(Jul), Q4(Oct) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_auto_offset_1q_equals_auto_offset_3n" class="md-nav__link">
+        AUTO offset with 1q must behave identically to AUTO offset with 3n. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_cross_dst_boundary_data" class="md-nav__link">
+        Client in summer time, data spans winter-summer transition. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_autumn_transition_berlin" class="md-nav__link">
+        Data around autumn DST transition (October 27, 2024) in Europe/Berlin. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_spring_transition_berlin" class="md-nav__link">
+        Data around spring DST transition (March 31, 2024) in Europe/Berlin. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_every_1q_rejected" class="md-nav__link">
+        every(1q) should be rejected (calendar unit not allowed in EVERY) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_interval_1q_equals_3n" class="md-nav__link">
+        interval(1q) must produce identical results to interval(3n) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_berlin" class="md-nav__link">
+        Known-bug regression: Europe/Berlin should use Berlin quarter starts. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_utc" class="md-nav__link">
+        Known-bug regression: UTC query should show local quarter starts. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_equals_3n_multiple" class="md-nav__link">
+        Nq (N>1) must produce identical results to 3N months 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_n" class="md-nav__link">
+        Nq with n-unit offset must match 3Nn with same n-unit offset 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_q" class="md-nav__link">
+        Nq with q-unit offset must match 3Nn with corresponding n-unit offset 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_w" class="md-nav__link">
+        Nq with w-unit offset must match 3Nn with same w-unit offset 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_84d_with_1q" class="md-nav__link">
+        offset 84d with 1q must be rejected with the expected boundary error. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_equal_interval_matches_3n" class="md-nav__link">
+        offset equal to interval must be rejected with the expected boundary error. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_1q_equals_offset_3n" class="md-nav__link">
+        offset(1n) + interval(1q) must equal offset(1n) + interval(3n) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_state_duration_q_rejected" class="md-nav__link">
+        q in absolute-duration context (stateduration) must be rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_no_dst_shanghai" class="md-nav__link">
+        Quarter interval under Asia/Shanghai (no DST). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_berlin" class="md-nav__link">
+        Quarter interval under Europe/Berlin (has DST). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.01-Select.test_query_select_basic.TestSelectListBasic.test_selectlist" class="md-nav__link">
         Select basic 
       </a>
@@ -1265,6 +1496,39 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.01-Select.test_query_select_null.TestSelectNull.test_select_null" class="md-nav__link">
         Select null 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_sliding_1q_rejected" class="md-nav__link">
+        sliding(1q) should be rejected (calendar unit not allowed in sliding) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_shanghai_read_berlin" class="md-nav__link">
+        Write under Asia/Shanghai, then query under Europe/Berlin in one session. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_berlin_read_shanghai" class="md-nav__link">
+        Write under Europe/Berlin, then query under Asia/Shanghai in one session. 
       </a>
       
     </li>
@@ -3882,6 +4146,237 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_case_insensitive_Q" class="md-nav__link">
+        1Q (upper case) must work identically to 1q 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_leap_year_quarter" class="md-nav__link">
+        2024-02-29 must belong to Q1 (2024-01-01 ~ 2024-04-01) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_wstart_wend_quarter_boundaries" class="md-nav__link">
+        _wstart should align to Q1(Jan), Q2(Apr), Q3(Jul), Q4(Oct) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_auto_offset_1q_equals_auto_offset_3n" class="md-nav__link">
+        AUTO offset with 1q must behave identically to AUTO offset with 3n. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_cross_dst_boundary_data" class="md-nav__link">
+        Client in summer time, data spans winter-summer transition. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_autumn_transition_berlin" class="md-nav__link">
+        Data around autumn DST transition (October 27, 2024) in Europe/Berlin. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_spring_transition_berlin" class="md-nav__link">
+        Data around spring DST transition (March 31, 2024) in Europe/Berlin. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_every_1q_rejected" class="md-nav__link">
+        every(1q) should be rejected (calendar unit not allowed in EVERY) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_interval_1q_equals_3n" class="md-nav__link">
+        interval(1q) must produce identical results to interval(3n) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_berlin" class="md-nav__link">
+        Known-bug regression: Europe/Berlin should use Berlin quarter starts. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_utc" class="md-nav__link">
+        Known-bug regression: UTC query should show local quarter starts. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_equals_3n_multiple" class="md-nav__link">
+        Nq (N>1) must produce identical results to 3N months 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_n" class="md-nav__link">
+        Nq with n-unit offset must match 3Nn with same n-unit offset 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_q" class="md-nav__link">
+        Nq with q-unit offset must match 3Nn with corresponding n-unit offset 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_w" class="md-nav__link">
+        Nq with w-unit offset must match 3Nn with same w-unit offset 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_84d_with_1q" class="md-nav__link">
+        offset 84d with 1q must be rejected with the expected boundary error. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_equal_interval_matches_3n" class="md-nav__link">
+        offset equal to interval must be rejected with the expected boundary error. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_1q_equals_offset_3n" class="md-nav__link">
+        offset(1n) + interval(1q) must equal offset(1n) + interval(3n) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_state_duration_q_rejected" class="md-nav__link">
+        q in absolute-duration context (stateduration) must be rejected. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_no_dst_shanghai" class="md-nav__link">
+        Quarter interval under Asia/Shanghai (no DST). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_berlin" class="md-nav__link">
+        Quarter interval under Europe/Berlin (has DST). 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.01-Select.test_query_select_basic.TestSelectListBasic.test_selectlist" class="md-nav__link">
         Select basic 
       </a>
@@ -3934,6 +4429,39 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_sliding_1q_rejected" class="md-nav__link">
+        sliding(1q) should be rejected (calendar unit not allowed in sliding) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_shanghai_read_berlin" class="md-nav__link">
+        Write under Asia/Shanghai, then query under Europe/Berlin in one session. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_berlin_read_shanghai" class="md-nav__link">
+        Write under Europe/Berlin, then query under Asia/Shanghai in one session. 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3953,6 +4481,738 @@
 
 <h1 id="01-select">01-Select<a class="headerlink" href="#01-select" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_interval_1q_equals_3n" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_interval_1q_equals_3n" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>interval(1q) must produce identical results to interval(3n)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that the quarter alias `1q` returns the same window result as</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the normalized calendar duration `3n`.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_wstart_wend_quarter_boundaries" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_wstart_wend_quarter_boundaries" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>_wstart should align to Q1(Jan), Q2(Apr), Q3(Jul), Q4(Oct)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that quarter windows start on the expected Jan/Apr/Jul/Oct</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">boundaries and remain aligned after `q` is normalized to `n`.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_1q_equals_offset_3n" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_1q_equals_offset_3n" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>offset(1n) + interval(1q) must equal offset(1n) + interval(3n)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that applying the same month offset to `1q` and `3n` produces</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">identical quarter window results.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_leap_year_quarter" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_leap_year_quarter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>2024-02-29 must belong to Q1 (2024-01-01 ~ 2024-04-01)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that leap-day data is grouped into the correct first-quarter</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">window when using the quarter alias.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_case_insensitive_Q" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_case_insensitive_Q" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>1Q (upper case) must work identically to 1q</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that the quarter alias is case-insensitive and accepts both</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">uppercase and lowercase suffixes.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_84d_with_1q" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_84d_with_1q" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>offset 84d with 1q must be rejected with the expected boundary error.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that an oversized fixed-day offset is rejected for `1q` with</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the same boundary error used for `3n`.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_equal_interval_matches_3n" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_offset_equal_interval_matches_3n" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>offset equal to interval must be rejected with the expected boundary error.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that `offset == interval` is rejected consistently for both the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">quarter alias and its normalized month representation.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_auto_offset_1q_equals_auto_offset_3n" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_auto_offset_1q_equals_auto_offset_3n" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>AUTO offset with 1q must behave identically to AUTO offset with 3n.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that automatic offset calculation keeps `1q` behavior aligned</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">with `3n` in interval queries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_equals_3n_multiple" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_equals_3n_multiple" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Nq (N>1) must produce identical results to 3N months</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that multi-quarter input for different N values is normalized</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">correctly and matches the equivalent multi-month interval.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_q" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_q" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Nq with q-unit offset must match 3Nn with corresponding n-unit offset</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that interval(Nq, Mq) produces identical results to</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">interval(3N*n, M*3*n) where M*3 months = Mq and offset &lt; interval.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_w" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_w" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Nq with w-unit offset must match 3Nn with same w-unit offset</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that interval(Nq, Mw) produces identical results to</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">interval(3N*n, Mw) (week offset is independent of month/quarter).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_n" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_nq_with_offset_unit_n" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Nq with n-unit offset must match 3Nn with same n-unit offset</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that interval(Nq, Mn) produces identical results to</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">interval(3N*n, Mn).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_sliding_1q_rejected" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_sliding_1q_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>sliding(1q) should be rejected (calendar unit not allowed in sliding)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that the quarter alias remains subject to the existing rule that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">calendar units are not allowed in `SLIDING`.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_every_1q_rejected" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_every_1q_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>every(1q) should be rejected (calendar unit not allowed in EVERY)</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that the quarter alias is rejected in `EVERY` for the same</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">calendar-unit reason as `3n`.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_state_duration_q_rejected" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_state_duration_q_rejected" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>q in absolute-duration context (stateduration) must be rejected.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Since q is normalized to 3n (calendar unit) in parseNatualDuration,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and stateduration calls parseAbsoluteDuration which rejects calendar</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">units, this verifies q does not accidentally bypass that check.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_no_dst_shanghai" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_no_dst_shanghai" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Quarter interval under Asia/Shanghai (no DST).</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that quarter alias behavior matches month-based quarter windows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">in a timezone without DST transitions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_utc" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_utc" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Known-bug regression: UTC query should show local quarter starts.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify the intended UTC quarter boundary behavior for the active</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">session timezone. This case remains xfail until the known timezone</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">propagation bug is fixed.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Product expectation:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    The quarter windows should start at 00:00 on Jan/Apr/Jul/Oct 1st</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    in the active session timezone.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Current bug:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    The returned _wstart can be computed from a stale timezone and then</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    formatted in the current session timezone, so the displayed value is</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    no longer aligned to the local quarter boundary.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_berlin" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_berlin" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Quarter interval under Europe/Berlin (has DST).</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that quarter alias behavior matches `3n` in a timezone with DST</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">transitions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_berlin" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_session_timezone_controls_quarter_boundary_berlin" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Known-bug regression: Europe/Berlin should use Berlin quarter starts.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify the intended Berlin-local quarter boundary behavior. This case</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">remains xfail until the timezone propagation bug is fixed.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This case uses a DST timezone so the expected values also verify that</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">quarter boundaries are aligned in local time rather than anchored to a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">fixed offset from another timezone.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_spring_transition_berlin" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_spring_transition_berlin" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data around spring DST transition (March 31, 2024) in Europe/Berlin.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies no duplicate or missing windows at the DST boundary.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_autumn_transition_berlin" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_dst_autumn_transition_berlin" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Data around autumn DST transition (October 27, 2024) in Europe/Berlin.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies no duplicate or missing windows at the DST boundary.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_shanghai_read_berlin" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_shanghai_read_berlin" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Write under Asia/Shanghai, then query under Europe/Berlin in one session.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that write-time and read-time timezone switches do not break the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`1q == 3n` behavior.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_berlin_read_shanghai" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_write_berlin_read_shanghai" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Write under Europe/Berlin, then query under Asia/Shanghai in one session.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify that the reverse write/read timezone switch also preserves the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`1q == 3n` behavior.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_cross_dst_boundary_data" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_quarter.TestQuarterInterval.test_cross_dst_boundary_data" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Client in summer time, data spans winter-summer transition.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Ensures quarter windows are correct across DST boundary.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/09-DataQuerying/01-Select/test_query_quarter.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_quarter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
