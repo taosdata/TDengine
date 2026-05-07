@@ -66,7 +66,7 @@ static void mndUserTxnFreeFp(void *ptr) {
     taosMemoryFree(pTxn->pVgAckBitmap);
     pTxn->pVgAckBitmap = NULL;
   }
-  taosThreadRwlockDestroy(&pTxn->lock);
+  (void)taosThreadRwlockDestroy(&pTxn->lock);
 }
 
 int32_t mndInitTxn(SMnode *pMnode) {
@@ -89,7 +89,7 @@ int32_t mndInitTxn(SMnode *pMnode) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   taosHashSetFreeFp(pMgmt->pTxnHash, mndUserTxnFreeFp);
-  taosThreadRwlockInit(&pMgmt->lock, NULL);
+  (void)taosThreadRwlockInit(&pMgmt->lock, NULL);
   pMgmt->currentTxnId = -1;
   pMgmt->hTimeoutTimer = NULL;  // 定时器在 mnode 启动完成后再启动
 
@@ -261,10 +261,10 @@ int32_t mndStartTxnTimer(SMnode *pMnode) {
 void mndCleanupTxn(SMnode *pMnode) {
   STxnMgmt *pMgmt = &pMnode->txnMgmt;
   if (pMgmt->hTimeoutTimer) {
-    taosTmrStop(pMgmt->hTimeoutTimer);
+    (void)taosTmrStop(pMgmt->hTimeoutTimer);
     pMgmt->hTimeoutTimer = NULL;
   }
-  taosThreadRwlockDestroy(&pMgmt->lock);
+  (void)taosThreadRwlockDestroy(&pMgmt->lock);
   if (pMgmt->pTxnHash) {
     taosHashCleanup(pMgmt->pTxnHash);
     pMgmt->pTxnHash = NULL;
@@ -521,7 +521,7 @@ static int32_t mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew) {
   return 0;
 }
 
-STxnObj *mndAcquireTxn(SMnode *pMnode, utxn_id_t id) {
+STxnObj *mndAcquireTxn(SMnode *pMnode, txn_id_t id) {
   SSdb    *pSdb = pMnode->pSdb;
   STxnObj *pObj = sdbAcquire(pSdb, SDB_TXN, &id);
   if (pObj == NULL) {
@@ -548,7 +548,7 @@ const char *mndTxnStr(EUtxnStage stage) { return mndUtxnStageStr(stage); }
 
 // Check if a specific UTXN is alive (exists and in active/preparing/committing stage)
 // Returns 1 if alive, 0 if dead/unknown/completed
-int8_t mndTxnIsAlive(SMnode *pMnode, utxn_id_t txnId) {
+int8_t mndTxnIsAlive(SMnode *pMnode, txn_id_t txnId) {
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
   if (pTxn == NULL) return 0;
 
@@ -567,7 +567,7 @@ int8_t mndTxnIsAlive(SMnode *pMnode, utxn_id_t txnId) {
   return alive;
 }
 
-void mndTxnRefreshKeepalive(SMnode *pMnode, utxn_id_t txnId) {
+void mndTxnRefreshKeepalive(SMnode *pMnode, txn_id_t txnId) {
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
   if (pTxn == NULL) return;
 
@@ -586,7 +586,7 @@ void mndTxnRefreshKeepalive(SMnode *pMnode, utxn_id_t txnId) {
  * (which bypasses Raft replication), MNode creates an STrans that sends
  * TDMT_VND_TXN_ROLLBACK through the normal Raft-replicated write path.
  */
-int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, utxn_id_t txnId, int32_t vgId) {
+int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, txn_id_t txnId, int32_t vgId) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
 
@@ -620,7 +620,11 @@ int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, utxn_id_t txnId, int32_t vgI
   }
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(vgId);
-  tSerializeSVTxnRollbackReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req);
+  if (tSerializeSVTxnRollbackReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req) < 0) {
+    taosMemoryFree(pHead);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
 
   STransAction action = {0};
   action.mTraceId = pTrans->mTraceId;
@@ -657,7 +661,7 @@ _exit:
  * @param uid      STB UID
  * @param dbName   DB name
  */
-int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const char *stbName, tb_uid_t uid,
+int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const char *stbName, tb_uid_t uid,
                           const char *dbName, void *pReqData, int32_t reqDataLen) {
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
   if (pTxn == NULL) {
@@ -707,7 +711,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, utxn_id_t txnId, int8_t opType, const 
  * Caller must destroy the SArray but NOT free the SMndShadowOp contents.
  * Returns NULL ppOps if no ALTER ops found (not an error).
  */
-int32_t mndTxnGetAlterOpsForStb(SMnode *pMnode, utxn_id_t txnId, const char *stbFName, SArray **ppOps) {
+int32_t mndTxnGetAlterOpsForStb(SMnode *pMnode, txn_id_t txnId, const char *stbFName, SArray **ppOps) {
   *ppOps = NULL;
   if (txnId == 0 || stbFName == NULL) return TSDB_CODE_SUCCESS;
 
@@ -737,7 +741,12 @@ int32_t mndTxnGetAlterOpsForStb(SMnode *pMnode, utxn_id_t txnId, const char *stb
         }
       }
       // Copy the op struct (shallow copy - pReqData is NOT owned by the copy)
-      taosArrayPush(pResult, pOp);
+      if (taosArrayPush(pResult, pOp) == NULL) {
+        taosRUnLockLatch(&pTxn->lock);
+        mndReleaseTxn(pMnode, pTxn);
+        taosArrayDestroy(pResult);
+        return terrno;
+      }
     }
   }
 
@@ -756,7 +765,7 @@ int32_t mndTxnGetAlterOpsForStb(SMnode *pMnode, utxn_id_t txnId, const char *stb
  * Scans all active STxnObj in SDB, finds the one whose createUser matches and is ACTIVE.
  * For now, since only one global user txn is supported, a simple scan is efficient enough.
  */
-utxn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
+txn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
   if (pMnode == NULL || pReq == NULL) return 0;
 
   const char *user = RPC_MSG_USER(pReq);
@@ -765,7 +774,7 @@ utxn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   STxnObj  *pTxn = NULL;
-  utxn_id_t txnId = 0;
+  txn_id_t  txnId = 0;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_TXN, pIter, (void **)&pTxn);
@@ -787,7 +796,7 @@ utxn_id_t mndTxnGetActiveTxnId(SMnode *pMnode, SRpcMsg *pReq) {
  *
  * @return TSDB_CODE_TXN_RESOURCE_BUSY if conflict, 0 otherwise.
  */
-int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, utxn_id_t callerTxnId) {
+int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t callerTxnId) {
   SSdb    *pSdb = pMnode->pSdb;
   void    *pIter = NULL;
   STxnObj *pTxn = NULL;
@@ -867,7 +876,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
     pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
     if (pIter == NULL) break;
 
-    if (pStb->txnId != 0 && (utxn_id_t)pStb->txnId == pTxn->id) {
+    if (pStb->txnId != 0 && (txn_id_t)pStb->txnId == pTxn->id) {
       if (pTxn->pShadowOps == NULL) {
         pTxn->pShadowOps = taosArrayInit(4, sizeof(SMndShadowOp));
         if (pTxn->pShadowOps == NULL) {
@@ -1075,7 +1084,13 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
           stbClone.txnAlterReqsLen = 0;
           SSdbRaw *pRaw = mndStbActionEncode(&stbClone);
           if (pRaw != NULL) {
-            sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+            int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+            if (rawCode != 0) {
+              mError("txn:" PRIu64 ", sdbSetRawStatus READY failed for stb=%s: %s", pTxn->id, pOp->name,
+                     tstrerror(rawCode));
+              mndReleaseStb(pMnode, pStb);
+              return rawCode;
+            }
             int32_t code = mndTransAppendCommitlog(pTrans, pRaw);
             if (code != 0) {
               mError("txn:%" PRIu64 ", failed to append marker cleanup for stb=%s: %s",
@@ -1259,7 +1274,11 @@ static void *mndBuildVTxnCommitReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn, 
   }
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(vgId);
-  tSerializeSVTxnCommitReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req);
+  if (tSerializeSVTxnCommitReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req) < 0) {
+    taosMemoryFree(pHead);
+    *pContLen = 0;
+    return NULL;
+  }
   *pContLen = contLen;
   return pHead;
 }
@@ -1284,7 +1303,11 @@ static void *mndBuildVTxnRollbackReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn
   }
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(vgId);
-  tSerializeSVTxnRollbackReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req);
+  if (tSerializeSVTxnRollbackReq(POINTER_SHIFT(pHead, sizeof(SMsgHead)), bodyLen, &req) < 0) {
+    taosMemoryFree(pHead);
+    *pContLen = 0;
+    return NULL;
+  }
   *pContLen = contLen;
   return pHead;
 }
@@ -1530,8 +1553,12 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
     if (rspLen > 0) {
       void *pRsp = taosMemoryCalloc(1, rspLen);
       if (pRsp != NULL) {
-        tSerializeSMTransReq(pRsp, rspLen, &rspReq);
-        mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+        if (tSerializeSMTransReq(pRsp, rspLen, &rspReq) < 0) {
+          mError("txn:" PRIu64 ", failed to serialize begin txn response", obj.id);
+          taosMemoryFree(pRsp);
+        } else {
+          mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+        }
       }
     }
   }

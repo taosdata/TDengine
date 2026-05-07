@@ -51,9 +51,9 @@ static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
-static int32_t  mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, utxn_id_t txnId);
-static int32_t  mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb,
-                                    utxn_id_t txnId, void *pReqData, int32_t reqDataLen);
+static int32_t  mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId);
+static int32_t  mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId,
+                                   void *pReqData, int32_t reqDataLen);
 static int32_t  mndProcessDropTtltbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbWalRsp(SRpcMsg *pReq);
@@ -394,7 +394,7 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   if (sver >= STB_VER_SUPPORT_TXN) {
     int64_t txnIdVal = 0;
     SDB_GET_INT64(pRaw, dataPos, &txnIdVal, _OVER)
-    pStb->txnId = (utxn_id_t)txnIdVal;
+    pStb->txnId = (txn_id_t)txnIdVal;
     SDB_GET_INT8(pRaw, dataPos, &pStb->txnStatus, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &pStb->txnAlterReqsLen, _OVER)
     if (pStb->txnAlterReqsLen > 0) {
@@ -3231,19 +3231,19 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
   // Batch meta txn: conflict detection — block if another txn owns this STB
   // §35 taosX: skip for replicated STBs (compensating DDL from commit/rollback trans)
-  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)alterReq.txnId && !TXN_IS_REPLICATED(pStb->txnId)) {
+  if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)alterReq.txnId && !TXN_IS_REPLICATED(pStb->txnId)) {
     code = TSDB_CODE_TXN_RESOURCE_BUSY;
     goto _OVER;
   }
   if (!TXN_IS_REPLICATED(pStb->txnId)) {
-    if ((code = mndTxnCheckStbConflict(pMnode, alterReq.name, (utxn_id_t)alterReq.txnId)) != 0) {
+    if ((code = mndTxnCheckStbConflict(pMnode, alterReq.name, (txn_id_t)alterReq.txnId)) != 0) {
       goto _OVER;
     }
   }
 
   // Batch meta txn: persist ALTER marker on SStbObj via Raft + memory shadow op.
   if (alterReq.txnId != 0) {
-    code = mndMarkStbTxnAlter(pMnode, pReq, pStb, pDb, (utxn_id_t)alterReq.txnId, pReq->pCont, pReq->contLen);
+    code = mndMarkStbTxnAlter(pMnode, pReq, pStb, pDb, (txn_id_t)alterReq.txnId, pReq->pCont, pReq->contLen);
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   } else {
     code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
@@ -3403,7 +3403,7 @@ static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
  * Mark STB as PRE_DROP for txn crash recovery, and add memory shadow op.
  * Creates a mini-STrans with prepare-log to persist the marker in SDB via Raft.
  */
-static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, utxn_id_t txnId) {
+static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
 
@@ -3516,8 +3516,8 @@ static int32_t mndStbBuildAlterChain(const SStbObj *pStb, const void *pReqData, 
  * Mark STB with ALTER request data for txn crash recovery, and add memory shadow op.
  * Creates a mini-STrans with prepare-log to persist the marker in SDB via Raft.
  */
-static int32_t mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb,
-                                   utxn_id_t txnId, void *pReqData, int32_t reqDataLen) {
+static int32_t mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId,
+                                  void *pReqData, int32_t reqDataLen) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
   void   *pNewChain = NULL;
@@ -3705,7 +3705,10 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
     code = terrno;
     goto _OVER;
   }
-  tSerializeSMAlterStbReq(pAlterCont, newLen, &alterReq);
+  if (tSerializeSMAlterStbReq(pAlterCont, newLen, &alterReq) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
 
   // Add SDB logs and VNode actions to pTrans
   code = mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &stbObj);
@@ -3793,19 +3796,19 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
 
   // Batch meta txn: conflict detection — block if another txn owns this STB
   // §35 taosX: skip for replicated STBs (compensating DDL from commit/rollback trans)
-  if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)dropReq.txnId && !TXN_IS_REPLICATED(pStb->txnId)) {
+  if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)dropReq.txnId && !TXN_IS_REPLICATED(pStb->txnId)) {
     code = TSDB_CODE_TXN_RESOURCE_BUSY;
     goto _OVER;
   }
   if (!TXN_IS_REPLICATED(pStb->txnId)) {
-    if ((code = mndTxnCheckStbConflict(pMnode, dropReq.name, (utxn_id_t)dropReq.txnId)) != 0) {
+    if ((code = mndTxnCheckStbConflict(pMnode, dropReq.name, (txn_id_t)dropReq.txnId)) != 0) {
       goto _OVER;
     }
   }
 
   // Batch meta txn: persist PRE_DROP marker on SStbObj via Raft + memory shadow op.
   if (dropReq.txnId != 0) {
-    code = mndMarkStbTxnDrop(pMnode, pReq, pStb, pDb, (utxn_id_t)dropReq.txnId);
+    code = mndMarkStbTxnDrop(pMnode, pReq, pStb, pDb, (txn_id_t)dropReq.txnId);
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
   } else {
     code = mndDropStb(pMnode, pReq, pDb, pStb);
@@ -3987,7 +3990,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
       char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
       snprintf(tbFName, sizeof(tbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
       SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
-      if (pStb != NULL && pStb->txnId != 0 && pStb->txnId != (utxn_id_t)infoReq.txnId &&
+      if (pStb != NULL && pStb->txnId != 0 && pStb->txnId != (txn_id_t)infoReq.txnId &&
           (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
         mInfo("stb:%s, owned by txn %" PRIu64 ", requester txnId=%" PRId64 ", deny access (status=%d)", tbFName,
               pStb->txnId, infoReq.txnId, pStb->txnStatus);
@@ -4004,7 +4007,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
       SArray *pAlterOps = NULL;
       char    stbFName[TSDB_TABLE_FNAME_LEN] = {0};
       snprintf(stbFName, sizeof(stbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
-      int32_t txnCode = mndTxnGetAlterOpsForStb(pMnode, (utxn_id_t)infoReq.txnId, stbFName, &pAlterOps);
+      int32_t txnCode = mndTxnGetAlterOpsForStb(pMnode, (txn_id_t)infoReq.txnId, stbFName, &pAlterOps);
       if (txnCode == 0 && pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
         SDbObj  *pDb = mndAcquireDb(pMnode, infoReq.dbFName);
         SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
@@ -4324,7 +4327,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     // batch-meta-txn: hide PRE_CREATE/PRE_CREATE_DROP STBs from other sessions.
     // PRE_DROP and PRE_ALTER remain visible (redo-log: deferred until COMMIT).
-    if (pStb->txnId != 0 && pStb->txnId != (utxn_id_t)pShow->txnId &&
+    if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)pShow->txnId &&
         (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
       sdbRelease(pSdb, pStb);
       continue;

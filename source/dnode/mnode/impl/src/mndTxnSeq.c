@@ -29,13 +29,13 @@
 #define TXN_ID_RANGE_WATERMARK_PCT 80ULL
 
 typedef struct {
-  utxn_id_t rangeId;
+  txn_id_t rangeId;
 } SMTxnSeqReq;
 
 typedef SMTxnSeqReq SMTxnSeqRsp;
 
 static int32_t  initTxnSeq(SMnode *pMnode);
-static int32_t  triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool checkLeader);
+static int32_t  triggerAllocateTxnSeq(SMnode *pMnode, txn_id_t nextRangeId, bool checkLeader);
 static int32_t  mndAcquireTxnSeq(SMnode *pMnode, int32_t id, STxnSeqObj **ppObj);
 static void     mndReleaseTxnSeq(SMnode *pMnode, STxnSeqObj *pObj);
 static SSdbRaw *mndTxnSeqActionEncode(STxnSeqObj *pObj);
@@ -72,7 +72,7 @@ void mndCleanupTxnSeq(SMnode *pMnode) {}
 int32_t mndTxnSeqPrepare(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
-  utxn_id_t   allocateRangeId = TXN_ID_RANGE_BASE + TXN_ID_RANGE_STEP;
+  txn_id_t    allocateRangeId = TXN_ID_RANGE_BASE + TXN_ID_RANGE_STEP;
   if ((code = mndAcquireTxnSeq(pMnode, 0, &pObj)) == 0) {
     pMnode->txnMgmt.currentTxnId = pObj->maxRangeId;
     allocateRangeId = pObj->maxRangeId + TXN_ID_RANGE_STEP;
@@ -91,7 +91,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t triggerAllocateTxnSeq(SMnode *pMnode, utxn_id_t nextRangeId, bool checkLeader) {
+static int32_t triggerAllocateTxnSeq(SMnode *pMnode, txn_id_t nextRangeId, bool checkLeader) {
   int32_t code = 0, lino = 0;
 
   if ((atomic_fetch_add_8(&pMnode->txnMgmt.txnSeqInAlloc, 1) & 7) != 0) {
@@ -363,9 +363,9 @@ int64_t mndGenTxnId(int32_t nodeId) { // deprecated, only for test, not used in 
  * to increase until next range is exhausted.
  *
  * @param pMnode
- * @return utxn_id_t
+ * @return txn_id_t
  */
-utxn_id_t mndGenTxnId(SMnode *pMnode) {
+txn_id_t mndGenTxnId(SMnode *pMnode) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
   // 注意：mndAcquireTxnSeq 失败时直接返回错误码（负值），调用方需检查返回值
@@ -373,17 +373,17 @@ utxn_id_t mndGenTxnId(SMnode *pMnode) {
     mError("txnSeq, failed at line %d to acquire txn seq since %s", __LINE__, tstrerror(code));
     TAOS_RETURN(code);
   }
-  utxn_id_t nextId = -1;
+  txn_id_t  nextId = -1;
   bool      needAlloc = false;
   taosWLockLatch(&pObj->lock);
-  utxn_id_t curId = pMnode->txnMgmt.currentTxnId;
+  txn_id_t curId = pMnode->txnMgmt.currentTxnId;
   if (curId < 0 || curId >= pObj->maxRangeId) {
     needAlloc = true;
   } else {
     nextId = ++pMnode->txnMgmt.currentTxnId;
     curId = pMnode->txnMgmt.currentTxnId;
 
-    utxn_id_t usedInRange = curId - (pObj->maxRangeId - TXN_ID_RANGE_STEP);
+    txn_id_t usedInRange = curId - (pObj->maxRangeId - TXN_ID_RANGE_STEP);
     if ((usedInRange > 0) && (usedInRange >= (TXN_ID_RANGE_STEP * TXN_ID_RANGE_WATERMARK_PCT / 100))) {
       needAlloc = true;
     }
@@ -447,7 +447,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, utxn_id_t nextTxnRangeMax) {
+static int32_t mndAllocTxnSeq(SMnode *pMnode, SRpcMsg *pReq, txn_id_t nextTxnRangeMax) {
   int32_t    code = 0, lino = 0;
   STxnSeqObj obj = {.maxRangeId = nextTxnRangeMax};
   STrans    *pTrans = NULL;

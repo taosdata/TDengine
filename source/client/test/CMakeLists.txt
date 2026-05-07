@@ -94,7 +94,7 @@ TARGET_LINK_LIBRARIES(
         txnStateTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
-IF(NOT TD_WINDOWS)
+IF(TD_LINUX)
 SET_TARGET_PROPERTIES(
         txnStateTest PROPERTIES
         LINK_FLAGS "-Wl,--wrap=acquireTscObj -Wl,--wrap=releaseTscObj -Wl,--wrap=rpcSendRecv -Wl,--wrap=rpcFreeCont -Wl,--wrap=taosArrayInit"

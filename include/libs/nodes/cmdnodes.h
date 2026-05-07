@@ -952,7 +952,7 @@ typedef struct SShowTokensStmt {
 typedef struct STransStmt {
   ENodeType type;
   int32_t   transType;
-  utxn_id_t transId;
+  txn_id_t  transId;
 } STransStmt;
 
 typedef STransStmt SBeginTransStmt;

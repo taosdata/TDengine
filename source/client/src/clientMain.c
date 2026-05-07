@@ -1050,7 +1050,7 @@ static int32_t tscSendTxnCtrlMsg(STscObj *pTscObj, int32_t msgType, SRpcMsg *pRs
   return rpcSendRecv(pTrans, &epSet, &rpcMsg, pRsp);
 }
 
-static void tscBestEffortRollbackOrphanTxn(STscObj *pTscObj, utxn_id_t txnId, const char *source) {
+static void tscBestEffortRollbackOrphanTxn(STscObj *pTscObj, txn_id_t txnId, const char *source) {
   if (pTscObj == NULL || pTscObj->pAppInfo == NULL || pTscObj->pAppInfo->pTransporter == NULL || txnId == 0) {
     return;
   }
@@ -1121,10 +1121,10 @@ int taos_txn_begin(TAOS *taos) {
     return terrno;
   }
 
-  taosThreadMutexLock(&pTscObj->mutex);
-  utxn_id_t orphanTxnId = 0;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  txn_id_t orphanTxnId = 0;
   if (pTscObj->txnId > 0) {
-    taosThreadMutexUnlock(&pTscObj->mutex);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
     return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
   }
@@ -1136,21 +1136,27 @@ int taos_txn_begin(TAOS *taos) {
     // Deserialize response to get txnId
     SMTransReq rsp = {0};
     if (rpcRsp.pCont != NULL && rpcRsp.contLen > 0) {
-      tDeserializeSMTransReq(rpcRsp.pCont, rpcRsp.contLen, &rsp);
-      pTscObj->txnId = rsp.txnId;
-      tFreeSMTransReq(&rsp);
+      if (tDeserializeSMTransReq(rpcRsp.pCont, rpcRsp.contLen, &rsp) < 0) {
+        tscError("conn:0x%" PRIx64 ", failed to parse begin txn response", pTscObj->id);
+        code = TSDB_CODE_INVALID_MSG;
+      } else {
+        pTscObj->txnId = rsp.txnId;
+        tFreeSMTransReq(&rsp);
+      }
     }
-    pTscObj->txnState = UTXN_STAGE_ACTIVE;
-    // Initialize the VGroup tracking list
-    pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
-    if (pTscObj->pTxnVgList == NULL) {
-      tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to init VGroup list", pTscObj->id, pTscObj->txnId);
-      orphanTxnId = pTscObj->txnId;
-      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
-      pTscObj->txnState = 0;
-      pTscObj->txnId = 0;
-    } else {
-      tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+    if (code == TSDB_CODE_SUCCESS) {
+      pTscObj->txnState = UTXN_STAGE_ACTIVE;
+      // Initialize the VGroup tracking list
+      pTscObj->pTxnVgList = taosArrayInit(4, sizeof(int32_t));
+      if (pTscObj->pTxnVgList == NULL) {
+        tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to init VGroup list", pTscObj->id, pTscObj->txnId);
+        orphanTxnId = pTscObj->txnId;
+        code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        pTscObj->txnState = 0;
+        pTscObj->txnId = 0;
+      } else {
+        tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+      }
     }
   } else {
     if (code == TSDB_CODE_SUCCESS) code = rpcRsp.code;
@@ -1158,7 +1164,7 @@ int taos_txn_begin(TAOS *taos) {
   }
   rpcFreeCont(rpcRsp.pCont);
 
-  taosThreadMutexUnlock(&pTscObj->mutex);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
   if (orphanTxnId != 0) {
     tscBestEffortRollbackOrphanTxn(pTscObj, orphanTxnId, "taos_txn_begin");
   }
@@ -1183,13 +1189,13 @@ int taos_txn_commit(TAOS *taos) {
     return terrno;
   }
 
-  taosThreadMutexLock(&pTscObj->mutex);
+  (void)taosThreadMutexLock(&pTscObj->mutex);
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
-    taosThreadMutexUnlock(&pTscObj->mutex);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
     return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
-  taosThreadMutexUnlock(&pTscObj->mutex);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(connId);
 
   // Use taos_query which handles the async MNode STrans response properly.
@@ -1217,13 +1223,13 @@ int taos_txn_rollback(TAOS *taos) {
     return terrno;
   }
 
-  taosThreadMutexLock(&pTscObj->mutex);
+  (void)taosThreadMutexLock(&pTscObj->mutex);
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
-    taosThreadMutexUnlock(&pTscObj->mutex);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
     return TSDB_CODE_TXN_NOT_IN_PROGRESS;
   }
-  taosThreadMutexUnlock(&pTscObj->mutex);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(connId);
 
   // Use taos_query which handles the async MNode STrans response properly.

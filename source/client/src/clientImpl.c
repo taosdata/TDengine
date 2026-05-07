@@ -585,7 +585,16 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
       pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
     SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
     int32_t   vgId = ntohl(pHead->vgId);
-    tscTxnTrackVgId(pTscObj, vgId);
+    int32_t   trackCode = tscTxnTrackVgId(pTscObj, vgId);
+    if (trackCode != 0) {
+      tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to track vgId:%d: %s", pTscObj->id, pTscObj->txnId, vgId,
+               tstrerror(trackCode));
+      taosMemoryFree(pMsgInfo->pMsg);
+      pMsgInfo->pMsg = NULL;
+      taosMemoryFree(pMsgInfo);
+      doRequestCallback(pRequest, trackCode);
+      return trackCode;
+    }
   }
 
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
@@ -1212,7 +1221,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
         if (queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta) == 0 && pTableMeta != NULL) {
           char fullName[TSDB_TABLE_FNAME_LEN];
           snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
-          taosThreadMutexLock(&pTscObj->mutex);
+          (void)taosThreadMutexLock(&pTscObj->mutex);
           // Free old entry if present, then insert updated one
           STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
           if (ppOld && *ppOld) {
@@ -1222,12 +1231,12 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
               taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
           if (putCode != 0) {
             taosMemoryFree(pTableMeta);
-            taosThreadMutexUnlock(&pTscObj->mutex);
+            (void)taosThreadMutexUnlock(&pTscObj->mutex);
             return putCode;
           }
           tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " updated table meta cache for %s (ALTER)", pTscObj->id,
                    pTscObj->txnId, fullName);
-          taosThreadMutexUnlock(&pTscObj->mutex);
+          (void)taosThreadMutexUnlock(&pTscObj->mutex);
         }
       }
       break;
@@ -1258,8 +1267,10 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
             SName       stbName = {0};
             char        stbFullName[TSDB_TABLE_FNAME_LEN];
             snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
-            tNameFromString(&stbName, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-            int32_t stbCode = catalogGetCachedSTableMeta(pCatalog, &stbName, &pStbMeta);
+            int32_t stbCode = tNameFromString(&stbName, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+            if (stbCode == TSDB_CODE_SUCCESS) {
+              stbCode = catalogGetCachedSTableMeta(pCatalog, &stbName, &pStbMeta);
+            }
             // Fallback: STB might have been created in the same txn, check pTxnTableMeta
             if ((stbCode != TSDB_CODE_SUCCESS || pStbMeta == NULL) && pTscObj->pTxnTableMeta != NULL) {
               STableMeta** ppStb = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, stbFullName, strlen(stbFullName));
@@ -1307,7 +1318,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
           }
 
           if (pTableMeta != NULL) {
-            taosThreadMutexLock(&pTscObj->mutex);
+            (void)taosThreadMutexLock(&pTscObj->mutex);
             if (pTscObj->pTxnTableMeta == NULL) {
               pTscObj->pTxnTableMeta =
                   taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -1320,7 +1331,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
                   taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
               if (putCode != 0) {
                 taosMemoryFree(pTableMeta);
-                taosThreadMutexUnlock(&pTscObj->mutex);
+                (void)taosThreadMutexUnlock(&pTscObj->mutex);
                 return putCode;
               }
               tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached table meta for %s", pTscObj->id, pTscObj->txnId,
@@ -1328,7 +1339,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
             } else {
               taosMemoryFree(pTableMeta);
             }
-            taosThreadMutexUnlock(&pTscObj->mutex);
+            (void)taosThreadMutexUnlock(&pTscObj->mutex);
           }
         }
       }
@@ -1354,7 +1365,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
           if (queryCreateTableMetaFromMsg(pMetaRsp2, isStb2, &pTableMeta2) == 0 && pTableMeta2 != NULL) {
             char fullName2[TSDB_TABLE_FNAME_LEN];
             snprintf(fullName2, sizeof(fullName2), "%s.%s", pMetaRsp2->dbFName, pMetaRsp2->tbName);
-            taosThreadMutexLock(&pTscObj2->mutex);
+            (void)taosThreadMutexLock(&pTscObj2->mutex);
             if (pTscObj2->pTxnTableMeta == NULL) {
               pTscObj2->pTxnTableMeta =
                   taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -1364,7 +1375,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
                                             sizeof(STableMeta*));
               if (putCode != 0) {
                 taosMemoryFree(pTableMeta2);
-                taosThreadMutexUnlock(&pTscObj2->mutex);
+                (void)taosThreadMutexUnlock(&pTscObj2->mutex);
                 return putCode;
               }
               tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " cached STB meta for %s", pTscObj2->id, pTscObj2->txnId,
@@ -1372,7 +1383,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
             } else {
               taosMemoryFree(pTableMeta2);
             }
-            taosThreadMutexUnlock(&pTscObj2->mutex);
+            (void)taosThreadMutexUnlock(&pTscObj2->mutex);
           }
         }
       }
@@ -1747,12 +1758,13 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           for (int32_t i = 0; i < numBlocks; ++i) {
             SVgDataBlocks* pVgData = *(SVgDataBlocks**)taosArrayGet(pModifyStmt->pDataBlocks, i);
             if (pVgData != NULL) {
-              tscTxnTrackVgId(pTscObjSch, pVgData->vg.vgId);
+              code = tscTxnTrackVgId(pTscObjSch, pVgData->vg.vgId);
+              if (code != 0) break;
             }
           }
         }
       }
-
+      if (code != 0) break;
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       if (NULL == pMnodeList) {
         code = terrno;
@@ -1971,10 +1983,15 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
           for (int32_t i = 0; i < nBlocks; ++i) {
             SVgDataBlocks* pVgBlk = *(SVgDataBlocks**)taosArrayGet(pModStmt->pDataBlocks, i);
             if (pVgBlk != NULL) {
-              tscTxnTrackVgId(pTscObjAsync, pVgBlk->vg.vgId);
+              code = tscTxnTrackVgId(pTscObjAsync, pVgBlk->vg.vgId);
+              if (code != 0) break;
             }
           }
         }
+      }
+      if (code != 0) {
+        doRequestCallback(pRequest, code);
+        break;
       }
       code = asyncExecSchQuery(pRequest, pQuery, pResultMeta, pWrapper);
       break;

@@ -4940,7 +4940,7 @@ typedef struct SVCreateStbReq {
   SColCmprWrapper colCmpr;
   int64_t         keep;
   int64_t         ownerId;
-  utxn_id_t       txnId;  // batch-meta-txn: >0 = STB belongs to this txn (VNode marks as PRE_CREATE)
+  txn_id_t        txnId;  // batch-meta-txn: >0 = STB belongs to this txn (VNode marks as PRE_CREATE)
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
   int8_t          secureDelete;
@@ -4954,7 +4954,7 @@ int tDecodeSVCreateStbReq(SDecoder* pCoder, SVCreateStbReq* pReq);
 typedef struct SVDropStbReq {
   char*    name;
   tb_uid_t suid;
-  utxn_id_t txnId;  // batch-meta-txn: >0 = DROP STB belongs to this txn (VNode marks as PRE_DROP)
+  txn_id_t txnId;  // batch-meta-txn: >0 = DROP STB belongs to this txn (VNode marks as PRE_DROP)
 } SVDropStbReq;
 
 int32_t tEncodeSVDropStbReq(SEncoder* pCoder, const SVDropStbReq* pReq);
@@ -5802,7 +5802,7 @@ void    tFreeSMDropSmaReq(SMDropSmaReq* pReq);
 typedef struct {
   int32_t   msgType;  // begin, commit, rollback
   int8_t    clientStage;
-  utxn_id_t txnId;
+  txn_id_t  txnId;
   int64_t   connId;
   SArray*   pVgList;  // Array of int32_t (vgId), client-tracked participant VGroups
 } SMTransReq;
@@ -5813,38 +5813,38 @@ void    tFreeSMTransReq(SMTransReq* pReq);
 
 // VNode 向 MNode 注册参与事务（首次收到带 txnId 的 DDL 时发送）
 typedef struct {
-  utxn_id_t txnId;   // 全局事务 ID
+  txn_id_t  txnId;   // 全局事务 ID
   int32_t   vgId;    // 发送方 VGroup ID
 } SMndTxnRegReq;
 
 typedef struct {
   int32_t code;      // 0=成功，非0=失败（如事务已过期/已回滚）
-  utxn_id_t txnId;
+  txn_id_t txnId;
 } SMndTxnRegRsp;
 
 // MNode → VNode：提交/回滚指令（批量，通过心跳捎带或直接发送）
 typedef struct {
   int32_t   commitNum;
   int32_t   rollbackNum;
-  utxn_id_t ids[];   // 前 commitNum 个为 commit，后 rollbackNum 个为 rollback
+  txn_id_t  ids[];  // 前 commitNum 个为 commit，后 rollbackNum 个为 rollback
 } SVTxnFinishBatch;
 
 // VNode → MNode：ACK 反馈
 typedef struct {
   int32_t   vgId;
   int32_t   ackNum;
-  utxn_id_t ackIds[];  // 已完成（commit 或 rollback）的事务 ID 列表
+  txn_id_t  ackIds[];  // 已完成（commit 或 rollback）的事务 ID 列表
 } SVTxnAckBatch;
 
 // MNode → VNode：单个事务的 COMMIT 指令
 typedef struct {
-  utxn_id_t txnId;
+  txn_id_t  txnId;
   int64_t   term;    // MNode 当前任期（SyncTerm），用于 VNode 侧 Fencing 校验
 } SVTxnCommitReq;
 
 // MNode → VNode：单个事务的 ROLLBACK 指令
 typedef struct {
-  utxn_id_t txnId;
+  txn_id_t  txnId;
   int64_t   term;    // MNode 当前任期（SyncTerm），用于 VNode 侧 Fencing 校验
   int32_t   reason;  // 回滚原因码（超时/客户端断连/用户主动回滚等）
 } SVTxnRollbackReq;
@@ -5860,13 +5860,13 @@ int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq
 
 // VNode → DNode → MNode 保活查询（通过 SStatusReq 捎带）
 typedef struct {
-  utxn_id_t txnId;
+  txn_id_t  txnId;
   int32_t   vgId;  // 发起查询的 VNode
 } STxnActiveQuery;
 
 // MNode → DNode → VNode 保活应答（通过 SStatusRsp 捎带）
 typedef struct {
-  utxn_id_t txnId;
+  txn_id_t  txnId;
   int32_t   vgId;   // 目标 VNode，DNode 据此路由
   int8_t    alive;  // 1=活跃, 0=已终结（不存在/已 COMMIT/已 ROLLBACK）
 } STxnActiveAck;
@@ -6742,7 +6742,7 @@ int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* 
 int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
 
 typedef struct {
-  utxn_id_t uTxnId;
+  txn_id_t  uTxnId;
   int8_t    stage;  // EUtxnStage: UTXN_STAGE_IDLE/ACTIVE/PREPARING/DECIDING/COMMITTING/ROLLINGBACK/COMPLETED/ZOMBIE
   int8_t    action;       // CREATE_TABLE, ALTER_TABLE, DROP_TABLE
   int64_t   baseVersion;  // for client to check if the schema is changed during the transaction

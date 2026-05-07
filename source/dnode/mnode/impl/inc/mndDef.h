@@ -281,7 +281,7 @@ typedef struct {
 // 非持久化字段：lock（运行时锁，重建时初始化）
 // 注意：pVgList 在序列化时展开为 vgNum + vgIds[]，反序列化时重建为 SArray*
 typedef struct {
-  utxn_id_t   id;
+  txn_id_t    id;
   char        createUser[TSDB_USER_LEN];
   int64_t     ownerId;       // 关联的客户端连接 owner ID
   int64_t     createTime;    // 事务创建时间戳（ms）
@@ -298,7 +298,7 @@ typedef struct {
 
 typedef struct {
   int32_t   id;
-  utxn_id_t maxRangeId;
+  txn_id_t  maxRangeId;
   SRWLatch  lock;
 } STxnSeqObj;
 
@@ -1017,7 +1017,7 @@ typedef struct {
   int8_t      secureDelete;
   int8_t      txnStatus;       // batch-meta-txn: EMetaTxnStatus — 事务状态标记（VNode/MNode 统一枚举）
   int32_t     txnAlterReqsLen; // batch-meta-txn: length of above blob (0 means no ALTER pending)
-  utxn_id_t   txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
+  txn_id_t    txnId;           // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
   void       *pTxnAlterReqs;   // batch-meta-txn: chained ALTER request data blob for crash recovery
   union {
     uint32_t flags;

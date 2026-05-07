@@ -1232,9 +1232,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         STxnActiveQuery *pQuery = taosArrayGet(statusReq.pTxnActiveQueries, i);
         if (pQuery == NULL) continue;
         if (!mndTxnIsAlive(pMnode, pQuery->txnId)) {
-          mInfo("dnode:%d, orphan txn:%" PRIu64 " on vgId:%d, initiating Raft-safe rollback", pDnode->id, pQuery->txnId,
+          mDebug("dnode:%d, orphan txn:%" PRIi64 " on vgId:%d, initiating Raft-safe rollback", pDnode->id, pQuery->txnId,
                 pQuery->vgId);
-          mndRollbackOrphanTxnOnVnode(pMnode, pQuery->txnId, pQuery->vgId);
+          int32_t rollbackCode = mndRollbackOrphanTxnOnVnode(pMnode, pQuery->txnId, pQuery->vgId);
+          if (rollbackCode != 0) {
+            mWarn("dnode:%d, failed to rollback orphan txn:%" PRIi64 " on vgId:%d: %s", pDnode->id, pQuery->txnId,
+                  pQuery->vgId, tstrerror(rollbackCode));
+          }
         }
       }
       mTrace("dnode:%d, processed %d txn keepalive queries", pDnode->id, nQueries);

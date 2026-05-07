@@ -1395,7 +1395,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
 
     // Save txnId before push (pTscObj released after switch block)
-    utxn_id_t curTxnId = pTscObj->txnId;
+    txn_id_t curTxnId = pTscObj->txnId;
 
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
@@ -1412,10 +1412,10 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
         pOneReq->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
       }
       if (pOneReq->info != NULL) {
-        utxn_id_t *pTxnVal = taosMemoryMalloc(sizeof(utxn_id_t));
+        txn_id_t *pTxnVal = taosMemoryMalloc(sizeof(txn_id_t));
         if (pTxnVal != NULL) {
           *pTxnVal = curTxnId;
-          SKv kv = {.key = HEARTBEAT_KEY_TXN_KEEPALIVE, .valueLen = sizeof(utxn_id_t), .value = pTxnVal};
+          SKv kv = {.key = HEARTBEAT_KEY_TXN_KEEPALIVE, .valueLen = sizeof(txn_id_t), .value = pTxnVal};
           if (taosHashPut(pOneReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
             taosMemoryFree(pTxnVal);
           }

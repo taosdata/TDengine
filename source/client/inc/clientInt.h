@@ -220,7 +220,7 @@ typedef struct STscObj {
   int8_t         dropped;
   int8_t         biMode;
   int8_t         txnState;
-  utxn_id_t      txnId;
+  txn_id_t       txnId;
   SArray*        pTxnVgList;  // Array of int32_t (vgId), accumulated during DDL in txn
   SHashObj*      pTxnTableMeta;  // Hash cache: "db.table" → STableMeta* for tables created in this txn
   union {

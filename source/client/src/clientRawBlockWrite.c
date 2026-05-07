@@ -1017,7 +1017,7 @@ end:
   return code;
 }
 
-static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType);
+static int32_t taosTxnSendToMnode(TAOS* taos, txn_id_t txnId, int32_t msgType);
 
 // §35 Optimization: client-side dedup cache for replicated txn MNode BEGIN RPCs.
 // Two caches (both use HASH_ENTRY_LOCK — per-bucket spinlock, no external mutex needed):
@@ -1031,17 +1031,17 @@ static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType);
 // Thread safety: HASH_ENTRY_LOCK provides per-bucket atomic spinlocks inside SHashObj.
 // The check-then-insert race in EnsureMnodeBegin is benign — MNode BEGIN is idempotent,
 // so at most one extra RPC in the rare case of concurrent threads hitting the same txnId.
-static SHashObj* pMnodeTxnBegunHash = NULL;      // key: utxn_id_t, value: int8_t(1)
-static SHashObj* pMnodeTxnCompletedHash = NULL;  // key: utxn_id_t, value: int8_t(1)
+static SHashObj* pMnodeTxnBegunHash = NULL;      // key: txn_id_t, value: int8_t(1)
+static SHashObj* pMnodeTxnCompletedHash = NULL;  // key: txn_id_t, value: int8_t(1)
 
-static bool taosTxnIsAlreadyCompleted(utxn_id_t txnId) {
+static bool taosTxnIsAlreadyCompleted(txn_id_t txnId) {
   if (txnId == 0 || pMnodeTxnCompletedHash == NULL) return false;
   return taosHashGet(pMnodeTxnCompletedHash, &txnId, sizeof(txnId)) != NULL;
 }
 
-static void taosTxnMarkCompleted(utxn_id_t txnId);
+static void taosTxnMarkCompleted(txn_id_t txnId);
 
-static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, utxn_id_t txnId) {
+static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, txn_id_t txnId) {
   if (txnId == 0 || !TXN_IS_REPLICATED(txnId)) return 0;
 
   // Check completed set first — if txn already committed/rolled-back, skip BEGIN
@@ -1057,26 +1057,41 @@ static int32_t taosTxnEnsureMnodeBegin(TAOS* taos, utxn_id_t txnId) {
   int32_t code = taosTxnSendToMnode(taos, txnId, TDMT_MND_BEGIN_TXN);
   if (code == 0 && pMnodeTxnBegunHash != NULL) {
     int8_t val = 1;
-    taosHashPut(pMnodeTxnBegunHash, &txnId, sizeof(txnId), &val, sizeof(val));
+    if (taosHashPut(pMnodeTxnBegunHash, &txnId, sizeof(txnId), &val, sizeof(val)) != 0) {
+      // BEGIN was sent to MNode but we cannot track it locally. Return the error
+      // so callers fall back to non-transactional execution. Do NOT mark as completed —
+      // the MNode transaction is still active and will be cleaned up by timeout.
+      uError("taosTxnEnsureMnodeBegin: OOM tracking txnId:%" PRIu64 ", MNode txn will timeout", txnId);
+      return terrno;
+    }
   }
   if (code != 0) {
-    // Replicated txn BEGIN failed — likely the txn was already committed before
-    // a taosX process restart (completed hash lost). Treat as already completed
-    // so callers strip txnId and execute non-transactionally.
-    uWarn("taosTxnEnsureMnodeBegin: replicated txnId:%" PRIu64 " BEGIN failed: %s, marking as completed", txnId,
-          tstrerror(code));
-    taosTxnMarkCompleted(txnId);
+    // If MNode confirms the txn no longer exists (committed/rolled-back and cleaned up,
+    // e.g. after a taosX process restart with lost in-memory completed hash), cache it
+    // locally as completed so future calls skip the BEGIN instead of retrying forever.
+    // For transient failures (network, capacity, etc.) do NOT pollute the completed cache —
+    // the next call should be free to retry BEGIN.
+    if (code == TSDB_CODE_TXN_NOT_EXIST) {
+      uWarn("taosTxnEnsureMnodeBegin: txnId:%" PRIu64 " not found on MNode, marking as completed locally", txnId);
+      taosTxnMarkCompleted(txnId);
+    } else {
+      uWarn("taosTxnEnsureMnodeBegin: txnId:%" PRIu64 " BEGIN failed: %s", txnId, tstrerror(code));
+    }
   }
   return code;
 }
 
-static void taosTxnMarkCompleted(utxn_id_t txnId) {
+static void taosTxnMarkCompleted(txn_id_t txnId) {
   if (pMnodeTxnBegunHash != NULL) {
-    taosHashRemove(pMnodeTxnBegunHash, &txnId, sizeof(txnId));
+    if (taosHashRemove(pMnodeTxnBegunHash, &txnId, sizeof(txnId)) != 0) {
+      uWarn("taosTxnMarkCompleted: failed to remove txnId:%" PRIu64 " from begun hash", txnId);
+    }
   }
   if (pMnodeTxnCompletedHash != NULL) {
     int8_t val = 1;
-    taosHashPut(pMnodeTxnCompletedHash, &txnId, sizeof(txnId), &val, sizeof(val));
+    if (taosHashPut(pMnodeTxnCompletedHash, &txnId, sizeof(txnId), &val, sizeof(val)) != 0) {
+      uWarn("taosTxnMarkCompleted: failed to record completed txnId:%" PRIu64 ", tracking lost", txnId);
+    }
   }
 }
 
@@ -1247,7 +1262,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   RAW_RETURN_CHECK(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog));
 
   // §35: compute replicated txnId early for catalog visibility
-  utxn_id_t replicatedTxnId = req.txnId;
+  txn_id_t replicatedTxnId = req.txnId;
   if (replicatedTxnId > 0 && !TXN_IS_REPLICATED(replicatedTxnId)) {
     replicatedTxnId = TXN_SET_REPLICATED(replicatedTxnId);
   }
@@ -3176,7 +3191,7 @@ void tmq_free_raw(tmq_raw_data raw) {
  * so MNode-side shadow ops (STB DDL) are properly committed/rolled back.
  * Operations are idempotent: duplicate calls (from multiple VNode WALs) return success.
  */
-static int32_t taosTxnSendToMnode(TAOS* taos, utxn_id_t txnId, int32_t msgType) {
+static int32_t taosTxnSendToMnode(TAOS* taos, txn_id_t txnId, int32_t msgType) {
   if (taos == NULL) return TSDB_CODE_INVALID_PARA;
 
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -3306,7 +3321,7 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
       code = sendCode;
       goto end;
     }
-    tsem_wait(&pVgReq->body.rspSem);
+    (void)tsem_wait(&pVgReq->body.rspSem);
     if (pVgReq->code != 0 && code == 0) {
       code = pVgReq->code;
     }
@@ -3419,7 +3434,7 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
       code = sendCode;
       goto end;
     }
-    tsem_wait(&pVgReq->body.rspSem);
+    (void)tsem_wait(&pVgReq->body.rspSem);
     if (pVgReq->code != 0 && code == 0) {
       code = pVgReq->code;
     }

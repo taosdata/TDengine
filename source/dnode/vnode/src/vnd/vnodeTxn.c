@@ -138,7 +138,7 @@ void vnodeTxnCleanup(SVnode *pVnode) {
     pVnode->pFinalizedTxns = NULL;
   }
 
-  taosThreadMutexDestroy(&pVnode->txnMutex);
+  (void)taosThreadMutexDestroy(&pVnode->txnMutex);
   vInfo("vgId:%d, txn manager cleaned up", TD_VID(pVnode));
 }
 
@@ -257,7 +257,7 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     const STxnFinalVal *pFinalVal = (const STxnFinalVal *)((const char *)pElem + sizeof(int64_t));
 
     // Always populate the in-memory cache so visibility filters work immediately
-    taosHashPut(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t), &pFinalVal->finalStatus, sizeof(int8_t));
+    (void)taosHashPut(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t), &pFinalVal->finalStatus, sizeof(int8_t));
 
     // Check if there are corresponding txn.idx entries (UIDs still needing vacuum)
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
@@ -276,8 +276,8 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     } else {
       // No txn.idx entries remain — vacuum was complete, but txn_final.idx entry is stale.
       // Clean it up (delete from persistent idx; cache entry is harmless and will be ignored).
-      metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
-      taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+      (void)metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
+      (void)taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
       numStale++;
       vDebug("vgId:%d, txn rebuild: removed stale txn_final.idx entry for txnId:%" PRId64, TD_VID(pVnode), txnId);
     }
@@ -342,7 +342,7 @@ static void vnodeReleaseTxnTableLocks(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   for (int32_t i = 0; i < sz; i++) {
     char *name = *(char **)taosArrayGet(pEntry->pLockedTables, i);
     if (name) {
-      taosHashRemove(pVnode->pTxnTableLock, name, strlen(name));
+      (void)taosHashRemove(pVnode->pTxnTableLock, name, strlen(name));
       taosMemoryFree(name);
     }
   }
@@ -358,7 +358,7 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
     tSimpleHashCleanup(pEntry->pTouchedUids);
     tSimpleHashCleanup(pEntry->pAlterPrevVers);
     taosMemoryFreeClear(pEntry->pVacuumUids);
-    taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
+    (void)taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
   }
 }
 
@@ -376,7 +376,7 @@ int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry == NULL) {
@@ -388,7 +388,7 @@ int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
     pEntry->lastActive = taosGetTimestampMs();
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   return code;
 }
 
@@ -418,7 +418,7 @@ int32_t vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
   if (pVnode->pTxnHash == NULL || txnId == 0) return TSDB_CODE_SUCCESS;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     // DDL count limit per VNode (skip for replicated txns — taosX WAL replay)
@@ -432,7 +432,7 @@ int32_t vnodeTxnTrackTable(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
     }
     pEntry->lastActive = taosGetTimestampMs();
   }
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   return code;
 }
 
@@ -445,7 +445,7 @@ int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t 
   if (pVnode->pTxnHash == NULL || txnId == 0) return TSDB_CODE_SUCCESS;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry) {
     // DDL count limit per VNode (skip for replicated txns — taosX WAL replay)
@@ -465,7 +465,7 @@ int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t 
     }
     pEntry->lastActive = taosGetTimestampMs();
   }
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   return code;
 }
 
@@ -811,7 +811,7 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
   }
 
   // 2. Update in-memory cache (thread-safe, visible to query threads immediately)
-  taosHashPut(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
+  (void)taosHashPut(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
 
   // 3. Prepare vacuum array for deferred cleanup
   code = vnodeTxnPrepareVacuumArray(pEntry);
@@ -938,7 +938,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
     }
 
     // Remove from txn.idx
-    metaTxnIdxDelete(pVnode->pMeta, uid);
+    (void)metaTxnIdxDelete(pVnode->pMeta, uid);
 
     metaFetchEntryFree(&pME);
     pEntry->vacuumIdx++;
@@ -960,7 +960,7 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
   int32_t totalProcessed = 0;
   SArray *pCompletedTxns = NULL;  // Array of int64_t txnIds to remove after iteration
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter != NULL && totalProcessed < maxOps) {
@@ -972,9 +972,9 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
     }
 
     // Process a batch for this txn
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     int32_t processed = vnodeTxnVacuumOneTxn(pVnode, pEntry, maxOps - totalProcessed);
-    taosThreadMutexLock(&pVnode->txnMutex);
+    (void)taosThreadMutexLock(&pVnode->txnMutex);
 
     totalProcessed += processed;
 
@@ -984,14 +984,14 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
         pCompletedTxns = taosArrayInit(4, sizeof(int64_t));
       }
       if (pCompletedTxns) {
-        taosArrayPush(pCompletedTxns, &pEntry->txnId);
+        (void)taosArrayPush(pCompletedTxns, &pEntry->txnId);
       }
     }
 
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
   // Remove fully-vacuumed txns (outside iteration)
   if (pCompletedTxns) {
@@ -1000,15 +1000,15 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
       int64_t txnId = *(int64_t *)taosArrayGet(pCompletedTxns, i);
 
       // Remove from txn_final.idx
-      metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
+      (void)metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
 
       // Remove from in-memory cache
-      taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+      (void)taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
 
       // Remove SVnodeTxnEntry
-      taosThreadMutexLock(&pVnode->txnMutex);
+      (void)taosThreadMutexLock(&pVnode->txnMutex);
       vnodeRemoveTxnEntry(pVnode, txnId);
-      taosThreadMutexUnlock(&pVnode->txnMutex);
+      (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
       vInfo("vgId:%d, vacuum complete for txnId:%" PRId64, TD_VID(pVnode), txnId);
     }
@@ -1136,11 +1136,11 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
     }
   }
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     // Shadow missing — empty txn on this VGroup (no DDL was routed here)
     vDebug("vgId:%d, txn entry not found on commit (no-op), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
     return TSDB_CODE_SUCCESS;
@@ -1157,7 +1157,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   if (numUids <= TSDB_TXN_INLINE_THRESHOLD) {
     // ── Small txn: synchronous inline promote ──
     // O(k) B+ tree ops where k ≤ 128, typically < 1ms.
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     code = vnodeTxnPromoteShadowEntries(pVnode, pEntry);
     if (code != 0) {
@@ -1167,15 +1167,15 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
             req.txnId, code);
     }
 
-    taosThreadMutexLock(&pVnode->txnMutex);
+    (void)taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, req.txnId);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     vInfo("vgId:%d, txn commit done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
   } else {
     // ── Large txn: lazy finalize O(1) + async vacuum ──
     code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_COMMITTED);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     if (code != 0) {
       vError("vgId:%d, failed to finalize commit for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
@@ -1222,11 +1222,11 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     }
   }
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, req.txnId);
   if (pEntry == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     // Idempotent: already rolled back or never existed
     vWarn("vgId:%d, txn not found for rollback (idempotent), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
     return TSDB_CODE_SUCCESS;
@@ -1242,7 +1242,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
   if (numUids <= TSDB_TXN_INLINE_THRESHOLD) {
     // ── Small txn: synchronous inline undo ──
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     code = vnodeTxnUndoShadowEntries(pVnode, pEntry);
     if (code != 0) {
@@ -1252,15 +1252,15 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
             req.txnId, code);
     }
 
-    taosThreadMutexLock(&pVnode->txnMutex);
+    (void)taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, req.txnId);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     vInfo("vgId:%d, txn rollback done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
   } else {
     // ── Large txn: lazy finalize O(1) + async vacuum ──
     code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_ROLLEDBACK);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     if (code != 0) {
       vError("vgId:%d, failed to finalize rollback for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.txnId, code);
@@ -1288,16 +1288,16 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   if (newTerm < pVnode->maxSeenTerm) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_VND_TXN_STALE_TERM;
   }
 
   if (newTerm == pVnode->maxSeenTerm) {
     // Same term — no fencing needed (common case: same MNode leader)
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1306,7 +1306,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
 
   SArray *toAbort = taosArrayInit(8, sizeof(int64_t));
   if (toAbort == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return terrno;
   }
 
@@ -1322,7 +1322,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
             pEntry->txnId, pEntry->term, newTerm);
       if (taosArrayPush(toAbort, &pEntry->txnId) == NULL) {
         vError("vgId:%d, fencing: failed to push txnId:%" PRId64 " to abort list", TD_VID(pVnode), pEntry->txnId);
-        taosThreadMutexUnlock(&pVnode->txnMutex);
+        (void)taosThreadMutexUnlock(&pVnode->txnMutex);
         taosArrayDestroy(toAbort);
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -1337,15 +1337,15 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
     if (pEntry) {
       pEntry->stage = VTXN_STAGE_FINISHING;
-      taosThreadMutexUnlock(&pVnode->txnMutex);
+      (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
       // Undo shadow entries in B+ tree before removing
       int32_t undoCode = vnodeTxnUndoShadowEntries(pVnode, pEntry);
 
-      taosThreadMutexLock(&pVnode->txnMutex);
+      (void)taosThreadMutexLock(&pVnode->txnMutex);
       if (undoCode != 0 && txnShouldPropagateError(txnId, undoCode, TSDB_CODE_TXN_NOT_EXIST)) {
         vError("vgId:%d, fencing: failed to abort txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), txnId, undoCode);
-        taosThreadMutexUnlock(&pVnode->txnMutex);
+        (void)taosThreadMutexUnlock(&pVnode->txnMutex);
         taosArrayDestroy(toAbort);
         return undoCode;
       }
@@ -1353,7 +1353,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
     }
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   taosArrayDestroy(toAbort);
 
   vInfo("vgId:%d, fencing completed, aborted %d transactions", TD_VID(pVnode), numToAbort);
@@ -1377,7 +1377,7 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
   int64_t now = taosGetTimestampMs();
   int64_t quietThreshold = (int64_t)tsMetaTxnQuietSec * 1000;
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter) {
@@ -1388,14 +1388,14 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
       STxnActiveQuery q = {.txnId = pEntry->txnId, .vgId = TD_VID(pVnode)};
       if (taosArrayPush(pQueries, &q) == NULL) {
         vError("vgId:%d, failed to push keepalive query for txnId:%" PRId64, TD_VID(pVnode), pEntry->txnId);
-        taosThreadMutexUnlock(&pVnode->txnMutex);
+        (void)taosThreadMutexUnlock(&pVnode->txnMutex);
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }
     }
     pIter = taosHashIterate(pVnode->pTxnHash, pIter);
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1422,7 +1422,7 @@ int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
   SArray *toRollback = taosArrayInit(4, sizeof(int64_t));
   if (toRollback == NULL) return terrno;
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter) {
@@ -1434,7 +1434,7 @@ int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
         vError("vgId:%d, timeout scan: failed to push txnId:%" PRId64 " to rollback list", TD_VID(pVnode),
                pEntry->txnId);
         taosHashCancelIterate(pVnode->pTxnHash, pIter);
-        taosThreadMutexUnlock(&pVnode->txnMutex);
+        (void)taosThreadMutexUnlock(&pVnode->txnMutex);
         taosArrayDestroy(toRollback);
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -1448,20 +1448,20 @@ int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
     if (pEntry) {
       pEntry->stage = VTXN_STAGE_FINISHING;
-      taosThreadMutexUnlock(&pVnode->txnMutex);
+      (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
       int32_t undoCode = vnodeTxnUndoShadowEntries(pVnode, pEntry);
       if (undoCode != 0) {
         vError("vgId:%d, timeout rollback failed for txn %" PRId64 ": %s", TD_VID(pVnode), txnId, tstrerror(undoCode));
       }
 
-      taosThreadMutexLock(&pVnode->txnMutex);
+      (void)taosThreadMutexLock(&pVnode->txnMutex);
       vnodeRemoveTxnEntry(pVnode, txnId);
       vInfo("vgId:%d, orphan txn %" PRId64 " rolled back by timeout", TD_VID(pVnode), txnId);
     }
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   taosArrayDestroy(toRollback);
 
   return TSDB_CODE_SUCCESS;
@@ -1488,27 +1488,27 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
 
   int32_t nameLen = strlen(tableName);
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   // Check if the table is already locked
   int64_t *pExistingTxnId = (int64_t *)taosHashGet(pVnode->pTxnTableLock, tableName, nameLen);
   if (pExistingTxnId != NULL) {
     if (*pExistingTxnId == txnId) {
       // Same transaction already holds the lock — idempotent
-      taosThreadMutexUnlock(&pVnode->txnMutex);
+      (void)taosThreadMutexUnlock(&pVnode->txnMutex);
       return TSDB_CODE_SUCCESS;
     }
     // Different transaction holds the lock — conflict
     vWarn("vgId:%d, table lock conflict, table:%s, existingTxn:%" PRId64 ", requestTxn:%" PRId64, TD_VID(pVnode),
           tableName, *pExistingTxnId, txnId);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_VND_TXN_CONFLICT;
   }
 
   // Verify the requesting transaction exists
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry == NULL) {
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     vWarn("vgId:%d, cannot lock table, txn not found, table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
     return TSDB_CODE_VND_TXN_EXPIRED;
   }
@@ -1518,7 +1518,7 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
   if (putCode != 0) {
     vError("vgId:%d, failed to put table lock, table:%s, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), tableName,
            txnId, putCode);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return putCode;
   }
 
@@ -1526,21 +1526,21 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
   char *nameCopy = taosStrdup(tableName);
   if (nameCopy == NULL) {
     vError("vgId:%d, failed to allocate locked table name:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
-    taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (taosArrayPush(pEntry->pLockedTables, &nameCopy) == NULL) {
     vError("vgId:%d, failed to track locked table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
     taosMemoryFree(nameCopy);
-    taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
-    taosThreadMutexUnlock(&pVnode->txnMutex);
+    (void)taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pEntry->lastActive = taosGetTimestampMs();
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
   vDebug("vgId:%d, table locked, table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
   return TSDB_CODE_SUCCESS;
@@ -1558,14 +1558,14 @@ void vnodeTxnUnlockTables(SVnode *pVnode, int64_t txnId) {
     return;
   }
 
-  taosThreadMutexLock(&pVnode->txnMutex);
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry != NULL) {
     vnodeReleaseTxnTableLocks(pVnode, pEntry);
   }
 
-  taosThreadMutexUnlock(&pVnode->txnMutex);
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 }
 
 // ============================================================================

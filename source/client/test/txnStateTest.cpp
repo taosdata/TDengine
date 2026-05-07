@@ -70,6 +70,7 @@ void buildBeginTxnRsp(void** pCont, int32_t* pContLen, int64_t txnId) {
 
 }  // namespace
 
+#ifdef __linux__  // --wrap= interception is GNU ld (Linux) only
 extern "C" {
 
 SArray* __real_taosArrayInit(size_t size, size_t elemSize);
@@ -133,9 +134,10 @@ SArray* __wrap_taosArrayInit(size_t size, size_t elemSize) {
 }
 
 }  // extern "C"
+#endif  // __linux__
 
 TEST(txnStateCase, cApiBeginClearsLocalStateWhenVgListInitFails) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
   g_fakeTxnEnv = &env;
   g_rollbackReqCount.store(0);
@@ -152,12 +154,12 @@ TEST(txnStateCase, cApiBeginClearsLocalStateWhenVgListInitFails) {
   EXPECT_EQ(g_rollbackReqCount.load(), 1);
   g_fakeTxnEnv = nullptr;
 #else
-  GTEST_SKIP() << "batch meta txn is enterprise-only";
+  GTEST_SKIP() << "requires Enterprise on Linux (uses --wrap mocks)";
 #endif
 }
 
 TEST(txnStateCase, sqlBeginClearsLocalStateWhenVgListInitFails) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
   g_fakeTxnEnv = &env;
   g_rollbackReqCount.store(0);
@@ -192,12 +194,12 @@ TEST(txnStateCase, sqlBeginClearsLocalStateWhenVgListInitFails) {
   tsem_destroy(&request.body.rspSem);
   g_fakeTxnEnv = nullptr;
 #else
-  GTEST_SKIP() << "batch meta txn is enterprise-only";
+  GTEST_SKIP() << "requires Enterprise on Linux (uses --wrap mocks)";
 #endif
 }
 
 TEST(txnStateCase, cApiBeginRequestFailureDoesNotSendRollback) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
   g_fakeTxnEnv = &env;
   g_rollbackReqCount.store(0);
@@ -213,7 +215,7 @@ TEST(txnStateCase, cApiBeginRequestFailureDoesNotSendRollback) {
   g_beginRspCode.store(TSDB_CODE_SUCCESS);
   g_fakeTxnEnv = nullptr;
 #else
-  GTEST_SKIP() << "batch meta txn is enterprise-only";
+  GTEST_SKIP() << "requires Enterprise on Linux (uses --wrap mocks)";
 #endif
 }
 
@@ -221,7 +223,7 @@ TEST(txnStateCase, cApiBeginRequestFailureDoesNotSendRollback) {
 // 4. Server-side BEGIN failure (rspCode != 0) does not corrupt state
 // =========================================================================
 TEST(txnStateCase, cApiBeginServerFailureDoesNotCorruptState) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
   g_fakeTxnEnv = &env;
   g_rollbackReqCount.store(0);
@@ -238,7 +240,7 @@ TEST(txnStateCase, cApiBeginServerFailureDoesNotCorruptState) {
   g_beginRspCode.store(TSDB_CODE_SUCCESS);
   g_fakeTxnEnv = nullptr;
 #else
-  GTEST_SKIP() << "batch meta txn is enterprise-only";
+  GTEST_SKIP() << "requires Enterprise on Linux (uses --wrap mocks)";
 #endif
 }
 
@@ -246,7 +248,7 @@ TEST(txnStateCase, cApiBeginServerFailureDoesNotCorruptState) {
 // 5. Double BEGIN: already-in-progress txn is rejected locally
 // =========================================================================
 TEST(txnStateCase, cApiDoubleBeginRejected) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
   g_fakeTxnEnv = &env;
   g_rollbackReqCount.store(0);

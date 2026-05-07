@@ -83,8 +83,14 @@ void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray *pQueries) {
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode != NULL && *ppVnode != NULL && !(*ppVnode)->failed) {
-      vnodeCollectIdleTxns((*ppVnode)->pImpl, pQueries);
-      vnodeTxnTimeoutScan((*ppVnode)->pImpl);
+      int32_t scanCode = vnodeCollectIdleTxns((*ppVnode)->pImpl, pQueries);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeCollectIdleTxns failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
+      scanCode = vnodeTxnTimeoutScan((*ppVnode)->pImpl);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeTxnTimeoutScan failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
     }
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }

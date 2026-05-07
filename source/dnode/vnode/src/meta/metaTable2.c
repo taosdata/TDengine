@@ -1065,7 +1065,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // The cache only updates to higher versions (never downgrades), so without this
   // the stale cache entry would point to the deleted new-version entry.
   metaWLock(pMeta);
-  metaCacheDrop(pMeta, uid);
+  (void)metaCacheDrop(pMeta, uid);
   metaULock(pMeta);
 
   metaInfo("vgId:%d, rollback alter: uid %" PRId64 " restored to version %" PRId64, TD_VID(pMeta->pVnode), uid,

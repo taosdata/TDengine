@@ -917,13 +917,13 @@ typedef enum {
   VTXN_STAGE_FINISHING = 3,  // 已收到 COMMIT/ROLLBACK，正在将影子数据转正或清理（原子操作中）
 } EVtxnStage;
 
-typedef int64_t utxn_id_t;
+typedef int64_t txn_id_t;
 
 // TXN_REPLICATED_FLAG: bit 63 标记复制事务（taosX 订阅同步），与本地事务 ID 空间完全隔离。
 // 本地事务 txnId ∈ [1, 2^63)；复制事务 txnId ∈ [2^63, 2^64)。
 // taosX 在将 DDL/COMMIT/ROLLBACK 消息发送到目标集群前，对 txnId 设置此标记。
 // VNode 通过此标记跳过保活和 Raft term fencing 逻辑。
-#define TXN_REPLICATED_FLAG    ((utxn_id_t)1 << 63)
+#define TXN_REPLICATED_FLAG    ((txn_id_t)1 << 63)
 #define TXN_IS_REPLICATED(id)  ((id) & TXN_REPLICATED_FLAG)
 #define TXN_SET_REPLICATED(id) ((id) | TXN_REPLICATED_FLAG)
 #define TXN_CLR_REPLICATED(id) ((id) & ~TXN_REPLICATED_FLAG)
@@ -941,7 +941,7 @@ typedef enum {
   TXN_FINAL_ROLLEDBACK = 2,  // 已回滚，待 vacuum 清理（影子数据需撤销）
 } ETxnFinalStatus;
 
-static inline bool txnShouldPropagateError(utxn_id_t txnId, int32_t code, int32_t replicatedIgnoreCode) {
+static inline bool txnShouldPropagateError(txn_id_t txnId, int32_t code, int32_t replicatedIgnoreCode) {
   if (txnId == 0 || code == 0) {
     return false;
   }

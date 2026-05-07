@@ -821,8 +821,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         break;
       }
       case HEARTBEAT_KEY_TXN_KEEPALIVE: {
-        if (kv->value != NULL && kv->valueLen >= (int32_t)sizeof(utxn_id_t)) {
-          utxn_id_t txnId = *(utxn_id_t *)kv->value;
+        if (kv->value != NULL && kv->valueLen >= (int32_t)sizeof(txn_id_t)) {
+          txn_id_t txnId = *(txn_id_t *)kv->value;
           if (txnId > 0) {
             mndTxnRefreshKeepalive(pMnode, txnId);
           }
