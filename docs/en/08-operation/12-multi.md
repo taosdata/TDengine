@@ -44,8 +44,33 @@ dataDir /mnt/data5 2 0
 dataDir /mnt/data6 2 0
 ```
 
-**Note** 1. Multi-tier storage does not allow cross-level configuration, legal configuration schemes are: only Level 0, only Level 0 + Level 1, and Level 0 + Level 1 + Level 2. It is not allowed to only configure level=0 and level=2 without configuring level=1.
+**Note**:
+
+1. Multi-tier storage does not allow cross-level configuration, legal configuration schemes are: only Level 0, only Level 0 + Level 1, and Level 0 + Level 1 + Level 2. It is not allowed to only configure level=0 and level=2 without configuring level=1.
 2. It is forbidden to manually remove a mount disk in use, and currently, mount disks do not support non-local network disks.
+3. When adding a new mount point to an existing tier, **always append** the new `dataDir` line at the **end** of the current entries for that level. Never insert it in the middle of the list (see explanation below).
+
+**Explanation for Note 3**:
+
+TDengine assigns each disk a sequential numeric ID (`did_id`) based on its declaration order within a level — the primary disk at level 0 always receives `id=0`, and all remaining disks are numbered `1, 2, 3 …` in the order they appear in `taos.cfg`. These IDs are persisted inside every vnode's `tsdb/current.json` metadata file and are used to reconstruct the absolute path to each data file at startup.
+
+If a new disk is inserted anywhere other than the end of its level's list, every disk that follows it in the list will receive a shifted ID. At the next startup, TDengine will look for existing data files on the wrong disks.
+
+**Correct — append at the end**:
+
+```shell
+dataDir /mnt/data1 0 1   # existing primary
+dataDir /mnt/data2 0 0   # existing disk
+dataDir /mnt/data3 0 0   # new disk added at the end ✓
+```
+
+**Incorrect — inserted in the middle (never do this)**:
+
+```shell
+dataDir /mnt/data1 0 1   # existing primary
+dataDir /mnt/data3 0 0   # new disk inserted here — shifts data2's ID ✗
+dataDir /mnt/data2 0 0
+```
 
 ### Load Balancing
 
