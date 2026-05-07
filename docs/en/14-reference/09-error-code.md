@@ -156,6 +156,7 @@ Below are the business error codes for each module.
 | 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user parameter |
 | 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter |
 | 0x8000023E | Invalid token                     | Invalid token format                            | Check and enter the correct token                                                 |
+| 0x8000023F | Instance register/list API rate limit exceeded | Too many taos_register_instance or taos_list_instances calls in the rate-limit window | Reduce call frequency and retry later; register and list share the same limit |
 | 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode

@@ -38,8 +38,9 @@ class AnomalyDetectionTest(unittest.TestCase):
         functionality of the ksigma algorithm by setting up the input data,
         executing the algorithm, and asserting the expected results.
         """
-
         s = loader.get_service("ksigma")
+        self.assertTrue(s is not None, "failed to get the ksigma service")
+
         s.set_input_list(AnomalyDetectionTest.input_list, None)
         s.set_params({"k": 2})
 
@@ -127,6 +128,52 @@ class AnomalyDetectionTest(unittest.TestCase):
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(r[-2], -1)
+
+    def test_lof_multivariate(self):
+        """Test LOF with multi-variate input data (2 features)."""
+        s = loader.get_service("lof")
+
+        feature_1 = [1.0, 1.1, 0.9, 1.2, 1.0, 1.1, 0.95, 1.05, 1.0, 30.0]
+        feature_2 = [2.0, 2.1, 1.9, 2.0, 2.2, 2.1, 1.95, 2.05, 2.0, 45.0]
+        input_features = [feature_1, feature_2]
+
+        s.set_input_list(input_features, None)
+        s.set_params({"neighbors": 5, "algorithm": "auto"})
+
+        r = s.execute()
+
+        self.assertEqual(len(r), len(feature_1))
+        self.assertTrue(all(x in (-1, 1) for x in r))
+        self.assertEqual(r[-1], -1)
+        self.assertIn(1, r[:-1])
+        self.assertIn(-1, r)
+
+    def test_lof_multivariate_three_features(self):
+        """Test LOF with multi-variate input data (3 features)."""
+        s = loader.get_service("lof")
+
+        feature_1 = [10.0, 10.2, 9.9, 10.1, 10.0, 9.8, 10.1, 10.0, 10.2, 40.0]
+        feature_2 = [20.0, 20.1, 19.8, 20.0, 20.2, 19.9, 20.0, 20.1, 19.95, 55.0]
+        feature_3 = [30.0, 30.1, 29.9, 30.0, 30.2, 29.8, 30.0, 30.1, 30.0, 70.0]
+
+        s.set_input_list([feature_1, feature_2, feature_3], None)
+        s.set_params({"neighbors": 5, "algorithm": "auto"})
+
+        r = s.execute()
+
+        self.assertEqual(len(r), len(feature_1))
+        self.assertTrue(all(x in (-1, 1) for x in r))
+        self.assertEqual(r[-1], -1)
+
+    def test_lof_multivariate_invalid_input_length(self):
+        """Test multi-variate anomaly input rejects non-equal feature lengths."""
+        s = loader.get_service("lof")
+
+        with self.assertRaises(ValueError):
+            s.set_input_list([
+                [1.0, 2.0, 3.0, 4.0],
+                [1.0, 2.0, 3.0]
+            ], None)
 
     def test_multithread_safe(self):
         """ Test the multithread safe function"""

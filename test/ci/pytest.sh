@@ -102,16 +102,11 @@ else
   unset LD_PRELOAD
   # export LD_PRELOAD=libasan.so.5
   # export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
-  # 非 ASAN 构建时跳过 LD_PRELOAD 且不传 -A，避免 Ubuntu 24.04 kernel 6.8 ASan fork deadlock
-  if [[ "${CI_NO_ASAN}" != "1" ]]; then
-    LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
-    export LD_PRELOAD
-    echo "Preload AsanSo:" $?
-    "$@" -A 2>"$AsanFile"
-  else
-    echo "Preload AsanSo: skipped (CI_NO_ASAN=1)"
-    "$@" 2>"$AsanFile"
-  fi
+  LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
+  export LD_PRELOAD
+  echo "Preload AsanSo:" $?
+
+  "$@" -A 2>"$AsanFile"
 
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
