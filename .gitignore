@@ -37,6 +37,7 @@ node_modules/
 .claude/
 .claude
 .github/skills/
+.github/skills
 mcp.json
 
 # Java
