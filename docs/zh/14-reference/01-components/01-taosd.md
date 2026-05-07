@@ -2653,6 +2653,17 @@ charset 的有效值是 UTF-8。
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.4.0.0 版本开始引入
 
+#### ignoreNullInGreatest
+
+- 说明：GREATEST、LEAST 函数是否跳过 NULL 参数
+- 类型：整数；0：与 MySQL 一致，任一参数为 NULL 则返回 NULL；1：跳过 NULL 参数，仅在非 NULL 值之间比较，所有参数均为 NULL 时仍返回 NULL。与 compareAsStrInGreatest 正交。
+- 默认值：0
+- 最小值：0
+- 最大值：1
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
 #### showFullCreateTableColumn
 
 - 说明：SHOW CREATE TABLE 是否显示完整的列信息

@@ -73,6 +73,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | minSlidingTime | taosc | Minimum allowable value for sliding |
 | minIntervalTime | taosc | Minimum allowable value for interval |
 | compareAsStrInGreatest | taosc | Comparison type conversion rules for greatest and least functions |
+| ignoreNullInGreatest | taosc | Whether greatest and least functions skip NULL arguments |
 | showFullCreateTableColumn | taosc | Whether show create table returns column compression information |
 | rpcRecvLogThreshold| taosd| The threshold for warning logs in the RPC module |
 | **Region Related** | | |
