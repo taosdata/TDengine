@@ -130,7 +130,7 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
 
     // Clock regression protection: skip if clock moved backward (NTP correction)
     if (elapsed < 0) {
-      mDebug("txn:%" PRIu64 ", clock regression detected, elapsed=%" PRId64 "ms, skip timeout check", pTxn->id,
+      mDebug("txn:%" PRIi64 ", clock regression detected, elapsed=%" PRId64 "ms, skip timeout check", pTxn->id,
              elapsed);
       sdbRelease(pSdb, pTxn);
       continue;
@@ -139,7 +139,7 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
     // §43 Absolute lifetime limit: rollback if total lifetime exceeds max regardless of activity
     int64_t lifetime = now - pTxn->createTime;
     if (pTxn->stage == UTXN_STAGE_ACTIVE && lifetime > (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000) {
-      mWarn("txn:%" PRIu64 ", stage=%s, lifetime=%" PRId64 "ms > max=%" PRId64
+      mWarn("txn:%" PRIi64 ", stage=%s, lifetime=%" PRId64 "ms > max=%" PRId64
             "ms, triggering ROLLBACK due to exceeded lifetime",
             pTxn->id, mndUtxnStageStr(pTxn->stage), lifetime, (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000);
 
@@ -148,16 +148,16 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
 
       int32_t code = mndRollbackTxn(pMnode, &synReq, pTxn, TSDB_CODE_TXN_EXCEEDED_LIFETIME);
       if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        mError("txn:%" PRIu64 ", lifetime rollback failed: %s", pTxn->id, tstrerror(code));
+        mError("txn:%" PRIi64 ", lifetime rollback failed: %s", pTxn->id, tstrerror(code));
       } else {
-        mInfo("txn:%" PRIu64 ", lifetime rollback initiated", pTxn->id);
+        mInfo("txn:%" PRIi64 ", lifetime rollback initiated", pTxn->id);
       }
       sdbRelease(pSdb, pTxn);
       continue;
     }
 
     if (pTxn->stage == UTXN_STAGE_ACTIVE && elapsed > timeout) {
-      mWarn("txn:%" PRIu64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, triggering ROLLBACK", pTxn->id,
+      mWarn("txn:%" PRIi64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, triggering ROLLBACK", pTxn->id,
             mndUtxnStageStr(pTxn->stage), elapsed, timeout);
 
       // Build a synthetic SRpcMsg for the rollback Trans (no real client connection)
@@ -166,9 +166,9 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
 
       int32_t code = mndRollbackTxn(pMnode, &synReq, pTxn, TSDB_CODE_VND_TXN_EXPIRED);
       if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        mError("txn:%" PRIu64 ", timeout rollback failed: %s", pTxn->id, tstrerror(code));
+        mError("txn:%" PRIi64 ", timeout rollback failed: %s", pTxn->id, tstrerror(code));
       } else {
-        mInfo("txn:%" PRIu64 ", timeout rollback initiated", pTxn->id);
+        mInfo("txn:%" PRIi64 ", timeout rollback initiated", pTxn->id);
       }
     }
     sdbRelease(pSdb, pTxn);
@@ -209,7 +209,7 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
       case UTXN_STAGE_ACTIVE: {
         // Refresh lastActiveTime; client can reconnect and resume this txn.
         // Rebuild shadow ops from SStbObj markers (txnId, txnStatus, pTxnAlterReqs).
-        mInfo("txn:%" PRIu64 ", restored in ACTIVE stage, rebuilding shadow ops and resetting lastActiveTime",
+        mInfo("txn:%" PRIi64 ", restored in ACTIVE stage, rebuilding shadow ops and resetting lastActiveTime",
               pTxn->id);
         mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn);
         taosWLockLatch(&pTxn->lock);
@@ -222,21 +222,21 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
         // The original "commit-txn" STrans is already persisted in SDB (it was the one that
         // set stage=COMMITTING via its prepareLog). mndTransPullup will automatically retry
         // that STrans — do NOT create a duplicate via mndCommitTxn.
-        mInfo("txn:%" PRIu64 ", restored in COMMITTING stage, original STrans will be retried by mndTransPullup",
+        mInfo("txn:%" PRIi64 ", restored in COMMITTING stage, original STrans will be retried by mndTransPullup",
               pTxn->id);
         numRecovered++;
         break;
       }
       case UTXN_STAGE_ROLLINGBACK: {
         // Same: the original "rollback-txn" STrans is in SDB. mndTransPullup retries it.
-        mInfo("txn:%" PRIu64 ", restored in ROLLINGBACK stage, original STrans will be retried by mndTransPullup",
+        mInfo("txn:%" PRIi64 ", restored in ROLLINGBACK stage, original STrans will be retried by mndTransPullup",
               pTxn->id);
         numRecovered++;
         break;
       }
       case UTXN_STAGE_COMPLETED:
       case UTXN_STAGE_ZOMBIE: {
-        mInfo("txn:%" PRIu64 ", restored in %s stage, will be cleaned by timeout scan", pTxn->id,
+        mInfo("txn:%" PRIi64 ", restored in %s stage, will be cleaned by timeout scan", pTxn->id,
               mndUtxnStageStr(pTxn->stage));
         numRecovered++;
         break;
@@ -325,7 +325,7 @@ static int32_t tSerializeSTxnObj(void *buf, int32_t bufLen, const STxnObj *pObj)
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pObj->id));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->id));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->createUser));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->ownerId));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->createTime));
@@ -365,7 +365,7 @@ static int32_t tDeserializeSTxnObj(void *buf, int32_t bufLen, STxnObj *pObj) {
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  TAOS_CHECK_EXIT(tDecodeU64v(&decoder, &pObj->id));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->id));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->createUser));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->ownerId));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->createTime));
@@ -501,18 +501,18 @@ _exit:
 }
 
 static int32_t mndTxnActionInsert(SSdb *pSdb, STxnObj *pObj) {
-  mTrace("txn:%" PRIu64 ", perform insert action, row:%p", pObj->id, pObj);
+  mTrace("txn:%" PRIi64 ", perform insert action, row:%p", pObj->id, pObj);
   return 0;
 }
 
 static int32_t mndTxnActionDelete(SSdb *pSdb, STxnObj *pObj) {
-  mTrace("txn:%" PRIu64 ", perform delete action, row:%p", pObj->id, pObj);
+  mTrace("txn:%" PRIi64 ", perform delete action, row:%p", pObj->id, pObj);
   mndTxnFreeObj(pObj);
   return 0;
 }
 
 static int32_t mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew) {
-  mTrace("txn:%" PRIu64 ", perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
+  mTrace("txn:%" PRIi64 ", perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   taosWLockLatch(&pOld->lock);
   pOld->timeoutSec = pNew->timeoutSec;
   pOld->stage = pNew->stage;
@@ -533,7 +533,7 @@ STxnObj *mndAcquireTxn(SMnode *pMnode, txn_id_t id) {
       terrno = TSDB_CODE_MND_TXN_IN_DROPPING;
     } else {
       terrno = TSDB_CODE_APP_ERROR;
-      mFatal("txn:%" PRIu64 ", failed to acquire txn since %s", id, terrstr());
+      mFatal("txn:%" PRIi64 ", failed to acquire txn since %s", id, terrstr());
     }
   }
   return pObj;
@@ -573,7 +573,7 @@ void mndTxnRefreshKeepalive(SMnode *pMnode, txn_id_t txnId) {
 
   if (pTxn->stage == UTXN_STAGE_ACTIVE) {
     pTxn->lastActiveTime = taosGetTimestampMs();
-    mTrace("txn:%" PRIu64 ", keepalive refreshed via client HB", txnId);
+    mTrace("txn:%" PRIi64 ", keepalive refreshed via client HB", txnId);
   }
   mndReleaseTxn(pMnode, pTxn);
 }
@@ -596,7 +596,7 @@ int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, txn_id_t txnId, int32_t vgId
   TSDB_CHECK_NULL(
       (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, &synReq, "orphan-txn-cleanup")), code,
       lino, _exit, terrno);
-  mInfo("trans:%d, used to cleanup orphan txn %" PRIu64 " on vgId:%d", pTrans->id, txnId, vgId);
+  mInfo("trans:%d, used to cleanup orphan txn %" PRIi64 " on vgId:%d", pTrans->id, txnId, vgId);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
@@ -641,7 +641,7 @@ int32_t mndRollbackOrphanTxnOnVnode(SMnode *pMnode, txn_id_t txnId, int32_t vgId
 _exit:
   mndTransDrop(pTrans);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("txn:%" PRIu64 ", failed to rollback orphan on vgId:%d, code:0x%x", txnId, vgId, code);
+    mError("txn:%" PRIi64 ", failed to rollback orphan on vgId:%d, code:0x%x", txnId, vgId, code);
   }
   TAOS_RETURN(code);
 }
@@ -665,7 +665,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
                           const char *dbName, void *pReqData, int32_t reqDataLen) {
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
   if (pTxn == NULL) {
-    mError("txn:%" PRIu64 ", not found, cannot add shadow op", txnId);taosMemoryFreeClear(pReqData);
+    mError("txn:%" PRIi64 ", not found, cannot add shadow op", txnId);taosMemoryFreeClear(pReqData);
     return TSDB_CODE_TXN_NOT_EXIST;
   }
 
@@ -700,7 +700,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
   taosWUnLockLatch(&pTxn->lock);
   mndReleaseTxn(pMnode, pTxn);
 
-  mInfo("txn:%" PRIu64 ", shadow op added (redo): opType=%d, stb=%s, uid=%" PRId64 ", dataLen:%d", txnId, opType,
+  mInfo("txn:%" PRIi64 ", shadow op added (redo): opType=%d, stb=%s, uid=%" PRId64 ", dataLen:%d", txnId, opType,
         stbName, uid, reqDataLen);
   return TSDB_CODE_SUCCESS;
 }
@@ -817,7 +817,7 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
         SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
         if (strcmp(pOp->name, stbName) == 0) {
           taosRUnLockLatch(&pTxn->lock);
-          mInfo("stb:%s, conflict with txn:%" PRIu64 " shadow op type=%d", stbName, pTxn->id, pOp->opType);
+          mInfo("stb:%s, conflict with txn:%" PRIi64 " shadow op type=%d", stbName, pTxn->id, pOp->opType);
           sdbRelease(pSdb, pTxn);
           sdbCancelFetch(pSdb, pIter);
           return TSDB_CODE_TXN_RESOURCE_BUSY;
@@ -882,7 +882,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
         if (pTxn->pShadowOps == NULL) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
-          mError("txn:%" PRIu64 ", failed to alloc pShadowOps during rebuild", pTxn->id);
+          mError("txn:%" PRIi64 ", failed to alloc pShadowOps during rebuild", pTxn->id);
           return;
         }
       }
@@ -900,11 +900,11 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
         if (taosArrayPush(pTxn->pShadowOps, &op) == NULL) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
-          mError("txn:%" PRIu64 ", failed to push shadow op during rebuild", pTxn->id);
+          mError("txn:%" PRIi64 ", failed to push shadow op during rebuild", pTxn->id);
           return;
         }
         count++;
-        mInfo("txn:%" PRIu64 ", rebuilt CREATE_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
+        mInfo("txn:%" PRIi64 ", rebuilt CREATE_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
       }
 
       // DROP_STB: txnStatus indicates PRE_DROP or PRE_CREATE_DROP
@@ -920,11 +920,11 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
         if (taosArrayPush(pTxn->pShadowOps, &op) == NULL) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
-          mError("txn:%" PRIu64 ", failed to push DROP shadow op during rebuild", pTxn->id);
+          mError("txn:%" PRIi64 ", failed to push DROP shadow op during rebuild", pTxn->id);
           return;
         }
         count++;
-        mInfo("txn:%" PRIu64 ", rebuilt DROP_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
+        mInfo("txn:%" PRIi64 ", rebuilt DROP_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
       }
 
       // ALTER_STB: txnAlterReqsLen > 0 (chained ALTER request data)
@@ -944,7 +944,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
           if (pData == NULL) {
             sdbRelease(pSdb, pStb);
             sdbCancelFetch(pSdb, pIter);
-            mError("txn:%" PRIu64 ", failed to alloc ALTER data during rebuild", pTxn->id);
+            mError("txn:%" PRIi64 ", failed to alloc ALTER data during rebuild", pTxn->id);
             return;
           }
           memcpy(pData, (char *)pStb->pTxnAlterReqs + offset, entryLen);
@@ -962,11 +962,11 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
             taosMemoryFree(pData);
             sdbRelease(pSdb, pStb);
             sdbCancelFetch(pSdb, pIter);
-            mError("txn:%" PRIu64 ", failed to push ALTER shadow op during rebuild", pTxn->id);
+            mError("txn:%" PRIi64 ", failed to push ALTER shadow op during rebuild", pTxn->id);
             return;
           }
           count++;
-          mInfo("txn:%" PRIu64 ", rebuilt ALTER_STB shadow op %d/%d: stb=%s dataLen=%d",
+          mInfo("txn:%" PRIi64 ", rebuilt ALTER_STB shadow op %d/%d: stb=%s dataLen=%d",
                 pTxn->id, j + 1, numEntries, pStb->name, entryLen);
         }
       }
@@ -975,7 +975,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
   }
 
   if (count > 0) {
-    mInfo("txn:%" PRIu64 ", rebuilt %d shadow ops from SDB (CREATE+DROP+ALTER)", pTxn->id, count);
+    mInfo("txn:%" PRIi64 ", rebuilt %d shadow ops from SDB (CREATE+DROP+ALTER)", pTxn->id, count);
   }
 }
 
@@ -985,19 +985,19 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
   }
 
   int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
-  mInfo("txn:%" PRIu64 ", applying %d MNode STB shadow ops into commit trans:%d", pTxn->id, numOps, pTrans->id);
+  mInfo("txn:%" PRIi64 ", applying %d MNode STB shadow ops into commit trans:%d", pTxn->id, numOps, pTrans->id);
 
   for (int32_t i = 0; i < numOps; i++) {
     SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
     int32_t       code = 0;
 
-    mInfo("txn:%" PRIu64 ", applying shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
+    mInfo("txn:%" PRIi64 ", applying shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
           pOp->name);
 
     switch (pOp->opType) {
       case MND_SHADOW_OP_CREATE_STB: {
         // Undo-log model: STB was created immediately during txn, nothing to do at COMMIT.
-        mInfo("txn:%" PRIu64 ", CREATE_STB shadow op %d/%d: no-op (already created), stb=%s", pTxn->id, i + 1, numOps,
+        mInfo("txn:%" PRIi64 ", CREATE_STB shadow op %d/%d: no-op (already created), stb=%s", pTxn->id, i + 1, numOps,
               pOp->name);
         break;
       }
@@ -1010,20 +1010,20 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
         break;
       }
       default:
-        mError("txn:%" PRIu64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
+        mError("txn:%" PRIi64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
         return TSDB_CODE_MND_TXN_ERROR;
     }
 
     if (code != 0) {
-      mError("txn:%" PRIu64 ", shadow op %d/%d failed: %s", pTxn->id, i + 1, numOps, tstrerror(code));
+      mError("txn:%" PRIi64 ", shadow op %d/%d failed: %s", pTxn->id, i + 1, numOps, tstrerror(code));
       return code;
     }
-    mInfo("txn:%" PRIu64 ", shadow op %d/%d applied", pTxn->id, i + 1, numOps);
+    mInfo("txn:%" PRIi64 ", shadow op %d/%d applied", pTxn->id, i + 1, numOps);
 
     taosMemoryFreeClear(pOp->pReqData);
   }
 
-  mInfo("txn:%" PRIu64 ", all %d MNode STB shadow ops applied into commit trans", pTxn->id, numOps);
+  mInfo("txn:%" PRIi64 ", all %d MNode STB shadow ops applied into commit trans", pTxn->id, numOps);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1040,7 +1040,7 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
   if (pTxn->pShadowOps == NULL) return TSDB_CODE_SUCCESS;
 
   int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
-  mInfo("txn:%" PRIu64 ", undoing %d MNode shadow ops (ROLLBACK)", pTxn->id, numOps);
+  mInfo("txn:%" PRIi64 ", undoing %d MNode shadow ops (ROLLBACK)", pTxn->id, numOps);
 
   for (int32_t i = 0; i < numOps; i++) {
     SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
@@ -1048,11 +1048,11 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
     switch (pOp->opType) {
       case MND_SHADOW_OP_CREATE_STB: {
         // Undo-log: STB was created immediately, append DROP to rollback Trans
-        mInfo("txn:%" PRIu64 ", undo CREATE_STB shadow op %d/%d: stb=%s uid=%" PRId64, pTxn->id, i + 1, numOps,
+        mInfo("txn:%" PRIi64 ", undo CREATE_STB shadow op %d/%d: stb=%s uid=%" PRId64, pTxn->id, i + 1, numOps,
               pOp->name, pOp->uid);
         int32_t code = mndAppendDropStbToTrans(pMnode, pTrans, pOp->name);
         if (code != 0) {
-          mError("txn:%" PRIu64 ", failed to append DROP STB for stb=%s: %s", pTxn->id, pOp->name, tstrerror(code));
+          mError("txn:%" PRIi64 ", failed to append DROP STB for stb=%s: %s", pTxn->id, pOp->name, tstrerror(code));
           return code;
         }
         break;
@@ -1063,13 +1063,13 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
         // Skip for PRE_CREATE/PRE_CREATE_DROP: the CREATE_STB undo will delete the STB entirely.
         SStbObj *pStb = mndAcquireStb(pMnode, pOp->name);
         if (pStb != NULL && (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
-          mInfo("txn:%" PRIu64 ", skip %s undo for stb=%s (status=%d, CREATE undo handles deletion)",
+          mInfo("txn:%" PRIi64 ", skip %s undo for stb=%s (status=%d, CREATE undo handles deletion)",
                 pTxn->id, pOp->opType == MND_SHADOW_OP_DROP_STB ? "DROP_STB" : "ALTER_STB",
                 pOp->name, pStb->txnStatus);
           mndReleaseStb(pMnode, pStb);
           break;
         }
-        mInfo("txn:%" PRIu64 ", undo %s shadow op %d/%d: clearing markers on stb=%s",
+        mInfo("txn:%" PRIi64 ", undo %s shadow op %d/%d: clearing markers on stb=%s",
               pTxn->id, pOp->opType == MND_SHADOW_OP_DROP_STB ? "DROP_STB" : "ALTER_STB",
               i + 1, numOps, pOp->name);
         if (pStb != NULL) {
@@ -1086,26 +1086,26 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
           if (pRaw != NULL) {
             int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
             if (rawCode != 0) {
-              mError("txn:" PRIu64 ", sdbSetRawStatus READY failed for stb=%s: %s", pTxn->id, pOp->name,
+              mError("txn:%" PRIi64 ", sdbSetRawStatus READY failed for stb=%s: %s", pTxn->id, pOp->name,
                      tstrerror(rawCode));
               mndReleaseStb(pMnode, pStb);
               return rawCode;
             }
             int32_t code = mndTransAppendCommitlog(pTrans, pRaw);
             if (code != 0) {
-              mError("txn:%" PRIu64 ", failed to append marker cleanup for stb=%s: %s",
+              mError("txn:%" PRIi64 ", failed to append marker cleanup for stb=%s: %s",
                      pTxn->id, pOp->name, tstrerror(code));
               mndReleaseStb(pMnode, pStb);
               return code;
             }
-            mInfo("txn:%" PRIu64 ", append marker cleanup commit-log for stb=%s", pTxn->id, pOp->name);
+            mInfo("txn:%" PRIi64 ", append marker cleanup commit-log for stb=%s", pTxn->id, pOp->name);
           }
           mndReleaseStb(pMnode, pStb);
         }
         break;
       }
       default: {
-        mInfo("txn:%" PRIu64 ", discard shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
+        mInfo("txn:%" PRIi64 ", discard shadow op %d/%d: opType=%d, stb=%s", pTxn->id, i + 1, numOps, pOp->opType,
               pOp->name);
         break;
       }
@@ -1234,7 +1234,7 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
   //     at COMMIT time by client, and pShadowOps are in-memory only), broadcast to ALL VGroups.
   //     VNodes without this txn's shadow entries will return success (idempotent).
   if (taosHashGetSize(pVgSet) == 0) {
-    mInfo("txn:%" PRIu64 ", no VGroups from pVgList/pShadowOps, broadcasting to all VGroups", pTxn->id);
+    mInfo("txn:%" PRIi64 ", no VGroups from pVgList/pShadowOps, broadcasting to all VGroups", pTxn->id);
     SSdb   *pSdb = pMnode->pSdb;
     SVgObj *pVgroup = NULL;
     void   *pIter = NULL;
@@ -1327,7 +1327,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "commit-txn")), code,
                   lino, _exit, terrno);
-  mInfo("trans:%d, used to commit txn %" PRIu64, pTrans->id, pTxn->id);
+  mInfo("trans:%d, used to commit txn %" PRIi64, pTrans->id, pTxn->id);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
@@ -1373,7 +1373,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
           if (pRaw != NULL) {
             TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
             TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pRaw));
-            mInfo("txn:%" PRIu64 ", append STB promote commit log for stb=%s", pTxn->id, pOp->name);
+            mInfo("txn:%" PRIi64 ", append STB promote commit log for stb=%s", pTxn->id, pOp->name);
           }
           mndReleaseStb(pMnode, pStb);
         }
@@ -1417,7 +1417,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
         taosHashCleanup(pVgSet);
         TAOS_CHECK_EXIT(code);
       }
-      mInfo("txn:%" PRIu64 ", append commit action for vgId:%d", pTxn->id, vgId);
+      mInfo("txn:%" PRIi64 ", append commit action for vgId:%d", pTxn->id, vgId);
       pIter = taosHashIterate(pVgSet, pIter);
     }
     taosHashCleanup(pVgSet);
@@ -1444,7 +1444,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "rollback-txn")), code,
                   lino, _exit, terrno);
-  mInfo("trans:%d, used to rollback txn %" PRIu64, pTrans->id, pTxn->id);
+  mInfo("trans:%d, used to rollback txn %" PRIi64, pTrans->id, pTxn->id);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
 
@@ -1504,7 +1504,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
         taosHashCleanup(pVgSet);
         TAOS_CHECK_EXIT(code);
       }
-      mInfo("txn:%" PRIu64 ", append rollback action for vgId:%d", pTxn->id, vgId);
+      mInfo("txn:%" PRIi64 ", append rollback action for vgId:%d", pTxn->id, vgId);
       pIter = taosHashIterate(pVgSet, pIter);
     }
     taosHashCleanup(pVgSet);
@@ -1536,7 +1536,7 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "begin-txn")), code,
                   lino, _exit, terrno);
-  mInfo("trans:%d, used to create txn %" PRIu64 " term:%" PRId64, pTrans->id, obj.id, obj.term);
+  mInfo("trans:%d, used to create txn %" PRIi64 " term:%" PRId64, pTrans->id, obj.id, obj.term);
 
   // mndTransSetDbName(pTrans, obj.dbFName, obj.name);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
@@ -1554,7 +1554,7 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
       void *pRsp = taosMemoryCalloc(1, rspLen);
       if (pRsp != NULL) {
         if (tSerializeSMTransReq(pRsp, rspLen, &rspReq) < 0) {
-          mError("txn:" PRIu64 ", failed to serialize begin txn response", obj.id);
+          mError("txn:%" PRIi64 ", failed to serialize begin txn response", obj.id);
           taosMemoryFree(pRsp);
         } else {
           mndTransSetRpcRsp(pTrans, pRsp, rspLen);
@@ -1566,7 +1566,7 @@ static int32_t mndBeginTxn(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser, SMTra
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("txn:%" PRIu64 ", failed at line %d to begin txn, since %s", obj.id, lino, tstrerror(code));
+    mError("txn:%" PRIi64 ", failed at line %d to begin txn, since %s", obj.id, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -1624,7 +1624,7 @@ static int32_t mndMergeVgList(STxnObj *pTxn, SArray *pNewVgList) {
         taosHashCleanup(pDedup);
         return putCode;
       }
-      mInfo("txn:%" PRIu64 ", merged client vgId:%d into participant list", pTxn->id, vgId);
+      mInfo("txn:%" PRIi64 ", merged client vgId:%d into participant list", pTxn->id, vgId);
     }
   }
 
@@ -1658,7 +1658,7 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     if (TXN_IS_REPLICATED(txnReq.txnId)) {
       // §35 taosX replication: accept known replicated txnId (auto-BEGIN from taosX)
     } else {
-      mError("txn:%" PRIu64 ", client already has active transaction, reject double BEGIN", txnReq.txnId);
+      mError("txn:%" PRIi64 ", client already has active transaction, reject double BEGIN", txnReq.txnId);
       code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
       goto _exit;
     }
@@ -1669,12 +1669,12 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
       goto _exit;
     }
   }
-  mInfo("start to begin txn: %" PRIu64, txnReq.txnId);
+  mInfo("start to begin txn: %" PRIi64, txnReq.txnId);
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn != NULL) {
     // 事务已存在，幂等返回成功（客户端重试场景）
-    mInfo("txn:%" PRIu64 ", already exists, return success", txnReq.txnId);
+    mInfo("txn:%" PRIi64 ", already exists, return success", txnReq.txnId);
     mndReleaseTxn(pMnode, pTxn);
     pTxn = NULL;
     goto _exit;
@@ -1693,7 +1693,7 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
   }
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("txn:%" PRIu64 ", failed at line %d to begin since %s", txnReq.txnId, lino, tstrerror(code));
+    mError("txn:%" PRIi64 ", failed at line %d to begin since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
   mndReleaseUser(pMnode, pOperUser);
@@ -1713,23 +1713,23 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSMTransReq(pReq->pCont, pReq->contLen, &txnReq));
 
   if (txnReq.txnId == 0) {
-    mInfo("txn:%" PRIu64 ", is invalid, ignore commit request", txnReq.txnId);
+    mInfo("txn:%" PRIi64 ", is invalid, ignore commit request", txnReq.txnId);
     goto _exit;
   }
-  mInfo("start to commit txn: %" PRIu64, txnReq.txnId);
+  mInfo("start to commit txn: %" PRIi64, txnReq.txnId);
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn == NULL) {
     if (TXN_IS_REPLICATED(txnReq.txnId)) {
       // §35 taosX: replicated txn already committed/rolled back, idempotent
-      mInfo("txn:%" PRIu64 ", replicated txn not found, treat as already committed", txnReq.txnId);
+      mInfo("txn:%" PRIi64 ", replicated txn not found, treat as already committed", txnReq.txnId);
       terrno = 0;
       goto _exit;
     }
-    mError("txn:%" PRIu64 ", not found, cannot commit", txnReq.txnId);
+    mError("txn:%" PRIi64 ", not found, cannot commit", txnReq.txnId);
     TAOS_CHECK_EXIT(TSDB_CODE_TXN_NOT_EXIST);
   }
   if (pTxn->stage != UTXN_STAGE_ACTIVE) {
-    mError("txn:%" PRIu64 ", stage=%s, cannot commit", txnReq.txnId, mndUtxnStageStr(pTxn->stage));
+    mError("txn:%" PRIi64 ", stage=%s, cannot commit", txnReq.txnId, mndUtxnStageStr(pTxn->stage));
     TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
 
@@ -1749,7 +1749,7 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   }
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("txn:%" PRIu64 ", failed at line %d to commit since %s", txnReq.txnId, lino, tstrerror(code));
+    mError("txn:%" PRIi64 ", failed at line %d to commit since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
   tFreeSMTransReq(&txnReq);
@@ -1770,20 +1770,20 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSMTransReq(pReq->pCont, pReq->contLen, &txnReq));
 
   if (txnReq.txnId == 0) {
-    mInfo("txn:%" PRIu64 ", is invalid, ignore rollback request", txnReq.txnId);
+    mInfo("txn:%" PRIi64 ", is invalid, ignore rollback request", txnReq.txnId);
     code = 0;
     goto _exit;
   }
-  mInfo("start to rollback txn: %" PRIu64, txnReq.txnId);
+  mInfo("start to rollback txn: %" PRIi64, txnReq.txnId);
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn == NULL) {
     // 事务不存在，幂等返回成功（已经回滚完成的场景）
-    mInfo("txn:%" PRIu64 ", not found, treat as already rolled back", txnReq.txnId);
+    mInfo("txn:%" PRIi64 ", not found, treat as already rolled back", txnReq.txnId);
     terrno = 0;
     goto _exit;
   }
   if (pTxn->stage == UTXN_STAGE_COMMITTING) {
-    mError("txn:%" PRIu64 ", stage=%s, cannot rollback after commit decision", txnReq.txnId,
+    mError("txn:%" PRIi64 ", stage=%s, cannot rollback after commit decision", txnReq.txnId,
            mndUtxnStageStr(pTxn->stage));
     TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
@@ -1803,7 +1803,7 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
   }
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("txn:%" PRIu64 ", failed at line %d to rollback since %s", txnReq.txnId, lino, tstrerror(code));
+    mError("txn:%" PRIi64 ", failed at line %d to rollback since %s", txnReq.txnId, lino, tstrerror(code));
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
   tFreeSMTransReq(&txnReq);
