@@ -320,28 +320,11 @@ typedef struct TAOS_STMT2_BINDV {
   TAOS_STMT2_BIND **bind_cols;
 } TAOS_STMT2_BINDV;
 
-// Columnar binding structures for stmt2
-typedef struct TAOS_STMT2_COLUMN_BIND {
-  int      buffer_type;
-  void    *buffer;
-  int32_t *length;
-  char    *is_null;
-} TAOS_STMT2_COLUMN_BIND;
-
-typedef struct TAOS_STMT2_COLUMN_BINDV {
-  int                      num_columns;   // number of columns
-  int                      num_rows;      // number of rows
-  int                      num_tables;    // number of tables (required > 0 for multi-table INSERT with tbname column, ignored for single-table/SELECT)
-  TAOS_STMT2_COLUMN_BIND *columns;
-} TAOS_STMT2_COLUMN_BINDV;
-
 DLL_EXPORT TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option);
 DLL_EXPORT int         taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
 DLL_EXPORT int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                                        void *param);
-DLL_EXPORT int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv);
-DLL_EXPORT int taos_stmt2_bind_param_column_a(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp, void *param);
 DLL_EXPORT int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);

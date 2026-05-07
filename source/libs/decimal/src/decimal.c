@@ -193,25 +193,10 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
       break;
   }
   int32_t pos2 = pos;
-  while (pos2 < len) {
+  while(pos2 < len) {
+    if (isdigit(str[pos2] || str[pos] == '.')) continue;
     if (str[pos2] == 'e' || str[pos2] == 'E') {
-      int32_t expSign = 1;
-      int32_t exp = 0;
-      int32_t expPos = pos2 + 1;
-      if (expPos < len && (str[expPos] == '+' || str[expPos] == '-')) {
-        expSign = (str[expPos] == '-') ? -1 : 1;
-        expPos++;
-      }
-      while (expPos < len && isdigit((unsigned char)str[expPos])) {
-        int32_t digit = str[expPos] - '0';
-        if (exp > (INT32_MAX - digit) / 10) {
-          exp = INT32_MAX;
-          break;
-        }
-        exp = exp * 10 + digit;
-        expPos++;
-      }
-      result->exponent = (expSign > 0) ? exp : -exp;
+      result->exponent = taosStr2Int32(str + pos2 + 1, NULL, 10);
       break;
     }
     pos2++;

@@ -74,13 +74,6 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
-ADD_EXECUTABLE(stmt2TestColumn stmt2TestColumn.cpp)
-DEP_ext_gtest(stmt2TestColumn)
-TARGET_LINK_LIBRARIES(
-        stmt2TestColumn PRIVATE
-        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
-)
-
 ADD_EXECUTABLE(clientBITest clientBITests.cpp)
 DEP_ext_gtest(clientBITest)
 TARGET_LINK_LIBRARIES(
@@ -169,13 +162,6 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         stmtTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
-)
-
-TARGET_INCLUDE_DIRECTORIES(
-        stmt2TestColumn
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
