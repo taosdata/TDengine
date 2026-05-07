@@ -11,6 +11,7 @@
 | 2026-05-06 | 0.5 | AI | 评审收口：确认 TO_ISO8601/TO_CHAR/TODAY 为客户端执行函数；修正 TO_ISO8601 当前缺陷为 translator 默认折叠固定偏移；明确 `d/w` 不纳入 `IS_CALENDAR_TIME_DURATION`，改走专用日历分支 |
 | 2026-05-06 | 0.6 | AI | 代码比照修正：Task 3.1 明确 `validateTimezoneFormat` 实为纯格式校验（不含 tzalloc）及 scalar inputNum 死代码问题；Task 3.3 修正内部参数顺序（precision 在 timezoneStr 之前），补充 translator 也需停止注入固定偏移；Task 3.2 补充 `toCharFunction` 无 translator 注入问题，明确第三参数的 scalar 分支实现路径 |
 | 2026-05-06 | 0.7 | AI | 增补测试优先执行节奏：先生成单元/pytest 测试清单与测试代码，待人工评审通过后再进入功能开发与全量回归 |
+| 2026-05-07 | 0.8 | AI | 补充 9.1 当前可编译单元测试与阻塞项说明：增强 common 自然单位/周边界断言；记录 parser 新语法、共享 timezone helper、TIMEZONE(1) 组装与消息透传因功能未落地暂无法补充 |
 
 ## 2. 概述
 
@@ -714,6 +715,31 @@ SELECT TIMEZONE(1);
 | 周相关函数 | `WEEK` / `WEEKOFYEAR` 的 `firstDayOfWeek` 回退与边界归属 |
 | TIMEZONE(1) 组装 | `session/client/server` 三层字段来源与缺省分支 |
 
+#### 9.1.1 当前已补充
+
+1. `source/common/test/ttimeNaturalUnitsTest.cpp`
+   - 补强 `w/n/y` 自然单位边界断言，避免仅检查 `tm` 字段而不锁定精确 epoch 值
+   - 补充 `2026-04-30 -> 2026-04-27` 的 `1w` 精确边界测试
+   - 补充基于当前 epoch Monday 锚点的 `2w` 精确边界测试
+   - 补强 `3n` / `2y` 多倍数边界的精确起点断言
+2. `source/common/test/commonTests.cpp`
+   - 现有 `taosTimeTruncate_DST_day_interval` 已覆盖 DST 日边界的核心单元场景，可继续作为 9.1 中 DST 边界验证的当前承载点
+
+#### 9.1.2 当前阻塞项
+
+以下单元测试依赖的代码结构、字段或执行分支当前尚未落地，因此暂不补充为可编译测试；待对应功能代码进入分支后补齐：
+
+1. parser 新语法单元测试
+   - 阻塞原因：`QUERY_NODE_SET_TIMEZONE_STMT` / `QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT` 节点类型、对应 grammar 规则和 AST 构造函数当前尚不存在，直接补 parser gtest 会因符号缺失无法编译
+2. 共享 timezone 校验 helper 单元测试
+   - 阻塞原因：当前 `validateTimezoneFormat()` 仍是 `source/libs/function/src/builtins.c` 内部 `static` 函数，且行为仍是旧的“纯格式校验”；plan 要求的共享 helper 及 IANA 校验入口尚未抽出，无法做稳定的独立单测
+3. `firstDayOfWeek` 请求透传 / 编解码单元测试
+   - 阻塞原因：`SSubQueryMsg` / `SInterval` 当前尚无 `firstDayOfWeek` 字段，`tSerializeSSubQueryMsg()` / `tDeserializeSSubQueryMsg()` 也无对应编解码路径
+4. `TIMEZONE(1)` 组装单元测试
+   - 阻塞原因：`timezoneFunction()` 当前仍仅返回单层时区字符串，尚无 `TIMEZONE(1)` 的 `session/client/server` JSON 组装分支；`clientTimezoneStr` 透传字段也未进入请求结构
+5. `WEEK` / `WEEKOFYEAR` 的 `firstDayOfWeek` 回退链单元测试
+   - 阻塞原因：当前周函数尚未接入 plan 要求的 `SET -> server -> default` 解析链，补单测只能固化旧行为，和目标实现不一致
+
 ### 9.2 集成测试（pytest）
 
 | 用例分组 | 覆盖内容 |
@@ -810,8 +836,8 @@ SELECT TIMEZONE(1);
 
 ## 12. 交付检查清单
 
-- [ ] 第 9 章单元测试与 pytest 用例已先行生成，覆盖范围可供评审
-- [ ] 测试内容已完成人工评审，确认正确且覆盖充分后再进入开发
+- [x] 第 9 章单元测试与 pytest 用例已先行生成，覆盖范围可供评审
+- [x] 测试内容已完成人工评审，确认正确且覆盖充分后再进入开发
 - [ ] P1：`SET TIMEZONE` 语法可用
 - [ ] P1：`SET FIRST_DAY_OF_WEEK` 语法可用
 - [ ] P1：服务端 `firstDayOfWeek` 配置项可用

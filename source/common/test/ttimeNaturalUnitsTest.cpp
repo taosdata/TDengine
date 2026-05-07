@@ -99,6 +99,30 @@ TEST_F(TimeNaturalUnitsTest, WeekAlignmentBasic) {
   EXPECT_EQ(tm.tm_hour, 0);
   EXPECT_EQ(tm.tm_min, 0);
   EXPECT_EQ(tm.tm_sec, 0);
+
+  int64_t expected = makeTimestamp(2026, 3, 9, 0, 0, 0);
+  EXPECT_EQ(result, expected);
+}
+
+TEST_F(TimeNaturalUnitsTest, WeekAlignmentThursdayAnchorsToPreviousMonday) {
+  int64_t ts = makeTimestamp(2026, 4, 30, 10, 0, 0);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
+
+  int64_t expected = makeTimestamp(2026, 4, 27, 0, 0, 0);
+  EXPECT_EQ(result, expected);
+}
+
+TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignmentExactBoundary) {
+  int64_t ts = makeTimestamp(2026, 4, 30, 10, 0, 0);
+  int64_t result = alignToNaturalBoundary(ts, 'w', 2, 0, TSDB_TIME_PRECISION_MILLI, tz);
+
+  /*
+   * The current implementation uses 1970-01-05 (the first Monday after epoch)
+   * as the multi-week anchor. 2026-04-27 is on an even-numbered 2-week bucket
+   * relative to that anchor, so 2w should align to 2026-04-27 00:00:00.
+   */
+  int64_t expected = makeTimestamp(2026, 4, 27, 0, 0, 0);
+  EXPECT_EQ(result, expected);
 }
 
 /**
@@ -122,6 +146,9 @@ TEST_F(TimeNaturalUnitsTest, MonthAlignmentBasic) {
   EXPECT_EQ(tm.tm_hour, 0);
   EXPECT_EQ(tm.tm_min, 0);
   EXPECT_EQ(tm.tm_sec, 0);
+
+  int64_t expected = makeTimestamp(2026, 3, 1, 0, 0, 0);
+  EXPECT_EQ(result, expected);
 }
 
 /**
@@ -146,6 +173,9 @@ TEST_F(TimeNaturalUnitsTest, YearAlignmentBasic) {
   EXPECT_EQ(tm.tm_hour, 0);
   EXPECT_EQ(tm.tm_min, 0);
   EXPECT_EQ(tm.tm_sec, 0);
+
+  int64_t expected = makeTimestamp(2026, 1, 1, 0, 0, 0);
+  EXPECT_EQ(result, expected);
 }
 
 /**
@@ -239,6 +269,11 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodMonthAlignment) {
   taosLocalTime(&t3, &tm3, NULL, 0, NULL);
   EXPECT_EQ(tm3.tm_mon, 3);  // April
   EXPECT_EQ(tm3.tm_mday, 1);
+
+  int64_t expectedQ1 = makeTimestamp(2026, 1, 1, 0, 0, 0);
+  int64_t expectedQ2 = makeTimestamp(2026, 4, 1, 0, 0, 0);
+  EXPECT_EQ(result1, expectedQ1);
+  EXPECT_EQ(result3, expectedQ2);
 }
 
 /**
@@ -281,6 +316,11 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodYearAlignment) {
   EXPECT_EQ(tm3.tm_year, 128);  // 2028
   EXPECT_EQ(tm3.tm_mon, 0);     // January
   EXPECT_EQ(tm3.tm_mday, 1);
+
+  int64_t expected2026 = makeTimestamp(2026, 1, 1, 0, 0, 0);
+  int64_t expected2028 = makeTimestamp(2028, 1, 1, 0, 0, 0);
+  EXPECT_EQ(result1, expected2026);
+  EXPECT_EQ(result3, expected2028);
 }
 
 /**
