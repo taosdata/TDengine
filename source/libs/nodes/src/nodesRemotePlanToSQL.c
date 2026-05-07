@@ -210,6 +210,12 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
     dynSQLAppendStr(s, "NULL");
     return;
   }
+  // Raw SQL fragment — emit datum.p verbatim without quoting or escaping.
+  // datum.p is a TDengine varstring (uint16_t length prefix + char content).
+  if (pVal->flag & VALUE_FLAG_RAW_SQL_FRAG) {
+    if (pVal->datum.p) dynSQLAppendStr(s, varDataVal(pVal->datum.p));
+    return;
+  }
   switch (pVal->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
       dynSQLAppendStr(s, pVal->datum.b ? "TRUE" : "FALSE");
@@ -513,6 +519,26 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS NOT NULL)");
       return TSDB_CODE_SUCCESS;
+    case OP_TYPE_EXISTS:
+      // pLeft must be a VALUE with VALUE_FLAG_RAW_SQL_FRAG set — a pre-rendered
+      // EXISTS body SQL string produced by nodesRenderCorrelatedExistsBody.
+      if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+          (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG)) {
+        dynSQLAppendStr(s, "EXISTS (");
+        dynSQLAppendStr(s, varDataVal(((const SValueNode*)pOp->pLeft)->datum.p));
+        dynSQLAppendChar(s, ')');
+        return TSDB_CODE_SUCCESS;
+      }
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    case OP_TYPE_NOT_EXISTS:
+      if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+          (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG)) {
+        dynSQLAppendStr(s, "NOT EXISTS (");
+        dynSQLAppendStr(s, varDataVal(((const SValueNode*)pOp->pLeft)->datum.p));
+        dynSQLAppendChar(s, ')');
+        return TSDB_CODE_SUCCESS;
+      }
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     default:
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
@@ -530,6 +556,30 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
 static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pLogic,
                                         EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
                                         const SNodesRemoteSQLCtx* pCtx) {
+  // NOT(EXISTS(RAW_SQL_FRAG)) — special-case to emit NOT EXISTS (...) directly.
+  if (pLogic->condType == LOGIC_COND_TYPE_NOT &&
+      pLogic->pParameterList && LIST_LENGTH(pLogic->pParameterList) == 1) {
+    SNode* pInner = (SNode*)pLogic->pParameterList->pHead->pNode;
+    if (pInner && nodeType(pInner) == QUERY_NODE_OPERATOR) {
+      SOperatorNode* pOp = (SOperatorNode*)pInner;
+      if (pOp->opType == OP_TYPE_EXISTS &&
+          pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+          (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG)) {
+        dynSQLAppendStr(s, "NOT EXISTS (");
+        dynSQLAppendStr(s, varDataVal(((const SValueNode*)pOp->pLeft)->datum.p));
+        dynSQLAppendChar(s, ')');
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+    // Generic NOT: emit NOT (expr)
+    dynSQLAppendStr(s, "NOT ");
+    SNode* pNode = (SNode*)pLogic->pParameterList->pHead->pNode;
+    dynSQLAppendChar(s, '(');
+    int32_t code = dynAppendExpr(s, pNode, dialect, pExtMeta, pCtx);
+    if (code) return code;
+    dynSQLAppendChar(s, ')');
+    return TSDB_CODE_SUCCESS;
+  }
   const char* sep = (pLogic->condType == LOGIC_COND_TYPE_AND) ? " AND " : " OR ";
   bool first = true;
   dynSQLAppendChar(s, '(');
@@ -549,9 +599,18 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
                               const SNodesRemoteSQLCtx* pCtx) {
   if (!pExpr) return TSDB_CODE_SUCCESS;
   switch (nodeType(pExpr)) {
-    case QUERY_NODE_COLUMN:
-      dynAppendQuotedId(s, resolveExtColName(pExtMeta, ((const SColumnNode*)pExpr)->colName), dialect);
+    case QUERY_NODE_COLUMN: {
+      const SColumnNode* pCol = (const SColumnNode*)pExpr;
+      // When includeTableName is requested (e.g. for correlated EXISTS body),
+      // prefix the column with its table name so the generated SQL is
+      // self-contained when embedded as a subquery.
+      if (pCtx && pCtx->includeTableName && pCol->tableName[0] != '\0') {
+        dynAppendQuotedId(s, pCol->tableName, dialect);
+        dynSQLAppendChar(s, '.');
+      }
+      dynAppendQuotedId(s, resolveExtColName(pExtMeta, pCol->colName), dialect);
       return TSDB_CODE_SUCCESS;
+    }
     case QUERY_NODE_VALUE:
       dynAppendValueLiteral(s, (const SValueNode*)pExpr, dialect);
       return TSDB_CODE_SUCCESS;
@@ -831,6 +890,101 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   *ppSQL = result;
   qError("assembleRemoteSQL: generated SQL=[%s] pProjections=%p pScanCols=%p usedCols=%p",
          result, pParts->pProjections, pParts->pScanCols, pCols);
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---------------------------------------------------------------------------
+// nodesRenderCorrelatedExistsBody — public API
+// ---------------------------------------------------------------------------
+// Renders the body SQL of a correlated EXISTS subquery for pushdown to an
+// external data source.
+//
+// pInnerSelect : the inner SSelectStmt.  Its pFromTable must be a
+//                SRealTableNode with pExtTableNode set.
+// sourceType   : EExtSourceType — determines the SQL dialect.
+// ppSQL        : OUT — heap-allocated SQL string (NULL-terminated plain C
+//                string); caller must taosMemoryFree() when done.
+//
+// Column references in the WHERE clause are rendered as "tableName"."colName"
+// (or `tableName`.`colName` for MySQL) so that:
+//   - Columns from the inner table reference the table in the EXISTS FROM.
+//   - Columns from the outer table (correlated references) reference the
+//     outer table in the outer FROM clause of the containing query.
+//
+// The generated string can be embedded directly as:
+//   EXISTS (<ppSQL>)  or  NOT EXISTS (<ppSQL>)
+// ---------------------------------------------------------------------------
+int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
+                                        int8_t             sourceType,
+                                        char**             ppSQL) {
+  if (!pInnerSelect || !ppSQL) return TSDB_CODE_INVALID_PARA;
+
+  EExtSQLDialect dialect;
+  switch ((EExtSourceType)sourceType) {
+    case EXT_SOURCE_MYSQL:      dialect = EXT_SQL_DIALECT_MYSQL;    break;
+    case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
+    case EXT_SOURCE_INFLUXDB:   dialect = EXT_SQL_DIALECT_INFLUXQL; break;
+    default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
+  }
+
+  // Context that enables "tableName"."colName" rendering.
+  SNodesRemoteSQLCtx fullCtx = { .includeTableName = true };
+
+  SDynSQL s;
+  dynSQLInit(&s);
+
+  // ── SELECT clause ──────────────────────────────────────────────────────
+  dynSQLAppendStr(&s, "SELECT ");
+  bool first = true;
+  if (pInnerSelect->pProjectionList) {
+    SNode* pProj = NULL;
+    FOREACH(pProj, pInnerSelect->pProjectionList) {
+      if (!first) dynSQLAppendStr(&s, ", ");
+      first = false;
+      // Render projection expression; fall back to literal 1 on failure.
+      int32_t code = dynAppendExpr(&s, pProj, dialect, NULL, &fullCtx);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Non-renderable projection (e.g. SELECT 1 constant is fine; complex
+        // expressions may not be needed).  Emit "1" as a safe fallback.
+        dynSQLAppendChar(&s, '1');
+        s.err = 0;  // clear the error and continue
+      }
+    }
+  }
+  if (first) dynSQLAppendChar(&s, '1');  // default: SELECT 1
+
+  // ── FROM clause ────────────────────────────────────────────────────────
+  if (pInnerSelect->pFromTable &&
+      QUERY_NODE_REAL_TABLE == nodeType(pInnerSelect->pFromTable)) {
+    SRealTableNode* pReal = (SRealTableNode*)pInnerSelect->pFromTable;
+    SExtTableNode*  pExt  = (SExtTableNode*)pReal->pExtTableNode;
+    if (pExt) {
+      dynSQLAppendStr(&s, " FROM ");
+      dynAppendTablePath(&s, pExt, dialect);
+    }
+  }
+
+  // ── WHERE clause ───────────────────────────────────────────────────────
+  if (pInnerSelect->pWhere) {
+    SDynSQL condSql;
+    dynSQLInit(&condSql);
+    int32_t code = dynAppendExpr(&condSql, pInnerSelect->pWhere, dialect, NULL, &fullCtx);
+    if (code == TSDB_CODE_SUCCESS && !condSql.err && condSql.pos > 0) {
+      dynSQLAppendStr(&s, " WHERE ");
+      dynSQLAppendLen(&s, condSql.buf, condSql.pos);
+    }
+    dynSQLFree(&condSql);
+  }
+
+  if (s.err) {
+    int32_t err = s.err;
+    dynSQLFree(&s);
+    return err;
+  }
+
+  char* plainSQL = dynSQLDetach(&s);
+  if (!plainSQL) return TSDB_CODE_OUT_OF_MEMORY;
+  *ppSQL = plainSQL;
   return TSDB_CODE_SUCCESS;
 }
 

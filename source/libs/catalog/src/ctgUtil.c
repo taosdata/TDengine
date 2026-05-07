@@ -651,6 +651,12 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFreeClear(pCtx->target);
       break;
     }
+    case TDMT_MND_GET_EXT_SOURCE: {
+      if (pCtx->out) {
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -861,6 +867,10 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
       break;
     }
+    case CTG_TASK_GET_EXT_SOURCE: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -909,7 +919,8 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -1017,7 +1028,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_QNODE:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }

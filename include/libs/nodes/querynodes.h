@@ -131,10 +131,14 @@ typedef struct STargetNode {
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
 #define VALUE_FLAG_VAL_UNSET      (1 << 2)
+// When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
+// (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
+#define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
 #define IS_VAL_UNSET(_flag) ((_flag)&VALUE_FLAG_VAL_UNSET)
+#define IS_RAW_SQL_FRAG(_flag)    ((_flag)&VALUE_FLAG_RAW_SQL_FRAG)
 
 typedef struct SValueNode {
   SExprNode  node;  // QUERY_NODE_VALUE
@@ -1008,6 +1012,23 @@ bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
+
+// nodesRenderCorrelatedExistsBody — render the body SQL of a correlated EXISTS
+// subquery that can be pushed down to an external data source.
+//
+// pInnerSelect : the inner SSelectStmt (FROM table must be SRealTableNode with
+//                pExtTableNode set).
+// sourceType   : EExtSourceType value (determines SQL dialect: MySQL/PG/Influx).
+// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Column references in the WHERE clause are rendered as "tableName"."colName"
+// so that the generated SQL is self-contained and can be embedded in a correlated
+// EXISTS clause of the outer query.
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
+                                        int8_t             sourceType,
+                                        char**             ppSQL);
 
 #ifdef __cplusplus
 }
