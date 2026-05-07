@@ -14,7 +14,11 @@
  */
 
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
-#define MND_ENCRYPT_ALGR_LAST_ID    6
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+#define MND_ENCRYPT_ALGR_LAST_ID 6
+#else
+#define MND_ENCRYPT_ALGR_LAST_ID 1
+#endif
 
 #include "audit.h"
 #include "mndEncryptAlgr.h"

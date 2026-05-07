@@ -819,7 +819,7 @@ int32_t sdbUpgrade(SSdb *pSdb, int32_t version) {
     code = (*fp)(pSdb->pMnode, version);
     if (code != 0) {
       mError("failed to upgrade sdb:%s since %s", sdbTableName(i), tstrerror(code));
-      return -1;
+      TAOS_RETURN(code);
     }
   }
 
@@ -832,7 +832,7 @@ bool sdbIsUpgraded(SSdb *pSdb) {
     SdbIsUpgradedFp fp = pSdb->isUpgradedFps[i];
     if (fp == NULL) continue;
 
-    mInfo("start to check if sdb:%s is upgraded", sdbTableName(i));
+    mDebug("start to check if sdb:%s is upgraded", sdbTableName(i));
     bool isUpgraded = (*fp)(pSdb->pMnode);
     if (isUpgraded == false) {
       mInfo("sdb:%s is not upgraded yet", sdbTableName(i));
