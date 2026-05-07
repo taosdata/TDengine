@@ -371,7 +371,18 @@ static int32_t mndProcessBuiltinRsp(SRpcMsg *pRsp) {
 static int32_t mndUpgradeBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
+  mInfo("upgrade builtin encrypt algr, current version:%d, target version:%d", version,
+        TSDB_MNODE_BUILTIN_DATA_VERSION);
   return mndSendCreateBuiltinReq(pMnode);
+}
+
+static bool mndIsUpgradedBuiltinEncryptAlgr(SMnode *pMnode) {
+  SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, 6);
+  if (obj != NULL) {
+    mndReleaseEncryptAlgr(pMnode, obj);
+    return true;
+  }
+  return false;
 }
 
 #define SYMCBC "Symmetric Ciphers CBC mode"
@@ -736,6 +747,7 @@ int32_t mndInitEncryptAlgr(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndEncryptAlgrActionInsert,
       .updateFp = (SdbUpdateFp)mndEncryptAlgrActionUpdate,
       .deleteFp = (SdbDeleteFp)mndEncryptAlgrActionDelete,
+      .isUpgradedFp = (SdbIsUpgradedFp)mndIsUpgradedBuiltinEncryptAlgr,
   };
 
   return sdbSetTable(pMnode->pSdb, table);

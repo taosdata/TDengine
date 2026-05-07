@@ -53,26 +53,6 @@ static int32_t sdbDeployData(SSdb *pSdb) {
   return 0;
 }
 
-static int32_t sdbUpgradeData(SSdb *pSdb, int32_t version) {
-  int32_t code = 0;
-  mInfo("start to upgrade sdb");
-
-  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
-    SdbUpgradeFp fp = pSdb->upgradeFps[i];
-    if (fp == NULL) continue;
-
-    mInfo("start to upgrade sdb:%s", sdbTableName(i));
-    code = (*fp)(pSdb->pMnode, version);
-    if (code != 0) {
-      mError("failed to upgrade sdb:%s since %s", sdbTableName(i), tstrerror(code));
-      return -1;
-    }
-  }
-
-  mInfo("sdb upgrade success");
-  return 0;
-}
-
 static int32_t sdbAfterRestoredData(SSdb *pSdb) {
   int32_t code = 0;
   mInfo("start to prepare sdb");
@@ -829,17 +809,38 @@ int32_t sdbDeploy(SSdb *pSdb) {
 
 int32_t sdbUpgrade(SSdb *pSdb, int32_t version) {
   int32_t code = 0;
-  code = sdbUpgradeData(pSdb, version);
-  if (code != 0) {
-    TAOS_RETURN(code);
+  mInfo("start to upgrade sdb");
+
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbUpgradeFp fp = pSdb->upgradeFps[i];
+    if (fp == NULL) continue;
+
+    mInfo("start to upgrade sdb:%s", sdbTableName(i));
+    code = (*fp)(pSdb->pMnode, version);
+    if (code != 0) {
+      mError("failed to upgrade sdb:%s since %s", sdbTableName(i), tstrerror(code));
+      return -1;
+    }
   }
 
-  code = sdbWriteFile(pSdb, 0);
-  if (code != 0) {
-    TAOS_RETURN(code);
-  }
-
+  mInfo("sdb upgrade success");
   return 0;
+}
+
+bool sdbIsUpgraded(SSdb *pSdb) {
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbIsUpgradedFp fp = pSdb->isUpgradedFps[i];
+    if (fp == NULL) continue;
+
+    mInfo("start to check if sdb:%s is upgraded", sdbTableName(i));
+    bool isUpgraded = (*fp)(pSdb->pMnode);
+    if (isUpgraded == false) {
+      mError("failed to check if sdb:%s is upgraded since %s", sdbTableName(i));
+      return false;
+    }
+  }
+
+  return true;
 }
 
 int32_t sdbAfterRestored(SSdb *pSdb) {
