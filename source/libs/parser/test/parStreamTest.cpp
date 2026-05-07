@@ -1243,6 +1243,11 @@ TEST_F(ParserStreamTest, TestTriggerType) {
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 period(1m, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s1 period(1m, 1s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
+  /* 1q is normalized to 3n by parseNatualDuration before checkPeriodWindow runs */
+  setCreateStreamTriggerPeriod(&expect, 0, 'n', 0, 0, 3);
+  setCreateStreamSql(&expect, "create stream stream_streamdb.s1 period(1q) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 period(1q) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
   clearCreateStreamReq();
 }
 
@@ -1955,6 +1960,8 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   run("create stream stream_streamdb.s1 period(522w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
   run("create stream stream_streamdb.s1 period(121n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
   run("create stream stream_streamdb.s1 period(11y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
+  /* 41q -> 123n > 120n limit */
+  run("create stream stream_streamdb.s1 period(41q) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
 }
 
 TEST_F(ParserStreamTest, TestErrorTriggerTable) {

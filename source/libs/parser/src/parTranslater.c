@@ -10325,8 +10325,7 @@ static int32_t createDefaultEveryNode(STranslateContext* pCxt, SNode** pOutput) 
 }
 
 static int32_t checkEvery(STranslateContext* pCxt, SValueNode* pInterval) {
-  char unit = pInterval->unit;
-  if (unit == 'n' || unit == 'y') {
+  if (IS_CALENDAR_TIME_DURATION(pInterval->unit)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
                                    "Unsupported time unit in EVERY clause");
   }
