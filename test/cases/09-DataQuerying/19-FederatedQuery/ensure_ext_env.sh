@@ -372,6 +372,7 @@ influx_port() {
     local envval="${!envvar:-}"
     if [[ -n "$envval" ]]; then echo "$envval"; return; fi
     case "$tag" in
+        18) echo 18085 ;;  # InfluxDB 1.x
         30) echo 18086 ;;
         35) echo 18087 ;;
         *)  echo 18086 ;;
@@ -990,7 +991,27 @@ _influx_binary_url() {
     if [[ -n "$override_val" ]]; then echo "$override_val"; return; fi
 
     local patch arch_str
-    # Map logical version to pinned stable patch releases
+
+    # InfluxDB 1.x — completely different binary name and URL format
+    case "$ver" in
+        1.*)
+            case "$ver" in
+                1.8) patch="1.8.10" ;;
+                *)   patch="${ver}.0" ;;
+            esac
+            case "${OS}-${ARCH}" in
+                Linux-x86_64)  arch_str="linux_amd64" ;;
+                Linux-aarch64) arch_str="linux_arm64" ;;
+                Darwin-x86_64) arch_str="darwin_amd64" ;;
+                Darwin-arm64)  arch_str="darwin_arm64" ;;
+                *)             arch_str="linux_amd64" ;;
+            esac
+            local base_v1="${FQ_INFLUX_MIRROR:-https://dl.influxdata.com/influxdb/releases}"
+            echo "${base_v1}/influxdb-${patch}_${arch_str}.tar.gz"
+            return ;;
+    esac
+
+    # InfluxDB 3.x — Map logical version to pinned stable patch releases
     # Note: v3.0.0 was never released on dl.influxdata.com; earliest is 3.0.1
     case "$ver" in
         3.0) patch="3.0.3" ;;
@@ -1113,12 +1134,37 @@ _influx_start() {
             --data-dir "$data" \
             --without-auth
     else
-        # influxd v2 fallback
-        _start_daemon "$pidfile" "${log}/influxd.log" \
-            "$influxd" \
-            --http-bind-address "127.0.0.1:${port}" \
-            --storage-wal-directory "${data}/wal" \
-            --storage-data-path "$data"
+        case "$ver" in
+            1.*)
+                # InfluxDB 1.x: requires a TOML config file; does not accept
+                # data/log paths as CLI flags like v2 does.
+                mkdir -p "${data}/meta" "${data}/data" "${data}/wal"
+                local cfg_file="${base}/influxdb.conf"
+                cat > "$cfg_file" <<EOF
+[meta]
+  dir = "${data}/meta"
+
+[data]
+  dir = "${data}/data"
+  wal-dir = "${data}/wal"
+
+[http]
+  bind-address = "127.0.0.1:${port}"
+  auth-enabled = false
+  log-enabled = false
+EOF
+                _start_daemon "$pidfile" "${log}/influxd.log" \
+                    "$influxd" -config "$cfg_file"
+                ;;
+            *)
+                # influxd v2 fallback
+                _start_daemon "$pidfile" "${log}/influxd.log" \
+                    "$influxd" \
+                    --http-bind-address "127.0.0.1:${port}" \
+                    --storage-wal-directory "${data}/wal" \
+                    --storage-data-path "$data"
+                ;;
+        esac
     fi
 }
 
@@ -1126,7 +1172,25 @@ _influx_reset_env() {
     local ver="$1" port="$2" base="$3"
 
     info "InfluxDB ${ver} @ ${port}: resetting test databases ..."
-    # Discover all databases via REST API, drop everything except _internal
+
+    case "$ver" in
+        1.*)
+            # InfluxDB 1.x: use the v1 query API to list and drop databases
+            local dbs db
+            dbs=$(curl -sf --max-time 5 \
+                "http://127.0.0.1:${port}/query?q=SHOW+DATABASES" 2>/dev/null | \
+                grep -oP '"values":\[\["\K[^"]+' || true)
+            for db in $dbs; do
+                [[ "$db" == "_internal" ]] && continue
+                curl -sf -X POST "http://127.0.0.1:${port}/query" \
+                    --data-urlencode "q=DROP DATABASE \"${db}\"" \
+                    -o /dev/null 2>/dev/null || true
+            done
+            info "InfluxDB ${ver} @ ${port}: reset complete."
+            return ;;
+    esac
+
+    # InfluxDB 3.x: use the v3 configure API
     local dbs_json db_list db
     dbs_json=$(curl -sf "http://127.0.0.1:${port}/api/v3/configure/database?format=json" 2>/dev/null) || true
     if [[ -n "$dbs_json" ]]; then

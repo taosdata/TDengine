@@ -3412,7 +3412,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             "date_test,host=s1 value=1i 1705276800000",
             # 2024-06-15 00:00:00 UTC = 1718409600000 ms
             "date_test,host=s2 value=2i 1718409600000",
-        ])
+        ], precision='ms')
         self._cleanup_src(src)
         try:
             self._mk_influx_real(src, database=bucket)

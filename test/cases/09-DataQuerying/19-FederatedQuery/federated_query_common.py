@@ -198,6 +198,7 @@ TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT
 TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED          = _code('TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED')
 TSDB_CODE_EXT_REMOTE_INTERNAL                  = _code('TSDB_CODE_EXT_REMOTE_INTERNAL')
 TSDB_CODE_PAR_NOT_SUPPORT_JOIN                 = _code('TSDB_CODE_PAR_NOT_SUPPORT_JOIN')
+TSDB_CODE_OPS_NOT_SUPPORT                      = _code('TSDB_CODE_OPS_NOT_SUPPORT')
 
 # --- VTable DDL ---
 TSDB_CODE_FOREIGN_SERVER_NOT_EXIST             = _code('TSDB_CODE_FOREIGN_SERVER_NOT_EXIST')
@@ -315,6 +316,7 @@ class ExtSrcEnv:
         "17":  int(os.getenv("FQ_PG_PORT_17", "15436")),
     }
     _INFLUX_VERSION_PORTS = {
+        "1.8": int(os.getenv("FQ_INFLUX_PORT_18", "18085")),
         "3.0": int(os.getenv("FQ_INFLUX_PORT_30", "18086")),
         "3.5": int(os.getenv("FQ_INFLUX_PORT_35", "18087")),
     }
@@ -443,13 +445,23 @@ class ExtSrcEnv:
         import requests
         for cfg in cls.influx_version_configs():
             try:
-                r = requests.get(
-                    f"http://{cfg.host}:{cfg.port}/health",
-                    timeout=5)
-                if r.status_code not in (200, 204):
-                    errors.append(
-                        f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — "
-                        f"health endpoint returned HTTP {r.status_code}")
+                # InfluxDB 1.x uses /ping (HTTP 204); 3.x uses /health (JSON)
+                if cfg.version.startswith("1."):
+                    r = requests.get(
+                        f"http://{cfg.host}:{cfg.port}/ping",
+                        timeout=5)
+                    if r.status_code != 204:
+                        errors.append(
+                            f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — "
+                            f"/ping returned HTTP {r.status_code}")
+                else:
+                    r = requests.get(
+                        f"http://{cfg.host}:{cfg.port}/health",
+                        timeout=5)
+                    if r.status_code not in (200, 204):
+                        errors.append(
+                            f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — "
+                            f"health endpoint returned HTTP {r.status_code}")
             except Exception as e:
                 errors.append(
                     f"  InfluxDB {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
