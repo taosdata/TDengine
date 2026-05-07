@@ -14710,7 +14710,7 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
 
   if (ops->hasPassword) {
     const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
-    if (strncmp(authRsp.user, pParCxt->pUser, TSDB_USER_LEN) != 0) {
+    if (strncmp(authRsp.user, targetUser, TSDB_USER_LEN) != 0) {
       if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                        "Permission denied to change others' password");
