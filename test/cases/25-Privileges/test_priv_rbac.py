@@ -1627,7 +1627,7 @@ class TestCase:
         tdSql.query("select 1")
         tdSql.checkRows(1)
 
-        # -- Case 5: user cann't change own password --
+        # -- Case 5: user can't change own password --
         tdSql.connect("root", "taosdata")
         tdSql.execute(f"revoke alter self pass from u_pass_a")
         tdSql.connect("u_pass_a", "SelfNew_123!")
