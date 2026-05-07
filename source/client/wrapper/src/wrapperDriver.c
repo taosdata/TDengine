@@ -15,7 +15,6 @@
 
 #include "wrapper.h"
 #include "wrapperHint.h"
-
 #ifdef WINDOWS
 #define DRIVER_NATIVE_NAME    "taosnative.dll"
 #define DRIVER_WSBSOCKET_NAME "taosws.dll"

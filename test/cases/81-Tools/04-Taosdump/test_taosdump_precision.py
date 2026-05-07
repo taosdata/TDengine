@@ -103,6 +103,7 @@ class TestTaosdumpPrecision:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found: %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         # create nano second database
 
@@ -122,34 +123,38 @@ class TestTaosdumpPrecision:
             % binPath
         )
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 510)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp2) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp2" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 510)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 900)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp3) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp3" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 900)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 1000)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp1) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp1" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        dump_res = tdSql.getResult("select * from timedb1.st")
-        if origin_res == dump_res:
-            tdLog.info("test nano second : dump check data pass for all data!")
-        else:
-            tdLog.info("test nano second : dump check data failed for all data!")
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} data compare (nano second) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp1" % tool)
+            dump_res = tdSql.getResult("select * from timedb1.st")
+            if origin_res == dump_res:
+                tdLog.info(f"test nano second : {tool_name} check data pass for all data!")
+            else:
+                tdLog.info(f"test nano second : {tool_name} check data failed for all data!")
 
         # us second support test case
 
@@ -184,34 +189,38 @@ class TestTaosdumpPrecision:
         os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
         os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 510)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp2) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp2" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 510)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 900)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp3) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp3" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 900)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 1000)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp1) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp1" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        dump_res = tdSql.getResult("select * from timedb1.st")
-        if origin_res == dump_res:
-            tdLog.info("test micro second : dump check data pass for all data!")
-        else:
-            tdLog.info("test micro second : dump check data failed for all data!")
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} data compare (micro second) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp1" % tool)
+            dump_res = tdSql.getResult("select * from timedb1.st")
+            if origin_res == dump_res:
+                tdLog.info(f"test micro second : {tool_name} check data pass for all data!")
+            else:
+                tdLog.info(f"test micro second : {tool_name} check data failed for all data!")
 
         # ms second support test case
 
@@ -246,34 +255,38 @@ class TestTaosdumpPrecision:
         os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
         os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 510)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp2) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp2" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 510)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 900)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp3) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp3" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 900)
 
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 1000)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (dumptmp1) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp1" % tool)
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 1000)
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        dump_res = tdSql.getResult("select * from timedb1.st")
-        if origin_res == dump_res:
-            tdLog.info("test million second : dump check data pass for all data!")
-        else:
-            tdLog.info("test million second : dump check data failed for all data!")
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} data compare (million second) ---")
+            tdSql.execute("drop database timedb1")
+            os.system("%s -i ./taosdumptest/dumptmp1" % tool)
+            dump_res = tdSql.getResult("select * from timedb1.st")
+            if origin_res == dump_res:
+                tdLog.info(f"test million second : {tool_name} check data pass for all data!")
+            else:
+                tdLog.info(f"test million second : {tool_name} check data failed for all data!")
 
         os.system("rm -rf ./taosdumptest/")
         os.system("rm -rf ./dump_result.txt")

@@ -73,6 +73,7 @@ class TestTaosdumpNonRoot:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -86,30 +87,32 @@ class TestTaosdumpNonRoot:
 
         os.system(f"%s -D db -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
-        #        sys.exit(1)
+        # import and verify with both taosdump and taosBackup
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdSql.execute("drop database if exists db")
+            tdSql.execute("drop database if exists newdb")
+            os.system("%s -i %s -T 1 -W db=newdb" % (tool, self.tmpdir))
 
-        os.system("%s -i %s -T 1 -W db=newdb" % (binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "newdb":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "newdb":
-                found = True
-                break
+            assert found == True
 
-        assert found == True
+            tdSql.execute("use newdb")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.execute("use newdb")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
-
-        tdSql.query("show tables")
-        tdSql.checkRows(3)
+            tdSql.query("show tables")
+            tdSql.checkRows(3)
 
 
 

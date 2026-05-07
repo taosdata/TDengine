@@ -15,6 +15,15 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
 class TestTaosdumpSchemaChange:
+    def exec(self, command):
+        tdLog.info(command)
+        return os.system(command)
+
+    def backupIn(self, db, newdb, tmpdir):
+        """Import with taosBackup from taosdump avro data."""
+        taosbackup = etool.taosBackupFile()
+        self.exec(f'{taosbackup} -W "{db}={newdb}" -i {tmpdir}')
+
     def createDir(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
@@ -310,10 +319,19 @@ class TestTaosdumpSchemaChange:
         # dump out 
         self.dumpOut(db, tmpdir)
 
-        # dump in
+        # dump in with taosdump
         self.dumpIn(db, newdb, tmpdir)
 
         # check result correct
+        self.checkCorrect(db, newdb)
+
+        # dump in with taosBackup (avro compatible)
+        tdLog.info("--- taosBackup import+verify ---")
+        tdSql.execute(f"drop database if exists {newdb}")
+        # Recreate newdd with new schema so schema change detection works
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
+        self.benchmark(command)
+        self.backupIn(db, newdb, tmpdir)
         self.checkCorrect(db, newdb)
 
         #
@@ -326,10 +344,19 @@ class TestTaosdumpSchemaChange:
         # dump out specify table
         self.dumpOutSpecify(db, tmpdir)
 
-        # dump in
+        # dump in with taosdump
         self.dumpIn(db, newdb, tmpdir)
 
         # check result correct specify table
+        self.checkCorrect(db, newdb)
+
+        # dump in with taosBackup (avro compatible)
+        tdLog.info("--- taosBackup import+verify (specify) ---")
+        tdSql.execute(f"drop database if exists {newdb}")
+        # Recreate newdd with new schema so schema change detection works
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
+        self.benchmark(command)
+        self.backupIn(db, newdb, tmpdir)
         self.checkCorrect(db, newdb)
 
         # check except

@@ -1708,3 +1708,159 @@ if(${BUILD_LIBSASL})      # {
     add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
 endif()
+
+# arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
+# Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+# Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
+if(${TD_WINDOWS})
+    INIT_EXT(ext_arrow
+        INC_DIR  include
+        LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
+    )
+else()
+    INIT_EXT(ext_arrow
+        INC_DIR  include
+        LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
+    )
+endif()
+get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+# Platform-specific cmake args for the Arrow sub-build
+set(ARROW_EXTRA_CMAKE_ARGS "")
+if(NOT ${TD_WINDOWS})
+    set(_arrow_c_flags "-ffunction-sections -fdata-sections")
+    if(${TD_DARWIN})
+        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
+    else()
+        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
+    endif()
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
+        "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
+    )
+    # Debug: -Og is GCC's "optimize for debugging" level — produces accurate
+    # backtraces/watchpoints like -O0 but inlines trivial wrappers, resulting in
+    # ~50-60 % smaller code sections compared to -O0.  This is safe to use
+    # for Arrow because we only debug taosBackup itself, not Arrow internals.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_FLAGS_DEBUG:STRING=-Og -g"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-Og -g"
+    )
+    # -Os replaces the default -O3 in Release builds, shrinking Arrow's
+    # code sections by ~15-20 %.  Specified via the build-type-specific variable
+    # so it unambiguously overrides the compiler's Release default.
+    # CMAKE_INTERPROCEDURAL_OPTIMIZATION enables LTO across Arrow and its
+    # bundled deps (snappy, thrift …), letting the linker dead-strip at a finer
+    # granularity than --gc-sections alone.
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+            "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+            "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+        )
+    endif()
+else()
+    # Match the MSVC DLL CRT (/MD) used by the rest of the project
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        -DARROW_USE_STATIC_CRT:BOOL=OFF
+    )
+    # Disable ccache/sccache detection in Arrow sub-build.
+    # Strawberry Perl ships ccache.exe but it mishandles MSVC response-file
+    # /Fo output, causing .obj files to disappear silently (LNK1181).
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        -DARROW_USE_CCACHE:BOOL=OFF
+        -DARROW_USE_SCCACHE:BOOL=OFF
+    )
+    # Explicitly forward compiler/linker/make so ExternalProject_Add
+    # CMake configure step does not depend on having cl.exe in PATH.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
+        "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
+        "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
+        "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
+        "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
+    )
+    # Arrow 19.0.1 bug on MSVC: parquet/size_statistics.cc uses std::array
+    # without #include <array>.  GCC/Clang pick it up transitively via other
+    # standard headers; MSVC does not.
+    # IMPORTANT: ARROW_CXX_FLAGS_* is inside if(NOT MSVC) in Arrow's
+    # SetupCxxFlags.cmake and has NO effect on MSVC builds.  We must set
+    # CMAKE_CXX_FLAGS_* directly, repeating the MSVC platform defaults so
+    # cmake does not lose them:
+    #   Debug defaults:          /Zi /Ob0 /Od /RTC1
+    #   Release defaults:        /O2 /Ob2 /DNDEBUG  (we replace /O2 with /O1)
+    #   RelWithDebInfo defaults: /Zi /O2 /Ob1 /DNDEBUG  (replace /O2 with /O1)
+    # Additional MSVC size-reduction flags:
+    #   /FI array  = force-include <array> (fixes size_statistics.cc)
+    #   /O1        = minimize size (replaces default /O2 in Release builds)
+    #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
+    #   /Gw        = data-level COMDAT (equivalent of -fdata-sections)
+    # Arrow's bundled Thrift (TSocketPool.cpp) calls std::random_shuffle which
+    # was removed in C++17.  _HAS_AUTO_PTR_ETC=1 tells MSVC's STL to keep the
+    # removed C++17 APIs (random_shuffle, auto_ptr, etc.) available.
+    # We set CMAKE_CXX_FLAGS (base, no build-type suffix) so that Arrow's
+    # ThirdpartyToolchain forwards it to all sub-ExternalProjects (Thrift,
+    # Snappy, Boost …) via EP_CXX_FLAGS → EP_COMMON_CMAKE_ARGS.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+        "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
+        "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
+        "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
+    )
+endif()
+ExternalProject_Add(ext_arrow
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG        apache-arrow-19.0.1
+    GIT_SHALLOW    TRUE
+    # parquet-testing and arrow-testing are only used by Arrow's own unit
+    # tests.  Skipping them saves ~200 MB of clone traffic.
+    GIT_SUBMODULES  ""
+    PREFIX         "${_base}"
+    SOURCE_SUBDIR  cpp
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    CMAKE_ARGS -DCMAKE_CXX_STANDARD:STRING=17
+    CMAKE_ARGS -DARROW_BUILD_STATIC:BOOL=ON
+    CMAKE_ARGS -DARROW_BUILD_SHARED:BOOL=OFF
+    CMAKE_ARGS -DARROW_PARQUET:BOOL=ON
+    CMAKE_ARGS -DARROW_IPC:BOOL=ON
+    CMAKE_ARGS -DARROW_COMPUTE:BOOL=OFF
+    CMAKE_ARGS -DARROW_DATASET:BOOL=OFF
+    CMAKE_ARGS -DARROW_FLIGHT:BOOL=OFF
+    CMAKE_ARGS -DARROW_FILESYSTEM:BOOL=OFF
+    CMAKE_ARGS -DARROW_S3:BOOL=OFF
+    CMAKE_ARGS -DARROW_WITH_SNAPPY:BOOL=ON
+    CMAKE_ARGS -DARROW_WITH_ZLIB:BOOL=OFF
+    CMAKE_ARGS -DARROW_WITH_ZSTD:BOOL=OFF
+    CMAKE_ARGS -DARROW_WITH_LZ4:BOOL=OFF
+    CMAKE_ARGS -DARROW_WITH_BZ2:BOOL=OFF
+    CMAKE_ARGS -DARROW_BUILD_TESTS:BOOL=OFF
+    CMAKE_ARGS -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+    CMAKE_ARGS -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+    CMAKE_ARGS -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+    CMAKE_ARGS -DARROW_JEMALLOC:BOOL=OFF
+    CMAKE_ARGS -DARROW_BUILD_UTILITIES:BOOL=OFF
+    CMAKE_ARGS -DARROW_USE_GLOG:BOOL=OFF
+    CMAKE_ARGS -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
+    CMAKE_ARGS -DARROW_SIMD_LEVEL:STRING=NONE
+    CMAKE_ARGS -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+    CMAKE_ARGS ${ARROW_EXTRA_CMAKE_ARGS}
+    BUILD_COMMAND
+        # Windows/jom: multiple parallel jom child processes share the same
+        # jom.exe image on disk, triggering ERROR_SHARING_VIOLATION when one
+        # process tries to map the file while another holds it open.
+        # Serialise the Arrow sub-build to avoid this.  Linux/macOS are not
+        # affected so they keep the original level of parallelism.
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
