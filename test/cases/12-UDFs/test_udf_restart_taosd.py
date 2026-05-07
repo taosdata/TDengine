@@ -760,12 +760,19 @@ class TestUdfRestartTaosd:
             tdLog.info("test2 pass: too few rows → NULL")
 
         # ---- test 3: interval window – each window accumulates independently
-        # 30 rows @ 1s interval → three 10s windows; each should return a value
+        # 30 rows @ 1s interval → three 10s windows; each should return a value.
+        # Expected entropy per window (embed_dim=3, delay=1, 10 rows each):
+        #   window 0: sin(0*0.3)..sin(9*0.3)  → 0.543775
+        #   window 1: sin(10*0.3)..sin(19*0.3) → 0.502442
+        #   window 2: sin(20*0.3)..sin(29*0.3) → 0.502442
         tdSql.query(
             "select perm_entropy(val) from perm_t0 interval(10s)"
         )
         tdSql.checkRows(3)
-        tdLog.info("test3 pass: interval window returns 3 rows")
+        tdSql.checkData(0, 1, 0.5437753137)
+        tdSql.checkData(1, 1, 0.5024421661)
+        tdSql.checkData(2, 1, 0.5024421661)
+        tdLog.info("test3 pass: interval window returns 3 rows with correct entropy")
 
         # ---- test 4: partition by subtable via supertable query
         tdSql.query(
@@ -790,39 +797,17 @@ class TestUdfRestartTaosd:
 
     # ------------------------------------------------------------------ helpers
 
-    def _get_taosudf_rss_kb(self):
-        """Return the combined RSS (kB) of all running taosudf processes via /proc."""
-        total = 0
-        try:
-            for entry in os.listdir("/proc"):
-                if not entry.isdigit():
-                    continue
-                try:
-                    with open("/proc/%s/comm" % entry) as f:
-                        if f.read().strip() != "taosudf":
-                            continue
-                    with open("/proc/%s/status" % entry) as f:
-                        for line in f:
-                            if line.startswith("VmRSS:"):
-                                total += int(line.split()[1])
-                                break
-                except (FileNotFoundError, ValueError, PermissionError):
-                    pass
-        except OSError:
-            pass
-        return total
-
-    def test_perm_entropy_rss_leak(self):
-        """perm_entropy aggregate UDF – repeated query to exercise accumulate/finish path.
+    def test_perm_entropy_repeated(self):
+        """perm_entropy aggregate UDF – repeated queries to exercise accumulate/finish path.
 
         Runs REPEAT_ROUNDS of diverse aggregate queries (supertable partition,
-        interval window, single-table) and logs taosudf RSS across rounds.
+        interval window, single-table) to verify correctness across repeated calls.
         Memory leak detection is handled by ASAN on taosd shutdown.
 
         Tests:
         1. Register perm_entropy UDF from the build tree.
         2. Insert synthetic data into a supertable with multiple child tables.
-        3. Run REPEAT_ROUNDS of aggregate queries per round.
+        3. Run REPEAT_ROUNDS of aggregate queries and verify results are correct.
 
         Since: v3.0.0.0
 
@@ -831,7 +816,7 @@ class TestUdfRestartTaosd:
         Jira: None
 
         History:
-            - 2026-04-21 Created for perm_entropy UDF memory-leak investigation
+            - 2026-04-21 Created for perm_entropy UDF repeated-call correctness
         """
         REPEAT_ROUNDS = 5
         ROWS_PER_TABLE = 80
@@ -839,7 +824,7 @@ class TestUdfRestartTaosd:
 
         self.prepare_perm_entropy_so()
 
-        db_name = "perm_leak_%d" % random.randint(10000, 99999)
+        db_name = "perm_rpt_%d" % random.randint(10000, 99999)
         stable = "vibration"
         tdSql.execute("create database %s vgroups 2" % db_name)
         tdSql.execute("use %s" % db_name)
@@ -864,32 +849,14 @@ class TestUdfRestartTaosd:
         )
         tdLog.info("perm_entropy UDF registered from %s" % self.libperm_entropy)
 
-        queries = [
-            "select perm_entropy(val) from %s partition by tbname" % stable,
-            "select perm_entropy(val) from %s interval(10s)" % stable,
-            "select perm_entropy(val) from t0" ,
-        ]
-
-        rss_samples = []
         for r in range(REPEAT_ROUNDS):
-            rss_before = self._get_taosudf_rss_kb()
-            for sql in queries:
-                t0 = time.time()
-                tdSql.query(sql)
-                elapsed = time.time() - t0
-                tdLog.info("[round %d] rows=%d elapsed=%.3fs  %s" % (r, tdSql.getRows(), elapsed, sql))
-            time.sleep(0.5)
-            rss_after = self._get_taosudf_rss_kb()
-            rss_samples.append(rss_after)
-            tdLog.info("[round %d] taosudf RSS before=%d KB  after=%d KB" % (r, rss_before, rss_after))
-
-        if len(rss_samples) >= 2:
-            first = next((v for v in rss_samples if v > 0), 0)
-            last = rss_samples[-1]
-            tdLog.info("taosudf RSS: start=%d KB  end=%d KB  growth=%d KB (%.1f MB)"
-                       % (first, last, last - first, (last - first) / 1024.0))
-        else:
-            tdLog.info("taosudf not observed via /proc – skipping RSS log")
+            tdSql.query("select perm_entropy(val) from %s partition by tbname" % stable)
+            tdSql.checkRows(CHILD_TABLES)
+            tdSql.query("select perm_entropy(val) from %s interval(10s)" % stable)
+            assert tdSql.getRows() > 0
+            tdSql.query("select perm_entropy(val) from t0")
+            tdSql.checkRows(1)
+            tdLog.info("[round %d] all queries returned expected rows" % r)
 
         # ---- cleanup
         tdSql.execute("drop function perm_entropy")

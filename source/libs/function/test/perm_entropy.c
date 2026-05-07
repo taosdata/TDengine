@@ -189,6 +189,11 @@ DLL_EXPORT int32_t perm_entropy_finish(SUdfInterBuf *interBuf,
     double entropy = compute_perm_entropy(state->values, (int)state->values_count,
                                           state->embed_dim, state->delay);
 
+    if (isnan(entropy)) {
+        free(state->values); state->values = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
     if (resultData->buf == NULL || resultData->bufLen < (int32_t)sizeof(double)) {
         free(state->values); state->values = NULL;
         return TSDB_CODE_UDF_INVALID_BUFSIZE;
