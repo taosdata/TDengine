@@ -57,7 +57,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
 | -c/--config-file      | 指定 yaml 格式配置文件的路径 |
 | -d/--log-dir          | 指定日志输出目录，默认值为 ./log |
-| -o/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir） |
+| -o/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir），-f 已弃用 |
 | -?/--help             | 显示帮助信息并退出|
 | -V/--version          | 显示版本信息并退出，不能与其它参数混用 |
 
