@@ -1879,6 +1879,50 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
   return code;
 }
 
+typedef struct SCheckProjectionModeContext {
+  bool hasScalarExpr;
+} SCheckProjectionModeContext;
+
+static bool isAliasColumn(const SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]));
+}
+
+static bool isVectorFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsVectorFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+static bool isScanPseudoColumnFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+
+static EDealRes checkProjectionModeHasScalarExpr(SNode* pNode, void* pCtx) {
+  SCheckProjectionModeContext* ctx = (SCheckProjectionModeContext*)pCtx;
+  if (!nodesIsExprNode(pNode) || isAliasColumn(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (isVectorFunc(pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+
+  if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
+    ctx->hasScalarExpr = true;
+    return DEAL_RES_CONTINUE;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
+  if (pSelect->pProjectionList == NULL) {
+    return false;
+  }
+
+  SCheckProjectionModeContext ctx = {0};
+  nodesWalkExprs(pSelect->pProjectionList, checkProjectionModeHasScalarExpr, &ctx);
+
+  return ctx.hasScalarExpr;
+}
+
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1894,29 +1938,19 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
 
   pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
-  pWindow->indefRowsFunc = (int8_t)pSelect->hasIndefiniteRowsFunc;
+  pWindow->indefRowsFunc = (int8_t)(pSelect->hasIndefiniteRowsFunc || pSelect->hasScalarExpr);
 
-  PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL,
-                                   pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
-                                   &pWindow->pFuncs));
-
-  // Detect projection-only mode: pFuncs is NULL or contains only pseudo-column and _group_key functions
-  // (_group_key comes from HAVING tag columns that need slots for condition evaluation)
   bool projectionMode = true;
-  if (pWindow->pFuncs != NULL) {
-    SNode* pNode = NULL;
-    FOREACH(pNode, pWindow->pFuncs) {
-      if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
-        SFunctionNode* pFunc = (SFunctionNode*)pNode;
-        if (!fmIsPseudoColumnFunc(pFunc->funcId) && !fmIsGroupKeyFunc(pFunc->funcId)) {
-          projectionMode = false;
-          break;
-        }
-      }
-    }
+  if (pSelect->hasScalarExpr) {
+    projectionMode = true;
+  } else {
+    projectionMode = false;
+    PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL,
+                                    pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
+                                    &pWindow->pFuncs));
   }
 
-  if (projectionMode && pSelect->hasIndefiniteRowsFunc) {
+  if (projectionMode) {
     // When used as subquery, the outer query may prune pProjectionList to contain only
     // unnamed VALUE placeholders (e.g., SELECT count(*) FROM (subquery)). In that case,
     // use the child node's first target (primary key) as a minimal projection to ensure
@@ -1965,33 +1999,39 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
       }
     }
 
-    // Collect column references from HAVING that may not be in pProjs
-    // (e.g., HAVING col NOT in SELECT, or SELECT pruned by outer subquery).
-    if (pSelect->pHaving != NULL) {
-      SNodeList* pHavingCols = NULL;
-      PLAN_ERR_JRET(nodesCollectColumnsFromNode(pSelect->pHaving, NULL, COLLECT_COL_TYPE_ALL, &pHavingCols));
-      SNode* pColNode = NULL;
-      FOREACH(pColNode, pHavingCols) {
-        bool found = false;
-        SNode* pProjNode = NULL;
-        FOREACH(pProjNode, pWindow->pProjs) {
-          if (nodesEqualNode(pProjNode, pColNode)) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          SNode* pClone = NULL;
-          PLAN_ERR_JRET(nodesCloneNode(pColNode, &pClone));
-          PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
-        }
-      }
-      nodesDestroyList(pHavingCols);
-    }
-
     // Discard pFuncs (pseudo-cols and _group_key are now in pProjs)
     nodesDestroyList(pWindow->pFuncs);
     pWindow->pFuncs = NULL;
+
+    // Ensure columns referenced in HAVING are in pProjs BEFORE rewrite/targets
+    // creation so they go through rewriteExprsForSelect and appear in pTargets.
+    // Without this, tag columns only in HAVING (not in SELECT) cause
+    // "slot key not found" during setConditionsSlotId.
+    if (NULL != pSelect->pHaving && !havingHandledByFill) {
+      SNodeList* pCondCols = NULL;
+      PLAN_ERR_JRET(nodesCollectColumnsFromNode(pSelect->pHaving, NULL, COLLECT_COL_TYPE_ALL, &pCondCols));
+      if (pCondCols != NULL) {
+        SNode* pCondCol = NULL;
+        FOREACH(pCondCol, pCondCols) {
+          bool found = false;
+          SNode* pProjNode = NULL;
+          if (pWindow->pProjs != NULL) {
+            FOREACH(pProjNode, pWindow->pProjs) {
+              if (nodesEqualNode(pProjNode, pCondCol)) {
+                found = true;
+                break;
+              }
+            }
+          }
+          if (!found) {
+            SNode* pClone = NULL;
+            PLAN_ERR_JRET(nodesCloneNode(pCondCol, &pClone));
+            PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+          }
+        }
+        nodesDestroyList(pCondCols);
+      }
+    }
 
     PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));

@@ -384,8 +384,18 @@ class TestArithmetic:
         tdSql.checkData(9, 0, 9.500000000)
 
         # interval query [d.17]==================================================================
-        tdSql.error(f"select c2*c2, c3-c3, c4+9 from {tb} interval(1s)")
-        tdSql.error(f"select c7-c9 from {tb} interval(2y)")
+        tdSql.query(f"select c2*c2, c3-c3, c4+9 from {tb} interval(1s)")
+        tdSql.checkRows(rowNum)
+        for x in range(rowNum):
+            c = x % 10
+            tdSql.checkData(x, 0, float(c * c))
+            tdSql.checkData(x, 1, 0.0)
+            tdSql.checkData(x, 2, float(c + 9))
+
+        tdSql.query(f"select c7-c9 from {tb} interval(2y)")
+        tdSql.checkRows(rowNum)
+        for x in range(rowNum):
+            tdSql.checkData(x, 0, 1.0)
 
         # aggregation query [d.18]===============================================================
         # see test cases below
