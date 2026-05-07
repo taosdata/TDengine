@@ -803,6 +803,25 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
 
+  // FQ-DIAG: log pGroupCols on first call
+  if (pBlock->info.rows > 0) {
+    size_t _numGC = taosArrayGetSize(pInfo->pGroupCols);
+    qError("FQ-DIAG-HASHPART: rows=%d dataLoad=%d numGroupCols=%d numBlockCols=%d",
+           (int)pBlock->info.rows, (int)pBlock->info.dataLoad,
+           (int)_numGC, (int)taosArrayGetSize(pBlock->pDataBlock));
+    for (int32_t _g = 0; _g < (int)_numGC; _g++) {
+      SColumn* _pc = (SColumn*)taosArrayGet(pInfo->pGroupCols, _g);
+      qError("FQ-DIAG-HASHPART:   groupCol[%d]: slotId=%d type=%d bytes=%d",
+             _g, _pc ? _pc->slotId : -1, _pc ? _pc->type : -1, _pc ? _pc->bytes : -1);
+      if (_pc && _pc->slotId < (int32_t)taosArrayGetSize(pBlock->pDataBlock)) {
+        SColumnInfoData* _pci = taosArrayGet(pBlock->pDataBlock, _pc->slotId);
+        qError("FQ-DIAG-HASHPART:   groupCol[%d] colInfo: type=%d bytes=%d pData=%p",
+               _g, _pci ? _pci->info.type : -1, _pci ? _pci->info.bytes : -1,
+               _pci ? _pci->pData : NULL);
+      }
+    }
+  }
+
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
@@ -1175,11 +1194,18 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     return code;
   }
 
+  int32_t _totalBlocksFromDS = 0;
+  int32_t _totalRowsFromDS = 0;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
     }
+    _totalBlocksFromDS++;
+    _totalRowsFromDS += (int32_t)pBlock->info.rows;
+    qError("FQ-DIAG-PARTINPUT: block#%d rows=%d dataLoad=%d numCols=%d",
+           _totalBlocksFromDS, (int)pBlock->info.rows, (int)pBlock->info.dataLoad,
+           (int)taosArrayGetSize(pBlock->pDataBlock));
 
     pInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
@@ -1198,6 +1224,8 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     }
   }
 
+  qError("FQ-DIAG-PARTINPUT-TOTAL: totalBlocks=%d totalRows=%d", _totalBlocksFromDS, _totalRowsFromDS);
+
   SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet), sizeof(SDataGroupInfo));
   QUERY_CHECK_NULL(groupArray, code, lino, _end, terrno);
 
@@ -1213,6 +1241,15 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   pInfo->sortedGroupArray = groupArray;
   pInfo->groupIndex = -1;
   taosHashClear(pInfo->pGroupSet);
+
+  qError("FQ-DIAG-PARTGROUP: numGroups=%d numExprs=%d", (int)taosArrayGetSize(groupArray),
+         pOperator->exprSupp.numOfExprs);
+  for (int32_t _gi = 0; _gi < (int)taosArrayGetSize(groupArray); _gi++) {
+    SDataGroupInfo* _g = taosArrayGet(groupArray, _gi);
+    qError("FQ-DIAG-PARTGROUP:   group[%d]: groupId=%" PRIu64 " numOfRows=%" PRId64 " numPages=%d",
+           _gi, _g ? _g->groupId : 0, _g ? _g->numOfRows : -1,
+           _g ? (int)taosArrayGetSize(_g->pPageList) : -1);
+  }
 
   pOperator->status = OP_RES_TO_RETURN;
   code = blockDataEnsureCapacity(pRes, 4096);
@@ -1327,6 +1364,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
 
   pInfo->pGroupCols = makeColumnArrayFromList(pPartNode->pPartitionKeys);
 
+  qError("FQ-DIAG-PARTITION: tsSlotId=%d needBlockOutputTsOrder=%d", pPartNode->tsSlotId, pPartNode->needBlockOutputTsOrder);
   if (pPartNode->needBlockOutputTsOrder) {
     SBlockOrderInfo order = {.order = ORDER_ASC, .pColData = NULL, .nullFirst = false, .slotId = pPartNode->tsSlotId};
     pInfo->pOrderInfoArr = taosArrayInit(1, sizeof(SBlockOrderInfo));

@@ -6780,6 +6780,46 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   return code;
 }
 
+// ---------------------------------------------------------------------------
+// checkExtSourceJoinCond
+// External-table JOINs must use the primary timestamp column in the ON
+// condition (DS §5.3.10.3.4 Rule 7).  Non-ts-pk JOINs are rejected here
+// with TSDB_CODE_PAR_NOT_SUPPORT_JOIN (0x2664).
+//
+// Applies to all external sources and JOIN types (including PG FULL OUTER JOIN).
+// ---------------------------------------------------------------------------
+static EDealRes extJoinTsColWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (TSDB_DATA_TYPE_TIMESTAMP == ((SColumnNode*)pNode)->node.resType.type) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool extJoinOnCondHasTs(SNode* pOnCond) {
+  bool found = false;
+  nodesWalkExpr(pOnCond, extJoinTsColWalker, &found);
+  return found;
+}
+
+static int32_t checkExtSourceJoinCond(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  bool leftIsExt  = (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pLeft)  &&
+                     ((SRealTableNode*)pJoinTable->pLeft)->pExtTableNode  != NULL);
+  bool rightIsExt = (QUERY_NODE_REAL_TABLE == nodeType(pJoinTable->pRight) &&
+                     ((SRealTableNode*)pJoinTable->pRight)->pExtTableNode != NULL);
+  if (!leftIsExt && !rightIsExt) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (extJoinOnCondHasTs(pJoinTable->pOnCond)) {
+    return TSDB_CODE_SUCCESS;  // ts-pk JOIN — valid
+  }
+  // Non-ts-pk JOIN on external table.
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                  "External source JOIN requires primary timestamp column in ON condition");
+}
+
 static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
   if (pSrc == NULL) {
     *pDst = NULL;
@@ -7626,6 +7666,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SNode** pTable, bool 
   pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
   pCurrSmt->precision = pJoinTable->table.precision;
   PAR_ERR_JRET(translateExpr(pCxt, &pJoinTable->pOnCond));
+  PAR_ERR_JRET(checkExtSourceJoinCond(pCxt, pJoinTable));
   pJoinTable->hasSubQuery =
       (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) || (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
   if (nodeType(pJoinTable->pLeft) == QUERY_NODE_JOIN_TABLE) {

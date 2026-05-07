@@ -3800,16 +3800,25 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   if (pPart->needBlockOutputTsOrder) {
     SNode* node;
     bool   found = false;
-    FOREACH(node, pPartLogicNode->node.pTargets) {
-      if (nodeType(node) == QUERY_NODE_COLUMN) {
-        SColumnNode* pCol = (SColumnNode*)node;
-        if (pCol->tableId == pPartLogicNode->pkTsColTbId && pCol->colId == pPartLogicNode->pkTsColId) {
-          pPart->tsSlotId = pCol->slotId;
-          found = true;
-          break;
+    // Iterate the PHYSICAL targets (pPart->pTargets) to get correct physical slot IDs.
+    // pPartLogicNode->node.pTargets has logical slotIds (often 0) which are wrong here.
+    FOREACH(node, pPart->pTargets) {
+      if (nodeType(node) == QUERY_NODE_TARGET) {
+        STargetNode* pTgt = (STargetNode*)node;
+        if (nodeType(pTgt->pExpr) == QUERY_NODE_COLUMN) {
+          SColumnNode* pCol = (SColumnNode*)pTgt->pExpr;
+          planError("FQ-DIAG-PARTPHYSI: target colName=%s colId=%d tableId=%" PRIu64 " slotId=%d (seeking pkTsColTbId=%" PRIu64 " pkTsColId=%d)",
+                    pCol->colName, pCol->colId, pCol->tableId, pTgt->slotId,
+                    pPartLogicNode->pkTsColTbId, pPartLogicNode->pkTsColId);
+          if (pCol->tableId == pPartLogicNode->pkTsColTbId && pCol->colId == pPartLogicNode->pkTsColId) {
+            pPart->tsSlotId = pTgt->slotId;
+            found = true;
+            break;
+          }
         }
       }
     }
+    planError("FQ-DIAG-PARTPHYSI: found=%d tsSlotId=%d", found, pPart->tsSlotId);
     if (!found) code = TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 

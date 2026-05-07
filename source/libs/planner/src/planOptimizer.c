@@ -10749,13 +10749,31 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_SORT) return true;
   const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
   SNode*                pKey  = NULL;
+  planError("FQ-DIAG-SORTCHECK: pSort=%p pSortKeys=%p len=%d",
+            pSort, pSort->pSortKeys, pSort->pSortKeys ? LIST_LENGTH(pSort->pSortKeys) : -1);
   FOREACH(pKey, pSort->pSortKeys) {
     const SNode* pInner = pKey;
+    planError("FQ-DIAG-SORTCHECK-KEY: pKey nodeType=%d", nodeType(pKey));
     if (nodeType(pInner) == QUERY_NODE_ORDER_BY_EXPR) {
       pInner = ((const SOrderByExprNode*)pInner)->pExpr;
     }
-    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) return false;
+    planError("FQ-DIAG-SORTCHECK-INNER: pInner nodeType=%d colId=%d colName=%s",
+              nodeType(pInner),
+              nodeType(pInner) == QUERY_NODE_COLUMN ? ((const SColumnNode*)pInner)->colId : -99,
+              nodeType(pInner) == QUERY_NODE_COLUMN ? ((const SColumnNode*)pInner)->colName : "?");
+    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) {
+      planError("FQ-DIAG-SORTCHECK-RESULT: returning false (not a column)");
+      return false;
+    }
+    // colId==0 indicates a synthetic/precalculated column (e.g. _length_name_
+    // from ORDER BY length(name)).  These don't exist in the remote table schema
+    // and must NOT be pushed down.
+    if (((const SColumnNode*)pInner)->colId == 0) {
+      planError("FQ-DIAG-SORTCHECK-RESULT: returning false (colId==0)");
+      return false;
+    }
   }
+  planError("FQ-DIAG-SORTCHECK-RESULT: returning true");
   return true;
 }
 
@@ -10806,9 +10824,182 @@ static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
 }
 
 // Convert TDengine PARTITION BY semantics into standard SQL GROUP BY for remote.
-static int32_t fqConvertPartition(SScanLogicNode* pScan) {
-  // Phase 2: transform partition keys → GROUP BY clause
-  return TSDB_CODE_SUCCESS;
+//
+// For InfluxDB: when the query is `SELECT agg(...) FROM t PARTITION BY TBNAME`,
+// TDengine rewrites TBNAME into a partition key SFunctionNode.  The physical
+// plan's PARTITION operator resolves its partition key slot via a cast from
+// SFunctionNode → SColumnNode, reading an uninitialized (zero) slotId.  To
+// make the zero-init slotId point to a meaningful column, we prepend all
+// isTag=true columns from the external metadata to pScanCols so that the
+// first slot (slot 0) is a tag column.  The PARTITION operator then groups by
+// that tag and the downstream AGG computes the aggregate per group.
+//
+// For MySQL / PostgreSQL: PARTITION BY TBNAME has no sensible mapping (those
+// sources are not multi-measurement and have no "tbname" concept), so we
+// reject the query with TSDB_CODE_EXT_SYNTAX_UNSUPPORTED.
+
+// Helper: find a PARTITION BY TBNAME logic node in the given logic subtree.
+static SPartitionLogicNode* fqFindPartitionTbname(SLogicNode* pNode) {
+  if (pNode == NULL) return NULL;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+    SPartitionLogicNode* pPart = (SPartitionLogicNode*)pNode;
+    SNode* pKey = NULL;
+    FOREACH(pKey, pPart->pPartitionKeys) {
+      if (nodeType(pKey) == QUERY_NODE_FUNCTION &&
+          ((SFunctionNode*)pKey)->funcType == FUNCTION_TYPE_TBNAME)
+        return pPart;
+      if (nodeType(pKey) == QUERY_NODE_COLUMN &&
+          ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME)
+        return pPart;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SPartitionLogicNode* pFound = fqFindPartitionTbname((SLogicNode*)pChild);
+    if (pFound != NULL) return pFound;
+  }
+  return NULL;
+}
+
+static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
+  // Find the nearest ancestor PARTITION BY TBNAME logic node.
+  // First: walk up through pParent chain (within the same subplan).
+  // Second: if not found, search parent subplans (PARTITION and FedScan may be
+  //         in different subplans after plan splitting).
+  SLogicNode* pParentNode = pScan->node.pParent;
+  SPartitionLogicNode* pPart = NULL;
+  while (pParentNode != NULL) {
+    ENodeType pt = nodeType(pParentNode);
+    if (pt == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+      // Only handle PARTITION BY TBNAME here.  Plain PARTITION BY col (e.g.
+      // PARTITION BY host INTERVAL(1m)) is executed locally by TDengine and
+      // must NOT be rejected for MySQL/PG.
+      SPartitionLogicNode* pPartCandidate = (SPartitionLogicNode*)pParentNode;
+      bool hasTbname = false;
+      SNode* pKey = NULL;
+      FOREACH(pKey, pPartCandidate->pPartitionKeys) {
+        if ((nodeType(pKey) == QUERY_NODE_FUNCTION &&
+             ((SFunctionNode*)pKey)->funcType == FUNCTION_TYPE_TBNAME) ||
+            (nodeType(pKey) == QUERY_NODE_COLUMN &&
+             ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME)) {
+          hasTbname = true;
+          break;
+        }
+      }
+      if (hasTbname) {
+        pPart = pPartCandidate;
+        break;
+      }
+      // Non-TBNAME PARTITION: continue walking up the chain.
+      pParentNode = pParentNode->pParent;
+      continue;
+    }
+    // Only walk through single-child "passthrough" nodes
+    if (pt == QUERY_NODE_LOGIC_PLAN_AGG ||
+        pt == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+        pt == QUERY_NODE_LOGIC_PLAN_SORT) {
+      if (pParentNode->pChildren != NULL && LIST_LENGTH(pParentNode->pChildren) == 1) {
+        pParentNode = pParentNode->pParent;
+        continue;
+      }
+    }
+    break;  // non-passthrough or multi-child node
+  }
+  // If not found in local pParent chain, search parent subplans.
+  // This handles the case where PARTITION is in a parent subplan and the
+  // current subplan only contains AGG + FedScan.
+  if (pPart == NULL && pLogicSubplan != NULL) {
+    SNode* pParentSubplanNode = NULL;
+    FOREACH(pParentSubplanNode, pLogicSubplan->pParents) {
+      SLogicSubplan* pParentSubplan = (SLogicSubplan*)pParentSubplanNode;
+      if (pParentSubplan == NULL || pParentSubplan->pNode == NULL) continue;
+      SPartitionLogicNode* pFound = fqFindPartitionTbname(pParentSubplan->pNode);
+      if (pFound != NULL) {
+        pPart = pFound;
+        break;
+      }
+    }
+  }
+  planError("FQ-CONVPART: pScan=%p pPart=%p",
+            pScan, pPart);
+  if (pPart == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // pPartitionKeys were already checked in fqFindPartitionTbname or directly.
+  // Resolve the external table node.
+  if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  EExtSourceType srcType  = (EExtSourceType)pExtNode->sourceType;
+
+  // MySQL and PostgreSQL do not support PARTITION BY TBNAME.
+  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  // For InfluxDB (and future tag-aware sources): prepend isTag columns to
+  // pScanCols in reverse order so that the first tag column ends up at slot 0.
+  // The PARTITION operator reads its group key from slot 0 (zero-init from the
+  // SFunctionNode→SColumnNode cast in makeColumnArrayFromList / doSetSlotId).
+  SExtTableMeta* pMeta = pExtNode->pExtMeta;
+  if (pMeta == NULL || pMeta->pCols == NULL || pMeta->numOfCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  planError("FQ-CONVPART: pScanCols=%p length=%d srcType=%d pMeta=%p numOfCols=%d",
+            pScan->pScanCols,
+            pScan->pScanCols ? (int)pScan->pScanCols->length : -1,
+            (int)srcType, pMeta, pMeta ? pMeta->numOfCols : -1);
+  int32_t code = TSDB_CODE_SUCCESS;
+  // Iterate in reverse so that nodesListPushFront preserves original tag order
+  // (tag[0] pushed last → ends up first in the list, i.e. slot 0).
+  for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
+    if (!pMeta->pCols[i].isTag) continue;
+    const char* tagColName = pMeta->pCols[i].colName;
+
+    // Skip if this tag column is already in pScanCols.
+    bool   found    = false;
+    SNode* pExisting = NULL;
+    FOREACH(pExisting, pScan->pScanCols) {
+      if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
+          strcmp(((SColumnNode*)pExisting)->colName, tagColName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (found) continue;
+
+    // Build a minimal SColumnNode for this tag column.
+    SColumnNode* pTagCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagCol);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pTagCol->colName, tagColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTagCol->node.aliasName, tagColName, TSDB_COL_NAME_LEN);
+    pTagCol->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+    pTagCol->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+
+    // Ensure the scan column list exists.
+    if (pScan->pScanCols == NULL) {
+      code = nodesMakeList(&pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pTagCol);
+        return code;
+      }
+    }
+
+    // Push to the front so the tag ends up at the lowest slot index.
+    code = nodesListPushFront(pScan->pScanCols, (SNode*)pTagCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pTagCol);
+      return code;
+    }
+  }
+
+  // Rebuild pTargets from the updated pScanCols so the physical plan builder
+  // sees the correct column set when assigning slot descriptors.
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = NULL;
+  return createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
 }
 
 // Convert TDengine window functions (INTERVAL/SESSION/STATE) into standard SQL
@@ -10934,10 +11125,16 @@ static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
 // ─────────────────────────────────────────────────────────────────────────────
 static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  planError("FQ-DIAG-INJECT-ENTRY: pExtNode=%p pExtMeta=%p tsPrimaryColIdx=%d",
+            pExtNode, pExtNode ? pExtNode->pExtMeta : NULL,
+            pExtNode ? pExtNode->tsPrimaryColIdx : -99);
   if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
       pExtNode->tsPrimaryColIdx < 0 ||
       pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
     // No pk info available — skip silently; local Sort will handle ordering if needed.
+    planError("FQ-DIAG-INJECT-SKIP: pExtNode=%p pExtMeta=%p tsPrimaryColIdx=%d",
+              pExtNode, pExtNode ? pExtNode->pExtMeta : NULL,
+              pExtNode ? pExtNode->tsPrimaryColIdx : -99);
     return TSDB_CODE_SUCCESS;
   }
   const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
@@ -11009,7 +11206,9 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
     pSortLogic->node.pParent = pBottom;
   }
 
-  planDebug("FqPushdown: injected default ORDER BY \"%s\" ASC into pRemoteLogicPlan", pkColName);
+  planError("FQ-DIAG-INJECT: injected ORDER BY \"%s\" ASC pRemoteLogicPlan=%p pSortKeys len=%d",
+            pkColName, pScan->pRemoteLogicPlan,
+            (pScan->pRemoteLogicPlan ? LIST_LENGTH(((SSortLogicNode*)pScan->pRemoteLogicPlan)->pSortKeys) : -1));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -11026,15 +11225,17 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
+  planError("FQ-DIAG-OPTIMIZE: fqPushdownOptimize called, pScan=%p", pScan);
   if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;
   }
+  planError("FQ-DIAG-OPTIMIZE: pScan found, pExtTableNode=%p", pScan->pExtTableNode);
 
   // ── Phase 2 stubs (no-ops until implemented) ──
   int32_t code = TSDB_CODE_SUCCESS;
   code = fqHarvestConditions(pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
-  code = fqConvertPartition(pScan);
+  code = fqConvertPartition(pScan, pLogicSubplan);
   if (TSDB_CODE_SUCCESS != code) return code;
   code = fqConvertWindow(pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -11049,12 +11250,34 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   bool        hasSortInChain = false;
   SLogicNode* pParent        = pScan->node.pParent;
+  taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
+               "fqPushdown: pScan=%p parentType=%d",
+               pScan, pParent ? (int)nodeType(pParent) : -1);
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
          fqProjectIsPushdownable(pParent) &&
          fqSortAllKeysPushdownable(pParent) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
+    taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
+                 "fqPushdown: adding nodeType=%d", (int)nodeType(pParent));
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
       hasSortInChain = true;
+      // Extra safety: verify sort keys are all simple column refs
+      SSortLogicNode* _pS = (SSortLogicNode*)pParent;
+      SNode* _pK = NULL;
+      FOREACH(_pK, _pS->pSortKeys) {
+        const SNode* _pI = _pK;
+        if (nodeType(_pI) == QUERY_NODE_ORDER_BY_EXPR)
+          _pI = ((const SOrderByExprNode*)_pI)->pExpr;
+        taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
+                     "fqPushdown: sortkey nodeType=%d", _pI ? (int)nodeType(_pI) : -1);
+        if (_pI == NULL || nodeType(_pI) != QUERY_NODE_COLUMN ||
+            ((const SColumnNode*)_pI)->colId == 0) {
+          // Non-renderable sort key — bail out of while loop entirely
+          taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
+                       "fqPushdown: non-renderable sort key, breaking chain");
+          goto _chain_done;
+        }
+      }
     }
     if (NULL == taosArrayPush(pChain, &pParent)) {
       code = terrno;
@@ -11062,6 +11285,11 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     }
     pParent = pParent->pParent;
   }
+_chain_done:
+  taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
+               "fqPushdown: chain done size=%d hasSortInChain=%d stopType=%d",
+               (int)taosArrayGetSize(pChain), hasSortInChain,
+               pParent ? (int)nodeType(pParent) : -1);
   // After the loop, pParent == the first non-pushdownable ancestor (or NULL).
   // This is the node that pScan->node.pParent will point to after replaceLogicNode.
 
@@ -11148,8 +11376,18 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // for correct local processing (e.g. csum depends on input row order).
   // Phase 2 aggregate-pushdown will need to revisit this logic.
   if (!hasSortInChain) {
-    code = fqInjectPkOrderBy(pScan);
-    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    // Do not inject a remote pk ORDER BY when the immediate parent is a
+    // (non-pushdownable) Sort: that Sort will re-sort all output locally,
+    // making a remote ORDER BY redundant.  Injecting it also adds ts to
+    // pScanCols, conflicting with the slot reserved for the Sort's precalc
+    // expressions (e.g. ORDER BY length(name)) in the FedScan output block,
+    // causing TIMESTAMP data to be written to an INT-typed precalc slot.
+    bool parentIsLocalSort = (pScan->node.pParent != NULL &&
+                              nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_SORT);
+    if (!parentIsLocalSort) {
+      code = fqInjectPkOrderBy(pScan);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
 
     // ── Fix pScan output columns for the empty-chain case ──
     // When a non-pushdownable node (e.g. DYN_QUERY_CTRL for IN subquery) sits
@@ -11161,9 +11399,16 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     //      in that order — so the remote SQL SELECT produces columns in the right
     //      position for the block, and ts can be a reserve slot for the local Sort.
     // Find the SELECT column list from the nearest ancestor Sort or Project.
-    if (taosArrayGetSize(pChain) == 0) {
+    //
+    // IMPORTANT: Skip this adjustment when parentIsLocalSort=true.  In that
+    // case the local Sort computes scalar expressions (e.g. length(name)) on
+    // FedScan output columns, and the original pScanCols already includes the
+    // necessary slots for those scalar results.  Overwriting pScanCols here
+    // would strip those slots, causing the Sort's scalar function to silently
+    // write to a non-existent column (resulting in wrong sort order).
+    if (taosArrayGetSize(pChain) == 0 && !parentIsLocalSort) {
       SLogicNode* pOutputSpec = NULL;
-      bool        hasAggBetween = false;
+      bool        hasAggBetween  = false;
       bool        hasJoinBetween = false;
       for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
            pAnc != NULL; pAnc = pAnc->pParent) {
@@ -11177,10 +11422,10 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
             at == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || at == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
           hasAggBetween = true;
         }
-        // Track whether a JOIN sits between Scan and the candidate.
+        // Track whether a JOIN sits between the scan and the candidate Sort/Project.
         // A JOIN's pTargets contain columns from BOTH tables; using them to
         // overwrite pScanCols for one scan leg would include the other table's
-        // columns, causing slot-key-not-found in createMergeJoinPhysiNode.
+        // columns, causing 0x2704 slot-key-not-found in createMergeJoinPhysiNode.
         if (at == QUERY_NODE_LOGIC_PLAN_JOIN) {
           hasJoinBetween = true;
         }

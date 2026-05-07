@@ -4847,7 +4847,18 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     cfg.port =                      pSrcInfo->port;
     tstrncpy(cfg.user,              pSrcInfo->user, TSDB_EXT_SOURCE_USER_LEN);
     tstrncpy(cfg.password,          pSrcInfo->password, TSDB_EXT_SOURCE_PASSWORD_LEN);
-    tstrncpy(cfg.default_database,  pSrcInfo->database, TSDB_EXT_SOURCE_DATABASE_LEN);
+    // For connectors that require per-database connections (e.g. PostgreSQL):
+    //   4-segment path  src.db.schema.table  → rawMidSegs[0]=db, rawMidSegs[1]=schema
+    //                   Use rawMidSegs[0] as the connection database.
+    //   3-segment path  src.schema.table     → rawMidSegs[0]=schema, rawMidSegs[1]=""
+    //   2-segment path  src.table            → rawMidSegs[0]="",     rawMidSegs[1]=""
+    //                   Both: use the source's configured database (pSrcInfo->database).
+    if (pReq->rawMidSegs[1][0] != '\0') {
+      // 4-segment: rawMidSegs[0] is the explicit database name
+      tstrncpy(cfg.default_database, pReq->rawMidSegs[0], TSDB_EXT_SOURCE_DATABASE_LEN);
+    } else {
+      tstrncpy(cfg.default_database, pSrcInfo->database, TSDB_EXT_SOURCE_DATABASE_LEN);
+    }
     tstrncpy(cfg.default_schema,    pSrcInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
     tstrncpy(cfg.options,           pSrcInfo->options, sizeof(cfg.options));
     cfg.meta_version =              pSrcInfo->meta_version;
@@ -4872,6 +4883,13 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     tstrncpy(tblNode.sourceName, pReq->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     if (pReq->rawMidSegs[0][0] != '\0') {
       tstrncpy(tblNode.table.dbName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
+    } else if (cfg.default_database[0] != '\0') {
+      // 2-segment path (src.table): propagate the effective database so that
+      // provider getTableSchema can filter by TABLE_SCHEMA correctly.
+      // Without this, e.g. MySQL's mysqlGetTableSchema has no TABLE_SCHEMA filter
+      // and may match system tables (e.g. performance_schema.users) that share
+      // the same table name.
+      tstrncpy(tblNode.table.dbName, cfg.default_database, TSDB_DB_NAME_LEN);
     }
     if (pReq->rawMidSegs[1][0] != '\0') {
       tstrncpy(tblNode.schemaName, pReq->rawMidSegs[1], TSDB_DB_NAME_LEN);

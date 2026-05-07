@@ -946,6 +946,10 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
       qWarn("%s at line %d.block start ts:%" PRId64 ",end ts:%" PRId64, __func__, __LINE__, tsCols[0],
             tsCols[pBlock->info.rows - 1]);
     }
+    qError("FQ-DIAG-INTERVAL-TS: rows=%d groupId=%" PRIu64 " ts[0]=%" PRId64 " ts[last]=%" PRId64,
+           (int)pBlock->info.rows, pBlock->info.id.groupId,
+           pBlock->info.rows > 0 ? tsCols[0] : (int64_t)-1,
+           pBlock->info.rows > 1 ? tsCols[pBlock->info.rows - 1] : (int64_t)-1);
 
     if (tsCols[0] != 0 && (pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0)) {
       int32_t code = blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
@@ -1000,6 +1004,9 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   code = initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->binfo.outputTsOrder);
   QUERY_CHECK_CODE(code, lino, _end);
   pInfo->cleanGroupResInfo = true;
+
+  qError("FQ-DIAG-INTERVAL-DONE: resultHashTable size=%d",
+         tSimpleHashGetSize(pInfo->aggSup.pResultRowHashTable));
 
   OPTR_SET_OPENED(pOperator);
 
@@ -1646,6 +1653,9 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   pSup->hasWindow = true;
 
   pInfo->primaryTsIndex = ((SColumnNode*)pPhyNode->window.pTspk)->slotId;
+  qError("FQ-DIAG-INTERVAL: primaryTsIndex=%d pTspk.colName=%s pTspk.resType=%d",
+         pInfo->primaryTsIndex, ((SColumnNode*)pPhyNode->window.pTspk)->colName,
+         ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.type);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 512);

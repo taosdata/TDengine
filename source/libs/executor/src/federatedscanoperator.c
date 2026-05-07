@@ -164,6 +164,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
         QUERY_CHECK_CODE(code, lino, _return);
       }
       qDebug("FederatedScan: remote SQL: %.512s", remoteSql ? remoteSql : "(null)");
+      qError("FQ-DIAG FederatedScan remoteSql=[%s] source=%s", remoteSql ? remoteSql : "(null)", cfg.source_name);
     }
 
     // 1.4 Issue query — pass pre-computed SQL so the Connector doesn't
@@ -223,30 +224,42 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     pInfo->fetchedRows += pBlock->info.rows;
     pInfo->fetchBlockCount++;
 
-    // If the DataBlockDesc contains reserved slots beyond the MySQL columns (e.g. a
-    // constant separator for group_concat pushed down from the parent Agg's scalar
-    // exprSupp), extend the block with pre-allocated placeholder columns for those
-    // slots.  The parent operator's projectApplyFunctions() will write the computed
-    // values into these columns before running aggregate functions on them.
+    // Mark block as data-loaded so that downstream operators (e.g.
+    // partition/groupby) process all rows rather than treating them as
+    // "not-loaded" blocks (which only process the first row then break).
+    pBlock->info.dataLoad = 1;
+
+    // If the DataBlockDesc contains more slots than the remote query returned
+    // (e.g. reserved constant-separator slots for group_concat, or extra precalc
+    // slots added by pushdownDataBlockSlots for local Sort), expand the block
+    // with pre-allocated placeholder columns.
+    //
+    // When something was pushed to the remote plan (Sort/Project wrapper), the
+    // desc already matches the remote output — skip expansion.  Only expand when
+    // pRemotePlan is the leaf FedScan node itself (nothing pushed).
     {
-      SDataBlockDescNode* pDesc      = pInfo->pFedScanNode->node.pOutputDataBlockDesc;
-      int32_t             totalSlots = LIST_LENGTH(pDesc->pSlots);
-      int32_t             curCols    = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
-      if (curCols < totalSlots) {
+      bool remoteIsPushed = (pInfo->pFedScanNode->pRemotePlan != NULL &&
+                             nodeType(pInfo->pFedScanNode->pRemotePlan) != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+      SDataBlockDescNode* pDesc = pInfo->pFedScanNode->node.pOutputDataBlockDesc;
+      int32_t numDescSlots = (pDesc != NULL) ? (int32_t)LIST_LENGTH(pDesc->pSlots) : 0;
+      int32_t numBlockCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+      qError("FqExec EXPAND: remoteIsPushed=%d numDescSlots=%d numBlockCols=%d",
+             (int)remoteIsPushed, numDescSlots, numBlockCols);
+      if (!remoteIsPushed && numDescSlots > numBlockCols) {
         SNode*  pSlotNode = NULL;
-        int32_t si        = 0;
+        int32_t slotIdx   = 0;
         FOREACH(pSlotNode, pDesc->pSlots) {
-          if (si >= curCols) {
+          if (slotIdx >= numBlockCols) {
             SSlotDescNode*  pSlot = (SSlotDescNode*)pSlotNode;
             SColumnInfoData col   = {0};
             col.info.type         = pSlot->dataType.type;
             col.info.bytes        = pSlot->dataType.bytes;
             col.info.precision    = pSlot->dataType.precision;
             col.info.scale        = pSlot->dataType.scale;
-            // Pre-allocate memory so projectApplyFunctions can write into the column
-            // even when blockDataEnsureCapacity is a no-op (capacity already sufficient).
+            // Pre-allocate memory so projectApplyFunctions / Sort can write
+            // into the column.  Zero-initialized (clearPayload=true).
             if (pBlock->info.rows > 0) {
-              code = colInfoDataEnsureCapacity(&col, pBlock->info.rows, false);
+              code = colInfoDataEnsureCapacity(&col, pBlock->info.rows, true);
               if (code != TSDB_CODE_SUCCESS) {
                 colDataDestroy(&col);
                 QUERY_CHECK_CODE(code, lino, _return);
@@ -259,7 +272,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
               QUERY_CHECK_CODE(code, lino, _return);
             }
           }
-          si++;
+          slotIdx++;
         }
       }
     }
@@ -457,16 +470,19 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
     }
   }
 
-  // When pRemotePlan exists, the remote query returns fewer columns than pScanCols.
-  // Rebuild pOutputDataBlockDesc to match the actual output (pColTypeMappings) so
-  // the data dispatcher's schema validation passes.
+  // When a Sort or Project was pushed to the remote plan, the remote query returns
+  // fewer columns than pScanCols.  Rebuild pOutputDataBlockDesc to match the actual
+  // output (pColTypeMappings) so the data dispatcher's schema validation passes.
+  // Do NOT rebuild when pRemotePlan is just the leaf FedScan node (nothing pushed):
+  // in that case pOutputDataBlockDesc includes extra precalc slots (e.g. _length_name_)
+  // added by pushdownDataBlockSlots, which must be preserved for the local Sort.
   //
   // Reserved slots (e.g. a constant separator pushed down from an Agg's scalar
   // exprSupp for group_concat) must be preserved at the end of the DataBlockDesc
-  // so that the parent operator can write computed values into them.  The FedScan
-  // block is extended with placeholder columns for these reserved slots in
-  // federatedScanGetNext() after each extConnectorFetchBlock() call.
-  if (pFedScanNode->pRemotePlan != NULL && pFedScanNode->numColTypeMappings > 0) {
+  // so that the parent operator can write computed values into them.
+  bool remotePlanIsPushed = (pFedScanNode->pRemotePlan != NULL &&
+                             nodeType(pFedScanNode->pRemotePlan) != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  if (remotePlanIsPushed && pFedScanNode->numColTypeMappings > 0) {
     SDataBlockDescNode* pDesc = pFedScanNode->node.pOutputDataBlockDesc;
     if (pDesc != NULL && LIST_LENGTH(pDesc->pSlots) != pFedScanNode->numColTypeMappings) {
       // Save reserved slots (struct copy — SSlotDescNode has no owned pointers)
