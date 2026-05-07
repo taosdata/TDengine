@@ -125,7 +125,7 @@ typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
 typedef int32_t (*SdbUpgradeFp)(SMnode *pMnode, int32_t version);
-typedef int32_t (*SdbIsUpgradedFp)(SMnode *pMnode);
+typedef bool (*SdbIsUpgradedFp)(SMnode *pMnode);
 
 typedef enum {
   SDB_KEY_BINARY = 1,

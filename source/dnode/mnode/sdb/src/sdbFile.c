@@ -835,7 +835,7 @@ bool sdbIsUpgraded(SSdb *pSdb) {
     mInfo("start to check if sdb:%s is upgraded", sdbTableName(i));
     bool isUpgraded = (*fp)(pSdb->pMnode);
     if (isUpgraded == false) {
-      mError("failed to check if sdb:%s is upgraded since %s", sdbTableName(i));
+      mInfo("sdb:%s is not upgraded yet", sdbTableName(i));
       return false;
     }
   }

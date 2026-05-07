@@ -126,6 +126,7 @@ static void mndPullupTrans(SMnode *pMnode) {
 static void mndPullupUpgradeSdb(SMnode *pMnode) {
   if (sdbIsUpgraded(pMnode->pSdb)) {
     pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
+    return;
   }
 
   if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION && mndIsLeader(pMnode)) {
@@ -994,9 +995,7 @@ int32_t mndStart(SMnode *pMnode) {
 
   if (sdbIsUpgraded(pMnode->pSdb)) {
     pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
-  }
-
-  if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION) {
+  } else if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION) {
     if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
       mError("failed to upgrade sdb while start mnode");
       return -1;

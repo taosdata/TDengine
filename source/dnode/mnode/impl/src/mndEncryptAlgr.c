@@ -14,6 +14,7 @@
  */
 
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
+#define MND_ENCRYPT_ALGR_LAST_ID    6
 
 #include "audit.h"
 #include "mndEncryptAlgr.h"
@@ -377,7 +378,7 @@ static int32_t mndUpgradeBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
 }
 
 static bool mndIsUpgradedBuiltinEncryptAlgr(SMnode *pMnode) {
-  SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, 6);
+  SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, MND_ENCRYPT_ALGR_LAST_ID);
   if (obj != NULL) {
     mndReleaseEncryptAlgr(pMnode, obj);
     return true;
