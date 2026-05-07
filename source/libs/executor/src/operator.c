@@ -857,13 +857,16 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
     /*
       When there is no data returned, keep execFirstRow and execLastRow as 0.
     */
-    pExplainInfo->execFirstRow = operatorInfo->cost.execFirstRow - operatorInfo->cost.execCreate;
-    pExplainInfo->execLastRow = operatorInfo->cost.execLastRow - operatorInfo->cost.execCreate;
+    int64_t firstRowDiff = operatorInfo->cost.execFirstRow - operatorInfo->cost.execCreate;
+    int64_t lastRowDiff = operatorInfo->cost.execLastRow - operatorInfo->cost.execCreate;
+    pExplainInfo->execFirstRow = firstRowDiff > 0 ? firstRowDiff : 0;
+    pExplainInfo->execLastRow = lastRowDiff > 0 ? lastRowDiff : 0;
   }
 
   pExplainInfo->execTimes = operatorInfo->cost.execTimes;
   if (operatorInfo->cost.execTimes > 0) {
-    pExplainInfo->execStart = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
+    int64_t startDiff = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
+    pExplainInfo->execStart = startDiff > 0 ? startDiff : 0;
     pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
     pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
     pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
