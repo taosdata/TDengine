@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <mutex>
 #include <thread>
 
 #include "catalog.h"
@@ -63,11 +64,23 @@ void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
+static void initKeywordsTableOnce() {
+  static once_flag once;
+  call_once(once, []() {
+    int32_t code = qInitKeywordsTable();
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
+  });
+}
+
+// Dummy catalog object for parser tests. Never dereferenced; only checked for NULL.
+static struct {
+  char dummy;  // minimal non-empty struct to avoid UB
+} g_dummyCatalog = {0};
+
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
-    int32_t code = qInitKeywordsTable();
-    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
+    initKeywordsTableOnce();
     caseEnv_.numOfSkipSql_ = g_skipSql;
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
@@ -226,12 +239,14 @@ class ParserTestBaseImpl {
     pCxt->isSuperUser = caseEnv_.user_ == "root";
     pCxt->enableSysInfo = true;
     pCxt->privInfo = UINT16_MAX;
+    pCxt->macMode = 0;
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
     pCxt->msgLen = stmtEnv_.msgBuf_.max_size();
     pCxt->async = async;
     pCxt->svrVer = "3.0.0.0";
+    pCxt->pCatalog = (SCatalog*)&g_dummyCatalog;  // non-NULL dummy catalog for privilege checks
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {

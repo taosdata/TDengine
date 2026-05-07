@@ -167,6 +167,7 @@ int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 bool    tsForceKillTrans = false;
+int8_t  tsSodEnforceMode = 0;
 
 // arbitrator
 int32_t tsArbHeartBeatIntervalSec = 2;
@@ -247,7 +248,11 @@ int32_t tsAuditInterval = 5000;
 int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+#ifdef TD_ENABLE_ADVANCED_SECURITY
+bool tsAuditSaveInSelf = true;
+#else
 bool    tsAuditSaveInSelf = false;
+#endif
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;

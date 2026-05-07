@@ -35,6 +35,7 @@
 #include "storageapi.h"
 #include "tcompare.h"
 #include "thash.h"
+#include "tref.h"
 #include "trpc.h"
 #include "ttypes.h"
 // RPC timeout for virtual table reference validation (5 seconds)
@@ -79,6 +80,8 @@ typedef struct SSysTableScanInfo {
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
+  int64_t                self;     // ref ID in sysTableScanRefPool (for callback safety)
+  int32_t                rspCode;  // error code set by the RPC callback
   SReadHandle            readHandle;
   const char*            pUser;
   int32_t                accountId;
@@ -89,14 +92,16 @@ typedef struct SSysTableScanInfo {
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved1 : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode : 1;      // 1 = MAC mandatory
+      uint16_t reserved1 : 3;
     };
   };
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -121,6 +126,29 @@ typedef struct SSysTableScanInfo {
   // for virtual supertable scan
   STableListInfo* pSubTableListInfo;
 } SSysTableScanInfo;
+
+// Lightweight wrapper passed as RPC callback param; stores only the ref ID so
+// the callback can safely acquire the SSysTableScanInfo from the ref pool.
+typedef struct SSysTableScanCbParam {
+  int64_t sysTableScanId;
+} SSysTableScanCbParam;
+
+// Per-file ref pool used to decouple the callback lifetime from the operator
+// lifetime, following the same pattern as fetchObjRefPool in exchangeoperator.c.
+static int32_t      sysTableScanRefPool = -1;
+static TdThreadOnce sysTableScanRefPoolOnce = PTHREAD_ONCE_INIT;
+
+static void doDestroySysTableScanInfo(void* param);
+
+static void cleanupSysTableScanRefPool(void) {
+  int32_t ref = atomic_val_compare_exchange_32(&sysTableScanRefPool, sysTableScanRefPool, 0);
+  taosCloseRef(ref);
+}
+
+static void initSysTableScanRefPool(void) {
+  sysTableScanRefPool = taosOpenRef(64, doDestroySysTableScanInfo);
+  (void)atexit(cleanupSysTableScanRefPool);
+}
 
 typedef struct {
   const char* name;
@@ -156,6 +184,13 @@ static int32_t sysChkFilter__Ttl(SNode* pNode);
 static int32_t sysChkFilter__STableName(SNode* pNode);
 static int32_t sysChkFilter__Uid(SNode* pNode);
 static int32_t sysChkFilter__Type(SNode* pNode);
+
+static FORCE_INLINE bool sysTableMacVisible(const SSysTableScanInfo* pInfo, int32_t tableType, int32_t secLevel,
+                                            int32_t dbSecLevel) {
+  if (pInfo == NULL || !pInfo->macMode || pInfo->maxSecLevel >= TSDB_MAX_SECURITY_LEVEL) return true;
+  int32_t level = (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? dbSecLevel : secLevel;
+  return level <= 0 || pInfo->maxSecLevel >= level;
+}
 
 static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result);
 static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result);
@@ -3551,7 +3586,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     QUERY_CHECK_CODE(code, lino, _end);
 
     STR_TO_VARSTR(n, "NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
@@ -3588,7 +3622,6 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
     colDataSetNULL(pColInfoData, rowIndex);
 
     STR_TO_VARSTR(n, "VIRTUAL_NORMAL_TABLE");
-    // impl later
   } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     // create time
     int64_t ts = pMReader->me.ctbEntry.btime;
@@ -3794,6 +3827,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   const char* db = NULL;
   int32_t     vgId = 0;
+  int32_t     dbSecLevel = pAPI->metaFn.getSecurityLevel(pInfo->readHandle.vnode);
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, &vgId, NULL, NULL);
 
   SName sn = {0};
@@ -3865,6 +3899,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -3910,6 +3949,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      // MAC visibility check before writing any column data for this row
+      if (!sysTableMacVisible(pInfo, tableType, 0, dbSecLevel)) {
+        continue;
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -4016,6 +4060,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       }
 
       if (isTsmaResSTb(mr.me.name)) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        continue;
+      }
+
+      if (!sysTableMacVisible(pInfo, tableType, mr.me.stbEntry.securityLevel, dbSecLevel)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
       }
@@ -4899,7 +4948,22 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
                                                                               : TDMT_MND_SYSTABLE_RETRIEVE;
 
-    pMsgSendInfo->param = pOperator;
+    // Allocate a lightweight wrapper that holds only the ref ID; the callback
+    // frees it via paramFreeFp = taosAutoMemoryFree after the callback returns.
+    SSysTableScanCbParam* pWrapper = taosMemoryCalloc(1, sizeof(SSysTableScanCbParam));
+    if (!pWrapper) {
+      pTaskInfo->code = terrno;
+      taosMemoryFree(buf1);
+      taosMemoryFree(pMsgSendInfo);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+    pWrapper->sysTableScanId = pInfo->self;
+
+    // reset rspCode from the previous iteration
+    pInfo->rspCode = 0;
+
+    pMsgSendInfo->param = pWrapper;
+    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = buf1;
     pMsgSendInfo->msgInfo.len = contLen;
     pMsgSendInfo->msgType = msgType;
@@ -4913,16 +4977,19 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    code = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS);
+    // Block this worker thread until the response arrives.  qSemWait notifies
+    // the worker pool and waits, then re-acquires on wake-up.
+    code = qSemWait((qTaskInfo_t)pTaskInfo, &pInfo->ready);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      qError("%s tsem_wait failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    if (pTaskInfo->code) {
+    if (pInfo->rspCode != TSDB_CODE_SUCCESS) {
       qError("%s load meta data from mnode failed, totalRows:%" PRIu64 ", code:%s", GET_TASKID(pTaskInfo),
-             pInfo->loadInfo.totalRows, tstrerror(pTaskInfo->code));
+             pInfo->loadInfo.totalRows, tstrerror(pInfo->rspCode));
+      pTaskInfo->code = pInfo->rspCode;
       return NULL;
     }
 
@@ -5106,6 +5173,17 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     }
     pInfo->epSet = pScanPhyNode->mgmtEpSet;
     pInfo->readHandle = *(SReadHandle*)readHandle;
+
+    // Register pInfo in the per-file ref pool so that loadSysTableCallback can
+    // safely acquire/release it even after the operator has been destroyed.
+    (void)taosThreadOnce(&sysTableScanRefPoolOnce, initSysTableScanRefPool);
+    int64_t refId = taosAddRef(sysTableScanRefPool, pInfo);
+    if (refId < 0) {
+      qError("%s failed to add ref for sysTableScan since %s", GET_TASKID(pTaskInfo), tstrerror(terrno));
+      code = terrno;
+      goto _error;
+    }
+    pInfo->self = refId;
   }
 
   pInfo->pSubTableListInfo = pTableListInfo;
@@ -5155,7 +5233,13 @@ void extractTbnameSlotId(SSysTableScanInfo* pInfo, const SScanPhysiNode* pScanNo
   }
 }
 
-void destroySysScanOperator(void* param) {
+// doDestroySysTableScanInfo: actual teardown for SSysTableScanInfo.
+// For operators that use the ref pool (MNode path, self > 0), this function
+// is the pool destructor invoked automatically when the last ref is dropped
+// via taosRemoveRef / taosReleaseRef — do NOT call it directly on those.
+// For local-scan operators (self == 0), destroySysScanOperator calls it
+// directly since there is no ref pool involved.
+static void doDestroySysTableScanInfo(void* param) {
   SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
   int32_t            code = tsem_destroy(&pInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5203,28 +5287,73 @@ void destroySysScanOperator(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
-  SOperatorInfo*     operator=(SOperatorInfo*) param;
-  SSysTableScanInfo* pScanResInfo = (SSysTableScanInfo*)operator->info;
-  if (TSDB_CODE_SUCCESS == code) {
-    pScanResInfo->pRsp = pMsg->pData;
+// destroySysScanOperator: operator destroy callback.  For operators that use
+// the ref pool (MNode path), we just remove our reference — actual cleanup
+// happens inside doDestroySysTableScanInfo when all refs are released.  For
+// local-scan operators (no ref pool entry), do the teardown inline.
+static void destroySysScanOperator(void* param) {
+  SSysTableScanInfo* pInfo = (SSysTableScanInfo*)param;
+  if (pInfo->self > 0) {
+    // MNode path: remove the operator's own ref; the pool calls
+    // doDestroySysTableScanInfo when all refs (operator + any in-flight
+    // callbacks) are dropped.
+    int32_t refCode = taosRemoveRef(sysTableScanRefPool, pInfo->self);
+    if (refCode != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
+    }
+  } else {
+    // Local scan path: no ref pool — destroy directly.
+    doDestroySysTableScanInfo(pInfo);
+  }
+}
 
-    SRetrieveMetaTableRsp* pRsp = pScanResInfo->pRsp;
+static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
+  SSysTableScanCbParam* pWrapper = (SSysTableScanCbParam*)param;
+
+  // Acquire the SSysTableScanInfo from the ref pool.  If it returns NULL the
+  // operator has already been destroyed — discard the response safely.
+  SSysTableScanInfo* pInfo = (SSysTableScanInfo*)taosAcquireRef(sysTableScanRefPool, pWrapper->sysTableScanId);
+  if (pInfo == NULL) {
+    // Operator is gone; free the response payload and bail out.
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pInfo->pRsp = pMsg->pData;
+
+    SRetrieveMetaTableRsp* pRsp = pInfo->pRsp;
     pRsp->numOfRows = htonl(pRsp->numOfRows);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->handle = htobe64(pRsp->handle);
     pRsp->compLen = htonl(pRsp->compLen);
   } else {
-    operator->pTaskInfo->code = rpcCvtErrCode(code);
-    if (operator->pTaskInfo->code != code) {
-      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code),
-             tstrerror(operator->pTaskInfo->code));
+    int32_t cvtCode = rpcCvtErrCode(code);
+    if (cvtCode != code) {
+      qError("load systable rsp received, error:%s, cvted error:%s", tstrerror(code), tstrerror(cvtCode));
     } else {
       qError("load systable rsp received, error:%s", tstrerror(code));
     }
+    pInfo->rspCode = cvtCode;
+    taosMemoryFree(pMsg->pData);
+  }
+  taosMemoryFree(pMsg->pEpSet);
+
+  // Release our acquired ref BEFORE posting the semaphore.
+  // If we post first, the waiter can race ahead: task completes → taosRemoveRef
+  // drops the count to 1, then doDestroyTask frees the task memory pool (which
+  // owns pInfo).  Our subsequent taosReleaseRef would then drop the count to 0
+  // and call doDestroySysTableScanInfo on already-freed memory.
+  // By releasing first (count 2→1, destructor not triggered), pInfo remains
+  // valid for the tsem_post call below, and doDestroySysTableScanInfo is
+  // called only later, inside destroySysScanOperator, when pInfo is still live.
+  int32_t refCode = taosReleaseRef(sysTableScanRefPool, pWrapper->sysTableScanId);
+  if (refCode != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(refCode));
   }
 
-  int32_t res = tsem_post(&pScanResInfo->ready);
+  int32_t res = tsem_post(&pInfo->ready);
   if (res != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(res));
   }

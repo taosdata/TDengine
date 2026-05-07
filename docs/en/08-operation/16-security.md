@@ -2,7 +2,7 @@
 title: Advanced Security Options
 ---
 
-import Enterprise from '../assets/resources/_enterprise.mdx';
+import { Enterprise } from '../assets/resources/_resources.mdx';
 
 <Enterprise/>
 

@@ -55,6 +55,7 @@ typedef struct STranslateContext {
   bool             skipCheck;
   bool             refTable;
   bool             isCurrOpIn;
+  ENodeType        origStmtType;
   SParseStreamInfo streamInfo;
 } STranslateContext;
 
@@ -64,6 +65,11 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, S
 int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput);
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView);
+
+#ifdef TD_ENTERPRISE
+int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect);
+int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect);
+#endif
 
 #ifdef __cplusplus
 }
