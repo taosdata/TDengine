@@ -820,7 +820,7 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
       }
       if (!first) dynSQLAppendStr(&s, ", ");
       const char* colName = resolveExtColName(pParts->pExtTable->pExtMeta,
-                                              ((const SColumnNode*)pExpr)->colName);
+                                              ((const SColumnNode*)pCol)->colName);
       dynAppendQuotedId(&s, colName, dialect);
       first = false;
     }
@@ -845,30 +845,67 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
     dynSQLFree(&cond);
   }
 
-  // ORDER BY clause — emit header only after confirming at least one key renders.
+  // ORDER BY clause — only emit if ALL sort keys can be rendered.
+  // If any key contains a non-renderable expression (e.g. length(name)),
+  // skip the entire ORDER BY so the local Sort node handles the ordering.
+  qError("FQ-DIAG-ORDERBY: pSortKeys=%p len=%d", pParts->pSortKeys,
+         pParts->pSortKeys ? LIST_LENGTH(pParts->pSortKeys) : -1);
   if (pParts->pSortKeys && LIST_LENGTH(pParts->pSortKeys) > 0) {
-    bool firstKey = true;
-    SNode* pKey = NULL;
+    // First pass: render all sort key expressions into a temporary array.
+    // If any key fails, we will drop the entire ORDER BY.
+    int32_t  nKeys      = (int32_t)LIST_LENGTH(pParts->pSortKeys);
+    SArray*  pRendered  = taosArrayInit(nKeys, sizeof(SDynSQL));
+    bool     allOk      = (pRendered != NULL);
+    SNode*   pKey       = NULL;
     FOREACH(pKey, pParts->pSortKeys) {
+      if (!allOk) break;
       const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey;
       SDynSQL expr;
       dynSQLInit(&expr);
       int32_t code = dynAppendExpr(&expr, pOrd->pExpr, dialect, pParts->pExtTable->pExtMeta, pCtx);
+      qError("FQ-DIAG-ORDERBY: dynAppendExpr code=%d expr.err=%d expr.pos=%d exprType=%d colName=%s",
+             code, expr.err, expr.pos,
+             pOrd->pExpr ? nodeType(pOrd->pExpr) : -1,
+             (pOrd->pExpr && nodeType(pOrd->pExpr) == QUERY_NODE_COLUMN) ? ((SColumnNode*)pOrd->pExpr)->colName : "?");
       if (code || expr.err) {
         dynSQLFree(&expr);
-        continue;  // skip un-renderable expression; local Sort will handle it
+        allOk = false;  // un-renderable key — will skip entire ORDER BY
+        break;
       }
-      dynSQLAppendStr(&s, firstKey ? " ORDER BY " : ", ");
-      firstKey = false;
-      dynSQLAppendLen(&s, expr.buf, expr.pos);
-      dynSQLFree(&expr);
-      dynSQLAppendStr(&s, (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
-      if (dialect != EXT_SQL_DIALECT_MYSQL) {
-        if (pOrd->nullOrder == NULL_ORDER_FIRST)
-          dynSQLAppendStr(&s, " NULLS FIRST");
-        else if (pOrd->nullOrder == NULL_ORDER_LAST)
-          dynSQLAppendStr(&s, " NULLS LAST");
+      if (!taosArrayPush(pRendered, &expr)) {
+        dynSQLFree(&expr);
+        allOk = false;
+        break;
       }
+    }
+    if (allOk && pRendered && taosArrayGetSize(pRendered) == nKeys) {
+      // All keys rendered successfully — emit the full ORDER BY.
+      bool firstKey = true;
+      SNode* pKey2 = NULL;
+      int32_t ki = 0;
+      FOREACH(pKey2, pParts->pSortKeys) {
+        const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey2;
+        SDynSQL* pExpr = (SDynSQL*)taosArrayGet(pRendered, ki++);
+        dynSQLAppendStr(&s, firstKey ? " ORDER BY " : ", ");
+        firstKey = false;
+        dynSQLAppendLen(&s, pExpr->buf, pExpr->pos);
+        dynSQLAppendStr(&s, (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
+        if (dialect != EXT_SQL_DIALECT_MYSQL) {
+          if (pOrd->nullOrder == NULL_ORDER_FIRST)
+            dynSQLAppendStr(&s, " NULLS FIRST");
+          else if (pOrd->nullOrder == NULL_ORDER_LAST)
+            dynSQLAppendStr(&s, " NULLS LAST");
+        }
+      }
+    } else {
+      qError("FQ-DIAG-ORDERBY: dropping ORDER BY (un-renderable key); local Sort will handle ordering");
+    }
+    // Free all rendered expressions.
+    if (pRendered) {
+      for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pRendered); i++) {
+        dynSQLFree((SDynSQL*)taosArrayGet(pRendered, i));
+      }
+      taosArrayDestroy(pRendered);
     }
   }
 

@@ -376,7 +376,7 @@ bool    tsMultiResultFunctionStarReturnTags = false;
 
 // federated query
 bool    tsFederatedQueryEnable           = false;
-int32_t tsFederatedQueryConnectTimeoutMs = 30000;
+int32_t tsFederatedQueryConnectTimeoutMs = 5000;
 int32_t tsFederatedQueryMetaCacheTtlSec  = 300;
 int32_t tsFederatedQueryCapCacheTtlSec   = 300;
 int32_t tsFederatedQueryQueryTimeoutMs   = 60000;
@@ -1210,6 +1210,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryCapCacheTtlSec", tsFederatedQueryCapCacheTtlSec,
                                 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryQueryTimeoutMs", tsFederatedQueryQueryTimeoutMs,
+                                100, 600000, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryMaxPoolSizePerSource", tsFederatedQueryMaxPoolSizePerSource,
+                                1, 256, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryIdleConnTtlSec", tsFederatedQueryIdleConnTtlSec,
+                                1, 86400, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryThreadPoolSize", tsFederatedQueryThreadPoolSize,
+                                0, 256, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "federatedQueryProbeTimeoutMs", tsFederatedQueryProbeTimeoutMs,
                                 100, 600000, CFG_SCOPE_SERVER, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2380,6 +2388,14 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsFederatedQueryCapCacheTtlSec = pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
   tsFederatedQueryQueryTimeoutMs = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryMaxPoolSizePerSource");
+  tsFederatedQueryMaxPoolSizePerSource = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryIdleConnTtlSec");
+  tsFederatedQueryIdleConnTtlSec = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryThreadPoolSize");
+  tsFederatedQueryThreadPoolSize = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryProbeTimeoutMs");
+  tsFederatedQueryProbeTimeoutMs = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -3277,7 +3293,11 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"federatedQueryConnectTimeoutMs", &tsFederatedQueryConnectTimeoutMs},
                                          {"federatedQueryMetaCacheTtlSec", &tsFederatedQueryMetaCacheTtlSec},
                                          {"federatedQueryCapCacheTtlSec", &tsFederatedQueryCapCacheTtlSec},
-                                         {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs}};
+                                         {"federatedQueryQueryTimeoutMs", &tsFederatedQueryQueryTimeoutMs},
+                                         {"federatedQueryMaxPoolSizePerSource", &tsFederatedQueryMaxPoolSizePerSource},
+                                         {"federatedQueryIdleConnTtlSec", &tsFederatedQueryIdleConnTtlSec},
+                                         {"federatedQueryThreadPoolSize", &tsFederatedQueryThreadPoolSize},
+                                         {"federatedQueryProbeTimeoutMs", &tsFederatedQueryProbeTimeoutMs}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

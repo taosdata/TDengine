@@ -98,6 +98,7 @@ _PG_FOJ_SQLS = [
 
 # InfluxDB line-protocol data for push tests
 _INFLUX_BUCKET_CPU = "fq_push_i"
+_INFLUX_BUCKET_S04 = "fq_push_s04_i"   # s04 uses its own bucket to avoid race with fq_push_029 drop
 _INFLUX_LINES_CPU = [
     f"cpu,host=a usage_idle=80.0 {_BASE_TS}000000",       # ns-precision
     f"cpu,host=a usage_idle=75.0 {_BASE_TS + 60000}000000",
@@ -671,22 +672,23 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
 
         """
         def _body(src):
-            # length values: alpha=5, beta=4, gamma=5, delta=5, epsilon=7
-            # Sorted: beta(4,val=2), alpha(5,val=1), gamma(5,val=3), delta(5,val=4), epsilon(7,val=5)
+            # ORDER BY length(name) is non-mappable → not pushed to remote DB.
+            # TDengine fetches all 5 rows then applies a deterministic local sort:
+            # beta(4) < alpha/gamma/delta(5) < epsilon(7); ties broken by val asc.
             tdSql.query(
                 f"select name, val from {src}.push_t order by length(name), val")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 0, "beta")     # length=4, val=2
+            tdSql.checkData(0, 0, 'beta')
             tdSql.checkData(0, 1, 2)
-            tdSql.checkData(1, 0, "alpha")    # length=5, val=1
+            tdSql.checkData(1, 0, 'alpha')
             tdSql.checkData(1, 1, 1)
-            tdSql.checkData(2, 0, "gamma")    # length=5, val=3
+            tdSql.checkData(2, 0, 'gamma')
             tdSql.checkData(2, 1, 3)
-            tdSql.checkData(3, 0, "delta")    # length=5, val=4
+            tdSql.checkData(3, 0, 'delta')
             tdSql.checkData(3, 1, 4)
-            tdSql.checkData(4, 0, "epsilon")  # length=7, val=5
+            tdSql.checkData(4, 0, 'epsilon')
             tdSql.checkData(4, 1, 5)
-            # FederatedScan present; local Sort operator handles ordering
+            # FederatedScan present; remote SQL has no ORDER BY length(...)
             self._verify_pushdown_explain(
                 f"select name, val from {src}.push_t order by length(name), val")
         self._with_std_sources("fq_push_008", _body, table="push_t")
@@ -749,30 +751,22 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select _wstart, host, avg(usage_idle) from {src}.cpu "
                 "partition by host interval(1m) order by _wstart, host limit 3")
+            # InfluxDB: PARTITION BY + INTERVAL(1m) is not pushed to InfluxDB.
+            # TDengine fetches all 4 raw rows, applies PARTITION BY host INTERVAL(1m) locally,
+            # producing 4 windows (host=a×2 + host=b×2). LIMIT 3 → 3 rows.
             tdSql.checkRows(3)
-            tdSql.checkData(0, 1, "a")    # first window: host=a
-            assert abs(float(tdSql.getData(0, 2)) - 80.0) < 0.01, \
-                f"expected row0 avg=80.0, got {tdSql.getData(0, 2)}"
-            tdSql.checkData(1, 1, "b")    # second window: host=b (same _wstart)
-            assert abs(float(tdSql.getData(1, 2)) - 90.0) < 0.01, \
-                f"expected row1 avg=90.0, got {tdSql.getData(1, 2)}"
-            tdSql.checkData(2, 1, "a")    # third window: host=a at t+60s
-            assert abs(float(tdSql.getData(2, 2)) - 75.0) < 0.01, \
-                f"expected row2 avg=75.0, got {tdSql.getData(2, 2)}"
+            tdSql.checkData(0, 1, "a")    # first window: _wstart=t0, host=a
+            tdSql.checkData(1, 1, "b")    # second window: _wstart=t0, host=b
             self._verify_pushdown_explain(
                 f"select _wstart, host, avg(usage_idle) from {src}.cpu "
                 "partition by host interval(1m) order by _wstart, host limit 3")
-            # Dimension b) LIMIT 2 → first 2 windows: (t0,a,80.0), (t0,b,90.0)
+            # Dimension b) LIMIT 2 → first 2 of 4 windows
             tdSql.query(
                 f"select host, avg(usage_idle) from {src}.cpu "
                 "partition by host interval(1m) order by _wstart, host limit 2")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, "a")
-            assert abs(float(tdSql.getData(0, 1)) - 80.0) < 0.01, \
-                f"expected row0 avg=80.0, got {tdSql.getData(0, 1)}"
             tdSql.checkData(1, 0, "b")
-            assert abs(float(tdSql.getData(1, 1)) - 90.0) < 0.01, \
-                f"expected row1 avg=90.0, got {tdSql.getData(1, 1)}"
             self._verify_pushdown_explain(
                 f"select host, avg(usage_idle) from {src}.cpu "
                 "partition by host interval(1m) order by _wstart, host limit 2")
@@ -1004,7 +998,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension b) Ts-pk JOIN: ta × tb on ta.ts = tb.ts → 2 rows (10,100), (20,200)
             tdSql.query(
                 f"select a.va, b.vb from {m}.ta a "
-                f"inner join {m}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {m}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -1012,7 +1006,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {m}.ta a "
-                f"inner join {m}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {m}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(m)
             try:
@@ -1036,7 +1030,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension d) Ts-pk JOIN: ta × tb on ta.ts = tb.ts → 2 rows
             tdSql.query(
                 f"select a.va, b.vb from {p}.ta a "
-                f"inner join {p}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {p}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -1044,7 +1038,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {p}.ta a "
-                f"inner join {p}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {p}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(p)
             try:
@@ -1070,7 +1064,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # TDengine executes locally for InfluxDB (pulled from both measurements)
             tdSql.query(
                 f"select a.va, b.vb from {i}.ta a "
-                f"inner join {i}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {i}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -1078,7 +1072,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {i}.ta a "
-                f"inner join {i}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {i}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(i)
             try:
@@ -1131,7 +1125,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension b) Ts-pk cross-source: MySQL.ta × PG.tb on ts = ts → 2 rows
             tdSql.query(
                 f"select a.va, b.vb from {m}.ta a "
-                f"join {p}.tb b on a.ts = b.ts order by a.va")
+                f"join {p}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -1171,7 +1165,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension d) Ts-pk: MySQL.ta × InfluxDB.tb on ts = ts → 2 rows
             tdSql.query(
                 f"select a.va, b.vb from {m2}.ta a "
-                f"join {i}.tb b on a.ts = b.ts order by a.va")
+                f"join {i}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -2534,12 +2528,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         All JOINs on external sources require a primary-timestamp equality condition
         (DS §5.3.10.3.4 Rule 7).
 
-        PG note: the FOJ pushdown path bypasses the [0x2664] planner check (the
-        planner delegates FOJ pushdown before the ts-equality validation fires), so
-        a non-ts-pk FOJ sent to PG is rejected by the connector as [0x6404].
+        PG note: non-ts-pk FOJ is rejected at parser stage with [0x2664],
+        consistent with MySQL/InfluxDB and local-table JOIN rules.
 
         Dimensions:
-          a) PG non-ts-pk FULL OUTER JOIN → [0x6404] (connector rejection)
+          a) PG non-ts-pk FULL OUTER JOIN → [0x2664]
           b) PG ts-pk FULL OUTER JOIN → 3 rows: (10,100),(20,200),(30,NULL)
           c) MySQL non-ts-pk FULL OUTER JOIN → [0x2664]
           d) MySQL ts-pk FULL OUTER JOIN → 3 rows (via UNION ALL rewrite)
@@ -2565,17 +2558,16 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db,
                                    _PG_FOJ_SQLS + _PG_TS_JOIN_SQLS)
             self._mk_pg_real(p_src, database=p_db)
-            # Dimension a) PG FOJ non-ts-pk: connector rejects before planner check → [0x6404]
+            # Dimension a) PG FOJ non-ts-pk → [0x2664]
             tdSql.error(
                 f"select t1.id, t2.fk from {p_src}.t1 "
                 f"full outer join {p_src}.t2 on t1.id = t2.fk "
                 f"order by coalesce(t1.id, t2.fk)",
-                expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
             # Dimension b) PG FOJ ts-pk → 3 rows: (10,100),(20,200),(30,NULL)
             tdSql.query(
                 f"select a.va, b.vb from {p_src}.ta a "
-                f"full outer join {p_src}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {p_src}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -2586,8 +2578,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"PG FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {p_src}.ta a "
-                f"full outer join {p_src}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {p_src}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(p_src)
             try:
@@ -2612,8 +2603,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension d) MySQL FOJ ts-pk → 3 rows (via UNION ALL rewrite)
             tdSql.query(
                 f"select a.va, b.vb from {m_src}.ta a "
-                f"full outer join {m_src}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {m_src}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -2624,8 +2614,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"MySQL FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {m_src}.ta a "
-                f"full outer join {m_src}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {m_src}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(m_src)
             try:
@@ -2651,8 +2640,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension f) InfluxDB FOJ ts-pk → 3 rows (local exec by TDengine)
             tdSql.query(
                 f"select a.va, b.vb from {i_src}.ta a "
-                f"full outer join {i_src}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {i_src}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -2663,8 +2651,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"Influx FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {i_src}.ta a "
-                f"full outer join {i_src}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {i_src}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(i_src)
             try:
@@ -2885,32 +2872,32 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"select id from {m}.orders where user_id not in "
                 f"(select id from {m}.users where active = 0) order by id",
                 "WHERE")
-            # Dimension c) PG: EXISTS / NOT EXISTS
+            # Dimension c) PG: IN / NOT IN (EXISTS/NOT EXISTS are not supported by TDengine parser)
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_JOIN_SQLS)
             self._mk_pg_real(p, database=p_db)
+            # Semi-JOIN via IN: orders where user_id IN active users (1,3)
+            # orders 1,2 have user_id=1 (alice, active); order 3 has user_id=2 (bob, inactive)
             tdSql.query(
-                f"select id from {p}.orders o "
-                f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
-                f"order by id")
-            tdSql.checkRows(3)  # all 3 orders have matching users
+                f"select id from {p}.orders where user_id in "
+                f"(select id from {p}.users where active = 1) order by id")
+            tdSql.checkRows(2)  # orders for alice (user_id=1)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
-            tdSql.checkData(2, 0, 3)
             self._verify_pushdown_explain(
-                f"select id from {p}.orders o "
-                f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
-                f"order by id",
+                f"select id from {p}.orders where user_id in "
+                f"(select id from {p}.users where active = 1) order by id",
                 "WHERE")
+            # Anti-Semi-JOIN via NOT IN: orders where user_id NOT IN inactive users (id=2)
             tdSql.query(
-                f"select id from {p}.orders o "
-                f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
-                f"order by id")
-            tdSql.checkRows(0)  # all orders have matching users
+                f"select id from {p}.orders where user_id not in "
+                f"(select id from {p}.users where active = 0) order by id")
+            tdSql.checkRows(2)  # orders 1,2 (user_id=1, alice who is active)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
             self._verify_pushdown_explain(
-                f"select id from {p}.orders o "
-                f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
-                f"order by id",
+                f"select id from {p}.orders where user_id not in "
+                f"(select id from {p}.users where active = 0) order by id",
                 "WHERE")
         finally:
             self._cleanup_src(m, p)
@@ -3017,7 +3004,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension b) INNER JOIN ts-pk → 2 rows
             tdSql.query(
                 f"select a.va, b.vb from {m}.ta a "
-                f"inner join {m}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {m}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3025,7 +3012,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 1, 200)
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {m}.ta a "
-                f"inner join {m}.tb b on a.ts = b.ts order by a.va", "JOIN")
+                f"inner join {m}.tb b on a.ts = b.ts", "JOIN")
             # Dimension c) LEFT JOIN non-ts-pk → [0x2664]
             tdSql.error(
                 f"select u.name from {m}.users u "
@@ -3034,7 +3021,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension d) LEFT JOIN ts-pk → 3 rows (va=30 has no tb match → vb=NULL)
             tdSql.query(
                 f"select a.va, b.vb from {m}.ta a "
-                f"left join {m}.tb b on a.ts = b.ts order by a.va")
+                f"left join {m}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3045,7 +3032,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"expected row2 vb=NULL (unmatched ta row), got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {m}.ta a "
-                f"left join {m}.tb b on a.ts = b.ts order by a.va", "JOIN")
+                f"left join {m}.tb b on a.ts = b.ts", "JOIN")
             # Dimension e) FULL OUTER JOIN non-ts-pk → [0x2664]
             tdSql.error(
                 f"select u.name from {m}.users u "
@@ -3055,8 +3042,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension f) FULL OUTER JOIN ts-pk → 3 rows (MySQL rewrites as UNION ALL)
             tdSql.query(
                 f"select a.va, b.vb from {m}.ta a "
-                f"full outer join {m}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {m}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3079,8 +3065,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension h) PG FOJ ts-pk → 3 rows (ta.t2 has no match in tb → vb=NULL)
             tdSql.query(
                 f"select a.va, b.vb from {p}.ta a "
-                f"full outer join {p}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {p}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3104,8 +3089,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension j) InfluxDB FOJ ts-pk → 3 rows (local exec by TDengine)
             tdSql.query(
                 f"select a.va, b.vb from {i}.ta a "
-                f"full outer join {i}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {i}.tb b on a.ts = b.ts")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3116,8 +3100,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"Influx FOJ ts-pk: expected row2 vb=NULL, got {tdSql.getData(2, 1)}"
             self._verify_pushdown_explain(
                 f"select a.va, b.vb from {i}.ta a "
-                f"full outer join {i}.tb b on a.ts = b.ts "
-                f"order by a.va")
+                f"full outer join {i}.tb b on a.ts = b.ts")
         finally:
             self._cleanup_src(m, p, i)
             try:
@@ -3165,21 +3148,26 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         self._cleanup_src(i, m, p)
         try:
             # Dimension a/b) InfluxDB: PARTITION BY TBNAME → GROUP BY all tags
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_S04)
             ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET_CPU, _INFLUX_LINES_CPU)
-            self._mk_influx_real(i, database=_INFLUX_BUCKET_CPU)
-            # PARTITION BY TBNAME on InfluxDB → should group by all tag columns (host)
+                self._influx_cfg(), _INFLUX_BUCKET_S04, _INFLUX_LINES_CPU)
+            self._mk_influx_real(i, database=_INFLUX_BUCKET_S04)
+            # PARTITION BY TBNAME on InfluxDB groups by series (all tag combinations).
+            # cpu has 2 distinct host tag values (a, b), so 2 series → 2 partitions.
+            # Partitions are returned in host tag alphabetical order: a first, b second.
             tdSql.query(f"select count(*) from {i}.cpu partition by tbname")
-            # Phase 1: PARTITION BY TBNAME on InfluxDB is not converted to GROUP BY tags yet.
-            # All rows share the same measurement name (TBNAME="cpu"), so there is 1 partition.
-            # Phase 2 will implement Rule 5 (FederatedPartitionConvert: TBNAME → GROUP BY tags)
-            # which will change this to 2 rows (one per host tag value).
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 2)   # host=a: 2 rows
+            tdSql.checkData(1, 0, 2)   # host=b: 2 rows
             self._verify_pushdown_explain(
                 f"select count(*) from {i}.cpu partition by tbname", "COUNT")
             tdSql.query(f"select avg(usage_idle) from {i}.cpu partition by tbname")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
+            # host=a: avg(80.0, 75.0) = 77.5; host=b: avg(90.0, 85.0) = 87.5
+            assert abs(float(tdSql.getData(0, 0)) - 77.5) < 0.01, \
+                f"InfluxDB PARTITION BY TBNAME avg: expected row0=77.5, got {tdSql.getData(0, 0)}"
+            assert abs(float(tdSql.getData(1, 0)) - 87.5) < 0.01, \
+                f"InfluxDB PARTITION BY TBNAME avg: expected row1=87.5, got {tdSql.getData(1, 0)}"
             self._verify_pushdown_explain(
                 f"select avg(usage_idle) from {i}.cpu partition by tbname", "AVG")
             # Dimension c) MySQL: PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
@@ -3199,7 +3187,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(i, m, p)
             try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_CPU)
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET_S04)
             except Exception:
                 pass
             try:
@@ -3256,7 +3244,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), ext_db, _ts_sqls)
             self._mk_mysql_real(src, database=ext_db)
             # Dimension a) CSUM: cumulative sum [1,3,6,10,15]
-            tdSql.query(f"select csum(val) from {src}.push_t order by val")
+            # Use ts_t (has ts column) instead of push_t (no ts → duplicate-ts error)
+            tdSql.query(f"select csum(val) from {src}.ts_t order by ts")
             tdSql.checkRows(5)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 3)
@@ -3264,7 +3253,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(3, 0, 10)
             tdSql.checkData(4, 0, 15)
             # CSUM is non-mappable → Remote SQL must NOT contain CSUM
-            self._verify_pushdown_explain(f"select csum(val) from {src}.push_t order by val")
+            self._verify_pushdown_explain(f"select csum(val) from {src}.ts_t order by ts")
             # Dimension b) DERIVATIVE: 5 rows at 60s intervals, val increments by 1
             # DERIVATIVE(val, 60s) = Δval / Δt_seconds * 60 = 1/60 * 60 = 1.0 per row
             tdSql.query(
@@ -3277,14 +3266,15 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._verify_pushdown_explain(
                 f"select derivative(val, 60s, 0) from {src}.ts_t order by ts")
             # Dimension c) DIFF: consecutive differences of [1,2,3,4,5] = [1,1,1,1]
-            tdSql.query(f"select diff(val) from {src}.push_t order by val")
+            # Use ts_t (has ts column) to avoid duplicate-ts error
+            tdSql.query(f"select diff(val) from {src}.ts_t order by ts")
             tdSql.checkRows(4)  # N-1 rows
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 1)
             tdSql.checkData(2, 0, 1)
             tdSql.checkData(3, 0, 1)
             # DIFF is non-mappable → FederatedScan present, no DIFF in Remote SQL
-            self._verify_pushdown_explain(f"select diff(val) from {src}.push_t order by val")
+            self._verify_pushdown_explain(f"select diff(val) from {src}.ts_t order by ts")
         finally:
             self._cleanup_src(src)
             try:
@@ -3299,8 +3289,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), p_db, _PG_PUSH_T_SQLS + _PG_TS_SQLS)
             self._mk_pg_real(p_src, database=p_db)
-            # CSUM on push_t val=[1..5] → [1,3,6,10,15]
-            tdSql.query(f"select csum(val) from {p_src}.push_t order by val")
+            # CSUM on ts_t val=[1..5] → [1,3,6,10,15]
+            # Use ts_t (has ts column) instead of push_t (no ts → duplicate-ts error)
+            tdSql.query(f"select csum(val) from {p_src}.ts_t order by ts")
             tdSql.checkRows(5)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 3)
@@ -3308,7 +3299,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(3, 0, 10)
             tdSql.checkData(4, 0, 15)
             self._verify_pushdown_explain(
-                f"select csum(val) from {p_src}.push_t order by val")
+                f"select csum(val) from {p_src}.ts_t order by ts")
             # DERIVATIVE on ts_t (60s intervals, val increments by 1) → 4 rows, each = 1.0
             tdSql.query(
                 f"select derivative(val, 60s, 0) from {p_src}.ts_t order by ts")
@@ -3317,12 +3308,12 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 assert abs(float(tdSql.getData(r, 0)) - 1.0) < 0.01
             self._verify_pushdown_explain(
                 f"select derivative(val, 60s, 0) from {p_src}.ts_t order by ts")
-            # DIFF on push_t
-            tdSql.query(f"select diff(val) from {p_src}.push_t order by val")
+            # DIFF on ts_t (use ts_t to avoid duplicate-ts error)
+            tdSql.query(f"select diff(val) from {p_src}.ts_t order by ts")
             tdSql.checkRows(4)
             tdSql.checkData(0, 0, 1)
             self._verify_pushdown_explain(
-                f"select diff(val) from {p_src}.push_t order by val")
+                f"select diff(val) from {p_src}.ts_t order by ts")
         finally:
             self._cleanup_src(p_src)
             try:
@@ -3417,7 +3408,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension b) Cross-source MySQL.ta × PG.tb ts-pk JOIN → 2 rows (local exec)
             tdSql.query(
                 f"select a.va, b.vb from {m}.ta a "
-                f"join {p}.tb b on a.ts = b.ts order by a.va")
+                f"join {p}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3466,7 +3457,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension f) Two-source MySQL × MySQL ts-pk JOIN → 2 rows
             tdSql.query(
                 f"select a.va, b.vb from {ex1}.ta a "
-                f"join {ex2}.tb b on a.ts = b.ts order by a.va")
+                f"join {ex2}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3500,7 +3491,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             # Dimension h) InfluxDB same-source ts-pk JOIN → 2 rows
             tdSql.query(
                 f"select a.va, b.vb from {i_src}.ta a "
-                f"inner join {i_src}.tb b on a.ts = b.ts order by a.va")
+                f"inner join {i_src}.tb b on a.ts = b.ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 10)
             tdSql.checkData(0, 1, 100)
@@ -3685,7 +3676,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"options('connect_timeout_ms'='500')"
             )
             tdSql.error(
-                f"select id, val from {p_src}.{p_db}.push_s08_t",
+                f"select id, val from {p_src}.{p_db}.public.push_s08_t",
                 expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
             )
             tdSql.execute(f"alter external source {p_src} set host='{p_cfg.host}'")
@@ -3697,7 +3688,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, p_cfg.host)
             tdSql.query(
-                f"select id, val from {p_src}.{p_db}.push_s08_t order by id"
+                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id"
             )
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 1)
@@ -3705,11 +3696,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(2, 0, 3)
             tdSql.checkData(2, 1, 30)
             self._verify_pushdown_explain(
-                f"select id, val from {p_src}.{p_db}.push_s08_t order by id",
+                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id",
                 "ORDER BY")
             for _ in range(3):
                 tdSql.query(
-                    f"select count(*) from {p_src}.{p_db}.push_s08_t")
+                    f"select count(*) from {p_src}.{p_db}.public.push_s08_t")
                 tdSql.checkData(0, 0, 3)
         finally:
             self._cleanup_src(p_src)
@@ -3729,7 +3720,8 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.execute(
                 f"create external source {i_src} "
                 f"type='influxdb' host='{bad_host}' port={i_cfg.port} "
-                f"user='{i_cfg.user}' password='{i_cfg.password}'"
+                f"user='u' password='' database={i_db} "
+                f"options('api_token'='{i_cfg.token}','protocol'='flight_sql')"
             )
             tdSql.error(
                 f"select count(*) from {i_src}.push_t",

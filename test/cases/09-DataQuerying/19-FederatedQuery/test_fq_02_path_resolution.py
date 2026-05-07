@@ -1798,7 +1798,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "Cpu_s02,host=s1 val=201 1704067200000",
             "cpu_s02,host=s1 val=202 1704067200000",
-        ])
+        ], precision='ms')
         self._cleanup_src(src)
         try:
             self._mk_influx_real(src, database=INFLUX_BUCKET)
