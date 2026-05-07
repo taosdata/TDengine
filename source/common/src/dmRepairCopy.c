@@ -37,7 +37,9 @@ static int64_t dmGetsCmd(DmCmdPtr p, int32_t maxSize, char *buf) {
 
 static void dmCloseCmd(DmCmdPtr *pp) {
   if (pp && *pp) {
-    pclose(*pp);
+    if (pclose(*pp) == -1) {
+      uError("repair: failed to close command stream");
+    }
     *pp = NULL;
   }
 }
@@ -377,11 +379,15 @@ static int32_t dmReadFileContent(const char *path, char **ppContent, int64_t *pS
 
   char *buf = taosMemoryMalloc(fsize + 1);
   if (buf == NULL) {
-    taosCloseFile(&pFile);
+    if (taosCloseFile(&pFile) != 0) {
+      uError("repair: failed to close file after malloc failure");
+    }
     return -1;
   }
   int64_t nread = taosReadFile(pFile, buf, fsize);
-  taosCloseFile(&pFile);
+  if (taosCloseFile(&pFile) != 0) {
+    uError("repair: failed to close file after read");
+  }
   if (nread != fsize) {
     taosMemoryFree(buf);
     return -1;
@@ -904,20 +910,26 @@ static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir, const 
     if (taosDirEntryIsDir(pEntry)) {
       if (taosMulMkDir(dstPath) != 0) {
         uError("repair: vnode%d failed to create dir %s", vnodeId, dstPath);
-        taosCloseDir(&pDir);
+        if (taosCloseDir(&pDir) != 0) {
+          uError("repair: vnode%d failed to close dir after mkdir failure", vnodeId);
+        }
         return -1;
       }
       uInfo("repair: vnode%d  dir: %s", vnodeId, name);
       // Recurse without skip — skipSubDir only applies at top level
       if (dmCopyDirRecursive(srcPath, dstPath, NULL, vnodeId) != 0) {
-        taosCloseDir(&pDir);
+        if (taosCloseDir(&pDir) != 0) {
+          uError("repair: vnode%d failed to close dir after recursive copy failure", vnodeId);
+        }
         return -1;
       }
     } else {
       int64_t srcSize = 0;
       if (taosStatFile(srcPath, &srcSize, NULL, NULL) != 0) {
         uError("repair: vnode%d cannot stat source file %s", vnodeId, srcPath);
-        taosCloseDir(&pDir);
+        if (taosCloseDir(&pDir) != 0) {
+          uError("repair: vnode%d failed to close dir after stat failure", vnodeId);
+        }
         return -1;
       }
       uInfo("repair: vnode%d  file: %s (%" PRId64 " bytes)", vnodeId, name, srcSize);
@@ -925,7 +937,9 @@ static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir, const 
       int64_t copied = taosCopyFile(srcPath, dstPath);
       if (copied < 0) {
         uError("repair: vnode%d failed to copy %s", vnodeId, srcPath);
-        taosCloseDir(&pDir);
+        if (taosCloseDir(&pDir) != 0) {
+          uError("repair: vnode%d failed to close dir after copy failure", vnodeId);
+        }
         return -1;
       }
 
@@ -933,12 +947,16 @@ static int32_t dmCopyDirRecursive(const char *srcDir, const char *dstDir, const 
       if (taosStatFile(dstPath, &dstSize, NULL, NULL) != 0 || dstSize != srcSize) {
         uError("repair: vnode%d size mismatch after copy: %s (src=%" PRId64 " dst=%" PRId64 ")", vnodeId, name, srcSize,
                dstSize);
-        taosCloseDir(&pDir);
+        if (taosCloseDir(&pDir) != 0) {
+          uError("repair: vnode%d failed to close dir after size mismatch", vnodeId);
+        }
         return -1;
       }
     }
   }
-  taosCloseDir(&pDir);
+  if (taosCloseDir(&pDir) != 0) {
+    uError("repair: vnode%d failed to close dir", vnodeId);
+  }
   return 0;
 }
 
@@ -1824,7 +1842,9 @@ static int32_t dmCleanSyncState(STfs *pTgtTfs, int32_t vnodeId) {
       uInfo("repair: vnode%d deleted sync/%s", vnodeId, name);
     }
   }
-  taosCloseDir(&pDir);
+  if (taosCloseDir(&pDir) != 0) {
+    uError("repair: vnode%d failed to close dir", vnodeId);
+  }
   return 0;
 }
 
