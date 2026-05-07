@@ -794,6 +794,8 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
         if (*pMeta) {
           return TSDB_CODE_SUCCESS;
         }
+        // tableMetaDup OOM — do NOT fall through to catalog (would return stale pre-txn schema).
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }
     }
   }
@@ -975,6 +977,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
         if (*pMeta) {
           return TSDB_CODE_SUCCESS;
         }
+        // tableMetaDup OOM — do NOT fall through to catalog (would return stale pre-txn schema).
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }
     }
   }

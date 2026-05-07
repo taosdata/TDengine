@@ -1413,13 +1413,20 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
       }
       if (pOneReq->info != NULL) {
         txn_id_t *pTxnVal = taosMemoryMalloc(sizeof(txn_id_t));
-        if (pTxnVal != NULL) {
+        if (pTxnVal == NULL) {
+          tscWarn("failed to alloc txnId for HB keepalive (txnId:%" PRIi64 "), MNode txn may timeout", curTxnId);
+        } else {
           *pTxnVal = curTxnId;
           SKv kv = {.key = HEARTBEAT_KEY_TXN_KEEPALIVE, .valueLen = sizeof(txn_id_t), .value = pTxnVal};
-          if (taosHashPut(pOneReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
+          int32_t putCode = taosHashPut(pOneReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+          if (putCode != 0) {
+            tscWarn("failed to put txnId:%" PRIi64 " into HB info hash, code:0x%x, MNode txn may timeout",
+                    curTxnId, putCode);
             taosMemoryFree(pTxnVal);
           }
         }
+      } else {
+        tscWarn("failed to init HB info hash, txnId:%" PRIi64 " keepalive skipped, MNode txn may timeout", curTxnId);
       }
     }
 

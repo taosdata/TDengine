@@ -256,8 +256,14 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     int64_t             txnId = *(int64_t *)pElem;
     const STxnFinalVal *pFinalVal = (const STxnFinalVal *)((const char *)pElem + sizeof(int64_t));
 
-    // Always populate the in-memory cache so visibility filters work immediately
-    (void)taosHashPut(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t), &pFinalVal->finalStatus, sizeof(int8_t));
+    // Always populate the in-memory cache so visibility filters work immediately.
+    // On failure (OOM during recovery), persistent txn_final.idx remains authoritative;
+    // log a warning so the rare condition is visible.
+    int32_t putCode = taosHashPut(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t), &pFinalVal->finalStatus, sizeof(int8_t));
+    if (putCode != 0) {
+      vWarn("vgId:%d, txn rebuild: failed to cache finalized txn:%" PRId64 " status:%d, code:0x%x",
+            TD_VID(pVnode), txnId, pFinalVal->finalStatus, putCode);
+    }
 
     // Check if there are corresponding txn.idx entries (UIDs still needing vacuum)
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
@@ -810,8 +816,14 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
     return code;
   }
 
-  // 2. Update in-memory cache (thread-safe, visible to query threads immediately)
-  (void)taosHashPut(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
+  // 2. Update in-memory cache (thread-safe, visible to query threads immediately).
+  // On failure (OOM), persistent txn_final.idx is still authoritative — visibility
+  // queries will fall back to disk lookup, but log a warning so the issue is visible.
+  int32_t cacheCode = taosHashPut(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
+  if (cacheCode != 0) {
+    vWarn("vgId:%d, failed to cache finalized txn:%" PRId64 " status:%d in pFinalizedTxns, code:0x%x",
+          TD_VID(pVnode), pEntry->txnId, finalStatus, cacheCode);
+  }
 
   // 3. Prepare vacuum array for deferred cleanup
   code = vnodeTxnPrepareVacuumArray(pEntry);
@@ -1322,6 +1334,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
             pEntry->txnId, pEntry->term, newTerm);
       if (taosArrayPush(toAbort, &pEntry->txnId) == NULL) {
         vError("vgId:%d, fencing: failed to push txnId:%" PRId64 " to abort list", TD_VID(pVnode), pEntry->txnId);
+        taosHashCancelIterate(pVnode->pTxnHash, pIter);
         (void)taosThreadMutexUnlock(&pVnode->txnMutex);
         taosArrayDestroy(toAbort);
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
@@ -1388,6 +1401,7 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
       STxnActiveQuery q = {.txnId = pEntry->txnId, .vgId = TD_VID(pVnode)};
       if (taosArrayPush(pQueries, &q) == NULL) {
         vError("vgId:%d, failed to push keepalive query for txnId:%" PRId64, TD_VID(pVnode), pEntry->txnId);
+        taosHashCancelIterate(pVnode->pTxnHash, pIter);
         (void)taosThreadMutexUnlock(&pVnode->txnMutex);
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
       }

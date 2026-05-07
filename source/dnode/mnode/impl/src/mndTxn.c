@@ -1191,6 +1191,7 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
     int32_t vgId = *(int32_t *)taosArrayGet(pTxn->pVgList, i);
     int8_t  dummy = 1;
     if (taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+      mError("txn:%" PRIi64 ", failed to add vgId:%d (from pVgList) to dedup hash, code:0x%x", pTxn->id, vgId, terrno);
       taosHashCleanup(pVgSet);
       return NULL;
     }
@@ -1219,6 +1220,8 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
         int32_t vgId = pVgroup->vgId;
         int8_t  dummy = 1;
         if (taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+          mError("txn:%" PRIi64 ", failed to add vgId:%d (from STB %s shadow op) to dedup hash, code:0x%x", pTxn->id,
+                 vgId, pOp->name, terrno);
           sdbRelease(pSdb, pVgroup);
           mndReleaseDb(pMnode, pDb);
           taosHashCleanup(pVgSet);
@@ -1244,6 +1247,8 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
       int32_t vgId = pVgroup->vgId;
       int8_t  dummy = 1;
       if (taosHashPut(pVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+        mError("txn:%" PRIi64 ", failed to add vgId:%d (broadcast fallback) to dedup hash, code:0x%x", pTxn->id, vgId,
+               terrno);
         sdbRelease(pSdb, pVgroup);
         taosHashCleanup(pVgSet);
         return NULL;
