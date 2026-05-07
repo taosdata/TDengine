@@ -184,6 +184,11 @@ int32_t extConnectorFetchBlock(SExtQueryHandle          *pQHandle,
 
 void extConnectorCloseQuery(SExtQueryHandle *pQHandle);
 
+// Pool management
+// Remove and destroy the connection pool for the given source name.
+// Called when DROP EXTERNAL SOURCE succeeds to release idle connections immediately.
+void extConnectorPoolRemove(const char *sourceName);
+
 // Fault tolerance
 bool extConnectorIsRetryable(int32_t errCode);
 

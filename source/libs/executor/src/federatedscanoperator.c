@@ -234,18 +234,15 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     // slots added by pushdownDataBlockSlots for local Sort), expand the block
     // with pre-allocated placeholder columns.
     //
-    // When something was pushed to the remote plan (Sort/Project wrapper), the
-    // desc already matches the remote output — skip expansion.  Only expand when
-    // pRemotePlan is the leaf FedScan node itself (nothing pushed).
+    // Always expand when numDescSlots > numBlockCols, even when a remote plan
+    // was pushed.  The remote plan only returns table columns; locally-computed
+    // columns (e.g. constant separators for group_concat) are never part of the
+    // remote result and must be appended here for projectApplyFunctions to fill.
     {
-      bool remoteIsPushed = (pInfo->pFedScanNode->pRemotePlan != NULL &&
-                             nodeType(pInfo->pFedScanNode->pRemotePlan) != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
       SDataBlockDescNode* pDesc = pInfo->pFedScanNode->node.pOutputDataBlockDesc;
       int32_t numDescSlots = (pDesc != NULL) ? (int32_t)LIST_LENGTH(pDesc->pSlots) : 0;
       int32_t numBlockCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
-      qError("FqExec EXPAND: remoteIsPushed=%d numDescSlots=%d numBlockCols=%d",
-             (int)remoteIsPushed, numDescSlots, numBlockCols);
-      if (!remoteIsPushed && numDescSlots > numBlockCols) {
+      if (numDescSlots > numBlockCols) {
         SNode*  pSlotNode = NULL;
         int32_t slotIdx   = 0;
         FOREACH(pSlotNode, pDesc->pSlots) {

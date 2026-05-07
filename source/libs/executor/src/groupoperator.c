@@ -1398,6 +1398,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
+  blockDataGetRowSize(pInfo->binfo.pRes);
   code = getBufferPgSize(pInfo->binfo.pRes->info.rowSize, &defaultPgsz, &defaultBufsz);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

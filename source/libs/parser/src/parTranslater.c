@@ -6812,6 +6812,11 @@ static int32_t checkExtSourceJoinCond(STranslateContext* pCxt, SJoinTableNode* p
   if (!leftIsExt && !rightIsExt) {
     return TSDB_CODE_SUCCESS;
   }
+  // WINDOW JOIN and ASOF JOIN use implicit time-based matching via WINDOW_OFFSET
+  // or JLIMIT — they do not require an explicit ts column in ON condition.
+  if (IS_WINDOW_JOIN(pJoinTable->subType) || IS_ASOF_JOIN(pJoinTable->subType)) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (extJoinOnCondHasTs(pJoinTable->pOnCond)) {
     return TSDB_CODE_SUCCESS;  // ts-pk JOIN — valid
   }
