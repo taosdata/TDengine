@@ -603,9 +603,11 @@ SELECT WEEKOFYEAR('2026-01-01 12:00:00');
 
 ## 7. P5：季度集成收口
 
-### 7.1 Task 5.1：Rebase 季度 PR
+### 7.1 Task 5.1：Rebase 季度 PR ✅
 
 **目标**：将已有季度 `q` PR 合入当前分支。
+
+**状态**：已完成。季度 PR 已 rebase 合入，代码已支持季度（`q`）时间单位。
 
 **步骤**：
 
@@ -853,7 +855,7 @@ SELECT TIMEZONE(1);
 - [ ] P4：TIMETRUNCATE 支持 n/q/y
 - [ ] P4：TIMETRUNCATE 1w 对齐修正
 - [ ] P4：INTERVAL(w) 尊重 firstDayOfWeek
-- [ ] P5：季度 PR rebase 完成
+- [x] P5：季度 PR rebase 完成
 - [ ] P5：INTERVAL(1q) 集成验证
 - [ ] P6：TIMEZONE(1) 服务端执行
 - [ ] P6：TIMEZONE(1) client timezone 来源与透传打通
