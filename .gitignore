@@ -10,6 +10,7 @@ sim
 *.pyc
 CLAUDE.md
 BUILD_MACOS.md
+.worktrees/
 
 # TODO: rules need to be removed later
 source/util/src/version.c
