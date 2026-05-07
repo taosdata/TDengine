@@ -732,6 +732,7 @@ class TestUdfRestartTaosd:
         # BUFSIZE only needs to cover sizeof(PermEntropyState) ≈ 40 bytes;
         # 256 bytes is more than sufficient.
 
+        tdSql.execute("drop function if exists perm_entropy")
         tdSql.execute(
             "create aggregate function perm_entropy as '%s' "
             "outputtype double bufsize 256" % self.libperm_entropy
@@ -769,9 +770,9 @@ class TestUdfRestartTaosd:
             "select perm_entropy(val) from perm_t0 interval(10s)"
         )
         tdSql.checkRows(3)
-        tdSql.checkData(0, 1, 0.5437753137)
-        tdSql.checkData(1, 1, 0.5024421661)
-        tdSql.checkData(2, 1, 0.5024421661)
+        tdSql.checkData(0, 0, 0.5437753137)
+        tdSql.checkData(1, 0, 0.5024421661)
+        tdSql.checkData(2, 0, 0.5024421661)
         tdLog.info("test3 pass: interval window returns 3 rows with correct entropy")
 
         # ---- test 4: partition by subtable via supertable query
@@ -843,6 +844,7 @@ class TestUdfRestartTaosd:
             tdSql.execute("insert into t%d values %s" % (i, rows_sql))
         tdLog.info("inserted %d rows across %d tables" % (CHILD_TABLES * ROWS_PER_TABLE, CHILD_TABLES))
 
+        tdSql.execute("drop function if exists perm_entropy")
         tdSql.execute(
             "create aggregate function perm_entropy as '%s' outputtype double bufsize 256"
             % self.libperm_entropy
