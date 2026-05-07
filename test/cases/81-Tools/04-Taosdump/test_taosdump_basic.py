@@ -78,6 +78,7 @@ class TestTaosdumpBasic:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -88,34 +89,34 @@ class TestTaosdumpBasic:
 
         os.system("%s -D db -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
-        #        sys.exit(1)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (basic) ---")
+            tdSql.execute("drop database if exists db")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
+            assert found == True
 
-        assert found == True
+            tdSql.execute("use db")
+            tdSql.query("show stables")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, "st")
+            tdSql.checkData(1, 0, "vst")
 
-        tdSql.execute("use db")
-        tdSql.query("show stables")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "st")
-        tdSql.checkData(1, 0, "vst")
+            tdSql.query("show tables")
+            tdSql.checkRows(3)
 
-        tdSql.query("show tables")
-        tdSql.checkRows(3)
-
-        tdSql.query("show vtables")
-        tdSql.checkRows(2)
+            tdSql.query("show vtables")
+            tdSql.checkRows(2)
 
         print("do test basic ......................... [passed]")
 
@@ -177,77 +178,82 @@ class TestTaosdumpBasic:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found: %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         os.system("%s --password < %s --databases db -o ./taosdumptest/tmp1 -c /etc/taos" % (binPath, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"))
         os.system("%s -p < %s --databases db1 -o ./taosdumptest/tmp2" % (binPath, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"))
 
-        tdSql.execute("drop database db")
-        tdSql.execute("drop database db1")
-        tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (test) ---")
+            tdSql.execute("drop database if exists db")
+            tdSql.execute("drop database if exists db1")
+            tdSql.execute("drop database if exists newdb")
+            tdSql.execute("drop database if exists newdb1")
+            tdSql.query("select * from information_schema.ins_databases")
+            tdSql.checkRows(2)
 
-        os.system("%s -W db=newdb -i ./taosdumptest/tmp1" % binPath)
-        os.system("%s -W \"db=newdb|db1=newdb1\" -i ./taosdumptest/tmp2" % binPath)
+            os.system("%s -W db=newdb -i ./taosdumptest/tmp1" % tool)
+            os.system("%s -W \"db=newdb|db1=newdb1\" -i ./taosdumptest/tmp2" % tool)
 
-        tdSql.execute("use newdb")
-        tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkRows(4)
-        dbresult = tdSql.queryResult
-        # 6--duration,7--keep0,keep1,keep
+            tdSql.execute("use newdb")
+            tdSql.query("select * from information_schema.ins_databases")
+            tdSql.checkRows(4)
+            dbresult = tdSql.queryResult
+            # 6--duration,7--keep0,keep1,keep
 
-        isCommunity = self.checkCommunity()
-        print("iscommunity: %d" % isCommunity)
-        for i in range(len(dbresult)):
-            if dbresult[i][0] == "newdb":
-                print(dbresult[i])
-                print(type(dbresult[i][6]))
-                print(type(dbresult[i][7]))
-                print((dbresult[i][6]))
-                assert dbresult[i][6] == "11d"
-                assert dbresult[i][7] == "3649d,3649d,3649d"
-            if dbresult[i][0] == "newdb1":
-                print((dbresult[i][6]))
-                assert dbresult[i][6] == "12d"
-                print((dbresult[i][7]))
-                assert dbresult[i][7] == "3640d,3640d,3640d"
+            isCommunity = self.checkCommunity()
+            print("iscommunity: %d" % isCommunity)
+            for i in range(len(dbresult)):
+                if dbresult[i][0] == "newdb":
+                    print(dbresult[i])
+                    print(type(dbresult[i][6]))
+                    print(type(dbresult[i][7]))
+                    print((dbresult[i][6]))
+                    assert dbresult[i][6] == "11d"
+                    assert dbresult[i][7] == "3649d,3649d,3649d"
+                if dbresult[i][0] == "newdb1":
+                    print((dbresult[i][6]))
+                    assert dbresult[i][6] == "12d"
+                    print((dbresult[i][7]))
+                    assert dbresult[i][7] == "3640d,3640d,3640d"
 
-        tdSql.query("show stables")
-        tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        for i in range(len(dbresult)):
-            assert (dbresult[i][0] == "st") or (dbresult[i][0] == "vst")
+            tdSql.query("show stables")
+            tdSql.checkRows(2)
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            for i in range(len(dbresult)):
+                assert (dbresult[i][0] == "st") or (dbresult[i][0] == "vst")
 
-        tdSql.query("show tables")
-        tdSql.checkRows(2)
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        for i in range(len(dbresult)):
-            assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2")
+            tdSql.query("show tables")
+            tdSql.checkRows(2)
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            for i in range(len(dbresult)):
+                assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2")
 
-        tdSql.query("show vtables")
-        tdSql.checkRows(1)
-        dbresult = tdSql.queryResult
-        print(dbresult)
-        assert dbresult[0][0] == "vt1"
+            tdSql.query("show vtables")
+            tdSql.checkRows(1)
+            dbresult = tdSql.queryResult
+            print(dbresult)
+            assert dbresult[0][0] == "vt1"
 
-        tdSql.query("select * from t1")
-        tdSql.checkRows(100)
-        for i in range(100):
-            tdSql.checkData(i, 1, i)
-            tdSql.checkData(i, 2, "nchar%d" % i)
+            tdSql.query("select * from t1")
+            tdSql.checkRows(100)
+            for i in range(100):
+                tdSql.checkData(i, 1, i)
+                tdSql.checkData(i, 2, "nchar%d" % i)
 
-        tdSql.query("select * from t2")
-        tdSql.checkRows(100)
-        for i in range(100):
-            tdSql.checkData(i, 1, i)
-            tdSql.checkData(i, 2, "nchar%d" % i)
+            tdSql.query("select * from t2")
+            tdSql.checkRows(100)
+            for i in range(100):
+                tdSql.checkData(i, 1, i)
+                tdSql.checkData(i, 2, "nchar%d" % i)
 
-        tdSql.query("select * from vt1")
-        tdSql.checkRows(100)
-        for i in range(100):
-            tdSql.checkData(i, 1, i)
-            tdSql.checkData(i, 2, "nchar%d" % i)
+            tdSql.query("select * from vt1")
+            tdSql.checkRows(100)
+            for i in range(100):
+                tdSql.checkData(i, 1, i)
+                tdSql.checkData(i, 2, "nchar%d" % i)
 
         # drop all databases，boundary value testing.
         # length(databasename)<=32;length(tablesname)<=192
@@ -287,13 +293,17 @@ class TestTaosdumpBasic:
             "%s --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1"
             % binPath
         )
-        tdSql.execute("drop database db12312313231231321312312312_323")
-        os.system("%s -W db12312313231231321312312312_323=db12312313231231321312312312_323abc -i ./taosdumptest/tmp1" % binPath)
-        tdSql.execute("use db12312313231231321312312312_323abc")
-        tdSql.query("show stables")
-        tdSql.checkRows(2)
-        tdSql.execute("drop database db12312313231231321312312312_323abc")
 
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (boundary) ---")
+            tdSql.execute("drop database if exists db12312313231231321312312312_323")
+            tdSql.execute("drop database if exists db12312313231231321312312312_323abc")
+            os.system("%s -W db12312313231231321312312312_323=db12312313231231321312312312_323abc -i ./taosdumptest/tmp1" % tool)
+            tdSql.execute("use db12312313231231321312312312_323abc")
+            tdSql.query("show stables")
+            tdSql.checkRows(2)
+
+        tdSql.execute("drop database if exists db12312313231231321312312312_323abc")
         os.system("rm -rf ./taosdumptest/tmp1")
         os.system("rm -rf ./taosdumptest/tmp2")
         os.system("rm -rf ./dump_result.txt")
@@ -347,29 +357,32 @@ class TestTaosdumpBasic:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
         os.system("rm -rf ./taosdumptest/taosdump.*")
         os.system("%s --databases db -o ./taosdumptest/tmp " % binPath)
 
-        tdSql.execute("drop database db")
-        tdSql.query("show databases")
-        tdSql.checkRows(2)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (test2-db) ---")
+            tdSql.execute("drop database if exists db")
+            tdSql.query("show databases")
+            tdSql.checkRows(2)
 
-        os.system("%s -i ./taosdumptest/tmp " % binPath)
+            os.system("%s -i ./taosdumptest/tmp " % tool)
 
-        tdSql.query("show databases")
-        tdSql.checkRows(3)
-        tdSql.checkData(2, 0, "db")
+            tdSql.query("show databases")
+            tdSql.checkRows(3)
+            tdSql.checkData(2, 0, "db")
 
-        tdSql.execute("use db")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.execute("use db")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("select count(*) from t1")
-        tdSql.checkData(0, 0, self.numberOfRecords)
+            tdSql.query("select count(*) from t1")
+            tdSql.checkData(0, 0, self.numberOfRecords)
 
         # test case for TS-1225
         tdSql.execute("create database test vgroups 3")
@@ -391,22 +404,26 @@ class TestTaosdumpBasic:
         os.system("rm -rf ./taosdumptest/tmp/taosdump.*")
         os.system("%s -D test -o ./taosdumptest/tmp " % binPath)
 
-        tdSql.execute("drop database test")
-        tdSql.query("show databases")
-        tdSql.checkRows(3)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (test2-test) ---")
+            tdSql.execute("drop database if exists test")
+            tdSql.query("show databases")
+            tdSql.checkRows(3)
 
-        os.system("%s -i ./taosdumptest/tmp " % binPath)
+            os.system("%s -i ./taosdumptest/tmp " % tool)
 
-        tdSql.execute("use test")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "stb")
-        # check vgroups 
-        tdSql.query("show test.vgroups")
-        tdSql.checkRows(3)
+            tdSql.execute("use test")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "stb")
+            # check vgroups 
+            tdSql.query("show test.vgroups")
+            tdSql.checkRows(3)
 
-        tdSql.query("select * from stb")
-        tdSql.checkRows(1)
+            tdSql.query("select * from stb")
+            tdSql.checkRows(1)
+        tdSql.execute("drop database if exists test")
+        tdSql.execute("drop database if exists db")
         os.system("rm -rf dump_result.txt")
 
         print("do basic2 ............................. [passed]")
@@ -453,30 +470,32 @@ class TestTaosdumpBasic:
 
         os.system("%s -L -D db -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (loose) ---")
+            tdSql.execute("drop database if exists db")
 
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        tdSql.execute("use db")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.execute("use db")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
-        tdSql.checkRows(3)
+            tdSql.query("show tables")
+            tdSql.checkRows(3)
 
         print("do loose mode ......................... [passed]")
 
@@ -645,30 +664,33 @@ class TestTaosdumpBasic:
 
         os.system("%s db t1 -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (db_ntb) ---")
+            tdSql.execute("drop database if exists db")
+            tdSql.execute("drop database if exists newdb")
 
-        os.system("%s -i %s -T 1 -W db=newdb" % (binPath, self.tmpdir))
+            os.system("%s -i %s -T 1 -W db=newdb" % (tool, self.tmpdir))
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "newdb":
-                found = True
-                break
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "newdb":
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        tdSql.execute("use newdb")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.execute("use newdb")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
-        tdSql.checkRows(1)
+            tdSql.query("show tables")
+            tdSql.checkRows(1)
 
         print("do normal table dump .................. [passed]")
 
@@ -724,30 +746,33 @@ class TestTaosdumpBasic:
 
         os.system("%s db st -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (db_stb) ---")
+            tdSql.execute("drop database if exists db")
+            tdSql.execute("drop database if exists newdb")
 
-        os.system("%s -i %s -T 1 -W db=newdb" % (binPath, self.tmpdir))
+            os.system("%s -i %s -T 1 -W db=newdb" % (tool, self.tmpdir))
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "newdb":
-                found = True
-                break
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "newdb":
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        tdSql.execute("use newdb")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.execute("use newdb")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
-        tdSql.checkRows(2)
+            tdSql.query("show tables")
+            tdSql.checkRows(2)
 
         print("do stable dump ........................ [passed]")
 
@@ -789,30 +814,36 @@ class TestTaosdumpBasic:
         os.system("%s Db st -e -o %s -T 1" % (binPath, self.tmpdir))
         # sys.exit(1)
 
-        tdSql.execute("drop database `Db`")
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool, extra_flags in [("taosdump", binPath, "-e"), ("taosBackup", backupPath, "")]:
+            tdLog.info(f"--- {tool_name} import+verify (escaped_db) ---")
+            tdSql.execute("drop database if exists `Db`")
+            tdSql.execute("drop database if exists `NewDb`")
 
-        os.system("%s -e -i %s -T 1 -W Db=NewDb" % (binPath, self.tmpdir))
+            if extra_flags:
+                os.system("%s %s -i %s -T 1 -W Db=NewDb" % (tool, extra_flags, self.tmpdir))
+            else:
+                os.system("%s -i %s -T 1 -W Db=NewDb" % (tool, self.tmpdir))
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "NewDb":
-                found = True
-                break
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "NewDb":
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        tdSql.execute("use `NewDb`")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+            tdSql.execute("use `NewDb`")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.query("select count(*) from `NewDb`.st")
-        tdSql.checkData(0, 0, 1)
+            tdSql.query("select count(*) from `NewDb`.st")
+            tdSql.checkData(0, 0, 1)
 
         print("do escape option ...................... [passed]")
 
@@ -831,14 +862,12 @@ class TestTaosdumpBasic:
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db  keep 3649 ")
 
-        tdSql.execute("use db")
         tdSql.execute(
-            "create table tb(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
+            "create table db.tb(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
         )
         tdSql.execute(
-            "insert into tb values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
+            "insert into db.tb values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
         )
-        #        sys.exit(1)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -849,31 +878,30 @@ class TestTaosdumpBasic:
 
         os.system("%s db -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop table tb")
-        tdSql.execute(
-            "create table tb(ts timestamp, c1 FLOAT, c2 DOUBLE, c3 BOOL, c4 BINARY(10), c5 NCHAR(10), c6 INT, c7 BOOL, c8 BINARY(10), c9 BOOL, c10 FLOAT, c11 DOUBLE, c12 BOOL, c13 INT, c14 BIGINT)"
-        )
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (diff_type) ---")
+            # re-create the table with different types for each iteration
+            tdSql.execute("drop table if exists db.tb")
+            tdSql.execute(
+                "create table db.tb(ts timestamp, c1 FLOAT, c2 DOUBLE, c3 BOOL, c4 BINARY(10), c5 NCHAR(10), c6 INT, c7 BOOL, c8 BINARY(10), c9 BOOL, c10 FLOAT, c11 DOUBLE, c12 BOOL, c13 INT, c14 BIGINT)"
+            )
 
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
+            # import 
+            cmd = "%s -i %s -T 1" % (tool, self.tmpdir)
+            os.system(cmd)
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
-
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
-
-        assert found == True
-
-        tdSql.execute("use db")
-
-        tdSql.query("SELECT * from tb")
-        for i in range(1, len(tdSql.queryResult[0])):
-            tdSql.checkData(0, i, None)
+            # check result
+            # taosdump: type-mismatched columns all become NULL
+            # taosBackup: numeric→numeric/bool = 0/false, numeric→string = NULL
+            tdSql.query("SELECT * from db.tb")
+            if tool_name == "taosdump":
+                for i in range(1, len(tdSql.queryResult[0])):
+                    tdSql.checkData(0, i, None)
+            else:
+                expected = [0.0, 0.0, False, None, None, 0, False, None, False, 0.0, 0.0, False, 0, 0]
+                for i in range(len(expected)):
+                    tdSql.checkData(0, i + 1, expected[i])
 
         print("do diff data type ..................... [passed]")
 
@@ -932,35 +960,37 @@ class TestTaosdumpBasic:
 
         os.system("%s db -o %s -T 1" % (binPath, self.tmpdir))
 
-        tdSql.execute("drop database db")
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (many_cols) ---")
+            tdSql.execute("drop database if exists db")
 
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "db":
-                found = True
-                break
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "db":
+                    found = True
+                    break
 
-        assert found == True
+            assert found == True
 
-        tdSql.execute("use db")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "stb")
+            tdSql.execute("use db")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "stb")
 
-        tdSql.query("show tables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "tb")
+            tdSql.query("show tables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "tb")
 
-        tdSql.query("select count(*) from db.stb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 100)
+            tdSql.query("select count(*) from db.stb")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 100)
 
         print("do many cols .......................... [passed]")
 

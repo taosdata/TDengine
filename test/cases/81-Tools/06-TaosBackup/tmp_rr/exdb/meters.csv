@@ -1,0 +1,14 @@
+field,type,length,note
+ts,TIMESTAMP,8,
+pk,INT,4,
+bc,BOOL,1,
+fc,FLOAT,4,
+dc,DOUBLE,8,
+ti,TINYINT,1,
+si,SMALLINT,2,
+ic,INT,4,
+bi,BIGINT,8,
+bin,VARCHAR,32,
+nch,NCHAR,64,
+groupid,TINYINT,1,TAG
+location,VARCHAR,16,TAG

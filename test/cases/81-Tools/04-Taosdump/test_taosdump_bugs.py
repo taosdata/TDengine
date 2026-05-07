@@ -74,6 +74,7 @@ class TestTaosdumpStartEndTime:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         #        sys.exit(1)
 
@@ -86,12 +87,12 @@ class TestTaosdumpStartEndTime:
 
         os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision, precision))
 
-        tdSql.execute("drop table t1")
-
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
-
-        tdSql.query("select count(*) from db.t1")
-        tdSql.checkData(0, 0, 3)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (start+end) ---")
+            tdSql.execute("drop table if exists db.t1")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.query("select count(*) from db.t1")
+            tdSql.checkData(0, 0, 3)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -102,11 +103,12 @@ class TestTaosdumpStartEndTime:
 
         os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 " % (binPath, self.tmpdir, precision))
 
-        tdSql.execute("drop table t2")
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
-
-        tdSql.query("select count(*) from db.t2")
-        tdSql.checkData(0, 0, 4)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (start-only) ---")
+            tdSql.execute("drop table if exists db.t2")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.query("select count(*) from db.t2")
+            tdSql.checkData(0, 0, 4)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -117,12 +119,12 @@ class TestTaosdumpStartEndTime:
 
         os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision))
 
-        tdSql.execute("drop table t3")
-
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
-
-        tdSql.query("select count(*) from db.t3")
-        tdSql.checkData(0, 0, 4)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (end-only) ---")
+            tdSql.execute("drop table if exists db.t3")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.query("select count(*) from db.t3")
+            tdSql.checkData(0, 0, 4)
 
         print("do start end time ..................... [passed]")
 
@@ -135,6 +137,7 @@ class TestTaosdumpStartEndTime:
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
+        backupPath = etool.taosBackupFile()
 
         tdSql.prepare()
 
@@ -172,12 +175,12 @@ class TestTaosdumpStartEndTime:
 
         os.system("%s db t1 -o %s -T 1 --start-time=2023-02-28T12:00:01.997+0800 --end-time=2023-02-28T12:00:03.997+0800 " % (binPath, self.tmpdir))
 
-        tdSql.execute("drop table t1")
-
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
-
-        tdSql.query("select count(*) from db.t1")
-        tdSql.checkData(0, 0, 3)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (long start+end) ---")
+            tdSql.execute("drop table if exists db.t1")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.query("select count(*) from db.t1")
+            tdSql.checkData(0, 0, 3)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -188,11 +191,12 @@ class TestTaosdumpStartEndTime:
 
         os.system("%s db t2 -o %s -T 1 --start-time=2023-02-28T12:00:01.997+0800 " % (binPath, self.tmpdir))
 
-        tdSql.execute("drop table t2")
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
-
-        tdSql.query("select count(*) from db.t2")
-        tdSql.checkData(0, 0, 4)
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (long start-only) ---")
+            tdSql.execute("drop table if exists db.t2")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.query("select count(*) from db.t2")
+            tdSql.checkData(0, 0, 4)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -203,12 +207,13 @@ class TestTaosdumpStartEndTime:
 
         os.system("%s db t3 -o %s -T 1 --end-time=2023-02-28T12:00:03.997+0800 " % (binPath, self.tmpdir))
 
-        tdSql.execute("drop table t3")
+        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+            tdLog.info(f"--- {tool_name} import+verify (long end-only) ---")
+            tdSql.execute("drop table if exists db.t3")
+            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.query("select count(*) from db.t3")
+            tdSql.checkData(0, 0, 4)
 
-        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
-
-        tdSql.query("select count(*) from db.t3")
-        tdSql.checkData(0, 0, 4)    
         print("do start end time long ................ [passed]")
 
     #
@@ -269,30 +274,34 @@ class TestTaosdumpStartEndTime:
         os.system("%s Db st -R -e -o %s -T 1" % (binPath, self.tmpdir))
         # sys.exit(1)
 
-        tdSql.execute("drop database `Db`")
-        #        sys.exit(1)
+        backupPath = etool.taosBackupFile()
+        for tool_name, tool, extra_flags in [("taosdump", binPath, "-R -e"), ("taosBackup", backupPath, "")]:
+            tdLog.info(f"--- {tool_name} import+verify (escaped db) ---")
+            tdSql.execute("drop database if exists `Db`")
+            if extra_flags:
+                os.system("%s %s -i %s -T 1" % (tool, extra_flags, self.tmpdir))
+            else:
+                os.system("%s -i %s -T 1" % (tool, self.tmpdir))
 
-        os.system("%s -R -e -i %s -T 1" % (binPath, self.tmpdir))
+            tdSql.query("show databases")
+            dbresult = tdSql.queryResult
 
-        tdSql.query("show databases")
-        dbresult = tdSql.queryResult
+            found = False
+            for i in range(len(dbresult)):
+                print("Found db: %s" % dbresult[i][0])
+                if dbresult[i][0] == "Db":
+                    found = True
+                    break
 
-        found = False
-        for i in range(len(dbresult)):
-            print("Found db: %s" % dbresult[i][0])
-            if dbresult[i][0] == "Db":
-                found = True
-                break
+            assert found == True
 
-        assert found == True
+            tdSql.execute("use `Db`")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "st")
 
-        tdSql.execute("use `Db`")
-        tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
-
-        tdSql.query("select count(*) from `Db`.st")
-        tdSql.checkData(0, 0, 1)
+            tdSql.query("select count(*) from `Db`.st")
+            tdSql.checkData(0, 0, 1)
     
         print("do escape db .......................... [passed]")
 

@@ -1,0 +1,1 @@
+CREATE STABLE `meters` (`ts` TIMESTAMP, `pk` INT, `bc` BOOL, `fc` FLOAT, `dc` DOUBLE, `ti` TINYINT, `si` SMALLINT, `ic` INT, `bi` BIGINT, `bin` VARCHAR(32), `nch` NCHAR(64)) TAGS (`groupid` TINYINT, `location` VARCHAR(16)) SECURITY_LEVEL 0 SECURE_DELETE 0

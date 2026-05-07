@@ -198,6 +198,7 @@ class TestTaosdumpRetry:
 
         # find
         taosdump, benchmark, taosadapter, tmpdir = self.findPrograme()
+        taosbackup = etool.taosBackupFile()
         json = f"{os.path.dirname(os.path.abspath(__file__))}/json/retry.json"
 
         # insert data with taosBenchmark
@@ -212,11 +213,12 @@ class TestTaosdumpRetry:
         # stop kill
         self.stopKillThread()
 
-        # dump in
-        self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        self.verifyResult(db, newdb, json)
+        # import and verify with both taosdump and taosBackup
+        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
+            tdLog.info(f"--- {tool_name} import+verify ---")
+            tdSql.execute(f"drop database if exists {newdb}")
+            self.dumpIn(tool, db, newdb, tmpdir)
+            self.verifyResult(db, newdb, json)
 
     def test_taosdump_retry(self):
         """taosdump except

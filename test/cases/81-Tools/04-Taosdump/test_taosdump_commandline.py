@@ -134,18 +134,30 @@ class TestTaosdumpCommandline:
         # check normal table
         self.check_same(db, newdb, "ntb", "sum(c1)")
 
+    def exec(self, command):
+        tdLog.info(command)
+        return os.system(command)
+
     #  with Native Rest and WebSocket
     def dumpInOutMode(self, mode, db, json, tmpdir):
         # dump out
         self.clearPath(tmpdir)
         self.taosdump(f"{mode} -D {db} -o {tmpdir}")
 
-        # dump in
+        # dump in with taosdump
         newdb = "new" + db
         self.taosdump(f"{mode} -W \"{db}={newdb}\" -i {tmpdir}")
 
         # check same
         self.verifyResult(db, newdb, json)
+
+        # dump in with taosBackup (avro compatible)
+        tdLog.info("--- taosBackup import+verify ---")
+        taosbackup = etool.taosBackupFile()
+        bk_newdb = "bk" + db
+        tdSql.execute(f"drop database if exists {bk_newdb}")
+        self.exec(f'{taosbackup} -W "{db}={bk_newdb}" -i {tmpdir}')
+        self.verifyResult(db, bk_newdb, json)
 
 
     # basic commandline
