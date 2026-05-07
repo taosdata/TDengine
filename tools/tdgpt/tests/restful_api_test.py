@@ -478,6 +478,11 @@ class RestfulTest(TestCase):
                     "d": 1,
                     "q": 1
                 }
+            }
+        })
+
+        self.assertEqual(response.status_code, 200)
+
     # --- /api/v1/analysis/pearsonr tests ---
 
     def test_pearsonr_happy_path(self):
