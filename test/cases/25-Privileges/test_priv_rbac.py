@@ -1597,9 +1597,9 @@ class TestCase:
         # --- Case 2: grant ALTER PASS, now user CAN change another's password ---
         tdSql.connect("root", "taosdata")
         tdSql.execute("grant alter pass to u_pass_a")
-        time.sleep(5)  # wait for privilege propagation
-
+        tdSql.execute(f"revoke role `SYSINFO_1` from u_pass_a")
         tdSql.connect("u_pass_a", self.test_pass)
+        time.sleep(5)  # wait for privilege propagation
         tdSql.execute(f"alter user u_pass_b pass 'NewPass_456!'")
 
         # Verify u_pass_b can login with new password
@@ -1607,22 +1607,32 @@ class TestCase:
         tdSql.query("select 1")
         tdSql.checkRows(1)
 
-        # --- Case 3: revoke ALTER PASS, cannot change other's password again ---
+        # --- Case 3: revoke ALTER PASS, cannot change other's password ---
         tdSql.connect("root", "taosdata")
         tdSql.execute("revoke alter pass from u_pass_a")
-        time.sleep(5)
-
+        tdSql.execute("grant alter self pass to u_pass_a")
         tdSql.connect("u_pass_a", self.test_pass)
+        time.sleep(5)
         tdSql.error(
             f"alter user u_pass_b pass 'AnotherPass_789!'",
             expectErrInfo="Permission denied",
             fullMatched=False,
         )
 
-        # --- Case 4: user can always change own password (ALTER SELF PASS is default) ---
+        # --- Case 4: user can change own password ---
         tdSql.connect("u_pass_a", self.test_pass)
         tdSql.execute(f"alter user u_pass_a pass 'SelfNew_123!'")
         # Verify can login with new password
+        tdSql.connect("u_pass_a", "SelfNew_123!")
+        tdSql.query("select 1")
+        tdSql.checkRows(1)
+
+        # -- Case 5: user cann't change own password --
+        tdSql.connect("root", "taosdata")
+        tdSql.execute(f"revoke alter self pass from u_pass_a")
+        tdSql.connect("u_pass_a", "SelfNew_123!")
+        time.sleep(5)
+        tdSql.error(f"alter user u_pass_a pass 'SelfNew_123@'", expectErrInfo="Permission denied", fullMatched=False)
         tdSql.connect("u_pass_a", "SelfNew_123!")
         tdSql.query("select 1")
         tdSql.checkRows(1)
