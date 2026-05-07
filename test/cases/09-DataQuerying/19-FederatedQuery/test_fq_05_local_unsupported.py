@@ -2091,7 +2091,78 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        pytest.skip("Requires live external DB with specific versions")
+    def test_fq_local_033(self):
+        """FQ-LOCAL-033: unsupported external source version — hard protocol boundary
+
+        Tests the only real hard version boundary: InfluxDB 1.x vs 3.x.
+
+        InfluxDB underwent a full architectural rewrite between v1 and v3; the
+        v3 HTTP API endpoint (/api/v3/query_sql) does not exist in v1.  The HTTP
+        connector probes that URL on every query and must return
+        TSDB_CODE_OPS_NOT_SUPPORT when it receives HTTP 404.  This is a protocol-
+        level failure that cannot be papered over — unlike MySQL and PostgreSQL
+        version differences.
+
+        Design note — why MySQL/PG are not tested here:
+          TDengine's push-down capability flags (SExtSourceCapability) comprise only
+          basic SQL-92 operations: filter, projection, limit, aggregation, order-by,
+          and IN-const-list.  All of these are supported by every MySQL version from
+          5.x and every PostgreSQL version from 9.x.  In Phase 1 (current, full
+          local fallback) the SQL sent to external sources is even simpler — a plain
+          SELECT with no dialect-specific syntax.  In Phase 2 (targeted pushdown)
+          the generated SQL will still be SQL-92 because the capability set is
+          intentionally limited to the lowest common denominator.  Consequently no
+          MySQL or PostgreSQL version that TDengine can connect to will fail due to
+          query capability mismatch.
+
+        Dimensions:
+          a) InfluxDB 1.8 (v1; no /api/v3/query_sql endpoint): query attempt
+             returns TSDB_CODE_OPS_NOT_SUPPORT
+
+        Catalog: - Query:FederatedLocal
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation
+            - 2026-05-xx wpan Rewritten: only InfluxDB 1.8 real-server sub-case;
+                                MySQL/PG sub-cases removed (no meaningful version
+                                boundary exists for SQL-92 push-down capabilities)
+
+        """
+        from federated_query_common import TSDB_CODE_OPS_NOT_SUPPORT
+
+        # ── (a) InfluxDB 1.8 ──────────────────────────────────────────────────
+        # Runs only when "1.8" is listed in FQ_INFLUX_VERSIONS.
+        # InfluxDB 1.x has no /api/v3/query_sql endpoint.  The HTTP connector
+        # probes that URL on connect → HTTP 404 → TSDB_CODE_OPS_NOT_SUPPORT.
+        # Must use protocol='http' so the HTTP connector (not Arrow Flight) runs.
+        # ─────────────────────────────────────────────────────────────────────
+        influx18_cfgs = [
+            c for c in ExtSrcEnv.influx_version_configs() if c.version == "1.8"
+        ]
+        if influx18_cfgs:
+            cfg18 = influx18_cfgs[0]
+            influx18_src = "fq_local_033_influx18"
+            try:
+                self._cleanup_src(influx18_src)
+                # protocol='http' → HTTP connector → probes /api/v3/query_sql → 404
+                tdSql.execute(
+                    f"create external source {influx18_src} "
+                    f"type='influxdb' host='{cfg18.host}' port={cfg18.port} "
+                    f"user='u' password='' "
+                    f"options('api_token'='','protocol'='http')"
+                )
+                # (a) Must fail: InfluxDB 1.x has no /api/v3/query_sql → 404
+                #     → TSDB_CODE_OPS_NOT_SUPPORT
+                tdSql.error(
+                    f"select * from {influx18_src}.testdb.m",
+                    expectedErrno=TSDB_CODE_OPS_NOT_SUPPORT,
+                )
+            finally:
+                self._cleanup_src(influx18_src)
 
     def test_fq_local_034(self):
         """FQ-LOCAL-034: unsupported statement error code stability

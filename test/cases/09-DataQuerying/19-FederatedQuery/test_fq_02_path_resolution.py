@@ -1733,7 +1733,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_s01_influx"
         ExtSrcEnv.influx_write_cfg(self._influx_cfg(), INFLUX_BUCKET, [
             "cpu_s01,host=s1 usage_idle=66.6 1704067200000",
-        ])
+        ], precision='ms')
         self._cleanup_src(src)
         try:
             # (a) With default DB → 3-seg overrides
