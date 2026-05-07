@@ -39,6 +39,14 @@ ignore = [
   "RUSTSEC-2022-0081",
   # paste unmaintained; indirect dep via multiple crates.
   "RUSTSEC-2024-0436",
+  # hickory-proto 0.25.2 NSEC3 closest-encloser proof validation unbounded loop.
+  # No fixed version available. Transitive dep via mongodb. taosx does not perform NSEC3 validation.
+  # Fix blocked on upstream hickory-dns release and mongodb adopting it.
+  "RUSTSEC-2026-0118",
+  # hickory-proto 0.25.2 O(n²) CPU exhaustion during message encoding. Fix at >=0.26.1.
+  # Transitive dep via mongodb 3.6.0 (latest) which requires hickory-proto ^0.25.
+  # Fix blocked on mongodb migrating to hickory 0.26+.
+  "RUSTSEC-2026-0119",
 ]
 
 [output]
