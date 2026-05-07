@@ -128,6 +128,7 @@ static SKeyword keywordTable[] = {
     {"FILL_HISTORY",         TK_FILL_HISTORY},
     {"FILL_HISTORY_FIRST",   TK_FILL_HISTORY_FIRST},
     {"FIRST",                TK_FIRST},
+    {"FIRST_DAY_OF_WEEK",    TK_FIRST_DAY_OF_WEEK},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},

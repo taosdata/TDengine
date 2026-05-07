@@ -1273,6 +1273,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return authAlterLocal(pCxt, (SAlterLocalStmt*)pStmt);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_DROP_DATABASE_STMT:
       return authDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:

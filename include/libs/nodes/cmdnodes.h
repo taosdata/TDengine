@@ -1040,6 +1040,16 @@ typedef struct SAlterLocalStmt {
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
 
+typedef struct SSetTimezoneStmt {
+  ENodeType type;
+  char      timezone[TD_TIMEZONE_LEN];
+} SSetTimezoneStmt;
+
+typedef struct SSetFirstDayOfWeekStmt {
+  ENodeType type;
+  int8_t    firstDayOfWeek;
+} SSetFirstDayOfWeekStmt;
+
 typedef struct SAlterEncryptKeyStmt {
   ENodeType type;
   int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY

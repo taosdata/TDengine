@@ -476,6 +476,8 @@ SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToke
                             bool force);
 SNode* createAlterClusterStmt(SAstCreateContext* pCxt, const SToken* pConfig, const SToken* pValue);
 SNode* createAlterLocalStmt(SAstCreateContext* pCxt, const SToken* pConfig, const SToken* pValue);
+SNode* createSetTimezoneStmt(SAstCreateContext* pCxt, const SToken* pTimezone);
+SNode* createSetFirstDayOfWeekStmt(SAstCreateContext* pCxt, const SToken* pVal);
 SNode* createDefaultExplainOptions(SAstCreateContext* pCxt);
 SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);

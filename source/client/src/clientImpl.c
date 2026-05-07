@@ -456,17 +456,50 @@ static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
 }
 #endif
 
+static int32_t execSetTimezone(SRequestObj* pRequest, SSetTimezoneStmt* pStmt) {
+  int64_t rid = pRequest->pTscObj->id;
+  return taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
+}
+
+static int32_t execSetFirstDayOfWeek(SRequestObj* pRequest, SSetFirstDayOfWeekStmt* pStmt) {
+  pRequest->pTscObj->optionInfo.firstDayOfWeek = pStmt->firstDayOfWeek;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool execLocalSetCmd(SRequestObj* pRequest, SQuery* pQuery, int32_t* pCode) {
+  if (pQuery->pRoot == NULL) {
+    return false;
+  }
+
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+      *pCode = execSetTimezone(pRequest, (SSetTimezoneStmt*)pQuery->pRoot);
+      return true;
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      *pCode = execSetFirstDayOfWeek(pRequest, (SSetFirstDayOfWeekStmt*)pQuery->pRoot);
+      return true;
+    default:
+      return false;
+  }
+}
+
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
+  int32_t            code = TSDB_CODE_SUCCESS;
+
+  if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    return code;
+  }
+
   uint8_t            showVarPrivMask = SHOW_VAR_PRIV_ALL;
 #ifdef TD_ENTERPRISE
   if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
     showVarPrivMask = getShowVarPrivMask(pRequest);
   }
 #endif
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
-                              biMode, pRequest->pTscObj->optionInfo.charsetCxt);
+  code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
+                      biMode, pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
@@ -499,8 +532,15 @@ static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscOb
 
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
+  int32_t            code = TSDB_CODE_SUCCESS;
   if (pRequest->validateOnly) {
     doRequestCallback(pRequest, 0);
+    return;
+  }
+
+  if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
     return;
   }
 
@@ -510,8 +550,8 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     showVarPrivMask = getShowVarPrivMask(pRequest);
   }
 #endif
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
-                              atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
+  code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
+                      atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
@@ -1036,6 +1076,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .source = pRequest->source,
          .secureDelete = pRequest->secureDelete,
          .pWorkerCb = getTaskPoolWorkerCb(),
+         .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1588,6 +1629,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
              .source = pRequest->source,
              .secureDelete = pRequest->secureDelete,
              .pWorkerCb = getTaskPoolWorkerCb(),
+             .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
       };
 
       if (TSDB_CODE_SUCCESS == code) {

@@ -13418,6 +13418,8 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
     TAOS_CHECK_EXIT(tSerializeSDownstreamSourceNode(&encoder, pSource));
   }
 
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->firstDayOfWeek));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -13510,6 +13512,13 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, *ppSource));
     }
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->firstDayOfWeek));
+  } else {
+    pReq->firstDayOfWeek = -1;
+  }
+
   tEndDecode(&decoder);
 
 _exit:

@@ -22483,6 +22483,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       code = translateAlterLocal(pCxt, (SAlterLocalStmt*)pNode);
       break;
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      break;
     case QUERY_NODE_EXPLAIN_STMT:
       code = translateExplain(pCxt, (SExplainStmt*)pNode);
       break;
@@ -28421,6 +28424,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
     case QUERY_NODE_ALTER_LOCAL_STMT:
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:

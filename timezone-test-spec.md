@@ -7,12 +7,17 @@
 | 2026-05-06 | 0.1 | AI | 初稿，基于 timezone-plan.md v0.7 生成 |
 | 2026-05-06 | 0.2 | AI | 合并 20 个文件为 3 个，更新文件清单与验证要点 |
 | 2026-05-07 | 0.3 | AI | 同步 plan 9.1：补充当前已落地的 common gtest 单元测试与暂未开发完成的阻塞项 |
+| 2026-05-07 | 0.4 | AI | 补充 async local SET client gtest 与 parser 负数 firstDayOfWeek 回归 |
 
 ## 2. 概述
 
 本文档列出「时区与查询改造」当前 pytest 集成测试文件、已补充的 common gtest 单元测试，以及仍待功能代码落地后补齐的单元测试阻塞项，供人工评审确认覆盖度与正确性。所有测试当前不以“通过”为目标：集成测试对应功能尚未实现，单元测试仅同步记录目前已能编译落地的部分。
 
 测试合并为 3 个文件，按功能域组织：配置/展示、标量函数、时间窗口。
+
+另补充 2 个 gtest 回归锚点，用于覆盖本轮新增的本地执行与 parser 边界行为：
+- `source/client/test/clientTests.cpp`：异步 `taos_query_a("SET ...")` 本地命令路径
+- `source/libs/parser/test/parInitialDTest.cpp`：`SET FIRST_DAY_OF_WEEK -1` 走“语法接受 + 语义报错”
 
 ---
 
@@ -33,12 +38,14 @@
 #### TestSetTimezone — SET TIMEZONE 语法（P1 Task 1.1）
 - ✅ IANA 名称合法：`Asia/Shanghai`、`America/New_York`、`UTC`、`Europe/London`、`Asia/Tokyo`
 - ✅ 固定偏移合法：`+08:00`、`+0800`、`+08`、`-05:00`、`Z`、`+05:30`、`±14:00`
-- ✅ 非法输入：单数字小时（`+8`/`-4`）、模糊缩写（`CST`/`EST`/`PST`）、超限偏移、无效名称/空串
+- ✅ 空串降级：`SET TIMEZONE ''` 退化为 UTC（与 C API `taos_options_connection` 行为一致）
+- ✅ 非法输入：单数字小时（`+8`/`-4`）、模糊缩写（`CST`/`EST`/`PST`）、超限偏移、无效名称
 - ✅ 连接隔离性：SET TIMEZONE 仅影响当前连接
 - ✅ 后续查询生效：多次 SET TIMEZONE 切换后查询结果一致
 
 #### TestSetFirstDayOfWeek — SET FIRST_DAY_OF_WEEK 语法（P1 Task 1.2, 1.3）
 - ✅ 合法值 0-6 全覆盖；非法值 7、-1、100 → 报错
+- ✅ 新增 parser gtest：`SET FIRST_DAY_OF_WEEK -1` 在 parse 阶段不报语法错，而返回 `TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK`
 - ✅ 影响 TIMETRUNCATE(1w) 结果
 - ✅ `ALTER ALL DNODES` 接受；`ALTER DNODE N` 被拒绝
 - ✅ 服务端 `firstDayOfWeek` 在无连接级 override 时，经新连接生效
@@ -66,6 +73,10 @@
 - ✅ TODAY() 不同时区结果正确；UTC 下返回午夜对齐值
 - ✅ TODAY() 不受服务端时区影响；WHERE 子句可用
 - ✅ NOW() 不受 SET TIMEZONE 影响（回归保证）
+
+#### Client gtest 补充 — async local SET 路径
+- ✅ 新增 `clientTests.cpp` 回归：`taos_query_a("SET TIMEZONE 'UTC'")` 成功后更新连接 `optionInfo.timezone`
+- ✅ 新增 `clientTests.cpp` 回归：`taos_query_a("SET FIRST_DAY_OF_WEEK 3")` 成功后更新连接 `optionInfo.firstDayOfWeek`
 
 ---
 

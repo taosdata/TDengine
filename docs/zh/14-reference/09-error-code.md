@@ -593,6 +593,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026AF | Invalid offset unit                                                                                    | offset 子句中使用了无效的时间单位                       | 检查并修正 SQL 语句                    |
 | 0x800026B0 | Invalid offset value                                                                                   | 时间窗口中的 offset 值无效                              | 检查并修正 SQL 语句                    |
 | 0x800026B1 | WHERE clause cannot reference EXTERNAL_WINDOW column                                                   | WHERE 子句中引用了 EXTERNAL_WINDOW 子查询的窗口列       | WHERE 子句不能引用 EXTERNAL_WINDOW 的窗口列，请将过滤条件移到 HAVING 或在 SELECT 列表中处理 |
+| 0x800026B2 | Invalid timezone                                                                                       | 时区字符串非法，或使用了有歧义的时区缩写               | 检查并修正 SQL 语句中的时区参数        |
+| 0x800026B3 | Invalid firstDayOfWeek                                                                                 | firstDayOfWeek 必须是 0-6 之间的整数                   | 检查并修正 SQL 语句中的 firstDayOfWeek 参数 |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |

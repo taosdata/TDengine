@@ -722,6 +722,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       code = makeNode(type, sizeof(SAlterLocalStmt), &pNode);
       break;
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+      code = makeNode(type, sizeof(SSetTimezoneStmt), &pNode);
+      break;
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      code = makeNode(type, sizeof(SSetFirstDayOfWeekStmt), &pNode);
+      break;
     case QUERY_NODE_EXPLAIN_STMT:
       code = makeNode(type, sizeof(SExplainStmt), &pNode);
       break;
@@ -1938,6 +1944,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_TOPIC_STMT:   // no pointer field
     case QUERY_NODE_DROP_CGROUP_STMT:  // no pointer field
     case QUERY_NODE_ALTER_LOCAL_STMT:  // no pointer field
+    case QUERY_NODE_SET_TIMEZONE_STMT:  // no pointer field
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:  // no pointer field
       break;
     case QUERY_NODE_EXPLAIN_STMT: {
       SExplainStmt* pStmt = (SExplainStmt*)pNode;

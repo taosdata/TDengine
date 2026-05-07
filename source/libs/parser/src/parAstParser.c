@@ -2410,6 +2410,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return collectMetaKeyFromAlterLocalStmt(pCxt, (SAlterLocalStmt*)pStmt);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_CREATE_DNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
     case QUERY_NODE_CREATE_QNODE_STMT:

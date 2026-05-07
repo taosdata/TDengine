@@ -200,6 +200,7 @@ typedef struct {
   char          cInfo[CONNECTOR_INFO_LEN];
   uint32_t      userIp;
   SIpRange      userDualIp;  // user ip range
+  int8_t        firstDayOfWeek;  // -1 = unset, 0-6 = override
 }SOptionInfo;
 
 typedef struct {

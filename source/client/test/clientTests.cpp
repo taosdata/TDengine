@@ -186,6 +186,32 @@ void queryCallback(void* param, void* res, int32_t code) {
   tsem_post(sem);
 }
 
+typedef struct {
+  tsem_t  sem;
+  int32_t code;
+} SAsyncExecResult;
+
+void execCallback(void* param, void* res, int32_t code) {
+  SAsyncExecResult* result = (SAsyncExecResult*)param;
+  result->code = code;
+  if (res != NULL) {
+    taos_free_result((TAOS_RES*)res);
+  }
+  tsem_post(&result->sem);
+}
+
+static void execAsyncSql(TAOS* pConn, const char* sql) {
+  SAsyncExecResult result = {0};
+  (void)tsem_init(&result.sem, 0, 0);
+  result.code = INT32_MIN;
+
+  taos_query_a(pConn, sql, execCallback, &result);
+  tsem_wait(&result.sem);
+  tsem_destroy(&result.sem);
+
+  ASSERT_EQ(result.code, TSDB_CODE_SUCCESS) << sql;
+}
+
 void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t startTs, const char* pVarchar) {
   char str[1024] = {0};
   (void)sprintf(str, "create table if not exists tu%d using st2 tags(%d)", index, index);
@@ -1903,6 +1929,38 @@ TEST(clientCase, timezone_Test) {
 
     taos_close(pConn);
   }
+}
+
+TEST(clientCase, async_local_set_cmd_test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  STscObj* pObj = acquireTscObj(*(int64_t*)pConn);
+  ASSERT_NE(pObj, nullptr);
+  ASSERT_EQ(pObj->optionInfo.firstDayOfWeek, -1);
+  ASSERT_EQ(pObj->optionInfo.timezone, nullptr);
+  releaseTscObj(*(int64_t*)pConn);
+
+  execAsyncSql(pConn, "SET TIMEZONE 'UTC'");
+
+  pObj = acquireTscObj(*(int64_t*)pConn);
+  ASSERT_NE(pObj, nullptr);
+  ASSERT_NE(pObj->optionInfo.timezone, nullptr);
+  {
+    char *name = (char *)taosHashGet((SHashObj*)pTimezoneNameMap, &pObj->optionInfo.timezone, sizeof(timezone_t));
+    ASSERT_NE(name, nullptr);
+    ASSERT_TRUE(strstr(name, "UTC") != nullptr) << "timezone name: " << name;
+  }
+  releaseTscObj(*(int64_t*)pConn);
+
+  execAsyncSql(pConn, "SET FIRST_DAY_OF_WEEK 3");
+
+  pObj = acquireTscObj(*(int64_t*)pConn);
+  ASSERT_NE(pObj, nullptr);
+  ASSERT_EQ(pObj->optionInfo.firstDayOfWeek, 3);
+  releaseTscObj(*(int64_t*)pConn);
+
+  taos_close(pConn);
 }
 
 void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** pUserConnect, char userBuf[]) {

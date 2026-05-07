@@ -838,11 +838,11 @@ SELECT TIMEZONE(1);
 
 - [x] 第 9 章单元测试与 pytest 用例已先行生成，覆盖范围可供评审
 - [x] 测试内容已完成人工评审，确认正确且覆盖充分后再进入开发
-- [ ] P1：`SET TIMEZONE` 语法可用
-- [ ] P1：`SET FIRST_DAY_OF_WEEK` 语法可用
-- [ ] P1：服务端 `firstDayOfWeek` 配置项可用
-- [ ] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
-- [ ] P1：请求上下文携带 firstDayOfWeek
+- [x] P1：`SET TIMEZONE` 语法可用
+- [x] P1：`SET FIRST_DAY_OF_WEEK` 语法可用
+- [x] P1：服务端 `firstDayOfWeek` 配置项可用
+- [x] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
+- [x] P1：请求上下文携带 firstDayOfWeek
 - [ ] P2：普通列展示使用连接时区
 - [ ] P2：SHOW/EXPLAIN 使用连接时区
 - [ ] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐

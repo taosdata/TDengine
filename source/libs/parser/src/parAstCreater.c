@@ -7206,6 +7206,34 @@ _err:
   return NULL;
 }
 
+SNode* createSetTimezoneStmt(SAstCreateContext* pCxt, const SToken* pTimezone) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetTimezoneStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_TIMEZONE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pTimezone->z, pTimezone->n, pStmt->timezone, sizeof(pStmt->timezone));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createSetFirstDayOfWeekStmt(SAstCreateContext* pCxt, const SToken* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetFirstDayOfWeekStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  int64_t val = taosStr2Int64(pVal->z, NULL, 10);
+  if (val < 0 || val > 6) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK;
+    goto _err;
+  }
+  pStmt->firstDayOfWeek = (int8_t)val;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 SNode* createDefaultExplainOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SExplainOptions* pOptions = NULL;
