@@ -223,6 +223,47 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     pInfo->fetchedRows += pBlock->info.rows;
     pInfo->fetchBlockCount++;
 
+    // If the DataBlockDesc contains reserved slots beyond the MySQL columns (e.g. a
+    // constant separator for group_concat pushed down from the parent Agg's scalar
+    // exprSupp), extend the block with pre-allocated placeholder columns for those
+    // slots.  The parent operator's projectApplyFunctions() will write the computed
+    // values into these columns before running aggregate functions on them.
+    {
+      SDataBlockDescNode* pDesc      = pInfo->pFedScanNode->node.pOutputDataBlockDesc;
+      int32_t             totalSlots = LIST_LENGTH(pDesc->pSlots);
+      int32_t             curCols    = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+      if (curCols < totalSlots) {
+        SNode*  pSlotNode = NULL;
+        int32_t si        = 0;
+        FOREACH(pSlotNode, pDesc->pSlots) {
+          if (si >= curCols) {
+            SSlotDescNode*  pSlot = (SSlotDescNode*)pSlotNode;
+            SColumnInfoData col   = {0};
+            col.info.type         = pSlot->dataType.type;
+            col.info.bytes        = pSlot->dataType.bytes;
+            col.info.precision    = pSlot->dataType.precision;
+            col.info.scale        = pSlot->dataType.scale;
+            // Pre-allocate memory so projectApplyFunctions can write into the column
+            // even when blockDataEnsureCapacity is a no-op (capacity already sufficient).
+            if (pBlock->info.rows > 0) {
+              code = colInfoDataEnsureCapacity(&col, pBlock->info.rows, false);
+              if (code != TSDB_CODE_SUCCESS) {
+                colDataDestroy(&col);
+                QUERY_CHECK_CODE(code, lino, _return);
+              }
+            }
+            void* p = taosArrayPush(pBlock->pDataBlock, &col);
+            if (p == NULL) {
+              colDataDestroy(&col);
+              code = terrno;
+              QUERY_CHECK_CODE(code, lino, _return);
+            }
+          }
+          si++;
+        }
+      }
+    }
+
     // Apply local filter (handles TDengine-specific functions like like_in_set,
     // regexp_in_set that nodesRemotePlanToSQL could not push to the remote DB).
     if (pOperator->exprSupp.pFilterInfo != NULL && pBlock->info.rows > 0) {
@@ -349,12 +390,6 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   // Store reference to physi node (not owned — lifetime managed by plan)
   pInfo->pFedScanNode = pFedScanNode;
 
-  qError("FqExec ENTRY: pColTypeMappings=%p, numColTypeMappings=%d, pRemotePlan=%p, pScanCols len=%d",
-         (void*)pFedScanNode->pColTypeMappings,
-         pFedScanNode->numColTypeMappings,
-         (void*)pFedScanNode->pRemotePlan,
-         pFedScanNode->pScanCols ? (int)LIST_LENGTH(pFedScanNode->pScanCols) : -1);
-
   // Build pColTypeMappings if not already set.
   // The planner populates pColTypeMappings before serialization, but the JSON codec
   // does not serialize this raw C-array field, so it arrives as NULL after deserialization.
@@ -376,10 +411,6 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
         SProjectPhysiNode* pProj = (SProjectPhysiNode*)pFedScanNode->pRemotePlan;
         pOutputCols = pProj->pProjections;
       }
-      qError("FqExec DIAG: pRemotePlan type=%d, pOutputCols len=%d, pScanCols len=%d",
-             remoteType,
-             pOutputCols ? (int)LIST_LENGTH(pOutputCols) : -1,
-             pFedScanNode->pScanCols ? (int)LIST_LENGTH(pFedScanNode->pScanCols) : -1);
     }
 
     if (pOutputCols != NULL && LIST_LENGTH(pOutputCols) > 0) {
@@ -429,9 +460,27 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   // When pRemotePlan exists, the remote query returns fewer columns than pScanCols.
   // Rebuild pOutputDataBlockDesc to match the actual output (pColTypeMappings) so
   // the data dispatcher's schema validation passes.
+  //
+  // Reserved slots (e.g. a constant separator pushed down from an Agg's scalar
+  // exprSupp for group_concat) must be preserved at the end of the DataBlockDesc
+  // so that the parent operator can write computed values into them.  The FedScan
+  // block is extended with placeholder columns for these reserved slots in
+  // federatedScanGetNext() after each extConnectorFetchBlock() call.
   if (pFedScanNode->pRemotePlan != NULL && pFedScanNode->numColTypeMappings > 0) {
     SDataBlockDescNode* pDesc = pFedScanNode->node.pOutputDataBlockDesc;
     if (pDesc != NULL && LIST_LENGTH(pDesc->pSlots) != pFedScanNode->numColTypeMappings) {
+      // Save reserved slots (struct copy — SSlotDescNode has no owned pointers)
+      // BEFORE destroying the original list.
+      int32_t       numReserved = 0;
+      SSlotDescNode reservedSlotsBuf[16];
+      SNode*        pSlotIter = NULL;
+      FOREACH(pSlotIter, pDesc->pSlots) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)pSlotIter;
+        if (pSlot->reserve && numReserved < 16) {
+          reservedSlotsBuf[numReserved++] = *pSlot;
+        }
+      }
+
       nodesDestroyList(pDesc->pSlots);
       pDesc->pSlots = NULL;
       pDesc->totalRowSize = 0;
@@ -453,6 +502,21 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
         pDesc->totalRowSize += pSlot->dataType.bytes;
         pDesc->outputRowSize += pSlot->dataType.bytes;
       }
+
+      // Re-append reserved slots after MySQL columns so the parent operator's
+      // scalar exprSupp can write computed values (e.g. group_concat separator)
+      // into the placeholder columns added by federatedScanGetNext().
+      for (int32_t ri = 0; ri < numReserved; ++ri) {
+        SSlotDescNode* pSlot = NULL;
+        code = nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot);
+        QUERY_CHECK_NULL(pSlot, code, lino, _error, terrno);
+        *pSlot = reservedSlotsBuf[ri];
+        pSlot->slotId = (uint16_t)(pFedScanNode->numColTypeMappings + ri);
+        code = nodesListStrictAppend(pDesc->pSlots, (SNode*)pSlot);
+        QUERY_CHECK_CODE(code, lino, _error);
+        pDesc->totalRowSize += pSlot->dataType.bytes;
+        // reserved slots intentionally NOT added to outputRowSize
+      }
     }
   }
 
@@ -464,6 +528,9 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   // Initialize local filter for conditions that nodesRemotePlanToSQL could not
   // translate to the remote dialect (e.g., like_in_set, regexp_in_set).
   // pFedScanNode->node.pConditions has slot IDs set by the planner.
+  // EXISTS/NOT_EXISTS conditions are fully pushed to the remote source and must
+  // not appear here (fqHarvestConditions in the optimizer clears pConditions for
+  // such nodes so pFedScanNode->node.pConditions is always NULL in that case).
   if (pFedScanNode->node.pConditions != NULL) {
     code = filterInitFromNode((SNode*)pFedScanNode->node.pConditions,
                               &pOperator->exprSupp.pFilterInfo, 0, NULL);

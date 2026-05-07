@@ -672,6 +672,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_FIELD(pFqLimit);
   CLONE_NODE_LIST_FIELD(pFqJoinTables);
   CLONE_NODE_FIELD(pRemoteLogicPlan);
+  CLONE_NODE_FIELD(pPushedConditions);
   return TSDB_CODE_SUCCESS;
 }
 

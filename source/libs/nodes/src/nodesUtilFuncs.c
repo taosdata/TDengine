@@ -2275,6 +2275,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pFqLimit);
       nodesDestroyList(pLogicNode->pFqJoinTables);
       nodesDestroyNode(pLogicNode->pRemoteLogicPlan);
+      nodesDestroyNode(pLogicNode->pPushedConditions);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {

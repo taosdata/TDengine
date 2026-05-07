@@ -10765,10 +10765,43 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode) {
 // The remaining stubs are no-ops until Phase 2 implementation.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Harvest WHERE conditions that were split by pdcOptimize and re-merge them
-// into the remote plan's filter node for remote execution.
+// Returns true if pExpr is an EXISTS/NOT_EXISTS with a RAW_SQL_FRAG operand.
+// NOT EXISTS may be represented as either:
+//   (a) OperatorNode(opType=OP_TYPE_NOT_EXISTS, pLeft=RAW_SQL_FRAG)  — direct
+//   (b) LogicConditionNode(condType=NOT, Parameters=[OperatorNode(EXISTS, RAW_SQL_FRAG)])
+static bool fqIsRawSqlExistsOp(SNode* pCond) {
+  if (pCond == NULL || nodeType(pCond) != QUERY_NODE_OPERATOR) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (pOp->opType != OP_TYPE_EXISTS && pOp->opType != OP_TYPE_NOT_EXISTS) return false;
+  if (pOp->pLeft == NULL || nodeType(pOp->pLeft) != QUERY_NODE_VALUE) return false;
+  return (((SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG) != 0;
+}
+
+static bool fqIsFullyPushedCondition(SNode* pCond) {
+  if (pCond == NULL) return false;
+  // Case (a): direct EXISTS/NOT_EXISTS operator with RAW_SQL_FRAG
+  if (fqIsRawSqlExistsOp(pCond)) return true;
+  // Case (b): NOT(EXISTS(RAW_SQL_FRAG)) — parser emits this for NOT EXISTS
+  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    if (pLogic->condType == LOGIC_COND_TYPE_NOT &&
+        pLogic->pParameterList && LIST_LENGTH(pLogic->pParameterList) == 1) {
+      return fqIsRawSqlExistsOp((SNode*)pLogic->pParameterList->pHead->pNode);
+    }
+  }
+  return false;
+}
+
+// Harvest WHERE conditions that can be pushed entirely to the remote source.
+// Moves them from pScan->node.pConditions to pScan->pPushedConditions so that
+// the outer physical scan gets pConditions=NULL (safe for executor/scalar) while
+// the inner leaf physical node still carries the condition for SQL generation.
 static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
-  // Phase 2: collect pScan->pScanConds / tagCond / primaryKeyCond → remote WHERE
+  if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
+  if (fqIsFullyPushedCondition(pScan->node.pConditions)) {
+    pScan->pPushedConditions = pScan->node.pConditions;
+    pScan->node.pConditions = NULL;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -10827,14 +10860,8 @@ static int32_t fqHarvestLimit(SScanLogicNode* pScan) {
 
   while (pCurr != NULL) {
     SLogicNode* pLogic = (SLogicNode*)pCurr;
-    qError("FqHarvestLimit: visiting node type=%d, pLimit=%p", nodeType(pCurr), pLogic->pLimit);
     if (pLogic->pLimit != NULL) {
-      SLimitNode* pLim = (SLimitNode*)pLogic->pLimit;
-      qError("FqHarvestLimit: found pLimit on type=%d, limit=%"PRId64", offset=%"PRId64,
-             nodeType(pCurr),
-             pLim->limit ? ((SValueNode*)pLim->limit)->datum.i : (int64_t)-1,
-             pLim->offset ? ((SValueNode*)pLim->offset)->datum.i : (int64_t)0);
-      pSource = pLim;
+      pSource = (SLimitNode*)pLogic->pLimit;
       break;
     }
     SNodeList* pChildren = pLogic->pChildren;

@@ -4774,7 +4774,11 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       }
       if (pSrc) {
         // taosHashAcquire on pDbHash — HASH_ENTRY_LOCK, no external lock needed.
-        void* ppDbHandle = taosHashAcquire(pSrc->pDbHash, dbKey, strlen(dbKey));
+        size_t dbKeyLen = strlen(dbKey);
+        if (dbKeyLen == 0) {
+          dbKeyLen = 1;
+        }
+        void* ppDbHandle = taosHashAcquire(pSrc->pDbHash, dbKey, dbKeyLen);
         if (ppDbHandle) {
           SExtDbCache* pDb = *(SExtDbCache**)ppDbHandle;
           // taosHashAcquire on pTableHash — fine-grained bucket lock.

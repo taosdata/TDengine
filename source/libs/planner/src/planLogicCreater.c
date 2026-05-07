@@ -901,14 +901,19 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
             }
           }
           if (!found) {
+            // Prepend ts to pScanCols/pTargets so it gets slot 0.
+            // rightPrimSlotId defaults to 0, so ts must be at slot 0 for the
+            // merge-join executor to read the correct timestamp column.
             SNode* pColClone = NULL;
             if (TSDB_CODE_SUCCESS == (code = nodesCloneNode((SNode*)pPC, &pColClone))) {
-              code = nodesListMakeStrictAppend(&pChildScan->pScanCols, pColClone);
+              code = nodesListMakePushFront(&pChildScan->pScanCols, pColClone);
+              if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pColClone);
             }
             if (TSDB_CODE_SUCCESS == code) {
               SNode* pTgtClone = NULL;
               if (TSDB_CODE_SUCCESS == (code = nodesCloneNode((SNode*)pPC, &pTgtClone))) {
-                code = nodesListMakeStrictAppend(&pChildScan->node.pTargets, pTgtClone);
+                code = nodesListMakePushFront(&pChildScan->node.pTargets, pTgtClone);
+                if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pTgtClone);
               }
             }
           }

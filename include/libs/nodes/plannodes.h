@@ -157,6 +157,11 @@ typedef struct SScanLogicNode {
   // bottommost has pChildren=NULL — the scan itself is NOT in this chain).
   // Physical plan generation converts this to SFederatedScanPhysiNode.pRemotePlan.
   SNode*      pRemoteLogicPlan;
+  // WHERE conditions fully pushed to the remote source (e.g. EXISTS with RAW_SQL_FRAG).
+  // Set by fqHarvestConditions; clears node.pConditions so the outer physical scan
+  // gets pConditions=NULL. Physical plan creation puts these into the leaf's pConditions
+  // for nodesRemotePlanToSQL, but NOT into the outer scan operator.
+  SNode*      pPushedConditions;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -1078,6 +1083,11 @@ typedef int32_t (*FResolveRemoteForSQL)(void* pCtx, int32_t subQIdx, SNode* pNod
 typedef struct SNodesRemoteSQLCtx {
   void*               pCtx;  // STaskSubJobCtx* from the executor task
   FResolveRemoteForSQL fp;   // qFetchRemoteNode
+  // When true, column references in WHERE clauses are rendered as
+  // "tableName"."colName" instead of just "colName".  Used when rendering
+  // the body of a correlated EXISTS subquery that is pushed down to an
+  // external source, where column prefixes are required for disambiguation.
+  bool                includeTableName;
 } SNodesRemoteSQLCtx;
 
 // nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's

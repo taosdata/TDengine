@@ -4573,7 +4573,12 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
   // Readers use taosHashAcquire (HASH_ENTRY_LOCK, fine-grained bucket locks) — no entryLock here.
   // entryLock is only for source/capability scalar fields.
 
-  SExtDbCache** ppDb = (SExtDbCache**)taosHashGet(pSrc->pDbHash, msg->dbKey, strlen(msg->dbKey));
+  size_t dbKeyLen = strnlen(msg->dbKey, sizeof(msg->dbKey));
+  if (dbKeyLen == 0) {
+    // Empty dbKey is a valid bucket (source-level default DB/schema).
+    dbKeyLen = 1;  // include leading '\0' as key payload
+  }
+  SExtDbCache** ppDb = (SExtDbCache**)taosHashGet(pSrc->pDbHash, msg->dbKey, dbKeyLen);
   SExtDbCache*  pDb  = NULL;
   if (ppDb && *ppDb) {
     pDb = *ppDb;
@@ -4589,7 +4594,7 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
       taosMemoryFree(pDb);
       CTG_ERR_JRET(terrno);
     }
-    if (taosHashPut(pSrc->pDbHash, msg->dbKey, strlen(msg->dbKey), &pDb, POINTER_BYTES)) {
+    if (taosHashPut(pSrc->pDbHash, msg->dbKey, dbKeyLen, &pDb, POINTER_BYTES)) {
       ctgError("ctgOpUpdateExtTableMeta: taosHashPut dbKey failed, source:'%s', error:%s",
                msg->sourceName, tstrerror(terrno));
       ctgFreeExtDbCache(pDb);

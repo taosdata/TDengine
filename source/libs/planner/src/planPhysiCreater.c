@@ -425,7 +425,24 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     if (NULL == pIndex) {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      if (false == pCol->hasRef && false == pCol->hasDep) {
+      // Try the full key first (table-qualified hash key). This avoids false
+      // positives when two tables share the same column name (e.g. both have
+      // "ts") and the userAlias patch has added plain colName keys to the hash
+      // for both tables. For FedScan ASOF/WINDOW JOIN conditions, the full key
+      // (hash of "tableAlias.colName") correctly identifies which table's block.
+      {
+        char tmpName[len + 1];
+        TAOS_MEMCPY(tmpName, name, len);
+        tmpName[len] = 0;
+        SSlotIndex* pFullIdx = taosHashGet(pCxt->pLeftHash, tmpName, len);
+        if (NULL == pFullIdx) {
+          pFullIdx = taosHashGet(pCxt->pRightHash, tmpName, len);
+        }
+        if (pFullIdx) {
+          pIndex = pFullIdx;
+        }
+      }
+      if (NULL == pIndex && false == pCol->hasRef && false == pCol->hasDep) {
         int32_t colLen = (int32_t)strlen(pCol->colName);
         if (NULL == pIndex && colLen > 0) {
           pIndex = taosHashGet(pCxt->pLeftHash, pCol->colName, colLen);
@@ -1395,18 +1412,74 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // Clone conditions from the logic node directly onto the outer scan so the
-  // executor can apply local filters (e.g., like_in_set, regexp_in_set) that
-  // nodesRemotePlanToSQL cannot push to the remote dialect.
-  // The logic-plan conditions already carry correct SlotIds from the logic-plan
-  // slot-assignment pass, so we do NOT call setConditionsSlotId / setNodeSlotId
-  // (which would fail because the outer scan's slot hash is keyed by colId from
-  // pScanCols, not by the original remote-table colId used in pConditions).
+  // Patch the slot-ID hash so that setNodeSlotId can find external-scan
+  // condition columns by their original (user-visible) names.
+  //
+  // External scan columns use internal placeholder names like "expr_1",
+  // "expr_2" as colName, with the user-visible name stored in userAlias.
+  // addDataBlockSlots keys the hash by colName ("expr_1"), so the condition's
+  // column "val" (original name) is not found and setNodeSlotId would fail.
+  // We add a supplementary "userAlias → slotId" entry to the hash so
+  // setNodeSlotId (doSetSlotId) can resolve the condition column by colName.
+  //
+  // We also add a table-qualified hash key (hash of "tableAlias.userAlias",
+  // e.g. "b.ts") so that doSetSlotId's full-key lookup correctly maps
+  // each table's column to the right block when two tables share column names.
+  {
+    int64_t   dataBlockId = pScan->node.pOutputDataBlockDesc->dataBlockId;
+    SHashObj* pHash = (SHashObj*)taosArrayGetP(pCxt->pLocationHelper, (size_t)dataBlockId);
+    if (pHash != NULL) {
+      SNode* pTgtNode;
+      FOREACH(pTgtNode, pScan->pScanCols) {
+        if (QUERY_NODE_TARGET != nodeType(pTgtNode)) continue;
+        STargetNode* pTgt = (STargetNode*)pTgtNode;
+        if (NULL == pTgt->pExpr) continue;
+        const char* alias = ((SExprNode*)pTgt->pExpr)->userAlias;
+        if ('\0' == alias[0]) continue;
+        int32_t len = (int32_t)strlen(alias);
+        if (NULL == taosHashGet(pHash, alias, len)) {
+          (void)putSlotToHashImpl(dataBlockId, pTgt->slotId, alias, len, pHash);
+        }
+        // Also add a table-qualified hash key ("tableAlias.userAlias") so
+        // that the full-key lookup in doSetSlotId can distinguish columns
+        // with the same name from different tables (e.g. both having "ts").
+        if (QUERY_NODE_COLUMN == nodeType(pTgt->pExpr)) {
+          const SColumnNode* pColNode = (const SColumnNode*)pTgt->pExpr;
+          if (pColNode->tableAlias[0] != '\0') {
+            char   qualBuf[TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 16 + 4];
+            int32_t qualCap = (int32_t)sizeof(qualBuf);
+            qualBuf[0] = '\0';
+            TAOS_STRNCAT(qualBuf, pColNode->tableAlias, TSDB_TABLE_NAME_LEN);
+            TAOS_STRNCAT(qualBuf, ".", 2);
+            TAOS_STRNCAT(qualBuf, alias, TSDB_COL_NAME_LEN);
+            int32_t qualLen = taosHashBinary(qualBuf, strlen(qualBuf), qualCap);
+            if (NULL == taosHashGet(pHash, qualBuf, qualLen)) {
+              (void)putSlotToHashImpl(dataBlockId, pTgt->slotId, qualBuf, qualLen, pHash);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Set correct slot IDs in the cloned conditions using setNodeSlotId.
+  // The hash now has both placeholder names ("expr_2") and original user-visible
+  // names ("val") so doSetSlotId can resolve every condition column correctly.
+  // This ensures the local filter (for like_in_set, REMOTE_VALUE_LIST, etc.)
+  // references the right column in the output data block.
   if (pScanLogicNode->node.pConditions != NULL) {
-    code = nodesCloneNode(pScanLogicNode->node.pConditions, &pScan->node.pConditions);
-    if (code != TSDB_CODE_SUCCESS) {
-      nodesDestroyNode((SNode*)pScan);
-      return code;
+    code = setNodeSlotId(pCxt, pScan->node.pOutputDataBlockDesc->dataBlockId, -1,
+                         pScanLogicNode->node.pConditions, &pScan->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) {
+      // Some condition columns (e.g. WHERE-only columns like "active") are not
+      // present in the scan output because they were fully pushed down to the
+      // external database's SQL.  setNodeSlotId cannot resolve them, so we
+      // leave pConditions NULL here: the SQL pushdown already handles that
+      // filtering, so no local re-evaluation is needed.
+      planDebug("createFederatedScanPhysiNode: setNodeSlotId failed (%d), "
+               "condition columns not in scan output — relying on SQL pushdown", code);
+      pScan->node.pConditions = NULL;
+      code = TSDB_CODE_SUCCESS;
     }
   }
 
@@ -1470,13 +1543,21 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
-  // WHERE clause: clone conditions with original column names (not slot IDs)
-  if (pScanLogicNode->node.pConditions != NULL) {
-    code = nodesCloneNode(pScanLogicNode->node.pConditions, &pLeaf->node.pConditions);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pLeaf);
-      nodesDestroyNode((SNode*)pScan);
-      return code;
+  // WHERE clause: clone conditions with original column names (not slot IDs).
+  // pPushedConditions holds conditions that are fully remote (e.g. EXISTS with
+  // RAW_SQL_FRAG); these must appear in the leaf for SQL generation but NOT in
+  // the outer scan operator.  Fall back to node.pConditions for ordinary scans.
+  {
+    SNode* pLeafCond = (pScanLogicNode->pPushedConditions != NULL)
+                         ? pScanLogicNode->pPushedConditions
+                         : pScanLogicNode->node.pConditions;
+    if (pLeafCond != NULL) {
+      code = nodesCloneNode(pLeafCond, &pLeaf->node.pConditions);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pLeaf);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
     }
   }
 
@@ -1732,12 +1813,20 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
     }
 
+    // Track whether the LEFT operand already set asofOpType.  When two tables
+    // share the same column name (e.g. both have "ts"), doSetSlotId may
+    // incorrectly map the RIGHT operand to the left block too, causing the
+    // RIGHT branch below to overwrite asofOpType with the reversed operator.
+    // Giving priority to the LEFT operand preserves the correct direction.
+    bool asofOpSetFromLeft = false;
+
     switch (nodeType(pOp->pLeft)) {
       case QUERY_NODE_COLUMN: {
         SColumnNode* pCol = (SColumnNode*)pOp->pLeft;
         if (leftBlkId == pCol->dataBlockId) {
           pJoin->leftPrimSlotId = pCol->slotId;
           pJoin->asofOpType = pOp->opType;
+          asofOpSetFromLeft = true;
         } else if (rightBlkId == pCol->dataBlockId) {
           pJoin->rightPrimSlotId = pCol->slotId;
         } else {
@@ -1771,6 +1860,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_
         if (leftBlkId == pCol->dataBlockId) {
           pJoin->leftPrimSlotId = pCol->slotId;
           pJoin->asofOpType = pOp->opType;
+          asofOpSetFromLeft = true;
           pJoin->leftPrimExpr = NULL;
           code = nodesCloneNode((SNode*)pFunc, &pJoin->leftPrimExpr);
         } else if (rightBlkId == pCol->dataBlockId) {
@@ -1793,12 +1883,12 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_
     switch (nodeType(pOp->pRight)) {
       case QUERY_NODE_COLUMN: {
         SColumnNode* pCol = (SColumnNode*)pOp->pRight;
-        if (leftBlkId == pCol->dataBlockId) {
+        if (leftBlkId == pCol->dataBlockId && !asofOpSetFromLeft) {
           pJoin->leftPrimSlotId = pCol->slotId;
           pJoin->asofOpType = getAsofJoinReverseOp(pOp->opType);
         } else if (rightBlkId == pCol->dataBlockId) {
           pJoin->rightPrimSlotId = pCol->slotId;
-        } else {
+        } else if (leftBlkId != pCol->dataBlockId) {
           planError("invalid primary key col equal cond, rightBlockId:%" PRId64, pCol->dataBlockId);
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
@@ -1826,7 +1916,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
         SColumnNode* pCol = (SColumnNode*)pParam;
-        if (leftBlkId == pCol->dataBlockId) {
+        if (leftBlkId == pCol->dataBlockId && !asofOpSetFromLeft) {
           pJoin->leftPrimSlotId = pCol->slotId;
           pJoin->asofOpType = getAsofJoinReverseOp(pOp->opType);
           pJoin->leftPrimExpr = NULL;
@@ -1835,7 +1925,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_
           pJoin->rightPrimSlotId = pCol->slotId;
           pJoin->rightPrimExpr = NULL;
           code = nodesCloneNode((SNode*)pFunc, &pJoin->rightPrimExpr);
-        } else {
+        } else if (leftBlkId != pCol->dataBlockId) {
           planError("invalid primary key col equal cond, rightBlockId:%" PRId64, pCol->dataBlockId);
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }

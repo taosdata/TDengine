@@ -3346,6 +3346,101 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
         break;
       }
 
+      // ── Same-source correlated EXISTS pushdown ──────────────────────────
+      // When both outer and inner FROM tables are from the same external source,
+      // pre-render the EXISTS body SQL and embed it as a raw SQL fragment in the
+      // operator.  The inner subquery is removed from pSubQueries so it will NOT
+      // be planned as a separate subquery plan — instead the entire EXISTS clause
+      // will be included in the outer FedScan's WHERE SQL.
+      bool sameExtSourceCorrelatedExists = pCxt->sameExtSourceCorrelatedExists;
+      pCxt->sameExtSourceCorrelatedExists = false;
+      if (!sameExtSourceCorrelatedExists &&
+          QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt) &&
+          QUERY_NODE_SELECT_STMT == nodeType(pOp->pLeft)) {
+        SSelectStmt* pOuterStmt = (SSelectStmt*)pCxt->pCurrStmt;
+        SSelectStmt* pInnerStmt = (SSelectStmt*)pOp->pLeft;
+        if (pOuterStmt->pFromTable && pInnerStmt->pFromTable &&
+            QUERY_NODE_REAL_TABLE == nodeType(pOuterStmt->pFromTable) &&
+            QUERY_NODE_REAL_TABLE == nodeType(pInnerStmt->pFromTable)) {
+          SExtTableNode* pOuterExt =
+              (SExtTableNode*)((SRealTableNode*)pOuterStmt->pFromTable)->pExtTableNode;
+          SExtTableNode* pInnerExt =
+              (SExtTableNode*)((SRealTableNode*)pInnerStmt->pFromTable)->pExtTableNode;
+          if (pOuterExt && pInnerExt && pOuterExt->sourceName[0] != '\0' &&
+              0 == strcmp(pOuterExt->sourceName, pInnerExt->sourceName)) {
+            sameExtSourceCorrelatedExists = true;
+          }
+        }
+      }
+      if (sameExtSourceCorrelatedExists) {
+        // The inner SELECT was just added to pSubQueries by translateExprSubqueryImpl.
+        // pOp->pLeft still points to the same inner SELECT.
+        SNode* pInnerNode = (pCxt->pSubQueries && pCxt->pSubQueries->pTail)
+                            ? pCxt->pSubQueries->pTail->pNode : NULL;
+
+        if (pInnerNode && QUERY_NODE_SELECT_STMT == nodeType(pInnerNode)) {
+          SSelectStmt* pInner = (SSelectStmt*)pInnerNode;
+
+          // Determine dialect from the inner FROM table's ext source type.
+          int8_t srcType = EXT_SOURCE_MYSQL;  // default
+          if (pInner->pFromTable &&
+              QUERY_NODE_REAL_TABLE == nodeType(pInner->pFromTable)) {
+            SExtTableNode* pExt =
+                (SExtTableNode*)((SRealTableNode*)pInner->pFromTable)->pExtTableNode;
+            if (pExt) srcType = pExt->sourceType;
+          }
+
+          // Render the EXISTS body SQL.
+          char* bodySQL = NULL;
+          int32_t extCode = nodesRenderCorrelatedExistsBody(pInner, srcType, &bodySQL);
+          if (extCode == TSDB_CODE_SUCCESS && bodySQL) {
+            // Create a varstring-format raw SQL fragment value node.
+            SValueNode* pRawSQL = NULL;
+            extCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pRawSQL);
+            if (extCode == TSDB_CODE_SUCCESS && pRawSQL) {
+              int32_t sqlLen = (int32_t)strlen(bodySQL);
+              char* varStr = taosMemoryMalloc(sqlLen + VARSTR_HEADER_SIZE + 1);
+              if (varStr) {
+                varDataSetLen(varStr, sqlLen);
+                memcpy(varDataVal(varStr), bodySQL, sqlLen + 1);  // +1 for NUL
+                taosMemoryFree(bodySQL);
+                bodySQL = NULL;
+                pRawSQL->datum.p = varStr;
+                pRawSQL->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+                pRawSQL->node.resType.bytes = sqlLen + VARSTR_HEADER_SIZE;
+                pRawSQL->flag = VALUE_FLAG_RAW_SQL_FRAG;
+                pRawSQL->translate = true;  // ensure datum.p is serialized in physi plan JSON
+
+                // Remove the inner SELECT from pSubQueries without destroying it
+                // here — we will destroy it by replacing pOp->pLeft below.
+                SListCell* pTailCell = pCxt->pSubQueries->pTail;
+                pTailCell->pNode = NULL;  // prevent nodesListErase from destroying it
+                (void)nodesListErase(pCxt->pSubQueries, pTailCell);
+
+                // Replace pOp->pLeft (inner SELECT) with the raw SQL fragment.
+                // nodesDestroyNode frees the inner SELECT recursively.
+                nodesDestroyNode(pOp->pLeft);
+                pOp->pLeft  = (SNode*)pRawSQL;
+                pOp->pRight = NULL;  // EXISTS has no right operand
+                // Keep pOp->opType as EXISTS/NOT EXISTS for SQL rendering.
+                parserDebug("rewriteExprSubQuery: pre-rendered same-source correlated "
+                            "EXISTS body SQL=[%s]", bodySQL ? bodySQL : varDataVal(varStr));
+                // Ensure any transient metadata lookup errors seen earlier in the
+                // translation path do not leak out after successful rewrite.
+                pCxt->errCode = TSDB_CODE_SUCCESS;
+                // Success — expSubQueryType reset happens at end of switch.
+                break;
+              }
+              nodesDestroyNode((SNode*)pRawSQL);
+              pRawSQL = NULL;
+            }
+            taosMemoryFree(bodySQL);
+          }
+          // Rendering failed: fall through to normal doRewriteExprSubQuery path.
+          // Reset the flag so the normal path doesn't see a stale state.
+        }
+      }
+
       pCxt->errCode = doRewriteExprSubQuery(pCxt, pOp, &pOp->pLeft);
       break;
     }
@@ -7308,9 +7403,6 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     if (pRealTable->numPathSegments <= 1 && tsFederatedQueryEnable &&
         pCxt->pParseCxt->currentExtSource[0] != '\0') {
       const SParseContext* pParCxt = pCxt->pParseCxt;
-      parserError("FQ 1-seg pre-check: table='%s', nSeg=%d, extSource='%s', ns1='%s'",
-                  pRealTable->table.tableName, (int)pRealTable->numPathSegments,
-                  pParCxt->currentExtSource, pParCxt->currentExtNs1);
       tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
       tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
       if (pParCxt->currentExtNs2[0] != '\0') {
@@ -7322,8 +7414,6 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         pRealTable->numPathSegments = 3;
       }
       code = translateExternalTableImpl(pCxt, pRealTable);
-      parserError("FQ 1-seg translateExternalTableImpl result: code=%d table='%s'",
-                  code, pRealTable->table.tableName);
       if (TSDB_CODE_SUCCESS != code) goto _return;
       pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
       pRealTable->table.singleTable = isSingleTable(pRealTable);
@@ -7332,10 +7422,23 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       }
       return code;
     }
-    parserError("FQ translateRealTable: nSeg=%d extSource='%s' NOT using ext path for table='%s'",
-                (int)pRealTable->numPathSegments,
-                pCxt->pParseCxt->currentExtSource[0] ? pCxt->pParseCxt->currentExtSource : "(none)",
-                pRealTable->table.tableName);
+    // 2-seg path pre-check: source.table
+    // If the first segment is an existing external source, resolve directly as
+    // external table and bypass the local catalog path.
+    if (pRealTable->numPathSegments == 2 && tsFederatedQueryEnable) {
+      SExtSourceInfo* pSrcInfo = NULL;
+      int32_t         extCode = getExtSourceInfoFromCache(pCxt->pMetaCache, pRealTable->table.dbName, &pSrcInfo);
+      if (TSDB_CODE_SUCCESS == extCode && NULL != pSrcInfo) {
+        code = translateExternalTableImpl(pCxt, pRealTable);
+        if (TSDB_CODE_SUCCESS != code) goto _return;
+        pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+        pRealTable->table.singleTable = isSingleTable(pRealTable);
+        if (!pCxt->refTable) {
+          PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
+        }
+        return code;
+      }
+    }
 #endif
     code = getTargetMeta(pCxt, &name, &(pRealTable->pMeta), true);
     if (TSDB_CODE_SUCCESS != code) {
@@ -7400,13 +7503,9 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         return code;
       }
       // 2-segment fallback: if the first segment is a known ext source name, treat as external table
-      parserError("FQ 2-seg fallback: nSeg=%d fedEnabled=%d code=0x%x db='%s' table='%s'",
-                  (int)pRealTable->numPathSegments, (int)tsFederatedQueryEnable, (unsigned)code,
-                  pRealTable->table.dbName, pRealTable->table.tableName);
       if (pRealTable->numPathSegments == 2 && tsFederatedQueryEnable) {
         SExtSourceInfo* pSrcInfo = NULL;
         int32_t         ec = getExtSourceInfoFromCache(pCxt->pMetaCache, pRealTable->table.dbName, &pSrcInfo);
-        parserError("FQ 2-seg fallback ext lookup: ec=0x%x pSrcInfo=%p", (unsigned)ec, pSrcInfo);
         if (TSDB_CODE_SUCCESS == ec && NULL != pSrcInfo) {
           code = translateExternalTableImpl(pCxt, pRealTable);
           if (TSDB_CODE_SUCCESS != code) goto _return;
@@ -14708,9 +14807,6 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
       tsFederatedQueryEnable && pCxt->pMetaCache != NULL) {
     SExtSourceInfo* pSrcInfo = NULL;
     int32_t extCode = getExtSourceInfoFromCache(pCxt->pMetaCache, pStmt->dbName, &pSrcInfo);
-    parserError("FQ translateUseDatabase: db='%s' vgVer=%d extCode=%d pSrcInfo=%p pExtSources=%p",
-                pStmt->dbName, (int)usedbReq.vgVersion, extCode, pSrcInfo,
-                (void*)pCxt->pMetaCache->pExtSources);
     if (TSDB_CODE_SUCCESS == extCode && pSrcInfo != NULL) {
       // The name belongs to an ext source, not a local DB.
       // Signal MND_DB_NOT_EXIST so translate() triggers the FQ fallback.
@@ -22507,6 +22603,35 @@ static int32_t updateStreamSubquery(STranslateContext* pCxt, STranslateContext* 
   return code;
 }
 
+// Returns the external source name if `pFromTable` is (or is entirely composed of)
+// tables from a single external source.  Returns an empty string if pFromTable is
+// NULL, is a TDengine-native table, or contains tables from more than one source.
+static void getFromTableExtSourceName(SNode* pFromTable, char outSrc[TSDB_EXT_SOURCE_NAME_LEN]) {
+  outSrc[0] = '\0';
+  if (pFromTable == NULL) return;
+
+  if (QUERY_NODE_REAL_TABLE == nodeType(pFromTable)) {
+    SRealTableNode* pReal = (SRealTableNode*)pFromTable;
+    if (pReal->pExtTableNode != NULL) {
+      SExtTableNode* pExt = (SExtTableNode*)pReal->pExtTableNode;
+      tstrncpy(outSrc, pExt->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    }
+    return;
+  }
+
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pFromTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pFromTable;
+    char leftSrc[TSDB_EXT_SOURCE_NAME_LEN];
+    char rightSrc[TSDB_EXT_SOURCE_NAME_LEN];
+    getFromTableExtSourceName(pJoin->pLeft, leftSrc);
+    getFromTableExtSourceName(pJoin->pRight, rightSrc);
+    if (leftSrc[0] != '\0' && strcmp(leftSrc, rightSrc) == 0) {
+      tstrncpy(outSrc, leftSrc, TSDB_EXT_SOURCE_NAME_LEN);
+    }
+    return;
+  }
+}
+
 static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) {
   int32_t           code = TSDB_CODE_SUCCESS;
   STranslateContext cxt = {0};
@@ -22538,8 +22663,27 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     code = nodesListAppend(pCxt->pSubQueries, pNode);
   }
   if (pCxt->isCorrelatedSubQ) {
-    parserError("Correlated subQuery not supported now");
-    code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+    // Exception: if the outer query and inner subquery both reference the same
+    // external source exclusively, the whole correlated EXISTS/IN query is pushed
+    // down to that external DB which natively supports correlated subqueries.
+    bool allowCorrelated = false;
+    if (QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt) &&
+        QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+      char outerSrc[TSDB_EXT_SOURCE_NAME_LEN];
+      char innerSrc[TSDB_EXT_SOURCE_NAME_LEN];
+      getFromTableExtSourceName(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable, outerSrc);
+      getFromTableExtSourceName(((SSelectStmt*)pNode)->pFromTable, innerSrc);
+      if (outerSrc[0] != '\0' && strcmp(outerSrc, innerSrc) == 0) {
+        allowCorrelated = true;
+        // Signal rewriteExprSubQuery to pre-render the EXISTS SQL for pushdown.
+        pCxt->sameExtSourceCorrelatedExists = true;
+        parserDebug("correlated subQ allowed: outer and inner both from external source '%s'", outerSrc);
+      }
+    }
+    if (!allowCorrelated) {
+      parserError("Correlated subQuery not supported now");
+      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+    }
   }
   /*
     if (pCxt->hasLocalSubQ) {
@@ -22991,11 +23135,6 @@ static int32_t createProjectCols(int32_t ncols, const char* const pCols[], SNode
     code = createStarCol(&pStar);
     if (TSDB_CODE_SUCCESS != code) return code;
     code = nodesListMakeStrictAppend(&pProjections, pStar);
-    if (TSDB_CODE_SUCCESS == code)
-      *pResList = pProjections;
-    else
-      nodesDestroyList(pProjections);
-    return code;
   }
   for (int32_t i = 0; i < ncols; ++i) {
     SNode* pPrjCol = NULL;

@@ -475,6 +475,52 @@ void sclDowngradeValueType(SValueNode *valueNode) {
   }
 }
 
+// Rebuild a hash with integer keys from srcType to the wider dstType.
+// Used to correct a hash built with the wrong (narrower) integer key type.
+static SHashObj *sclRebuildIntHashToWiderType(SHashObj *pSrc, int32_t srcType, int32_t dstType) {
+  int32_t   n = taosHashGetSize(pSrc);
+  SHashObj *pDst =
+      taosHashInit(n * 4 + 1, taosGetDefaultHashFunction(dstType), true, HASH_NO_LOCK);
+  if (!pDst) return NULL;
+  taosHashSetEqualFp(pDst, taosGetDefaultEqualFunction(dstType));
+  int32_t dstBytes = tDataTypes[dstType].bytes;
+  char    newKey[16];
+  void   *pIter = taosHashIterate(pSrc, NULL);
+  while (pIter) {
+    size_t      kLen = 0;
+    const void *pKey = taosHashGetKey(pIter, &kLen);
+    int64_t     v = 0;
+    switch (srcType) {
+      case TSDB_DATA_TYPE_BOOL:      v = (int64_t)(*(int8_t *)pKey);   break;
+      case TSDB_DATA_TYPE_TINYINT:   v = (int64_t)(*(int8_t *)pKey);   break;
+      case TSDB_DATA_TYPE_SMALLINT:  v = (int64_t)(*(int16_t *)pKey);  break;
+      case TSDB_DATA_TYPE_INT:       v = (int64_t)(*(int32_t *)pKey);  break;
+      case TSDB_DATA_TYPE_BIGINT:    v = *(int64_t *)pKey;             break;
+      case TSDB_DATA_TYPE_UTINYINT:  v = (int64_t)(*(uint8_t *)pKey);  break;
+      case TSDB_DATA_TYPE_USMALLINT: v = (int64_t)(*(uint16_t *)pKey); break;
+      case TSDB_DATA_TYPE_UINT:      v = (int64_t)(*(uint32_t *)pKey); break;
+      case TSDB_DATA_TYPE_UBIGINT:   v = (int64_t)(*(uint64_t *)pKey); break;
+      default:
+        pIter = taosHashIterate(pSrc, pIter);
+        continue;
+    }
+    memset(newKey, 0, sizeof(newKey));
+    switch (dstType) {
+      case TSDB_DATA_TYPE_SMALLINT:  *(int16_t *)newKey  = (int16_t)v;  break;
+      case TSDB_DATA_TYPE_INT:       *(int32_t *)newKey  = (int32_t)v;  break;
+      case TSDB_DATA_TYPE_BIGINT:    *(int64_t *)newKey  = v;           break;
+      case TSDB_DATA_TYPE_UINT:      *(uint32_t *)newKey = (uint32_t)v; break;
+      case TSDB_DATA_TYPE_UBIGINT:   *(uint64_t *)newKey = (uint64_t)v; break;
+      default:
+        pIter = taosHashIterate(pSrc, pIter);
+        continue;
+    }
+    (void)taosHashPut(pDst, newKey, dstBytes, NULL, 0);
+    pIter = taosHashIterate(pSrc, pIter);
+  }
+  return pDst;
+}
+
 int32_t scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
   int32_t  code = 0;
   int32_t  type = (pRemote->targetType != pRemote->node.resType.type) ? vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type) : pRemote->targetType;
@@ -482,7 +528,6 @@ int32_t scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SC
     sclError("%s %s not supported convertion between %d and %d", idStr, __func__, pRemote->targetType, pRemote->node.resType.type);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
-          
   STypeMod typeMod = 0;
 
   if (IS_DECIMAL_TYPE(type)) {
@@ -669,6 +714,13 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       qDebug("tagfilter column info, slotId:%d, colId:%d, type:%d", ref->slotId, columnData->info.colId,
              columnData->info.type);
 #endif
+      // Update selfType with runtime block column type when plan-time type was unknown (e.g., schemaless external tables).
+      // This ensures that the hash for REMOTE_VALUE_LIST (right of IN) is built with the correct key type.
+      if (ctx->type.selfType == TSDB_DATA_TYPE_NULL && columnData != NULL &&
+          columnData->info.type != TSDB_DATA_TYPE_NULL) {
+        ctx->type.selfType    = columnData->info.type;
+        ctx->type.selfTypeMod = typeGetTypeModFromColInfo(&columnData->info);
+      }
       param->numOfRows = block->info.rows;
       param->columnData = columnData;
       break;
@@ -717,6 +769,24 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
+
+      // Fix: when the hash was pre-built during SQL generation (via remoteNodeCopy) with a
+      // narrower integer key type than the actual runtime left-column type, rebuild it.
+      // E.g., subquery returns INT(4) but InfluxDB column is BIGINT(5) at runtime.
+      if (ctx->type.selfType != TSDB_DATA_TYPE_NULL && pRemote->pHashFilter != NULL &&
+          !pRemote->hashAllocated && ctx->type.selfType != pRemote->filterValueType &&
+          IS_INTEGER_TYPE(ctx->type.selfType) && IS_INTEGER_TYPE(pRemote->filterValueType)) {
+        int32_t convertType = vectorGetConvertType(ctx->type.selfType, pRemote->filterValueType);
+        if (convertType > 0 && convertType != pRemote->filterValueType) {
+          SHashObj *pNewHash =
+              sclRebuildIntHashToWiderType(pRemote->pHashFilter, pRemote->filterValueType, convertType);
+          if (pNewHash != NULL) {
+            pRemote->pHashFilter    = pNewHash;
+            pRemote->filterValueType = convertType;
+            pRemote->hashAllocated  = true;
+          }
+        }
+      }
 
       param->hashParam.hasHashParam = true;
       param->hashParam.hasValue = pRemote->hasValue;
@@ -2168,6 +2238,21 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
   SLogicConditionNode *node = (SLogicConditionNode *)*pNode;
 
+  // NOT(EXISTS/NOT_EXISTS(RAW_SQL_FRAG)) — cannot be evaluated by scalar engine;
+  // it is a remote-side predicate left in the tree for nodesRemotePlanToSQL.
+  if (node->condType == LOGIC_COND_TYPE_NOT &&
+      node->pParameterList && node->pParameterList->length == 1) {
+    SNode* pInner = (SNode*)node->pParameterList->pHead->pNode;
+    if (pInner && nodeType(pInner) == QUERY_NODE_OPERATOR) {
+      SOperatorNode* pOp = (SOperatorNode*)pInner;
+      if ((pOp->opType == OP_TYPE_EXISTS || pOp->opType == OP_TYPE_NOT_EXISTS) &&
+          pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+          (((SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG)) {
+        return DEAL_RES_CONTINUE;
+      }
+    }
+  }
+
   SScalarParam output = {0};
   ctx->code = sclExecLogic(node, ctx, &output);
   if (ctx->code) {
@@ -2213,6 +2298,13 @@ EDealRes sclRewriteLogic(SNode **pNode, SScalarCtx *ctx) {
 
 EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
+
+  // EXISTS/NOT_EXISTS are row-level predicates, not scalar arithmetic operators.
+  // They cannot be evaluated or constant-folded by the scalar engine regardless
+  // of their operand type (subquery AST, or RAW_SQL_FRAG from FQ pushdown).
+  if (node->opType == OP_TYPE_EXISTS || node->opType == OP_TYPE_NOT_EXISTS) {
+    return DEAL_RES_CONTINUE;
+  }
 
   ctx->code = scalarConvertOpValueNodeTs(node);
   if (ctx->code) {

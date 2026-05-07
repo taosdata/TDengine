@@ -56,6 +56,11 @@ typedef struct STranslateContext {
   bool             refTable;
   bool             isCurrOpIn;
   SParseStreamInfo streamInfo;
+  // When a correlated EXISTS/NOT EXISTS is allowed because both outer and inner
+  // FROM tables are from the same external source, this flag is set so that
+  // rewriteExprSubQuery can pre-render the EXISTS SQL for pushdown rather than
+  // creating a separate inner subquery plan.
+  bool             sameExtSourceCorrelatedExists;
 } STranslateContext;
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);
