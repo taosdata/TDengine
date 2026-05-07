@@ -3031,7 +3031,8 @@ CSUM(expr)
 **Usage Instructions**:
 
 - Does not support +, -, *, / operations, such as csum(col1) + csum(col2).
-- Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions; cannot be used with aggregation (Aggregation) functions.
+- When used with a selection function, computes on the result set produced by the selection function.
 
 ### DERIVATIVE
 
@@ -3189,7 +3190,8 @@ MAVG(expr, k)
 **Usage Notes**:
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
-- Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- Can only be used with regular columns, selection (Selection), and projection (Projection) functions; cannot be used with aggregation (Aggregation) functions;
+- When used with a selection function, computes on the result set produced by the selection function;
 - When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT

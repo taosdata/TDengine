@@ -82,7 +82,7 @@ class TestUnique:
             f"select unique(True) from  {dbname}.t1",
             f"select unique(c1) , count(c1) from  {dbname}.t1",
             f"select unique(c1) , avg(c1) from  {dbname}.t1",
-            f"select unique(c1) , min(c1) from  {dbname}.t1",
+            # f"select unique(c1) , min(c1) from  {dbname}.t1",  # indef+select now allowed
             f"select unique(c1) , spread(c1) from  {dbname}.t1",
             f"select unique(c1) , diff(c1) from  {dbname}.t1",
             #f"select unique(c1) , abs(c1) from  {dbname}.t1",  # support
@@ -106,7 +106,7 @@ class TestUnique:
             f"select unique(True) from  {dbname}.stb1 partition by tbname",
             f"select unique(c1) , count(c1) from  {dbname}.stb1 partition by tbname",
             f"select unique(c1) , avg(c1) from  {dbname}.stb1 partition by tbname",
-            f"select unique(c1) , min(c1) from  {dbname}.stb1 partition by tbname",
+            # f"select unique(c1) , min(c1) from  {dbname}.stb1 partition by tbname",  # indef+select now allowed
             f"select unique(c1) , spread(c1) from  {dbname}.stb1 partition by tbname",
             f"select unique(c1) , diff(c1) from  {dbname}.stb1 partition by tbname",
             #f"select unique(c1) , abs(c1) from  {dbname}.stb1 partition by tbname", # support
@@ -272,7 +272,7 @@ class TestUnique:
 
         # unique with aggregate function
         tdSql.error(f"select unique(c1) ,sum(c1)  from  {dbname}.ct1")
-        tdSql.error(f"select unique(c1) ,max(c1)  from  {dbname}.ct1")
+        tdSql.query(f"select unique(c1) ,max(c1)  from  {dbname}.ct1")  # indef+select now allowed
         tdSql.error(f"select unique(c1) ,csum(c1)  from  {dbname}.ct1")
         tdSql.error(f"select unique(c1) ,count(c1)  from  {dbname}.ct1")
 

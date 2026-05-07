@@ -3083,7 +3083,8 @@ CSUM(expr)
 **使用说明**：
 
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
-- 只能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
+- 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+- 与选择（Selection）函数一起使用时，在选择函数的结果集上进行计算。
 
 #### DERIVATIVE
 
@@ -3212,6 +3213,7 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 与选择（Selection）函数一起使用时，在选择函数的结果集上进行计算；
 - 与窗口一起使用时，`MAVG` 仅在当前窗口内部按样本顺序计算，不会跨窗口延续上一窗口的样本状态。
 
 #### STATECOUNT

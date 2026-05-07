@@ -452,7 +452,9 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
-      planError("doSetSlotId failed, invalid slot name %s", name);
+      SColumnNode* pDbgCol = (SColumnNode*)pNode;
+      planError("doSetSlotId failed, invalid slot name %s, colName=%s, aliasName=%s, tableAlias=%s, hasRef=%d, hasDep=%d",
+                name, pDbgCol->colName, pDbgCol->node.aliasName, pDbgCol->tableAlias, pDbgCol->hasRef, pDbgCol->hasDep);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;

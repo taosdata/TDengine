@@ -1693,8 +1693,11 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 }
 
 static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  // top/bottom are both an aggregate function and a indefinite rows function
-  if (!pSelect->hasIndefiniteRowsFunc || pSelect->hasAggFuncs || NULL != pSelect->pWindow) {
+  // Allow indefinite rows functions to coexist with selection functions (agg + select).
+  // Block when non-select agg funcs or window present.
+  if (!pSelect->hasIndefiniteRowsFunc ||
+      (pSelect->hasAggFuncs && pSelect->hasNonSelectAggFuncs) ||
+      NULL != pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1711,8 +1714,28 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   pIdfRowsFunc->node.requireDataOrder = getRequireDataOrder(pIdfRowsFunc->isTimeLineFunc, pSelect);
   pIdfRowsFunc->node.resultDataOrder = pIdfRowsFunc->node.requireDataOrder;
 
+  // When coexisting with select agg funcs, collect pass-through columns from Agg output
+  // BEFORE rewriteExprsForSelect (which would turn indef funcs into column nodes too).
+  // After Agg rewrite, agg functions in pProjectionList are already column nodes referencing
+  // Agg output. We collect these now and add them to pFuncs/pTargets below.
+  SNodeList* pPassThroughCols = NULL;
+  if (pSelect->hasAggFuncs && !pSelect->hasNonSelectAggFuncs) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pSelect->pProjectionList) {
+      if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pNode, &pClone);
+        if (TSDB_CODE_SUCCESS != code) break;
+        code = nodesListMakeStrictAppend(&pPassThroughCols, pClone);
+        if (TSDB_CODE_SUCCESS != code) break;
+      }
+    }
+  }
+
   // indefinite rows functions and _select_values functions
-  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pIdfRowsFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
@@ -1721,6 +1744,23 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pIdfRowsFunc->pFuncs, &pIdfRowsFunc->node.pTargets);
   }
+
+  // Add pass-through columns: each node was cloned once into pPassThroughCols (to snapshot
+  // state before rewriteExprsForSelect). Clone again here because pFuncs takes ownership
+  // and pPassThroughCols is destroyed separately.
+  if (TSDB_CODE_SUCCESS == code && NULL != pPassThroughCols) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pPassThroughCols) {
+      SNode* pClone = NULL;
+      code = nodesCloneNode(pNode, &pClone);
+      if (TSDB_CODE_SUCCESS != code) break;
+      code = nodesListMakeStrictAppend(&pIdfRowsFunc->pFuncs, pClone);
+      if (TSDB_CODE_SUCCESS != code) break;
+      code = createColumnByRewriteExpr(pClone, &pIdfRowsFunc->node.pTargets);
+      if (TSDB_CODE_SUCCESS != code) break;
+    }
+  }
+  nodesDestroyList(pPassThroughCols);
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pIdfRowsFunc;

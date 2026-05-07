@@ -1229,8 +1229,8 @@ class TestFunDiff:
         # tdSql.error(self.diff_query_form(col="c1, 2"))  # sql form error 3
         tdSql.error(self.diff_query_form(alias=", count(c1)"))  # mix with aggregate function 1
         tdSql.error(self.diff_query_form(alias=", avg(c1)"))    # mix with aggregate function 2
-        tdSql.error(self.diff_query_form(alias=", min(c1)"))    # mix with select function 1
-        tdSql.error(self.diff_query_form(alias=", top(c1, 5)")) # mix with select function 2
+        tdSql.query(self.diff_query_form(alias=", min(c1)"))    # mix with select function 1 (now allowed)
+        tdSql.error(self.diff_query_form(alias=", top(c1, 5)")) # mix with select function 2 (top is multi-rows, still blocked)
         tdSql.error(self.diff_query_form(alias=", spread(c1)")) # mix with calculation function  1
         tdSql.query(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
         # tdSql.error(self.diff_query_form(alias=" + 2"))         # mix with arithmetic 1
