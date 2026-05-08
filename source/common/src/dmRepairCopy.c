@@ -1770,7 +1770,7 @@ static int32_t dmCleanSyncState(STfs *pTgtTfs, int32_t vnodeId) {
 }
 
 // Step l: Delete vnodeN.bak on all target disks.
-static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
+static void dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
   char relBak[TSDB_FILENAME_LEN];
   snprintf(relBak, sizeof(relBak), "vnode%svnode%d.bak", TD_DIRSEP, vnodeId);
 
@@ -1788,7 +1788,6 @@ static int32_t dmDeleteBackup(STfs *pTgtTfs, int32_t vnodeId) {
     }
   }
   uInfo("repair: vnode%d backup deleted", vnodeId);
-  return 0;
 }
 
 // Step m: Rollback on failure — restore vnodeN.bak to vnodeN on all disks.
@@ -2065,12 +2064,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
     }
 
     // Step l: Delete backup
-    if (dmDeleteBackup(pTgtTfs, vnodeId) != 0) {
-      uError("repair: vnode%d FAILED — delete backup failed", vnodeId);
-      vnResults[v].result = 1;
-      vnResults[v].reason = "delete backup failed";
-      goto _vnodeCleanup;
-    }
+    dmDeleteBackup(pTgtTfs, vnodeId);
 
   _vnodeCleanup:
     if (vnResults[v].result == 1) {
