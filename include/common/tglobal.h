@@ -420,6 +420,9 @@ extern char    tsClsUrl[];
 extern char    tsClsLicenseId[];
 extern char    tsClsQuotaSlotId[];
 extern int32_t tsClsRefreshInterval;
+extern char    tsClsLastSucTime[];
+extern char    tsClsLastReqTime[];
+extern char    tsClsLastFailReason[];
 extern int32_t gGrantClsPreRefreshInterval;
 #define GRANT_CLS_CLOSING 1
 #define GRANT_CLS_OPENING 2
