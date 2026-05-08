@@ -7,8 +7,10 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
+import numpy as np
 import taosanalytics
 from flask import Flask, request
+from scipy.stats import pearsonr
 from taosanalytics.handlers.imputation import handle_imputation
 from taosanalytics.handlers.anomaly import handle_anomaly
 from taosanalytics.handlers.forecast import handle_forecast
@@ -19,8 +21,13 @@ from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
+from taosanalytics.util import (do_check_before_exec, get_more_data_list,
+                                 do_initial_check, SINGLE_COLUMN_ERROR_MSG)
+from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 
 from taosanalytics.handlers.dynamic_model import (do_handle_undeploy_model, do_handle_dynamic_model)
+
+app_logger = AppLogger()
 
 
 def _init_app():

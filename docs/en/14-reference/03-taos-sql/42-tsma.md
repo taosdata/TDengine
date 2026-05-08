@@ -7,7 +7,7 @@ In scenarios with large amounts of data, it is often necessary to query summary 
 
 The SMA information within a block has a small granularity. If the query time range is in days, months, or even years, the number of blocks will be large. Therefore, TSMA (Time-Range Small Materialized Aggregates) supports users to specify a time window for materialized aggregation. By pre-calculating the data within a fixed time window and storing the calculation results, queries can be performed on the pre-calculated results to improve query performance.
 
-![TSMA Introduction](./assets/TSMA_intro.png)
+![TSMA Introduction](../../assets/TSMA_intro.png)
 
 ## Creating TSMA
 

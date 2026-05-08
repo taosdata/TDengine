@@ -28,7 +28,10 @@ class _LofService(AbstractAnomalyDetectionService):
 
         checker = neighbor.LocalOutlierFactor(n_neighbors=self.neighbors, algorithm=self.algorithm)
 
-        arr_2d = np.reshape(self.list, (len(self.list), 1))
+        # Build feature matrix in shape (n_samples, n_features).
+        # set_input_list always normalises input into input_data_lists as a list of lists.
+        arr_2d = np.asarray(self.input_data_lists, dtype=float).T
+
         res = checker.fit_predict(arr_2d)
 
         AppLogger.debug(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
