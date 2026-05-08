@@ -64,31 +64,6 @@ int32_t mndSetCreateConfigCommitLogs(STrans *pTrans, SConfigObj *obj);
 int32_t mndSetDeleteConfigCommitLogs(STrans *pTrans, SConfigObj *item);
 int32_t mndSetCreateConfigPrepareLogs(STrans *pTrans, SConfigObj *obj);
 
-static void mndNormalizeAlterConfigValue(const char *name, char *value, int32_t valueLen) {
-#ifdef TD_ENTERPRISE
-  if (strcasecmp(name, "clsRefreshInterval") != 0) {
-    return;
-  }
-
-  int32_t interval = 0;
-  if (taosStrHumanToInt32(value, &interval) != TSDB_CODE_SUCCESS) {
-    return;
-  }
-
-  if (interval < 10) {
-    interval = 10;
-  } else if (interval > 86400) {
-    interval = 86400;
-  }
-
-  (void)snprintf(value, valueLen, "%d", interval);
-#else
-  (void)name;
-  (void)value;
-  (void)valueLen;
-#endif
-}
-
 int32_t mndInitConfig(SMnode *pMnode) {
   int32_t   code = 0;
   SSdbTable table = {.sdbType = SDB_CFG,
@@ -858,8 +833,6 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
       updateWhiteList = 1;
     }
-
-    mndNormalizeAlterConfigValue(dcfgReq.config, dcfgReq.value, sizeof(dcfgReq.value));
 
     CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
     TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, alterType), &lino,

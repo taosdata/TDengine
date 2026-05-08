@@ -421,6 +421,8 @@ extern char    tsClsLicenseId[];
 extern char    tsClsQuotaSlotId[];
 extern int32_t tsClsRefreshInterval;
 extern int32_t gGrantClsPreRefreshInterval;
+#define GRANT_CLS_CLOSING 1
+#define GRANT_CLS_OPENING 2
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

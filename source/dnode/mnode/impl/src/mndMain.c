@@ -470,8 +470,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
       mndPullupAuth(pMnode);
     }
   }
-  if (sec % tsClsRefreshInterval == 0) {
-    mndPullupCls(pMnode);
+  if (tsClsEnabled || tsClsRefreshInterval == GRANT_CLS_CLOSING || tsClsRefreshInterval == GRANT_CLS_OPENING) {
+    if (sec % tsClsRefreshInterval == 0) {
+      mndPullupCls(pMnode);
+    }
   }
 #endif
   if (sec % tsTransPullupInterval == 0) {

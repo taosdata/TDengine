@@ -1472,16 +1472,6 @@ typedef struct {
   SRWLatch     lock;
 } SGrantLogObj;
 
-typedef struct {
-  int32_t  id;
-  int32_t  clsRespLen;
-  char*    clsResp;
-  bool     isValid;
-  int32_t  extendLen;
-  char*    extend;
-  int64_t  updateTime;
-  SRWLatch lock;
-} SGrantClsObj;
 
 #ifdef __cplusplus
 }

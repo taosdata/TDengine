@@ -131,6 +131,9 @@ char    tsClsUrl[TSDB_FQDN_LEN] = {0};
 char    tsClsLicenseId[TSDB_FQDN_LEN] = {0};
 char    tsClsQuotaSlotId[TSDB_FQDN_LEN] = {0};
 int32_t tsClsRefreshInterval = 3600;
+char    tsClsLastSucTime[TSDB_FQDN_LEN] = {0};
+char    tsClsLastReqTime[TSDB_FQDN_LEN] = {0};
+char    tsClsLastFailReason[TSDB_FQDN_LEN] = {0};
 int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
@@ -1162,6 +1165,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLicenseId", tsClsLicenseId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsQuotaSlotId", tsClsQuotaSlotId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 10, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastSucTime", tsClsLastSucTime, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastReqTime", tsClsLastReqTime, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastFailReason", tsClsLastFailReason, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
 
@@ -2453,7 +2459,7 @@ static int32_t taosHandleClsEnabledChange(bool enabled) {
   }
 
   taosBackupClsRefreshInterval(tsClsRefreshInterval);
-  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(enabled ? 2 : 1));
+  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(enabled ? GRANT_CLS_OPENING : GRANT_CLS_CLOSING));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 #endif
