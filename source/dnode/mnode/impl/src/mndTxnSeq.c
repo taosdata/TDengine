@@ -101,8 +101,8 @@ static int32_t triggerAllocateTxnSeq(SMnode *pMnode, txn_id_t nextRangeId, bool 
 
   int32_t contLen = 0;
   if (checkLeader && !mndIsLeader(pMnode)) {
-    mWarn("txnSeq, failed at line %d to allocate txn seq since not leader", lino);
-    TAOS_RETURN(code);
+    mWarn("txnSeq, failed at line %d to allocate txn seq since not leader", __LINE__);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_LEADER);
   }
 
   SMTxnSeqReq req = {.rangeId = nextRangeId};

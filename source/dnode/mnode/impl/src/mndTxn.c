@@ -54,7 +54,7 @@ static void    mndTxnTimeoutScanImpl(SMnode *pMnode);
 static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int32_t reason);
 static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn);
 static int32_t mndTxnAfterRestored(SMnode *pMnode);
-static void    mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn);
+static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn);
 
 static void mndUserTxnFreeFp(void *ptr) {
   SUserTxn *pTxn = (SUserTxn *)ptr;
@@ -211,7 +211,19 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
         // Rebuild shadow ops from SStbObj markers (txnId, txnStatus, pTxnAlterReqs).
         mInfo("txn:%" PRIi64 ", restored in ACTIVE stage, rebuilding shadow ops and resetting lastActiveTime",
               pTxn->id);
-        mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn);
+        int32_t rebuildCode = mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn);
+        if (rebuildCode != 0) {
+          // Rebuild failed (OOM). Do NOT refresh lastActiveTime so the timeout scan picks this
+          // txn up quickly and retries the rollback path (which re-runs rebuild). This avoids
+          // granting a full new timeout lease to a txn whose shadow ops are unknown —
+          // unresolved PRE_CREATE/PRE_DROP markers in SDB would block concurrent DDL permanently.
+          mError("txn:%" PRIi64
+                 ", failed to rebuild shadow ops on restore: %s; leaving lastActiveTime unchanged"
+                 " so timeout scan will rollback soon",
+                 pTxn->id, tstrerror(rebuildCode));
+          numRecovered++;
+          break;
+        }
         taosWLockLatch(&pTxn->lock);
         pTxn->lastActiveTime = taosGetTimestampMs();
         taosWUnLockLatch(&pTxn->lock);
@@ -864,8 +876,8 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
  * - SStbObj.txnId provides exactly the information needed for the only recovery path
  *   that requires reconstruction (ACTIVE→ROLLBACK).
  */
-static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
-  if (pTxn->pShadowOps != NULL) return;  // already populated in memory
+static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
+  if (pTxn->pShadowOps != NULL) return TSDB_CODE_SUCCESS;  // already populated in memory
 
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -883,7 +895,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
           mError("txn:%" PRIi64 ", failed to alloc pShadowOps during rebuild", pTxn->id);
-          return;
+          return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
         }
       }
 
@@ -901,7 +913,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
           mError("txn:%" PRIi64 ", failed to push shadow op during rebuild", pTxn->id);
-          return;
+          return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
         }
         count++;
         mInfo("txn:%" PRIi64 ", rebuilt CREATE_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
@@ -921,7 +933,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
           mError("txn:%" PRIi64 ", failed to push DROP shadow op during rebuild", pTxn->id);
-          return;
+          return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
         }
         count++;
         mInfo("txn:%" PRIi64 ", rebuilt DROP_STB shadow op: stb=%s uid=%" PRId64, pTxn->id, pStb->name, pStb->uid);
@@ -945,7 +957,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
             sdbRelease(pSdb, pStb);
             sdbCancelFetch(pSdb, pIter);
             mError("txn:%" PRIi64 ", failed to alloc ALTER data during rebuild", pTxn->id);
-            return;
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
           }
           memcpy(pData, (char *)pStb->pTxnAlterReqs + offset, entryLen);
           offset += entryLen;
@@ -963,7 +975,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
             sdbRelease(pSdb, pStb);
             sdbCancelFetch(pSdb, pIter);
             mError("txn:%" PRIi64 ", failed to push ALTER shadow op during rebuild", pTxn->id);
-            return;
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
           }
           count++;
           mInfo("txn:%" PRIi64 ", rebuilt ALTER_STB shadow op %d/%d: stb=%s dataLen=%d",
@@ -977,6 +989,7 @@ static void mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn) {
   if (count > 0) {
     mInfo("txn:%" PRIi64 ", rebuilt %d shadow ops from SDB (CREATE+DROP+ALTER)", pTxn->id, count);
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn) {
@@ -1328,7 +1341,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   STrans *pTrans = NULL;
 
   // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn → client reconnects → COMMIT)
-  mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn);
+  TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn));
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "commit-txn")), code,
                   lino, _exit, terrno);
@@ -1445,7 +1458,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
   STrans *pTrans = NULL;
 
   // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn → timeout rollback)
-  mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn);
+  TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn));
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "rollback-txn")), code,
                   lino, _exit, terrno);
