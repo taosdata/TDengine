@@ -228,6 +228,9 @@ def make_current_json(fsets):
         fset_json["stt lvl"] = stt_lvl_arr
         fset_json["last compact"] = fs.get("last_compact", 0)
         fset_json["last commit"] = fs.get("last_commit", 0)
+        fset_json["last migrate"] = fs.get("last_migrate", 0)
+        fset_json["last rollup"] = fs.get("last_rollup", 0)
+        fset_json["rlevel"] = fs.get("rlevel", 0)
         fset_arr.append(fset_json)
     return json.dumps({"fmtv": 1, "fset": fset_arr})
 
@@ -432,6 +435,7 @@ class TestCopyModeRepair:
         fsets = [
             {
                 "fid": 1, "last_compact": 100, "last_commit": 200,
+                "last_migrate": 500, "last_rollup": 600, "rlevel": 2,
                 "files": [
                     {"type": 0, "fid": 1, "cid": 10, "size": 512, "did_level": 0, "did_id": 0, "lcn": 0},
                     {"type": 1, "fid": 1, "cid": 10, "size": 1024, "did_level": 0, "did_id": 0, "lcn": 0},
@@ -441,6 +445,7 @@ class TestCopyModeRepair:
             },
             {
                 "fid": 2, "last_compact": 300, "last_commit": 400,
+                "last_migrate": 700, "last_rollup": 0, "rlevel": 0,
                 "files": [
                     {"type": 0, "fid": 2, "cid": 20, "size": 512, "did_level": 0, "did_id": 0, "lcn": 0},
                     {"type": 1, "fid": 2, "cid": 20, "size": 2048, "did_level": 0, "did_id": 0, "lcn": 0},
@@ -470,6 +475,16 @@ class TestCopyModeRepair:
         # Check fids are present and sorted
         fids = [fs["fid"] for fs in current["fset"]]
         tdSql.checkEqual(fids, [1, 2], "Fids in current.json are not as expected")
+
+        # Verify file set metadata preserved (last migrate, last rollup, rlevel)
+        fs0 = current["fset"][0]
+        tdSql.checkEqual(int(fs0["last migrate"]), 500, "fset[0] last migrate not preserved")
+        tdSql.checkEqual(int(fs0["last rollup"]), 600, "fset[0] last rollup not preserved")
+        tdSql.checkEqual(int(fs0["rlevel"]), 2, "fset[0] rlevel not preserved")
+        fs1 = current["fset"][1]
+        tdSql.checkEqual(int(fs1["last migrate"]), 700, "fset[1] last migrate not preserved")
+        tdSql.checkEqual(int(fs1["last rollup"]), 0, "fset[1] last rollup not preserved")
+        tdSql.checkEqual(int(fs1["rlevel"]), 0, "fset[1] rlevel not preserved")
 
         # Verify non-tsdb files were copied
         tgt_vnode = os.path.join(env["tgt_data"], "vnode", f"vnode{vid}")

@@ -26,6 +26,12 @@
 #undef popen
 #undef pclose
 #undef close
+
+#ifdef WINDOWS
+#define popen  _popen
+#define pclose _pclose
+#endif
+
 typedef FILE *DmCmdPtr;
 
 static DmCmdPtr dmOpenCmd(const char *cmd) { return popen(cmd, "r"); }
@@ -70,10 +76,13 @@ typedef struct SRepairFile {
 
 // Lightweight representation of a TSDB file set parsed from current.json.
 typedef struct SRepairFileSet {
-  int32_t fid;          // file set id
-  SArray *files;        // SArray of SRepairFile
-  int64_t lastCompact;  // last compact timestamp
-  int64_t lastCommit;   // last commit timestamp
+  int32_t fid;              // file set id
+  SArray *files;            // SArray of SRepairFile
+  int64_t lastCompact;      // last compact timestamp
+  int64_t lastCommit;       // last commit timestamp
+  int64_t lastMigrate;      // last migrate timestamp
+  int64_t lastRollup;       // last rollup timestamp
+  int8_t  lastRollupLevel;  // rollup level (rlevel)
 } SRepairFileSet;
 
 // Per-vnode repair result.
@@ -658,11 +667,21 @@ static SArray *dmParseCurrentJson(const char *content) {
       }
     }
 
-    // Parse file set level timestamps
+    // Parse file set level timestamps and metadata
     fset.lastCompact = 0;
     fset.lastCommit = 0;
+    fset.lastMigrate = 0;
+    fset.lastRollup = 0;
+    fset.lastRollupLevel = 0;
     (void)dmJsonGetInt64FromDouble(pFsetJson, "last compact", &fset.lastCompact);
     (void)dmJsonGetInt64FromDouble(pFsetJson, "last commit", &fset.lastCommit);
+    (void)dmJsonGetInt64FromDouble(pFsetJson, "last migrate", &fset.lastMigrate);
+    (void)dmJsonGetInt64FromDouble(pFsetJson, "last rollup", &fset.lastRollup);
+    {
+      int64_t rlevel = 0;
+      (void)dmJsonGetInt64FromDouble(pFsetJson, "rlevel", &rlevel);
+      fset.lastRollupLevel = (int8_t)rlevel;
+    }
 
     if (taosArrayPush(pSets, &fset) == NULL) {
       taosArrayDestroy(fset.files);
@@ -1623,11 +1642,17 @@ static int32_t dmGenerateCurrentJson(STfs *pTgtTfs, int32_t vnodeId, const SArra
       }
     }
 
-    // Add file set level timestamps from source
+    // Add file set level timestamps and metadata from source
     int64_t lastCompact = pSrcSet ? pSrcSet->lastCompact : 0;
     int64_t lastCommit = pSrcSet ? pSrcSet->lastCommit : 0;
+    int64_t lastMigrate = pSrcSet ? pSrcSet->lastMigrate : 0;
+    int64_t lastRollup = pSrcSet ? pSrcSet->lastRollup : 0;
+    int8_t  lastRollupLevel = pSrcSet ? pSrcSet->lastRollupLevel : 0;
     (void)tjsonAddDoubleToObject(pFsetJson, "last compact", (double)lastCompact);
     (void)tjsonAddDoubleToObject(pFsetJson, "last commit", (double)lastCommit);
+    (void)tjsonAddDoubleToObject(pFsetJson, "last migrate", (double)lastMigrate);
+    (void)tjsonAddDoubleToObject(pFsetJson, "last rollup", (double)lastRollup);
+    (void)tjsonAddDoubleToObject(pFsetJson, "rlevel", (double)lastRollupLevel);
   }
 
   // Serialize to string and write to file
