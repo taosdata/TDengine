@@ -95,11 +95,30 @@ set(_binary_output "${TD_BIN_DIR}/taoskeeper${CMAKE_EXECUTABLE_SUFFIX}")
 set(_config_output "${TD_CFG_DIR}/taoskeeper.toml")
 set(_service_output "${TD_CFG_DIR}/taoskeeper.service")
 
-# Keep module / build / sumdb caches under the build tree so GVM or read-only
-# global paths (e.g. ~/.gvm/.../pkg/sumdb) cannot break parallel `make`.
-set(_keeper_gomodcache "${CMAKE_BINARY_DIR}/build/taoskeeper/gomodcache")
-set(_keeper_gocache "${CMAKE_BINARY_DIR}/build/taoskeeper/gocache")
-set(_keeper_gopath "${CMAKE_BINARY_DIR}/build/taoskeeper/gopath")
+# ── Go cache strategy ──────────────────────────────────────────────────────
+# Prefer persistent Go module cache (e.g. Docker-mounted /root/go/pkg/mod via
+# build.sh --cache) to avoid re-downloading ~1.4 GB of modules on every build.
+# Fall back to build-tree local paths when the persistent cache is absent
+# (local dev with GVM, read-only home directory, etc.).
+execute_process(
+  COMMAND "${GO_EXECUTABLE}" env GOMODCACHE
+  OUTPUT_VARIABLE _go_default_modcache
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE _go_env_rc
+)
+
+if(_go_env_rc EQUAL 0 AND IS_DIRECTORY "${_go_default_modcache}")
+  message(STATUS "  taoskeeper: using persistent Go cache: ${_go_default_modcache}")
+  set(_keeper_gomodcache "${_go_default_modcache}")
+  execute_process(COMMAND "${GO_EXECUTABLE}" env GOCACHE OUTPUT_VARIABLE _keeper_gocache OUTPUT_STRIP_TRAILING_WHITESPACE)
+  execute_process(COMMAND "${GO_EXECUTABLE}" env GOPATH  OUTPUT_VARIABLE _keeper_gopath  OUTPUT_STRIP_TRAILING_WHITESPACE)
+else()
+  # Persistent cache not available — use build-tree local paths (original behavior)
+  message(STATUS "  taoskeeper: using local Go cache (persistent cache not found)")
+  set(_keeper_gomodcache "${CMAKE_BINARY_DIR}/build/taoskeeper/gomodcache")
+  set(_keeper_gocache    "${CMAKE_BINARY_DIR}/build/taoskeeper/gocache")
+  set(_keeper_gopath     "${CMAKE_BINARY_DIR}/build/taoskeeper/gopath")
+endif()
 
 add_custom_command(
   OUTPUT "${_binary_output}"
