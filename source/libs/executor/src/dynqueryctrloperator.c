@@ -461,7 +461,6 @@ static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, co
   STagVal dstVal = {.cid = dstColId, .type = pSchema->type};
 
   if (!tTagGet(pTagData, &srcVal)) {
-    qDebug("appendResolvedTagVal: tag cid=%d not found in source, treating as NULL", pSchema->colId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -474,6 +473,18 @@ static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, co
     }
   } else {
     dstVal.i64 = srcVal.i64;
+  }
+
+  // Replace existing entry with same cid if present
+  for (int32_t i = 0; i < taosArrayGetSize(pResolvedTags); ++i) {
+    STagVal* pExisting = taosArrayGet(pResolvedTags, i);
+    if (pExisting->cid == dstColId) {
+      if (IS_VAR_DATA_TYPE(pExisting->type)) {
+        taosMemoryFree(pExisting->pData);
+      }
+      *pExisting = dstVal;
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   QUERY_CHECK_NULL(taosArrayPush(pResolvedTags, &dstVal), code, lino, _return, terrno)
@@ -2159,10 +2170,19 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
         }
       }
       pAPI->metaReaderFn.clearReader(&mr2);
+
+      // Populate tag-ref info for chain resolution
+      SColRefWrapper* pColRef = &mr.me.colRef;
+      if (pColRef->nTagRefs > 0 && pColRef->pTagRef) {
+        pCfgRsp->numOfTagRefs = pColRef->nTagRefs;
+        pCfgRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pColRef->nTagRefs);
+        if (pCfgRsp->pTagRefs) {
+          memcpy(pCfgRsp->pTagRefs, pColRef->pTagRef, sizeof(SColRef) * pColRef->nTagRefs);
+        }
+      }
     }
 
     pAPI->metaReaderFn.clearReader(&mr);
-    qDebug("fetchRemoteTableCfg: read local vnode vgId %d for %s.%s", vgId, dbFName, tbName);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2334,7 +2354,6 @@ _vtb_tag_cleanup:
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
-  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
   for (int32_t i = 0; i < taosArrayGetSize(pColRefInfo); ++i) {
     SColRefInfo* pKV = taosArrayGet(pColRefInfo, i);
     QUERY_CHECK_NULL(pKV, code, lino, _return, terrno)
@@ -2345,48 +2364,90 @@ _vtb_tag_cleanup:
     char*     refDbName = NULL;
     char*     refTbName = NULL;
     char*     refColName = NULL;
-    SName     name = {0};
-    char      dbFName[TSDB_DB_FNAME_LEN] = {0};
-    int32_t   vgId = 0;
-    SDBVgInfo* dbVgInfo = NULL;
-    STableCfgRsp cfgRsp = {0};
 
     code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
     QUERY_CHECK_CODE(code, lino, _ref_cleanup);
 
-    toName(pVtbScan->acctId, refDbName, refTbName, &name);
-    code = getDbVgInfo(pOperator, &name, &dbVgInfo);
-    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
-    code = tNameGetFullDbName(&name, dbFName);
-    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
-    code = getVgId(dbVgInfo, dbFName, &vgId, name.tname);
-    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+    // Follow tag-ref chain until reaching a physical table with real tag values
+    for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH; ++depth) {
+      SName          name = {0};
+      char           dbFName[TSDB_DB_FNAME_LEN] = {0};
+      int32_t        vgId = 0;
+      SDBVgInfo*     dbVgInfo = NULL;
+      STableCfgRsp   cfgRsp = {0};
 
-    code = fetchRemoteTableCfg(pOperator, dbVgInfo, dbFName, name.tname, vgId, &cfgRsp);
-    QUERY_CHECK_CODE(code, lino, _ref_cleanup);
+      toName(pVtbScan->acctId, refDbName, refTbName, &name);
+      code = getDbVgInfo(pOperator, &name, &dbVgInfo);
+      QUERY_CHECK_CODE(code, lino, _chain_cleanup);
+      code = tNameGetFullDbName(&name, dbFName);
+      QUERY_CHECK_CODE(code, lino, _chain_cleanup);
+      code = getVgId(dbVgInfo, dbFName, &vgId, name.tname);
+      QUERY_CHECK_CODE(code, lino, _chain_cleanup);
 
-    if (cfgRsp.pTags != NULL && cfgRsp.pSchemas != NULL) {
-      const SSchema* pTagSchema = NULL;
-      for (int32_t tagIdx = 0; tagIdx < cfgRsp.numOfTags; ++tagIdx) {
-        SSchema* pSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + tagIdx];
-        if (0 == strcmp(pSchema->name, refColName)) {
-          pTagSchema = pSchema;
-          break;
+      code = fetchRemoteTableCfg(pOperator, dbVgInfo, dbFName, name.tname, vgId, &cfgRsp);
+      QUERY_CHECK_CODE(code, lino, _chain_cleanup);
+
+      // Check if the referenced tag is itself a tag-ref (chain continues)
+      bool     chainContinues = false;
+      if (cfgRsp.pTagRefs != NULL && cfgRsp.numOfTagRefs > 0 && cfgRsp.pSchemas != NULL) {
+        // Find the colId of the referenced tag by matching name in schema
+        col_id_t refTagColId = -1;
+        for (int32_t tagIdx = 0; tagIdx < cfgRsp.numOfTags; ++tagIdx) {
+          SSchema* pSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + tagIdx];
+          if (0 == strcmp(pSchema->name, refColName)) {
+            refTagColId = pSchema->colId;
+            break;
+          }
+        }
+        // Find the tag-ref entry for this colId
+        if (refTagColId >= 0) {
+          for (int32_t t = 0; t < cfgRsp.numOfTagRefs; ++t) {
+            SColRef* pChainRef = &cfgRsp.pTagRefs[t];
+            if (pChainRef->hasRef && pChainRef->id == refTagColId) {
+              taosMemoryFree(refDbName);
+              taosMemoryFree(refTbName);
+              taosMemoryFree(refColName);
+              refDbName = taosStrdup(pChainRef->refDbName);
+              refTbName = taosStrdup(pChainRef->refTableName);
+              refColName = taosStrdup(pChainRef->refColName);
+              chainContinues = true;
+              tFreeSTableCfgRsp(&cfgRsp);
+              break;
+            }
+          }
+        }
+      }
+      if (chainContinues) {
+        continue;
+      }
+
+      // Terminal: extract the tag value
+      if (cfgRsp.pTags != NULL && cfgRsp.pSchemas != NULL) {
+        const SSchema* pTagSchema = NULL;
+        for (int32_t tagIdx = 0; tagIdx < cfgRsp.numOfTags; ++tagIdx) {
+          SSchema* pSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + tagIdx];
+          if (0 == strcmp(pSchema->name, refColName)) {
+            pTagSchema = pSchema;
+            break;
+          }
+        }
+
+        if (pTagSchema != NULL) {
+          if (*ppResolvedTags == NULL) {
+            *ppResolvedTags = taosArrayInit(taosArrayGetSize(pColRefInfo), sizeof(STagVal));
+            QUERY_CHECK_NULL(*ppResolvedTags, code, lino, _chain_cleanup, terrno)
+          }
+          code = appendResolvedTagVal(*ppResolvedTags, pKV->colId, pTagSchema, (const STag*)cfgRsp.pTags);
+          QUERY_CHECK_CODE(code, lino, _chain_cleanup);
         }
       }
 
-      if (pTagSchema != NULL) {
-        if (*ppResolvedTags == NULL) {
-          *ppResolvedTags = taosArrayInit(taosArrayGetSize(pColRefInfo), sizeof(STagVal));
-          QUERY_CHECK_NULL(*ppResolvedTags, code, lino, _ref_cleanup, terrno)
-        }
-        code = appendResolvedTagVal(*ppResolvedTags, pKV->colId, pTagSchema, (const STag*)cfgRsp.pTags);
-        QUERY_CHECK_CODE(code, lino, _ref_cleanup);
-      }
+_chain_cleanup:
+      tFreeSTableCfgRsp(&cfgRsp);
+      break;
     }
 
 _ref_cleanup:
-    tFreeSTableCfgRsp(&cfgRsp);
     taosMemoryFree(refDbName);
     taosMemoryFree(refTbName);
     taosMemoryFree(refColName);
@@ -3132,8 +3193,6 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
   code = pTargetOp->fpSet.getNextExtFn(pTargetOp, pParam, &pBlock);
   QUERY_CHECK_CODE(code, line, _return);
   pParam = NULL;
-
-  qDebug("dynCollectSysScan: first block rows=%d", pBlock ? (int)pBlock->info.rows : -1);
 
   while (pBlock != NULL) {
     SColumnInfoData* pTableNameCol = taosArrayGet(pBlock->pDataBlock, 0);

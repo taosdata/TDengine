@@ -836,7 +836,7 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
       ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
-      (*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) {
+      (((*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) || ((*pMeta)->numOfTagRefs > 0 && (*pMeta)->tagRef))) {
     SArray* pVStbRefs = NULL;
     int32_t refCode = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
     if (TSDB_CODE_SUCCESS == refCode && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
@@ -858,6 +858,27 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
             tstrncpy((*pMeta)->colRef[j].refTableName, pResolved->refTableName,
                      sizeof((*pMeta)->colRef[j].refTableName));
             tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
+            break;
+          }
+        }
+      }
+      if (pRsp && pRsp->numOfTagRefs > 0 && pRsp->pTagRefCols) {
+        for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+          SRefColInfo* pResolved = &pRsp->pTagRefCols[i];
+          if ('\0' == pResolved->refDbName[0] || '\0' == pResolved->refTableName[0] ||
+              '\0' == pResolved->refColName[0]) {
+            continue;
+          }
+
+          for (int32_t j = 0; j < (*pMeta)->numOfTagRefs; ++j) {
+            if (!(*pMeta)->tagRef[j].hasRef || (*pMeta)->tagRef[j].id != pResolved->colId) {
+              continue;
+            }
+
+            tstrncpy((*pMeta)->tagRef[j].refDbName, pResolved->refDbName, sizeof((*pMeta)->tagRef[j].refDbName));
+            tstrncpy((*pMeta)->tagRef[j].refTableName, pResolved->refTableName,
+                     sizeof((*pMeta)->tagRef[j].refTableName));
+            tstrncpy((*pMeta)->tagRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->tagRef[j].refColName));
             break;
           }
         }
@@ -919,7 +940,7 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
       ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
-      (*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) {
+      (((*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) || ((*pMeta)->numOfTagRefs > 0 && (*pMeta)->tagRef))) {
     SArray* pVStbRefs = NULL;
     code = getVStbRefDbsFromCache(pCxt->pMetaCache, &name, &pVStbRefs);
     if (TSDB_CODE_SUCCESS == code && pVStbRefs && taosArrayGetSize(pVStbRefs) > 0) {
@@ -941,6 +962,27 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
             tstrncpy((*pMeta)->colRef[j].refTableName, pResolved->refTableName,
                      sizeof((*pMeta)->colRef[j].refTableName));
             tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
+            break;
+          }
+        }
+      }
+      if (pRsp && pRsp->numOfTagRefs > 0 && pRsp->pTagRefCols) {
+        for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+          SRefColInfo* pResolved = &pRsp->pTagRefCols[i];
+          if ('\0' == pResolved->refDbName[0] || '\0' == pResolved->refTableName[0] ||
+              '\0' == pResolved->refColName[0]) {
+            continue;
+          }
+
+          for (int32_t j = 0; j < (*pMeta)->numOfTagRefs; ++j) {
+            if (!(*pMeta)->tagRef[j].hasRef || (*pMeta)->tagRef[j].id != pResolved->colId) {
+              continue;
+            }
+
+            tstrncpy((*pMeta)->tagRef[j].refDbName, pResolved->refDbName, sizeof((*pMeta)->tagRef[j].refDbName));
+            tstrncpy((*pMeta)->tagRef[j].refTableName, pResolved->refTableName,
+                     sizeof((*pMeta)->tagRef[j].refTableName));
+            tstrncpy((*pMeta)->tagRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->tagRef[j].refColName));
             break;
           }
         }

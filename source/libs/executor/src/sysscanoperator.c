@@ -2815,9 +2815,6 @@ static SSDataBlock* sysTableScanUserVcColsByReqs(SOperatorInfo* pOperator) {
     SSysTableScanVtbRefReq* pReq = taosArrayGet(pInfo->pVtbRefReqs, pInfo->vtbRefReqIdx++);
     QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
 
-    qDebug("vcColsByReqs: idx=%d, tbName=%s, colName=%s, vgId=%d, taskVgId=%d",
-           pInfo->vtbRefReqIdx - 1, pReq->tbName, pReq->colName, pReq->vgId, pTaskInfo->id.vgId);
-
     if (pReq->vgId != pTaskInfo->id.vgId) {
       continue;
     }
@@ -3113,8 +3110,7 @@ static bool vtbRefCheckColumnInCache(const SVtbRefSchemaCache* pCache, const cha
 }
 
 static const SColRef* vtbRefFindColumnRefInEntry(const SVtbRefTableCacheEntry* pEntry, const char* colName) {
-  if (pEntry == NULL || colName == NULL || !vtbRefIsVirtualTableType(pEntry->tableType) || pEntry->colRef.pColRef == NULL ||
-      pEntry->colRef.nCols <= 0) {
+  if (pEntry == NULL || colName == NULL || !vtbRefIsVirtualTableType(pEntry->tableType)) {
     return NULL;
   }
 
@@ -3123,11 +3119,24 @@ static const SColRef* vtbRefFindColumnRefInEntry(const SVtbRefTableCacheEntry* p
   }
 
   int32_t* pIndex = taosHashGet(pEntry->pSchemaCache->pColNameIndex, colName, strlen(colName));
-  if (pIndex == NULL || *pIndex < 0 || *pIndex >= pEntry->colRef.nCols) {
+  if (pIndex == NULL || *pIndex < 0) {
     return NULL;
   }
 
-  return &pEntry->colRef.pColRef[*pIndex];
+  if (*pIndex < pEntry->colRef.nCols && pEntry->colRef.pColRef != NULL) {
+    return &pEntry->colRef.pColRef[*pIndex];
+  }
+
+  // For tag columns, schema index >= numOfCols; check pTagRef array
+  int32_t numOfCols = pEntry->pSchemaCache->schemaRow.nCols;
+  if (*pIndex >= numOfCols && pEntry->colRef.pTagRef != NULL) {
+    int32_t tagIdx = *pIndex - numOfCols;
+    if (tagIdx >= 0 && tagIdx < pEntry->colRef.nTagRefs) {
+      return &pEntry->colRef.pTagRef[tagIdx];
+    }
+  }
+
+  return NULL;
 }
 
 static int32_t vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMetaRsp, SVtbRefSchemaCache** ppCache) {
@@ -3714,12 +3723,9 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
       if (cacheCode == TSDB_CODE_SUCCESS) {
         pNewEntry->errCode = TSDB_CODE_SUCCESS;
         pNewEntry->tableType = metaRsp.tableType;
-        // Copy colRef for virtual tables so recursive chain resolution works
-        if (vtbRefIsVirtualTableType(metaRsp.tableType) && metaRsp.pColRefs != NULL && metaRsp.numOfColRefs > 0) {
-          cacheCode = vtbRefCopyColRefs(metaRsp.pColRefs, metaRsp.numOfColRefs, &pNewEntry->colRef.pColRef);
-          if (cacheCode == TSDB_CODE_SUCCESS) {
-            pNewEntry->colRef.nCols = metaRsp.numOfColRefs;
-          }
+        // Copy colRef and tagRef for virtual tables so recursive chain resolution works
+        if (vtbRefIsVirtualTableType(metaRsp.tableType)) {
+          cacheCode = vtbRefCopyColRefWrapperFromMetaRsp(&metaRsp, &pNewEntry->colRef);
         }
         int32_t putCode = vtbRefPutRemoteCacheEntry(pTableCache, refDbName, refTableName, pNewEntry);
         if (putCode == TSDB_CODE_SUCCESS) {
