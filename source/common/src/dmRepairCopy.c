@@ -197,8 +197,12 @@ static int32_t dmSshFetchFile(const char *host, const char *remotePath, char *lo
   char qHost[320], qRemote[DM_SHELL_QUOTED_PATH_LEN];
   if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0) {
     uError("repair: shell quote failed in dmSshFetchFile");
-    close(fd);
-    (void)taosRemoveFile(localPathBuf);
+    if (close(fd) != 0) {
+      uError("repair: failed to close file after shell quote failure");
+    }
+    if (taosRemoveFile(localPathBuf) != 0) {
+      uError("repair: failed to remove temp file %s after shell quote failure", localPathBuf);
+    }
     return -1;
   }
 
@@ -208,8 +212,12 @@ static int32_t dmSshFetchFile(const char *host, const char *remotePath, char *lo
   DmCmdPtr pCmd = dmOpenCmd(cmd);
   if (pCmd == NULL) {
     uError("repair: failed to run ssh command");
-    close(fd);
-    (void)taosRemoveFile(localPathBuf);
+    if (close(fd) != 0) {
+      uError("repair: failed to close file after ssh command failure");
+    }
+    if (taosRemoveFile(localPathBuf) != 0) {
+      uError("repair: failed to remove temp file %s after ssh command failure", localPathBuf);
+    }
     return -1;
   }
 
@@ -222,21 +230,29 @@ static int32_t dmSshFetchFile(const char *host, const char *remotePath, char *lo
       if (w < 0) {
         uError("repair: write to temp file failed: %s", strerror(errno));
         dmCloseCmd(&pCmd);
-        close(fd);
-        (void)taosRemoveFile(localPathBuf);
+        if (close(fd) != 0) {
+          uError("repair: failed to close file after write failure");
+        }
+        if (taosRemoveFile(localPathBuf) != 0) {
+          uError("repair: failed to remove temp file %s after write failure", localPathBuf);
+        }
         return -1;
       }
       nWritten += w;
     }
   }
   dmCloseCmd(&pCmd);
-  close(fd);
+  if (close(fd) != 0) {
+    uError("repair: failed to close file after writing SSH output");
+  }
 
   // Verify file has content
   int64_t fsize = 0;
   if (taosStatFile(localPathBuf, &fsize, NULL, NULL) != 0 || fsize <= 0) {
     uError("repair: ssh fetch returned empty file for %s:%s", host, remotePath);
-    (void)taosRemoveFile(localPathBuf);
+    if (taosRemoveFile(localPathBuf) != 0) {
+      uError("repair: failed to remove empty file %s", localPathBuf);
+    }
     return -1;
   }
   return 0;
