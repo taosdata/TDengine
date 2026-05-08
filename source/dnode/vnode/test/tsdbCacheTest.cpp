@@ -33,7 +33,7 @@
  #pragma GCC diagnostic ignored "-Wsign-compare"
  
  // vnode meta layer expects this global in some builds; unit tests provide a stub.
- SDmNotifyHandle dmNotifyHdl = {.state = 0};
+ SDmNotifyHandle dmNotifyHdl = {};
  
  #include "tsdb.h"
  #include "tsdbUtil2.h"

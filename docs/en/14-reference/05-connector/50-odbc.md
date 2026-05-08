@@ -7,12 +7,36 @@ TDengine ODBC is an ODBC driver implemented for TDengine, supporting application
 
 TDengine ODBC offers two types of connections to the TDengine database: WebSocket (recommended) and native connections. Different connection methods can be set for the TDengine data source when in use. WebSocket connection must be used when accessing cloud services.
 
-TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit version is only supported by the TSDB-Enterprise and only supports WebSocket connections.  
+TDengine ODBC provides both 64-bit and 32-bit drivers. However, the 32-bit version is only supported by the TSDB-Enterprise and only supports WebSocket connections.
 
 :::note
 
 - Driver Manager: Ensure to use the ODBC driver manager that matches the architecture of the application. 32-bit applications need a 32-bit ODBC driver manager, and 64-bit applications need a 64-bit ODBC driver manager.
 - Data Source Name (DSN): Both 32-bit and 64-bit ODBC driver managers can see all DSNs, and DSNs under the User DSN tab will share the same name, so it is necessary to distinguish them in the DSN name.
+
+:::
+
+:::warning Native Connection Being Deprecated
+
+<font color="red">ODBC native connection is deprecated and will be discontinued on 2027-01-01</font>, please migrate to WebSocket connection.
+
+For a detailed migration guide, please refer to: [Connection Methods](index.md#connection-methods)
+
+:::
+
+:::info About Native Connection
+
+The ODBC driver's **Native connection** communicates directly with the TDengine server through the TDengine client driver (`taosnative` library) using TDengine's proprietary protocol. This differs from the **WebSocket connection**, which accesses the server via taosAdapter's WebSocket interface.
+
+- Native connections typically offer better performance but require the client driver version to match the server version.
+- WebSocket connections provide better compatibility, generally do not require client updates when upgrading the server, and support cloud services and 32-bit applications.
+- For most scenarios, WebSocket connections are recommended. For detailed connection method descriptions, please refer to: [Connection Methods](index.md#connection-methods)
+
+:::
+
+:::warning Native and WebSocket Connections Cannot Be Mixed
+
+Native connections and WebSocket connections **cannot be used simultaneously within the same process, and switching between them at runtime is not allowed**. A single process can only use one connection type. If you need to use both connection types, please use them in separate processes.
 
 :::
 
@@ -41,6 +65,8 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 4. Native connection usually performs slightly better, but must be consistent with the version of the TDengine database server.
 
 5. For general users, it is recommended to use the **WebSocket** connection mode, as the performance difference with Native is not significant, and compatibility is better.
+
+6. Native connections and WebSocket connections **cannot be used simultaneously within the same process, and switching between them at runtime is not allowed**. A single process can only use one connection type. Please determine the required connection type when creating the data source.
 
 ### WebSocket Connection
 
@@ -268,12 +294,12 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Configures data sources
-  
+
 - API: ConfigDriver
   - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Used to perform installation and configuration tasks related to a specific driver
-  
+
 - API: ConfigTranslator
   - **Supported**: No
   - **Standard**: ODBC

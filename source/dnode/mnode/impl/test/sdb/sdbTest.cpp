@@ -382,7 +382,7 @@ TEST_F(MndTestSdb, 00_API) {
   taosRemoveDir(opt.path);
   SSdb *pSdb = sdbInit(&opt);
 
-  SSdbTable table = {.sdbType = SDB_USER, .keyType = SDB_KEY_BINARY};
+  SSdbTable table = {}; table.sdbType = SDB_USER; table.keyType = SDB_KEY_BINARY;
   sdbSetTable(pSdb, table);
 
   // sdbRow.c
