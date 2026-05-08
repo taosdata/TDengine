@@ -29,6 +29,7 @@ on:
       - "explorer/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "Makefile.toml"
       - "build.rs"
       - ".github/workflows/**"
       - "tests/e2e/**"
