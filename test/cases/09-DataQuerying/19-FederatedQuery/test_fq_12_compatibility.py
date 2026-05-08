@@ -74,7 +74,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             tdSql.execute(f"drop database if exists {db}")
 
     def _skip_external(self, msg):
-        pytest.skip(f"Compatibility test {msg}")
+        pytest.fail(f"Compatibility test not implemented: {msg}")
 
     # ------------------------------------------------------------------
     # COMP-001  MySQL 5.7/8.0 compatibility

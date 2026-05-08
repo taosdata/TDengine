@@ -1191,7 +1191,7 @@ static void translateExtColInExpr(SNode* pExpr, const SExtTableMeta* pExtMeta) {
     case QUERY_NODE_COLUMN: {
       SColumnNode* pCol = (SColumnNode*)pExpr;
       for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-        if (strcmp(pExtMeta->pCols[i].colName, pCol->colName) == 0 &&
+        if (strcasecmp(pExtMeta->pCols[i].colName, pCol->colName) == 0 &&
             pExtMeta->pCols[i].remoteColName[0] != '\0') {
           tstrncpy(pCol->colName, pExtMeta->pCols[i].remoteColName, TSDB_COL_NAME_LEN);
           break;
@@ -1335,6 +1335,36 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
           LIST_LENGTH(pReordered) != LIST_LENGTH(pScanLogicNode->node.pTargets)) {
         nodesDestroyList(pReordered);
         pReordered = NULL;
+      } else {
+        // Reorder succeeded. Append any extra pScanCols columns that are NOT in
+        // pTargets (e.g. primary-key columns added for WINDOW JOIN addPrimEqCond
+        // slot resolution that are absent from the SELECT list).  These must be
+        // present in the slot hash so that createMergeJoinPhysiNode can resolve
+        // addPrimEqCond column slot IDs without PLAN_SLOT_NOT_FOUND.
+        SNode* pSc = NULL;
+        FOREACH(pSc, pScanLogicNode->pScanCols) {
+          if (QUERY_NODE_COLUMN != nodeType(pSc)) continue;
+          SColumnNode* pSCol = (SColumnNode*)pSc;
+          bool alreadyIn = false;
+          SNode* pEx = NULL;
+          FOREACH(pEx, pReordered) {
+            if (QUERY_NODE_COLUMN != nodeType(pEx)) continue;
+            SColumnNode* pExCol = (SColumnNode*)pEx;
+            if ((pExCol->colId != 0 && pExCol->colId == pSCol->colId) ||
+                (pExCol->colId == 0 && strcmp(pExCol->colName, pSCol->colName) == 0 &&
+                 strcmp(pExCol->tableAlias, pSCol->tableAlias) == 0)) {
+              alreadyIn = true;
+              break;
+            }
+          }
+          if (!alreadyIn) {
+            SNode* pClone = NULL;
+            code = nodesCloneNode(pSc, &pClone);
+            if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pReordered); pReordered = NULL; break; }
+            code = nodesListMakeStrictAppend(&pReordered, pClone);
+            if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pClone); nodesDestroyList(pReordered); pReordered = NULL; break; }
+          }
+        }
       }
     }
 
@@ -1974,6 +2004,89 @@ static int32_t appendPrimColToJoinTargets(SSortMergeJoinPhysiNode* pJoin, SColum
   return code;
 }
 
+// Ensure columns referenced in pCond (e.g. addPrimEqCond) have slots in
+// pLeftDesc/pRightDesc so that setNodeSlotId can resolve them later.
+// Columns absent from the desc hash are added as non-output slots.
+static int32_t ensureCondColSlotsInJoinDescs(SPhysiPlanContext* pCxt, SNode* pCond,
+                                              SJoinLogicNode* pJoinLogicNode,
+                                              SDataBlockDescNode* pLeftDesc,
+                                              SDataBlockDescNode* pRightDesc) {
+  if (NULL == pCond) return TSDB_CODE_SUCCESS;
+
+  // Determine left/right tableAlias from the logic plan children's pScanCols
+  const char* leftAlias = NULL;
+  const char* rightAlias = NULL;
+  SLogicNode* pLeftLogic  = (SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 0);
+  SLogicNode* pRightLogic = (SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 1);
+  if (pLeftLogic && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pLeftLogic)) {
+    SScanLogicNode* pLS = (SScanLogicNode*)pLeftLogic;
+    if (pLS->pScanCols && LIST_LENGTH(pLS->pScanCols) > 0) {
+      SNode* pFirst = nodesListGetNode(pLS->pScanCols, 0);
+      if (pFirst && QUERY_NODE_COLUMN == nodeType(pFirst))
+        leftAlias = ((SColumnNode*)pFirst)->tableAlias;
+    }
+  }
+  if (pRightLogic && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pRightLogic)) {
+    SScanLogicNode* pRS = (SScanLogicNode*)pRightLogic;
+    if (pRS->pScanCols && LIST_LENGTH(pRS->pScanCols) > 0) {
+      SNode* pFirst = nodesListGetNode(pRS->pScanCols, 0);
+      if (pFirst && QUERY_NODE_COLUMN == nodeType(pFirst))
+        rightAlias = ((SColumnNode*)pFirst)->tableAlias;
+    }
+  }
+
+  // Collect all column nodes referenced in pCond
+  SNodeList* pCols = NULL;
+  int32_t    code  = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCols);
+  if (TSDB_CODE_SUCCESS != code || NULL == pCols) return code;
+
+  SNode* pColNode = NULL;
+  FOREACH(pColNode, pCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pColNode)) continue;
+    SColumnNode* pCol = (SColumnNode*)pColNode;
+
+    // Decide which desc this column belongs to based on tableAlias
+    SDataBlockDescNode* pTargetDesc = NULL;
+    if (leftAlias && '\0' != leftAlias[0] && strcmp(pCol->tableAlias, leftAlias) == 0) {
+      pTargetDesc = pLeftDesc;
+    } else if (rightAlias && '\0' != rightAlias[0] && strcmp(pCol->tableAlias, rightAlias) == 0) {
+      pTargetDesc = pRightDesc;
+    } else {
+      // Fallback: if colName already in left hash, assign left; else right
+      SHashObj* pLHash = taosArrayGetP(pCxt->pLocationHelper, pLeftDesc->dataBlockId);
+      if (pLHash && taosHashGet(pLHash, pCol->colName, strlen(pCol->colName)))
+        pTargetDesc = pLeftDesc;
+      else
+        pTargetDesc = pRightDesc;
+    }
+
+    // Check if the slot already exists in the target hash
+    char*   keyName = NULL;
+    int32_t keyLen  = 0;
+    int32_t keyCap  = 0;
+    code = getSlotKey((SNode*)pCol, NULL, &keyName, &keyLen, 0, &keyCap);
+    if (TSDB_CODE_SUCCESS != code) break;
+    SHashObj* pDescHash = taosArrayGetP(pCxt->pLocationHelper, pTargetDesc->dataBlockId);
+    bool alreadyPresent = (pDescHash && taosHashGet(pDescHash, keyName, keyLen) != NULL);
+    taosMemoryFree(keyName);
+
+    if (!alreadyPresent) {
+      SNode* pCloned = NULL;
+      code = nodesCloneNode((SNode*)pCol, &pCloned);
+      if (TSDB_CODE_SUCCESS == code) {
+        SNodeList* pTmpList = NULL;
+        code = nodesListMakeStrictAppend(&pTmpList, pCloned);
+        if (TSDB_CODE_SUCCESS == code)
+          code = addDataBlockSlots(pCxt, pTmpList, pTargetDesc);
+        nodesDestroyList(pTmpList);
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) break;
+  }
+  nodesDestroyList(pCols);
+  return code;
+}
+
 static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
                                         SPhysiNode** pPhyNode) {
   SSortMergeJoinPhysiNode* pJoin =
@@ -2020,8 +2133,13 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->addPrimEqCond) {
     SNode* pPrimKeyCond = NULL;
-    code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->addPrimEqCond,
+    // Ensure columns in addPrimEqCond (e.g. b.ts not in SELECT) have slots
+    // in the left/right desc before setNodeSlotId tries to resolve them.
+    code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->addPrimEqCond, pJoinLogicNode, pLeftDesc, pRightDesc);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->addPrimEqCond,
                          &pPrimKeyCond);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = setMergeJoinPrimColEqCond(pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
                                        pJoin, NULL);

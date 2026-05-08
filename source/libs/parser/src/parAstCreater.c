@@ -2650,6 +2650,20 @@ _err:
   return NULL;
 }
 
+SNode* createSimpleExternalWindowClause(SAstCreateContext* pCxt) {
+  SExternalWindowNode* pExtWin = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
+  CHECK_MAKE_NODE(pExtWin);
+  pExtWin->pSubquery = NULL;
+  pExtWin->pFill = NULL;
+  pExtWin->aliasName[0] = '\0';
+  return (SNode*)pExtWin;
+_err:
+  nodesDestroyNode((SNode*)pExtWin);
+  return NULL;
+}
+
 SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pJLimit) {

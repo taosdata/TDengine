@@ -788,6 +788,67 @@ static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
 }
 
+// addPrimEqCondColsToExtScan: ensure primary key columns referenced in
+// addPrimEqCond are present in an ExternalScan's pScanCols.
+//
+// The JOIN_TABLE AST walker only visits pLeft/pRight/pOnCond, not addPrimCond,
+// so nodesCollectColumns(SQL_CLAUSE_FROM) in createExternalScanLogicNode misses
+// the implicit join primary key column when it is not in the SELECT list
+// (e.g. "b.ts" in "SELECT a.ts, a.val, b.measure FROM ... LEFT WINDOW JOIN ...").
+// Without this fix, createMergeJoinPhysiNode fails with PLAN_SLOT_NOT_FOUND
+// when it tries to resolve addPrimEqCond's "b.ts" column against the right
+// ExternalScan's physical output block descriptor.
+static int32_t addPrimEqCondColsToExtScan(SScanLogicNode* pScan, const char* tblAlias, SNode* pCond) {
+  if (NULL == pScan || NULL == pCond || NULL == tblAlias || '\0' == tblAlias[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Collect columns for this alias from the addPrimEqCond expression.
+  SNodeList* pNewCols = NULL;
+  int32_t    code = nodesCollectColumnsFromNode(pCond, tblAlias, COLLECT_COL_TYPE_ALL, &pNewCols);
+  if (TSDB_CODE_SUCCESS != code || NULL == pNewCols) return code;
+
+  SNode* pNewCol = NULL;
+  FOREACH(pNewCol, pNewCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNewCol)) continue;
+    SColumnNode* pC = (SColumnNode*)pNewCol;
+    // Skip if already present in pScanCols (avoid duplicate fetching).
+    bool   found  = false;
+    SNode* pExist = NULL;
+    FOREACH(pExist, pScan->pScanCols) {
+      if (QUERY_NODE_COLUMN == nodeType(pExist)) {
+        SColumnNode* pE = (SColumnNode*)pExist;
+        if (strcmp(pE->colName, pC->colName) == 0 && strcmp(pE->tableAlias, pC->tableAlias) == 0) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      SNode* pCloned = NULL;
+      code = nodesCloneNode(pNewCol, &pCloned);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListMakeStrictAppend(&pScan->pScanCols, pCloned);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode(pCloned);
+        } else {
+          // Also add to pTargets so makePhysiNode builds a slot for it in
+          // pOutputDataBlockDesc. Without this, setNodeSlotId (doSetSlotId) fails
+          // with TSDB_CODE_PLAN_SLOT_NOT_FOUND when resolving addPrimEqCond columns.
+          SNode* pTgtCol = NULL;
+          code = nodesCloneNode(pNewCol, &pTgtCol);
+          if (TSDB_CODE_SUCCESS == code) {
+            code = nodesListMakeStrictAppend(&pScan->node.pTargets, pTgtCol);
+            if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pTgtCol);
+          }
+        }
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) break;
+  }
+  nodesDestroyList(pNewCols);
+  return code;
+}
+
 int32_t collectJoinResColumns(SSelectStmt* pSelect, SJoinLogicNode* pJoin, SNodeList** pCols) {
   SSHashObj* pTables = NULL;
   int32_t    code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pTables);

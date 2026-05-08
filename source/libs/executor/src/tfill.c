@@ -645,7 +645,7 @@ static int32_t copyCurrentRowIntoBuf(const SFillInfo* pFillInfo, int32_t rowInde
   int32_t lino = 0;
   int32_t fillType = pFillInfo->type;
   bool    fillNext = fillType == TSDB_FILL_NEXT;
-  bool    fillPrev = fillType == TSDB_FILL_PREV;
+  bool    fillPrev = fillType == TSDB_FILL_PREV || fillType == TSDB_FILL_NEAR;
 
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
@@ -743,7 +743,8 @@ static bool doFillOneCol(SFillInfo* pFillInfo, const SSDataBlock* pFillBlock,
   const SFillColInfo* pCol = &pFillInfo->pFillCol[colIdx];
   SColumnInfoData*    pDstCol = taosArrayGet(pFillBlock->pDataBlock,
                                              GET_DEST_SLOT_ID(pCol));
-  if (pFillInfo->type == TSDB_FILL_PREV || pFillInfo->type == TSDB_FILL_NEXT) {
+  if (pFillInfo->type == TSDB_FILL_PREV || pFillInfo->type == TSDB_FILL_NEXT ||
+      pFillInfo->type == TSDB_FILL_NEAR) {
     filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
     if (!filled) {
       saveProgress = fillCommonColumn(pFillInfo, pFillBlock, rowIdx, colIdx,

@@ -609,7 +609,10 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
       switch (blen) {
         case 4:  // text vs time
           if (strncasecmp(typeName, "text", 4) == 0) {
-            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+            // PG text is variable-length Unicode, but map to VARCHAR (binary storage) for
+            // compatibility with TDengine functions like st_geomfromtext() that do not accept
+            // NCHAR. WKT geometry strings and most practical text values are ASCII-safe.
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           } else {  // time
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
           }

@@ -237,8 +237,15 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
       dynSQLAppendf(s, "%.17g", pVal->datum.d);
       break;
     case TSDB_DATA_TYPE_BINARY:   // TSDB_DATA_TYPE_VARCHAR has the same integer value
+      // datum.p is VARSTR format (2-byte length header + UTF-8 content, null-terminated).
+      // varDataVal() skips the header to return the actual string content.
+      dynAppendEscapedString(s, pVal->datum.p ? varDataVal(pVal->datum.p) : "", dialect);
+      break;
     case TSDB_DATA_TYPE_NCHAR:
-      dynAppendEscapedString(s, pVal->datum.p, dialect);
+      // datum.p is VARSTR (UCS-4 encoded, 4 bytes/char).  Use the original
+      // source literal (UTF-8) for the remote SQL string literal instead, so
+      // the external DB receives a valid UTF-8 comparison value.
+      dynAppendEscapedString(s, pVal->literal ? pVal->literal : "", dialect);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP: {
       // Convert TDengine ms/us/ns timestamp to ISO-8601 string literal.
@@ -254,7 +261,12 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
       int32_t   frac = (int32_t)(ms % 1000LL);
       if (frac < 0) { frac += 1000; sec -= 1; }
       struct tm tmBuf;
-      gmtime_r(&sec, &tmBuf);
+      // MySQL DATETIME and PG TIMESTAMP (without tz) are timezone-naive;
+      // InfluxDB stores epoch UTC.  Choose conversion accordingly.
+      if (dialect == EXT_SQL_DIALECT_INFLUXQL)
+        gmtime_r(&sec, &tmBuf);
+      else
+        taosLocalTime(&sec, &tmBuf, NULL, 0, NULL);
       dynSQLAppendf(s, "'%04d-%02d-%02d %02d:%02d:%02d.%03d'",
                     tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
                     tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, frac);
@@ -272,7 +284,7 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
 static const char* resolveExtColName(const SExtTableMeta* pExtMeta, const char* tdColName) {
   if (!pExtMeta) return tdColName;
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-    if (strcmp(pExtMeta->pCols[i].colName, tdColName) == 0 &&
+    if (strcasecmp(pExtMeta->pCols[i].colName, tdColName) == 0 &&
         pExtMeta->pCols[i].remoteColName[0] != '\0') {
       return pExtMeta->pCols[i].remoteColName;
     }
@@ -287,7 +299,8 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
 
 // Render an integer value as an ISO-8601 timestamp string literal.
 // Used when an integer value is compared against a TIMESTAMP column in a WHERE clause.
-static void dynAppendIntAsTimestamp(SDynSQL* s, int64_t ts, int8_t precision) {
+static void dynAppendIntAsTimestamp(SDynSQL* s, int64_t ts, int8_t precision,
+                                   EExtSQLDialect dialect) {
   int64_t ms;
   switch (precision) {
     case TSDB_TIME_PRECISION_MICRO: ms = ts / 1000LL;    break;
@@ -298,7 +311,12 @@ static void dynAppendIntAsTimestamp(SDynSQL* s, int64_t ts, int8_t precision) {
   int32_t   frac = (int32_t)(ms % 1000LL);
   if (frac < 0) { frac += 1000; sec -= 1; }
   struct tm tmBuf;
-  gmtime_r(&sec, &tmBuf);
+  // MySQL DATETIME and PG TIMESTAMP (without tz) are timezone-naive;
+  // InfluxDB stores epoch UTC.  Choose conversion accordingly.
+  if (dialect == EXT_SQL_DIALECT_INFLUXQL)
+    gmtime_r(&sec, &tmBuf);
+  else
+    taosLocalTime(&sec, &tmBuf, NULL, 0, NULL);
   dynSQLAppendf(s, "'%04d-%02d-%02d %02d:%02d:%02d.%03d'",
                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
                 tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, frac);
@@ -326,7 +344,7 @@ static int32_t dynAppendExprTS(SDynSQL* s, const SNode* pExpr, const SNode* pOth
     const SValueNode* pVal = (const SValueNode*)pExpr;
     int8_t prec = ((const SExprNode*)pOther)->resType.precision;
     if (prec == 0) prec = TSDB_TIME_PRECISION_MILLI;
-    dynAppendIntAsTimestamp(s, pVal->datum.i, prec);
+    dynAppendIntAsTimestamp(s, pVal->datum.i, prec, dialect);
     return TSDB_CODE_SUCCESS;
   }
   return dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
@@ -416,6 +434,28 @@ static int32_t dynAppendRemoteValueList(SDynSQL* s, const SRemoteValueListNode* 
   return TSDB_CODE_SUCCESS;
 }
 
+// ---------------------------------------------------------------------------
+// dynAppendNodeList — render constant value list as "(v1, v2, ...)" for IN/NOT IN
+// ---------------------------------------------------------------------------
+static int32_t dynAppendNodeList(SDynSQL* s, const SNodeListNode* pList, EExtSQLDialect dialect,
+                                  const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
+  if (!pList->pNodeList || LIST_LENGTH(pList->pNodeList) == 0) {
+    dynSQLAppendStr(s, "(NULL)");
+    return TSDB_CODE_SUCCESS;
+  }
+  dynSQLAppendChar(s, '(');
+  bool first = true;
+  SNode* pItem = NULL;
+  FOREACH(pItem, pList->pNodeList) {
+    if (!first) dynSQLAppendStr(s, ", ");
+    first = false;
+    int32_t code = dynAppendExpr(s, pItem, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  dynSQLAppendChar(s, ')');
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect,
                                       const SExtTableMeta* pExtMeta,
                                       const SNodesRemoteSQLCtx* pCtx) {
@@ -428,17 +468,51 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     case OP_TYPE_LOWER_THAN:    opStr = " < ";    break;
     case OP_TYPE_LOWER_EQUAL:   opStr = " <= ";   break;
     case OP_TYPE_LIKE:          opStr = " LIKE ";  break;
+    case OP_TYPE_NOT_LIKE:      opStr = " NOT LIKE "; break;
+    case OP_TYPE_MATCH:
+      // TDengine MATCH → MySQL REGEXP / PostgreSQL ~ / InfluxDB(DataFusion) ~
+      (void)dynSQLAppendChar(s, '(');
+      (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+      if (dialect == EXT_SQL_DIALECT_MYSQL)
+        dynSQLAppendStr(s, " REGEXP ");
+      else if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL)
+        dynSQLAppendStr(s, " ~ ");
+      else
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      (void)dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+      (void)dynSQLAppendChar(s, ')');
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_NMATCH:
+      // TDengine NMATCH → MySQL NOT REGEXP / PostgreSQL !~ / InfluxDB(DataFusion) !~
+      (void)dynSQLAppendChar(s, '(');
+      (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+      if (dialect == EXT_SQL_DIALECT_MYSQL)
+        dynSQLAppendStr(s, " NOT REGEXP ");
+      else if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL)
+        dynSQLAppendStr(s, " !~ ");
+      else
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      (void)dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+      (void)dynSQLAppendChar(s, ')');
+      return TSDB_CODE_SUCCESS;
     case OP_TYPE_IN:
-      // col IN REMOTE_VALUE_LIST(...) — resolve subquery values and emit inline list.
+      // col IN (constant list) or col IN REMOTE_VALUE_LIST(subquery)
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IN ");
+      if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_NODE_LIST) {
+        return dynAppendNodeList(s, (const SNodeListNode*)pOp->pRight, dialect, pExtMeta, pCtx);
+      }
       if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_REMOTE_VALUE_LIST) {
         return dynAppendRemoteValueList(s, (const SRemoteValueListNode*)pOp->pRight, dialect, pCtx);
       }
-      // pRight is something else (constant list, etc.) — not yet supported.
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     case OP_TYPE_NOT_IN: {
-      // col NOT IN REMOTE_VALUE_LIST(...) — resolve subquery values and emit NOT IN (...) list.
+      // col NOT IN (constant list) or col NOT IN REMOTE_VALUE_LIST(subquery)
+      if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_NODE_LIST) {
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " NOT IN ");
+        return dynAppendNodeList(s, (const SNodeListNode*)pOp->pRight, dialect, pExtMeta, pCtx);
+      }
       if (!pOp->pRight || nodeType(pOp->pRight) != QUERY_NODE_REMOTE_VALUE_LIST)
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       const SRemoteValueListNode* pRemote = (const SRemoteValueListNode*)pOp->pRight;
@@ -644,6 +718,33 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
       dynAppendValueLiteral(s, &pRow->val, dialect);
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_CASE_WHEN: {
+      // CASE [expr] WHEN cond THEN result [...] [ELSE result] END
+      const SCaseWhenNode* pCW = (const SCaseWhenNode*)pExpr;
+      dynSQLAppendStr(s, "CASE");
+      if (pCW->pCase) {
+        dynSQLAppendChar(s, ' ');
+        int32_t code = dynAppendExpr(s, pCW->pCase, dialect, pExtMeta, pCtx);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      SNode* pItem = NULL;
+      FOREACH(pItem, pCW->pWhenThenList) {
+        const SWhenThenNode* pWT = (const SWhenThenNode*)pItem;
+        dynSQLAppendStr(s, " WHEN ");
+        int32_t code = dynAppendExpr(s, pWT->pWhen, dialect, pExtMeta, pCtx);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        dynSQLAppendStr(s, " THEN ");
+        code = dynAppendExpr(s, pWT->pThen, dialect, pExtMeta, pCtx);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      if (pCW->pElse) {
+        dynSQLAppendStr(s, " ELSE ");
+        int32_t code = dynAppendExpr(s, pCW->pElse, dialect, pExtMeta, pCtx);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      dynSQLAppendStr(s, " END");
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
@@ -826,7 +927,18 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
     }
   }
   if (pOutputSet) taosHashCleanup(pOutputSet);
-  if (first) dynSQLAppendChar(&s, '*');
+  if (first) {
+    // No columns projected from external source — the query uses only constant expressions
+    // (e.g. char(65), timezone(), st_touches(lit, lit)) that do not reference table columns.
+    // Use SELECT 1 for SQL dialects (MySQL/PG) to avoid fetching unnecessary column data.
+    // InfluxQL does not support SELECT 1 (requires a field name), so fall back to SELECT *.
+    // In both cases the fetchBlock layer handles numColMappings==0 by counting rows only.
+    if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
+      dynSQLAppendChar(&s, '*');
+    } else {
+      dynSQLAppendChar(&s, '1');
+    }
+  }
 
   // FROM clause
   dynSQLAppendStr(&s, " FROM ");

@@ -6392,6 +6392,56 @@ static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+#ifdef TD_ENTERPRISE
+static EDealRes detectTbNameWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool fromTableHasExtSource(SNode* pFromTable) {
+  if (NULL == pFromTable) return false;
+  if (QUERY_NODE_REAL_TABLE == nodeType(pFromTable)) {
+    return NULL != ((SRealTableNode*)pFromTable)->pExtTableNode;
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pFromTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pFromTable;
+    return fromTableHasExtSource(pJoin->pLeft) || fromTableHasExtSource(pJoin->pRight);
+  }
+  return false;
+}
+
+static int32_t checkExtTableTbnameUsage(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!fromTableHasExtSource(pSelect->pFromTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool found = false;
+  nodesWalkExprs(pSelect->pProjectionList, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pWhere, detectTbNameWalker, &found);
+  if (!found) nodesWalkExprs(pSelect->pPartitionByList, detectTbNameWalker, &found);
+  if (!found) nodesWalkExprs(pSelect->pGroupByList, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pHaving, detectTbNameWalker, &found);
+  if (!found) nodesWalkExprs(pSelect->pOrderByList, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pWindow, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pRange, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pRangeAround, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pEvery, detectTbNameWalker, &found);
+  if (!found) nodesWalkExpr(pSelect->pFill, detectTbNameWalker, &found);
+
+  if (found) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+                                   "TBNAME pseudo-column is not supported on external tables");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+#endif
+
 static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) &&
       QUERY_NODE_VIRTUAL_TABLE != nodeType(pSelect->pFromTable)) {
@@ -8215,11 +8265,13 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SSelec
   /*
     Do check fill values if:
       - FILL MODE is VALUE or VALUE_F
-      - surrounding time is provided
+      - surrounding time is provided AND fill values are also provided
         (note: sometimes surrounding time is provided by range around clause)
+        Only check fill values when pValues is non-NULL to avoid false
+        "Too few fill values" errors for FILL(PREV)/FILL(NEXT)/etc. with SURROUND.
   */
   if ((FILL_MODE_VALUE == pFill->mode || FILL_MODE_VALUE_F == pFill->mode) ||
-      (pFill->pSurroundingTime != NULL || pSelect->pRangeAround != NULL)) {
+      (pFill->pValues != NULL && (pFill->pSurroundingTime != NULL || pSelect->pRangeAround != NULL))) {
     return doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
   }
   return TSDB_CODE_SUCCESS;
@@ -9197,6 +9249,7 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   }
 
   SFillNode* pFill = (SFillNode*)pInterval->pFill;
+
   pFill->timeRange = pSelect->timeRange;
   PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pFill->pTimeRange));
   PAR_ERR_RET(translateSurroundingTime(pCxt, pFill->pSurroundingTime));
@@ -9370,9 +9423,6 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
   if (NULL != pInterval->pFill) {
     SFillNode* pFill = (SFillNode*)pInterval->pFill;
-    if (pFill->mode == FILL_MODE_NEAR) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE);
-    }
     if (pFill->pValues != NULL && !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) &&
         !((pFill->mode == FILL_MODE_PREV || pFill->mode == FILL_MODE_NEXT) && pFill->pSurroundingTime != NULL)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
@@ -10050,6 +10100,81 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
   return TSDB_CODE_SUCCESS;
 }
 
+/* Helper: create a SGroupingSetNode wrapping a single column node.
+ * pGroupByList expects each entry to be a SGroupingSetNode (see calcConstGroupBy). */
+static int32_t makeGroupingSetCol(const char* colName, SNode** ppOut) {
+  SColumnNode* pCol = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  tstrncpy(pCol->colName, colName, TSDB_COL_NAME_LEN);
+
+  SGroupingSetNode* pSet = NULL;
+  code = nodesMakeNode(QUERY_NODE_GROUPING_SET, (SNode**)&pSet);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pCol);
+    return code;
+  }
+  pSet->groupingSetType = GP_TYPE_NORMAL;
+  code = nodesListMakeAppend(&pSet->pParameterList, (SNode*)pCol);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSet);
+    return code;
+  }
+  *ppOut = (SNode*)pSet;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Rewrite a no-arg EXTERNAL_WINDOW clause to GROUP BY _wstart,_wend ORDER BY _wstart ASC.
+ * This allows FQ external source queries like:
+ *   SELECT _wstart, count(*) FROM ext.t EXTERNAL_WINDOW
+ * to work as a simple GROUP BY on the pre-windowed data. */
+static int32_t rewriteNoArgExternalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  /* Create GROUP BY _wstart (wrapped in SGroupingSetNode) */
+  SNode*  pGrpWStart = NULL;
+  int32_t code = makeGroupingSetCol("_wstart", &pGrpWStart);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  /* Create GROUP BY _wend (wrapped in SGroupingSetNode) */
+  SNode* pGrpWEnd = NULL;
+  code = makeGroupingSetCol("_wend", &pGrpWEnd);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pGrpWStart);
+    return code;
+  }
+
+  code = nodesListMakeAppend(&pSelect->pGroupByList, pGrpWStart);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pGrpWEnd);
+    return code;
+  }
+  code = nodesListMakeAppend(&pSelect->pGroupByList, pGrpWEnd);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  /* Create ORDER BY _wstart ASC */
+  SColumnNode* pOrdWStart = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pOrdWStart);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  tstrncpy(pOrdWStart->colName, "_wstart", TSDB_COL_NAME_LEN);
+
+  SOrderByExprNode* pOrderByExpr = NULL;
+  code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOrdWStart);
+    return code;
+  }
+  pOrderByExpr->pExpr = (SNode*)pOrdWStart;
+  pOrderByExpr->order = ORDER_ASC;
+  pOrderByExpr->nullOrder = NULL_ORDER_DEFAULT;
+
+  code = nodesListMakeAppend(&pSelect->pOrderByList, (SNode*)pOrderByExpr);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  /* Remove the window node — the query becomes a plain GROUP BY */
+  nodesDestroyNode(pSelect->pWindow);
+  pSelect->pWindow = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -10063,6 +10188,10 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
     if (NULL != pExtWin->pFill) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
                                      "Fill not allowed in external window query");
+    }
+    /* No-arg form (no subquery): rewrite to GROUP BY _wstart,_wend ORDER BY _wstart */
+    if (NULL == pExtWin->pSubquery) {
+      return rewriteNoArgExternalWindow(pCxt, pSelect);
     }
   }
   if (pSelect->pFromTable->type == QUERY_NODE_REAL_TABLE &&
@@ -10234,12 +10363,6 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
                                    "cannot be provided together");
   }
   bool isSurround = NULL != pSurroundingTime || NULL != pRangeAround;
-  if (isSurround && !isPrevNextNear) {
-    /* Only PREV/NEXT/NEAR mode is supported with surrounding time */
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-                                   "Only PREV/NEXT/NEAR mode is supported with "
-                                   "surrounding time");
-  }
   if (pFill->pValues != NULL && !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) &&
       !(isPrevNextNear && isSurround)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
@@ -11575,6 +11698,11 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = setTableCacheLastMode(pCxt, pSelect);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkExtTableTbnameUsage(pCxt, pSelect);
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceTbName(pCxt, pSelect);
   }

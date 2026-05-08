@@ -2719,6 +2719,7 @@ twindow_clause_opt(A) ::=
 anomaly_col_list(A) ::= expr_or_subquery(B).                                      { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
 anomaly_col_list(A) ::= anomaly_col_list(B) NK_COMMA expr_or_subquery(C).         { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 /* External window treated as a special time window clause */
+twindow_clause_opt(A) ::= EXTERNAL_WINDOW.                                        { A = createSimpleExternalWindowClause(pCxt); }
 twindow_clause_opt(A) ::= 
   EXTERNAL_WINDOW NK_LP subquery(B) table_alias(C) external_window_fill_opt(D) NK_RP. {
                                                                                     A = createExternalWindowClause(pCxt, releaseRawExprNode(pCxt, B), &C, D);
@@ -2747,7 +2748,7 @@ interval_sliding_duration_literal(A) ::= NK_QUESTION(B).                        
 
 fill_opt(A) ::= .                                                                 { A = NULL; }
 fill_opt(A) ::= fill_value(B).                                                    { A = B; }
-fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
+fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP surround_opt(C).                    { A = createFillNodeWithSurroundNode(pCxt, B, C); }
 fill_opt(A) ::=
   FILL NK_LP fill_position_mode(B) NK_RP surround_opt(C).                         { A = createFillNodeWithSurroundNode(pCxt, B, C); }
 fill_opt(A) ::= 
@@ -2774,9 +2775,9 @@ fill_position_mode(A) ::= NEAR.                                                 
 %type surround_opt                                                                { SNode* }
 %destructor surround_opt                                                          { nodesDestroyNode($$); }
 surround_opt(A) ::= .                                                             { A = NULL; }
-surround_opt(A) ::= SURROUND NK_LP duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+surround_opt(A) ::= SURROUND NK_LP interval_sliding_duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 surround_opt(A) ::=
-  SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
+  SURROUND NK_LP interval_sliding_duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
 
 /* External window clause syntax was folded into twindow_clause_opt */
 

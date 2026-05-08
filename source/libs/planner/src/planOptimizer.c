@@ -1132,6 +1132,14 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
   if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_SYSTEM_TABLE == pCol->tableType) {
     return false;
   }
+  // External tables (e.g. MySQL without a timestamp column) assign colId=1 to the first
+  // column sequentially, even when it is not a timestamp.  Require TIMESTAMP type so that
+  // non-timestamp columns with colId==PRIMARYKEY_TIMESTAMP_COL_ID are not mistaken for
+  // primary key columns, which would bypass the "primary timestamp equal condition" check
+  // and cause the Merge Join executor to misread INT columns as int64 timestamps.
+  if (TSDB_DATA_TYPE_TIMESTAMP != pCol->node.resType.type) {
+    return false;
+  }
   return pdcJoinColInTableList(pNode, pTables);
 }
 
@@ -2281,7 +2289,6 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (pJoin->joinAlgo != JOIN_ALGO_UNKNOWN) {
     return TSDB_CODE_SUCCESS;
   }
-
   EJoinType    t = pJoin->joinType;
   EJoinSubType s = pJoin->subType;
   SNode*       pOnCond = NULL;
@@ -2353,6 +2360,27 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pdcJoinAddFilterColsToTarget(pCxt, pJoin);
+  }
+
+  // For external-table JOINs, the entire plan stays in one subplan (no Exchange between
+  // the JOIN and the Sort/Project above it). The physical plan builder uses the JOIN logic
+  // node's pTargets to create the JOIN's output block desc; if pTargets is NULL the block
+  // is empty and the parent Sort/Project physi node cannot resolve its columns, causing
+  // TSDB_CODE_PLAN_SLOT_NOT_FOUND. Normal TDengine-table JOINs are split into separate
+  // subplans, so their pTargets never needs to be set here.
+  if (TSDB_CODE_SUCCESS == code && NULL == pJoin->node.pTargets) {
+    bool hasExternalChild = false;
+    SNode* pChildNode = NULL;
+    FOREACH(pChildNode, pJoin->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChildNode) &&
+          SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pChildNode)->scanType) {
+        hasExternalChild = true;
+        break;
+      }
+    }
+    if (hasExternalChild && NULL != pJoin->node.pParent && NULL != pJoin->node.pParent->pTargets) {
+      code = nodesCloneList(pJoin->node.pParent->pTargets, &pJoin->node.pTargets);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -11413,6 +11441,13 @@ _chain_done:
       for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
            pAnc != NULL; pAnc = pAnc->pParent) {
         ENodeType at = nodeType(pAnc);
+        // Stop at JOIN: a Sort/Project above a JOIN has pTargets that include
+        // columns from BOTH join legs.  Using those targets to overwrite this
+        // scan's pScanCols/pTargets would (a) include columns from the other
+        // table, breaking remote SQL, and (b) drop the JOIN-key column (ts),
+        // causing TSDB_CODE_PLAN_SLOT_NOT_FOUND when the JOIN physi node tries
+        // to resolve the primary-key equality condition slot.
+        if (at == QUERY_NODE_LOGIC_PLAN_JOIN) break;
         // Track whether a complex node sits between Scan and the candidate.
         // If so, the candidate's pTargets contain derived column names
         // (e.g. "count(*)", "avg(val)", "lag(val,1)") instead of real table columns.
