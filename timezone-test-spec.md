@@ -25,7 +25,7 @@
 
 | # | 文件 | 包含 Class | 对应 Task |
 |---|------|-----------|-----------|
-| 1 | `test/cases/11-Functions/01-Scalar/test_tz_config_display.py` | TestSetTimezone, TestSetFirstDayOfWeek, TestTimezoneFunc, TestDisplayTimezone, TestWhereCastJoinTz, TestTodayNowTz | P1 Task 1.1-1.3, P2 Task 2.1-2.5, P6 Task 6.1-6.2 |
+| 1 | `test/cases/11-Functions/01-Scalar/test_tz_config_display.py` | TestSetTimezone, TestSetFirstDayOfWeek, TestTimezoneFunc, TestDisplayTimezone, TestWhereCastJoinTz, TestTodayNowTz, TestIntervalTimezone | P1 Task 1.1-1.3, P2 Task 2.1-2.5, P6 Task 6.1-6.2 |
 | 2 | `test/cases/11-Functions/01-Scalar/test_tz_scalar_functions.py` | TestToIso8601Iana, TestToCharTimezone, TestTimetruncateTz, TestTimetruncateNaturalUnits, TestTimetruncateWeek, TestWeekFunctions, TestDstEdge | P3 Task 3.1-3.3, P4 Task 4.1-4.2/4.4, P2 Task 2.4, DST 边界 |
 | 3 | `test/cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py` | TestIntervalNatural, TestIntervalWeek, TestIntervalQuarter | P4 Task 4.3, P5 Task 5.2 |
 
@@ -58,9 +58,9 @@
 - ✅ FROM table 查询兼容
 
 #### TestDisplayTimezone — 时间戳展示（P2 Task 2.1, 2.2）
-- ✅ SELECT ts 使用连接时区展示；不同时区结果不同
-- ✅ SHOW TABLES 使用连接时区
-- ✅ EXPLAIN 在设置连接时区后可正常执行
+- ⚠️ `SELECT ts` 使用连接时区展示目前仅在 taos CLI/shell 路径可见；Python connector 场景仍保持 skip，因 connector 返回的是原始 timestamp/本地 datetime 对象而非 shell 格式化字符串
+- ✅ taos shell 的 SHOW TABLES 结果展示使用连接时区
+- ✅ EXPLAIN 在设置连接时区后可正常执行；当前用例验证可执行性，不验证展示字符串变化
 - ✅ 未设置时区时行为不变
 
 #### TestWhereCastJoinTz — WHERE/CAST/JOIN 时间字面量（P2 Task 2.3）
@@ -73,6 +73,11 @@
 - ✅ TODAY() 不同时区结果正确；UTC 下返回午夜对齐值
 - ✅ TODAY() 不受服务端时区影响；WHERE 子句可用
 - ✅ NOW() 不受 SET TIMEZONE 影响（回归保证）
+
+#### TestIntervalTimezone — INTERVAL 窗口 + 连接时区对比（P2）
+- ⏸️ `interval(1d)` 不同时区产生不同桶数（UTC 2 桶 vs Shanghai 1 桶）仍属待实现能力；当前用例改为 skip，避免在未接入 session timezone 时误报通过
+- ✅ `interval(1h)` 小时级窗口跨时区桶数一致（时区无关）
+- ✅ 不同时区下 `sum(val)` 总和一致（数据不丢不重）
 
 #### Client gtest 补充 — async local SET 路径
 - ✅ 新增 `clientTests.cpp` 回归：`taos_query_a("SET TIMEZONE 'UTC'")` 成功后更新连接 `optionInfo.timezone`
@@ -164,7 +169,7 @@
 | TO_CHAR(ts, fmt, tz) 有参 | L1 → L2 → L3 → L5 | TestToCharTimezone |
 | TIMETRUNCATE(ts, unit) 无参 | L2 → L4 → L5 | TestTimetruncateTz |
 | TIMETRUNCATE(ts, unit, tz) 有参 | L1 → L2 → L4 → L5 | TestTimetruncateTz |
-| INTERVAL 时间窗口 | L2 → L4 → L5（已设置 L2 时不受 L3/L4 覆盖） | TestIntervalNatural, TestIntervalWeek, TestIntervalQuarter |
+| INTERVAL 时间窗口 | L2 → L4 → L5（已设置 L2 时不受 L3/L4 覆盖） | TestIntervalNatural, TestIntervalWeek, TestIntervalQuarter, TestIntervalTimezone |
 | WHERE / CAST / JOIN 时间字面量 | L2 → L3 → L5 | TestWhereCastJoinTz |
 | TODAY() | L2 → L3 → L5 | TestTodayNowTz |
 | TIMEZONE() / TIMEZONE(0) | 返回 L3 (client tz) | TestTimezoneFunc |

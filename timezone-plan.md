@@ -845,10 +845,10 @@ SELECT TIMEZONE(1);
 - [x] P1：服务端 `firstDayOfWeek` 配置项可用
 - [x] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
 - [x] P1：请求上下文携带 firstDayOfWeek
-- [ ] P2：普通列展示使用连接时区
+- [x] P2：普通列展示使用连接时区
 - [ ] P2：SHOW/EXPLAIN 使用连接时区
-- [ ] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
-- [ ] P2：写入路径 DST 行为回归加固
+- [x] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
+- [x] P2：写入路径 DST 行为回归加固
 - [ ] P3：TO_ISO8601 支持 IANA
 - [ ] P3：TO_CHAR 支持第三参数
 - [ ] P3：TIMETRUNCATE 第三参数支持字符串时区
