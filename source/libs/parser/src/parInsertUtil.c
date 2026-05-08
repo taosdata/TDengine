@@ -543,11 +543,11 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     if (pVgCxt->pData->aSubmitTbData == NULL) {
       return terrno;
     }
-    if (pTableCxt->hasBlob) {
-      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobSet*));
-      if (NULL == pVgCxt->pData->aSubmitBlobData) {
-        return terrno;
-      }
+  }
+  if (pTableCxt->hasBlob && NULL == pVgCxt->pData->aSubmitBlobData) {
+    pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobSet*));
+    if (NULL == pVgCxt->pData->aSubmitBlobData) {
+      return terrno;
     }
   }
 
@@ -711,11 +711,11 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
     if (NULL == pVgCxt->pData->aSubmitTbData) {
       return terrno;
     }
-    if (pTbCtx->hasBlob) {
-      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobSet*));
-      if (pVgCxt->pData->aSubmitBlobData == NULL) {
-        return terrno;
-      }
+  }
+  if (pTbCtx->hasBlob && NULL == pVgCxt->pData->aSubmitBlobData) {
+    pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobSet*));
+    if (pVgCxt->pData->aSubmitBlobData == NULL) {
+      return terrno;
     }
   }
 
