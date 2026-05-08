@@ -2150,6 +2150,29 @@ int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
 
+// VST leaf descendants query
+typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  int64_t suid;
+} SVstLeavesReq;
+
+typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    stbName[TSDB_TABLE_NAME_LEN];
+  int64_t suid;
+} SVstLeafInfo;
+
+typedef struct {
+  int32_t       numLeaves;
+  SVstLeafInfo* pLeaves;
+} SVstLeavesRsp;
+
+int32_t tSerializeSVstLeavesReq(void* buf, int32_t bufLen, SVstLeavesReq* pReq);
+int32_t tDeserializeSVstLeavesReq(void* buf, int32_t bufLen, SVstLeavesReq* pReq);
+int32_t tSerializeSVstLeavesRsp(void* buf, int32_t bufLen, SVstLeavesRsp* pRsp);
+int32_t tDeserializeSVstLeavesRsp(void* buf, int32_t bufLen, SVstLeavesRsp* pRsp);
+void    tFreeSVstLeavesRsp(SVstLeavesRsp* pRsp);
+
 typedef struct {
   SMsgHead header;
   tb_uid_t suid;

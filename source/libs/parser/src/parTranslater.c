@@ -6735,6 +6735,153 @@ _return:
   return code;
 }
 
+// Build SELECT col1, col2, ... FROM <tableName> using the parent's schema columns
+static int32_t buildLeafSelectStmt(STranslateContext* pCxt, const char* dbName, const char* tableName,
+                                   STableMeta* pParentMeta, SNode** ppStmt) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SSelectStmt* pSelect = NULL;
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect));
+
+  // Create FROM: SRealTableNode
+  SRealTableNode* pFromTable = NULL;
+  code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pFromTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    return code;
+  }
+  tstrncpy(pFromTable->table.dbName, dbName, sizeof(pFromTable->table.dbName));
+  tstrncpy(pFromTable->table.tableName, tableName, sizeof(pFromTable->table.tableName));
+  tstrncpy(pFromTable->table.tableAlias, tableName, sizeof(pFromTable->table.tableAlias));
+  pSelect->pFromTable = (SNode*)pFromTable;
+
+  // Build projection list from parent's schema columns
+  int32_t numCols = pParentMeta->tableInfo.numOfColumns;
+  SSchema* pSchema = pParentMeta->schema;
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnNode* pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+    tstrncpy(pCol->colName, pSchema[i].name, sizeof(pCol->colName));
+    tstrncpy(pCol->tableAlias, tableName, sizeof(pCol->tableAlias));
+    code = nodesListMakeAppend(&pSelect->pProjectionList, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+  }
+
+  *ppStmt = (SNode*)pSelect;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Rewrite a non-leaf VST query to UNION ALL of leaf descendants (projecting parent's schema)
+static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, SRealTableNode* pRealTable) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SVstLeavesRsp  rsp = {0};
+
+  // Get leaf descendants from mnode
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName name = {0};
+  toName(pParCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
+  (void)tNameGetFullDbName(&name, dbFName);
+
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+
+  code = catalogGetVstLeaves(pParCxt->pCatalog, &conn, dbFName, pRealTable->pMeta->suid, &rsp);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (rsp.numLeaves == 0) {
+    // No leaf descendants - query returns empty
+    tFreeSVstLeavesRsp(&rsp);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableMeta* pParentMeta = pRealTable->pMeta;
+
+  if (rsp.numLeaves == 1) {
+    // Single leaf: build SELECT <parent_cols> FROM leaf as subquery
+    SNode* pSubquery = NULL;
+    code = buildLeafSelectStmt(pCxt, rsp.pLeaves[0].dbFName, rsp.pLeaves[0].stbName, pParentMeta, &pSubquery);
+    if (TSDB_CODE_SUCCESS != code) {
+      tFreeSVstLeavesRsp(&rsp);
+      return code;
+    }
+
+    STempTableNode* pTempTable = NULL;
+    code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pSubquery);
+      tFreeSVstLeavesRsp(&rsp);
+      return code;
+    }
+    pTempTable->pSubquery = pSubquery;
+    tstrncpy(pTempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pTempTable->table.tableAlias));
+    tstrncpy(pTempTable->table.dbName, pRealTable->table.dbName, sizeof(pTempTable->table.dbName));
+
+    nodesDestroyNode(*pTable);
+    *pTable = (SNode*)pTempTable;
+    tFreeSVstLeavesRsp(&rsp);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Multiple leaves: build UNION ALL
+  SNode* pSetOp = NULL;
+  SNode* pLeft = NULL;
+  SNode* pRight = NULL;
+  PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[0].dbFName, rsp.pLeaves[0].stbName, pParentMeta, &pLeft));
+  PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[1].dbFName, rsp.pLeaves[1].stbName, pParentMeta, &pRight));
+
+  SSetOperator* pOp = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pOp));
+  pOp->opType = SET_OP_TYPE_UNION_ALL;
+  pOp->pLeft = pLeft;
+  pOp->pRight = pRight;
+  pLeft = NULL;
+  pRight = NULL;
+  pSetOp = (SNode*)pOp;
+
+  for (int32_t i = 2; i < rsp.numLeaves; ++i) {
+    SNode* pNext = NULL;
+    PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[i].dbFName, rsp.pLeaves[i].stbName, pParentMeta, &pNext));
+    SSetOperator* pNewOp = NULL;
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pNewOp));
+    pNewOp->opType = SET_OP_TYPE_UNION_ALL;
+    pNewOp->pLeft = pSetOp;
+    pNewOp->pRight = pNext;
+    pSetOp = (SNode*)pNewOp;
+  }
+
+  // Wrap in STempTableNode
+  STempTableNode* pTempTable = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable));
+  pTempTable->pSubquery = pSetOp;
+  pSetOp = NULL;
+  tstrncpy(pTempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pTempTable->table.tableAlias));
+  tstrncpy(pTempTable->table.dbName, pRealTable->table.dbName, sizeof(pTempTable->table.dbName));
+
+  nodesDestroyNode(*pTable);
+  *pTable = (SNode*)pTempTable;
+
+  tFreeSVstLeavesRsp(&rsp);
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyNode(pSetOp);
+  nodesDestroyNode(pLeft);
+  nodesDestroyNode(pRight);
+  tFreeSVstLeavesRsp(&rsp);
+  return code;
+}
+
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                           SVirtualTableNode* pVTable) {
   SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
@@ -7358,6 +7505,18 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     // create stream trigger's plan will treat virtual table as real table
     if (pRealTable->placeholderType != SP_PARTITION_ROWS && !inStreamTriggerClause(pCxt) &&
         (isVirtualTable(pRealTable->pMeta) || isVirtualSTable(pRealTable->pMeta))) {
+      // Non-leaf VST: rewrite to UNION ALL of leaf descendants
+      if (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE && pRealTable->pMeta->hasInheritors) {
+        code = rewriteNonLeafVstQuery(pCxt, pTable, pRealTable);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _return;
+        }
+        // Rewritten to temp table - translate it and return
+        if (nodeType(*pTable) == QUERY_NODE_TEMP_TABLE) {
+          PAR_RET(translateTable(pCxt, pTable, inJoin));
+        }
+        // No leaves found - fall through to normal virtual table path (will return empty)
+      }
       PAR_RET(translateVirtualTable(pCxt, pTable, &name));
     }
 

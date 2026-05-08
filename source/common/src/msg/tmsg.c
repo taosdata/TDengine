@@ -7146,6 +7146,95 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
   taosArrayDestroy(pRsp->pFuncs);
 }
 
+int32_t tSerializeSVstLeavesReq(void *buf, int32_t bufLen, SVstLeavesReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->suid));
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVstLeavesReq(void *buf, int32_t bufLen, SVstLeavesReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dbFName));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->suid));
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVstLeavesRsp(void *buf, int32_t bufLen, SVstLeavesRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numLeaves));
+  for (int32_t i = 0; i < pRsp->numLeaves; ++i) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->pLeaves[i].dbFName));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->pLeaves[i].stbName));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->pLeaves[i].suid));
+  }
+  tEndEncode(&encoder);
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVstLeavesRsp(void *buf, int32_t bufLen, SVstLeavesRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numLeaves));
+  if (pRsp->numLeaves > 0) {
+    pRsp->pLeaves = taosMemoryCalloc(pRsp->numLeaves, sizeof(SVstLeafInfo));
+    if (NULL == pRsp->pLeaves) {
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < pRsp->numLeaves; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->pLeaves[i].dbFName));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->pLeaves[i].stbName));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->pLeaves[i].suid));
+    }
+  }
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSVstLeavesRsp(SVstLeavesRsp *pRsp) {
+  if (pRsp) {
+    taosMemoryFreeClear(pRsp->pLeaves);
+  }
+}
+
 int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

@@ -71,6 +71,7 @@ static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessDropTbWithTsma(SRpcMsg *pReq);
 static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pReq);
 static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp);
+static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -110,6 +111,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
   // mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_AUDIT_RECORD_RSP, mndProcessAuditRecordRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_VST_LEAVES, mndProcessGetVstLeavesReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -4541,6 +4543,92 @@ static int32_t mndRetrieveVstableInherits(SRpcMsg *pReq, SShowObj *pShow, SSData
 static void mndCancelGetNextStb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_STB);
+}
+
+static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
+  SSdb         *pSdb = pMnode->pSdb;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SVstLeavesReq req = {0};
+  SVstLeavesRsp rsp = {0};
+
+  if (tDeserializeSVstLeavesReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  // BFS: find all descendants, collect leaves (those without children)
+  int64_t queue[256];
+  int32_t qHead = 0, qTail = 0;
+  queue[qTail++] = req.suid;
+
+  int64_t allDescs[256];
+  int32_t numDescs = 0;
+
+  while (qHead < qTail && qTail < 256) {
+    int64_t curSuid = queue[qHead++];
+    void   *pIter = NULL;
+    SStbObj *pStb = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+      if (pIter == NULL) break;
+      for (int8_t i = 0; i < pStb->numParents; ++i) {
+        if (pStb->parentSuids[i] == curSuid) {
+          if (numDescs < 256 && qTail < 256) {
+            allDescs[numDescs++] = pStb->uid;
+            queue[qTail++] = pStb->uid;
+          }
+          break;
+        }
+      }
+      sdbRelease(pSdb, pStb);
+    }
+  }
+
+  // Among descendants, find leaves (those with no children of their own)
+  SVstLeafInfo leaves[256];
+  int32_t      numLeaves = 0;
+
+  for (int32_t d = 0; d < numDescs; ++d) {
+    bool hasChild = mndStbHasChildren(pMnode, allDescs[d]);
+    if (!hasChild) {
+      void   *pIter = NULL;
+      SStbObj *pStb = NULL;
+      while (1) {
+        pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+        if (pIter == NULL) break;
+        if (pStb->uid == allDescs[d]) {
+          if (numLeaves < 256) {
+            mndExtractDbNameFromStbFullName(pStb->name, leaves[numLeaves].dbFName);
+            mndExtractTbNameFromStbFullName(pStb->name, leaves[numLeaves].stbName, TSDB_TABLE_NAME_LEN);
+            leaves[numLeaves].suid = pStb->uid;
+            numLeaves++;
+          }
+          sdbRelease(pSdb, pStb);
+          sdbCancelFetch(pSdb, pIter);
+          break;
+        }
+        sdbRelease(pSdb, pStb);
+      }
+    }
+  }
+
+  rsp.numLeaves = numLeaves;
+  rsp.pLeaves = leaves;
+
+  int32_t rspLen = tSerializeSVstLeavesRsp(NULL, 0, &rsp);
+  void   *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSVstLeavesRsp(pRsp, rspLen, &rsp);
+
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+
+_OVER:
+  return code;
 }
 
 const char *mndGetStbStr(const char *src) {
