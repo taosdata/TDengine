@@ -74,8 +74,13 @@ void initTestVnode(SVnode* pVnode, int64_t term = 1) {
 
 extern "C" {
 
+// ── Mock functions (GNU ld --wrap) ──
+// These intercept real implementations to inject faults and track calls.
+// Each __wrap_XXX delegates to __real_XXX unless a fault flag is set.
+
 void* __real_taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
 
+// Mock taosArrayAddBatch: fails once when g_ctx.failNextArrayAddBatch is set
 void* __wrap_taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
   if (g_ctx.failNextArrayAddBatch) {
     g_ctx.failNextArrayAddBatch = false;
@@ -84,6 +89,8 @@ void* __wrap_taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles)
   return __real_taosArrayAddBatch(pArray, pData, nEles);
 }
 
+// Mock metaFetchEntryByUid: returns entries from g_ctx.fetchEntries in order,
+// simulating B+ tree lookups for specific UIDs during fencing/undo operations
 int32_t __wrap_metaFetchEntryByUid(SMeta* pMeta, int64_t uid, SMetaEntry** ppEntry) {
   (void)pMeta;
   if (g_ctx.fetchIndex >= g_ctx.fetchEntries.size()) {
@@ -101,6 +108,7 @@ int32_t __wrap_metaFetchEntryByUid(SMeta* pMeta, int64_t uid, SMetaEntry** ppEnt
   return TSDB_CODE_SUCCESS;
 }
 
+// Mock metaFetchEntryFree: frees the cloned SMetaEntry allocated by __wrap_metaFetchEntryByUid
 void __wrap_metaFetchEntryFree(SMetaEntry** ppEntry) {
   if (ppEntry == nullptr || *ppEntry == nullptr) {
     return;
@@ -110,6 +118,7 @@ void __wrap_metaFetchEntryFree(SMetaEntry** ppEntry) {
   *ppEntry = nullptr;
 }
 
+// Mock metaDropTable2: tracks drop call count, returns configurable error code
 int32_t __wrap_metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq) {
   (void)pMeta;
   (void)version;
@@ -118,6 +127,7 @@ int32_t __wrap_metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq) 
   return g_ctx.dropCode;
 }
 
+// Mock metaRollbackAlterTable: tracks rollback call count for ALTER undo verification
 int32_t __wrap_metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion) {
   (void)pMeta;
   (void)uid;
@@ -126,6 +136,7 @@ int32_t __wrap_metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVer
   return g_ctx.rollbackCode;
 }
 
+// Mock metaTxnIdxDelete: tracks index delete calls, supports NOT_FOUND tolerance
 int32_t __wrap_metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid) {
   (void)pMeta;
   (void)uid;
@@ -136,6 +147,7 @@ int32_t __wrap_metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid) {
   return g_ctx.txnIdxDeleteCode;
 }
 
+// Mock metaScanTxnEntries: returns g_ctx.scanEntries for txn rebuild testing
 int32_t __wrap_metaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
   (void)pMeta;
   if (g_ctx.scanCode != TSDB_CODE_SUCCESS) {
@@ -164,6 +176,7 @@ int32_t __wrap_metaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Mock metaMarkTableTxnStatus: tracks mark call count for PRE_DROP undo verification
 int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
   (void)pMeta;
   (void)uid;
@@ -174,6 +187,7 @@ int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, 
   return g_ctx.markTxnStatusCode;
 }
 
+// Mock metaScanTxnFinalEntries: always returns empty (unit tests skip Phase 2 rebuild)
 int32_t __wrap_metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult) {
   (void)pMeta;
   // Always return an empty array — unit tests don't test Phase 2 rebuild
@@ -186,6 +200,7 @@ int32_t __wrap_metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Mock metaTxnFinalIdxDelete: no-op stub for final index cleanup
 int32_t __wrap_metaTxnFinalIdxDelete(SMeta* pMeta, int64_t txnId) {
   (void)pMeta;
   (void)txnId;

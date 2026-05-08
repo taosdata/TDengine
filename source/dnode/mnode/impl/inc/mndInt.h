@@ -127,6 +127,7 @@ typedef struct {
   TdThreadRwlock lock;           // 保护 pTxnHash 增删的读写锁
   txn_id_t       currentTxnId;   // 当前已分配的最大 txnId（原 mndTxnSeq.c 全局变量，移入此处）
   int8_t         txnSeqInAlloc; // 是否正在分配 txnId 范围（原 mndTxnSeq.c 全局变量，移入此处）
+  int64_t        txnSeqAllocTime; // 上次触发 txnSeq 分配的时间戳（ms），用于超时重置
 } STxnMgmt;
 
 

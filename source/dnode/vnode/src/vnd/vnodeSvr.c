@@ -1812,7 +1812,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     if (conflictCode != TSDB_CODE_SUCCESS) {
       pRsp->code = conflictCode;
       tDecoderClear(&dc);
-      return 0;
+      return conflictCode;
     }
   }
 
@@ -1833,8 +1833,9 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   int32_t      rcode = TSDB_CODE_SUCCESS;
   SDecoder     decoder = {0};
   SArray      *tbUidList = NULL;
+  STraceId    *trace = &(pOriginRpc->info.traceId);
 
-  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
+  pRsp->msgType = TDMT_VND_DROP_STB_RSP;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
@@ -1844,8 +1845,6 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     rcode = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
-
-  STraceId* trace = &(pOriginRpc->info.traceId);
 
   vInfo("vgId:%d, start to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s txnId:%" PRIu64,
         TD_VID(pVnode), trace ? trace->rootId : 0, trace ? trace->msgId : 0, req.name, req.txnId);

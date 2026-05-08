@@ -584,7 +584,9 @@ void mndTxnRefreshKeepalive(SMnode *pMnode, txn_id_t txnId) {
   if (pTxn == NULL) return;
 
   if (pTxn->stage == UTXN_STAGE_ACTIVE) {
+    taosWLockLatch(&pTxn->lock);
     pTxn->lastActiveTime = taosGetTimestampMs();
+    taosWUnLockLatch(&pTxn->lock);
     mTrace("txn:%" PRIi64 ", keepalive refreshed via client HB", txnId);
   }
   mndReleaseTxn(pMnode, pTxn);
@@ -1032,9 +1034,20 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
       return code;
     }
     mInfo("txn:%" PRIi64 ", shadow op %d/%d applied", pTxn->id, i + 1, numOps);
+  }
 
+  // Free pReqData after ALL ops applied successfully to ensure retry safety.
+  // If mndTransPrepare fails after this function returns, the caller retries COMMIT →
+  // mndTxnRebuildShadowOpsFromSdb skips rebuild if pShadowOps != NULL. We must either:
+  //   (a) free + destroy pShadowOps so rebuild regenerates from SDB on retry, or
+  //   (b) leave pReqData intact for retry.
+  // We choose (a): destroy the in-memory ops so any retry path regenerates cleanly.
+  for (int32_t i = 0; i < numOps; i++) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
     taosMemoryFreeClear(pOp->pReqData);
   }
+  taosArrayDestroy(pTxn->pShadowOps);
+  pTxn->pShadowOps = NULL;
 
   mInfo("txn:%" PRIi64 ", all %d MNode STB shadow ops applied into commit trans", pTxn->id, numOps);
   return TSDB_CODE_SUCCESS;
@@ -1236,6 +1249,7 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
           mError("txn:%" PRIi64 ", failed to add vgId:%d (from STB %s shadow op) to dedup hash, code:0x%x", pTxn->id,
                  vgId, pOp->name, terrno);
           sdbRelease(pSdb, pVgroup);
+          sdbCancelFetch(pSdb, pIter);
           mndReleaseDb(pMnode, pDb);
           taosHashCleanup(pVgSet);
           return NULL;
@@ -1263,6 +1277,7 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
         mError("txn:%" PRIi64 ", failed to add vgId:%d (broadcast fallback) to dedup hash, code:0x%x", pTxn->id, vgId,
                terrno);
         sdbRelease(pSdb, pVgroup);
+        sdbCancelFetch(pSdb, pIter);
         taosHashCleanup(pVgSet);
         return NULL;
       }
@@ -1662,9 +1677,21 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_EXIT(tDeserializeSMTransReq(pReq->pCont, pReq->contLen, &txnReq));
 
-  // Admission control: reject when active transaction count exceeds limit
+  // Admission control: reject when ACTIVE transaction count exceeds limit.
+  // sdbGetSize counts all stages (including COMMITTING/ROLLINGBACK/COMPLETED),
+  // so we iterate and count only ACTIVE-stage entries to avoid false rejections.
   if (txnReq.txnId == 0) {
-    int32_t activeCnt = sdbGetSize(pMnode->pSdb, SDB_TXN);
+    int32_t activeCnt = 0;
+    void   *pIter = NULL;
+    while (1) {
+      STxnObj *pObj = NULL;
+      pIter = sdbFetch(pMnode->pSdb, SDB_TXN, pIter, (void **)&pObj);
+      if (pIter == NULL) break;
+      if (pObj->stage == UTXN_STAGE_ACTIVE) {
+        activeCnt++;
+      }
+      sdbRelease(pMnode->pSdb, pObj);
+    }
     if (activeCnt >= MND_TXN_MAX_ACTIVE) {
       mError("txn: too many active transactions (%d >= %d), reject BEGIN", activeCnt, MND_TXN_MAX_ACTIVE);
       code = TSDB_CODE_MND_TXN_FULL;
@@ -1695,6 +1722,7 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     mInfo("txn:%" PRIi64 ", already exists, return success", txnReq.txnId);
     mndReleaseTxn(pMnode, pTxn);
     pTxn = NULL;
+    tFreeSMTransReq(&txnReq);
     goto _exit;
   }
   terrno = 0;  // 清除 sdbAcquire 设置的 terrno
@@ -1752,7 +1780,10 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   }
 
   // Merge client-tracked pVgList into pTxn->pVgList (O(N) hash dedup)
-  TAOS_CHECK_EXIT(mndMergeVgList(pTxn, txnReq.pVgList));
+  taosWLockLatch(&pTxn->lock);
+  code = mndMergeVgList(pTxn, txnReq.pVgList);
+  taosWUnLockLatch(&pTxn->lock);
+  TAOS_CHECK_EXIT(code);
 
   // Commit: embed all shadow ops + VNode COMMIT into a single STrans
   TAOS_CHECK_EXIT(mndCommitTxn(pMnode, pReq, pTxn));
@@ -1780,7 +1811,6 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
 
   SMnode    *pMnode = pReq->info.node;
   STxnObj   *pTxn = NULL;
-  SUserObj  *pOperUser = NULL;
   int64_t    mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMTransReq txnReq = {0};
   int64_t    tss = taosGetTimestampMs();
@@ -1805,9 +1835,18 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
            mndUtxnStageStr(pTxn->stage));
     TAOS_CHECK_EXIT(TSDB_CODE_MND_TXN_INVALID_STAGE);
   }
+  if (pTxn->stage == UTXN_STAGE_ROLLINGBACK || pTxn->stage == UTXN_STAGE_COMPLETED) {
+    // Already rolling back or completed — idempotent return success
+    mInfo("txn:%" PRIi64 ", stage=%s, rollback already in progress or completed", txnReq.txnId,
+          mndUtxnStageStr(pTxn->stage));
+    goto _exit;
+  }
 
   // Merge client-tracked pVgList into pTxn->pVgList (O(N) hash dedup)
-  TAOS_CHECK_EXIT(mndMergeVgList(pTxn, txnReq.pVgList));
+  taosWLockLatch(&pTxn->lock);
+  code = mndMergeVgList(pTxn, txnReq.pVgList);
+  taosWUnLockLatch(&pTxn->lock);
+  TAOS_CHECK_EXIT(code);
 
   TAOS_CHECK_EXIT(mndRollbackTxn(pMnode, pReq, pTxn, 0 /* user-initiated */));
 
@@ -1825,7 +1864,6 @@ _exit:
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
   tFreeSMTransReq(&txnReq);
-  mndReleaseUser(pMnode, pOperUser);
 
   TAOS_RETURN(code);
 }

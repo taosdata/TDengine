@@ -1187,6 +1187,13 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
     return TSDB_CODE_SUCCESS;
   }
 
+  // Idempotency: if already finishing or finalized, return success (WAL replay / MNode retry)
+  if (pEntry->stage == VTXN_STAGE_FINISHING || pEntry->finalStatus != TXN_FINAL_NONE) {
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+    vInfo("vgId:%d, txn commit idempotent (already finishing/finalized), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+    return TSDB_CODE_SUCCESS;
+  }
+
   // Lazy term correction: entry was created with maxSeenTerm which may have been 0
   if (pEntry->term == 0 && req.term > 0) {
     pEntry->term = req.term;
@@ -1270,6 +1277,13 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     // Idempotent: already rolled back or never existed
     vWarn("vgId:%d, txn not found for rollback (idempotent), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Idempotency: if already finishing or finalized, return success (WAL replay / MNode retry)
+  if (pEntry->stage == VTXN_STAGE_FINISHING || pEntry->finalStatus != TXN_FINAL_NONE) {
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+    vInfo("vgId:%d, txn rollback idempotent (already finishing/finalized), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1358,7 +1372,10 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
     // Skip entries with term=0 (unknown term — created before any COMMIT/ROLLBACK arrived,
     // or rebuilt after restart). They'll be cleaned up by their own explicit COMMIT/ROLLBACK.
     // Also skip replicated transactions (lifecycle controlled by source cluster, not local Raft term).
-    if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId && !TXN_IS_REPLICATED(pEntry->txnId)) {
+    // Also skip entries already in FINISHING state or finalized (being vacuum'd or already done).
+    if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId &&
+        !TXN_IS_REPLICATED(pEntry->txnId) &&
+        pEntry->stage != VTXN_STAGE_FINISHING && pEntry->finalStatus == TXN_FINAL_NONE) {
       vInfo("vgId:%d, fencing: abort txn, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64, TD_VID(pVnode),
             pEntry->txnId, pEntry->term, newTerm);
       if (taosArrayPush(toAbort, &pEntry->txnId) == NULL) {
