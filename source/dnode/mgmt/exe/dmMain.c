@@ -854,6 +854,15 @@ static int32_t dmFinalizeRepairOption() {
 
   // Route to copy mode if --mode copy is specified
   if (pOpt->hasMode && strcmp(pOpt->mode, "copy") == 0) {
+    // Reject force-mode-only flags that would be silently ignored
+    if (pOpt->hasBackupPath) {
+      printf("--backup-path cannot be used with --mode copy\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (pOpt->vnodeOpt.metaOpt.enabled || pOpt->vnodeOpt.tsdbOpt.enabled || pOpt->vnodeOpt.walOpt.enabled) {
+      printf("--repair-target cannot be used with --mode copy\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
     if (!pOpt->hasNodeType || strcmp(pOpt->nodeType, "vnode") != 0) {
       printf("--mode copy requires --node-type vnode\n");
       return TSDB_CODE_INVALID_PARA;

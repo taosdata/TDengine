@@ -25,6 +25,7 @@
 // These bypass taosOpenCmd restrictions which block ssh/scp/shell-redirect commands.
 #undef popen
 #undef pclose
+#undef close
 typedef FILE *DmCmdPtr;
 
 static DmCmdPtr dmOpenCmd(const char *cmd) { return popen(cmd, "r"); }
@@ -183,30 +184,59 @@ _err:
 
 // Fetch a remote file to a local path via SSH.
 // Returns 0 on success, -1 on error.
-static int32_t dmSshFetchFile(const char *host, const char *remotePath, const char *localPath) {
-  char qHost[320], qRemote[DM_SHELL_QUOTED_PATH_LEN], qLocal[DM_SHELL_QUOTED_PATH_LEN];
-  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0 ||
-      dmShellQuote(localPath, qLocal, sizeof(qLocal)) < 0) {
-    uError("repair: shell quote failed in dmSshFetchFile");
+static int32_t dmSshFetchFile(const char *host, const char *remotePath, char *localPathBuf, size_t bufLen) {
+  // Create a secure temp file with mkstemp (O_EXCL prevents symlink attacks)
+  strncpy(localPathBuf, "/tmp/tdrepair_XXXXXX", bufLen - 1);
+  localPathBuf[bufLen - 1] = '\0';
+  int fd = mkstemp(localPathBuf);
+  if (fd < 0) {
+    uError("repair: mkstemp failed: %s", strerror(errno));
     return -1;
   }
+
+  char qHost[320], qRemote[DM_SHELL_QUOTED_PATH_LEN];
+  if (dmShellQuote(host, qHost, sizeof(qHost)) < 0 || dmShellQuote(remotePath, qRemote, sizeof(qRemote)) < 0) {
+    uError("repair: shell quote failed in dmSshFetchFile");
+    close(fd);
+    (void)taosRemoveFile(localPathBuf);
+    return -1;
+  }
+
+  // Pipe SSH output directly to the fd instead of using shell redirection
   char cmd[DM_SSH_CMD_BUF_LEN];
-  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s cat %s > %s 2>/dev/null", qHost, qRemote, qLocal);
+  snprintf(cmd, sizeof(cmd), "ssh -o BatchMode=yes %s cat %s 2>/dev/null", qHost, qRemote);
   DmCmdPtr pCmd = dmOpenCmd(cmd);
   if (pCmd == NULL) {
     uError("repair: failed to run ssh command");
+    close(fd);
+    (void)taosRemoveFile(localPathBuf);
     return -1;
   }
-  char buf[256];
-  while (dmGetsCmd(pCmd, sizeof(buf), buf) > 0) {
+
+  char    buf[4096];
+  ssize_t nRead;
+  while ((nRead = fread(buf, 1, sizeof(buf), pCmd)) > 0) {
+    ssize_t nWritten = 0;
+    while (nWritten < nRead) {
+      ssize_t w = write(fd, buf + nWritten, nRead - nWritten);
+      if (w < 0) {
+        uError("repair: write to temp file failed: %s", strerror(errno));
+        dmCloseCmd(&pCmd);
+        close(fd);
+        (void)taosRemoveFile(localPathBuf);
+        return -1;
+      }
+      nWritten += w;
+    }
   }
   dmCloseCmd(&pCmd);
+  close(fd);
 
   // Verify file has content
   int64_t fsize = 0;
-  if (taosStatFile(localPath, &fsize, NULL, NULL) != 0 || fsize <= 0) {
+  if (taosStatFile(localPathBuf, &fsize, NULL, NULL) != 0 || fsize <= 0) {
     uError("repair: ssh fetch returned empty file for %s:%s", host, remotePath);
-    (void)taosRemoveFile(localPath);
+    (void)taosRemoveFile(localPathBuf);
     return -1;
   }
   return 0;
@@ -755,8 +785,7 @@ static SArray *dmReadSourceCurrentJson(const SRepairTfs *pSrcTfs, const char *ho
     if (dmReadFileContent(srcPath, &content, NULL) != 0) return NULL;
   } else {
     char tmpPath[PATH_MAX];
-    snprintf(tmpPath, sizeof(tmpPath), "/tmp/tdrepair_%d_v%d_current.json", (int)taosGetPId(), vnodeId);
-    if (dmSshFetchFile(host, srcPath, tmpPath) != 0) return NULL;
+    if (dmSshFetchFile(host, srcPath, tmpPath, sizeof(tmpPath)) != 0) return NULL;
     int32_t rc = dmReadFileContent(tmpPath, &content, NULL);
     (void)taosRemoveFile(tmpPath);
     if (rc != 0) return NULL;
@@ -1935,9 +1964,8 @@ int32_t dmRepairCopyMode(const SRepairCopyOpt *pOpts) {
   char        tmpCfgPath[PATH_MAX] = {0};
 
   if (isRemote) {
-    // Fetch remote config via SSH
-    snprintf(tmpCfgPath, sizeof(tmpCfgPath), "/tmp/tdrepair_%d.cfg", (int)taosGetPId());
-    if (dmSshFetchFile(pOpts->sourceHost, pOpts->sourceCfg, tmpCfgPath) != 0) {
+    // Fetch remote config via SSH (mkstemp fills tmpCfgPath)
+    if (dmSshFetchFile(pOpts->sourceHost, pOpts->sourceCfg, tmpCfgPath, sizeof(tmpCfgPath)) != 0) {
       uError("repair: failed to fetch remote config via SSH (exit code 2)");
       return 2;
     }
