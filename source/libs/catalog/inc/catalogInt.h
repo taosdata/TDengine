@@ -1124,6 +1124,8 @@ int32_t ctgGetTbMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
                               SCtgTaskReq* tReq);
 int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaMetaOutput* out,
                                 SCtgTaskReq* tReq);
+int32_t ctgGetStreamCreateSqlFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                       SGetStreamCreateSqlRsp* out);
 int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* vgroupInfo,
                               STableMetaOutput* out, SCtgTaskReq* tReq);
 int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,

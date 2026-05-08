@@ -999,6 +999,16 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
 #endif
 }
 
+static int32_t authShowCreateStream(SAuthCxt* pCxt, SShowCreateStreamStmt* pStmt) {
+  int32_t code = authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authObjPrivileges(pCxt, pStmt->dbName, pStmt->streamName, PRIV_CM_SHOW_CREATE, PRIV_OBJ_STREAM);
+  } else {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  return code;
+}
+
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
   int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
 #ifdef TD_ENTERPRISE
@@ -1218,6 +1228,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
                                PRIV_CM_ALTER, PRIV_OBJ_RSMA);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return authShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pStmt);
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return authShowCreateStream(pCxt, (SShowCreateStreamStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
       return authCreateDatabase(pCxt, (SCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
