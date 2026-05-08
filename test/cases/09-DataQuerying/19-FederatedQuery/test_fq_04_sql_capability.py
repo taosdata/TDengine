@@ -2981,8 +2981,9 @@ tdSql.checkData(0, 0, 1)  # 2024-01-01 → ISO week
                 f"select _irowts, interp(val) from {t} "
                 f"range('2024-01-01 00:01:30') fill(linear) surround(1)")
             tdSql.checkRows(1)
-            # 00:01:30 between val=2 (00:01) and val=3 (00:02) → 2.5
-            assert abs(float(tdSql.getData(0, 1)) - 2.5) < 1e-6
+            # 00:01:30 between val=2 (00:01) and val=3 (00:02)
+            # INTERP on INT column returns INT (truncated), consistent with local table behavior
+            tdSql.checkData(0, 1, 2)
 
         self._with_std_sources("fq04_interp", body)
 
@@ -3398,19 +3399,24 @@ tdSql.checkData(0, 0, 1)  # 2024-01-01 → ISO week
             t = f"{src}.src_t"
 
             # INTERVAL(2m) SLIDING(1m): overlapping windows
+            # 5 rows at 0/60/120/180/240s → 6 windows (consistent with local table)
             tdSql.query(
                 f"select _wstart, count(*), sum(val) from {t} "
                 f"where ts >= 1704067200000 and ts < 1704067500000 "
                 f"interval(2m) sliding(1m) order by _wstart")
-            tdSql.checkRows(5)
+            tdSql.checkRows(6)
+            # [23:59, 00:01): val=1 → count=1, sum=1
+            tdSql.checkData(0, 1, 1); tdSql.checkData(0, 2, 1)
             # [00:00, 00:02): val=1,2 → count=2, sum=3
-            tdSql.checkData(0, 1, 2); tdSql.checkData(0, 2, 3)
+            tdSql.checkData(1, 1, 2); tdSql.checkData(1, 2, 3)
             # [00:01, 00:03): val=2,3 → count=2, sum=5
-            tdSql.checkData(1, 1, 2); tdSql.checkData(1, 2, 5)
+            tdSql.checkData(2, 1, 2); tdSql.checkData(2, 2, 5)
             # [00:02, 00:04): val=3,4 → count=2, sum=7
-            tdSql.checkData(2, 1, 2); tdSql.checkData(2, 2, 7)
+            tdSql.checkData(3, 1, 2); tdSql.checkData(3, 2, 7)
             # [00:03, 00:05): val=4,5 → count=2, sum=9
-            tdSql.checkData(3, 1, 2); tdSql.checkData(3, 2, 9)
+            tdSql.checkData(4, 1, 2); tdSql.checkData(4, 2, 9)
+            # [00:04, 00:06): val=5 → count=1, sum=5
+            tdSql.checkData(5, 1, 1); tdSql.checkData(5, 2, 5)
 
         self._with_std_sources("fq04_sliding", body)
 

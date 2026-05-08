@@ -998,6 +998,26 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
       FOREACH(pKey2, pParts->pSortKeys) {
         const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey2;
         SDynSQL* pExpr = (SDynSQL*)taosArrayGet(pRendered, ki++);
+        // For MySQL, NULLS FIRST/LAST must be emulated with an extra
+        // sort key: ORDER BY (expr IS NULL) {ASC|DESC}, expr ...
+        // MySQL default: NULLs first for ASC, NULLs last for DESC.
+        if (dialect == EXT_SQL_DIALECT_MYSQL) {
+          bool needNullKey = false;
+          bool nullKeyDesc = false;
+          if (pOrd->order == ORDER_ASC && pOrd->nullOrder == NULL_ORDER_LAST) {
+            needNullKey = true;   // prepend (expr IS NULL) ASC → push NULLs last
+            nullKeyDesc = false;
+          } else if (pOrd->order == ORDER_DESC && pOrd->nullOrder == NULL_ORDER_FIRST) {
+            needNullKey = true;   // prepend (expr IS NULL) DESC → pull NULLs first
+            nullKeyDesc = true;
+          }
+          if (needNullKey) {
+            dynSQLAppendStr(&s, firstKey ? " ORDER BY (" : ", (");
+            dynSQLAppendLen(&s, pExpr->buf, pExpr->pos);
+            dynSQLAppendStr(&s, nullKeyDesc ? " IS NULL) DESC" : " IS NULL) ASC");
+            firstKey = false;
+          }
+        }
         dynSQLAppendStr(&s, firstKey ? " ORDER BY " : ", ");
         firstKey = false;
         dynSQLAppendLen(&s, pExpr->buf, pExpr->pos);
