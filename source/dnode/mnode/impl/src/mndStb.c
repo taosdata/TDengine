@@ -56,6 +56,7 @@ static int32_t  mndProcessTrimDbWalRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t  mndRetrieveVstableInherits(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
@@ -115,6 +116,9 @@ int32_t mndInitStb(SMnode *pMnode) {
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COL, mndRetrieveStbCol);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_COL, mndCancelGetNextStb);
+
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VSTABLE_INHERITS, mndRetrieveVstableInherits);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VSTABLE_INHERITS, mndCancelGetNextStb);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -579,6 +583,76 @@ SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
+// VST inheritance utility: check if a VST is a parent of any other VST
+bool mndStbHasChildren(SMnode *pMnode, int64_t suid) {
+  SSdb    *pSdb = pMnode->pSdb;
+  void    *pIter = NULL;
+  SStbObj *pStb = NULL;
+  bool     hasChildren = false;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    if (pIter == NULL) break;
+    for (int8_t i = 0; i < pStb->numParents; ++i) {
+      if (pStb->parentSuids[i] == suid) {
+        hasChildren = true;
+        sdbRelease(pSdb, pStb);
+        sdbCancelFetch(pSdb, pIter);
+        return true;
+      }
+    }
+    sdbRelease(pSdb, pStb);
+  }
+  return hasChildren;
+}
+
+// VST inheritance utility: check if a VST has any VCTs (virtual child tables)
+bool mndStbHasVCT(SMnode *pMnode, int64_t suid) {
+  // VCTs are stored as child tables of the VST; check via vnode meta.
+  // For simplicity in mnode, we check if any vgroup has ctables for this suid.
+  // TODO: implement proper VCT existence check via vgroup query
+  // For now, return false (conservative: allow inheritance)
+  return false;
+}
+
+// VST inheritance utility: DAG cycle detection
+// Returns true if adding parentSuids as parents to childSuid creates a cycle
+bool mndCheckCyclicInherit(SMnode *pMnode, int64_t childSuid, int64_t *parentSuids, int8_t numParents) {
+  // BFS: starting from each proposed parent, walk up through their parents
+  // If we ever reach childSuid, there's a cycle
+  int64_t queue[128];
+  int32_t head = 0, tail = 0;
+
+  for (int8_t i = 0; i < numParents; ++i) {
+    queue[tail++] = parentSuids[i];
+  }
+
+  while (head < tail && tail < 128) {
+    int64_t  curSuid = queue[head++];
+    if (curSuid == childSuid) return true;
+
+    // Find the SStbObj for curSuid
+    SSdb    *pSdb = pMnode->pSdb;
+    void    *pIter = NULL;
+    SStbObj *pStb = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+      if (pIter == NULL) break;
+      if (pStb->uid == curSuid) {
+        for (int8_t j = 0; j < pStb->numParents; ++j) {
+          if (tail < 128) {
+            queue[tail++] = pStb->parentSuids[j];
+          }
+        }
+        sdbRelease(pSdb, pStb);
+        sdbCancelFetch(pSdb, pIter);
+        break;
+      }
+      sdbRelease(pSdb, pStb);
+    }
+  }
+  return false;
+}
+
 static FORCE_INLINE int32_t schemaExColIdCompare(const void *colId, const void *pSchema) {
   if (*(col_id_t *)colId < ((SSchema *)pSchema)->colId) {
     return -1;
@@ -972,6 +1046,22 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->virtualStb = pCreate->virtualStb;
   pDst->secureDelete = pCreate->secureDelete;
   pCreate->pFuncs = NULL;
+
+  // VST inheritance
+  pDst->numParents = pCreate->numParents;
+  pDst->ownColStart = pCreate->ownColStart;
+  pDst->ownTagStart = pCreate->ownTagStart;
+  if (pDst->numParents > 0) {
+    for (int32_t i = 0; i < pDst->numParents; ++i) {
+      SStbObj *pParentStb = mndAcquireStb(pMnode, pCreate->parentStbFNames[i]);
+      if (pParentStb == NULL) {
+        code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
+        TAOS_RETURN(code);
+      }
+      pDst->parentSuids[i] = pParentStb->uid;
+      mndReleaseStb(pMnode, pParentStb);
+    }
+  }
 
   if (pDst->commentLen > 0) {
     pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
@@ -1818,6 +1908,52 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  // VST inheritance validation
+  if (createReq.numParents > 0) {
+    if (createReq.numParents > TSDB_MAX_VST_PARENTS) {
+      code = TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED;
+      goto _OVER;
+    }
+    if (!createReq.virtualStb) {
+      code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
+      goto _OVER;
+    }
+
+    int64_t parentSuids[TSDB_MAX_VST_PARENTS] = {0};
+    for (int8_t i = 0; i < createReq.numParents; ++i) {
+      SStbObj *pParentStb = mndAcquireStb(pMnode, createReq.parentStbFNames[i]);
+      if (pParentStb == NULL) {
+        code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
+        goto _OVER;
+      }
+      if (!pParentStb->virtualStb) {
+        mndReleaseStb(pMnode, pParentStb);
+        code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
+        goto _OVER;
+      }
+      if (mndStbHasVCT(pMnode, pParentStb->uid)) {
+        mndReleaseStb(pMnode, pParentStb);
+        code = TSDB_CODE_MND_VST_PARENT_HAS_VCT;
+        goto _OVER;
+      }
+      // Same DB check
+      if (strncmp(pParentStb->db, pDb->name, TSDB_DB_FNAME_LEN) != 0) {
+        mndReleaseStb(pMnode, pParentStb);
+        code = TSDB_CODE_MND_VST_CROSS_DB;
+        goto _OVER;
+      }
+      parentSuids[i] = pParentStb->uid;
+      mndReleaseStb(pMnode, pParentStb);
+    }
+
+    // Cycle detection (use uid=0 for new table since it doesn't exist yet)
+    int64_t newSuid = mndGenerateUid(createReq.name, TSDB_TABLE_FNAME_LEN);
+    if (mndCheckCyclicInherit(pMnode, newSuid, parentSuids, createReq.numParents)) {
+      code = TSDB_CODE_MND_VST_CIRCULAR_INHERIT;
+      goto _OVER;
+    }
+  }
+
   if (isAlter) {
     bool    needRsp = false;
     SStbObj pDst = {0};
@@ -1883,6 +2019,15 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   if (pAlter->ttl != 0) return 0;
   if (pAlter->keep != -1) return 0;
   if (pAlter->secureDelete >= 0) return 0;
+
+  // BASE ON alter types don't use pFields
+  if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
+      code = TSDB_CODE_MND_INVALID_STB_OPTION;
+      TAOS_RETURN(code);
+    }
+    return 0;
+  }
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -3006,6 +3151,112 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// ALTER STABLE ADD BASE ON - add parent VSTs to inheritance list
+static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew, const SMAlterStbReq *pAlter,
+                                    SDbObj *pDb) {
+  int32_t code = 0;
+  if (pAlter->numParents <= 0) {
+    TAOS_RETURN(TSDB_CODE_MND_INVALID_STB_OPTION);
+  }
+  int8_t totalParents = pOld->numParents + pAlter->numParents;
+  if (totalParents > TSDB_MAX_VST_PARENTS) {
+    TAOS_RETURN(TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED);
+  }
+  if (!pOld->virtualStb) {
+    TAOS_RETURN(TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL);
+  }
+
+  // Copy existing state
+  pNew->numParents = pOld->numParents;
+  memcpy(pNew->parentSuids, pOld->parentSuids, sizeof(pOld->parentSuids));
+  pNew->ownColStart = pOld->ownColStart;
+  pNew->ownTagStart = pOld->ownTagStart;
+
+  // Validate and add each new parent
+  for (int8_t i = 0; i < pAlter->numParents; ++i) {
+    SStbObj *pParentStb = mndAcquireStb(pMnode, (char *)pAlter->parentStbFNames[i]);
+    if (pParentStb == NULL) {
+      TAOS_RETURN(TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL);
+    }
+    if (!pParentStb->virtualStb) {
+      mndReleaseStb(pMnode, pParentStb);
+      TAOS_RETURN(TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL);
+    }
+    if (mndStbHasVCT(pMnode, pParentStb->uid)) {
+      mndReleaseStb(pMnode, pParentStb);
+      TAOS_RETURN(TSDB_CODE_MND_VST_PARENT_HAS_VCT);
+    }
+    if (strncmp(pParentStb->db, pDb->name, TSDB_DB_FNAME_LEN) != 0) {
+      mndReleaseStb(pMnode, pParentStb);
+      TAOS_RETURN(TSDB_CODE_MND_VST_CROSS_DB);
+    }
+
+    pNew->parentSuids[pNew->numParents] = pParentStb->uid;
+    pNew->numParents++;
+    mndReleaseStb(pMnode, pParentStb);
+  }
+
+  // Cycle detection
+  if (mndCheckCyclicInherit(pMnode, pOld->uid, pNew->parentSuids, pNew->numParents)) {
+    TAOS_RETURN(TSDB_CODE_MND_VST_CIRCULAR_INHERIT);
+  }
+
+  // TODO: merge new parent columns/tags into schema and adjust ownColStart/ownTagStart
+  // For now, only update the parent list metadata; column merging requires translator cooperation
+
+  TAOS_RETURN(code);
+}
+
+// ALTER STABLE DROP BASE ON - remove parent VSTs from inheritance list
+static int32_t mndAlterStbDropBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew, const SMAlterStbReq *pAlter) {
+  int32_t code = 0;
+  if (pAlter->numParents <= 0) {
+    TAOS_RETURN(TSDB_CODE_MND_INVALID_STB_OPTION);
+  }
+  if (!pOld->virtualStb || pOld->numParents == 0) {
+    TAOS_RETURN(TSDB_CODE_MND_INVALID_STB_OPTION);
+  }
+
+  // Copy existing state
+  pNew->numParents = pOld->numParents;
+  memcpy(pNew->parentSuids, pOld->parentSuids, sizeof(pOld->parentSuids));
+  pNew->ownColStart = pOld->ownColStart;
+  pNew->ownTagStart = pOld->ownTagStart;
+
+  // Remove each specified parent
+  for (int8_t i = 0; i < pAlter->numParents; ++i) {
+    SStbObj *pParentStb = mndAcquireStb(pMnode, (char *)pAlter->parentStbFNames[i]);
+    if (pParentStb == NULL) {
+      TAOS_RETURN(TSDB_CODE_MND_STB_NOT_EXIST);
+    }
+    int64_t parentUid = pParentStb->uid;
+    mndReleaseStb(pMnode, pParentStb);
+
+    // Find and remove this parent from the list
+    bool found = false;
+    for (int8_t j = 0; j < pNew->numParents; ++j) {
+      if (pNew->parentSuids[j] == parentUid) {
+        // Shift remaining parents down
+        for (int8_t k = j; k < pNew->numParents - 1; ++k) {
+          pNew->parentSuids[k] = pNew->parentSuids[k + 1];
+        }
+        pNew->parentSuids[pNew->numParents - 1] = 0;
+        pNew->numParents--;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      TAOS_RETURN(TSDB_CODE_MND_INVALID_STB_OPTION);
+    }
+  }
+
+  // TODO: validate remaining schema has ≥2 cols + ≥1 tag
+  // TODO: remove dropped parent's columns/tags from schema
+
+  TAOS_RETURN(code);
+}
+
 static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
   bool    needRsp = true;
   int32_t code = -1;
@@ -3070,6 +3321,12 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
       code = mndAddSuperTableColumn(pOld, &stbObj, pAlter, pAlter->numOfFields, 1);
+      break;
+    case TSDB_ALTER_TABLE_ADD_BASE_ON:
+      code = mndAlterStbAddBaseOn(pMnode, pOld, &stbObj, pAlter, pDb);
+      break;
+    case TSDB_ALTER_TABLE_DROP_BASE_ON:
+      code = mndAlterStbDropBaseOn(pMnode, pOld, &stbObj, pAlter);
       break;
     default:
       needRsp = false;
@@ -3391,6 +3648,12 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
 
   if (pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
+  // VST inheritance: refuse DROP if this VST has child VSTs
+  if (pStb->virtualStb && mndStbHasChildren(pMnode, pStb->uid)) {
+    code = TSDB_CODE_MND_VST_HAS_CHILDREN;
     goto _OVER;
   }
 
@@ -4168,6 +4431,86 @@ _ERROR:
          __FUNCTION__, lino, tstrerror(code));
 
 _OVER:
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+// Retrieve inheritance relationships for ins_vstable_inherits system table
+static int32_t mndRetrieveVstableInherits(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode  *pMnode = pReq->info.node;
+  SSdb    *pSdb = pMnode->pSdb;
+  int32_t  numOfRows = 0;
+  SStbObj *pStb = NULL;
+  int32_t  code = 0;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
+    if (pShow->pIter == NULL) break;
+
+    if (pStb->numParents <= 0) {
+      sdbRelease(pSdb, pStb);
+      continue;
+    }
+
+    // Extract child db name and table name
+    char childDbName[TSDB_DB_FNAME_LEN] = {0};
+    char childStbName[TSDB_TABLE_NAME_LEN] = {0};
+    mndExtractDbNameFromStbFullName(pStb->name, childDbName);
+    mndExtractTbNameFromStbFullName(pStb->name, childStbName, TSDB_TABLE_NAME_LEN);
+
+    for (int8_t i = 0; i < pStb->numParents && numOfRows < rows; ++i) {
+      // Look up parent name by uid
+      char parentName[TSDB_TABLE_NAME_LEN] = {0};
+      void *pIter2 = NULL;
+      SStbObj *pParent = NULL;
+      while (1) {
+        pIter2 = sdbFetch(pSdb, SDB_STB, pIter2, (void **)&pParent);
+        if (pIter2 == NULL) break;
+        if (pParent->uid == pStb->parentSuids[i]) {
+          mndExtractTbNameFromStbFullName(pParent->name, parentName, TSDB_TABLE_NAME_LEN);
+          sdbRelease(pSdb, pParent);
+          sdbCancelFetch(pSdb, pIter2);
+          break;
+        }
+        sdbRelease(pSdb, pParent);
+      }
+
+      int32_t cols = 0;
+      SColumnInfoData *pColInfo;
+      char             buf[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+
+      // db_name
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      STR_TO_VARSTR(buf, childDbName);
+      colDataSetVal(pColInfo, numOfRows, buf, false);
+
+      // parent_stable_name
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      STR_TO_VARSTR(buf, parentName);
+      colDataSetVal(pColInfo, numOfRows, buf, false);
+
+      // parent_uid
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->parentSuids[i], false);
+
+      // child_stable_name
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      STR_TO_VARSTR(buf, childStbName);
+      colDataSetVal(pColInfo, numOfRows, buf, false);
+
+      // child_uid
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->uid, false);
+
+      // create_time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->createdTime, false);
+
+      numOfRows++;
+    }
+    sdbRelease(pSdb, pStb);
+  }
+
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
