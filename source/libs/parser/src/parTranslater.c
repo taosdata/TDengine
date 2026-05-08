@@ -12123,7 +12123,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code &&
       NULL != pSelect->pWindow &&
       nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
-     ( !pSelect->hasAggFuncs || !pSelect->hasIndefiniteRowsFunc)) {
+     (pSelect->hasScalarExpr || pSelect->hasIndefiniteRowsFunc)) {
     if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
       if (NULL != pInterval->pFill) {
