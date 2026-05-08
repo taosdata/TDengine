@@ -1007,8 +1007,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
+ true                                                             |
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -1759,8 +1763,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) a 
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) a from tb3;
+   a   |
+========
+ true  |
+ true  |
+ true  |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) a from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -2495,8 +2503,10 @@ taos> select tags (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select tags (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select tags (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -3201,8 +3211,10 @@ taos> select distinct (select f1 != all (select f1 from tb3) from tb3 SESSION(ts
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -3923,8 +3935,12 @@ taos> select distinct (select f1 != all (select f1 from tb3) from tb3 SESSION(ts
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), f1 from tb3;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |     f1      |
+=================================================================================
+ true                                                             |           4 |
+ true                                                             |           5 |
+ true                                                             |           6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), f1 from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -4659,8 +4675,10 @@ taos> select distinct tags (select f1 != all (select f1 from tb3) from tb3 SESSI
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct tags (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select distinct tags (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -5381,8 +5399,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)), (
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio | (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+======================================================================================================================================
+ true                                                             | true                                                             |
+ true                                                             | true                                                             |
+ true                                                             | true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -6133,8 +6155,12 @@ taos> select 1, (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d))
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select 1, (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 order by ts;
+           1           | (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===========================================================================================
+                     1 | true                                                             |
+                     1 | true                                                             |
+                     1 | true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select 1, (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 order by ts;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -6885,8 +6911,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)), *
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), * from tb3 order by ts, f1;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |           ts            |     f1      |     f2      |
+=========================================================================================================================
+ true                                                             | 2025-12-01 00:00:00.000 |           4 |          31 |
+ true                                                             | 2025-12-02 00:00:00.000 |           5 |          32 |
+ true                                                             | 2025-12-03 00:00:00.000 |           6 |          33 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), * from tb3 order by ts, f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -7637,8 +7667,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 partition by tbname;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
+ true                                                             |
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 partition by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -8389,8 +8423,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)), f
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), f1 from tb3 partition by f1;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |     f1      |
+=================================================================================
+ true                                                             |           5 |
+ true                                                             |           6 |
+ true                                                             |           4 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), f1 from tb3 partition by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -9141,8 +9179,12 @@ taos> select case when (select f1 != all (select f1 from tb3) from tb3 SESSION(t
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) then 1 else 2 end, sum(f1) from tb3 group by f1;
+ case when (select exists (select f1 from tb3 where f1 > 1) from  |        sum(f1)        |
+===========================================================================================
+                                                                1 |                     6 |
+                                                                1 |                     4 |
+                                                                1 |                     5 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) then 1 else 2 end, sum(f1) from tb3 group by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -9893,8 +9935,12 @@ taos> select case when f1 = 1 then (select f1 != all (select f1 from tb3) from t
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) else 2 end, sum(f1) from tb3 group by f1;
+ case when f1 = 1 then (select exists (select f1 from tb3 where f |        sum(f1)        |
+===========================================================================================
+                                                                2 |                     6 |
+                                                                2 |                     4 |
+                                                                2 |                     5 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) else 2 end, sum(f1) from tb3 group by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -10645,8 +10691,12 @@ taos> select case when f1 = 1 then 1 else (select f1 != all (select f1 from tb3)
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) end, sum(f1) from tb3 group by f1;
+ case when f1 = 1 then 1 else (select exists (select f1 from tb3  |        sum(f1)        |
+===========================================================================================
+                                                                1 |                     6 |
+                                                                1 |                     4 |
+                                                                1 |                     5 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case when f1 = 1 then 1 else (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) end, sum(f1) from tb3 group by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -11397,8 +11447,12 @@ taos> select _wstart, (select f1 != all (select f1 from tb3) from tb3 SESSION(ts
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select _wstart, (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), avg(f1) from tb3 interval(1d);
+         _wstart         | (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |          avg(f1)          |
+=========================================================================================================================
+ 2025-12-01 00:00:00.000 | true                                                             |                         4 |
+ 2025-12-02 00:00:00.000 | true                                                             |                         5 |
+ 2025-12-03 00:00:00.000 | true                                                             |                         6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select _wstart, (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), avg(f1) from tb3 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -12149,8 +12203,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)), a
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), avg(f1) from tb3 interval(1d);
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |          avg(f1)          |
+===============================================================================================
+ true                                                             |                         4 |
+ true                                                             |                         5 |
+ true                                                             |                         6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), avg(f1) from tb3 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -12901,8 +12959,12 @@ taos> select case (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) when 1 then 1 else 2 end, avg(f1) from tb3 interval(1d);
+ case (select exists (select f1 from tb3 where f1 > 1) from tb3 s |          avg(f1)          |
+===============================================================================================
+                                                                1 |                         4 |
+                                                                1 |                         5 |
+                                                                1 |                         6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select case (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) when 1 then 1 else 2 end, avg(f1) from tb3 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -13637,8 +13699,10 @@ taos> select _wstart, (select f1 != all (select f1 from tb3) from tb3 SESSION(ts
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select _wstart, (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), avg(f1) from tb3 SESSION(ts, 1d);
+         _wstart         | (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |          avg(f1)          |
+=========================================================================================================================
+ 2025-12-01 00:00:00.000 | true                                                             |                         5 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select _wstart, (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), avg(f1) from tb3 SESSION(ts, 1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -14343,8 +14407,10 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)), a
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), avg(f1) from tb3 SESSION(ts, 1d);
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |          avg(f1)          |
+===============================================================================================
+ true                                                             |                         5 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), avg(f1) from tb3 SESSION(ts, 1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -14736,8 +14802,6 @@ taos> select (select exists (select f1 from tb3 where f1 > 1)) from tb3 SESSION(
  (select exists (select f1 from tb3 where f1 > 1)) |
 ====================================================
  true                                              |
- true                                              |
- true                                              |
 
 taos> select (select f1 < any (select f1 from tb3) from tb3) from tb3 SESSION(ts, 1d);
 
@@ -14785,8 +14849,6 @@ taos> select (select tags exists (select f1 from tb3 where f1 > 1) from tb3) fro
  (select tags exists (select f1 from tb3 where f1 > 1) from tb3) |
 ==================================================================
  true                                                            |
- true                                                            |
- true                                                            |
 
 taos> select (select distinct f1 < any (select f1 from tb3) from tb3) from tb3 SESSION(ts, 1d);
 
@@ -14798,21 +14860,15 @@ taos> select (select distinct f1 = all (select f1 from tb3) from tb3) from tb3 S
  (select distinct f1 = all (select f1 from tb3) from tb3) |
 ===========================================================
  false                                                    |
- false                                                    |
- false                                                    |
 
 taos> select (select distinct f1 != all (select f1 from tb3) from tb3) from tb3 SESSION(ts, 1d);
  (select distinct f1 != all (select f1 from tb3) from tb3) |
 ============================================================
  false                                                     |
- false                                                     |
- false                                                     |
 
 taos> select (select distinct exists (select f1 from tb3 where f1 > 1) from tb3) from tb3 SESSION(ts, 1d);
  (select distinct exists (select f1 from tb3 where f1 > 1) from t |
 ===================================================================
- true                                                             |
- true                                                             |
  true                                                             |
 
 taos> select (select distinct f1 < any (select f1 from tb3), f1 from tb3) from tb3 SESSION(ts, 1d);
@@ -14840,21 +14896,15 @@ taos> select (select distinct tags f1 = all (select f1 from tb3) from tb3) from 
  (select distinct tags f1 = all (select f1 from tb3) from tb3) |
 ================================================================
  false                                                         |
- false                                                         |
- false                                                         |
 
 taos> select (select distinct tags f1 != all (select f1 from tb3) from tb3) from tb3 SESSION(ts, 1d);
  (select distinct tags f1 != all (select f1 from tb3) from tb3) |
 =================================================================
  false                                                          |
- false                                                          |
- false                                                          |
 
 taos> select (select distinct tags exists (select f1 from tb3 where f1 > 1) from tb3) from tb3 SESSION(ts, 1d);
  (select distinct tags exists (select f1 from tb3 where f1 > 1) f |
 ===================================================================
- true                                                             |
- true                                                             |
  true                                                             |
 
 taos> select (select f1 < any (select f1 from tb3), f1 < any (select f1 from tb3) from tb3) from tb3 SESSION(ts, 1d);
@@ -15065,8 +15115,10 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 SESSION(ts, 1d);
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 SESSION(ts, 1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -15086,35 +15138,25 @@ taos> select (select sum(case when f1 = 1 then cast(f1 < any (select f1 from tb3
  (select sum(case when f1 = 1 then cast(f1 < any (select f1 from  |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select sum(case when f1 = 1 then cast(f1 > any (select f1 from tb3) as bigint) else 2 end) from tb3 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2) from tb3 SESSION(ts, 1d);
  (select sum(case when f1 = 1 then cast(f1 > any (select f1 from  |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select sum(case when f1 = 1 then cast(f1 = all (select f1 from tb3) as bigint) else 2 end) from tb3 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2) from tb3 SESSION(ts, 1d);
  (select sum(case when f1 = 1 then cast(f1 = all (select f1 from  |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select sum(case when f1 = 1 then cast(f1 != all (select f1 from tb3) as bigint) else 2 end) from tb3 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2) from tb3 SESSION(ts, 1d);
  (select sum(case when f1 = 1 then cast(f1 != all (select f1 from |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select sum(case when f1 = 1 then cast(exists (select f1 from tb3 where f1 > 1) as bigint) else 2 end) from tb3 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2) from tb3 SESSION(ts, 1d);
  (select sum(case when f1 = 1 then cast(exists (select f1 from tb |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select sum(case when f1 = 1 then 1 else f1 < any (select f1 from tb3) end + 1) from tb3 COUNT_WINDOW(2)) from tb3 SESSION(ts, 1d);
@@ -15232,14 +15274,10 @@ taos> select (select f1 from tb3 where f1 = all (select f1 from tb3) order by f1
  (select f1 from tb3 where f1 = all (select f1 from tb3) order by |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select f1 from tb3 where f1 != all (select f1 from tb3) order by f1) from tb3 SESSION(ts, 1d);
  (select f1 from tb3 where f1 != all (select f1 from tb3) order b |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select f1 from tb3 where exists (select f1 from tb3 where f1 > 1) order by f1) from tb3 SESSION(ts, 1d);
@@ -15270,14 +15308,10 @@ taos> select (select f1 from tb3 where f1 = all (select f1 from tb3) order by f1
  (select f1 from tb3 where f1 = all (select f1 from tb3) order by |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select f1 from tb3 where f1 != all (select f1 from tb3) order by f1) from tb3 SESSION(ts, 1d);
  (select f1 from tb3 where f1 != all (select f1 from tb3) order b |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select f1 from tb3 where exists (select f1 from tb3 where f1 > 1) order by f1) from tb3 SESSION(ts, 1d);
@@ -15293,14 +15327,10 @@ taos> select (select f1 = all (select f1 from tb3) from tb3 where f1 = all (sele
  (select f1 = all (select f1 from tb3) from tb3 where f1 = all (s |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select f1 != all (select f1 from tb3) from tb3 where f1 != all (select f1 from tb3) order by f1) from tb3 SESSION(ts, 1d);
  (select f1 != all (select f1 from tb3) from tb3 where f1 != all  |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 where exists (select f1 from tb3 where f1 > 1) order by f1) from tb3 SESSION(ts, 1d);
@@ -15316,14 +15346,10 @@ taos> select (select f1 = all (select f1 from tb3) from tb3 where f1 = all (sele
  (select f1 = all (select f1 from tb3) from tb3 where f1 = all (s |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select f1 != all (select f1 from tb3) from tb3 where f1 != all (select f1 from tb3) order by f1) from tb3 SESSION(ts, 1d);
  (select f1 != all (select f1 from tb3) from tb3 where f1 != all  |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 where exists (select f1 from tb3 where f1 > 1) order by f1) from tb3 SESSION(ts, 1d);
@@ -15399,14 +15425,10 @@ taos> select (select f1 from tb3 partition by f1 having(f1 = all (select f1 from
  (select f1 from tb3 partition by f1 having(f1 = all (select f1 f |
 ===================================================================
  NULL                                                             |
- NULL                                                             |
- NULL                                                             |
 
 taos> select (select f1 from tb3 partition by f1 having(f1 != all (select f1 from tb3)) order by f1) from tb3 SESSION(ts, 1d);
  (select f1 from tb3 partition by f1 having(f1 != all (select f1  |
 ===================================================================
- NULL                                                             |
- NULL                                                             |
  NULL                                                             |
 
 taos> select (select f1 from tb3 partition by f1 having(exists (select f1 from tb3 where f1 > 1)) order by f1) from tb3 SESSION(ts, 1d);
@@ -15817,8 +15839,12 @@ taos> select sum(case when (select f1 != all (select f1 from tb3) from tb3 SESSI
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) then 1 else 2 end) from tb3 STATE_WINDOW(f1);
+ sum(case when (select exists (select f1 from tb3 where f1 > 1) f |
+===================================================================
+                                                                1 |
+                                                                1 |
+                                                                1 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) then 1 else 2 end) from tb3 STATE_WINDOW(f1);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -16530,7 +16556,6 @@ taos> select sum(case when f1 = 1 then cast((select f1 != all (select f1 from tb
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when f1 = 1 then cast((select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) as bigint) else 2 end) from tb3 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when f1 = 1 then cast((select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) as bigint) else 2 end) from tb3 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -17198,8 +17223,11 @@ taos> select sum(case when f1 = 1 then 1 else (select f1 != all (select f1 from 
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when f1 = 1 then 1 else (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) end + 1) from tb3 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else (select exists (select f1 from  |
+===================================================================
+                                                               4 |
+                                                               2 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when f1 = 1 then 1 else (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) end + 1) from tb3 COUNT_WINDOW(2);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -17935,8 +17963,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 partition by tbname interval(1d);
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
+ true                                                             |
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 partition by tbname interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -18687,8 +18719,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 partition by f1 interval(1d);
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
+ true                                                             |
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 partition by f1 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -19439,8 +19475,12 @@ taos> select f1, (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 group by f1;
+     f1      | (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+=================================================================================
+           6 | true                                                             |
+           4 | true                                                             |
+           5 | true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 group by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -22151,8 +22191,12 @@ taos> select f1 from tb3 where (select f1 != all (select f1 from tb3) from tb3 S
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 where (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+     f1      |
+==============
+           4 |
+           5 |
+           6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 where (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -22808,8 +22852,12 @@ taos> select f1, (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 where (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+     f1      | (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+=================================================================================
+           4 | true                                                             |
+           5 | true                                                             |
+           6 | true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 where (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -23465,8 +23513,12 @@ taos> select f1 from tb3 where (select f1 != all (select f1 from tb3) from tb3 S
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 where (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+     f1      |
+==============
+           4 |
+           5 |
+           6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 where (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -24122,8 +24174,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 where (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
+ true                                                             |
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 where (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -24779,8 +24835,12 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 where (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+ (select exists (select f1 from tb3 where f1 > 1) from tb3 sessio |
+===================================================================
+ true                                                             |
+ true                                                             |
+ true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 where (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -25436,8 +25496,12 @@ taos> select f1, cast((select f1 != all (select f1 from tb3) from tb3 SESSION(ts
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, cast((select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) as varchar) from tb3 where (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+     f1      | cast((select exists (select f1 from tb3 where f1 > 1) from tb3 s |
+=================================================================================
+           4 | true                                                             |
+           5 | true                                                             |
+           6 | true                                                             |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1, cast((select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) as varchar) from tb3 where (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -27433,8 +27497,12 @@ taos> select f1 from tb3 partition by f1, (select f1 != all (select f1 from tb3)
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 partition by f1, (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) order by f1;
+     f1      |
+==============
+           4 |
+           5 |
+           6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 partition by f1, (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -28165,8 +28233,12 @@ taos> select f1 from tb3 partition by f1 having((select f1 != all (select f1 fro
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 partition by f1 having((select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d))) order by f1;
+     f1      |
+==============
+           4 |
+           5 |
+           6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 partition by f1 having((select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1))) order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -29471,8 +29543,12 @@ taos> select sum(f1) from tb3 group by (select f1 != all (select f1 from tb3) fr
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(f1) from tb3 group by (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)), f1 having((select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d))) order by 1;
+        sum(f1)        |
+========================
+                     4 |
+                     5 |
+                     6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(f1) from tb3 group by (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)), f1 having((select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1))) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -30156,8 +30232,13 @@ taos> select f1 from tb3 union select (select f1 != all (select f1 from tb3) fro
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 union select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) from tb3 order by f1;
+     f1      |
+==============
+           1 |
+           4 |
+           5 |
+           6 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select f1 from tb3 union select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) from tb3 order by f1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
@@ -30947,8 +31028,15 @@ taos> select (select f1 != all (select f1 from tb3) from tb3 SESSION(ts, 1d)) a 
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) a from tb3 union all select (select exists (select f1 from tb3 where f1 > 1) from tb3 SESSION(ts, 1d)) b from tb3 order by a;
+   a   |
+========
+ true  |
+ true  |
+ true  |
+ true  |
+ true  |
+ true  |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) a from tb3 union all select (select sum(case when f1 < any (select f1 from tb3) then 1 else 2 end) from tb3 STATE_WINDOW(f1)) b from tb3 order by a;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5]
