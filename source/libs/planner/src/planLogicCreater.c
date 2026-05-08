@@ -1879,49 +1879,6 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
   return code;
 }
 
-typedef struct SCheckProjectionModeContext {
-  bool hasScalarExpr;
-} SCheckProjectionModeContext;
-
-static bool isAliasColumn(const SNode* pNode) {
-  return (QUERY_NODE_COLUMN == nodeType(pNode) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]));
-}
-
-static bool isVectorFunc(const SNode* pNode) {
-  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsVectorFunc(((SFunctionNode*)pNode)->funcId));
-}
-
-static bool isScanPseudoColumnFunc(const SNode* pNode) {
-  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
-}
-
-
-static EDealRes checkProjectionModeHasScalarExpr(SNode* pNode, void* pCtx) {
-  SCheckProjectionModeContext* ctx = (SCheckProjectionModeContext*)pCtx;
-  if (!nodesIsExprNode(pNode) || isAliasColumn(pNode)) {
-    return DEAL_RES_CONTINUE;
-  }
-  if (isVectorFunc(pNode)) {
-    return DEAL_RES_IGNORE_CHILD;
-  }
-
-  if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
-    ctx->hasScalarExpr = true;
-    return DEAL_RES_CONTINUE;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
-  if (pSelect->pProjectionList == NULL) {
-    return false;
-  }
-
-  SCheckProjectionModeContext ctx = {0};
-  nodesWalkExprs(pSelect->pProjectionList, checkProjectionModeHasScalarExpr, &ctx);
-
-  return ctx.hasScalarExpr;
-}
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {

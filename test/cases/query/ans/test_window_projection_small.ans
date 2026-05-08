@@ -403,37 +403,20 @@ taos> select _wstart, tbname, concat(location, '-zone') from meters partition by
          _wstart         |             tbname             |   concat(location, '-zone')    |
 ============================================================================================
  2024-01-01 00:00:00.000 | d1001                          | Beijing-zone                   |
- 2024-01-01 00:00:00.000 | d1001                          | Beijing-zone                   |
- 2024-01-01 00:00:00.000 | d1001                          | Beijing-zone                   |
- 2024-01-01 00:00:03.000 | d1001                          | Beijing-zone                   |
  2024-01-01 00:00:03.000 | d1001                          | Beijing-zone                   |
  2024-01-01 00:00:06.000 | d1001                          | Beijing-zone                   |
  2024-01-01 00:00:09.000 | d1001                          | Beijing-zone                   |
- 2024-01-01 00:00:09.000 | d1001                          | Beijing-zone                   |
- 2024-01-01 00:00:09.000 | d1001                          | Beijing-zone                   |
  2024-01-01 00:00:12.000 | d1001                          | Beijing-zone                   |
  2024-01-01 00:00:00.000 | d1002                          | Shanghai-zone                  |
- 2024-01-01 00:00:00.000 | d1002                          | Shanghai-zone                  |
- 2024-01-01 00:00:00.000 | d1002                          | Shanghai-zone                  |
- 2024-01-01 00:00:03.000 | d1002                          | Shanghai-zone                  |
  2024-01-01 00:00:03.000 | d1002                          | Shanghai-zone                  |
  2024-01-01 00:00:06.000 | d1002                          | Shanghai-zone                  |
  2024-01-01 00:00:09.000 | d1002                          | Shanghai-zone                  |
- 2024-01-01 00:00:09.000 | d1002                          | Shanghai-zone                  |
- 2024-01-01 00:00:09.000 | d1002                          | Shanghai-zone                  |
  2024-01-01 00:00:12.000 | d1002                          | Shanghai-zone                  |
  2024-01-01 00:00:00.000 | d1003                          | Shenzhen-zone                  |
- 2024-01-01 00:00:00.000 | d1003                          | Shenzhen-zone                  |
- 2024-01-01 00:00:00.000 | d1003                          | Shenzhen-zone                  |
- 2024-01-01 00:00:03.000 | d1003                          | Shenzhen-zone                  |
  2024-01-01 00:00:03.000 | d1003                          | Shenzhen-zone                  |
  2024-01-01 00:00:06.000 | d1003                          | Shenzhen-zone                  |
  2024-01-01 00:00:09.000 | d1003                          | Shenzhen-zone                  |
- 2024-01-01 00:00:09.000 | d1003                          | Shenzhen-zone                  |
- 2024-01-01 00:00:09.000 | d1003                          | Shenzhen-zone                  |
  2024-01-01 00:00:12.000 | d1003                          | Shenzhen-zone                  |
- 2024-01-01 00:00:00.000 | d_null                         | NullCity-zone                  |
- 2024-01-01 00:00:00.000 | d_null                         | NullCity-zone                  |
  2024-01-01 00:00:00.000 | d_null                         | NullCity-zone                  |
 
 taos> select _wstart, _wend, _wduration, ts, current from d1001 interval(3s);
