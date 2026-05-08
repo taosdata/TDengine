@@ -385,6 +385,7 @@ The `kafka/produce` action publishes data to the specified topic. It supports ob
 ### Format for Writing Data to InfluxDB Action
 
 The `influxdb/write` action writes data to the specified InfluxDB Bucket via the InfluxDB v2 Write API in line protocol format. It supports obtaining data from generator or CSV file sources and allows users to control timestamp attributes via various strategies. It also provides rich write control strategies for optimization.
+
 - schema: Uses global schema configuration by default; can be overridden for this action. The `name` field in the schema will be used as the InfluxDB measurement name.
 - concurrency (int): Number of concurrent write threads, default: 8.
 - failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
