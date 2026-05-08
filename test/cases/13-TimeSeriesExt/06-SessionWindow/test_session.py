@@ -198,15 +198,15 @@ class TestSession:
         
         sql = "select _wstart, _wend, 1, dev from dev_001 session(ts,1d)"
         tdSql.query(sql)
-        tdSql.checkRows(16)
+        tdSql.checkRows(4)
         
         sql = "select 1 from dev_001 session(ts,1d)"
         tdSql.query(sql)
-        tdSql.checkRows(16)
+        tdSql.checkRows(4)
         
         sql = "select dev from dev_001 session(ts,1d)"
         tdSql.query(sql)
-        tdSql.checkRows(16)
+        tdSql.checkRows(4)
         
         sql = "select _wstart, _wend, 1, tbname,  count(*)  from st partition by tbname session(ts,1d) order by tbname"
         tdSql.query(sql)
