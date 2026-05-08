@@ -1472,6 +1472,7 @@ typedef struct {
   SRWLatch     lock;
 } SGrantLogObj;
 
+
 #ifdef __cplusplus
 }
 #endif
