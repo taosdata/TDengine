@@ -127,13 +127,13 @@ int32_t tsAuthReqInterval = 2592000;
 int32_t tsAuthReqHBInterval = 5;
 char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
 bool    tsClsEnabled = 0;
-char    tsClsUrl[TSDB_FQDN_LEN] = {0};
-char    tsClsLicenseId[TSDB_FQDN_LEN] = {0};
-char    tsClsQuotaSlotId[TSDB_FQDN_LEN] = {0};
+char    tsClsUrl[TSDB_GRANT_CLS_URL_LEN] = {0};
+char    tsClsLicenseId[TSDB_GRANT_CLS_ID_LEN] = {0};
+char    tsClsQuotaSlotId[TSDB_GRANT_CLS_ID_LEN] = {0};
 int32_t tsClsRefreshInterval = 3600;
-char    tsClsLastSucTime[TSDB_FQDN_LEN] = {0};
-char    tsClsLastReqTime[TSDB_FQDN_LEN] = {0};
-char    tsClsLastFailReason[TSDB_FQDN_LEN] = {0};
+char    tsClsLastSucTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
+char    tsClsLastReqTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
+char    tsClsLastFailReason[TSDB_GRANT_CLS_REASON_LEN] = {0};
 int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
@@ -1850,16 +1850,16 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsClsRefreshInterval = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsUrl");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsClsUrl, pItem->str, TSDB_FQDN_LEN);
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_URL_LEN));
+  tstrncpy(tsClsUrl, pItem->str, TSDB_GRANT_CLS_URL_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLicenseId");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
+  tstrncpy(tsClsLicenseId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsQuotaSlotId");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_FQDN_LEN);
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
+  tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
   TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
@@ -3009,18 +3009,18 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
   if (strcasecmp(name, "clsUrl") == 0) {
-    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
-    tstrncpy(tsClsUrl, pItem->str, TSDB_FQDN_LEN);
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_URL_LEN), &lino, _exit);
+    tstrncpy(tsClsUrl, pItem->str, TSDB_GRANT_CLS_URL_LEN);
     goto _exit;
   }
   if (strcasecmp(name, "clsLicenseId") == 0) {
-    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
-    tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
+    tstrncpy(tsClsLicenseId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
     goto _exit;
   }
   if (strcasecmp(name, "clsQuotaSlotId") == 0) {
-    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
-    tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_FQDN_LEN);
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
+    tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
     goto _exit;
   }
   if (strcasecmp(name, "clsRefreshInterval") == 0) {
