@@ -9,6 +9,7 @@ Covers:
 - P2 Task 2.3: WHERE / CAST / JOIN time literal parsing (L2 -> L3 -> L5)
 - P2 Task 2.5: TODAY() connection timezone (L2 -> L3 -> L5)
 - NOW() regression (unchanged behavior)
+- P2: INTERVAL window aggregation gap coverage (session timezone not fully wired yet)
 - P6 Task 6.1/6.2: TIMEZONE([0|1]) function
 """
 
@@ -387,7 +388,10 @@ class TestDisplayTimezone:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts}, 1)')
 
-    @pytest.mark.skip(reason="P2: SELECT ts display does not yet use connection timezone")
+    @pytest.mark.skip(
+        reason="P2: Python connector converts timestamps to system timezone datetime; "
+               "SELECT ts display with connection timezone is only visible via taos CLI"
+    )
     def test_select_ts_uses_connection_tz(self):
         """SELECT ts should display differently with different connection timezones."""
         self.prepare_data()
@@ -456,7 +460,6 @@ class TestWhereCastJoinTz:
         for ts, c1 in [(1768435200000, 10), (1768478400000, 20)]:
             tdSql.execute(f'insert into {self.ntbname2} values ({ts}, {c1})')
 
-    @pytest.mark.skip(reason="P2: WHERE clause does not yet use connection timezone")
     def test_where_uses_connection_tz(self):
         """WHERE '2026-01-15 12:00:00' should match different rows with different L2.
 
@@ -534,7 +537,6 @@ class TestTodayNowTz:
         tdSql.query("select today()")
         assert tdSql.queryResult[0][0] is not None
 
-    @pytest.mark.skip(reason="P2: TODAY() does not yet use connection timezone")
     def test_today_utc_returns_midnight(self):
         """TODAY() with UTC should return a midnight-aligned timestamp."""
         self.prepare_data()
@@ -544,7 +546,9 @@ class TestTodayNowTz:
         if isinstance(val, int):
             assert val % 86400000 == 0, f"TODAY() in UTC should be midnight: {val}"
         elif isinstance(val, datetime.datetime):
-            assert val.hour == 0 and val.minute == 0 and val.second == 0
+            ts_ms = int(val.timestamp() * 1000)
+            assert ts_ms % 86400000 == 0, \
+                f"TODAY() in UTC should be midnight-aligned (ms): {ts_ms}"
 
     def test_today_not_affected_by_server_tz(self):
         """TODAY() is client-side (L2->L3->L5), not server-side L4."""
@@ -569,3 +573,106 @@ class TestTodayNowTz:
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
         tdSql.query("select now()")
         assert tdSql.queryResult[0][0] is not None
+
+
+class TestIntervalTimezone:
+    """INTERVAL window aggregation with different connection timezones (P2).
+
+    Different timezones shift "one day" boundaries, so the same data
+    grouped by interval(1d) should produce different bucket counts or
+    different per-bucket aggregation results.
+    """
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+        cls.dbname = 'db_tz_intv_cmp'
+        cls.ntbname = f'{cls.dbname}.ntb'
+
+    def prepare_data(self):
+        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.ntbname}')
+        tdSql.execute(f'create table {self.ntbname} (ts timestamp, val int)')
+        # Insert 6 rows spanning UTC 2026-01-14 20:00 ~ 2026-01-15 10:00 (2h apart)
+        # UTC day boundary: 2026-01-15 00:00  -> splits 2+4 = 6 rows
+        # Shanghai (UTC+8) day boundary: 2026-01-14 16:00 UTC (= Jan15 00:00 CST)
+        #   In Shanghai tz, all 6 rows fall on Jan 15 -> 1 bucket
+        base = 1768420800000  # 2026-01-14 20:00:00 UTC
+        for i in range(6):
+            ts = base + i * 7200000  # every 2 hours
+            tdSql.execute(f'insert into {self.ntbname} values ({ts}, {i + 1})')
+
+    @pytest.mark.skip(
+        reason="P2 gap: interval(1d) still uses server timezone in current implementation; "
+               "enable this assertion after session timezone is wired into interval windows"
+    )
+    def test_interval_1d_different_tz_different_buckets(self):
+        """interval(1d) should produce different bucket counts under UTC vs Asia/Shanghai.
+
+        Data: 6 rows from 2026-01-14 20:00 to 2026-01-15 06:00 UTC (every 2h).
+        - UTC: 2 rows in Jan-14 bucket (20:00, 22:00) + 4 rows in Jan-15 (00:00..06:00) = 2 buckets
+        - Shanghai: all 6 rows fall on Jan-15 CST (04:00..14:00 CST) = 1 bucket
+
+        Currently interval window alignment uses server timezone (L4), not
+        session timezone (L2). Keep this test skipped until interval respects
+        SET TIMEZONE, then it should assert the 2-bucket vs 1-bucket split.
+        """
+        self.prepare_data()
+
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query(
+            f"select _wstart, count(*) from {self.ntbname} interval(1d)"
+        )
+        utc_buckets = tdSql.queryRows
+
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query(
+            f"select _wstart, count(*) from {self.ntbname} interval(1d)"
+        )
+        sh_buckets = tdSql.queryRows
+
+        assert utc_buckets == 2, f"UTC should have 2 daily buckets, got {utc_buckets}"
+        assert sh_buckets == 1, f"Shanghai should have 1 daily bucket, got {sh_buckets}"
+
+    def test_interval_1h_same_across_tz(self):
+        """interval(1h) should produce the same number of buckets regardless of timezone.
+
+        Hourly boundaries are timezone-independent (always 3600s aligned).
+        Note: Test data is in January (UTC+0, no DST), so DST-related edge cases do not apply.
+        """
+        self.prepare_data()
+
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query(
+            f"select _wstart, count(*) from {self.ntbname} interval(1h)"
+        )
+        utc_buckets = tdSql.queryRows
+
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query(
+            f"select _wstart, count(*) from {self.ntbname} interval(1h)"
+        )
+        sh_buckets = tdSql.queryRows
+
+        assert utc_buckets == sh_buckets, \
+            f"1h interval should be same across timezones: UTC={utc_buckets}, SH={sh_buckets}"
+
+    def test_interval_1d_sum_consistent(self):
+        """Total sum across all buckets must be the same regardless of timezone."""
+        self.prepare_data()
+
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query(
+            f"select _wstart, sum(val) from {self.ntbname} interval(1d)"
+        )
+        utc_total = sum(int(r[1]) for r in tdSql.queryResult)
+
+        tdSql.execute("SET TIMEZONE 'America/New_York'")
+        tdSql.query(
+            f"select _wstart, sum(val) from {self.ntbname} interval(1d)"
+        )
+        ny_total = sum(int(r[1]) for r in tdSql.queryResult)
+
+        expected = sum(range(1, 7))  # 1+2+3+4+5+6 = 21
+        assert utc_total == expected, f"UTC sum should be {expected}, got {utc_total}"
+        assert ny_total == expected, f"NY sum should be {expected}, got {ny_total}"
