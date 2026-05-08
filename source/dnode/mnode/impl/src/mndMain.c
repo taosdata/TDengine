@@ -632,7 +632,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
   }
 #endif
 
-  pMnode->pWal = walOpen(path, &cfg);
+  pMnode->pWal = walOpen(path, &cfg, pMnode->syncMgmt.numOfReplicas);
   if (pMnode->pWal == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
