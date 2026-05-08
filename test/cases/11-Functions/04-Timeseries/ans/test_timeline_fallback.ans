@@ -1191,6 +1191,18 @@ taos> select first(val) from (select val, grp from t_grp) partition by grp order
           10 |
           30 |
 
+taos> select grp, last(val), state_col from (select val, grp, state_col from t_grp_state) partition by grp order by grp;
+     grp     |  last(val)  |  state_col  |
+==========================================
+           1 |          30 |           1 |
+           2 |          60 |           2 |
+
+taos> select grp, first(val), state_col from (select val, grp, state_col from t_grp_state) partition by grp order by grp;
+     grp     | first(val)  |  state_col  |
+==========================================
+           1 |          10 |           1 |
+           2 |          40 |           1 |
+
 taos> select last(val) from (select event_time, val from t_null_ts);
   last(val)  |
 ==============

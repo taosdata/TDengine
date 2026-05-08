@@ -14,11 +14,11 @@
 """
 Test: Timeline Fallback & Primary Key Behavior Matrix
 
-Two independent test cases sharing the same database setup:
+Two Python matrix tests share the same database setup:
   1. test_pk_baseline — original primary key behavior (Section A-G)
   2. test_degraded_timeline — degraded timestamp fallback behavior (Section H-HG)
 
-Database and tables are created once in _init_data(), called by each test.
+The Python matrix tests call _init_data(); test_timeline_fallback uses its own .in/.ans script data.
 
 Since:  v3.4.1.0
 Labels: function, timeseries, timeline_fallback, subquery

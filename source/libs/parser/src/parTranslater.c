@@ -9731,6 +9731,33 @@ static SNode* findProjectionByAlias(SNode* pSubquery, const char* alias) {
   return NULL;
 }
 
+static bool hasUniqueProjectionAlias(SNode* pSubquery, const char* alias) {
+  SNodeList* pProjectionList = getProjectList(pSubquery);
+  if (NULL == pProjectionList) {
+    return false;
+  }
+
+  int32_t matches = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 == strcmp(alias, pExpr->userAlias) || 0 == strcmp(alias, pExpr->aliasName)) {
+      if (++matches > 1) {
+        return false;
+      }
+    }
+  }
+
+  return 1 == matches;
+}
+
+static bool sessionWindowMatchesOrderColumn(SColumnNode* pSessionCol, SColumnNode* pOrderCol) {
+  return nodesEqualNode((SNode*)pSessionCol, (SNode*)pOrderCol) ||
+         (pSessionCol->slotId == pOrderCol->slotId && pSessionCol->projIdx == pOrderCol->projIdx &&
+          pSessionCol->colId == pOrderCol->colId && pSessionCol->tableId == pOrderCol->tableId &&
+          pSessionCol->dataBlockId == pOrderCol->dataBlockId);
+}
+
 static bool sessionWindowMatchesOrderExpr(SSessionWindowNode* pSession, SNode* pSubquery, SNode* pExpr) {
   if (NULL == pExpr) {
     return false;
@@ -9738,7 +9765,11 @@ static bool sessionWindowMatchesOrderExpr(SSessionWindowNode* pSession, SNode* p
 
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pOrderCol = (SColumnNode*)pExpr;
-    if (0 == strcmp(pOrderCol->colName, pSession->pCol->colName)) {
+    if (sessionWindowMatchesOrderColumn(pSession->pCol, pOrderCol)) {
+      return true;
+    }
+    if (0 == strcmp(pOrderCol->colName, pSession->pCol->colName) && hasUniqueProjectionAlias(pSubquery, pSession->pCol->colName) &&
+        isPrimaryKeyImpl((SNode*)pSession->pCol) && isPrimaryKeyImpl((SNode*)pOrderCol)) {
       return true;
     }
   }
@@ -10211,8 +10242,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   // getQueryTimeRange returns TSWINDOW_INITIALIZER since filterPartitionCond won't
   // recognize it as primary key. Retry extraction directly from pRange.
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pRange) {
-    STimeWindow initWin = TSWINDOW_INITIALIZER;
-    if (0 == memcmp(&pFill->timeRange, &initWin, sizeof(STimeWindow))) {
+    if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER)) {
       SNode* pCondCopy = NULL;
       code = nodesCloneNode(pSelect->pRange, &pCondCopy);
       if (TSDB_CODE_SUCCESS == code && NULL != pCondCopy) {

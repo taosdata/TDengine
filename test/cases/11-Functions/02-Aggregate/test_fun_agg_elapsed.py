@@ -1795,6 +1795,7 @@ class TestFunElapsed:
         tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from stable_1);")
         # # bug fix - elapsed now supports degraded timestamp columns
         tdSql.query("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
+        tdSql.checkRows(1)
 
         #TD-19911
         tdSql.error("select elapsed(ts,1s,123) from (select ts,tbname from stable_1 order by ts asc );")

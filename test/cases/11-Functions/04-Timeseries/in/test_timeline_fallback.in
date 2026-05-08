@@ -285,6 +285,8 @@ select last(val) from (select val from t_single);
 select last(val) from (select event_time, val from t1 where val > 9999);
 select last(val) from (select val, grp from t_grp) partition by grp order by grp;
 select first(val) from (select val, grp from t_grp) partition by grp order by grp;
+select grp, last(val), state_col from (select val, grp, state_col from t_grp_state) partition by grp order by grp;
+select grp, first(val), state_col from (select val, grp, state_col from t_grp_state) partition by grp order by grp;
 ## ========================================================================
 ## AA: NULL fallback TS — selection functions
 ## ========================================================================

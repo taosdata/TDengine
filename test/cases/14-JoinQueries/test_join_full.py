@@ -5395,6 +5395,8 @@ class TestJoinFull:
         tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
 
         tdSql.error(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts state_window(b.col1);"
