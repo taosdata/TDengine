@@ -6,6 +6,7 @@ function usage() {
     echo -e "\t -d execution dir"
     echo -e "\t -c command"
     echo -e "\t -t thread number"
+    echo -e "\t -n container name"
     echo -e "\t -e enterprise edition"
     echo -e "\t -o default timeout value"
     echo -e "\t -s build with sanitizer"
@@ -13,7 +14,8 @@ function usage() {
 }
 
 ent=0
-while getopts "w:d:c:t:o:s:eh" opt; do
+container_name=""
+while getopts "w:d:c:t:n:o:s:eh" opt; do
     case $opt in
         w)
             WORKDIR=$OPTARG
@@ -26,6 +28,9 @@ while getopts "w:d:c:t:o:s:eh" opt; do
             ;;
         t)
             thread_no=$OPTARG
+            ;;
+        n)
+            container_name=$OPTARG
             ;;
         e)
             ent=1
@@ -43,7 +48,7 @@ while getopts "w:d:c:t:o:s:eh" opt; do
         \?)
             echo "Invalid option: -$OPTARG"
             usage
-            exit 0
+            exit 1
             ;;
     esac
 done
@@ -128,6 +133,9 @@ if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
     coredump_dir="/home/coredump"
 fi
 
+_name_opt=""
+[ -n "$container_name" ] && _name_opt="--name $container_name"
+
 echo "docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
@@ -136,7 +144,7 @@ echo "docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param"
+    --rm --ulimit core=-1 ${_name_opt} tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param"
 docker run \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
@@ -145,6 +153,6 @@ docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    --rm --ulimit core=-1 ${_name_opt} tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 exit $ret
