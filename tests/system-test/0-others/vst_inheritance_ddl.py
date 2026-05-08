@@ -97,7 +97,36 @@ class TDTestCase:
         tdSql.query(f"show vtable inherits")
         tdSql.checkRows(3)
 
-        tdLog.printNoPrefix("==========step10: ALTER ADD BASE ON")
+        tdLog.printNoPrefix("==========step10: error - column name conflict")
+        tdSql.execute(
+            f"create stable conflict_parent (ts timestamp, col_a1 int) "
+            f"tags (tag_conf int) virtual 1"
+        )
+        # col_a1 conflicts with parent_a.col_a1
+        tdSql.error(
+            f"create stable conflict_child (ts timestamp, own_col int) "
+            f"tags (own_tag int) base on {dbname}.parent_a, {dbname}.conflict_parent virtual 1"
+        )
+
+        tdLog.printNoPrefix("==========step11: error - tag name conflict")
+        tdSql.execute(
+            f"create stable tag_conflict_parent (ts timestamp, col_tc int) "
+            f"tags (tag_a1 int) virtual 1"
+        )
+        # tag_a1 conflicts with parent_a.tag_a1
+        tdSql.error(
+            f"create stable tag_conflict_child (ts timestamp, own_col int) "
+            f"tags (own_tag int) base on {dbname}.parent_a, {dbname}.tag_conflict_parent virtual 1"
+        )
+
+        tdLog.printNoPrefix("==========step12: error - circular inheritance")
+        # parent_a already exists, child_single inherits from parent_a
+        # Try to make parent_a inherit from child_single → cycle
+        tdSql.error(
+            f"alter stable {dbname}.parent_a add base on {dbname}.child_single"
+        )
+
+        tdLog.printNoPrefix("==========step13: ALTER ADD BASE ON")
         tdSql.execute(
             f"create stable parent_new (ts timestamp, col_new int) "
             f"tags (tag_new binary(8)) virtual 1"
@@ -109,7 +138,7 @@ class TDTestCase:
                     f"where child_stable_name = 'child_single'")
         tdSql.checkRows(2)
 
-        tdLog.printNoPrefix("==========step11: ALTER DROP BASE ON")
+        tdLog.printNoPrefix("==========step14: ALTER DROP BASE ON")
         tdSql.execute(
             f"alter stable {dbname}.child_single drop base on {dbname}.parent_new"
         )
@@ -117,7 +146,31 @@ class TDTestCase:
                     f"where child_stable_name = 'child_single'")
         tdSql.checkRows(1)
 
-        tdLog.printNoPrefix("==========step12: cleanup")
+        tdLog.printNoPrefix("==========step15: SHOW CREATE STABLE with BASE ON")
+        tdSql.query(f"show create stable {dbname}.child_single")
+        tdSql.checkRows(1)
+        create_stmt = tdSql.queryResult[0][1]
+        tdLog.info(f"SHOW CREATE STABLE child_single: {create_stmt}")
+        if "BASE ON" not in create_stmt:
+            tdLog.exit("SHOW CREATE STABLE should contain BASE ON clause")
+
+        tdLog.printNoPrefix("==========step16: non-leaf VST cannot have VCT")
+        # parent_a has child_single as a child - it's non-leaf
+        # Try creating a VCT under parent_a - should fail
+        tdSql.error(
+            f"create vtable vct_on_nonleaf using {dbname}.parent_a "
+            f"tags (tag_a1 1) (ts `{dbname}`.`parent_a`.`ts`, col_a1 `{dbname}`.`parent_a`.`col_a1`)"
+        )
+
+        tdLog.printNoPrefix("==========step17: verify leaf VST can still have VCT")
+        # child_multi is a leaf - should be able to create VCT
+        # (This tests positive VCT creation on leaf)
+        tdSql.execute(
+            f"create vtable vct_on_leaf using {dbname}.child_multi "
+            f"tags (own_t1 100) (ts `{dbname}`.`child_multi`.`ts`, own_c1 `{dbname}`.`child_multi`.`own_c1`)"
+        )
+
+        tdLog.printNoPrefix("==========step18: cleanup")
         tdSql.execute(f"drop database {dbname}")
 
     def stop(self):
