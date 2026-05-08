@@ -95,7 +95,7 @@ endlocal
 
 ## 3. Windows（PowerShell）
 
-**步骤 1：创建证书配置文件**
+### 步骤 1：创建证书配置文件
 
 ```powershell
 @"
@@ -116,7 +116,7 @@ subjectAltName = URI:urn:taosx-opc:client
 "@ | Out-File -Encoding ascii C:\tmp\opcua_client_ext.cnf
 ```
 
-**步骤 2：生成证书与私钥（有效期 10 年）**
+### 步骤 2：生成证书与私钥（有效期 10 年）
 
 ```powershell
 mkdir C:\taosx_certs -Force
