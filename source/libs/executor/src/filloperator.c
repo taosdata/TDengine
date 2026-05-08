@@ -85,7 +85,8 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
 
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
-  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
+  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_NEAR ||
+      pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
     int32_t code = fillResetPrevForNewGroup(pInfo->pFillInfo);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));

@@ -34,8 +34,15 @@ _STD_ROWS = [
 
 
 def _ms_to_dt(ms_ts):
-    """Return 'YYYY-MM-DD HH:MM:SS.mmm' (UTC) for a millisecond timestamp."""
-    dt = _datetime.datetime.fromtimestamp(ms_ts / 1000.0, tz=_datetime.timezone.utc)
+    """Return 'YYYY-MM-DD HH:MM:SS.mmm' (local time) for a millisecond timestamp.
+
+    MySQL DATETIME and PG TIMESTAMP (without tz) are timezone-naive: they store
+    the literal string and are NOT affected by SET time_zone / SET TIME ZONE.
+    The TDengine ext-connector parses these strings using the taosd system
+    timezone, so the inserted strings must be in *local* time so that the
+    round-trip epoch is correct.
+    """
+    dt = _datetime.datetime.fromtimestamp(ms_ts / 1000.0)
     return dt.strftime('%Y-%m-%d %H:%M:%S.') + f"{ms_ts % 1000:03d}"
 
 
@@ -949,6 +956,33 @@ class ExtSrcEnv:
         """Drop MySQL database on a specific version instance (idempotent)."""
         cls.mysql_exec_cfg(cfg, None, [f"DROP DATABASE IF EXISTS `{db}`"])
 
+    @classmethod
+    def mysql_kill_sleeping_connections_cfg(cls, cfg):
+        """Kill all sleeping (idle) connections on a specific MySQL instance.
+
+        TDengine keeps external-source connections open after queries; calling
+        this before each test prevents 'Too many connections' errors.
+        """
+        import pymysql
+        conn = pymysql.connect(
+            host=cfg.host, port=cfg.port,
+            user=cfg.user, password=cfg.password,
+            connect_timeout=10)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id FROM information_schema.processlist "
+                    "WHERE command = 'Sleep' AND id <> CONNECTION_ID()")
+                rows = cur.fetchall()
+            for (pid,) in rows:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(f"KILL CONNECTION {pid}")
+                except Exception:
+                    pass
+        finally:
+            conn.close()
+
     # ---- PostgreSQL helpers ----
 
     @classmethod
@@ -1345,6 +1379,7 @@ class FederatedQueryTestMixin:
         # ----- MySQL -----
         if not skip_mysql:
             self._cleanup_src(m_src)
+            ExtSrcEnv.mysql_kill_sleeping_connections_cfg(self._mysql_cfg())
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
             try:
                 ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, [
@@ -1435,6 +1470,7 @@ class FederatedQueryTestMixin:
         # ----- MySQL -----
         if not skip_mysql and mysql_setup:
             self._cleanup_src(m_src)
+            ExtSrcEnv.mysql_kill_sleeping_connections_cfg(self._mysql_cfg())
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
             try:
                 ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), m_db, mysql_setup)
@@ -1834,7 +1870,7 @@ class FederatedQueryCaseHelper:
 
     def require_external_source_feature(self):
         if tdSql.query("show external sources", exit=False) is False:
-            pytest.skip("external source feature is unavailable in current build")
+            pytest.fail("external source feature is unavailable in current build")
         # Ensure federatedQueryEnable is active in this client process.
         # taos_init reads psim/cfg/taos.cfg (which has federatedQueryEnable 1),
         # but call alter local as a belt-and-suspenders guarantee.
