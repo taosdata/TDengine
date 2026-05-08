@@ -508,66 +508,10 @@ class ExtSrcEnv:
             yield _InfluxVerCfg(ver, cls.INFLUX_HOST, port,
                                 cls.INFLUX_TOKEN, cls.INFLUX_ORG)
 
-    # ---- Container lifecycle helpers (for unreachability tests) ----
-    #
-    # Container names are resolved via env vars with sensible defaults:
-    #   FQ_MYSQL_CONTAINER_57  (default: fq-mysql-5.7)
-    #   FQ_MYSQL_CONTAINER_80  (default: fq-mysql-8.0)
-    #   FQ_MYSQL_CONTAINER_84  (default: fq-mysql-8.4)
-    #   FQ_PG_CONTAINER_14     (default: fq-pg-14)   etc.
-    #   FQ_PG_CONTAINER_15     (default: fq-pg-15)
-    #   FQ_PG_CONTAINER_16     (default: fq-pg-16)
-    #   FQ_PG_CONTAINER_17     (default: fq-pg-17)
-    #   FQ_INFLUX_CONTAINER_30 (default: fq-influx-3.0)
-    #   FQ_INFLUX_CONTAINER_35 (default: fq-influx-3.5)
+    # ---- Service lifecycle helpers (for unreachability tests) ----
     #
     # Tests that need to stop/start a real instance call these helpers and
     # wrap the body with try/finally to guarantee the instance is restarted.
-
-    @classmethod
-    def _mysql_container_name(cls, ver):
-        tag = ver.replace(".", "")
-        return os.getenv(f"FQ_MYSQL_CONTAINER_{tag}", f"fq-mysql-{ver}")
-
-    @classmethod
-    def _pg_container_name(cls, ver):
-        tag = ver.replace(".", "")
-        return os.getenv(f"FQ_PG_CONTAINER_{tag}", f"fq-pg-{ver}")
-
-    @classmethod
-    def _influx_container_name(cls, ver):
-        tag = ver.replace(".", "")
-        return os.getenv(f"FQ_INFLUX_CONTAINER_{tag}", f"fq-influx-{ver}")
-
-    @classmethod
-    def _docker_container_running(cls, container_name):
-        """Return True iff docker is available and the named container is running."""
-        import subprocess, shutil
-        if not shutil.which("docker"):
-            return False
-        try:
-            r = subprocess.run(
-                ["docker", "inspect", "--format={{.State.Running}}", container_name],
-                capture_output=True, text=True, timeout=10,
-            )
-            return r.returncode == 0 and r.stdout.strip() == "true"
-        except Exception:
-            return False
-
-    @classmethod
-    def _docker_container_exists(cls, container_name):
-        """Return True iff docker is available and the named container exists (any state)."""
-        import subprocess, shutil
-        if not shutil.which("docker"):
-            return False
-        try:
-            r = subprocess.run(
-                ["docker", "inspect", "--format={{.State.Status}}", container_name],
-                capture_output=True, text=True, timeout=10,
-            )
-            return r.returncode == 0
-        except Exception:
-            return False
 
     @classmethod
     def _kill_process_by_pidfile(cls, pidfile, wait_s=30):
@@ -589,42 +533,55 @@ class ExtSrcEnv:
             pass
 
     @classmethod
+    def _kill_process_sigkill(cls, pidfile, pid_first_line=False):
+        """Send SIGKILL immediately to a process identified by pidfile."""
+        import os, signal
+        with open(pidfile) as _pf:
+            content = _pf.read().strip()
+            pid = int(content.split('\n')[0] if pid_first_line else content)
+        os.kill(pid, signal.SIGKILL)
+
+    @classmethod
+    def kill_mysql_instance(cls, ver):
+        """Send SIGKILL to the MySQL process."""
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+        cls._kill_process_sigkill(pidfile)
+
+    @classmethod
+    def kill_pg_instance(cls, ver):
+        """Send SIGKILL to the PostgreSQL process."""
+        # postmaster.pid: first line is PID
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        pidfile = os.path.join(fq_base, "pg", ver, "data", "postmaster.pid")
+        cls._kill_process_sigkill(pidfile, pid_first_line=True)
+
+    @classmethod
+    def kill_influx_instance(cls, ver):
+        """Send SIGKILL to the InfluxDB process."""
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
+        cls._kill_process_sigkill(pidfile)
+
+    @classmethod
     def stop_mysql_instance(cls, ver):
         """Stop the MySQL instance for the given version.
 
-        Supports both Docker-based and bare-metal deployments.
         After this call the MySQL port for 'ver' is unreachable.
         Always pair with start_mysql_instance() in a try/finally block.
         """
-        import subprocess
-        container = cls._mysql_container_name(ver)
-        if cls._docker_container_running(container):
-            subprocess.run(["docker", "stop", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: kill mysqld via its pidfile.
-            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-            pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
-            cls._kill_process_by_pidfile(pidfile)
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+        cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
     def start_mysql_instance(cls, ver, wait_s=30):
-        """Start the MySQL instance for the given version and wait until ready.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
+        """Start the MySQL instance for the given version and wait until ready."""
         import subprocess, time
-        container = cls._mysql_container_name(ver)
-        if cls._docker_container_exists(container):
-            subprocess.run(["docker", "start", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: restart via ensure_ext_env.sh which handles
-            # "installed but stopped" and is fully idempotent.
-            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                  "ensure_ext_env.sh")
-            subprocess.run(["bash", script],
-                           check=True, capture_output=False, timeout=120)
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "ensure_ext_env.sh")
+        subprocess.run(["bash", script],
+                       check=True, capture_output=False, timeout=120)
         # Wait for the port to become accepting connections
         cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
@@ -643,46 +600,28 @@ class ExtSrcEnv:
 
     @classmethod
     def stop_pg_instance(cls, ver):
-        """Stop the PostgreSQL instance for the given version.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
+        """Stop the PostgreSQL instance for the given version."""
         import subprocess
-        container = cls._pg_container_name(ver)
-        if cls._docker_container_running(container):
-            subprocess.run(["docker", "stop", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: stop via pg_ctl.
-            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-            datadir = os.path.join(fq_base, "pg", ver, "data")
-            pg_ctl_bin = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl")
-            import pwd as _pwd
-            try:
-                pg_owner = _pwd.getpwuid(os.stat(datadir).st_uid).pw_name
-                cmd = ["runuser", "-u", pg_owner, "--",
-                       pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
-            except (KeyError, PermissionError):
-                cmd = [pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
-            subprocess.run(cmd, check=True, capture_output=True, timeout=30)
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        datadir = os.path.join(fq_base, "pg", ver, "data")
+        pg_ctl_bin = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl")
+        import pwd as _pwd
+        try:
+            pg_owner = _pwd.getpwuid(os.stat(datadir).st_uid).pw_name
+            cmd = ["runuser", "-u", pg_owner, "--",
+                   pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
+        except (KeyError, PermissionError):
+            cmd = [pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=30)
 
     @classmethod
     def start_pg_instance(cls, ver, wait_s=10):
-        """Start the PostgreSQL instance for the given version and wait until ready.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
+        """Start the PostgreSQL instance for the given version and wait until ready."""
         import subprocess, time
-        container = cls._pg_container_name(ver)
-        if cls._docker_container_exists(container):
-            subprocess.run(["docker", "start", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: start via ensure_ext_env.sh.
-            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                  "ensure_ext_env.sh")
-            subprocess.run(["bash", script],
-                           check=True, capture_output=False, timeout=120)
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "ensure_ext_env.sh")
+        subprocess.run(["bash", script],
+                       check=True, capture_output=False, timeout=120)
         cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
         import psycopg2
@@ -700,38 +639,19 @@ class ExtSrcEnv:
 
     @classmethod
     def stop_influx_instance(cls, ver):
-        """Stop the InfluxDB instance for the given version.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
-        import subprocess
-        container = cls._influx_container_name(ver)
-        if cls._docker_container_running(container):
-            subprocess.run(["docker", "stop", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: kill influxd via its pidfile.
-            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-            pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
-            cls._kill_process_by_pidfile(pidfile)
+        """Stop the InfluxDB instance for the given version."""
+        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
+        cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
     def start_influx_instance(cls, ver, wait_s=10):
-        """Start the InfluxDB instance for the given version and wait until ready.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
+        """Start the InfluxDB instance for the given version and wait until ready."""
         import subprocess, time, requests
-        container = cls._influx_container_name(ver)
-        if cls._docker_container_exists(container):
-            subprocess.run(["docker", "start", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: start via ensure_ext_env.sh.
-            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                  "ensure_ext_env.sh")
-            subprocess.run(["bash", script],
-                           check=True, capture_output=False, timeout=120)
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "ensure_ext_env.sh")
+        subprocess.run(["bash", script],
+                       check=True, capture_output=False, timeout=120)
         cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
         while time.time() < deadline:
@@ -745,91 +665,6 @@ class ExtSrcEnv:
             time.sleep(0.5)
         raise RuntimeError(
             f"InfluxDB {ver} did not become ready within {wait_s}s")
-
-    @classmethod
-    def stop_influx_instance(cls, ver):
-        """Stop the InfluxDB instance for the given version.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
-        import subprocess
-        container = cls._influx_container_name(ver)
-        if cls._docker_container_running(container):
-            subprocess.run(["docker", "stop", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: kill influxd via its pidfile.
-            fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-            pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
-            cls._kill_process_by_pidfile(pidfile)
-
-    @classmethod
-    def start_influx_instance(cls, ver, wait_s=10):
-        """Start the InfluxDB instance for the given version and wait until ready.
-
-        Supports both Docker-based and bare-metal deployments.
-        """
-        import subprocess, time, requests
-        container = cls._influx_container_name(ver)
-        if cls._docker_container_exists(container):
-            subprocess.run(["docker", "start", container],
-                           check=True, capture_output=True, timeout=30)
-        else:
-            # Bare-metal: start via ensure_ext_env.sh.
-            script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                  "ensure_ext_env.sh")
-            subprocess.run(["bash", script],
-                           check=True, capture_output=False, timeout=120)
-        cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
-        deadline = time.time() + wait_s
-        while time.time() < deadline:
-            try:
-                r = requests.get(f"http://{cfg.host}:{cfg.port}/health",
-                                 timeout=2)
-                if r.status_code == 200:
-                    return
-            except Exception:
-                pass
-            time.sleep(0.5)
-        raise RuntimeError(
-            f"InfluxDB {ver} did not become ready within {wait_s}s")
-
-    # ---- Network delay injection (for timeout/latency tests) ----
-    #
-    # Uses Linux tc(8) netem to add outgoing delay on the loopback interface.
-    # Requires: iproute2 installed and CAP_NET_ADMIN (or root).
-    # The delay applies globally to loopback, so tests using this must be
-    # run serially and must always call clear_net_delay() in finally blocks.
-    #
-    # Alternative: override FQ_NETEM_IFACE to target a specific interface.
-
-    _NETEM_IFACE = os.getenv("FQ_NETEM_IFACE", "lo")
-
-    @classmethod
-    def inject_net_delay(cls, delay_ms, jitter_ms=0):
-        """Add tc netem delay on loopback (or FQ_NETEM_IFACE).
-
-        Example: inject_net_delay(200) → every outgoing packet delayed 200ms.
-        Always call clear_net_delay() in a finally block.
-        """
-        import subprocess
-        iface = cls._NETEM_IFACE
-        # Remove any existing qdisc first (ignore error if none exists)
-        subprocess.run(["tc", "qdisc", "del", "dev", iface, "root"],
-                       capture_output=True)
-        netem_args = ["tc", "qdisc", "add", "dev", iface, "root",
-                      "netem", "delay", f"{delay_ms}ms"]
-        if jitter_ms:
-            netem_args += [f"{jitter_ms}ms"]
-        subprocess.run(netem_args, check=True, capture_output=True)
-
-    @classmethod
-    def clear_net_delay(cls):
-        """Remove tc netem delay added by inject_net_delay()."""
-        import subprocess
-        iface = cls._NETEM_IFACE
-        subprocess.run(["tc", "qdisc", "del", "dev", iface, "root"],
-                       capture_output=True)  # ignore error if already absent
 
     # ---- Version combo helpers (used by FederatedQueryVersionedMixin) ----
 
