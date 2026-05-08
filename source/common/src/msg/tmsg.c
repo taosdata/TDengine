@@ -1118,6 +1118,13 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
   }
+  // VST inheritance: ADD/DROP BASE ON
+  if (pReq->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pReq->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->numParents));
+    for (int32_t i = 0; i < pReq->numParents; ++i) {
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->parentStbFNames[i]));
+    }
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -1210,6 +1217,15 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
     }
     if (!tDecodeIsEnd(&decoder)) {
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+    }
+  }
+  // VST inheritance: ADD/DROP BASE ON
+  pReq->numParents = 0;
+  if ((pReq->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pReq->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) &&
+      !tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->numParents));
+    for (int32_t i = 0; i < pReq->numParents; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->parentStbFNames[i]));
     }
   }
   tEndDecode(&decoder);

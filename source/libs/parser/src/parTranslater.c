@@ -535,6 +535,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
+    .showType = QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VSTABLE_INHERITS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
     .showType = QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
@@ -15027,6 +15034,27 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCreateStbReq(pCxt, pStmt, &createReq);
   }
+  // Handle BASE ON inheritance fields
+  if (TSDB_CODE_SUCCESS == code && pStmt->pBaseOnList != NULL) {
+    int32_t numParents = LIST_LENGTH(pStmt->pBaseOnList);
+    if (numParents > TSDB_MAX_VST_PARENTS) {
+      code = TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED;
+    } else {
+      createReq.numParents = (int8_t)numParents;
+      createReq.ownColStart = createReq.numOfColumns;
+      createReq.ownTagStart = createReq.numOfTags;
+      int32_t idx = 0;
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pStmt->pBaseOnList) {
+        SRealTableNode* pParent = (SRealTableNode*)pNode;
+        SName           parentName = {0};
+        toName(pCxt->pParseCxt->acctId, pParent->table.dbName, pParent->table.tableName, &parentName);
+        code = tNameExtractFullName(&parentName, createReq.parentStbFNames[idx]);
+        if (TSDB_CODE_SUCCESS != code) break;
+        idx++;
+      }
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_STB, (FSerializeFunc)tSerializeSMCreateStbReq, &createReq);
   }
@@ -15189,6 +15217,26 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   }
 
   pAlterReq->numOfFields = taosArrayGetSize(pAlterReq->pFields);
+
+  // Handle BASE ON alter types
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pStmt->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    int32_t numParents = LIST_LENGTH(pStmt->pList);
+    if (numParents > TSDB_MAX_VST_PARENTS) {
+      return TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED;
+    }
+    pAlterReq->numParents = (int8_t)numParents;
+    int32_t idx = 0;
+    SNode*  pListNode = NULL;
+    FOREACH(pListNode, pStmt->pList) {
+      SRealTableNode* pParent = (SRealTableNode*)pListNode;
+      SName           parentName = {0};
+      toName(pCxt->pParseCxt->acctId, pParent->table.dbName, pParent->table.tableName, &parentName);
+      int32_t ret = tNameExtractFullName(&parentName, pAlterReq->parentStbFNames[idx]);
+      if (TSDB_CODE_SUCCESS != ret) return ret;
+      idx++;
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -28201,6 +28249,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_ROLES_STMT:
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_STREAMS_STMT:

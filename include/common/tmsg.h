@@ -1367,6 +1367,9 @@ typedef struct {
   SArray* pTypeMods;
   int8_t  secureDelete;
   int8_t  securityLevel;
+  // VST inheritance: for ADD_BASE_ON / DROP_BASE_ON
+  int8_t   numParents;
+  char     parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
