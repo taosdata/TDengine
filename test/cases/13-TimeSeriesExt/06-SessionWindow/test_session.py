@@ -136,7 +136,8 @@ class TestSession:
         tdLog.info(
             f"================> syntax error check not active ================> reactive"
         )
-        tdSql.error(f"select * from dev_001 session(ts,1w)")
+        tdSql.query(f"select * from dev_001 session(ts,1w)")
+        tdSql.checkRows(16)
         tdLog.info(
             f"disable this temporarily, session can not be directly applied to super table."
         )
@@ -192,7 +193,8 @@ class TestSession:
         tdSql.checkData(3, 2, 1)
         
         sql = "select _wstart, _wend, 1, ts from dev_001 session(ts,1d)"
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkRows(16)
         
         sql = "select _wstart, _wend, 1, dev from dev_001 session(ts,1d)"
         tdSql.query(sql)

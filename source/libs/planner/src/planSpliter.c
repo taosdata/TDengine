@@ -929,6 +929,9 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
   switch (pWin->winType) {
     case WINDOW_TYPE_INTERVAL:
     case WINDOW_TYPE_EXTERNAL:
+      if (!pWin->pFuncs && pWin->pProjs) {
+        return stbSplSplitSessionOrStateForBatch(pCxt, pInfo);
+      }
       return stbSplSplitIntervalForBatch(pCxt, pInfo);
     case WINDOW_TYPE_SESSION:
     case WINDOW_TYPE_STATE:
