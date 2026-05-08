@@ -111,9 +111,11 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 | `{id#-_}`   | All `-` in `{id}` replaced with `_`, then leading/trailing `_` trimmed                               | (if id contains `-`) `A_B_C`                |
 
 :::tip
+
 - After substitution, any remaining `.` and backticks `` ` `` in the subtable name are replaced with `_` to avoid producing illegal table names.
 - If the point ID does not contain a semicolon (so `ns` / `id` cannot be parsed), `{ns}` becomes an empty string and `{id}` becomes `Objects`.
 - The expression can be freely combined with static text, e.g. `t_{ns}_{id#/_}`.
+
 :::
 
 ##### Value Column Name & Value Transform
@@ -152,7 +154,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 - `<TagName>`: the tag column name.
 - `<Pattern>`: the tag value, either static text or one of the dynamic placeholders below.
 
-**OPC node attribute placeholders**
+###### OPC node attribute placeholders
 
 | Placeholder     | Description                                       |
 | --------------- | ------------------------------------------------- |
@@ -163,7 +165,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 
 Only these four attributes are supported; `NodeClass`, `ParentId`, etc. are not available in the expression. Empty attributes are replaced with the empty string.
 
-**Attribute character substitution `{Attr#XY}`**
+###### Attribute character substitution `{Attr#XY}`
 
 For `BrowseName` / `DisplayName` / `Description` / `Path`, the `{Attr#XY}` syntax replaces every occurrence of character `X` with character `Y` in the attribute value, and trims `Y` from the start/end of the result:
 
@@ -178,7 +180,7 @@ For `BrowseName` / `DisplayName` / `Description` / `Path`, the `{Attr#XY}` synta
 `{Attr#XY}` has higher priority than plain `{Attr}`; the engine processes `{Attr#XY}` first, then `{Attr}`.
 :::
 
-**Point ID placeholders**
+###### Point ID placeholders
 
 In addition to node attributes, the `<Pattern>` of a custom tag also supports placeholders derived from the point ID (OPC UA). All examples below use `ns=6;s=Device/Type/TagName`:
 
@@ -198,7 +200,7 @@ In addition to node attributes, the `<Pattern>` of a custom tag also supports pl
 | `{id/#/.}`  | Apply `{id/}` first, then `/` → `.`                  | `Device.Type`                        |
 | `{id_#_.}`  | Apply `{id_}` first, then `_` → `.`                  | (if id=`A_B_C`) `A.B`                |
 
-**Example**
+###### Example
 
 ```text
 VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::browse::{BrowseName};VARCHAR(200)::location::{Path#/_};INT::version::1

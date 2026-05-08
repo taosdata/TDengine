@@ -95,7 +95,7 @@ endlocal
 
 ## 3. Windows (PowerShell)
 
-**Step 1: Create the certificate config file**
+### Step 1: Create the certificate config file
 
 ```powershell
 @"
@@ -116,7 +116,7 @@ subjectAltName = URI:urn:taosx-opc:client
 "@ | Out-File -Encoding ascii C:\tmp\opcua_client_ext.cnf
 ```
 
-**Step 2: Generate the certificate and private key (valid for 10 years)**
+### Step 2: Generate the certificate and private key (valid for 10 years)
 
 ```powershell
 mkdir C:\taosx_certs -Force

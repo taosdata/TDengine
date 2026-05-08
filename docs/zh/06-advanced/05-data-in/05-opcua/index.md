@@ -154,7 +154,7 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 - `<TagName>`：标签列名。
 - `<Pattern>`：标签值，可为静态文本，或使用以下占位符在写入时动态生成。
 
-**OPC 节点属性占位符**
+###### OPC 节点属性占位符
 
 | 占位符          | 说明                           |
 | --------------- | ------------------------------ |
@@ -165,7 +165,7 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 
 仅支持以上四个属性；`NodeClass`、`ParentId` 等其他属性不可在表达式中引用。属性为空时替换为空字符串。
 
-**属性值字符替换 `{Attr#XY}`**
+###### 属性值字符替换 `{Attr#XY}`
 
 针对 `BrowseName` / `DisplayName` / `Description` / `Path`，可使用 `{Attr#XY}` 语法将属性值中所有的字符 `X` 替换为字符 `Y`，并修剪首尾的 `Y`：
 
@@ -180,7 +180,7 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 `{Attr#XY}` 的优先级高于普通 `{Attr}`，引擎会先处理 `{Attr#XY}`，再处理 `{Attr}`。
 :::
 
-**点位 ID 占位符**
+###### 点位 ID 占位符
 
 除节点属性外，自定义标签的 `<Pattern>` 还支持基于点位 ID 的占位符（OPC UA 场景），下表示例均以 `ns=6;s=Device/Type/TagName` 为例：
 
@@ -200,7 +200,7 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 | `{id/#/.}` | 先执行 `{id/}`，再将 `/` → `.`                | `Device.Type`            |
 | `{id_#_.}` | 先执行 `{id_}`，再将 `_` → `.`                | （若 id=`A_B_C`）`A.B`   |
 
-**示例**
+###### 示例
 
 ```text
 VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::browse::{BrowseName};VARCHAR(200)::location::{Path#/_};INT::version::1

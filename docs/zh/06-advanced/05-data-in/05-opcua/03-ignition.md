@@ -117,7 +117,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 进入 TDengine TSDB Explorer → **Data In** → **Create New Data In Task**，数据源类型选择 **OPC UA**。
 
-**连接配置**
+#### 连接配置
 
 | 配置项 | 值 | 说明 |
 | --- | --- | --- |
@@ -127,7 +127,9 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 | Secure Channel Certificate | 上传 `client_cert.pem` | 客户端证书 |
 | Certificate's Private Key | 上传 `client_key.pem` | 客户端私钥 |
 
-**认证配置**：选择 **Username** 标签页，填入 Ignition User Source 中已有的用户名与密码。
+#### 认证配置
+
+选择 **Username** 标签页，填入 Ignition User Source 中已有的用户名与密码。
 
 完成后再次点击 **Check Connection** 验证连通性：
 

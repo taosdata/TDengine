@@ -121,7 +121,7 @@ Once the certificate is generated, Ignition must explicitly trust it:
 
 In TDengine TSDB Explorer → **Data In** → **Create New Data In Task**, choose **OPC UA** as the source type.
 
-**Connection configuration**
+#### Connection Configuration
 
 | Setting | Value | Notes |
 | --- | --- | --- |
@@ -131,7 +131,9 @@ In TDengine TSDB Explorer → **Data In** → **Create New Data In Task**, choos
 | Secure Channel Certificate | Upload `client_cert.pem` | The client certificate |
 | Certificate's Private Key | Upload `client_key.pem` | The client private key |
 
-**Authentication**: switch to the **Username** tab and enter a username/password that exists in the configured Ignition User Source.
+#### Authentication
+
+Switch to the **Username** tab and enter a username/password that exists in the configured Ignition User Source.
 
 Run **Check Connection** again to validate:
 
