@@ -25,6 +25,8 @@ Design notes:
     - _run_all_modes() drives the four modes; per-mode assertions follow.
 """
 
+import os
+
 import pytest
 
 from new_test_framework.utils import tdLog, tdSql
@@ -348,6 +350,35 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         f"    {dump}"
                     )
 
+    # ------------------------------------------------------------------
+    # Strict-mode toggle (mirrors _verify_pushdown_explain in common)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_strict():
+        """Return True when ``FQ_EXPLAIN_STRICT`` is set to a truthy value.
+
+        Read on every call so the flag can be flipped between tests.
+        Mirrors the same semantics used by
+        ``FederatedQueryTestMixin._verify_pushdown_explain``.
+        """
+        return os.getenv("FQ_EXPLAIN_STRICT", "0").strip().lower() in (
+            "1", "true", "yes",
+        )
+
+    def _soft_assert(self, condition, msg):
+        """Assert *condition*; in non-strict mode log a warning instead.
+
+        Use for checks that validate features not yet fully implemented
+        (aggregate pushdown, DISTINCT, LIMIT/OFFSET, Type Mapping …).
+        When ``FQ_EXPLAIN_STRICT=1`` the check becomes a hard failure.
+        """
+        if condition:
+            return
+        if self._is_strict():
+            raise AssertionError(msg)
+        tdLog.info(f"[WARN] {msg}")
+
     # ==================================================================
     # FQ-EXPLAIN-001 ~ FQ-EXPLAIN-003: Basic EXPLAIN (all 4 modes)
     # ==================================================================
@@ -395,11 +426,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         results = self._run_all_modes(sql)
         self._assert_all_contain(results, "Federated Scan")
         self._assert_verbose_contain(results, "Remote SQL:")
-        # Type Mapping may not be implemented yet — check but don't fail
         for mode in VERBOSE_MODES:
             text = " ".join(results[mode])
             if "Type Mapping:" not in text:
-                tdLog.debug(f"  [{mode}] 'Type Mapping:' not found — feature may not be implemented yet")
+                self._soft_assert(False, f"[{mode}] 'Type Mapping:' not found in VERBOSE output")
             else:
                 self._assert_contain(results[mode], "<-", label=mode)
         self._check_analyze_metrics(results)
@@ -413,8 +443,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self._assert_all_contain(results, "Federated Scan")
         for mode in VERBOSE_MODES:
             text = " ".join(results[mode])
-            if "Pushdown:" not in text:
-                tdLog.debug(f"  [{mode}] 'Pushdown:' not found — feature may not be implemented yet")
+            self._soft_assert("Pushdown:" in text,
+                              f"[{mode}] 'Pushdown:' not found in VERBOSE output")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-005 [passed]")
 
@@ -425,8 +455,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self._assert_all_contain(results, "Federated Scan")
         for mode in VERBOSE_MODES:
             text = " ".join(results[mode])
-            if "columns=" not in text:
-                tdLog.debug(f"  [{mode}] 'columns=' not found — feature may not be implemented yet")
+            self._soft_assert("columns=" in text,
+                              f"[{mode}] 'columns=' not found in VERBOSE output")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-006 [passed]")
 
@@ -486,12 +516,12 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         sql = f"select ts, voltage from {_MYSQL_SRC}.sensor limit 2"
         results = self._run_all_modes(sql)
         self._assert_all_contain(results, "Federated Scan")
-        # LIMIT may or may not be pushed
         for mode in VERBOSE_MODES:
             lines = results[mode]
             remote_lines = [l for l in lines if "Remote SQL:" in l]
             has_limit = any("LIMIT" in l.upper() for l in remote_lines)
-            tdLog.debug(f"  [{mode}] LIMIT {'pushed' if has_limit else 'not pushed'}")
+            self._soft_assert(has_limit,
+                              f"[{mode}] LIMIT not pushed to Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-010 [passed]")
 
@@ -506,10 +536,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             lines = results[mode]
             remote_lines = [l for l in lines if "Remote SQL:" in l]
             remote_text = " ".join(remote_lines).upper()
-            has_count = "COUNT" in remote_text
-            has_group = "GROUP BY" in remote_text
-            tdLog.debug(f"  [{mode}] COUNT {'pushed' if has_count else 'not pushed'}, "
-                        f"GROUP BY {'pushed' if has_group else 'not pushed'}")
+            self._soft_assert("COUNT" in remote_text,
+                              f"[{mode}] COUNT not pushed to Remote SQL")
+            self._soft_assert("GROUP BY" in remote_text,
+                              f"[{mode}] GROUP BY not pushed to Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-011 [passed]")
 
@@ -526,7 +556,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             remote_lines = [l for l in lines if "Remote SQL:" in l]
             remote_text = " ".join(remote_lines).upper()
             for fn in ["SUM", "AVG", "MIN", "MAX"]:
-                tdLog.debug(f"  [{mode}] {fn} {'pushed' if fn in remote_text else 'not pushed'}")
+                self._soft_assert(fn in remote_text,
+                                  f"[{mode}] {fn} not pushed to Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-012 [passed]")
 
@@ -542,8 +573,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             lines = results[mode]
             remote_lines = [l for l in lines if "Remote SQL:" in l]
             remote_text = " ".join(remote_lines).upper()
-            tdLog.debug(f"  [{mode}] GROUP BY {'pushed' if 'GROUP BY' in remote_text else 'not pushed'}, "
-                        f"HAVING {'pushed' if 'HAVING' in remote_text else 'not pushed'}")
+            self._soft_assert("GROUP BY" in remote_text,
+                              f"[{mode}] GROUP BY not pushed to Remote SQL")
+            self._soft_assert("HAVING" in remote_text,
+                              f"[{mode}] HAVING not pushed to Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-013 [passed]")
 
@@ -621,7 +654,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         for mode in VERBOSE_MODES:
             text = " ".join(results[mode])
             if "Type Mapping:" not in text:
-                tdLog.debug(f"  [{mode}] 'Type Mapping:' not found — feature may not be implemented yet")
+                self._soft_assert(False, f"[{mode}] 'Type Mapping:' not found in PG VERBOSE output")
             else:
                 self._assert_contain(results[mode], "<-", label=mode)
         self._check_analyze_metrics(results)
@@ -635,7 +668,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         for mode in VERBOSE_MODES:
             text = " ".join(results[mode])
             if "Type Mapping:" not in text:
-                tdLog.debug(f"  [{mode}] 'Type Mapping:' not found — feature may not be implemented yet")
+                self._soft_assert(False, f"[{mode}] 'Type Mapping:' not found in InfluxDB VERBOSE output")
             else:
                 self._assert_contain(results[mode], "<-", label=mode)
         self._check_analyze_metrics(results)
@@ -679,7 +712,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             else:
                 # Decomposed: multiple Federated Scans joined locally
                 scan_count = sum(1 for l in lines if "Federated Scan" in l)
-                tdLog.debug(f"  [{mode}] JOIN decomposed into {scan_count} Federated Scans")
+                self._soft_assert(
+                    has_join_in_remote,
+                    f"[{mode}] JOIN not pushed to Remote SQL (decomposed into {scan_count} scans)"
+                )
                 assert scan_count >= 2, \
                     f"[{mode}] expected >=2 Federated Scans for decomposed JOIN, got {scan_count}"
         self._check_analyze_metrics(results)
@@ -756,8 +792,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             lines = results[mode]
             remote_lines = [l for l in lines if "Remote SQL:" in l]
             remote_text = " ".join(remote_lines).upper()
-            tdLog.debug(f"  [{mode}] LIMIT {'pushed' if 'LIMIT' in remote_text else 'not pushed'}, "
-                        f"OFFSET {'pushed' if 'OFFSET' in remote_text else 'not pushed'}")
+            self._soft_assert("LIMIT" in remote_text,
+                              f"[{mode}] LIMIT not pushed to Remote SQL")
+            self._soft_assert("OFFSET" in remote_text,
+                              f"[{mode}] OFFSET not pushed to Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-025 [passed]")
 
@@ -772,15 +810,12 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         sql = f"select distinct region from {_MYSQL_SRC}.sensor"
         results = self._run_all_modes(sql)
         self._assert_all_contain(results, "Federated Scan")
-        # Check if DISTINCT is pushed — log result but don't fail if not
         for mode in VERBOSE_MODES:
             lines = results[mode]
             remote_lines = [l for l in lines if "Remote SQL:" in l]
             has_distinct = any("DISTINCT" in l.upper() for l in remote_lines)
-            if has_distinct:
-                tdLog.debug(f"  [{mode}] DISTINCT pushed to Remote SQL")
-            else:
-                tdLog.debug(f"  [{mode}] DISTINCT not pushed — handled locally")
+            self._soft_assert(has_distinct,
+                              f"[{mode}] DISTINCT not pushed to Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-026 [passed]")
 
@@ -877,7 +912,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             if select_count >= 2:
                 tdLog.debug(f"  [{mode}] subquery pushed as nested SELECT")
             else:
-                tdLog.debug(f"  [{mode}] subquery handled with single remote scan")
+                self._soft_assert(False,
+                                  f"[{mode}] subquery not pushed — single SELECT in Remote SQL")
         self._check_analyze_metrics(results)
         print("FQ-EXPLAIN-030 [passed]")
 
