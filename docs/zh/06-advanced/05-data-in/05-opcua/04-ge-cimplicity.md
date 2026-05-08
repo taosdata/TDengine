@@ -56,7 +56,7 @@ openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 **Authentication → Certificates** 不是用来"再传一次安全通道证书"。除非 GE OPC UA Server 明确开启了 OPC UA 用户证书认证并把某张证书加入了用户白名单，否则保持 **Anonymous** 即可。
 :::
 
-## 3. 在 GE OPC UA Server 上信任并映射 taosX 客户端证书
+## 3. 信任并映射客户端证书
 
 在 taosX Explorer 中第一次执行 **Check Connection** 通常会失败 —— 这是预期行为，因为 GE OPC UA Server 还没有信任、也没有把新的 taosX 客户端证书映射到任何用户。
 

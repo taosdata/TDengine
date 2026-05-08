@@ -10,7 +10,7 @@ This page documents the CSV mapping file used by the taosX **OPC UA DataIn** tas
 
 It applies to anyone using taosX to ingest data from an OPC UA server.
 
-## 1. The CSV is the mapping, not the address space
+## 1. CSV Mapping vs. OPC Address Space
 
 It is important to draw a clear line between two different things:
 

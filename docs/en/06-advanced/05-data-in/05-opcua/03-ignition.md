@@ -5,8 +5,8 @@ sidebar_label: "Ignition"
 
 This page describes how to ingest data from an Ignition Gateway into TDengine TSDB through OPC UA. It covers two typical scenarios:
 
-- **Scenario 1: cross-server anonymous connection** (intended for short-lived internal testing only)
-- **Scenario 2: cross-server certificate-encrypted connection with username authentication** (recommended for production)
+- **Cross-server anonymous connection** (intended for short-lived internal testing only)
+- **Cross-server certificate-encrypted connection with username authentication** (recommended for production)
 
 OPC UA security has two distinct layers; understanding the split makes troubleshooting much easier.
 
@@ -40,14 +40,14 @@ Open Ignition Gateway → **Config** → **Connections** → **OPC** → **OPC U
 | Bind Port | `62541` | OPC UA listening port |
 | Bind Addresses | `0.0.0.0` | If TDengine TSDB and Ignition are on different servers, this must be set to `0.0.0.0` |
 | Endpoint Addresses | Add the server IP | For example `192.168.2.149`, so the client can reach the endpoint |
-| Security Policies | ☑ `Basic256Sha256` | Enable the policies you intend to use |
-| Security Mode | ☑ `SignAndEncrypt` | Enable signed-and-encrypted mode |
+| Security Policies | [x] `Basic256Sha256` | Enable the policies you intend to use |
+| Security Mode | [x] `SignAndEncrypt` | Enable signed-and-encrypted mode |
 
 ### 1.2 Authentication settings
 
 In the **AUTHENTICATION** section on the same page:
 
-- For **Username authentication**, set the User Source to `default` (recommended) instead of `opcua-module`.
+For **Username authentication**, set the User Source to `default` (recommended) instead of `opcua-module`.
 
 :::note
 Use `default` for User Source. The built-in `opcua-module` source is independent and requires extra user/permission setup, which often causes `StatusBadUserAccessDenied` errors.
@@ -59,11 +59,11 @@ Switch to the **Permissions** tab and confirm that the `AuthenticatedUser` role 
 
 | Role | Browse | Read | Write | Call |
 | --- | --- | --- | --- | --- |
-| AuthenticatedUser | ☑ | ☑ | ☑ | ☑ |
+| AuthenticatedUser | [x] | [x] | [x] | [x] |
 
 **Default Tag Provider Permissions** must be configured the same way.
 
-## 2. Scenario 1: cross-server anonymous connection
+## 2. Cross-server anonymous connection
 
 After installing and starting Ignition, go to **Connections > OPC > OPC server settings**.
 
@@ -88,10 +88,10 @@ After the changes you can connect TDengine TSDB Explorer to Ignition with anonym
 ![Explorer anonymous connection to Ignition](../../../assets/opc-ua-ignition-04-explorer-anonymous.png)
 
 :::warning
-Anonymous mode performs no identity check and no transport-layer encryption. **Use it only for short-lived testing on a trusted network**; switch to Scenario 2 for production.
+Anonymous mode performs no identity check and no transport-layer encryption. **Use it only for short-lived testing on a trusted network**; switch to certificate encryption for production.
 :::
 
-## 3. Scenario 2: certificate encryption + username authentication
+## 3. Certificate encryption + username authentication
 
 ### 3.1 Enable SignAndEncrypt on Ignition
 

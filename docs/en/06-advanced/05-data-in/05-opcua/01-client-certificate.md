@@ -17,7 +17,9 @@ The taosX OPC UA plugin loads certificates with `tls.LoadX509KeyPair()` and ther
 The certificate that you can download from a server such as Ignition (for example `ignition-server.der`) is the **server's own certificate** and cannot be used as a client certificate. You must generate a separate client certificate and private key as described below.
 :::
 
-## 2. Windows (cmd.exe — recommended)
+## 2. Windows
+
+### 2.1 cmd.exe (recommended)
 
 Save the following script as `generate_taosx_opcua_cert.cmd` and run it from `cmd.exe`. It prefers a system-wide `openssl`; otherwise it falls back to the OpenSSL bundled with Git for Windows (`C:\Program Files\Git\usr\bin\openssl.exe`).
 
@@ -93,9 +95,9 @@ pause
 endlocal
 ```
 
-## 3. Windows (PowerShell)
+### 2.2 PowerShell
 
-### Step 1: Create the certificate config file
+#### Step 1: Create the certificate config file
 
 ```powershell
 @"
@@ -116,7 +118,7 @@ subjectAltName = URI:urn:taosx-opc:client
 "@ | Out-File -Encoding ascii C:\tmp\opcua_client_ext.cnf
 ```
 
-### Step 2: Generate the certificate and private key (valid for 10 years)
+#### Step 2: Generate the certificate and private key (valid for 10 years)
 
 ```powershell
 mkdir C:\taosx_certs -Force
@@ -127,7 +129,7 @@ openssl req -x509 -newkey rsa:2048 -nodes `
   -config C:\tmp\opcua_client_ext.cnf
 ```
 
-## 4. Linux / macOS
+## 3. Linux / macOS
 
 ```bash
 # Create the config file
@@ -156,7 +158,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -config /tmp/opcua_client_ext.cnf
 ```
 
-## 5. Verify the Certificate
+## 4. Verify the Certificate
 
 Regardless of which method you use, always confirm that the SAN contains the required Application URI:
 
@@ -178,7 +180,7 @@ Some servers (for example GE Cimplicity) bind the client certificate to a user b
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 ```
 
-## 6. Use the Certificate in Explorer
+## 5. Use the Certificate in Explorer
 
 The two generated files map to the **Connection Configuration** fields in taosX Explorer as follows:
 

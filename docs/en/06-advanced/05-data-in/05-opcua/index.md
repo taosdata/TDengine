@@ -1,6 +1,7 @@
 ---
 title: OPC UA
 slug: /advanced/data-in/opcua/
+toc_max_heading_level: 4
 ---
 
 import { AddDataSource, Enterprise } from '../../../assets/resources/_resources.mdx';

@@ -5,8 +5,8 @@ sidebar_label: "Ignition"
 
 本页介绍如何让 TDengine TSDB 通过 OPC UA 协议接入 Ignition Gateway，覆盖两类典型场景：
 
-- **场景 1：跨服务器匿名连接**（仅在内网做联调时使用）
-- **场景 2：跨服务器证书加密 + 用户名认证**（推荐用于生产）
+- **跨服务器匿名连接**（仅在内网做联调时使用）
+- **跨服务器证书加密 + 用户名认证**（推荐用于生产）
 
 OPC UA 的安全体系分为两层，理解这一点有助于排查问题：
 
@@ -40,14 +40,14 @@ OPC UA 的安全体系分为两层，理解这一点有助于排查问题：
 | Bind Port | `62541` | OPC UA 服务监听端口 |
 | Bind Addresses | `0.0.0.0` | 如果 TDengine TSDB 与 Ignition 不在同一台服务器，必须改为 `0.0.0.0` |
 | Endpoint Addresses | 添加服务器 IP | 例如 `192.168.2.149`，确保客户端可通过此地址访问 |
-| Security Policies | ☑ `Basic256Sha256` | 勾选所需的安全策略 |
-| Security Mode | ☑ `SignAndEncrypt` | 勾选签名并加密模式 |
+| Security Policies | [x] `Basic256Sha256` | 勾选所需的安全策略 |
+| Security Mode | [x] `SignAndEncrypt` | 勾选签名并加密模式 |
 
 ### 1.2 认证配置
 
 在同一页面的 **AUTHENTICATION** 部分：
 
-- 如果使用 **Username 认证**：确保 User Source 设为 `default`（推荐），而非 `opcua-module`。
+如果使用 **Username 认证**，确保 User Source 设为 `default`（推荐），而非 `opcua-module`。
 
 :::note
 User Source 建议使用 `default`。默认的 `opcua-module` 是一个独立的用户源，需要额外配置用户和权限，容易导致 `StatusBadUserAccessDenied` 错误。
@@ -59,11 +59,11 @@ User Source 建议使用 `default`。默认的 `opcua-module` 是一个独立的
 
 | 角色 | Browse | Read | Write | Call |
 | --- | --- | --- | --- | --- |
-| AuthenticatedUser | ☑ | ☑ | ☑ | ☑ |
+| AuthenticatedUser | [x] | [x] | [x] | [x] |
 
 **Default Tag Provider Permissions** 也需要同样配置。
 
-## 2. 场景 1：跨服务器匿名连接
+## 2. 跨服务器匿名连接
 
 完成 Ignition 安装并启动后，进入 **Connections > OPC > OPC server settings**。
 
@@ -84,10 +84,10 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 ![Explorer 匿名连接 Ignition](../pic/opcua-ignition-04-explorer-anonymous.png)
 
 :::warning
-匿名模式不进行任何身份与传输层加密，**只建议在内网联调时短时间使用**，正式部署请使用场景 2。
+匿名模式不进行任何身份与传输层加密，**只建议在内网联调时短时间使用**，正式部署请使用证书加密方式。
 :::
 
-## 3. 场景 2：跨服务器证书加密 + 用户名认证
+## 3. 跨服务器证书加密 + 用户名认证
 
 ### 3.1 Ignition 端：开启 SignAndEncrypt
 

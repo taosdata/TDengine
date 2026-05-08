@@ -2,6 +2,7 @@
 title: "OPC UA"
 sidebar_label: "OPC UA"
 slug: /advanced/data-in/opcua/
+toc_max_heading_level: 4
 ---
 
 本节讲述如何通过 Explorer 界面创建数据迁移任务，从 OPC UA 服务器同步数据到当前 TDengine TSDB 集群。

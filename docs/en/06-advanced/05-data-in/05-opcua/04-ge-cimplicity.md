@@ -56,7 +56,7 @@ Pick the tab that matches what the server has enabled:
 The **Authentication → Certificates** tab is **not** "upload the secure-channel certificate again". Unless the GE OPC UA Server has explicitly enabled OPC UA user-certificate authentication and added a certificate to its user whitelist, keep **Anonymous**.
 :::
 
-## 3. Trust and Associate the taosX Client Certificate on the GE OPC UA Server
+## 3. Trust and Map the Client Certificate
 
 The first **Check Connection** attempt in taosX Explorer will most likely fail. This is expected — the GE OPC UA Server has not yet trusted or mapped the new taosX client certificate.
 
