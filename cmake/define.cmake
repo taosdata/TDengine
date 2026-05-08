@@ -252,8 +252,17 @@ ELSE()
         CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
     ENDIF()
 
+    # Use -Werror in the probe: GCC < 8 silently accepts unknown -Wno-xxx flags
+    # when the translation unit produces no other warnings, but emits a warning
+    # about the unrecognized option when other warnings are present.  Without
+    # -Werror in the probe that warning-only case passes the check, yet in the
+    # actual build (where -Werror is active) files with other warnings fail.
+    INCLUDE(CMakePushCheckState)
+    cmake_push_check_state()
+    set(CMAKE_REQUIRED_FLAGS "-Werror")
     CHECK_C_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
     CHECK_CXX_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
+    cmake_pop_check_state()
 
     IF(COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")

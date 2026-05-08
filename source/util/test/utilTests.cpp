@@ -482,7 +482,7 @@ template <int16_t type, typename ValType, typename F>
 void dataBlockNullTest(const F& setValFunc) {
   int32_t         totalRows = 16;
   SColumnInfoData columnInfoData = createColumnInfoData(type, tDataTypes[type].bytes, 0);
-  SColumnDataAgg  columnDataAgg = {.numOfNull = 0};
+  SColumnDataAgg  columnDataAgg = {};
 
   auto checkNull = [totalRows, &columnInfoData, &columnDataAgg](uint32_t row, bool expected) {
     EXPECT_EQ(colDataIsNull_s(&columnInfoData, row), expected);
