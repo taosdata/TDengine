@@ -370,23 +370,6 @@ class ServiceTest(unittest.TestCase):
         loader.register_service_from_file(config_path)
         return service_name, config_path
 
-    def test_dynamic_execute_prophet_not_implemented(self):
-        import os
-
-        service_name = None
-        config_path = None
-        try:
-            service_name, config_path = self._register_dynamic_service_for_algo("prophet")
-            service = loader.get_service(service_name)
-            self.assertIsNotNone(service)
-            with self.assertRaisesRegex(NotImplementedError, "Prophet model is not implemented yet"):
-                service.execute()
-        finally:
-            if service_name and service_name in loader.services:
-                del loader.services[service_name]
-            if config_path and os.path.exists(config_path):
-                os.remove(config_path)
-
     def test_dynamic_execute_holtwinters_not_implemented(self):
         import os
 

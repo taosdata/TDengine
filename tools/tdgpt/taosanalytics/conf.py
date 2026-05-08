@@ -19,14 +19,14 @@ try:
 except Exception:  # pragma: no cover
     keras = None  # noqa: F841
 
-_ANODE_SECTION_NAME = "taosanode"
-
 
 class Configure:
     """ configuration class (singleton) """
 
     _instance = None
     _lock = __import__('threading').Lock()
+    path: Optional[str]
+    _conf: dict
 
     def __new__(cls, conf_path: Optional[str] = None):
         with cls._lock:
@@ -42,7 +42,7 @@ class Configure:
                     if conf_path is not None:
                         print(f"Input configuration file not available. Use default config file: {instance.path}")
 
-                if os.path.exists(instance.path):
+                if instance.path is not None and os.path.exists(instance.path):
                     instance.reload()
                 else:
                     print(
@@ -63,6 +63,7 @@ class Configure:
         """Return the singleton instance, creating it with defaults if not yet initialized."""
         if cls._instance is None:
             cls()
+        assert cls._instance is not None
         return cls._instance
 
     # def _get_default_conf_windows(self):
@@ -156,8 +157,14 @@ class Configure:
     def reload(self):
         """ load the info from config file """
         spec = importlib.util.spec_from_file_location("gunicorn_config", self.path)
+        if spec is None:
+            raise RuntimeError(f"Cannot load configuration spec from {self.path}")
+        
         config_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(config_module)
+        if spec.loader is None:
+            raise RuntimeError(f"Cannot load configuration loader from {self.path}")
+        
+        spec.loader.exec_module(config_module)  # type: ignore[union-attr]
 
         conf_vars = {}
         for key in dir(config_module):

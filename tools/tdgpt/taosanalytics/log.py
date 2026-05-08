@@ -9,8 +9,9 @@ class AppLogger():
     """ system log_inst class (singleton) """
     _LOG_STR_FORMAT = '%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'
 
-    _instance = None
+    _instance: 'AppLogger | None' = None
     _lock = __import__('threading').Lock()
+    log_inst: logging.Logger
 
     def __new__(cls):
         with cls._lock:
@@ -26,6 +27,7 @@ class AppLogger():
         if cls._instance is None:
             cls()
 
+        assert cls._instance is not None
         return cls._instance.log_inst
 
     @classmethod

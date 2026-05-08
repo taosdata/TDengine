@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from taosanalytics.algo.tool.forecaster import ArimaModelForecaster
+from taosanalytics.algo.tool.forecaster import ArimaModelForecaster, ProphetModelForecaster
 from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 from taosanalytics.base import (
@@ -83,8 +83,43 @@ class DynamicForecastService(AbstractForecastService):
             }
 
         elif algo_name == 'prophet':
-            # load prophet model and execute
-            raise NotImplementedError("Prophet model is not implemented yet")
+            try:
+                datetime_list = pd.to_datetime(self.ts_list, unit=self.precision, utc=True)
+                df = pd.DataFrame({
+                    'ts': datetime_list,
+                    'y': self.list,
+                })
+
+                # Prophet does not handle timezone-aware datetimes well, so we remove timezone info if exists. We keep it as UTC to avoid any unintended timezone shifts.
+                df['ts'] = df['ts'].dt.tz_convert('UTC').dt.tz_localize(None)
+
+            except Exception as e:
+                msg = f"failed to prepare input data for Prophet model forecast: {e}"
+                AppLogger.error(msg)
+                raise RuntimeError(msg) from e
+
+            forecaster = ProphetModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
+            result = forecaster.forecast()
+
+            if (result is None or
+                    not isinstance(result, pd.DataFrame) or
+                    not {'yhat', 'yhat_lower', 'yhat_upper'}.issubset(result.columns)):
+                raise RuntimeError(
+                    f"failed to execute forecast with Prophet model forecaster built from config file: {self.config_file_path}")
+
+            result = result.tail(self.rows)
+            result_ts = [self.start_ts + i * self.time_step for i in range(self.rows)]
+
+            res = [result_ts, result['yhat'].tolist()]
+            if self.return_conf:
+                res.append(result['yhat_lower'].tolist())
+                res.append(result['yhat_upper'].tolist())
+
+            return {
+                "mse": None,
+                "model_info": forecaster.get_param(),
+                "res": res
+            }
         elif algo_name == 'holtwinters':
             # load holtwinters model and execute
             raise NotImplementedError("HoltWinters model is not implemented yet")
