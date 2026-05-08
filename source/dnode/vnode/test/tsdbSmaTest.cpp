@@ -108,7 +108,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
   tSma.indexUid = 2345678910;
   tSma.tableUid = 1234567890;
 
-  STSmaWrapper tSmaWrapper = {.number = 1, .tSma = &tSma};
+  STSmaWrapper tSmaWrapper = {}; tSmaWrapper.number = 1; tSmaWrapper.tSma = &tSma;
   uint32_t     bufLen = tEncodeTSmaWrapper(NULL, &tSmaWrapper);
 
   void *buf = taosMemoryCalloc(1, bufLen);
