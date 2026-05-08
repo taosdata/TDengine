@@ -1374,8 +1374,10 @@ class TestJoin:
         tdSql.execute("create table sb5 using sb tags(5)")
         tdSql.execute("create table sa6 using sa tags(6)")
         tdSql.execute("create table sb6 using sb tags(6)")
+        tdSql.execute("create table sa8 using sa tags(8)")
+        tdSql.execute("create table sb8 using sb tags(8)")
 
-        # Base timestamp: 2026-01-01 00:00:01 UTC in ms
+        # Base timestamp: 2026-01-01 00:00:01 in Asia/Shanghai.
         base_ts = 1767196801000
         # In-range rows: base_ts ~ base_ts+4
         for i in range(5):
@@ -1418,6 +1420,11 @@ class TestJoin:
         tdSql.execute(f"insert into sa6 values({base_ts + 5}, 15)")
         tdSql.execute(f"insert into sb6 values({base_ts + 0}, 0)")
         tdSql.execute(f"insert into sb6 values({base_ts + 1}, 1)")
+
+        # Function-wrapped matched-side ts must not enable raw-ts range derivation/copy.
+        for i in range(5):
+            tdSql.execute(f"insert into sa8 values({base_ts + i}, {i})")
+        tdSql.execute(f"insert into sb8 values({base_ts + 500}, 15)")
 
     def do_asof_join_right_ts_pushdown(self):
         """Verify ASOF JOIN pushdown/copy/range-derivation behavior with result-file comparison."""

@@ -941,6 +941,7 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
       return COND_ACTION_PUSH_LEFT_CHILD;
     }
     if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT_COPY &&
+        joinCondHasValidPrimKeyCond(pJoin) &&
         pdcJoinIsSafeAsofCopyCond(pJoin, pNode, pLeftTbls)) {
       return COND_ACTION_COPY_LEFT_CHILD;
     }
@@ -953,6 +954,7 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
       return COND_ACTION_PUSH_RIGHT_CHILD;
     }
     if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT_COPY &&
+        joinCondHasValidPrimKeyCond(pJoin) &&
         pdcJoinIsSafeAsofCopyCond(pJoin, pNode, pRightTbls)) {
       return COND_ACTION_COPY_RIGHT_CHILD;
     }
@@ -3854,26 +3856,30 @@ static bool asofJoinDeriveMatchedScanRange(SJoinLogicNode* pJoin, SScanLogicNode
 }
 
 static int32_t asofJoinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SJoinLogicNode* pJoin = (SJoinLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, asofJoinCondMayBeOptimized, NULL);
-  if (NULL == pJoin) {
-    return TSDB_CODE_SUCCESS;
-  }
+  while (true) {
+    SJoinLogicNode* pJoin = (SJoinLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, asofJoinCondMayBeOptimized, NULL);
+    if (NULL == pJoin) {
+      return TSDB_CODE_SUCCESS;
+    }
 
-  SLogicNode*     pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
-  SLogicNode*     pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
-  SScanLogicNode* pLScan = joinCondGetScanNode(pLeft);
-  SScanLogicNode* pRScan = joinCondGetScanNode(pRight);
-  if (NULL == pLScan || NULL == pRScan) {
-    return TSDB_CODE_SUCCESS;
-  }
+    SLogicNode*     pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+    SLogicNode*     pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+    SScanLogicNode* pLScan = joinCondGetScanNode(pLeft);
+    SScanLogicNode* pRScan = joinCondGetScanNode(pRight);
+    if (NULL == pLScan || NULL == pRScan) {
+      OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+      continue;
+    }
 
-  if (!asofJoinDeriveMatchedScanRange(pJoin, pLScan, pRScan)) {
     OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
-    return TSDB_CODE_SUCCESS;
+    if (!asofJoinDeriveMatchedScanRange(pJoin, pLScan, pRScan)) {
+      continue;
+    }
+
+    pCxt->optimized = true;
+    break;
   }
 
-  OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
-  pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }
 
