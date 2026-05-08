@@ -18,9 +18,9 @@ taos> SELECT ts, a FROM TEXT(ts TIMESTAMP, a BIGINT) VALUES ('2024-01-01 00:00:0
  2024-01-02 00:00:00.000 |                     2 |
 
 taos> SELECT ts, c1, c2, c3, c4 FROM TEXT(ts TIMESTAMP, c1 INT, c2 DOUBLE, c3 BOOL, c4 VARCHAR(32)) VALUES ('2024-01-01 00:00:00', 10, 3.14, true, 'abc') t2;
-           ts            |     c1      |            c2             |  c3   |                c4                |
-===============================================================================================================
- 2024-01-01 00:00:00.000 |          10 |                      3.14 | true  | abc                              |
+           ts            |     c1      |            c2             |  c3   |               c4               |
+=============================================================================================================
+ 2024-01-01 00:00:00.000 |          10 |                      3.14 | true  | abc                            |
 
 taos> SELECT ts FROM TEXT(ts TIMESTAMP) VALUES ('2024-01-01 00:00:00') ('2024-01-02 00:00:00') ('2024-01-03 00:00:00') t3;
            ts            |
@@ -92,10 +92,10 @@ taos> SELECT ts, a FROM TEXT(ts TIMESTAMP, a INT) VALUES ('2024-01-01 00:00:00',
  2024-01-03 00:00:00.000 |          30 |
 
 taos> SELECT ts, a, b FROM TEXT(ts TIMESTAMP, a INT, b VARCHAR(16)) VALUES ('2024-01-01 00:00:00', NULL, 'present') ('2024-01-02 00:00:00', 99, NULL) t14;
-           ts            |      a      |        b         |
-===========================================================
- 2024-01-01 00:00:00.000 | NULL        | present          |
- 2024-01-02 00:00:00.000 |          99 | NULL             |
+           ts            |      a      |         b          |
+=============================================================
+ 2024-01-01 00:00:00.000 | NULL        | present            |
+ 2024-01-02 00:00:00.000 |          99 | NULL               |
 
 taos> SELECT ts FROM (SELECT ts, a FROM TEXT(ts TIMESTAMP, a INT) VALUES ('2024-01-01 00:00:00', 1) ('2024-01-02 00:00:00', 2) ('2024-01-03 00:00:00', 3) inner_t WHERE a >= 2) sub;
            ts            |
@@ -144,10 +144,10 @@ taos> SELECT ts, a FROM TEXT(ts TIMESTAMP, a INT) VALUES ('2024-01-01 00:00:00',
  2024-01-03 00:00:00.000 |          30 |
 
 taos> SELECT ts, s FROM TEXT(ts TIMESTAMP, s VARCHAR(32)) VALUES ('2024-01-01 00:00:00', 'apple') ('2024-01-02 00:00:00', 'banana') ('2024-01-03 00:00:00', 'apricot') t23 WHERE s LIKE 'ap%';
-           ts            |                s                 |
-=============================================================
- 2024-01-01 00:00:00.000 | apple                            |
- 2024-01-03 00:00:00.000 | apricot                          |
+           ts            |               s                |
+===========================================================
+ 2024-01-01 00:00:00.000 | apple                          |
+ 2024-01-03 00:00:00.000 | apricot                        |
 
 taos> SELECT ts, a * 2 AS doubled, a + b AS sum_ab FROM TEXT(ts TIMESTAMP, a INT, b INT) VALUES ('2024-01-01 00:00:00', 3, 4) ('2024-01-02 00:00:00', 5, 6) t24;
            ts            |          doubled          |          sum_ab           |
@@ -229,10 +229,10 @@ taos> SELECT r.ts, r.id, t.score FROM ref_items r, (SELECT ts, score FROM TEXT(t
  2024-01-03 00:00:00.000 |           3 |          30 |
 
 taos> SELECT a.ts, a.score, b.label FROM (SELECT ts, score FROM TEXT(ts TIMESTAMP, score INT) VALUES ('2024-01-01 00:00:00', 100) ('2024-01-02 00:00:00', 200) ta) a, (SELECT ts, label FROM TEXT(ts TIMESTAMP, label VARCHAR(16)) VALUES ('2024-01-01 00:00:00', 'x') ('2024-01-02 00:00:00', 'y') tb) b WHERE a.ts = b.ts ORDER BY a.ts;
-           ts            |    score    |      label       |
-===========================================================
- 2024-01-01 00:00:00.000 |         100 | x                |
- 2024-01-02 00:00:00.000 |         200 | y                |
+           ts            |    score    |       label        |
+=============================================================
+ 2024-01-01 00:00:00.000 |         100 | x                  |
+ 2024-01-02 00:00:00.000 |         200 | y                  |
 
 taos> SELECT t.ts, t.score, r.label FROM (SELECT ts, score FROM TEXT(ts TIMESTAMP, score INT) VALUES ('2024-01-03 00:00:00', 300) ('2024-01-01 00:00:00', 100) ('2024-01-02 00:00:00', 200) unsorted_src) t, ref_items r WHERE t.ts = r.ts ORDER BY t.ts;
            ts            |    score    |             label              |
@@ -248,10 +248,10 @@ taos> SELECT ts, score, (SELECT MAX(a) FROM (SELECT ts, a FROM TEXT(ts TIMESTAMP
  2024-01-02 00:00:00.000 |         200 |           9 |
 
 taos> SELECT ts, s FROM TEXT(ts TIMESTAMP, s BINARY(32)) VALUES ('2024-01-01 00:00:00', 'hello') ('2024-01-02 00:00:00', 'world') t_bin;
-           ts            |                s                 |
-=============================================================
- 2024-01-01 00:00:00.000 | hello                            |
- 2024-01-02 00:00:00.000 | world                            |
+           ts            |               s                |
+===========================================================
+ 2024-01-01 00:00:00.000 | hello                          |
+ 2024-01-02 00:00:00.000 | world                          |
 
 taos> SELECT t.ts, t.score, r.label FROM TEXT(ts TIMESTAMP, score INT) VALUES ('2024-01-01 00:00:00', 100) ('2024-01-02 00:00:00', 200) t JOIN ref_items r ON t.ts = r.ts ORDER BY t.ts;
            ts            |    score    |             label              |
@@ -260,16 +260,16 @@ taos> SELECT t.ts, t.score, r.label FROM TEXT(ts TIMESTAMP, score INT) VALUES ('
  2024-01-02 00:00:00.000 |         200 | beta                           |
 
 taos> SELECT m.ts, m.id, t.label FROM ref_items m JOIN TEXT(ts TIMESTAMP, label VARCHAR(8)) VALUES ('2024-01-01 00:00:00', 'alpha') ('2024-01-02 00:00:00', 'beta') t ON m.ts = t.ts ORDER BY m.ts;
-           ts            |     id      |  label   |
-===================================================
- 2024-01-01 00:00:00.000 |           1 | alpha    |
- 2024-01-02 00:00:00.000 |           2 | beta     |
+           ts            |     id      |   label    |
+=====================================================
+ 2024-01-01 00:00:00.000 |           1 | alpha      |
+ 2024-01-02 00:00:00.000 |           2 | beta       |
 
 taos> SELECT m.ts, m.id, t.label FROM ref_items m JOIN TEXT(ts TIMESTAMP, label VARCHAR(8)) VALUES ('2024-01-03 00:00:00', 'gamma') ('2024-01-01 00:00:00', 'alpha') t ON m.ts = t.ts ORDER BY m.ts;
-           ts            |     id      |  label   |
-===================================================
- 2024-01-01 00:00:00.000 |           1 | alpha    |
- 2024-01-03 00:00:00.000 |           3 | gamma    |
+           ts            |     id      |   label    |
+=====================================================
+ 2024-01-01 00:00:00.000 |           1 | alpha      |
+ 2024-01-03 00:00:00.000 |           3 | gamma      |
 
 taos> SELECT t.ts, t.score, r.label FROM TEXT(ts TIMESTAMP, score INT) VALUES ('2024-01-01 00:00:00', 10) ('2024-01-02 00:00:00', 20) t INNER JOIN ref_items r ON t.ts=r.ts ORDER BY t.ts;
            ts            |    score    |             label              |

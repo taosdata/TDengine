@@ -583,7 +583,10 @@ class TestTextSource:
         )
         tdSql.checkRows(5)
         volts = [row[1] for row in tdSql.queryResult]
-        assert volts == [50, 100, 200, 300, 400], f"U5 wrong volt order: {volts}"
+        # First two rows share ts '2026-04-01 00:00:00' (50 from TEXT, 100 from m1),
+        # their relative order is non-deterministic; the rest are deterministic.
+        assert sorted(volts[:2]) == [50, 100], f"U5 wrong first two volts: {volts[:2]}"
+        assert volts[2:] == [200, 300, 400], f"U5 wrong tail volts: {volts[2:]}"
 
         # U6: UNION ALL with GROUP BY aggregation on each side
         tdLog.info("U6: UNION ALL combining two GROUP BY results")
