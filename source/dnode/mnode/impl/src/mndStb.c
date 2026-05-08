@@ -38,7 +38,8 @@
 #define STB_VER_SUPPORT_COMP    2
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
-#define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
+#define STB_VER_SUPPORT_INHERIT 5
+#define STB_VER_NUMBER          STB_VER_SUPPORT_INHERIT
 #define STB_RESERVE_SIZE        51
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
@@ -128,7 +129,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
                  pStb->ast1Len + pStb->ast2Len + pStb->numOfColumns * sizeof(SColCmpr) + STB_RESERVE_SIZE +
-                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + sizeof(int32_t) * pStb->numOfColumns;
+                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + sizeof(int32_t) * pStb->numOfColumns +
+                 sizeof(int8_t) + TSDB_MAX_VST_PARENTS * sizeof(int64_t) + 2 * sizeof(int16_t);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -212,6 +214,15 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
   SDB_SET_UINT32(pRaw, dataPos, pStb->flags, _OVER)
+
+  // since 3.x.x - STB_VER_SUPPORT_INHERIT
+  SDB_SET_INT8(pRaw, dataPos, pStb->numParents, _OVER)
+  for (int32_t i = 0; i < TSDB_MAX_VST_PARENTS; ++i) {
+    SDB_SET_INT64(pRaw, dataPos, pStb->parentSuids[i], _OVER)
+  }
+  SDB_SET_INT16(pRaw, dataPos, pStb->ownColStart, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pStb->ownTagStart, _OVER)
+
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -375,6 +386,21 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_UINT32(pRaw, dataPos, &pStb->flags, _OVER)
   } else {
     pStb->flags = 0;
+  }
+
+  // since 3.x.x - STB_VER_SUPPORT_INHERIT
+  if (sver >= STB_VER_SUPPORT_INHERIT) {
+    SDB_GET_INT8(pRaw, dataPos, &pStb->numParents, _OVER)
+    for (int32_t i = 0; i < TSDB_MAX_VST_PARENTS; ++i) {
+      SDB_GET_INT64(pRaw, dataPos, &pStb->parentSuids[i], _OVER)
+    }
+    SDB_GET_INT16(pRaw, dataPos, &pStb->ownColStart, _OVER)
+    SDB_GET_INT16(pRaw, dataPos, &pStb->ownTagStart, _OVER)
+  } else {
+    pStb->numParents = 0;
+    memset(pStb->parentSuids, 0, sizeof(pStb->parentSuids));
+    pStb->ownColStart = 0;
+    pStb->ownTagStart = 0;
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)

@@ -251,6 +251,8 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
 #define TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL      19 // alter multiple tag values of multi tables
 #define TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL      20 // alter multiple tag values of the child tables of a stable
+#define TSDB_ALTER_TABLE_ADD_BASE_ON                    21
+#define TSDB_ALTER_TABLE_DROP_BASE_ON                   22
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -569,6 +571,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
+  QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
   QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
   QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
 
@@ -1317,6 +1320,11 @@ typedef struct {
   int8_t   virtualStb;
   int8_t   secureDelete;
   int8_t   securityLevel;
+  // VST inheritance
+  int8_t   numParents;
+  char     parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -4918,6 +4926,11 @@ typedef struct SVCreateStbReq {
   int8_t          virtualStb;
   int8_t          secureDelete;
   int8_t          securityLevel;
+  // VST inheritance
+  int8_t   numParents;
+  int64_t  parentSuids[TSDB_MAX_VST_PARENTS];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);

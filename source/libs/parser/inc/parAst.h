@@ -322,6 +322,9 @@ SNode*         setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNod
 SNode*         createDefaultColumnOptions(SAstCreateContext* pCxt);
 SNode*         createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                                      SNodeList* pTags, SNode* pOptions);
+SNode*         createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                               SNodeList* pCols, SNodeList* pTags, SNodeList* pBaseOnList,
+                                               SNode* pOptions);
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
                                   SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions);
 SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols);
@@ -352,6 +355,7 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
                                    SNode* pRef);
 SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     const SToken* pLiteral);
+SNode* createAlterTableBaseOn(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SNodeList* pBaseOnList);
 SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList);
 SNode* createAlterMultiTableUpdateTagValStmt(SAstCreateContext* pCxt, SNodeList* pTableList);
 SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList, SNode* pWhere);

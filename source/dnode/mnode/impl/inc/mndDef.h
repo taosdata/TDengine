@@ -989,6 +989,11 @@ typedef struct {
       uint32_t padding : 5;
     };
   };
+  // VST inheritance
+  int8_t   numParents;
+  int64_t  parentSuids[TSDB_MAX_VST_PARENTS];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
 } SStbObj;
 
 typedef struct {

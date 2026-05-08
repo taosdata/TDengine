@@ -844,6 +844,14 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
+  // VST inheritance
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->numParents));
+  for (int32_t i = 0; i < pReq->numParents; ++i) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->parentStbFNames[i]));
+  }
+  TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->ownColStart));
+  TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->ownTagStart));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -973,6 +981,18 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+
+  // VST inheritance
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->numParents));
+    for (int32_t i = 0; i < pReq->numParents; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->parentStbFNames[i]));
+    }
+    TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->ownColStart));
+    TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->ownTagStart));
+  } else {
+    pReq->numParents = 0;
   }
 
   tEndDecode(&decoder);
@@ -14973,6 +14993,15 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ownerId));
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->secureDelete));
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->securityLevel));
+
+  // VST inheritance
+  TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->numParents));
+  for (int32_t i = 0; i < pReq->numParents; ++i) {
+    TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->parentSuids[i]));
+  }
+  TAOS_CHECK_EXIT(tEncodeI16(pCoder, pReq->ownColStart));
+  TAOS_CHECK_EXIT(tEncodeI16(pCoder, pReq->ownTagStart));
+
   tEndEncode(pCoder);
 
 _exit:
@@ -15034,6 +15063,19 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   } else {
     pReq->securityLevel = 0;
   }
+
+  // VST inheritance
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->numParents));
+    for (int32_t i = 0; i < pReq->numParents; ++i) {
+      TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->parentSuids[i]));
+    }
+    TAOS_CHECK_EXIT(tDecodeI16(pCoder, &pReq->ownColStart));
+    TAOS_CHECK_EXIT(tDecodeI16(pCoder, &pReq->ownTagStart));
+  } else {
+    pReq->numParents = 0;
+  }
+
   tEndDecode(pCoder);
 
 _exit:

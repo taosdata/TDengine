@@ -431,6 +431,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowInstancesStmt";
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       return "ShowValidateVirtualTableStmt";
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
+      return "ShowVstableInheritsStmt";
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return "ShowRetentionDetailsStmt";
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
@@ -8340,6 +8342,7 @@ static const char* jkCreateTableStmtIgnoreExists = "IgnoreExists";
 static const char* jkCreateTableStmtCols = "Cols";
 static const char* jkCreateTableStmtTags = "Tags";
 static const char* jkCreateTableStmtOptions = "Options";
+static const char* jkCreateTableStmtBaseOnList = "BaseOnList";
 
 static int32_t createTableStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateTableStmt* pNode = (const SCreateTableStmt*)pObj;
@@ -8359,6 +8362,9 @@ static int32_t createTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateTableStmtOptions, nodeToJson, pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateTableStmtBaseOnList, pNode->pBaseOnList);
   }
 
   return code;
@@ -8382,6 +8388,9 @@ static int32_t jsonToCreateTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkCreateTableStmtOptions, (SNode**)&pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateTableStmtBaseOnList, &pNode->pBaseOnList);
   }
 
   return code;

@@ -358,6 +358,7 @@ typedef enum {
 #define TSDB_MAX_BYTES_PER_ROW_VIRTUAL 524283
 #define TSDB_MAX_TAGS_LEN              16384
 #define TSDB_MAX_TAGS                  128
+#define TSDB_MAX_VST_PARENTS           10
 
 #define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
 #define TSDB_MAX_JSON_TAG_LEN 16384
