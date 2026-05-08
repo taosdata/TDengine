@@ -885,6 +885,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_ins_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_capi.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn.py
 
 # 22-PerformanceData
 

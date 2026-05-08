@@ -158,6 +158,16 @@ TEST(txnStateCase, cApiBeginClearsLocalStateWhenVgListInitFails) {
 #endif
 }
 
+// =========================================================================
+// 2. SQL-path BEGIN: async MsgHandler callback clears local state on failure
+// =========================================================================
+// Complements test 1 (cApiBeginClearsLocalStateWhenVgListInitFails) by covering
+// the asynchronous response path: when the MNode ACKs BEGIN successfully but the
+// client-side VgList init fails inside getMsgRspHandle(TDMT_MND_BEGIN_TXN),
+// the handler must still clear txn state and send a compensating ROLLBACK.  The
+// C API path (test 1) goes through taos_txn_begin() synchronously; this test
+// exercises the lower-level __async_send_cb_fn_t handler directly to ensure
+// the same invariant holds regardless of how BEGIN was initiated.
 TEST(txnStateCase, sqlBeginClearsLocalStateWhenVgListInitFails) {
 #if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;
@@ -198,6 +208,12 @@ TEST(txnStateCase, sqlBeginClearsLocalStateWhenVgListInitFails) {
 #endif
 }
 
+// =========================================================================
+// 3. BEGIN request send failure does not send a spurious ROLLBACK
+// =========================================================================
+// If rpcSendRecv itself fails (e.g. OOM building the request) the txn was
+// never accepted by MNode, so sending ROLLBACK would be wrong.  Verify that
+// state is cleared locally and rollbackReqCount stays at 0.
 TEST(txnStateCase, cApiBeginRequestFailureDoesNotSendRollback) {
 #if defined(TD_ENTERPRISE) && defined(__linux__)
   FakeTxnEnv env;

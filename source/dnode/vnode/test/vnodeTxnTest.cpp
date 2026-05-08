@@ -213,6 +213,8 @@ TEST(vnodeTxnCase, fencingPropagatesPreCreateUndoFailure) {
   int32_t code = vnodeTxnFencing(&vnode, 2, txnId + 1);
   EXPECT_EQ(code, g_ctx.dropCode);
   EXPECT_EQ(g_ctx.dropCalls, 1);
+  // metaDropTable2 failed, so fencing returned early before reaching
+  // metaTxnIdxDelete — the index cleanup step must NOT have been attempted.
   EXPECT_EQ(g_ctx.txnIdxDeleteCalls, 0);
 
   vnodeTxnCleanup(&vnode);
