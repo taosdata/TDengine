@@ -695,12 +695,12 @@ void test_log_dir_short_option() {
     std::cout << "log-dir short option test passed.\n";
 }
 
-// Test short option for log-file
-void test_log_file_short_option() {
+// Test short option for log-file (-o)
+void test_log_file_short_option_o() {
     ParameterContext ctx;
     const char* argv[] = {
         "dummy",
-        "-f", "/short/custom.log"
+        "-o", "/short/custom.log"
     };
 
     ctx.init_global(3, const_cast<char**>(argv));
@@ -708,7 +708,59 @@ void test_log_file_short_option() {
     std::string log_path = ctx.get_log_file_path();
     assert(log_path == "/short/custom.log");
 
-    std::cout << "log-file short option test passed.\n";
+    std::cout << "log-file short option (-o) test passed.\n";
+}
+
+// Test deprecated short option for log-file (-f), kept for compatibility
+void test_log_file_short_option_f_compat() {
+    ParameterContext ctx;
+    const char* argv[] = {
+        "dummy",
+        "-f", "/short/deprecated.log"
+    };
+    ctx.init_global(3, const_cast<char**>(argv));
+
+    std::string log_path = ctx.get_log_file_path();
+    assert(log_path == "/short/deprecated.log");
+
+    std::cout << "log-file short option (-f) compatibility test passed.\n";
+}
+
+// Test deprecated short option for log-file (-f) missing value
+void test_log_file_short_option_f_missing_value() {
+    ParameterContext ctx;
+    const char* argv[] = {
+        "dummy",
+        "-f"
+    };
+    try {
+        ctx.parse_commandline(2, const_cast<char**>(argv));
+        assert(false && "Expected exception when -f has no value");
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        assert(msg.find("Option requires a value: -f") != std::string::npos);
+    }
+
+    std::cout << "log-file short option (-f) missing value test passed.\n";
+}
+
+// Test short option for log-file (-o) missing value
+void test_log_file_short_option_o_missing_value() {
+    ParameterContext ctx;
+    const char* argv[] = {
+        "dummy",
+        "-o"
+    };
+
+    try {
+        ctx.parse_commandline(2, const_cast<char**>(argv));
+        assert(false && "Expected exception when -o has no value");
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        assert(msg.find("Option requires a value: --log-file") != std::string::npos);
+    }
+
+    std::cout << "log-file short option (-o) missing value test passed.\n";
 }
 
 // Test YAML log_dir
@@ -920,7 +972,10 @@ int main() {
     test_get_log_dir();
     test_parse_args_then_merge_all();
     test_log_dir_short_option();
-    test_log_file_short_option();
+    test_log_file_short_option_o();
+    test_log_file_short_option_f_compat();
+    test_log_file_short_option_f_missing_value();
+    test_log_file_short_option_o_missing_value();
 
     test_yaml_log_dir();
     test_yaml_log_file();
