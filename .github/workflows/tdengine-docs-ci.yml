@@ -11,6 +11,7 @@ on:
       - 'docs/**'
       - '.github/workflows/tdengine-docs-ci.yml'
       - '**/*.md'
+      - '!.claude/**'
 
 env:
   DOC_WKC: '/root/doc_ci_work'
@@ -92,8 +93,7 @@ jobs:
           files: |
             **/*.md
             **/*.mdx
-          files_ignore: |
-            .claude/**
+            !.claude/**
           separator: ","
       - name: Check with Markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v20
