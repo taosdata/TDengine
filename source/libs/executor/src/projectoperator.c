@@ -340,8 +340,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   code = createOneDataBlock(pResBlock, false, &pInfo->pFinalRes);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pProjPhyNode->node);
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
 
@@ -733,8 +732,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->binfo.inputTsOrder = pNode->inputTsOrder;
-  pInfo->binfo.outputTsOrder = pNode->outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, pNode);
   code = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr, &pInfo->pPseudoColInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 

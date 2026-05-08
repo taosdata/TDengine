@@ -133,8 +133,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
-  pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
-  pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, physiNode);
   pInfo->winSup.lastTs = INT64_MIN;
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);

@@ -47,6 +47,65 @@ class TestIntervalBugFix:
         self.td_6739571506_test()
         self.sliding_month_february()
 
+    def test_interval_data_order_level(self):
+        """Interval: data order level regression
+
+        Validate that a multi-table interval subquery can feed another interval
+        window without requiring the inner result to be globally ordered. The
+        inner partition-by-tbname interval output is only group ordered, but the
+        outer interval should still aggregate correctly.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+        """
+
+        db = "db_interval_order_level"
+        self.testSql.execute(f"drop database if exists {db}")
+        self.testSql.execute(f"create database {db}")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v int) tags(g int)")
+        self.testSql.execute("create table t1 using st tags(1)")
+        self.testSql.execute("create table t2 using st tags(2)")
+        self.testSql.execute(
+            "insert into t1 values "
+            "('2024-01-01 00:00:00.000', 1) "
+            "('2024-01-01 00:00:01.000', 2) "
+            "('2024-01-01 00:00:04.000', 3)"
+        )
+        self.testSql.execute(
+            "insert into t2 values "
+            "('2024-01-01 00:00:00.000', 10) "
+            "('2024-01-01 00:00:02.000', 20) "
+            "('2024-01-01 00:00:05.000', 30)"
+        )
+
+        sql = (
+            "select cast(_wstart as bigint), sum(c) from "
+            "(select _wstart, count(*) as c, tbname from st partition by tbname interval(2s)) "
+            "interval(4s)"
+        )
+        self.testSql.query(sql)
+        self.testSql.checkRows(2)
+        self.testSql.checkData(0, 0, 1704067200000)
+        self.testSql.checkData(0, 1, 4)
+        self.testSql.checkData(1, 0, 1704067204000)
+        self.testSql.checkData(1, 1, 2)
+
+        sql_desc = (
+            "select cast(_wstart as bigint), sum(c) from "
+            "(select _wstart, count(*) as c, tbname from st partition by tbname interval(2s) order by 1 desc) "
+            "interval(4s)"
+        )
+        self.testSql.query(sql_desc)
+        self.testSql.checkRows(2)
+        self.testSql.checkData(0, 0, 1704067200000)
+        self.testSql.checkData(0, 1, 4)
+        self.testSql.checkData(1, 0, 1704067204000)
+        self.testSql.checkData(1, 1, 2)
+
     def sliding_month_february(self):
         """Validate interval(1n) monthly windows over February with various sliding values.
 

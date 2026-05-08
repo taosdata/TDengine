@@ -923,8 +923,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   pOperator->pPhyNode = pVirtualScanPhyNode;
 
-  pInfo->binfo.inputTsOrder = pVirtualScanPhyNode->scan.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pVirtualScanPhyNode->scan.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pVirtualScanPhyNode->scan.node);
 
   SVirtualTableScanInfo* pVirtualScanInfo = &pInfo->virtualScanInfo;
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);

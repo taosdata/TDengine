@@ -1554,6 +1554,24 @@ static EDataOrderLevel getRequireDataOrder(bool needTimeline, SSelectStmt* pSele
                       : DATA_ORDER_LEVEL_NONE;
 }
 
+static EDataOrderLevel getWindowMinInputDataOrder(EWindowType winType, SSelectStmt* pSelect) {
+  switch (winType) {
+    case WINDOW_TYPE_INTERVAL:
+      return DATA_ORDER_LEVEL_IN_BLOCK;
+    default:
+      return getRequireDataOrder(true, pSelect);
+  }
+}
+
+static EDataOrderLevel getWindowInitialResultDataOrder(EWindowType winType, SSelectStmt* pSelect) {
+  switch (winType) {
+    case WINDOW_TYPE_INTERVAL:
+      return DATA_ORDER_LEVEL_IN_GROUP;
+    default:
+      return getRequireDataOrder(true, pSelect);
+  }
+}
+
 static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pList) {
   SNodeList* pTargets = *pList;
   int32_t    code = 0;
@@ -2204,7 +2222,10 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->extFill.pFillExprs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
   }
 
-  pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
+  pWindow->inputHasOrder =
+      (pWindow->isSingleTable ||
+       (pCxt->pCurrRoot != NULL && pCxt->pCurrRoot->resultDataOrder >= DATA_ORDER_LEVEL_GLOBAL &&
+        (pCxt->pCurrRoot->outputTsOrder == ORDER_ASC || pCxt->pCurrRoot->outputTsOrder == ORDER_DESC)));
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
     pWindow->node.pConditions = NULL;
@@ -2319,8 +2340,9 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_NONE);
-  pWindow->node.resultDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.requireDataOrder =
+      (pSelect->hasTimeLineFunc ? getWindowMinInputDataOrder(WINDOW_TYPE_INTERVAL, pSelect) : DATA_ORDER_LEVEL_NONE);
+  pWindow->node.resultDataOrder = getWindowInitialResultDataOrder(WINDOW_TYPE_INTERVAL, pSelect);
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pInterval->pCol, &pWindow->pTspk);
   if (NULL == pWindow->pTspk) {

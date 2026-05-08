@@ -723,8 +723,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   setOperatorInfo(pOperator, "GroupbyAggOperator", 0, true, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
-  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAggNode->node);
 
   pInfo->pOperator = pOperator;
 

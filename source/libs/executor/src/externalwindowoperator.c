@@ -1644,8 +1644,9 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->mode = pPhynode->window.pFuncs ? EEXT_MODE_AGG : EEXT_MODE_SCALAR;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
   pExtW->needGroupSort = pPhynode->needGroupSort;
   pExtW->calcWithPartition = pPhynode->calcWithPartition;
   pExtW->extWinSplit = pPhynode->extWinSplit;
@@ -4359,8 +4360,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   pExtW->fillMode = pPhynode->extFill.mode;
   pExtW->pFillExprs = pPhynode->extFill.pFillExprs;
   pExtW->pFillValues = pPhynode->extFill.pFillValues;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
   pExtW->isDynWindow = false;
 
   qDebug("%s create extWin operator, execModel:%d, phySubquery:%p", GET_TASKID(pTaskInfo), pTaskInfo->execModel,
@@ -4489,8 +4491,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
                               pTaskInfo->pStreamRuntimeInfo);
     TSDB_CHECK_CODE(code, lino, _error);
     
-    pExtW->binfo.inputTsOrder = pNode->inputTsOrder;
-    pExtW->binfo.outputTsOrder = pNode->outputTsOrder;
+    setOptrBasicInfoOrder(&pExtW->binfo, pNode);
     code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfExpr, &pExtW->pPseudoColInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 

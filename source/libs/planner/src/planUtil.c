@@ -50,6 +50,20 @@ int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
   return errCode;
 }
 
+void planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel, EDataOrderLevel resultLevel) {
+  if (requireLevel < DATA_ORDER_LEVEL_IN_BLOCK) {
+    requireLevel = DATA_ORDER_LEVEL_IN_BLOCK;
+  }
+  if (resultLevel < DATA_ORDER_LEVEL_IN_BLOCK) {
+    resultLevel = DATA_ORDER_LEVEL_IN_BLOCK;
+  }
+
+  pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  pScan->filesetDelimited = true;
+  pScan->node.requireDataOrder = requireLevel;
+  pScan->node.resultDataOrder = resultLevel;
+}
+
 typedef struct SCreateColumnCxt {
   int32_t    errCode;
   SNodeList* pList;
@@ -185,8 +199,7 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   if (DATA_ORDER_LEVEL_IN_BLOCK == requirement || pScan->placeholderType == SP_PARTITION_TBNAME || pScan->placeholderType == SP_PARTITION_ROWS) {
     pScan->scanType = SCAN_TYPE_TABLE;
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
-    pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-    pScan->filesetDelimited = true;
+    planPromoteScanToTableMerge(pScan, pScan->node.requireDataOrder, requirement);
   }
 
   if (TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType) {

@@ -3360,10 +3360,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       }
       pScan->node.outputTsOrder = order;
       if (TSDB_SUPER_TABLE == pScan->tableType && !pScan->phTbnameScan) {
-        pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-        pScan->filesetDelimited = true;
-        pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-        pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+        planPromoteScanToTableMerge(pScan, DATA_ORDER_LEVEL_GLOBAL, DATA_ORDER_LEVEL_GLOBAL);
       }
       pScan->sortPrimaryKey = true;
     } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pSequencingNode)) {
@@ -9697,8 +9694,7 @@ static int32_t createMergeScanNodeByScanNode(SScanLogicNode* pScan, SLogicNode**
   SScanLogicNode* pMergeScan = NULL;
 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pScan, (SNode**)&pMergeScan));
-  pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
-  pMergeScan->filesetDelimited = true;
+  planPromoteScanToTableMerge(pMergeScan, pMergeScan->node.requireDataOrder, pMergeScan->node.resultDataOrder);
   optResetParent((SLogicNode*)pMergeScan);
 
   *pOutputMergeScan = (SLogicNode*)pMergeScan;

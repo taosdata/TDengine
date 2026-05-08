@@ -499,8 +499,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
-  pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
-  pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, physiNode);
   pInfo->windowCount = pCountWindowNode->windowCount;
   pInfo->windowSliding = pCountWindowNode->windowSliding;
   // sizeof(SCountWindowResult)

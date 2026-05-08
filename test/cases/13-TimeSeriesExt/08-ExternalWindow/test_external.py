@@ -77,6 +77,40 @@ class TestExternal:
         self.fill_external_window_regression()
         self.scenario_regression()
 
+    def test_external_multitable_order_level(self):
+        """External: multitable order level regression
+
+        Validate that external_window on a multi-table source still returns the
+        expected windows when the source is not treated as globally ordered.
+        This protects the unordered fallback path after inputHasOrder is derived
+        from actual upstream order properties.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+        """
+
+        tdLog.debug(f"start to execute {__file__} multi-table order level regression")
+        self.dbName = "test"
+        self.prepare_data()
+        self.prepare_for_orderby_and_alias()
+
+        tdSql.query(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w)"
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1700100000000)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 0, 1700100600000)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 0, 1700101200000)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 0, 1700101800000)
+        tdSql.checkData(3, 1, 2)
+
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
         self.prepare_mock_data(dbName)

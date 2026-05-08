@@ -786,7 +786,7 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   uint64_t    tableGroupId = pBlock->info.id.groupId;
   bool        ascScan = (pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC);
   SResultRow* pResult = NULL;
-  bool        sorted = pInfo->binfo.inputTsOrder == ORDER_ASC || pInfo->binfo.inputTsOrder == ORDER_DESC || tsCols == NULL;
+  bool        sorted = optrHasOrderedInput(&pInfo->binfo, DATA_ORDER_LEVEL_IN_BLOCK) || tsCols == NULL;
   TSKEY       ts = sorted ? getStartTsKey(&pBlock->info.window, tsCols) : tsCols[startPos];
   int32_t     ret = TSDB_CODE_SUCCESS;
 
@@ -2325,8 +2325,7 @@ static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIn
 
   pIntervalInfo->cleanGroupResInfo = false;
   pIntervalInfo->handledGroupNum = 0;
-  pIntervalInfo->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder;
-  pIntervalInfo->binfo.outputTsOrder = pPhynode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pIntervalInfo->binfo, &pPhynode->window.node);
 
   taosArrayDestroy(pIntervalInfo->pInterpCols);
   pIntervalInfo->pInterpCols = NULL;
@@ -2410,8 +2409,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   };
 
   pInfo->win = pTaskInfo->window;
-  pInfo->binfo.inputTsOrder = pPhyNode->window.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pPhyNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pPhyNode->window.node);
   pInfo->interval = interval;
   pInfo->twAggSup = as;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;
@@ -2793,8 +2791,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
       goto _error;
     }
   }
-  pInfo->binfo.inputTsOrder = pStateNode->window.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pStateNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pStateNode->window.node);
 
   code = filterInitFromNode((SNode*)pStateNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
@@ -2968,8 +2965,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   pInfo->binfo.pRes = pResBlock;
   pInfo->winSup.prevTs = INT64_MIN;
   pInfo->reptScan = false;
-  pInfo->binfo.inputTsOrder = pSessionNode->window.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pSessionNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pSessionNode->window.node);
 
   if (pSessionNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
@@ -3305,8 +3301,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
 
   miaInfo->curTs = INT64_MIN;
   iaInfo->win = pTaskInfo->window;
-  iaInfo->binfo.inputTsOrder = pNode->window.node.inputTsOrder;
-  iaInfo->binfo.outputTsOrder = pNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&iaInfo->binfo, &pNode->window.node);
   iaInfo->interval = interval;
   iaInfo->primaryTsIndex = ((SColumnNode*)pNode->window.pTspk)->slotId;
   iaInfo->binfo.mergeResultBlock = pNode->window.mergeDataBlock;
@@ -3664,11 +3659,10 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
 
   SIntervalAggOperatorInfo* pIntervalInfo = &pMergeIntervalInfo->intervalAggOperatorInfo;
   pIntervalInfo->win = pTaskInfo->window;
-  pIntervalInfo->binfo.inputTsOrder = pIntervalPhyNode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pIntervalInfo->binfo, &pIntervalPhyNode->window.node);
   pIntervalInfo->interval = interval;
   pIntervalInfo->binfo.mergeResultBlock = pIntervalPhyNode->window.mergeDataBlock;
   pIntervalInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
-  pIntervalInfo->binfo.outputTsOrder = pIntervalPhyNode->window.node.outputTsOrder;
 
   SExprSupp* pExprSupp = &pOperator->exprSupp;
   pExprSupp->hasWindowOrGroup = true;
