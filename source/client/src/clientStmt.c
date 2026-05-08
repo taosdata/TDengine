@@ -548,6 +548,8 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
 
+  taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -921,7 +923,18 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    pStmt->sql.siInfo.dbname = taos->db;
+    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+    if (taos->db[0] != '\0') {
+      pStmt->sql.siInfo.dbname = taosStrdup(taos->db);
+      if (pStmt->sql.siInfo.dbname == NULL) {
+        code = terrno;
+      }
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT_ELOG("fail to dup siInfo dbname in stmtInit:%s", tstrerror(code));
+      (void)stmtClose(pStmt);
+      return NULL;
+    }
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.siInfo.pTableHash) {

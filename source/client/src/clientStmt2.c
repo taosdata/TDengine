@@ -1147,6 +1147,7 @@ static bool stmtRetryTbMetaIsSuperTable(const STableMeta* pMeta) {
   return (pMeta != NULL && pMeta->tableType == TSDB_SUPER_TABLE);
 }
 
+// For non-interlace TABLE_NOT_EXIST retry: build stale_uid -> short_tname map from exec.pBlockHash BEFORE
 // Resolve uid/suid/sver for one SSubmitTbData after catalog refresh. tbIdx is the index within this submit req.
 static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequest, SSubmitTbData* pTb, int32_t tbIdx,
                                             int32_t nSubmitTb, SStmtRetryTbPatch* pPatch) {
@@ -1161,6 +1162,99 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+
+  // 0) stb-interlace mode without USING: only the first child table is fully parsed into pRequest->tableList;
+  // subsequent tables only exist in siInfo.pTableHash (key=name, value=STableVgUid). Iterate the hash to find
+  // the table name whose cached (possibly stale) uid matches pTb->uid, then fetch fresh meta by name.
+  // NOTE: stmtInvalidateStbInterlaceTableUidCache is called AFTER this function, so pTableHash is still intact.
+  if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pTableHash != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pStmt->sql.siInfo.pTableHash, pIter, &iter)) != NULL) {
+      STableVgUid* pVgUid = (STableVgUid*)pIter;
+      if (pVgUid->uid != pTb->uid) {
+        continue;
+      }
+      size_t keyLen = 0;
+      char*  tbName = (char*)tSimpleHashGetKey(pIter, &keyLen);
+      if (tbName == NULL || keyLen == 0 || keyLen >= TSDB_TABLE_NAME_LEN) {
+        break;
+      }
+      char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+      (void)memcpy(nameBuf, tbName, keyLen);
+      SName       nm = {0};
+      const char* dbname = (pRequest->pDb != NULL) ? pRequest->pDb : pStmt->taos->db;
+      int32_t     nc = qCreateSName2(&nm, nameBuf, pStmt->taos->acctId, (char*)dbname, NULL, 0);
+      if (nc != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      STableMeta* pMeta = NULL;
+      nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pMeta);
+      if (nc == TSDB_CODE_SUCCESS && pMeta != NULL) {
+        if (!stmtRetryTbMetaIsSuperTable(pMeta)) {
+          pPatch->uid = pMeta->uid;
+          pPatch->suid = pMeta->suid;
+          pPatch->sver = pMeta->sversion;
+          taosMemoryFree(pMeta);
+          return TSDB_CODE_SUCCESS;
+        }
+        taosMemoryFree(pMeta);
+      } else {
+        taosMemoryFreeClear(pMeta);
+        if (nc != TSDB_CODE_SUCCESS) {
+          return nc;
+        }
+      }
+      break;
+    }
+  }
+
+  // 0b) Non-interlace multi-VG TABLE_NOT_EXIST retry: scan exec.pBlockHash for the entry whose bind-time
+  // pMeta->uid matches pTb->uid (the stale uid in the serialized submit block). exec.pBlockHash is built at
+  // bind time and its pMeta->uid values are NOT changed by DROP+CREATE DDL between bind and exec, so they
+  // correctly identify which table name belongs to each stale uid. Fetch fresh meta by name post-refresh.
+  if (!pStmt->sql.stbInterlaceMode && pStmt->exec.pBlockHash != NULL) {
+    void* pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
+    while (pIter) {
+      STableDataCxt* pBlocks = *(STableDataCxt**)pIter;
+      STableMeta*    pMeta2 = qGetTableMetaInDataBlock(pBlocks);
+      if (pMeta2 != NULL && !stmtRetryTbMetaIsSuperTable(pMeta2) && (uint64_t)pMeta2->uid == (uint64_t)pTb->uid) {
+        size_t      keyLen = 0;
+        const char* key = taosHashGetKey(pIter, &keyLen);
+        taosHashCancelIterate(pStmt->exec.pBlockHash, pIter);
+        if (key == NULL || keyLen == 0) break;
+        // key is "acctId.dbname.tname"; extract the short name after the last '.'.
+        const char* tname = key;
+        size_t      tnLen = keyLen;
+        for (size_t i = 0; i < keyLen; ++i) {
+          if (key[i] == '.') {
+            tname = key + i + 1;
+            tnLen = keyLen - i - 1;
+          }
+        }
+        if (tnLen == 0 || tnLen >= TSDB_TABLE_NAME_LEN) break;
+        char tnBuf[TSDB_TABLE_NAME_LEN] = {0};
+        (void)memcpy(tnBuf, tname, tnLen);
+        SName       nm = {0};
+        const char* dbname = (pRequest->pDb != NULL) ? pRequest->pDb : pStmt->taos->db;
+        int32_t     nc = qCreateSName2(&nm, tnBuf, pStmt->taos->acctId, (char*)dbname, NULL, 0);
+        if (nc != TSDB_CODE_SUCCESS) break;
+        STableMeta* pFresh = NULL;
+        nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pFresh);
+        if (nc == TSDB_CODE_SUCCESS && pFresh != NULL && !stmtRetryTbMetaIsSuperTable(pFresh)) {
+          pPatch->uid = pFresh->uid;
+          pPatch->suid = pFresh->suid;
+          pPatch->sver = pFresh->sversion;
+          taosMemoryFree(pFresh);
+          return TSDB_CODE_SUCCESS;
+        }
+        taosMemoryFreeClear(pFresh);
+        if (nc != TSDB_CODE_SUCCESS) return nc;
+        break;
+      }
+      pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
+    }
+  }
 
   // 1) Auto-create child: look up by child table name (never use STB-only name without child name).
   if (pTb->pCreateTbReq != NULL && pTb->pCreateTbReq->name != NULL) {
@@ -1406,6 +1500,8 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
   pStmt->sql.siInfo.pTableCols = NULL;
+
+  taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
 
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
@@ -1782,7 +1878,24 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    pStmt->sql.siInfo.dbname = taos->db;
+    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+    const char* siDbSrc = NULL;
+    if (pStmt->db != NULL && pStmt->db[0] != '\0') {
+      siDbSrc = pStmt->db;
+    } else if (taos->db[0] != '\0') {
+      siDbSrc = taos->db;
+    }
+    if (siDbSrc != NULL) {
+      pStmt->sql.siInfo.dbname = taosStrdup(siDbSrc);
+      if (pStmt->sql.siInfo.dbname == NULL) {
+        code = terrno;
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      STMT2_ELOG("fail to dup siInfo dbname in stmtInit2:%s", tstrerror(code));
+      (void)stmtClose2(pStmt);
+      return NULL;
+    }
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
 
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -1873,7 +1986,11 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
     return terrno;
   }
   if (pStmt->sql.stbInterlaceMode) {
-    pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
+    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+    pStmt->sql.siInfo.dbname = taosStrdup(pStmt->exec.pRequest->pDb);
+    if (pStmt->sql.siInfo.dbname == NULL) {
+      STMT_ERR_RET(terrno);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1959,7 +2076,15 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   if (stbInterlaceMode) {
     pStmt->sql.siInfo.transport = pStmt->taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = pStmt->taos->acctId;
-    pStmt->sql.siInfo.dbname = pStmt->taos->db;
+    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+    if (db != NULL && db[0] != '\0') {
+      pStmt->sql.siInfo.dbname = taosStrdup(db);
+    } else if (pStmt->taos->db[0] != '\0') {
+      pStmt->sql.siInfo.dbname = taosStrdup(pStmt->taos->db);
+    }
+    if (pStmt->sql.siInfo.dbname == NULL && ((db != NULL && db[0] != '\0') || pStmt->taos->db[0] != '\0')) {
+      STMT_ERR_RET(terrno);
+    }
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
 
     if (NULL == pStmt->pCatalog) {
@@ -2045,7 +2170,11 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       (void)strdequote(pStmt->exec.pRequest->pDb);
 
       if (pStmt->sql.stbInterlaceMode) {
-        pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
+        taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+        pStmt->sql.siInfo.dbname = taosStrdup(pStmt->exec.pRequest->pDb);
+        if (pStmt->sql.siInfo.dbname == NULL) {
+          STMT_ERR_RET(terrno);
+        }
       }
     }
 
@@ -3124,12 +3253,12 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
     int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
     if (retryCode == TSDB_CODE_SUCCESS) {
-      stmtInvalidateStbInterlaceTableUidCache(pStmt);
       if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
         retryCode = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
       } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
         retryCode = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
       }
+      stmtInvalidateStbInterlaceTableUidCache(pStmt);
     }
     if (retryCode == TSDB_CODE_SUCCESS) {
       (void)stmtRestoreVgDataBlocksForRetry(pStmt);
@@ -3255,9 +3384,6 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       int32_t origExecCode = pStmt->exec.pRequest->code;
       STMT2_WLOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, refresh meta and retry internally");
       code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
-      if (code == TSDB_CODE_SUCCESS) {
-        stmtInvalidateStbInterlaceTableUidCache(pStmt);
-      }
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
         if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
           code = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
@@ -3265,6 +3391,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
           code = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
         }
       }
+      stmtInvalidateStbInterlaceTableUidCache(pStmt);
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
         // Restore saved serialized data blocks and re-execute with refreshed meta.
         STMT_ERR_JRET(stmtRestoreVgDataBlocksForRetry(pStmt));
