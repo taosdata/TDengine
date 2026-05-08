@@ -30,6 +30,7 @@ typedef struct SCtgVStbLayerRef {
   char dbName[TSDB_DB_NAME_LEN];
   char tbName[TSDB_TABLE_NAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
+  bool isTagRef;
 } SCtgVStbLayerRef;
 
 int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode);
@@ -88,12 +89,12 @@ static void ctgDestroyVStbLayerReqs(SArray* pReqs) {
  * Return success on success, otherwise an error code.
  */
 static int32_t ctgAddVStbLayerRef(SArray** ppRefs, col_id_t rootColId, const char* pDbName, const char* pTbName,
-                                  const char* pColName, SHashObj* pDedup, SHashObj** ppRefDbs) {
+                                  const char* pColName, SHashObj* pDedup, SHashObj** ppRefDbs, bool isTagRef) {
   char             refKey[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 32] = {0};
   uint8_t          exists = 1;
   SCtgVStbLayerRef ref = {0};
 
-  tsnprintf(refKey, sizeof(refKey), "%d.%s.%s.%s", rootColId, pDbName, pTbName, pColName);
+  tsnprintf(refKey, sizeof(refKey), "%c%d.%s.%s.%s", isTagRef ? 'T' : 'C', rootColId, pDbName, pTbName, pColName);
   if (NULL != taosHashGet(pDedup, refKey, strlen(refKey) + 1)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -109,6 +110,7 @@ static int32_t ctgAddVStbLayerRef(SArray** ppRefs, col_id_t rootColId, const cha
   }
 
   ref.rootColId = rootColId;
+  ref.isTagRef = isTagRef;
   tstrncpy(ref.dbName, pDbName, sizeof(ref.dbName));
   tstrncpy(ref.tbName, pTbName, sizeof(ref.tbName));
   tstrncpy(ref.colName, pColName, sizeof(ref.colName));
@@ -141,6 +143,50 @@ static int32_t ctgInitResolvedVStbColRefs(const STableMeta* pMeta, int32_t* pNum
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ctgInitResolvedVStbTagRefs(const STableMeta* pMeta, int32_t* pNumOfTagRefs, SRefColInfo** ppTagRefCols) {
+  if (NULL == pNumOfTagRefs || NULL == ppTagRefCols) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  if (NULL == pMeta || !hasRefCol(pMeta->tableType) || NULL == pMeta->tagRef || pMeta->numOfTagRefs <= 0) {
+    *pNumOfTagRefs = 0;
+    *ppTagRefCols = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppTagRefCols = taosMemoryCalloc(pMeta->numOfTagRefs, sizeof(SRefColInfo));
+  if (NULL == *ppTagRefCols) {
+    CTG_ERR_RET(terrno);
+  }
+
+  *pNumOfTagRefs = pMeta->numOfTagRefs;
+  for (int32_t i = 0; i < pMeta->numOfTagRefs; ++i) {
+    (*ppTagRefCols)[i].colId = pMeta->tagRef[i].id;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ctgSetResolvedVStbTagRef(int32_t numOfTagRefs, SRefColInfo* pTagRefCols, col_id_t rootColId,
+                                        const char* pDbName, const char* pTbName, const char* pColName) {
+  if (rootColId <= 0 || numOfTagRefs <= 0 || NULL == pTagRefCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < numOfTagRefs; ++i) {
+    if (pTagRefCols[i].colId != rootColId) {
+      continue;
+    }
+
+    tstrncpy(pTagRefCols[i].refDbName, pDbName, sizeof(pTagRefCols[i].refDbName));
+    tstrncpy(pTagRefCols[i].refTableName, pTbName, sizeof(pTagRefCols[i].refTableName));
+    tstrncpy(pTagRefCols[i].refColName, pColName, sizeof(pTagRefCols[i].refColName));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_CTG_INTERNAL_ERROR;
 }
 
 static int32_t ctgSetResolvedVStbColRef(int32_t numOfColRefs, SRefColInfo* pColRefCols, col_id_t rootColId,
@@ -203,13 +249,14 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
       for (int32_t k = 0; k < pTb->numOfColRefs; ++k) {
         SRefColInfo* pRef = &pTb->refCols[k];
         CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, 0, pRef->refDbName, pRef->refTableName, pRef->refColName, pDedup,
-                                        ppRefDbs));
+                                        ppRefDbs, false));
       }
 
-      // Collect tag-ref source DBs (no layer ref needed — tags don't form chains)
+      // Tag-ref also supports chained references: add to layer ref tracking for multi-hop resolution
       for (int32_t k = 0; k < pTb->numOfTagRefs; ++k) {
         SRefColInfo* pRef = &pTb->tagRefCols[k];
-        CTG_ERR_JRET(ctgCollectVStbFinalDb(ppRefDbs, pRef->refDbName));
+        CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pRef->colId, pRef->refDbName, pRef->refTableName,
+                                        pRef->refColName, pDedup, ppRefDbs, true));
       }
 
       // Extract and merge tag ref info across all children.
@@ -265,29 +312,55 @@ _return:
 }
 
 static int32_t ctgBuildVTableFirstLayerRefs(const STableMeta* pMeta, SArray** ppLayerRefs, SHashObj** ppRefDbs,
-                                            int32_t* pNumOfColRefs, SRefColInfo** ppColRefCols) {
+                                            int32_t* pNumOfColRefs, SRefColInfo** ppColRefCols,
+                                            int32_t* pNumOfTagRefs, SRefColInfo** ppTagRefCols) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pDedup = NULL;
 
-  if (NULL == pMeta || !hasRefCol(pMeta->tableType) || NULL == pMeta->colRef || pMeta->numOfColRefs <= 0) {
+  if (NULL == pMeta || !hasRefCol(pMeta->tableType)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_RET(ctgInitResolvedVStbColRefs(pMeta, pNumOfColRefs, ppColRefCols));
+  bool hasColRefs = (NULL != pMeta->colRef && pMeta->numOfColRefs > 0);
+  bool hasTagRefs = (NULL != pMeta->tagRef && pMeta->numOfTagRefs > 0);
+  if (!hasColRefs && !hasTagRefs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (hasColRefs) {
+    CTG_ERR_RET(ctgInitResolvedVStbColRefs(pMeta, pNumOfColRefs, ppColRefCols));
+  }
+  if (hasTagRefs && pNumOfTagRefs && ppTagRefCols) {
+    CTG_ERR_RET(ctgInitResolvedVStbTagRefs(pMeta, pNumOfTagRefs, ppTagRefCols));
+  }
 
   pDedup = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (NULL == pDedup) {
     CTG_ERR_RET(terrno);
   }
 
-  for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
-    SColRef* pColRef = &pMeta->colRef[i];
-    if (!pColRef->hasRef) {
-      continue;
-    }
+  if (hasColRefs) {
+    for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+      SColRef* pColRef = &pMeta->colRef[i];
+      if (!pColRef->hasRef) {
+        continue;
+      }
 
-    CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pColRef->id, pColRef->refDbName, pColRef->refTableName,
-                                    pColRef->refColName, pDedup, ppRefDbs));
+      CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pColRef->id, pColRef->refDbName, pColRef->refTableName,
+                                      pColRef->refColName, pDedup, ppRefDbs, false));
+    }
+  }
+
+  if (hasTagRefs) {
+    for (int32_t i = 0; i < pMeta->numOfTagRefs; ++i) {
+      SColRef* pTagRef = &pMeta->tagRef[i];
+      if (!pTagRef->hasRef) {
+        continue;
+      }
+
+      CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pTagRef->id, pTagRef->refDbName, pTagRef->refTableName,
+                                      pTagRef->refColName, pDedup, ppRefDbs, true));
+    }
   }
 
 _return:
@@ -437,6 +510,51 @@ static int32_t ctgFindVStbColRef(STableMeta* pMeta, const char* pColName, SColRe
 }
 
 /*
+ * Find the next-hop tag ref for a referenced virtual table tag.
+ * pMeta is the fetched table meta of the current layer table.
+ * pColName is the referenced tag name from the previous hop.
+ * ppTagRef receives the matching SColRef in pMeta->tagRef.
+ * Return success on success, otherwise an error code.
+ */
+static int32_t ctgFindVStbTagRef(STableMeta* pMeta, const char* pColName, SColRef** ppTagRef) {
+  col_id_t colId = 0;
+  bool     found = false;
+
+  if (NULL == pMeta || NULL == ppTagRef || NULL == pColName || NULL == pMeta->schema) {
+    CTG_ERR_RET(TSDB_CODE_REF_NOT_EXIST);
+  }
+
+  *ppTagRef = NULL;
+
+  int32_t numOfColumns = pMeta->tableInfo.numOfColumns;
+  int32_t numOfTags = pMeta->tableInfo.numOfTags;
+  for (int32_t i = numOfColumns; i < numOfColumns + numOfTags; ++i) {
+    if (0 == strcmp(pMeta->schema[i].name, pColName)) {
+      colId = pMeta->schema[i].colId;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    CTG_ERR_RET(TSDB_CODE_REF_NOT_EXIST);
+  }
+
+  if (NULL == pMeta->tagRef || pMeta->numOfTagRefs <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pMeta->numOfTagRefs; ++i) {
+    if (pMeta->tagRef[i].hasRef && pMeta->tagRef[i].id == colId) {
+      *ppTagRef = &pMeta->tagRef[i];
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
  * Add one referenced db into the deduplicated result set.
  * ppRefDbs owns a hash keyed by db name with a dummy byte value.
  * pDbName is the short db name written into SVStbRefDbsRsp.
@@ -468,6 +586,7 @@ static int32_t ctgCollectVStbFinalDb(SHashObj** ppRefDbs, const char* pDbName) {
  */
 static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, SArray* pLayerReqs, SArray* pMetaRes,
                                          SHashObj** ppFinalDbs, int32_t numOfColRefs, SRefColInfo* pColRefCols,
+                                         int32_t numOfTagRefs, SRefColInfo* pTagRefCols,
                                          SArray** ppNextLayerRefs) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pMetaHash = NULL;
@@ -536,20 +655,40 @@ static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, S
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    if (hasRefCol((*ppMeta)->tableType) && (*ppMeta)->colRef) {
-      SColRef* pColRef = NULL;
+    if (pRef->isTagRef) {
+      // Tag-ref chain: look in tagRef array of the target table
+      if (hasRefCol((*ppMeta)->tableType) && (*ppMeta)->tagRef && (*ppMeta)->numOfTagRefs > 0) {
+        SColRef* pTagRef = NULL;
 
-      CTG_ERR_JRET(ctgFindVStbColRef(*ppMeta, pRef->colName, &pColRef));
-      if (NULL != pColRef) {
-        CTG_ERR_JRET(ctgAddVStbLayerRef(ppNextLayerRefs, pRef->rootColId, pColRef->refDbName, pColRef->refTableName,
-                                        pColRef->refColName, pNextDedup, ppFinalDbs));
+        CTG_ERR_JRET(ctgFindVStbTagRef(*ppMeta, pRef->colName, &pTagRef));
+        if (NULL != pTagRef) {
+          CTG_ERR_JRET(ctgAddVStbLayerRef(ppNextLayerRefs, pRef->rootColId, pTagRef->refDbName, pTagRef->refTableName,
+                                          pTagRef->refColName, pNextDedup, ppFinalDbs, true));
+        } else {
+          CTG_ERR_JRET(ctgSetResolvedVStbTagRef(numOfTagRefs, pTagRefCols, pRef->rootColId, pRef->dbName, pRef->tbName,
+                                                pRef->colName));
+        }
+      } else {
+        CTG_ERR_JRET(ctgSetResolvedVStbTagRef(numOfTagRefs, pTagRefCols, pRef->rootColId, pRef->dbName, pRef->tbName,
+                                              pRef->colName));
+      }
+    } else {
+      // Col-ref chain: existing logic
+      if (hasRefCol((*ppMeta)->tableType) && (*ppMeta)->colRef) {
+        SColRef* pColRef = NULL;
+
+        CTG_ERR_JRET(ctgFindVStbColRef(*ppMeta, pRef->colName, &pColRef));
+        if (NULL != pColRef) {
+          CTG_ERR_JRET(ctgAddVStbLayerRef(ppNextLayerRefs, pRef->rootColId, pColRef->refDbName, pColRef->refTableName,
+                                          pColRef->refColName, pNextDedup, ppFinalDbs, false));
+        } else {
+          CTG_ERR_JRET(ctgSetResolvedVStbColRef(numOfColRefs, pColRefCols, pRef->rootColId, pRef->dbName, pRef->tbName,
+                                                pRef->colName));
+        }
       } else {
         CTG_ERR_JRET(ctgSetResolvedVStbColRef(numOfColRefs, pColRefCols, pRef->rootColId, pRef->dbName, pRef->tbName,
                                               pRef->colName));
       }
-    } else {
-      CTG_ERR_JRET(ctgSetResolvedVStbColRef(numOfColRefs, pColRefCols, pRef->rootColId, pRef->dbName, pRef->tbName,
-                                            pRef->colName));
     }
   }
 
@@ -5242,7 +5381,7 @@ static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
   if (!pCtx->pMeta->virtualStb || pCtx->pMeta->tableType != TSDB_SUPER_TABLE) {
     if (NULL == pCtx->pLayerRefs && NULL == pCtx->pResList) {
       CTG_ERR_RET(ctgBuildVTableFirstLayerRefs(pCtx->pMeta, &pCtx->pLayerRefs, &pCtx->pFinalDbs, &pCtx->numOfColRefs,
-                                               &pCtx->pColRefCols));
+                                               &pCtx->pColRefCols, &pCtx->numOfTagRefs, &pCtx->pTagRefCols));
       pCtx->refLayer = 1;
     }
 
@@ -5433,7 +5572,8 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
 
       CTG_ERR_JRET(
           ctgBuildVStbNextLayerReqs(pCtx->refLayer, pCtx->pLayerRefs, pCtx->pLayerReqs, pMetaRes, &pCtx->pFinalDbs,
-                                    pCtx->numOfColRefs, pCtx->pColRefCols, &pNextLayerRefs));
+                                    pCtx->numOfColRefs, pCtx->pColRefCols,
+                                    pCtx->numOfTagRefs, pCtx->pTagRefCols, &pNextLayerRefs));
 
       taosArrayDestroy(pCtx->pLayerRefs);
       pCtx->pLayerRefs = pNextLayerRefs;
