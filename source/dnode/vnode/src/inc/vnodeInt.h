@@ -333,6 +333,13 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
+// metaSnapshot.c — txn_final.idx batched snapshot read/write (§44 lazy COMMIT/ROLLBACK)
+//   metaSnapTxnFinalRead: emits one SNAP_DATA_TXN_FINAL block per call until done.
+//                          On *ppData==NULL with code==0 the stream is finished.
+//   metaSnapTxnFinalWrite: bulk-applies a SNAP_DATA_TXN_FINAL payload via
+//                          metaTxnFinalIdxUpsert (idempotent — safe on retry).
+int32_t metaSnapTxnFinalRead(SMeta* pMeta, uint8_t** ppData);
+int32_t metaSnapTxnFinalWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
                            STsdbSnapReader** ppReader);
@@ -509,6 +516,7 @@ struct SVnode {
   SMsgCb    msgCb;
   bool      disableWrite;
   bool      mounted;
+  int8_t    closing;  // atomic flag: 1 = vnodeClose in progress, async tasks should exit early
 
   //  Metrics
   SVnodeWriteMetrics writeMetrics;
@@ -553,6 +561,15 @@ struct SVnode {
 
   // Notification Handles
   SStreamNotifyHandleMap* pNotifyHandleMap;
+
+  // Batch Metadata Transaction
+  SHashObj*     pTxnHash;       // key: int64_t txnId, value: SVnodeTxnEntry
+  SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
+  SHashObj*     pFinalizedTxns;  // key: int64_t txnId, value: int8_t (ETxnFinalStatus) — thread-safe cache
+  TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
+  int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
+  SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
+  int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -615,6 +632,12 @@ enum {
   // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
   SNAP_DATA_BSE = 15,
+  // Batch-meta-txn (§44 lazy COMMIT/ROLLBACK): replicate txn_final.idx so that
+  // a follower joining via full snapshot can resume vacuum of large-txn
+  // shadow entries instead of leaking PRE_* status forever. Reader emits
+  // these AFTER SNAP_DATA_META so that the meta entries referenced by each
+  // finalized txn already exist on the receiving side.
+  SNAP_DATA_TXN_FINAL = 16,
 };
 
 struct SSnapDataHdr {
@@ -656,6 +679,79 @@ void    vHashDestroy(SVHashTable** ht);
 int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
+
+// vnodeTxn.c — Batch metadata transaction (shadow-in-B+tree model)
+// DDL within a transaction writes directly to B+ tree with txnId/txnStatus set.
+// EMetaTxnStatus (defined in tdef.h): NORMAL, PRE_CREATE, PRE_ALTER, PRE_DROP, COMMITTED, ROLLEDBACK.
+// COMMIT: promotes shadow entries (clear txnId→0, txnStatus→NORMAL; physically delete PRE_DROP).
+// ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/PRE_ALTER to NORMAL).
+
+int32_t vnodeTxnInit(SVnode* pVnode);
+void    vnodeTxnCleanup(SVnode* pVnode);
+int32_t vnodeProcessTxnCommitReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+int32_t vnodeProcessTxnRollbackReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
+int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray* pQueries);
+int32_t vnodeTxnTimeoutScan(SVnode* pVnode);
+
+// Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
+int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);
+int32_t vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+int32_t vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
+
+// Conflict detection: incomingOp values for vnodeTxnCheckConflict
+#define TXN_CONFLICT_OP_CREATE 1
+#define TXN_CONFLICT_OP_ALTER  2
+#define TXN_CONFLICT_OP_DROP   3
+
+// Check if a non-txn DDL conflicts with active txn shadow entries in B+ tree.
+// Uses EMetaTxnStatus for conflict detection instead of in-memory shadow ops.
+int32_t vnodeTxnCheckConflict(SVnode* pVnode, const char* tableName, int8_t incomingOp);
+
+// Acquire table-level lock for a txn; returns TSDB_CODE_VND_TXN_CONFLICT on cross-txn conflict.
+int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
+
+// Check if a DELETE DML on a specific UID conflicts with PRE_DROP shadow.
+int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
+
+// metaTable2.c — mark existing entry with txnId/txnStatus/txnPrevVer in-place
+int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
+// metaTable2.c — rollback ALTER: delete new version entry, restore pUidIdx to old version
+int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
+
+// metaEntry2.c — scan all entries with txnId != 0 (for VNode startup rebuild)
+typedef struct SMetaTxnScanEntry {
+  tb_uid_t uid;
+  int64_t  txnId;
+  int8_t   txnStatus;
+  int64_t  txnPrevVer;
+} SMetaTxnScanEntry;
+int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
+
+// metaEntry2.c — txn.idx CRUD (small B+ tree for O(k) startup rebuild)
+int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
+int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
+
+// metaEntry2.c — txn_final.idx CRUD (lazy COMMIT/ROLLBACK finalization record)
+#pragma pack(push, 1)
+typedef struct {
+  int8_t  finalStatus;  // ETxnFinalStatus: TXN_FINAL_COMMITTED or TXN_FINAL_ROLLEDBACK
+  int64_t timestamp;    // When finalized (ms)
+} STxnFinalVal;
+#pragma pack(pop)
+int32_t metaTxnFinalIdxUpsert(SMeta* pMeta, int64_t txnId, const STxnFinalVal* pVal);
+int32_t metaTxnFinalIdxDelete(SMeta* pMeta, int64_t txnId);
+int32_t metaTxnFinalIdxGet(SMeta* pMeta, int64_t txnId, STxnFinalVal* pVal);
+int32_t metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult);
+
+// metaEntry2.c — visibility helper: check if txn is finalized (O(1) hash lookup)
+int8_t metaGetTxnFinalStatus(SMeta* pMeta, int64_t txnId);
+
+// vnodeTxn.c — rebuild in-memory txn state from B+ tree (called at VNode startup)
+int32_t vnodeTxnRebuildFromMeta(SVnode* pVnode);
+
+// vnodeTxn.c — lazy vacuum: process finalized txn entries in batches
+int32_t vnodeTxnVacuumBatch(SVnode* pVnode, int32_t maxOps);
 
 #ifdef __cplusplus
 }

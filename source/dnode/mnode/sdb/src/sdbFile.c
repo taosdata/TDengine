@@ -351,7 +351,7 @@ static bool sdbReadEncryptedFlagFromMnodeJson(SSdb *pSdb) {
 
 static int32_t sdbReadFileImp(SSdb *pSdb) {
   int64_t offset = 0;
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   int32_t readLen = 0;
   int64_t ret = 0;
   char    file[PATH_MAX] = {0};
@@ -423,13 +423,13 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     if (ret < 0) {
       code = terrno;
       mError("failed to read sdb file:%s since %s", file, tstrerror(code));
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
 
     if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
@@ -442,7 +442,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       if (pNewRaw == NULL) {
         code = terrno;
         mError("failed read sdb file since malloc new sdbRaw size:%d failed", bufLen);
-        goto _OVER;
+        TAOS_CHECK_EXIT(code);
       }
       mInfo("malloc new sdb raw size:%d, type:%d", bufLen, pRaw->type);
       memcpy(pNewRaw, pRaw, sizeof(SSdbRaw));
@@ -454,18 +454,18 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     if (ret < 0) {
       code = terrno;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " readLen:%d", file, tstrerror(code), ret, readLen);
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
 
     if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
 
     if (taosWaitCfgKeyLoaded() != 0) {
       code = terrno;
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
 
     if (tsMetaKey[0] != '\0' && !needMigration) {
@@ -474,7 +474,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
       if (plantContent == NULL) {
         code = terrno;
-        goto _OVER;
+        TAOS_CHECK_EXIT(code);
       }
 
       SCryptOpts opts = {0};
@@ -488,7 +488,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       count = CBC_Decrypt(&opts);
       if (count <= 0) {
         code = terrno;
-        goto _OVER;
+        TAOS_CHECK_EXIT(code);
       }
 
       // mDebug("read sdb, CBC Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
@@ -502,7 +502,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     if ((!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen)) != 0) {
       code = TSDB_CODE_CHECKSUM_ERROR;
       mError("failed to read sdb file:%s since %s, readLen:%d", file, tstrerror(code), readLen);
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
 
     if (pRaw->type >= SDB_MAX) {
@@ -513,7 +513,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       mError("failed to exec sdbWrite while read sdb file:%s since %s", file, terrstr());
-      goto _OVER;
+      TAOS_CHECK_EXIT(code);
     }
   }
 
@@ -525,9 +525,12 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   mInfo("vgId:1, trans:0, read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file,
         pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig);
 
-_OVER:
+_exit:
   if ((ret = taosCloseFile(&pFile)) != 0) {
     mError("failed to close sdb file:%s since %s", file, tstrerror(ret));
+  }
+  if(code != 0) {
+    mError("failed to read sdb file:%s at line %d since %s", file, lino, tstrerror(code));
   }
   sdbFreeRaw(pRaw);
 

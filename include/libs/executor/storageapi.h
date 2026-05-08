@@ -49,11 +49,14 @@ typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
 
 typedef struct SMetaEntry {
-  int64_t  version;
-  int8_t   type;
-  int8_t   flags;  // TODO: need refactor?
-  tb_uid_t uid;
-  char*    name;
+  int64_t   version;
+  int8_t    type;
+  int8_t    flags;
+  uint8_t   txnStatus;   // EMetaTxnStatus
+  txn_id_t  txnId;       // for meta transaction, 0 if not in transaction
+  int64_t   txnPrevVer;  // for PRE_ALTER: version before ALTER (for rollback)
+  tb_uid_t  uid;
+  char*     name;
   union {
     struct {
       SSchemaWrapper schemaRow;
@@ -100,6 +103,7 @@ typedef struct SMetaReader {
   void*              pBuf;
   int32_t            szBuf;
   struct SStoreMeta* pAPI;
+  int64_t            txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } SMetaReader;
 
 typedef struct SMTbCursor {
@@ -111,6 +115,7 @@ typedef struct SMTbCursor {
   int32_t     vLen;
   SMetaReader mr;
   int8_t      paused;
+  int64_t     txnId;  // batch meta txn: same-txn visibility bypass
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
@@ -123,6 +128,7 @@ typedef struct SMCtbCursor {
   int           vLen;
   int8_t        paused;
   int           lock;
+  int64_t       txnId;  // batch meta txn: same-txn visibility bypass
 } SMCtbCursor;
 
 typedef struct SRowBuffPos {

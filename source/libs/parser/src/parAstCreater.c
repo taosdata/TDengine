@@ -4506,6 +4506,17 @@ _err:
   return NULL;
 }
 
+SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  STransStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->transId = 0;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode) {
   CHECK_PARSER_STATUS(pCxt);
   SShowTransactionDetailsStmt* pStmt = NULL;
@@ -7740,6 +7751,17 @@ SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->targetId = taosStr2Int32(pId->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createKillTransStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SKillTransStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->targetId = taosStr2Int64(pId->z, NULL, 10);
   return (SNode*)pStmt;
 _err:
   return NULL;

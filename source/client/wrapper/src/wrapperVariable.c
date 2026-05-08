@@ -30,6 +30,9 @@ TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth
 TAOS *(*fp_taos_connect_with)(const OPTIONS *options) = NULL;
 TAOS *(*fp_taos_connect_with_dsn)(const char *dsn) = NULL;
 void (*fp_taos_close)(TAOS *taos) = NULL;
+int (*fp_taos_txn_begin)(TAOS *taos) = NULL;
+int (*fp_taos_txn_commit)(TAOS *taos) = NULL;
+int (*fp_taos_txn_rollback)(TAOS *taos) = NULL;
 
 const char *(*fp_taos_data_type)(int type) = NULL;
 

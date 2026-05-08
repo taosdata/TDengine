@@ -76,6 +76,28 @@ void vmSetVnodeSyncTimeout(SVnodeMgmt *pMgmt) {
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
+void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray *pQueries) {
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+
+  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode != NULL && *ppVnode != NULL && !(*ppVnode)->failed) {
+      int32_t scanCode = vnodeCollectIdleTxns((*ppVnode)->pImpl, pQueries);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeCollectIdleTxns failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
+      scanCode = vnodeTxnTimeoutScan((*ppVnode)->pImpl);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeTxnTimeoutScan failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
+    }
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
   if (!pInfo->pVloads) return;
@@ -1970,6 +1992,10 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+
+  // Transaction messages
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_COMMIT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_ROLLBACK, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

@@ -35,6 +35,19 @@ TARGET_LINK_LIBRARIES(
          PUBLIC os util common vnode
 )
 
+ADD_EXECUTABLE(vnodeTxnTest vnodeTxnTest.cpp)
+DEP_ext_gtest(vnodeTxnTest)
+TARGET_LINK_LIBRARIES(
+         vnodeTxnTest
+         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+)
+IF(NOT TD_WINDOWS)
+SET_TARGET_PROPERTIES(
+         vnodeTxnTest PROPERTIES
+         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnFinalEntries -Wl,--wrap=metaTxnFinalIdxDelete -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus"
+)
+ENDIF()
+
 TARGET_INCLUDE_DIRECTORIES(
          bseTest
          PUBLIC "${TD_SOURCE_DIR}/include/common"
@@ -42,6 +55,18 @@ TARGET_INCLUDE_DIRECTORIES(
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
+TARGET_INCLUDE_DIRECTORIES(
+         vnodeTxnTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+add_test(
+         NAME vnodeTxnTest
+         COMMAND vnodeTxnTest
+)
 IF(NOT TD_WINDOWS)
     ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
     DEP_ext_gtest(tsdbCacheTest)

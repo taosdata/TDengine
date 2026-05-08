@@ -97,6 +97,11 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_ROLE_LOCK, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_CORE_ROLES, 0, "", "LOCK ROLE"},
     {PRIV_ROLE_SHOW, PRIV_CATEGORY_SYSTEM, 0, 0, SYS_ADMIN_INFO1_ROLES, 0, "", "SHOW ROLES"},
 
+    // grant create xtask to u1;
+    // grant show on xtask 1 to u1; //xnode task
+    // grant show on database d1 to u1;
+    // grant show xnode 1 to u1;
+
     // Token Privileges
     {PRIV_TOKEN_CREATE, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "CREATE TOKEN"},
     {PRIV_TOKEN_DROP, PRIV_CATEGORY_SYSTEM, 0, 0, T_ROLE_SYSSEC, 0, "", "DROP TOKEN"},

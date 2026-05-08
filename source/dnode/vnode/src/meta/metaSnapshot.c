@@ -698,6 +698,9 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.ctb.pTag = me.ctbEntry.pTags;
     req.ctb.tagName = tagName;
     req.colRef = me.colRef;
+    // batch meta txn: propagate txn fields for snapshot replication
+    req.txnId = me.txnId;
+    req.txnStatus = me.txnStatus;
     if (me.type == TSDB_VIRTUAL_CHILD_TABLE) {
       SMetaEntry *pSuper = NULL;
       int32_t code = metaFetchEntryByUid(ctx->pMeta, me.ctbEntry.suid, &pSuper);
@@ -724,6 +727,9 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.colCmpr = me.colCmpr;
     req.pExtSchemas = me.pExtSchemas;
     req.colRef = me.colRef;
+    // batch meta txn: propagate txn fields for snapshot replication
+    req.txnId = me.txnId;
+    req.txnStatus = me.txnStatus;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {
@@ -819,5 +825,170 @@ END:
   if (code != 0) {
     metaError("tmqsnap get meta table info from snapshot failed line:%d since %s", lino, tstrerror(code));
   }
+  return code;
+}
+
+// ============================================================================
+// txn_final.idx snapshot read/write (§44 lazy COMMIT/ROLLBACK durable transfer)
+// ----------------------------------------------------------------------------
+// Wire format (per SSnapDataHdr block):
+//   uint32_t nEntries;              // number of finalized-txn records in block
+//   for each entry:
+//     int64_t      txnId;
+//     int8_t       finalStatus;     // ETxnFinalStatus
+//     int64_t      timestamp;
+//
+// Sized to fit comfortably below the snapshot block ceiling. We emit the
+// entire txn_final.idx in a single block — even at 10^6 finalized txns
+// (extreme edge), 17 bytes/entry → ~16MB; far below per-block limits used
+// elsewhere in the snapshot stream. If future workloads ever push past that,
+// split into multiple blocks driven by a stateful reader cursor.
+// ============================================================================
+
+#define META_SNAP_TXN_FINAL_ENTRY_SIZE (sizeof(int64_t) + sizeof(int8_t) + sizeof(int64_t))
+
+int32_t metaSnapTxnFinalRead(SMeta* pMeta, uint8_t** ppData) {
+  int32_t code = 0;
+  SArray* pResult = NULL;
+  *ppData = NULL;
+
+  code = metaScanTxnFinalEntries(pMeta, &pResult);
+  if (code != 0) {
+    metaError("vgId:%d, metaSnapTxnFinalRead scan failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+    return code;
+  }
+
+  uint32_t nEntries = pResult ? (uint32_t)taosArrayGetSize(pResult) : 0;
+  if (nEntries == 0) {
+    if (pResult) taosArrayDestroy(pResult);
+    return 0;  // *ppData remains NULL → caller treats as "stream done"
+  }
+
+  uint32_t bodyLen = sizeof(uint32_t) + nEntries * META_SNAP_TXN_FINAL_ENTRY_SIZE;
+  uint8_t* pBuf = taosMemoryMalloc(sizeof(SSnapDataHdr) + bodyLen);
+  if (pBuf == NULL) {
+    taosArrayDestroy(pResult);
+    return terrno;
+  }
+
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pBuf;
+  pHdr->type = SNAP_DATA_TXN_FINAL;
+  pHdr->size = (int64_t)bodyLen;
+
+  uint8_t* pCur = pHdr->data;
+  *(uint32_t*)pCur = nEntries;
+  pCur += sizeof(uint32_t);
+
+  for (uint32_t i = 0; i < nEntries; i++) {
+    // metaScanTxnFinalEntries packs: { int64_t txnId; STxnFinalVal val; }
+    struct {
+      int64_t      txnId;
+      STxnFinalVal val;
+    } *pE = taosArrayGet(pResult, i);
+
+    *(int64_t*)pCur = pE->txnId;
+    pCur += sizeof(int64_t);
+    *(int8_t*)pCur = pE->val.finalStatus;
+    pCur += sizeof(int8_t);
+    *(int64_t*)pCur = pE->val.timestamp;
+    pCur += sizeof(int64_t);
+  }
+
+  taosArrayDestroy(pResult);
+  *ppData = pBuf;
+  metaInfo("vgId:%d, snap txn_final read %u entries (bodyLen:%u)", TD_VID(pMeta->pVnode), nEntries, bodyLen);
+  return 0;
+}
+
+int32_t metaSnapTxnFinalWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData) {
+  if (pData == NULL || nData < sizeof(SSnapDataHdr) + sizeof(uint32_t)) {
+    metaError("vgId:%d, metaSnapTxnFinalWrite invalid input nData:%u", TD_VID(pMeta->pVnode), nData);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
+  if (pHdr->type != SNAP_DATA_TXN_FINAL) {
+    metaError("vgId:%d, metaSnapTxnFinalWrite type mismatch:%d", TD_VID(pMeta->pVnode), pHdr->type);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  if (pHdr->size < (int64_t)sizeof(uint32_t) ||
+      pHdr->size > (int64_t)(nData - sizeof(SSnapDataHdr))) {  // bound payload by transport
+    metaError("vgId:%d, metaSnapTxnFinalWrite size mismatch hdr->size:%" PRId64 " nData:%u",
+              TD_VID(pMeta->pVnode), (int64_t)pHdr->size, nData);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  uint8_t* pCur = pHdr->data;
+  uint8_t* pEnd = pHdr->data + pHdr->size;
+  uint32_t nEntries = *(uint32_t*)pCur;
+  pCur += sizeof(uint32_t);
+
+  if ((uint64_t)nEntries * META_SNAP_TXN_FINAL_ENTRY_SIZE != (uint64_t)(pEnd - pCur)) {
+    metaError("vgId:%d, metaSnapTxnFinalWrite entry-count mismatch nEntries:%u remaining:%lld",
+              TD_VID(pMeta->pVnode), nEntries, (long long)(pEnd - pCur));
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+
+  // The caller (vnodeSnapshot.c) owns the surrounding meta txn (opened by
+  // SMetaSnapWriter for the META stage, still in flight when TXN_FINAL arrives,
+  // committed by metaSnapWriterClose). We piggy-back on that txn so our
+  // upserts atomically land with the snapshot's meta-entry writes.
+  // If a TXN_FINAL block arrives without any prior META block (no shadow
+  // entries on source), pMeta->txn may be NULL — open a private one.
+  bool    ownTxn = (pMeta->txn == NULL);
+  int32_t code = 0;
+  if (ownTxn) {
+    code = metaBegin(pMeta, META_BEGIN_HEAP_NIL);
+    if (code != 0) {
+      metaError("vgId:%d, metaSnapTxnFinalWrite metaBegin failed since %s",
+                TD_VID(pMeta->pVnode), tstrerror(code));
+      return code;
+    }
+  }
+
+  uint32_t applied = 0;
+  for (uint32_t i = 0; i < nEntries; i++) {
+    int64_t txnId = *(int64_t*)pCur;
+    pCur += sizeof(int64_t);
+    STxnFinalVal val = {0};
+    val.finalStatus = *(int8_t*)pCur;
+    pCur += sizeof(int8_t);
+    val.timestamp = *(int64_t*)pCur;
+    pCur += sizeof(int64_t);
+
+    if (txnId == 0 ||
+        (val.finalStatus != TXN_FINAL_COMMITTED && val.finalStatus != TXN_FINAL_ROLLEDBACK)) {
+      metaError("vgId:%d, metaSnapTxnFinalWrite reject malformed entry txnId:%" PRId64 " status:%d",
+                TD_VID(pMeta->pVnode), txnId, val.finalStatus);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _abort;
+    }
+
+    code = metaTxnFinalIdxUpsert(pMeta, txnId, &val);
+    if (code != 0) {
+      metaError("vgId:%d, metaSnapTxnFinalWrite upsert failed txnId:%" PRId64 " since %s",
+                TD_VID(pMeta->pVnode), txnId, tstrerror(code));
+      goto _abort;
+    }
+    applied++;
+  }
+
+  if (ownTxn) {
+    code = metaCommit(pMeta, pMeta->txn);
+    if (code == 0) code = metaFinishCommit(pMeta, pMeta->txn);
+    if (code != 0) {
+      metaError("vgId:%d, metaSnapTxnFinalWrite commit failed since %s",
+                TD_VID(pMeta->pVnode), tstrerror(code));
+      return code;
+    }
+  }
+
+  metaInfo("vgId:%d, snap txn_final write applied %u/%u entries (ownTxn=%d)",
+           TD_VID(pMeta->pVnode), applied, nEntries, (int)ownTxn);
+  return 0;
+
+_abort:
+  if (ownTxn) (void)metaAbort(pMeta);
   return code;
 }

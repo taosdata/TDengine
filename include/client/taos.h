@@ -264,6 +264,9 @@ DLL_EXPORT TAOS *taos_connect_totp(const char *ip, const char *user, const char 
 DLL_EXPORT int   taos_connect_test(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
+DLL_EXPORT int   taos_txn_begin(TAOS *taos);     // would support for community edition in later edition
+DLL_EXPORT int   taos_txn_commit(TAOS *taos);    // would support for community edition in later edition
+DLL_EXPORT int   taos_txn_rollback(TAOS *taos);  // would support for community edition in later edition
 
 DLL_EXPORT const char *taos_data_type(int type);
 

@@ -133,11 +133,17 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
     CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgroupInfo, output, NULL));
 
     if (CTG_IS_META_TABLE(output->metaType) && TSDB_SUPER_TABLE == output->tbMeta->tableType) {
-      ctgDebug("tb:%s, will continue to refresh tbmeta since got stb", tNameGetTableName(ctx->pName));
+      // batch-meta-txn: when txnId is set (replicated/same-txn context), the VNode result is authoritative
+      // because the MNode's STrans may not have committed to SDB yet (async ACTION_IN_PROGRESS)
+      if (pConn && pConn->txnId != 0) {
+        ctgDebug("tb:%s, got stb from vnode with txnId, skip mnode cross-check", tNameGetTableName(ctx->pName));
+      } else {
+        ctgDebug("tb:%s, will continue to refresh tbmeta since got stb", tNameGetTableName(ctx->pName));
 
-      taosMemoryFreeClear(output->tbMeta);
+        taosMemoryFreeClear(output->tbMeta);
 
-      CTG_ERR_JRET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, output->dbFName, output->tbName, output, NULL));
+        CTG_ERR_JRET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, output->dbFName, output->tbName, output, NULL));
+      }
     } else if (CTG_IS_META_BOTH(output->metaType) || CTG_IS_META_VBOTH(output->metaType)) {
       int32_t exist = 0;
       if (!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) {
@@ -497,7 +503,15 @@ _return:
 
 int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, STableCfg** pCfg) {
   int32_t tbType = 0;
-  CTG_ERR_RET(ctgGetTbType(pCtg, pConn, pTableName, &tbType));
+  int32_t code = ctgGetTbType(pCtg, pConn, pTableName, &tbType);
+
+  // batch meta txn: if table type lookup fails (PRE_CREATE invisible), assume non-super-table
+  // and go directly to VNode — super tables are on MNode, never part of batch meta txn
+  if (pConn->txnId > 0 && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+    tbType = 0;
+    code = TSDB_CODE_SUCCESS;
+  }
+  CTG_ERR_RET(code);
 
   if (TSDB_SUPER_TABLE == tbType) {
     CTG_ERR_RET(ctgGetTableCfgFromMnode(pCtg, pConn, pTableName, pCfg, NULL));

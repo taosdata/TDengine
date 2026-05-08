@@ -106,6 +106,18 @@ const char *sdbTableName(ESdbType type) {
       return "token";
     case SDB_ROLE:
       return "role";
+    case SDB_XNODE_TASK:
+      return "xnode_task";
+    case SDB_XNODE_AGENT:
+      return "xnode_agent";
+    case SDB_XNODE_JOB:
+      return "xnode_job";
+    case SDB_XNODE_USER_PASS:
+      return "xnode_user_pass";
+    case SDB_TXN:
+      return "txn";
+    case SDB_TXN_SEQ:
+      return "txn_seq";
     default:
       return "undefine";
   }

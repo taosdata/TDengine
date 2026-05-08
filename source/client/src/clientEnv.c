@@ -500,6 +500,19 @@ void destroyTscObj(void *pObj) {
   // In any cases, we should not free app inst here. Or an race condition rises.
   /*int64_t connNum = */ (void)atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
+  taosArrayDestroy(pTscObj->pTxnVgList);
+  pTscObj->pTxnVgList = NULL;
+  // §34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  if (pTscObj->pTxnTableMeta) {
+    void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter) {
+      STableMeta **ppMeta = (STableMeta **)pIter;
+      taosMemoryFreeClear(*ppMeta);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 

@@ -219,6 +219,10 @@ typedef struct STscObj {
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
+  int8_t         txnState;
+  txn_id_t       txnId;
+  SArray*        pTxnVgList;  // Array of int32_t (vgId), accumulated during DDL in txn
+  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table" → STableMeta* for tables created in this txn
   union {
     uint32_t flags;
     struct {
@@ -440,6 +444,7 @@ int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 void  resetConnectDB(STscObj* pTscObj);
+void  tscResetTxnState(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
@@ -560,6 +565,7 @@ enum { MONITORSQLTYPESELECT = 0, MONITORSQLTYPEINSERT = 1, MONITORSQLTYPEDELETE 
 void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
+void writeRawCleanup(void);
 
 #ifdef __cplusplus
 }

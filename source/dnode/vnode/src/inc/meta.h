@@ -104,8 +104,22 @@ struct SMeta {
   // stream
   TTB* pStreamDb;
 
+  // batch meta txn: track pending txn entries for O(k) startup rebuild
+  TTB* pTxnIdx;
+
+  // batch meta txn: lazy COMMIT/ROLLBACK — txn finalization record for O(1) finalize
+  TTB* pTxnFinalIdx;
+
   SMetaCache* pCache;
 };
+
+// Fast-path check: returns true if there are any pending (active or finalized-but-un-vacuumed)
+// txn entries in this VNode. When false, callers can skip per-row tdbTbGet(pTxnIdx) lookups.
+static FORCE_INLINE bool metaHasPendingTxnEntries(SMeta* pMeta) {
+  SVnode* pVnode = pMeta->pVnode;
+  return (pVnode->pTxnHash && taosHashGetSize(pVnode->pTxnHash) > 0) ||
+         (pVnode->pFinalizedTxns && taosHashGetSize(pVnode->pFinalizedTxns) > 0);
+}
 
 typedef struct {
   int64_t  version;
@@ -144,6 +158,14 @@ typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
+
+#pragma pack(push, 1)
+typedef struct {
+  int64_t txnId;
+  int8_t  txnStatus;
+  int64_t txnPrevVer;
+} STxnIdxVal;
+#pragma pack(pop)
 
 typedef struct {
   int64_t  btime;

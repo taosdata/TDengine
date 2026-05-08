@@ -66,6 +66,8 @@ extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
 extern int32_t       tsStatusTimeoutMs;
+extern int32_t        tsMetaTxnTimeout;
+extern int32_t        tsMetaTxnQuietSec;
 extern int32_t       tsNumOfSupportVnodes;
 extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];

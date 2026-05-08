@@ -571,6 +571,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already ex
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_VNODE_OFFLINE,            "Vnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_EXCEED_MAX_COL_ID,        "Exceed max column id")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_SAME_TAG,                 "Tags are same")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_STALE_TERM,          "Vnode txn stale term")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_CONFLICT,            "Table is locked by an uncommitted transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_EXPIRED,             "Vnode txn expired")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -1030,6 +1033,37 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 
 //scalar
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
+
+//utxn
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Transaction already in progress, please COMMIT or ROLLBACK first")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_IN_PROGRESS,            "No transaction in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_EXISTS,             "Txn already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_EXIST,                  "Txn not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IN_CREATING,            "Txn in creating")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IN_DROPPING,            "Txn in dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_SEQ_NOT_EXIST,              "Txn seq not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_IN_CREATING,        "Txn seq in creating")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_IN_DROPPING,        "Txn seq in dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_SEQ_NOT_READY,          "Txn seq not ready")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_INVALID_STAGE,          "Invalid transaction stage")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_FULL,                   "Too many active transactions")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IDLE_TIMEOUT,           "Transaction idle timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_ERROR,                  "General transaction error")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ABORTED,                    "Transaction aborted due to DDL failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NEED_ROLLBACK,              "Transaction aborted, please ROLLBACK")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_STALE_TERM,                 "Stale term, leader changed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARE_FAILED,             "Transaction PREPARE phase failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_COMMIT_FAILED,              "Transaction COMMIT phase failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ROLLBACK_FAILED,            "Transaction ROLLBACK phase failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_VG_NOT_REGISTERED,          "VGroup not registered in transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_RESOURCE_BUSY,              "Resource busy, table is being modified by another transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_CREATE,            "Table is being created in a transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_ALTER,             "Table is being altered in a transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_PREPARED_DROP,              "Table is being dropped in a transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_DELETE_ON_DROPPING,         "Cannot DELETE on a table being dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_INVALID_OPERATION,           "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TOO_MANY_DDL_OPS,           "Transaction DDL operation count exceeds per-VNode limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_EXCEEDED_LIFETIME,          "Transaction exceeded maximum lifetime")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")

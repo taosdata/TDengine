@@ -69,6 +69,7 @@ typedef struct SSchedulerReq {
   int8_t             source;
   int8_t             secureDelete;
   void*              pWorkerCb;
+  int64_t            txnId;  // batch meta txn ID for same-txn visibility
 } SSchedulerReq;
 
 int32_t schedulerInit(void);

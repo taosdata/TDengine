@@ -1394,10 +1394,40 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
     tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
 
+    // Save txnId before push (pTscObj released after switch block)
+    txn_id_t curTxnId = pTscObj->txnId;
+
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);
       continue;
+    }
+
+    // Batch meta txn keepalive: add txnId into info hash (per-connection)
+    // NOTE: must operate on the array copy (pOneReq after push), NOT the
+    // original hash entry in pAppHbMgr->activeInfo, to avoid use-after-free
+    // when tFreeClientHbBatchReq frees the copy's info hash.
+    if (curTxnId > 0) {
+      if (NULL == pOneReq->info) {
+        pOneReq->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+      }
+      if (pOneReq->info != NULL) {
+        txn_id_t *pTxnVal = taosMemoryMalloc(sizeof(txn_id_t));
+        if (pTxnVal == NULL) {
+          tscWarn("failed to alloc txnId for HB keepalive (txnId:%" PRIi64 "), MNode txn may timeout", curTxnId);
+        } else {
+          *pTxnVal = curTxnId;
+          SKv kv = {.key = HEARTBEAT_KEY_TXN_KEEPALIVE, .valueLen = sizeof(txn_id_t), .value = pTxnVal};
+          int32_t putCode = taosHashPut(pOneReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+          if (putCode != 0) {
+            tscWarn("failed to put txnId:%" PRIi64 " into HB info hash, code:0x%x, MNode txn may timeout",
+                    curTxnId, putCode);
+            taosMemoryFree(pTxnVal);
+          }
+        }
+      } else {
+        tscWarn("failed to init HB info hash, txnId:%" PRIi64 " keepalive skipped, MNode txn may timeout", curTxnId);
+      }
     }
 
     switch (connKey->connType) {

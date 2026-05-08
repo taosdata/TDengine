@@ -57,6 +57,8 @@
 #include "mndToken.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
@@ -467,6 +469,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsScanPullupInterval == 0) {
     mndPullupScans(pMnode);
   }
+
+  // User batch transaction timeout scan (every 5 seconds)
+  if (sec % 5 == 0) {
+    mndTxnDoTimeoutScan(pMnode);
+  }
+
   if (tsInstancePullupInterval > 0 && sec % tsInstancePullupInterval == 0) {  // check instance expired
     mndPullupInstances(pMnode);
   }
@@ -810,12 +818,15 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txnSeq", mndInitTxnSeq, mndCleanupTxnSeq));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txn", mndInitTxn, mndCleanupTxn));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
+
   return 0;
 }
 

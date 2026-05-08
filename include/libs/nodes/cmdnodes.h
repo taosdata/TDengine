@@ -949,6 +949,16 @@ typedef struct SShowTokensStmt {
   ENodeType type;
 } SShowTokensStmt;
 
+typedef struct STransStmt {
+  ENodeType type;
+  int32_t   transType;
+  txn_id_t  transId;
+} STransStmt;
+
+typedef STransStmt SBeginTransStmt;
+typedef STransStmt SCommitTransStmt;
+typedef STransStmt SRollbackTransStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;
@@ -1074,6 +1084,11 @@ typedef struct SKillStmt {
   ENodeType type;
   int32_t   targetId;
 } SKillStmt;
+
+typedef struct SKillTransStmt {
+  ENodeType type;
+  int64_t   targetId;
+} SKillTransStmt;
 
 typedef struct SKillQueryStmt {
   ENodeType type;

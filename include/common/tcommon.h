@@ -33,6 +33,8 @@ extern "C" {
   || x == TDMT_VND_ALTER_TABLE    \
   || x == TDMT_VND_DROP_TABLE     \
   || x == TDMT_VND_DELETE         \
+  || x == TDMT_VND_TXN_COMMIT    \
+  || x == TDMT_VND_TXN_ROLLBACK  \
 )
 // clang-format on
 

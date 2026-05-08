@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "cos.h"
 #include "libs/new-stream/stream.h"
+#include "meta.h"
 #include "monitor.h"
 #include "taoserror.h"
 #include "tarray.h"
@@ -26,10 +27,10 @@
 #include "tlrucache.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
-#include "tstrbuild.h"
-#include "tutil.h"
 #include "tsdb.h"
+#include "tstrbuild.h"
 #include "ttypes.h"
+#include "tutil.h"
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
@@ -913,10 +914,20 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
 #endif
 
+    /* BATCH META TXN */
+    case TDMT_VND_TXN_COMMIT:
+      code = vnodeProcessTxnCommitReq(pVnode, ver, pReq, len, pRsp);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
+    case TDMT_VND_TXN_ROLLBACK:
+      code = vnodeProcessTxnRollbackReq(pVnode, ver, pReq, len, pRsp);
+      TSDB_CHECK_CODE(code, lino, _err);
+      break;
+
     /* TSDB */
     case TDMT_VND_SUBMIT: {
       METRICS_TIMING_BLOCK(pVnode->writeMetrics.apply_time, METRIC_LEVEL_LOW, {
-        if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
+              if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
       });
       METRICS_UPDATE(pVnode->writeMetrics.apply_bytes, METRIC_LEVEL_LOW, (int64_t)pMsg->contLen);
       break;
@@ -1422,10 +1433,52 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _err;
   }
 
+  // batch-meta-txn: lock/conflict check BEFORE meta operation
+  if (req.txnId != 0) {
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    if (ensureCode != 0) {
+      pRsp->code = ensureCode;
+      goto _err;
+    }
+
+    // pre-track table for ROLLBACK cleanup
+    int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    if (trackCode != 0) {
+      vError("vgId:%d, stb:%s uid:%" PRId64 " vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name, req.suid,
+             trackCode);
+      pRsp->code = trackCode;
+      goto _err;
+    }
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char stbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(stbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, req.name);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, stbNameFull, req.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        pRsp->code = lockCode;
+        goto _err;
+      }
+    }
+  } else {
+    // Non-txn path: check if STB name conflicts with active txn shadow
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, req.name, TXN_CONFLICT_OP_CREATE);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      pRsp->code = conflictCode;
+      goto _err;
+    }
+  }
+
   code = metaCreateSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
     goto _err;
+  }
+
+  // batch-meta-txn: STB is already tracked
+  if (req.txnId != 0) {
+    vInfo("vgId:%d, stb:%s uid:%" PRId64 " created and tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+          req.txnId);
   }
 
   tDecoderClear(&coder);
@@ -1504,7 +1557,98 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       continue;
     }
 
-    // do create table
+    // Batch meta txn: write to B+ tree with PRE_CREATE status (shadow-in-B+tree model).
+    // The entry is physically created but invisible to non-txn queries (filtered by txnStatus).
+    // COMMIT clears txnId/txnStatus → visible. ROLLBACK deletes entry.
+    if (pCreateReq->txnId != 0) {
+      // Register txn entry in VNode (for tracking, table locking, etc.)
+      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId);
+      if (ensureCode != 0) {
+        cRsp.code = ensureCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+
+      int32_t trackCode = vnodeTxnTrackTable(pVnode, pCreateReq->txnId, pCreateReq->uid);
+      if (trackCode != 0) {
+        cRsp.code = trackCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+
+      // Acquire table-level lock to detect cross-txn conflicts
+      int32_t lockCode = vnodeTxnLockTable(pVnode, tbName, pCreateReq->txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        cRsp.code = lockCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+
+      // Write to meta with PRE_CREATE status (txnId is carried in pCreateReq)
+      if (metaCreateTable2(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
+        cRsp.code = terrno;
+        vWarn("vgId:%d, txn create table %s failed, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), tbName,
+              pCreateReq->txnId, terrno);
+      } else {
+        cRsp.code = TSDB_CODE_SUCCESS;
+        // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
+        // otherwise default to PRE_CREATE for normal WAL/DDL path.
+        int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
+        int32_t idxCode = metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+        if (idxCode != 0) {
+          vError("vgId:%d, txn create table %s: metaTxnIdxUpsert failed, code:0x%x", TD_VID(pVnode), tbName, idxCode);
+          if (txnShouldPropagateError(pCreateReq->txnId, idxCode, TSDB_CODE_TXN_NOT_EXIST)) {
+            cRsp.code = idxCode;
+          }
+        }
+        // For snapshot PRE_DROP/PRE_ALTER: mark the entry after creation
+        if (effectiveTxnStatus != META_TXN_PRE_CREATE) {
+          int32_t markCode =
+              metaMarkTableTxnStatus(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
+          if (markCode != 0) {
+            vError("vgId:%d, txn create table %s: metaMarkTableTxnStatus failed, code:0x%x", TD_VID(pVnode), tbName,
+                   markCode);
+            if (txnShouldPropagateError(pCreateReq->txnId, markCode, TSDB_CODE_TXN_NOT_EXIST)) {
+              cRsp.code = markCode;
+            }
+          }
+        }
+        vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
+      }
+      if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        rcode = -1;
+        goto _exit;
+      }
+      continue;
+    }
+
+    // do create table (non-transactional path)
+    // First check if table name conflicts with any active txn shadow
+    {
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, pCreateReq->name, TXN_CONFLICT_OP_CREATE);
+      if (conflictCode != TSDB_CODE_SUCCESS) {
+        cRsp.code = conflictCode;
+        if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          rcode = -1;
+          goto _exit;
+        }
+        continue;
+      }
+    }
     if (metaCreateTable2(pVnode->pMeta, ver, pCreateReq, &cRsp.pMeta) < 0) {
       if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
         cRsp.code = TSDB_CODE_SUCCESS;
@@ -1607,6 +1751,71 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     return code;
   }
 
+  // batch-meta-txn: full transactional ALTER STB support
+  if (req.txnId != 0) {
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    if (ensureCode != 0) {
+      pRsp->code = ensureCode;
+      tDecoderClear(&dc);
+      return ensureCode;
+    }
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char stbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(stbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, req.name);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, stbNameFull, req.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        pRsp->code = lockCode;
+        tDecoderClear(&dc);
+        return lockCode;
+      }
+    }
+
+    // Save old version for rollback tracking
+    {
+      SMetaEntry *pOldEntry = NULL;
+      if (metaFetchEntryByName(pVnode->pMeta, req.name, &pOldEntry) == 0 && pOldEntry != NULL) {
+        int32_t trackCode = vnodeTxnTrackAlter(pVnode, req.txnId, pOldEntry->uid, pOldEntry->version);
+        metaFetchEntryFree(&pOldEntry);
+        if (trackCode != 0) {
+          vError("vgId:%d, stb:%s ALTER vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode), req.name, trackCode);
+          pRsp->code = trackCode;
+          tDecoderClear(&dc);
+          return trackCode;
+        }
+      }
+    }
+
+    // metaAlterSuperTable handles txn markers internally (PRE_ALTER + txn.idx)
+    code = metaAlterSuperTable(pVnode->pMeta, ver, &req);
+    if (code) {
+      pRsp->code = code;
+    } else {
+      code = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+      if (code != 0) {
+        vError("vgId:%d, stb:%s uid:%" PRId64 " ALTER vnodeTxnTrackTable failed, code:0x%x", TD_VID(pVnode), req.name,
+               req.suid, code);
+        pRsp->code = code;
+      } else {
+        vInfo("vgId:%d, stb:%s uid:%" PRId64 " ALTER tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+              req.txnId);
+      }
+    }
+    tDecoderClear(&dc);
+    return code;
+  }
+
+  // Non-txn path: check for conflict with active txn shadow
+  {
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, req.name, TXN_CONFLICT_OP_ALTER);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      pRsp->code = conflictCode;
+      tDecoderClear(&dc);
+      return 0;
+    }
+  }
+
   code = metaAlterSuperTable(pVnode->pMeta, ver, &req);
   if (code) {
     pRsp->code = code;
@@ -1638,10 +1847,54 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
   STraceId* trace = &(pOriginRpc->info.traceId);
 
-  vInfo("vgId:%d, start to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s", TD_VID(pVnode), trace ? trace->rootId : 0, 
-              trace ? trace->msgId : 0, req.name);
+  vInfo("vgId:%d, start to process vnode-drop-stb, QID:0x%" PRIx64 ":0x%" PRIx64 ", drop stb:%s txnId:%" PRIu64,
+        TD_VID(pVnode), trace ? trace->rootId : 0, trace ? trace->msgId : 0, req.name, req.txnId);
 
-  // process request
+  // batch-meta-txn: transactional DROP STB
+  if (req.txnId != 0) {
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    if (ensureCode != 0) {
+      rcode = ensureCode;
+      goto _exit;
+    }
+
+    int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, req.suid);
+    if (trackCode != 0) {
+      rcode = trackCode;
+      goto _exit;
+    }
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char stbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(stbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, req.name);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, stbNameFull, req.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        rcode = lockCode;
+        goto _exit;
+      }
+    }
+
+    // metaDropSuperTable handles txn internally (PRE_DROP + txn.idx, or same-txn undo)
+    if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
+      rcode = terrno;
+    } else {
+      vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
+            req.txnId);
+    }
+    goto _exit;
+  }
+
+  // Non-txn path: check for conflict with active txn shadow
+  {
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, req.name, TXN_CONFLICT_OP_DROP);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      rcode = conflictCode;
+      goto _exit;
+    }
+  }
+
+  // process request (non-txn physical drop)
   tbUidList = taosArrayInit(8, sizeof(int64_t));
   if (tbUidList == NULL) goto _exit;
   if (vnodeGetCtbIdList(pVnode, req.suid, tbUidList) != 0){
@@ -1750,7 +2003,94 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     goto _exit;
   }
 
-  // process
+  // Batch meta txn: write ALTER to B+ tree with PRE_ALTER status (shadow-in-B+tree model).
+  // The ALTER creates a new version of the entry. On COMMIT, clear status → visible.
+  // On ROLLBACK, restore old version.
+  if (vAlterTbReq.txnId != 0) {
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
+    if (ensureCode != 0) {
+      vAlterTbRsp.code = ensureCode;
+      tDecoderClear(&dc);
+      goto _exit;
+    }
+
+    // Acquire table-level lock to detect cross-txn conflicts
+    {
+      char alterTbNameFull[TSDB_TABLE_FNAME_LEN];
+      (void)snprintf(alterTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, vAlterTbReq.tbName);
+      int32_t lockCode = vnodeTxnLockTable(pVnode, alterTbNameFull, vAlterTbReq.txnId);
+      if (lockCode != TSDB_CODE_SUCCESS) {
+        vAlterTbRsp.code = lockCode;
+        tDecoderClear(&dc);
+        goto _exit;
+      }
+    }
+
+    // Save old version for rollback tracking via public API
+    tb_uid_t alterUid = 0;
+    int64_t  alterPrevVer = -1;
+    {
+      SMetaEntry *pOldEntry = NULL;
+      if (metaFetchEntryByName(pVnode->pMeta, vAlterTbReq.tbName, &pOldEntry) == 0 && pOldEntry != NULL) {
+        alterUid = pOldEntry->uid;
+        alterPrevVer = pOldEntry->version;
+        int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
+        metaFetchEntryFree(&pOldEntry);
+        if (trackCode != 0) {
+          vError("vgId:%d, txn alter table %s: vnodeTxnTrackAlter failed, code:0x%x", TD_VID(pVnode),
+                 vAlterTbReq.tbName, trackCode);
+          vAlterTbRsp.code = trackCode;
+          tDecoderClear(&dc);
+          goto _exit;
+        }
+      }
+    }
+
+    // Execute ALTER normally (writes new version to B+ tree)
+    if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
+      vAlterTbRsp.code = terrno;
+    } else {
+      // Mark the new entry with PRE_ALTER, persist prevVersion for rollback
+      if (alterUid != 0) {
+        int32_t markCode =
+            metaMarkTableTxnStatus(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
+        if (markCode != 0) {
+          vError("vgId:%d, txn alter table %s: metaMarkTableTxnStatus failed, code:0x%x", TD_VID(pVnode),
+                 vAlterTbReq.tbName, markCode);
+          if (txnShouldPropagateError(vAlterTbReq.txnId, markCode, TSDB_CODE_TXN_NOT_EXIST)) {
+            vAlterTbRsp.code = markCode;
+          }
+        }
+        int32_t idxCode =
+            metaTxnIdxUpsert(pVnode->pMeta, alterUid, vAlterTbReq.txnId, META_TXN_PRE_ALTER, alterPrevVer);
+        if (idxCode != 0) {
+          vError("vgId:%d, txn alter table %s: metaTxnIdxUpsert failed, code:0x%x", TD_VID(pVnode), vAlterTbReq.tbName,
+                 idxCode);
+          if (txnShouldPropagateError(vAlterTbReq.txnId, idxCode, TSDB_CODE_TXN_NOT_EXIST)) {
+            vAlterTbRsp.code = idxCode;
+          }
+        }
+      }
+    }
+    // Return new schema to client for same-txn visibility (pTxnTableMeta update)
+    if (NULL != vMetaRsp.pSchemas) {
+      vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
+      vAlterTbRsp.pMeta = &vMetaRsp;
+    }
+    tDecoderClear(&dc);
+    goto _exit;
+  }
+
+  // process (non-transactional path)
+  // Check for conflict with active txn shadow
+  {
+    int32_t conflictCode = vnodeTxnCheckConflict(pVnode, vAlterTbReq.tbName, TXN_CONFLICT_OP_ALTER);
+    if (conflictCode != TSDB_CODE_SUCCESS) {
+      vAlterTbRsp.code = conflictCode;
+      tDecoderClear(&dc);
+      goto _exit;
+    }
+  }
   if (metaAlterTable(pVnode->pMeta, ver, &vAlterTbReq, &vMetaRsp) < 0) {
     vAlterTbRsp.code = terrno;
     tDecoderClear(&dc);
@@ -1819,7 +2159,81 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     SVDropTbRsp  dropTbRsp = {0};
     tb_uid_t     tbUid = 0;
 
-    /* code */
+    // Batch meta txn: mark entry PRE_DROP in B+ tree (shadow-in-B+tree model).
+    // The table remains visible (snapshot isolation) but INSERT fails.
+    // COMMIT physically deletes. ROLLBACK clears back to NORMAL.
+    if (pDropTbReq->txnId != 0) {
+      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId);
+      if (ensureCode != 0) {
+        dropTbRsp.code = ensureCode;
+        if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          pRsp->code = terrno;
+          goto _exit;
+        }
+        continue;
+      }
+
+      int32_t trackCode = vnodeTxnTrackTable(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
+      if (trackCode != 0) {
+        dropTbRsp.code = trackCode;
+        if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          pRsp->code = terrno;
+          goto _exit;
+        }
+        continue;
+      }
+
+      // Acquire table-level lock to detect cross-txn conflicts
+      {
+        char dropTbNameFull[TSDB_TABLE_FNAME_LEN];
+        (void)snprintf(dropTbNameFull, TSDB_TABLE_FNAME_LEN, "%s.%s", pVnode->config.dbname, pDropTbReq->name);
+        int32_t lockCode = vnodeTxnLockTable(pVnode, dropTbNameFull, pDropTbReq->txnId);
+        if (lockCode != TSDB_CODE_SUCCESS) {
+          dropTbRsp.code = lockCode;
+          if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            pRsp->code = terrno;
+            goto _exit;
+          }
+          continue;
+        }
+      }
+
+      // metaDropTable2 handles txnId internally:
+      //   - Same-txn undo (CREATE→DROP or CREATE→ALTER→DROP): physically delete + cleanup txn.idx
+      //   - Normal txn DROP: mark PRE_DROP + update txn.idx
+      ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
+      if (ret < 0) {
+        dropTbRsp.code = terrno;
+        vWarn("vgId:%d, txn drop table %s failed, txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), pDropTbReq->name,
+              pDropTbReq->txnId, terrno);
+      } else {
+        dropTbRsp.code = TSDB_CODE_SUCCESS;
+      }
+      if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        pRsp->code = terrno;
+        goto _exit;
+      }
+      continue;
+    }
+
+    /* non-transactional path */
+    // Check for conflict with active txn shadow
+    {
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, pDropTbReq->name, TXN_CONFLICT_OP_DROP);
+      if (conflictCode != TSDB_CODE_SUCCESS) {
+        dropTbRsp.code = conflictCode;
+        if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          pRsp->code = terrno;
+          goto _exit;
+        }
+        continue;
+      }
+    }
     ret = metaDropTable2(pVnode->pMeta, ver, pDropTbReq);
     if (ret < 0) {
       if (pDropTbReq->igNotExists && terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
@@ -2456,6 +2870,28 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
             __LINE__, tstrerror(code), version, pTbData->uid);
       return code;
     }
+
+    // batch meta txn: block INSERT only on PRE_CREATE (invisible tables)
+    // PRE_DROP tables allow INSERT — snapshot isolation: table still visible until COMMIT.
+    // If the txn commits (DROP finalized), this INSERT data is deleted with the table.
+    // If the txn rolls back, the table and INSERT data are both preserved.
+    if (metaHasPendingTxnEntries(pVnode->pMeta)) {
+      void   *pTxnVal = NULL;
+      int32_t txnValLen = 0;
+      if (tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen) == 0) {
+        STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
+        int8_t      idxTxnStatus = pIdx->txnStatus;
+        int64_t     idxTxnId = pIdx->txnId;
+        tdbFree(pTxnVal);
+        if (idxTxnStatus == META_TXN_PRE_CREATE) {
+          code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+          vWarn("vgId:%d, INSERT blocked: table uid:%" PRId64 " is pending CREATE in txn %" PRId64
+                " (invisible), version:%" PRId64,
+                TD_VID(pVnode), pTbData->uid, idxTxnId, version);
+          return code;
+        }
+      }
+    }  // metaHasPendingTxnEntries
 
     if (info.suid != pTbData->suid) {
       code = TSDB_CODE_INVALID_MSG;
@@ -3547,6 +3983,16 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
 
     int64_t uid = mr.me.uid;
 
+    // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+    {
+      int32_t conflictCode = vnodeTxnCheckConflict(pVnode, name, TXN_CONFLICT_OP_DROP);
+      if (conflictCode != TSDB_CODE_SUCCESS) {
+        vWarn("vgId:%d, batch delete conflict for table %s, code:0x%x", TD_VID(pVnode), name, conflictCode);
+        tDecoderClear(&mr.coder);
+        continue;
+      }
+    }
+
     int32_t code = tsdbDeleteTableData(pTsdb, ver, deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs, 0);
     if (code < 0) {
       terrno = code;
@@ -3594,6 +4040,11 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   if (pRes->affectedRows > 0) {
     for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
       uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
+
+      // Check if table is in PREPARED_DROP shadow (DELETE vs PREPARED_DROP → conflict)
+      code = vnodeTxnCheckDeleteConflict(pVnode, uid);
+      if (code) goto _err;
+
       // Merge runtime vnode(db-level) secureDelete to avoid stale client meta after ALTER DATABASE.
       int8_t secureDelete = pRes->secureDelete | pVnode->config.secureDelete;
       code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey, secureDelete);
