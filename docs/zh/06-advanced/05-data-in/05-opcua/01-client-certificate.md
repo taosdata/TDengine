@@ -93,7 +93,7 @@ pause
 endlocal
 ```
 
-## 3. Windows（PowerShell）
+## 3. Windows (PowerShell)
 
 ### 步骤 1：创建证书配置文件
 
