@@ -455,12 +455,12 @@ TEST(testCase, tColDataGetValue) {
   SColVal pColVal = {0};
   ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
 
-  pColData = {};
+  memset(&pColData, 0, sizeof(pColData));
   pColData.flag = 8;
-  pColVal = {};
+  pColVal = {0};
   ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
 
-  pColData = {};
+  memset(&pColData, 0, sizeof(pColData));
   pColData.nVal = 1;
   pColData.flag = 8;
   ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
