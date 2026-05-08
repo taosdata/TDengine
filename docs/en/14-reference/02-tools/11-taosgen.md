@@ -57,7 +57,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -p/--password          | Password for connecting to the server, default is taosdata |
 | -c/--config-file       | Path to the YAML configuration file |
 | -d/--log-dir           | Specify log output directory, default is ./log |
-| -f/--log-file          | Specify complete log file path (overrides --log-dir) |
+| -o/--log-file          | Specify complete log file path (overrides --log-dir), -f is deprecated |
 | -?/--help              | Show help information and exit |
 | -V/--version           | Show version information and exit. Cannot be used with other parameters |
 
