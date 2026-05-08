@@ -164,7 +164,30 @@ class TaosD:
                         if time.time() > timeout:
                             self.logger.error('wait too long for taosd start')
                             break
-                    self.logger.debug("the dnode:%d has been started." % (index))
+                self.logger.debug("the dnode:%d has been started." % (index))
+                # Probe the connection until taosd is truly ready to serve queries.
+                # "from offline to online" only means the dnode joined the cluster;
+                # the mnode Raft leader may still be restoring (0x0914) for several
+                # more seconds, especially under CI pressure load or with multi-node
+                # clusters.  Keep retrying until the connection succeeds or 60 s elapse.
+                _probe_host = cfg.get("fqdn", "localhost")
+                _probe_port = int(cfg.get("serverPort", 6030))
+                _probe_deadline = time.time() + 60
+                while time.time() < _probe_deadline:
+                    try:
+                        _conn = taos.connect(host=_probe_host, port=_probe_port)
+                        _conn.close()
+                        self.logger.debug("taosd ready (connection probe OK) dnode:%d" % index)
+                        break
+                    except Exception as _probe_err:
+                        self.logger.debug(
+                            "taosd not ready yet dnode:%d (%s), retrying in 1s ..." % (index, _probe_err)
+                        )
+                        time.sleep(1)
+                else:
+                    self.logger.error(
+                        "taosd connection probe timed out after 60s for dnode:%d" % index
+                    )
         else:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))
