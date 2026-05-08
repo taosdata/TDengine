@@ -1,0 +1,187 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 3000,
+    "thread_count": 2,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "newdd",
+                "drop": "yes",
+                "precision": "ms",
+                "vgroups": 2
+            },
+            "super_tables": [
+                {
+                    "name": "meters1",
+                    "child_table_exists": "no",
+                    "childtable_count": 0,
+                    "insert_rows": 0,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":1700000000000,
+                    "columns": [
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "dc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": -100 },
+                        { "type": "smallint",    "name": "si",  "max": 100, "min": -50 },
+                        { "type": "int",         "name": "ic",  "max": 1000, "min": -1000 },
+                        { "type": "bigint",      "name": "bi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "usi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "ui",  "max": 1000, "min": 0 },
+                        { "type": "ubigint",     "name": "ubi", "max": 10000, "min": 0 },
+                        { "type": "binary",      "name": "bin", "len": 4},
+                        { "type": "nchar",       "name": "nch", "len": 8},
+                        { "type": "bool",        "name": "newbc"},
+                        { "type": "float",       "name": "newfc",  "max": 100, "min": 0 },
+                        { "type": "double",      "name": "newdc",  "max": 100, "min": 0 },
+                        { "type": "tinyint",     "name": "newti",  "max": 100, "min": -100 },
+                        { "type": "binary",      "name": "newbin", "len": 4}
+                    ],
+                    "tags": [
+                        { "type": "bool",        "name": "tbc"},
+                        { "type": "float",       "name": "tfc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "tdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "tti",  "max": 100, "min": -100 },
+                        { "type": "smallint",    "name": "tsi",  "max": 100, "min": -50 },
+                        { "type": "int",         "name": "tic",  "max": 1000, "min": -1000 },
+                        { "type": "bigint",      "name": "tbi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "tuti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "tusi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "tui",  "max": 1000, "min": 0 },
+                        { "type": "ubigint",     "name": "tubi", "max": 10000, "min": 0 },
+                        { "type": "binary",      "name": "tbin", "len": 4},
+                        { "type": "nchar",       "name": "tnch", "len": 8},
+                        { "type": "bool",        "name": "newtbc"},
+                        { "type": "float",       "name": "newtfc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "newtdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "newtti",  "max": 100, "min": -100 },
+                        { "type": "binary",      "name": "newtbin", "len": 4}
+                    ],
+                    "sqls" : [
+                        "create table newdd.ntbd1(ts timestamp, c1 int, c2 bigint , c3 float, c4 int, newc1 int, newc2 bigint)",
+                        "create table newdd.ntbd2(ts timestamp, d1 int, d2 float, d3 int, newd1 int, newd2 float)"
+                    ] 
+                },
+                {
+                    "name": "meters2",
+                    "child_table_exists": "no",
+                    "childtable_count": 0,
+                    "insert_rows": 0,
+                    "childtable_prefix": "e",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":1700000000000,
+                    "columns": [
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": -100 },
+                        { "type": "int",         "name": "ic",  "max": 1000, "min": -1000 },
+                        { "type": "bigint",      "name": "bi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "ui",  "max": 1000, "min": 0 },
+                        { "type": "ubigint",     "name": "ubi", "max": 10000, "min": 0 },
+                        { "type": "nchar",       "name": "nch", "len": 8}
+                    ],
+                    "tags": [
+                        { "type": "float",       "name": "tfc",  "max": 1, "min": 0 },
+                        { "type": "tinyint",     "name": "tti",  "max": 100, "min": -100 },
+                        { "type": "bigint",      "name": "tbi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "tuti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "tusi", "max": 100, "min": 0 },
+                        { "type": "binary",      "name": "tbin", "len": 4},
+                        { "type": "nchar",       "name": "tnch", "len": 8}
+                    ],
+                    "sqls" : [
+                        "create table newdd.ntbe1(ts timestamp, c1 int, c4 int)",
+                        "create table newdd.ntbe2(ts timestamp, d2 float)"
+                    ] 
+                },
+                {
+                    "name": "meters3",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "insert_rows": 0,
+                    "childtable_prefix": "f",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":1700000000000,
+                    "columns": [
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": -100 },
+                        { "type": "int",         "name": "ic",  "max": 1000, "min": -1000 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "ui",  "max": 1000, "min": 0 },
+                        { "type": "binary",      "name": "bin", "len": 4},
+                        { "type": "int",         "name": "newic",  "max": 1000, "min": -1000 },
+                        { "type": "utinyint",    "name": "newuti", "max": 100, "min": 0 }
+                    ],
+                    "tags": [
+                        { "type": "float",       "name": "tfc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "tdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "tti",  "max": 100, "min": -100 },
+                        { "type": "smallint",    "name": "tsi",  "max": 100, "min": -50 },
+                        { "type": "int",         "name": "tic",  "max": 1000, "min": -1000 },
+                        { "type": "utinyint",    "name": "tuti", "max": 100, "min": 0 },
+                        { "type": "ubigint",     "name": "tubi", "max": 10000, "min": 0 },
+                        { "type": "binary",      "name": "tbin", "len": 4},
+                        { "type": "nchar",       "name": "tnch", "len": 8},
+                        { "type": "double",      "name": "newtdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "newtti",  "max": 100, "min": -100 }
+                    ],
+                    "sqls" : [
+                        "create table newdd.ntbf1(ts timestamp, c1 int, c3 float, c4 int, newc1 float, newc2 binary(10))",
+                        "create table newdd.ntbf2(ts timestamp, d3 int, newd1 int, newd2 float)"
+                    ]
+                },
+                {
+                    "name": "meters4",
+                    "child_table_exists": "no",
+                    "childtable_count": 0,
+                    "insert_rows": 0,
+                    "childtable_prefix": "g",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":1700000000000,
+                    "columns": [
+                        { "type": "uint",        "name": "ui",  "max": 1000, "min": 0 },
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "binary",      "name": "bin", "len": 4},
+                        { "type": "int",         "name": "ic",  "max": 1000, "min": -1000 },
+                        { "type": "utinyint",    "name": "newuti", "max": 100, "min": 0 },
+                        { "type": "bool",        "name": "bc"},                        
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": -100 }
+                    ],
+                    "tags": [
+                        { "type": "nchar",       "name": "tnch", "len": 8},                        
+                        { "type": "int",         "name": "tic",  "max": 1000, "min": -1000 },
+                        { "type": "double",      "name": "tdc",  "max": 10, "min": 0 },
+
+                        { "type": "smallint",    "name": "tsi",  "max": 100, "min": -50 },
+
+                        { "type": "utinyint",    "name": "tuti", "max": 100, "min": 0 },
+                        { "type": "float",       "name": "tfc",  "max": 1, "min": 0 },
+                        { "type": "binary",      "name": "tbin", "len": 4},
+
+                        { "type": "double",      "name": "newtdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "tti",  "max": 100, "min": -100 },
+                        { "type": "tinyint",     "name": "newtti",  "max": 100, "min": -100 }
+                    ],
+                    "sqls" : [
+                        "create table newdd.ntbg1(ts timestamp, newc1 float,  c3 float, newc2 binary(10), c4 int, c1 int)",
+                        "create table newdd.ntbg2(ts timestamp, d3 int, newd1 int, d1 float, newd2 float)"
+                    ]
+                }
+            ]
+        }
+    ]
+}

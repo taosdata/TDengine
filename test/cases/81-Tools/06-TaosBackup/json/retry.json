@@ -1,0 +1,61 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 5000,
+    "create_table_thread_count": 1,
+    "thread_count": 8,
+    "prepared_rand": 10000,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "redb",
+                "drop": "yes",
+                "vgroups": 8,
+                "replica": 1,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "insert_rows": 100000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 10,
+                    "start_timestamp":1600000000000,
+                    "generate_row_rule": 2,
+                    "columns": [
+                        { "type": "int",         "name": "pk", "max": 100000, "min": 0, "gen":"order","fillNull":"false"},
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc", "min": 1,   "gen":"order"},
+                        { "type": "double",      "name": "dc", "min":10,  "gen":"order"},
+                        { "type": "tinyint",     "name": "ti"},
+                        { "type": "smallint",    "name": "si"},
+                        { "type": "int",         "name": "ic",  "gen":"order", "fillNull":"false"},
+                        { "type": "bigint",      "name": "bi",  "gen":"order"},
+                        { "type": "utinyint",    "name": "uti", "gen":"order"},
+                        { "type": "usmallint",   "name": "usi", "gen":"order"},
+                        { "type": "uint",        "name": "ui",  "gen":"order"},
+                        { "type": "ubigint",     "name": "ubi",  "gen":"order"},
+                        { "type": "binary",      "name": "bin", "len": 32},
+                        { "type": "nchar",       "name": "nch", "len": 64, "gen":"order"}
+                    ],
+                    "tags": [
+                        {"type": "tinyint", "name": "groupid","max": 10,"min": 1},
+                        {"type": "binary",  "name": "location", "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]                    
+                }
+            ]
+        }
+    ]
+}
