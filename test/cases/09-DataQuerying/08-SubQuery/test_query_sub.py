@@ -338,9 +338,10 @@ class TestQuerySub:
         tdSql.checkData(0, 1, 0.000083333)
 
         tdLog.info(f"======================>TD-5271")
-        tdSql.error(
+        tdSql.query(
             f"select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) from (select count(*) val from nest_mt0 group by tbname)"
         )
+        tdSql.checkRows(1)
 
         tdLog.info(f"=================>us database interval query, TD-5039")
         tdSql.execute(f"create database test precision 'us';")

@@ -1,0 +1,1165 @@
+
+taos> USE test_pk_matrix;
+Database changed.
+
+taos> SELECT last(val) FROM (SELECT event_time, val, st FROM t_event);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT event_time, val, st FROM t_event);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event);
+ last_row(val) |
+================
+            40 |
+
+taos> SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+ last_row(val) |
+================
+            30 |
+
+taos> SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_desc);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+ last_row(val) |
+================
+            20 |
+
+taos> SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_rand);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+ last_row(val) |
+================
+            40 |
+
+taos> SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_dup);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_null);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_null);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_null);
+ last_row(val) |
+================
+            40 |
+
+taos> SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_null);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_null);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT last(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+ last_row(val) |
+================
+            40 |
+
+taos> SELECT tail(val, 2) FROM (SELECT event_time, val, st FROM t_event_nulls);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event);
+  elapsed(event_time, 1s)  |
+============================
+                         4 |
+
+taos> SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_desc);
+  elapsed(event_time, 1s)  |
+============================
+                         4 |
+
+taos> SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_rand);
+  elapsed(event_time, 1s)  |
+============================
+                         1 |
+
+taos> SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_dup);
+  elapsed(event_time, 1s)  |
+============================
+                         3 |
+
+taos> SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_null);
+  elapsed(event_time, 1s)  |
+============================
+                1717171205 |
+
+taos> SELECT elapsed(event_time, 1s) FROM (SELECT event_time, val, st FROM t_event_nulls);
+  elapsed(event_time, 1s)  |
+============================
+                1717171205 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event);
+  derivative(val, 1s, 0)   |
+============================
+                       -20 |
+                        40 |
+                       -30 |
+                        20 |
+
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event);
+         twa(val)          |
+============================
+                     28.75 |
+
+taos> SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event);
+        irate(val)         |
+============================
+                        20 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_desc);
+  derivative(val, 1s, 0)   |
+============================
+                        20 |
+                       -30 |
+                        40 |
+                       -20 |
+
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+         twa(val)          |
+============================
+                     28.75 |
+
+taos> SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+        irate(val)         |
+============================
+                        20 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_rand);
+  derivative(val, 1s, 0)   |
+============================
+                        10 |
+                       2.5 |
+                        10 |
+                         5 |
+
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+         twa(val)          |
+============================
+                        15 |
+
+taos> SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+        irate(val)         |
+============================
+                        20 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_null);
+  derivative(val, 1s, 0)   |
+============================
+     -1.16470623177851e-08 |
+                        40 |
+                       -30 |
+                        20 |
+
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_null);
+         twa(val)          |
+============================
+          20.0000000203824 |
+
+taos> SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_null);
+        irate(val)         |
+============================
+                        20 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT irate(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event);
+       diff(val)       |
+========================
+                   -20 |
+                    40 |
+                   -30 |
+                    20 |
+
+taos> SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event);
+       csum(val)       |
+========================
+                    30 |
+                    40 |
+                    90 |
+                   110 |
+                   150 |
+
+taos> SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event);
+       mavg(val, 2)        |
+============================
+                        20 |
+                        30 |
+                        35 |
+                        30 |
+
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event);
+ statecount(val, 'GE', 30) |
+============================
+                         1 |
+                        -1 |
+                         1 |
+                        -1 |
+                         1 |
+
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event);
+ stateduration(val, 'GE', 30, 1s) |
+===================================
+                                0 |
+                               -1 |
+                                0 |
+                               -1 |
+                                0 |
+
+taos> SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+       diff(val)       |
+========================
+                   -20 |
+                    30 |
+                   -40 |
+                    20 |
+
+taos> SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_desc);
+       csum(val)       |
+========================
+                    40 |
+                    60 |
+                   110 |
+                   120 |
+                   150 |
+
+taos> SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_desc);
+       mavg(val, 2)        |
+============================
+                        30 |
+                        35 |
+                        30 |
+                        20 |
+
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_desc);
+ statecount(val, 'GE', 30) |
+============================
+                         1 |
+                        -1 |
+                         1 |
+                        -1 |
+                         1 |
+
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_desc);
+ stateduration(val, 'GE', 30, 1s) |
+===================================
+                                0 |
+                               -1 |
+                                0 |
+                               -1 |
+                                0 |
+
+taos> SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+       diff(val)       |
+========================
+                   -20 |
+                    10 |
+                   -30 |
+                    10 |
+
+taos> SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_rand);
+       csum(val)       |
+========================
+                    50 |
+                    80 |
+                   120 |
+                   130 |
+                   150 |
+
+taos> SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_rand);
+       mavg(val, 2)        |
+============================
+                        40 |
+                        35 |
+                        25 |
+                        15 |
+
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_rand);
+ statecount(val, 'GE', 30) |
+============================
+                         1 |
+                         2 |
+                         3 |
+                        -1 |
+                        -1 |
+
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_rand);
+ stateduration(val, 'GE', 30, 1s) |
+===================================
+                                0 |
+                               -2 |
+                                2 |
+                               -1 |
+                               -1 |
+
+taos> SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_dup);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_null);
+       diff(val)       |
+========================
+                   -20 |
+                    40 |
+                   -30 |
+                    20 |
+
+taos> SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_null);
+       csum(val)       |
+========================
+                    30 |
+                    40 |
+                    90 |
+                   110 |
+                   150 |
+
+taos> SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_null);
+       mavg(val, 2)        |
+============================
+                        20 |
+                        30 |
+                        35 |
+                        30 |
+
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_null);
+ statecount(val, 'GE', 30) |
+============================
+                         1 |
+                        -1 |
+                         1 |
+                        -1 |
+                         1 |
+
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_null);
+ stateduration(val, 'GE', 30, 1s) |
+===================================
+                                0 |
+                               -1 |
+                                0 |
+                               -1 |
+                                0 |
+
+taos> SELECT diff(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT csum(val) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT mavg(val, 2) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT event_time, val, st FROM t_event_nulls);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event);
+ lag(val, 1) |
+==============
+ NULL        |
+          30 |
+          10 |
+          50 |
+          20 |
+
+taos> SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event);
+ lead(val, 1) |
+===============
+           10 |
+           50 |
+           20 |
+           40 |
+ NULL         |
+
+taos> SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill);
+ fill_forward(val) |
+====================
+                10 |
+                10 |
+                10 |
+                40 |
+                40 |
+
+taos> SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_desc);
+ lag(val, 1) |
+==============
+ NULL        |
+          40 |
+          20 |
+          50 |
+          10 |
+
+taos> SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_desc);
+ lead(val, 1) |
+===============
+           20 |
+           50 |
+           10 |
+           30 |
+ NULL         |
+
+taos> SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill ORDER BY event_time DESC);
+ fill_forward(val) |
+====================
+ NULL              |
+                40 |
+                40 |
+                40 |
+                10 |
+
+taos> SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_rand);
+ lag(val, 1) |
+==============
+ NULL        |
+          50 |
+          30 |
+          40 |
+          10 |
+
+taos> SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_rand);
+ lead(val, 1) |
+===============
+           30 |
+           40 |
+           10 |
+           20 |
+ NULL         |
+
+taos> SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_dup);
+ lag(val, 1) |
+==============
+ NULL        |
+          30 |
+          10 |
+          50 |
+          20 |
+
+taos> SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_dup);
+ lead(val, 1) |
+===============
+           10 |
+           50 |
+           20 |
+           40 |
+ NULL         |
+
+taos> SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_null);
+ lag(val, 1) |
+==============
+ NULL        |
+          30 |
+          10 |
+          50 |
+          20 |
+
+taos> SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_null);
+ lead(val, 1) |
+===============
+           10 |
+           50 |
+           20 |
+           40 |
+ NULL         |
+
+taos> SELECT lag(val, 1) FROM (SELECT event_time, val, st FROM t_event_nulls);
+ lag(val, 1) |
+==============
+ NULL        |
+          30 |
+          10 |
+          50 |
+          20 |
+
+taos> SELECT lead(val, 1) FROM (SELECT event_time, val, st FROM t_event_nulls);
+ lead(val, 1) |
+===============
+           10 |
+           50 |
+           20 |
+           40 |
+ NULL         |
+
+taos> CREATE TABLE t_event_fill_rand (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO t_event_fill_rand VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:02', '2024-06-01 00:00:01', 10) ('2024-01-01 00:00:03', '2024-06-01 00:00:05', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:02', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:04', NULL);
+Insert OK, 5 row(s) affected 
+
+taos> CREATE TABLE t_event_fill_dup (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO t_event_fill_dup VALUES ('2024-01-01 00:00:01', '2024-06-01 00:00:01', 10) ('2024-01-01 00:00:02', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:03', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:04', NULL);
+Insert OK, 5 row(s) affected 
+
+taos> CREATE TABLE t_event_fill_null1 (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO t_event_fill_null1 VALUES ('2024-01-01 00:00:01', NULL, 10) ('2024-01-01 00:00:02', '2024-06-01 00:00:02', NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:05', NULL);
+Insert OK, 5 row(s) affected 
+
+taos> CREATE TABLE t_event_fill_nulls (ts TIMESTAMP, event_time TIMESTAMP, val INT);
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO t_event_fill_nulls VALUES ('2024-01-01 00:00:01', NULL, 10) ('2024-01-01 00:00:02', NULL, NULL) ('2024-01-01 00:00:03', '2024-06-01 00:00:03', NULL) ('2024-01-01 00:00:04', '2024-06-01 00:00:04', 40) ('2024-01-01 00:00:05', '2024-06-01 00:00:05', NULL);
+Insert OK, 5 row(s) affected 
+
+taos> SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_rand);
+ fill_forward(val) |
+====================
+ NULL              |
+                10 |
+                10 |
+                40 |
+                40 |
+
+taos> SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_dup);
+ fill_forward(val) |
+====================
+                10 |
+                10 |
+                10 |
+                40 |
+                40 |
+
+taos> SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_null1);
+ fill_forward(val) |
+====================
+                10 |
+                10 |
+                10 |
+                40 |
+                40 |
+
+taos> SELECT fill_forward(val) FROM (SELECT event_time, val FROM t_event_fill_nulls);
+ fill_forward(val) |
+====================
+                10 |
+                10 |
+                10 |
+                40 |
+                40 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) INTERVAL(2s);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) SESSION(event_time, 1s);
+       count(*)        |
+========================
+                     5 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) STATE_WINDOW(st);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     1 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+       count(*)        |
+========================
+                     3 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event) COUNT_WINDOW(2);
+       count(*)        |
+========================
+                     2 |
+                     2 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) INTERVAL(2s);
+       count(*)        |
+========================
+                     5 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) SESSION(event_time, 1s);
+       count(*)        |
+========================
+                     5 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) STATE_WINDOW(st);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     1 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+       count(*)        |
+========================
+                     1 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_desc) COUNT_WINDOW(2);
+       count(*)        |
+========================
+                     2 |
+                     2 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) INTERVAL(2s);
+       count(*)        |
+========================
+                     2 |
+                     3 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) SESSION(event_time, 1s);
+       count(*)        |
+========================
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) STATE_WINDOW(st);
+       count(*)        |
+========================
+                     1 |
+                     1 |
+                     1 |
+                     2 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+       count(*)        |
+========================
+                     1 |
+                     2 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_rand) COUNT_WINDOW(2);
+       count(*)        |
+========================
+                     2 |
+                     2 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) INTERVAL(2s);
+       count(*)        |
+========================
+                     1 |
+                     3 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) SESSION(event_time, 1s);
+       count(*)        |
+========================
+                     5 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) STATE_WINDOW(st);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_dup) COUNT_WINDOW(2);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) INTERVAL(2s);
+       count(*)        |
+========================
+                     5 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) SESSION(event_time, 1s);
+       count(*)        |
+========================
+                     1 |
+                     4 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) STATE_WINDOW(st);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     1 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+       count(*)        |
+========================
+                     3 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_null) COUNT_WINDOW(2);
+       count(*)        |
+========================
+                     2 |
+                     2 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) INTERVAL(2s);
+       count(*)        |
+========================
+                     5 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) SESSION(event_time, 1s);
+       count(*)        |
+========================
+                     2 |
+                     3 |
+
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) STATE_WINDOW(st);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> SELECT count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) COUNT_WINDOW(2);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> CREATE TABLE t_ext_bounds2 (ts TIMESTAMP, endtime TIMESTAMP);
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO t_ext_bounds2 VALUES ('2024-06-01 00:00:01', '2024-06-01 00:00:02') ('2024-06-01 00:00:03', '2024-06-01 00:00:05');
+Insert OK, 2 row(s) affected 
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_desc) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_rand) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_dup) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_null) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT event_time, val, st FROM t_event_nulls) external_window((SELECT ts, endtime FROM t_ext_bounds2) w);
+
+taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          40 |
+
+taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event_desc) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          30 |
+          10 |
+          50 |
+          20 |
+          40 |
+
+taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event_rand) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          20 |
+
+taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event_dup) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          40 |
+
+taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event_null) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          40 |
+
+taos> SELECT interp(val) FROM (SELECT event_time, val FROM t_event_nulls) RANGE('2024-06-01 00:00:01', '2024-06-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          40 |
+
+taos> SELECT last(val) FROM (SELECT * FROM t_base ORDER BY val);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT * FROM t_base ORDER BY val);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY val);
+ last_row(val) |
+================
+            40 |
+
+taos> SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY val);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'elapsed' requires valid time series input [0x8000264F] 
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'derivative' requires valid time series input [0x8000264F] 
+taos> SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'twa' requires valid time series input [0x8000264F] 
+taos> SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'irate' requires valid time series input [0x8000264F] 
+taos> SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'diff' requires valid time series input [0x8000264F] 
+taos> SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'csum' requires valid time series input [0x8000264F] 
+taos> SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'mavg' requires valid time series input [0x8000264F] 
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'statecount' requires valid time series input [0x8000264F] 
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'stateduration' requires valid time series input [0x8000264F] 
+taos> SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'lag' requires valid time series input [0x8000264F] 
+taos> SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY val);
+
+DB error: Function 'lead' requires valid time series input [0x8000264F] 
+taos> SELECT fill_forward(val) FROM (SELECT * FROM t_fill ORDER BY val);
+
+DB error: Function 'fill_forward' requires valid time series input [0x8000264F] 
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) INTERVAL(2s);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) SESSION(ts, 1s);
+
+DB error: SESSION requires valid time series input [0x80002666] 
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) STATE_WINDOW(st);
+
+DB error: Window query not supported, since not valid primary timestamp column as input [0x00000003] 
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+
+DB error: Window query not supported, since not valid primary timestamp column as input [0x00000003] 
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) COUNT_WINDOW(2);
+
+DB error: Window query not supported, since not valid primary timestamp column as input [0x00000003] 
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY val) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
+
+DB error: Window query not supported, since not valid primary timestamp column as input [0x00000003] 
+taos> SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY val) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
+
+DB error: Function 'interp' requires valid time series input [0x8000264F] 
+taos> SELECT last(val) FROM (SELECT * FROM t_base ORDER BY t2);
+  last(val)  |
+==============
+          40 |
+
+taos> SELECT first(val) FROM (SELECT * FROM t_base ORDER BY t2);
+ first(val)  |
+==============
+          30 |
+
+taos> SELECT last_row(val) FROM (SELECT * FROM t_base ORDER BY t2);
+ last_row(val) |
+================
+            40 |
+
+taos> SELECT tail(val, 2) FROM (SELECT * FROM t_base ORDER BY t2);
+ tail(val, 2) |
+===============
+           40 |
+           20 |
+
+taos> SELECT unique(val) FROM (SELECT * FROM t_base ORDER BY t2);
+ unique(val) |
+==============
+          30 |
+          50 |
+          20 |
+          10 |
+          40 |
+
+taos> SELECT elapsed(ts, 1s) FROM (SELECT * FROM t_base ORDER BY t2);
+      elapsed(ts, 1s)      |
+============================
+                         1 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT * FROM t_base ORDER BY t2);
+  derivative(val, 1s, 0)   |
+============================
+                         5 |
+         -3.33333333333333 |
+                       2.5 |
+                        -5 |
+
+taos> SELECT twa(val) FROM (SELECT * FROM t_base ORDER BY t2);
+         twa(val)          |
+============================
+                         5 |
+
+taos> SELECT irate(val) FROM (SELECT * FROM t_base ORDER BY t2);
+        irate(val)         |
+============================
+                        20 |
+
+taos> SELECT diff(val) FROM (SELECT * FROM t_base ORDER BY t2);
+       diff(val)       |
+========================
+                    10 |
+                    10 |
+                    10 |
+                    10 |
+
+taos> SELECT csum(val) FROM (SELECT * FROM t_base ORDER BY t2);
+       csum(val)       |
+========================
+                    10 |
+                    30 |
+                    60 |
+                   100 |
+                   150 |
+
+taos> SELECT mavg(val, 2) FROM (SELECT * FROM t_base ORDER BY t2);
+       mavg(val, 2)        |
+============================
+                        15 |
+                        25 |
+                        35 |
+                        45 |
+
+taos> SELECT statecount(val, 'GE', 30) FROM (SELECT * FROM t_base ORDER BY t2);
+ statecount(val, 'GE', 30) |
+============================
+                        -1 |
+                        -1 |
+                         1 |
+                         2 |
+                         3 |
+
+taos> SELECT stateduration(val, 'GE', 30, 1s) FROM (SELECT * FROM t_base ORDER BY t2);
+ stateduration(val, 'GE', 30, 1s) |
+===================================
+                               -1 |
+                               -1 |
+                                0 |
+                                4 |
+                                2 |
+
+taos> SELECT lag(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
+ lag(val, 1) |
+==============
+ NULL        |
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> SELECT lead(val, 1) FROM (SELECT * FROM t_base ORDER BY t2);
+ lead(val, 1) |
+===============
+           20 |
+           30 |
+           40 |
+           50 |
+ NULL         |
+
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) INTERVAL(2s);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) SESSION(ts, 1s);
+
+DB error: SESSION requires valid time series input [0x80002666] 
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) STATE_WINDOW(st);
+       count(*)        |
+========================
+                     1 |
+                     2 |
+                     2 |
+
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) EVENT_WINDOW START WITH val >= 30 END WITH val >= 40;
+       count(*)        |
+========================
+                     2 |
+                     1 |
+
+taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) COUNT_WINDOW(2);
+       count(*)        |
+========================
+                     2 |
+                     2 |
+                     1 |
+
+taos> SELECT _wstart, _wend, count(*) FROM (SELECT * FROM t_base ORDER BY t2) external_window((SELECT ts, endtime FROM t_ext_bounds) w);
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2024-01-01 00:00:01.000 | 2024-01-01 00:00:02.000 |                     1 |
+ 2024-01-01 00:00:03.000 | 2024-01-01 00:00:05.000 |                     4 |
+
+taos> SELECT interp(val) FROM (SELECT * FROM t_base ORDER BY t2) RANGE('2024-01-01 00:00:01', '2024-01-01 00:00:05') EVERY(1s) FILL(LINEAR);
+ interp(val) |
+==============
+          10 |
+          15 |
+          20 |
+

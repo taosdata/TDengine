@@ -2518,11 +2518,15 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
     if (gid != pRowSup->groupId || pInfo->winSup.prevTs == INT64_MIN) {
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else if (((tsList[j] - pRowSup->prevTs >= 0) && (tsList[j] - pRowSup->prevTs <= gap)) ||
-               ((pRowSup->prevTs - tsList[j] >= 0) && (pRowSup->prevTs - tsList[j] <= gap))) {
-      // The gap is less than the threshold, so it belongs to current session window that has been opened already.
+    } else if (tsList[j] == pRowSup->prevTs) {
+      // Duplicate timestamp - keep in current window
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else {  // start a new session window
+    } else {
+      int64_t absDiff = (tsList[j] > pRowSup->prevTs) ? (tsList[j] - pRowSup->prevTs) : (pRowSup->prevTs - tsList[j]);
+      if (absDiff <= gap) {
+        // Gap within threshold - belongs to current session window
+        doKeepTuple(pRowSup, tsList[j], j, gid);
+      } else {  // start a new session window
       // start a new session window
       if (pRowSup->numOfRows > 0) {  // handled data that belongs to the previous session window
         // keep the time window for the closed time window.
@@ -2555,6 +2559,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
       // here we start a new session window
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
       doKeepTuple(pRowSup, tsList[j], j, gid);
+      }
     }
   }
 

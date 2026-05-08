@@ -2536,6 +2536,9 @@ EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
   if (pResult->hasResult) {
+    if (!pResult->hasTsOrder) {
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
     if (pResult->pkBytes > 0) {
       pResult->pkData = pResult->buf + pResult->bytes;
     } else {
@@ -2567,6 +2570,9 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
 
   SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
   if (pResult->hasResult) {
+    if (!pResult->hasTsOrder) {
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
     if (pResult->pkBytes > 0) {
       pResult->pkData = pResult->buf + pResult->bytes;
     } else {
@@ -2672,7 +2678,7 @@ static int32_t firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowI
 }
 
 static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t currentTs, char* pkData, int32_t type,
-                                char* pData) {
+                                char* pData, bool hasTsOrder) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -2700,6 +2706,7 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
   }
 
   pInfo->ts = currentTs;
+  pInfo->hasTsOrder = hasTsOrder;
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -2748,6 +2755,36 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
+
+  // No timestamp column available: return the first non-NULL row in input order.
+  // Once found, skip all subsequent blocks.
+  if (pInput->pPTS == NULL) {
+    if (pResInfo->numOfRes > 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+    for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+      numOfElems++;
+      char*   data = colDataGetData(pInputCol, i);
+      int32_t code = doSaveCurrentVal(pCtx, i, 0, NULL, pInputCol->info.type, data, false);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pResInfo->numOfRes = 1;
+      break;
+    }
+    if (numOfElems == 0) {
+      int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pInfo->nullTupleSaved = true;
+    }
+    SET_VAL(pResInfo, numOfElems, 1);
+    return TSDB_CODE_SUCCESS;
+  }
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
@@ -2823,7 +2860,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     TSKEY cts = pts[i];
     if (pResInfo->numOfRes == 0 || pInfo->ts > cts ||
         (pInfo->ts == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
-      int32_t code = doSaveCurrentVal(pCtx, i, cts, pkData, pInputCol->info.type, data);
+      int32_t code = doSaveCurrentVal(pCtx, i, cts, pkData, pInputCol->info.type, data, true);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -2883,6 +2920,31 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   }
 
   SColumnDataAgg* pColAgg = (pInput->colDataSMAIsSet) ? pInput->pColumnDataAgg[0] : NULL;
+
+  // No timestamp column available: return the last non-NULL row in input order.
+  if (pInput->pPTS == NULL) {
+    for (int32_t i = pInput->numOfRows + pInput->startRowIndex - 1; i >= pInput->startRowIndex; --i) {
+      if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
+        continue;
+      }
+      numOfElems++;
+      char*   data = colDataGetData(pInputCol, i);
+      int32_t code = doSaveCurrentVal(pCtx, i, 0, NULL, type, data, false);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pResInfo->numOfRes = 1;
+      break;
+    }
+    if (numOfElems == 0 && pResInfo->numOfRes == 0) {
+      int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pInfo->nullTupleSaved = true;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   TSKEY startKey = getRowPTs(pInput->pPTS, 0);
   TSKEY endKey = getRowPTs(pInput->pPTS, pInput->totalRows - 1);
@@ -2969,7 +3031,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
         char*   data = colDataGetData(pInputCol, chosen);
-        int32_t code = doSaveCurrentVal(pCtx, chosen, cts, NULL, type, data);
+        int32_t code = doSaveCurrentVal(pCtx, chosen, cts, NULL, type, data, true);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -2980,7 +3042,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     for (int32_t i = pInput->startRowIndex + round * 4; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
       if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i]) {
         char*   data = colDataGetData(pInputCol, i);
-        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], NULL, type, data);
+        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], NULL, type, data, true);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -3006,7 +3068,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||
           (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
         char*   data = colDataGetData(pInputCol, i);
-        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], pkData, type, data);
+        int32_t code = doSaveCurrentVal(pCtx, i, pts[i], pkData, type, data, true);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -3039,9 +3101,14 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
     pkCompareFn = getKeyComparFunc(pInput->pkType, (isFirst) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC);
   }
   if (pOutput->hasResult) {
-    if (isFirst) {
+    if (!pInput->hasTsOrder || !pOutput->hasTsOrder) {
+      // Without a timestamp ordering key, preserve the incoming stream merge order.
+      if (isFirst) {
+        return false;
+      }
+    } else if (isFirst) {
       if (pInput->ts > pOutput->ts ||
-          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) > 0)) {
+          (pInput->ts == pOutput->ts && (!pkCompareFn || pkCompareFn(pInput->pkData, pOutput->pkData) >= 0))) {
         return false;
       }
     } else {
@@ -3053,15 +3120,18 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
   }
 
   pOutput->isNull = pInput->isNull;
+  pOutput->hasTsOrder = pInput->hasTsOrder;
   pOutput->ts = pInput->ts;
   pOutput->bytes = pInput->bytes;
   pOutput->pkType = pInput->pkType;
+  pOutput->pkBytes = pInput->pkBytes;
 
   (void)memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
   if (pInput->pkData) {
-    pOutput->pkBytes = pInput->pkBytes;
     (void)memcpy(pOutput->buf + pOutput->bytes, pInput->pkData, pOutput->pkBytes);
     pOutput->pkData = pOutput->buf + pOutput->bytes;
+  } else {
+    pOutput->pkData = NULL;
   }
   return true;
 }
@@ -3246,8 +3316,11 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     }
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
+  } else {
+    pInfo->pkData = NULL;
   }
   pInfo->ts = cts;
+  pInfo->hasTsOrder = true;
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3756,8 +3829,9 @@ int32_t diffFunctionByRow(SArray* pCtxArray) {
         code = setDoDiffResult(pCtx, pRow, pos);
         if (code != TSDB_CODE_SUCCESS) {
           goto _exit;
+        } else {
+          newRow = true;
         }
-        newRow = true;
       } else {
         code = trySetPreVal(pCtx, pRow);
         if (code != TSDB_CODE_SUCCESS) {
@@ -8323,7 +8397,7 @@ static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
   if ((pInput->firstKey != INT64_MIN &&
        (pInput->firstKey == pOutput->firstKey || pInput->firstKey == pOutput->lastKey)) ||
       (pInput->lastKey != INT64_MIN && (pInput->lastKey == pOutput->firstKey || pInput->lastKey == pOutput->lastKey))) {
-    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pOutput->hasResult == 0) {

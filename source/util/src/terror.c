@@ -811,7 +811,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,    "Only support STATE_W
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_COL,     "Not support STATE_WINDOW on tag column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE,   "STATE_WINDOW not support for super table query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_GAP,         "SESSION gap should be fixed time window, and greater than 0")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_COL,         "Only support SESSION on primary timestamp column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_COL,         "Only supports SESSION on timestamp column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_OFFSET_NEGATIVE,     "Interval offset cannot be negative")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_OFFSET_UNIT,         "Cannot use 'year' as offset when interval is 'month'")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG,      "Interval offset should be shorter than interval")

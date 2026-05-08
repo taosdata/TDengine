@@ -1198,8 +1198,6 @@ class TestJoin:
                             "select * from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
                             "select * from db1_st1 t1 full join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
                             "select * from db1_st1 t1 full join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
-                            "select first(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
-                            "select last(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
                             "select diff(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 full join db1_st2 on t1.ts = t2.ts;"],
                 }
@@ -2627,8 +2625,7 @@ class TestJoin:
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t1.t_int > t2.t_int jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 right asof join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
                             "select * from db1_st1 t1 right asof join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 right asof join (select * from db1_st2) t2;",
-                            "select _wstart ts, count(t_bool1) from (select t1.ts ts1, t1.t_bool t_bool1, t2.tbname from db1_st1 t1 right asof join db1_st2 t2 on t1.ts <= t2.ts) partition by tbname interval(1s) order by ts;"
+                            "select * from db1_st1 t1 right asof join (select * from db1_st2) t2;"
                         ]
                 }
             ],
