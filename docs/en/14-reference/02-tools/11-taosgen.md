@@ -168,7 +168,7 @@ These parameters can also be set via command line options (`--log-dir`, `--log-f
 #### InfluxDB Parameters
 
 - influxdb: Describes configuration parameters for the InfluxDB database, including:
-  - url (string): The HTTP address of the InfluxDB server, default: http://localhost:8086.
+  - url (string): The HTTP address of the InfluxDB server, default: `http://localhost:8086`.
   - token (string): API Token for authentication. Can also be set via the `INFLUXDB_TOKEN` environment variable.
   - org (string): InfluxDB organization name, default: default.
   - bucket (string): InfluxDB Bucket name, default: default.
@@ -384,12 +384,14 @@ The `kafka/produce` action publishes data to the specified topic. It supports ob
 
 ### Format for Writing Data to InfluxDB Action
 
-When `uses` is set to `influxdb/write`, the following format parameters are supported (configured under `with`):
-
-- concurrency (int): Number of concurrent write threads, default: 1.
+The `influxdb/write` action writes data to the specified InfluxDB Bucket via the InfluxDB v2 Write API in line protocol format. It supports obtaining data from generator or CSV file sources and allows users to control timestamp attributes via various strategies. It also provides rich write control strategies for optimization.
+- schema: Uses global schema configuration by default; can be overridden for this action. The `name` field in the schema will be used as the InfluxDB measurement name.
+- concurrency (int): Number of concurrent write threads, default: 8.
+- failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- time_interval: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
 - precision (string): Timestamp precision for writing. Options: "ns", "us", "ms", "s". Default is "ns".
 - batch_size (int): Number of line protocol rows per HTTP request, default: 5000. InfluxDB officially recommends a value of 5000.
-- gzip (bool): Whether to enable gzip compression. Default is true. Enabling gzip significantly reduces bandwidth usage and is recommended for large-batch writes.
+- gzip (bool): Whether to enable gzip compression. Default is false. Enabling gzip significantly reduces bandwidth usage and is recommended for large-batch writes.
 
 ## Configuration File Examples
 

@@ -167,7 +167,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 #### InfluxDB 参数
 
 - influxdb：描述 InfluxDB 数据库的相关配置参数，它包括以下属性：
-  - url（字符串）：InfluxDB 服务器的 HTTP 地址，默认值为 http://localhost:8086。
+  - url（字符串）：InfluxDB 服务器的 HTTP 地址，默认值为 `http://localhost:8086`。
   - token（字符串）：用于身份验证的 API Token。也可通过环境变量 `INFLUXDB_TOKEN` 设置。
   - org（字符串）：InfluxDB 组织名称，默认值为 default。
   - bucket（字符串）：InfluxDB Bucket 名称，默认值为 default。
