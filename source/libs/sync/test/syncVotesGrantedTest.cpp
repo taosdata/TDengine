@@ -12,6 +12,8 @@ void logTest() {
 uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
 int32_t  replicaNum = 3;
 int32_t  myIndex = 0;
+int32_t  electMs = 60000;
+int32_t  heartbeatMs = 60000;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
@@ -36,7 +38,7 @@ SSyncNode* syncNodeInit() {
     // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
   }
 
-  pSyncNode = syncNodeOpen(&syncInfo);
+  pSyncNode = syncNodeOpen(&syncInfo, 1, electMs, heartbeatMs);
   TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
@@ -61,6 +63,43 @@ void initRaftId(SSyncNode* pSyncNode) {
     printf("raftId[%d] : %s\n", i, s);
     taosMemoryFree(s);
   }
+}
+
+void testDeterministicTieReset(SVotesGranted* pVotesGranted, SyncTerm term) {
+  voteGrantedReset(pVotesGranted, term);
+
+  for (int round = 0; round < 2; ++round) {
+    for (int i = 0; i < 2; ++i) {
+      SyncRequestVoteReply* reply = syncRequestVoteReplyBuild(1000);
+      reply->destId = pSyncNode->myRaftId;
+      reply->srcId = ids[i];
+      reply->term = term;
+      reply->voteGranted = true;
+      voteGrantedVote(pVotesGranted, reply);
+      syncRequestVoteReplyDestroy(reply);
+    }
+  }
+
+  char* first = voteGranted2Str(pVotesGranted);
+  TD_ALWAYS_ASSERT(first != NULL);
+
+  voteGrantedReset(pVotesGranted, term);
+  for (int i = 0; i < 2; ++i) {
+    SyncRequestVoteReply* reply = syncRequestVoteReplyBuild(1000);
+    reply->destId = pSyncNode->myRaftId;
+    reply->srcId = ids[i];
+    reply->term = term;
+    reply->voteGranted = true;
+    voteGrantedVote(pVotesGranted, reply);
+    syncRequestVoteReplyDestroy(reply);
+  }
+
+  char* second = voteGranted2Str(pVotesGranted);
+  TD_ALWAYS_ASSERT(second != NULL);
+  TD_ALWAYS_ASSERT(strcmp(first, second) == 0);
+
+  taosMemoryFree(first);
+  taosMemoryFree(second);
 }
 
 int main(int argc, char** argv) {
@@ -140,6 +179,8 @@ int main(int argc, char** argv) {
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
+
+  testDeterministicTieReset(pVotesGranted, 20260410);
 
   voteGrantedDestroy(pVotesGranted);
   return 0;

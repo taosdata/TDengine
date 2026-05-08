@@ -44,6 +44,8 @@ extern void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 
 typedef struct SyncPing      SyncPing;
 typedef struct SyncPingReply SyncPingReply;
+typedef void                 SRaftEntryHashCache;
+typedef void                 SRaftEntryCache;
 
 typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
 typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
@@ -241,6 +243,7 @@ void               syncClientRequestLog(const SyncClientRequest* pMsg);
 void               syncClientRequestLog2(char* s, const SyncClientRequest* pMsg);
 
 SyncRequestVote* syncRequestVoteBuild(int32_t vgId);
+SyncRequestVote* syncRequestVoteBuildWithAppliedIndex(int32_t vgId, SyncIndex appliedIndex);
 void             syncRequestVoteDestroy(SyncRequestVote* pMsg);
 void             syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen);
 void             syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg);

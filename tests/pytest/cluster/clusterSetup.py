@@ -148,6 +148,9 @@ class Nodes:
         # self.tdnodes.append(Node(2, 'root', '51.141.167.23', 'node3', 'a', '/root/'))
         # self.tdnodes.append(Node(3, 'root', '52.247.207.173', 'node4', 'a', '/root/'))
         # self.tdnodes.append(Node(4, 'root', '51.141.166.100', 'node5', 'a', '/root/'))
+        self.node1 = self.tdnodes[0] if len(self.tdnodes) > 0 else None
+        self.node2 = self.tdnodes[1] if len(self.tdnodes) > 1 else None
+        self.node3 = self.tdnodes[2] if len(self.tdnodes) > 2 else None
 
     def stopOneNode(self, index):
         self.tdnodes[index].stopTaosd()

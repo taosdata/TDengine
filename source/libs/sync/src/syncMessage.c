@@ -96,6 +96,7 @@ int32_t syncBuildRequestVote(SRpcMsg* pMsg, int32_t vgId) {
   pRequestVote->bytes = bytes;
   pRequestVote->msgType = TDMT_SYNC_REQUEST_VOTE;
   pRequestVote->vgId = vgId;
+  pRequestVote->candidateAppliedIndex = SYNC_INDEX_INVALID;
   return 0;
 }
 

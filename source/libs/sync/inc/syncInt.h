@@ -324,6 +324,7 @@ bool    syncNodeHasSnapshot(SSyncNode* pSyncNode);
 void    syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
 int32_t syncNodeStartSnapshot(SSyncNode* pSyncNode, SRaftId* pDestId, char* reason);
 
+SyncIndex syncNodeGetAppliedIndex(const SSyncNode* pSyncNode);
 SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
 int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);

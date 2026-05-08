@@ -1,0 +1,1 @@
+改进目前raft的选举实现，加入对appliedIndex的判断，appliedIndex大的更优先被选举为leader。不要替我创建git分支。

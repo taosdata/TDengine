@@ -2618,6 +2618,14 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
 
 // return max(logLastIndex, snapshotLastIndex)
 // if no snapshot and log, return -1
+SyncIndex syncNodeGetAppliedIndex(const SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL || pSyncNode->pFsm == NULL || pSyncNode->pFsm->FpAppliedIndexCb == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+
+  return pSyncNode->pFsm->FpAppliedIndexCb(pSyncNode->pFsm);
+}
+
 SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode) {
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
