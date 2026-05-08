@@ -308,7 +308,7 @@ select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 
 ## 查询对象
 
-FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
+FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果，也可以是 TEXT 或 FILE 内联数据源（见下文）。
 如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：`power.d1001` 方式来跨库使用表。
 
 TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
@@ -319,6 +319,123 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 4. 参与 JOIN 计算的表只能是同一种类型，即只能都是超级表，或都是子表，或都是普通表。
 5. JOIN 两侧均支持子查询。
 6. 不支持与 FILL 子句混合使用。
+
+## TEXT 内联数据源
+
+`TEXT` 允许将行数据直接内嵌在 SQL 语句中，作为临时表源使用，无需预先建表。
+
+### 语法
+
+```sql
+TEXT(col_name col_type [, col_name col_type] ...)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### 说明
+
+- 列 Schema 必须显式声明，不支持类型推断。
+- 每个 `VALUES` 组代表一行数据，所有行必须与 Schema 列数一致。
+- 支持 NULL 值，使用关键字 `NULL` 表示。
+- 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
+- `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+
+### 数据量限制
+
+| 限制项 | 上限 |
+|---|---|
+| 最大行数 | 10,000 行 |
+| 最大单元格数（rows × cols） | 1,000,000 个 |
+| 单次内联文本大小 | 8 MB |
+
+### 示例
+
+```sql
+-- 基本查询：查询内联电表读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- 带条件过滤：筛选电压超标的读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- 作为子查询：对内联读数进行二次过滤
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- 窗口聚合：按 6 小时统计平均电流和最大电压
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+```
+
+## FILE CSV 文件数据源
+
+`FILE` 将客户端本地的 CSV 文件作为查询表源，无需导入数据库即可直接查询。
+
+### 语法
+
+```sql
+FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### 说明
+
+- 当前仅支持 CSV 文本格式。
+- `file_path`：CSV 文件路径，在**查询计划生成时由执行查询规划的进程**读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
+- 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
+- CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
+- `header=true`：CSV 首行为列名头部，读取时跳过；默认为 `false`。
+- `delimiter`：字段分隔符，单个字符，默认为 `,`。
+- 支持 NULL 值（CSV 中的空字段解析为 NULL）。
+- 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
+
+### 数据量限制
+
+与 `TEXT` 相同：最大 10,000 行、1,000,000 单元格、单次读取不超过 8 MB。
+
+### 示例
+
+```sql
+-- 读取 CSV 文件中的全部列（电表四列读数）
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 有 4 列，只读取其中 2 列（电流和电压）
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 带列名头部，跳过首行
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- 作为子查询：对 CSV 读数进行过滤聚合
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+```
 
 ## INTERP
 

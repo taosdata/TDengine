@@ -20,6 +20,7 @@
 #include "planner.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "cmdnodes.h"
 #include "systable.h"
 #include "tglobal.h"
 
@@ -27,6 +28,19 @@
 
 // primary key column always the second column if exists
 #define PRIMARY_COLUMN_SLOT 1
+
+/* Common descriptor for building SRowsetSourceLogicNode from either TEXT or FILE */
+typedef struct SRowsetSourceDesc {
+  SNodeList* pColDefs;
+  int32_t    colCount;
+  int32_t    rowCount;
+  bool       hasPrimaryTs;
+  bool       isSortedByTs;
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;   // ownership transferred to logic node; caller sets source field to NULL
+  char       tableAlias[TSDB_TABLE_NAME_LEN];
+} SRowsetSourceDesc;
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
@@ -1480,6 +1494,60 @@ _return:
   return code;
 }
 
+static int32_t createRowsetSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                           SRowsetSourceDesc* pDesc, SLogicNode** pLogicNode) {
+  SRowsetSourceLogicNode* pRowset = NULL;
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE, (SNode**)&pRowset);
+  if (NULL == pRowset) return code;
+
+  pRowset->node.precision    = pSelect->precision;
+  pRowset->node.groupAction  = GROUP_ACTION_NONE;
+  pRowset->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  // If data is sorted by primary ts, declare global order so downstream operators can leverage it
+  pRowset->node.resultDataOrder  =
+      (pDesc->isSortedByTs) ? DATA_ORDER_LEVEL_GLOBAL : DATA_ORDER_LEVEL_NONE;
+
+  pRowset->numBlocks      = 1;
+  pRowset->totalRows      = pDesc->rowCount;
+  pRowset->hasPrimaryTs   = pDesc->hasPrimaryTs;
+  pRowset->isSortedByTs   = pDesc->isSortedByTs;
+  pRowset->primaryTsSlot  = pDesc->primaryTsSlot;
+  pRowset->blockBufLen    = pDesc->blockBufLen;
+  pRowset->pBlockBuf      = pDesc->pBlockBuf;
+  pDesc->pBlockBuf        = NULL;  // ownership transferred
+
+  // Build pTargets: one SColumnNode per column def
+  int16_t slotIdx = 0;
+  SNode*  pDefNode = NULL;
+  FOREACH(pDefNode, pDesc->pColDefs) {
+    SColumnDefNode* pDef = (SColumnDefNode*)pDefNode;
+    SColumnNode*    pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (NULL == pCol) {
+      nodesDestroyNode((SNode*)pRowset);
+      return code;
+    }
+    pCol->node.resType.type  = pDef->dataType.type;
+    pCol->node.resType.bytes = pDef->dataType.bytes;
+    pCol->colId              = slotIdx + 1;
+    pCol->slotId             = slotIdx;
+    pCol->colType            = COLUMN_TYPE_COLUMN;
+    pCol->isPrimTs           = (slotIdx == pDesc->primaryTsSlot && pDesc->hasPrimaryTs);
+    tstrncpy(pCol->tableAlias, pDesc->tableAlias, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
+    code = nodesListMakeAppend(&pRowset->node.pTargets, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pCol);
+      nodesDestroyNode((SNode*)pRowset);
+      return code;
+    }
+    ++slotIdx;
+  }
+
+  *pLogicNode = (SLogicNode*)pRowset;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1488,6 +1556,28 @@ static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pS
       return createScanLogicNode(pCxt, pSelect, (SRealTableNode*)pTable, pLogicNode);
     case QUERY_NODE_TEMP_TABLE:
       return createSubqueryLogicNode(pCxt, pSelect, (STempTableNode*)pTable, pLogicNode);
+    case QUERY_NODE_TEXT_TABLE: {
+      STextTableNode*   pT = (STextTableNode*)pTable;
+      SRowsetSourceDesc desc = {
+          .pColDefs = pT->pColDefs, .colCount = pT->colCount, .rowCount = pT->rowCount,
+          .hasPrimaryTs = pT->hasPrimaryTs, .isSortedByTs = pT->isSortedByTs,
+          .primaryTsSlot = pT->primaryTsSlot, .blockBufLen = pT->blockBufLen, .pBlockBuf = pT->pBlockBuf,
+      };
+      tstrncpy(desc.tableAlias, pT->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      pT->pBlockBuf = NULL;
+      return createRowsetSourceLogicNode(pCxt, pSelect, &desc, pLogicNode);
+    }
+    case QUERY_NODE_FILE_TABLE: {
+      SFileTableNode*   pF = (SFileTableNode*)pTable;
+      SRowsetSourceDesc desc = {
+          .pColDefs = pF->pColDefs, .colCount = pF->colCount, .rowCount = pF->rowCount,
+          .hasPrimaryTs = pF->hasPrimaryTs, .isSortedByTs = pF->isSortedByTs,
+          .primaryTsSlot = pF->primaryTsSlot, .blockBufLen = pF->blockBufLen, .pBlockBuf = pF->pBlockBuf,
+      };
+      tstrncpy(desc.tableAlias, pF->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      pF->pBlockBuf = NULL;
+      return createRowsetSourceLogicNode(pCxt, pSelect, &desc, pLogicNode);
+    }
     case QUERY_NODE_JOIN_TABLE:
       return createJoinLogicNode(pCxt, pSelect, (SJoinTableNode*)pTable, pLogicNode);
     case QUERY_NODE_VIRTUAL_TABLE:

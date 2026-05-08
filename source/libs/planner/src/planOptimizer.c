@@ -4649,7 +4649,14 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       }
     }
 
-    if (eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) && (!isSetOpProj || orderMatch)) {
+    // Do NOT prune targets of a rowset source node: its pBlockBuf has already serialized ALL
+    // columns at parse time. Replacing pTargets here would cause the physi node's
+    // pOutputDataBlockDesc to have fewer slots than columns in pBlockBuf, making
+    // blockDataFromBuf read garbage data and overflow the heap (TD-35151).
+    bool canReplaceChildTargets = nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE &&
+                                  eliminateProjOptCanChildConditionUseChildTargets(pChild, pNewChildTargets) &&
+                                  (!isSetOpProj || orderMatch);
+    if (canReplaceChildTargets) {
       if (needReplaceTargets) {
         nodesDestroyList(pChild->pTargets);
         pChild->pTargets = pNewChildTargets;
