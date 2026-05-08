@@ -173,7 +173,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
 int32_t testCompress(SBse *bse, int8_t compressType) {
   std::vector<int64_t> data;
   std::string          str = genRandomString(1000);
-  SBseCfg              cfg = {.compressType = compressType};
+  SBseCfg              cfg = {}; cfg.compressType = compressType;
   bseUpdateCfg(bse, &cfg);
 
   putStringData(bse, 100000, str, &data);
@@ -198,7 +198,7 @@ int32_t benchTest() {
   {
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
     {
-      SBseCfg cfg = {.compressType = kNoCompres};
+      SBseCfg cfg = {}; cfg.compressType = kNoCompres;
       bseUpdateCfg(bse, &cfg);
     }
 
@@ -635,7 +635,7 @@ TEST(bseCase, encryptionWithCompressionTest) {
   std::string str = genRandomString(5000);
   
   for (int8_t compType = kNoCompres; compType <= kZSTDCompres; compType++) {
-    SBseCfg updateCfg = {.compressType = compType};
+    SBseCfg updateCfg = {}; updateCfg.compressType = compType;
     bseUpdateCfg(bse, &updateCfg);
     
     putStringData(bse, 100, str, &data);
