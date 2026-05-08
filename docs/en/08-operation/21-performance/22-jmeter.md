@@ -418,7 +418,7 @@ summary =   1500 in 00:00:03 =  500.0/s Avg:    2 Min:     1 Max:     6 Err:    
 
 Open `baseline_report/index.html`.
 
-![HTML Report](./html-report.webp)
+![HTML Report](../../assets/html-report.webp)
 
 **Key Metrics**:
 
