@@ -762,17 +762,17 @@ class TestUdfRestartTaosd:
 
         # ---- test 3: interval window – each window accumulates independently
         # 30 rows @ 1s interval → three 10s windows; each should return a value.
-        # Expected entropy per window (embed_dim=3, delay=1, 10 rows each):
-        #   window 0: sin(0*0.3)..sin(9*0.3)  → 0.543775
-        #   window 1: sin(10*0.3)..sin(19*0.3) → 0.502442
-        #   window 2: sin(20*0.3)..sin(29*0.3) → 0.502442
+        # Expected entropy per window (embed_dim=5, delay=1, 10 rows each → 6 windows):
+        #   window 0: sin(0*0.3)..sin(9*0.3)   → 0.3259975145428588
+        #   window 1: sin(10*0.3)..sin(19*0.3)  → 0.2595207243474015
+        #   window 2: sin(20*0.3)..sin(29*0.3)  → 0.2595207243474015
         tdSql.query(
             "select perm_entropy(val) from perm_t0 interval(10s)"
         )
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 0.5437753137)
-        tdSql.checkData(1, 0, 0.5024421661)
-        tdSql.checkData(2, 0, 0.5024421661)
+        tdSql.checkData(0, 0, 0.3259975145)
+        tdSql.checkData(1, 0, 0.2595207243)
+        tdSql.checkData(2, 0, 0.2595207243)
         tdLog.info("test3 pass: interval window returns 3 rows with correct entropy")
 
         # ---- test 4: partition by subtable via supertable query
