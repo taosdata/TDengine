@@ -10058,6 +10058,9 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     }
   }
 
+  // Encode hasInheritors (VST inheritance)
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->hasInheritors));
+
   return 0;
 }
 
@@ -10154,6 +10157,12 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
         TAOS_CHECK_RETURN(tDecodeSColRef(pDecoder, pTagRef));
       }
     }
+  }
+
+  // Decode hasInheritors (VST inheritance, backward compatible)
+  pRsp->hasInheritors = 0;
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRsp->hasInheritors));
   }
 
   return 0;

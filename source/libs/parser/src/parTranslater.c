@@ -27413,6 +27413,11 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE);
   }
 
+  // Non-leaf VST (has child VSTs inheriting from it) cannot have VCT
+  if (pSuperTableMeta->hasInheritors) {
+    PAR_ERR_JRET(TSDB_CODE_MND_VST_NOT_LEAF);
+  }
+
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
 
   if (pStmt->pSpecificColRefs) {

@@ -153,7 +153,8 @@ typedef struct STableMeta {
       uint8_t virtualStb : 1;
       uint8_t isAudit : 1;
       uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
-      uint8_t reserved : 3;
+      uint8_t hasInheritors : 1;  // 1 if other VSTs inherit from this STB
+      uint8_t reserved : 2;
     };
   };
   int64_t ownerId;

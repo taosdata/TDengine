@@ -903,6 +903,7 @@ typedef struct {
   int32_t     numOfTagRefs;
   SColRef*    pTagRefs;
   int8_t      secureDelete;
+  int8_t      hasInheritors;  // 1 if other VSTs inherit from this STB (non-leaf)
 } STableMetaRsp;
 
 typedef struct {

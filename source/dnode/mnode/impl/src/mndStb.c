@@ -2725,6 +2725,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
   pRsp->secLvl = pStb->securityLevel;
   pRsp->secureDelete = pStb->secureDelete;
+  pRsp->hasInheritors = (pMnode != NULL && pStb->virtualStb && mndStbHasChildren(pMnode, pStb->uid)) ? 1 : 0;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
