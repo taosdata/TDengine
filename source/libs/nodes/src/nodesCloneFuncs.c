@@ -960,6 +960,8 @@ static int32_t physiNodeCopy(const SPhysiNode* pSrc, SPhysiNode* pDst) {
   CLONE_NODE_LIST_FIELD(pChildren);
   COPY_SCALAR_FIELD(inputTsOrder);
   COPY_SCALAR_FIELD(outputTsOrder);
+  COPY_SCALAR_FIELD(requireDataOrder);
+  COPY_SCALAR_FIELD(resultDataOrder);
   COPY_SCALAR_FIELD(dynamicOp);
   COPY_SCALAR_FIELD(forceCreateNonBlockingOptr);
   return TSDB_CODE_SUCCESS;

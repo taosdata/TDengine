@@ -125,8 +125,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pInfo->groupId = UINT64_MAX;
-  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAggNode->node);
   pInfo->hasCountFunc = pAggNode->hasCountLikeFunc;
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;

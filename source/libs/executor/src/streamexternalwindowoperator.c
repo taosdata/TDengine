@@ -763,8 +763,9 @@ int32_t createStreamMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstrea
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->mode = pPhynode->window.pProjs ? EEXT_MODE_SCALAR : EEXT_MODE_AGG;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
@@ -2359,8 +2360,9 @@ int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNod
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->mode = pPhynode->window.pProjs ? EEXT_MODE_SCALAR : (pPhynode->window.indefRowsFunc ? EEXT_MODE_INDEFR_FUNC : EEXT_MODE_AGG);
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
   pExtW->isDynWindow = false;
 
   if (pTaskInfo->pStreamRuntimeInfo != NULL){
@@ -2466,8 +2468,7 @@ int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNod
                               pTaskInfo->pStreamRuntimeInfo);
     TSDB_CHECK_CODE(code, lino, _error);
     
-    pExtW->binfo.inputTsOrder = pNode->inputTsOrder;
-    pExtW->binfo.outputTsOrder = pNode->outputTsOrder;
+    setOptrBasicInfoOrder(&pExtW->binfo, pNode);
     code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfExpr, &pExtW->pPseudoColInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 

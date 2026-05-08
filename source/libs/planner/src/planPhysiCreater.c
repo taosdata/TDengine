@@ -676,6 +676,8 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
   pPhysiNode->dynamicOp = pLogicNode->dynamicOp;
   pPhysiNode->inputTsOrder = pLogicNode->inputTsOrder;
   pPhysiNode->outputTsOrder = pLogicNode->outputTsOrder;
+  pPhysiNode->requireDataOrder = pLogicNode->requireDataOrder;
+  pPhysiNode->resultDataOrder = pLogicNode->resultDataOrder;
 
   code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {

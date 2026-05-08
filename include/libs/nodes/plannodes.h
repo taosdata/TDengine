@@ -501,6 +501,8 @@ typedef struct SPhysiNode {
   bool                dynamicOp;
   EOrder              inputTsOrder;
   EOrder              outputTsOrder;
+  EDataOrderLevel     requireDataOrder;
+  EDataOrderLevel     resultDataOrder;
   SDataBlockDescNode* pOutputDataBlockDesc;
   SNode*              pConditions;
   SNodeList*          pChildren;

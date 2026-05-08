@@ -521,7 +521,26 @@ typedef struct SOptrBasicInfo {
   bool           mergeResultBlock;
   int32_t        inputTsOrder;
   int32_t        outputTsOrder;
+  EDataOrderLevel inputDataOrder;
+  EDataOrderLevel outputDataOrder;
 } SOptrBasicInfo;
+
+static FORCE_INLINE void setOptrBasicInfoOrder(SOptrBasicInfo* pInfo, const SPhysiNode* pNode) {
+  pInfo->inputTsOrder = pNode->inputTsOrder;
+  pInfo->outputTsOrder = pNode->outputTsOrder;
+  pInfo->inputDataOrder = pNode->requireDataOrder;
+  pInfo->outputDataOrder = pNode->resultDataOrder;
+}
+
+static FORCE_INLINE bool optrHasOrderedInput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->inputTsOrder == ORDER_ASC || pInfo->inputTsOrder == ORDER_DESC) &&
+         pInfo->inputDataOrder >= minLevel;
+}
+
+static FORCE_INLINE bool optrHasOrderedOutput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->outputTsOrder == ORDER_ASC || pInfo->outputTsOrder == ORDER_DESC) &&
+         pInfo->outputDataOrder >= minLevel;
+}
 
 typedef struct SIndefRowsWindowState {
   STimeWindow  win;      // logical window range for this state
