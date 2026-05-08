@@ -7,24 +7,27 @@ taos> SELECT ts, d FROM TEXT(ts TIMESTAMP, d DECIMAL(10,2)) VALUES ('2024-01-01 
 =================================================
  2024-01-01 00:00:00.000 | NULL                 |
 
-taos> SELECT ts FROM TEXT(ts TIMESTAMP, g GEOMETRY(100)) VALUES ('2024-01-01 00:00:00', 'POINT(1 2)') t_geo1;
-           ts            |
-==========================
- 2024-01-01 00:00:00.000 |
+taos> SELECT d FROM TEXT(d DECIMAL(10,2)) VALUES (3.14)(0)(99.99) t_dec2;
+          d           |
+=======================
+                 3.14 |
+                    0 |
+                99.99 |
 
-taos> SELECT ts FROM TEXT(ts TIMESTAMP, g GEOMETRY(100)) VALUES ('2024-01-01 00:00:00', 'POINT(1 2)') ('2024-01-02 00:00:00', 'POINT(3 4)') t_geo2 WHERE ts > '2024-01-01 00:00:00';
-           ts            |
-==========================
- 2024-01-02 00:00:00.000 |
+taos> SELECT SUM(d) FROM TEXT(d DECIMAL(10,2)) VALUES (3.14)(0)(99.99) t_dec3;
+                  sum(d)                  |
+===========================================
+                                   103.13 |
 
-taos> SELECT ts FROM (SELECT ts FROM TEXT(ts TIMESTAMP, g GEOMETRY(100)) VALUES ('2024-01-01 00:00:00', 'POINT(0 0)') ('2024-01-02 00:00:00', 'POINT(5 5)') t_geo3_i) sub ORDER BY ts;
-           ts            |
-==========================
- 2024-01-01 00:00:00.000 |
- 2024-01-02 00:00:00.000 |
+taos> SELECT ts, d FROM TEXT(ts TIMESTAMP, d DECIMAL(38,10)) VALUES ('2024-01-01 00:00:00', 12345.6789) ('2024-01-02 00:00:00', NULL) t_dec4 ORDER BY ts;
+           ts            |                    d                     |
+=====================================================================
+ 2024-01-01 00:00:00.000 |                         12345.6789000000 |
+ 2024-01-02 00:00:00.000 | NULL                                     |
 
-taos> SELECT ts FROM TEXT(ts TIMESTAMP, g1 GEOMETRY(100), g2 GEOMETRY(100)) VALUES ('2024-01-01 00:00:00', 'POINT(0 0)', 'POINT(1 1)') t_geo4;
-           ts            |
-==========================
- 2024-01-01 00:00:00.000 |
+taos> SELECT v FROM TEXT(v VARBINARY(64)) VALUES ('\x48454C4C4F')(NULL) t_vb;
+               v                |
+=================================
+ \x48454C4C4F                   |
+ NULL                           |
 

@@ -5,7 +5,7 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 class TestFileSource:
     """FILE table source pytest test class.
 
-    Exercises the FILE(path, schema_decl [, option ...]) virtual-table syntax
+    Exercises the FILE(path, column_list [, option ...]) virtual-table syntax
     that reads CSV data directly from a file at query time.
 
     CSV test data is stored in the in/ directory alongside this file:
@@ -50,7 +50,7 @@ class TestFileSource:
 
         Negative cases (inline):
         - Nonexistent file path: server should return an error
-        - Empty schema_decl string: parser should reject the query
+        - Empty column_list string: parser should reject the query
 
         Since: v3.4.2
 
@@ -59,7 +59,7 @@ class TestFileSource:
         Jira: None
 
         History:
-            - 2026-04-17 Copilot Added for FILE table source feature
+            - 2026-04-17 Added for FILE table source feature
 
         """
 
@@ -81,7 +81,7 @@ class TestFileSource:
             "SELECT ts FROM FILE('/nonexistent/no_such_file.csv', 'ts TIMESTAMP') f"
         )
 
-        tdLog.info("file_source: empty schema_decl should fail")
+        tdLog.info("file_source: empty column_list should fail")
         in_dir = os.path.join(os.path.dirname(__file__), "in")
         tdSql.error(
             f"SELECT ts FROM FILE('{in_dir}/file_source_basic.csv', '') f"
@@ -112,8 +112,8 @@ class TestFileSource:
         Jira: None
 
         History:
-            - 2026-04-20 Copilot Added for large data volume coverage
-            - 2026-04-20 Copilot Aligned row cap with TEXT() (kMaxInlineRows = 10000)
+            - 2026-04-20 Added for large data volume coverage
+            - 2026-04-20 Aligned row cap with TEXT() (kMaxInlineRows = 10000)
         """
         import datetime, os, tempfile
 
@@ -193,7 +193,7 @@ class TestFileSource:
         Jira: None
 
         History:
-            - 2026-04-22 Copilot Added for test coverage gap analysis
+            - 2026-04-22 Added for test coverage gap analysis
 
         """
         import datetime, tempfile, os
@@ -293,8 +293,8 @@ class TestFileSource:
         Jira: None
 
         History:
-            - 2026-04-17 Copilot Added for FILE table source feature
-            - 2026-04-21 Copilot Self-contained: creates file_src_db before running
+            - 2026-04-17 Added for FILE table source feature
+            - 2026-04-21 Self-contained: creates file_src_db before running
 
         """
 
@@ -313,7 +313,7 @@ class TestFileSource:
         """FILE source with no TIMESTAMP first column.
 
         FILE() does not require the first column to be TIMESTAMP.  When the
-        schema_decl starts with a non-timestamp type, hasPrimaryTs is false and
+        column_list starts with a non-timestamp type, hasPrimaryTs is false and
         time-series-specific operations are unavailable, but all non-time-series
         queries work normally.
 
@@ -336,7 +336,7 @@ class TestFileSource:
         Jira: None
 
         History:
-            - 2026-04-22 Copilot Added to cover FILE non-TIMESTAMP first column behaviour
+            - 2026-04-22 Added to cover FILE non-TIMESTAMP first column behaviour
 
         """
 
@@ -466,7 +466,7 @@ class TestFileSource:
             "('2026-04-01 00:02:00',300)"
         )
 
-        in_dir = os.path.abspath("cases/09-DataQuerying/08-SubQuery/in")
+        in_dir = os.path.join(os.path.dirname(__file__), "in")
         csv_ts   = f"{in_dir}/file_source_basic.csv"
         csv_nots = f"{in_dir}/file_source_no_ts.csv"
         schema_ts   = "'ts TIMESTAMP, volt INT'"
@@ -534,11 +534,22 @@ class TestFileSource:
         tdLog.debug("test_file_source_union passed")
 
     def test_file_source_schema_types(self):
-        """FILE schema_decl: unsupported type rejection and VARBINARY support.
+        """FILE column_list: type rejection, type coverage, CSV NULL, and edge cases.
 
-        N1: JSON type in schema_decl is rejected (JSON is a tag-only type).
-        N2: GEOMETRY type in schema_decl is rejected (WKT/WKB conversion not supported).
-        P1: VARBINARY(N) column is supported; hex-string and plain-string values round-trip.
+        Negative (rejected types):
+        N1: JSON rejected.  N2: GEOMETRY rejected.
+        N3: BLOB rejected.  N4: MEDIUMBLOB rejected.
+
+        Positive (type coverage):
+        P1: VARBINARY round-trip.  P2: NCHAR with Chinese text.
+        P3: SMALLINT/TINYINT/unsigned integers.
+        P4: CSV NULL representations (empty, NULL, null).
+        P5: backslash-N is literal, not NULL.
+        P6: Quoted empty string handling.
+        P7: BOOL values from CSV (true/false/NULL).
+        P8: FLOAT/DOUBLE precision from CSV.
+        P9: CSV has more columns than column_list.
+        P10: DECIMAL(10,2) from CSV.  P11: DECIMAL(38,10) from CSV.
 
         Since: v3.4.2
 
@@ -548,8 +559,8 @@ class TestFileSource:
         """
         import tempfile, os
 
-        # --- N1: JSON schema_decl should be rejected ---
-        tdLog.info("file_source_schema_types N1: JSON in schema_decl should be rejected")
+        # --- N1: JSON column_list should be rejected ---
+        tdLog.info("file_source_schema_types N1: JSON in column_list should be rejected")
         fd, path = tempfile.mkstemp(suffix=".csv")
         with os.fdopen(fd, "w") as fh:
             fh.write('2026-01-01 00:00:01,{"k":1}\n')
@@ -560,8 +571,8 @@ class TestFileSource:
         finally:
             os.unlink(path)
 
-        # --- N2: GEOMETRY schema_decl should be rejected ---
-        tdLog.info("file_source_schema_types N2: GEOMETRY in schema_decl should be rejected")
+        # --- N2: GEOMETRY column_list should be rejected ---
+        tdLog.info("file_source_schema_types N2: GEOMETRY in column_list should be rejected")
         fd, path = tempfile.mkstemp(suffix=".csv")
         with os.fdopen(fd, "w") as fh:
             fh.write("2026-01-01 00:00:01,POINT(1 2)\n")
@@ -569,6 +580,64 @@ class TestFileSource:
             tdSql.error(
                 f"SELECT ts FROM FILE('{path}', 'ts TIMESTAMP, g GEOMETRY(64)') f"
             )
+        finally:
+            os.unlink(path)
+
+        # --- N3: BLOB column_list should be rejected ---
+        tdLog.info("file_source_schema_types N3: BLOB in column_list should be rejected")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,data\n")
+        try:
+            tdSql.error(
+                f"SELECT ts FROM FILE('{path}', 'ts TIMESTAMP, b BLOB') f"
+            )
+        finally:
+            os.unlink(path)
+
+        # --- N4: MEDIUMBLOB column_list should be rejected ---
+        tdLog.info("file_source_schema_types N4: MEDIUMBLOB in column_list should be rejected")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,data\n")
+        try:
+            tdSql.error(
+                f"SELECT ts FROM FILE('{path}', 'ts TIMESTAMP, b MEDIUMBLOB') f"
+            )
+        finally:
+            os.unlink(path)
+
+        # --- P10: DECIMAL(10,2) from CSV ---
+        tdLog.info("file_source_schema_types P10: DECIMAL(10,2) from CSV")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,3.14\n")
+            fh.write("2026-01-01 00:00:02,NULL\n")
+            fh.write("2026-01-01 00:00:03,99.99\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, d FROM FILE('{path}', 'ts TIMESTAMP, d DECIMAL(10,2)') f ORDER BY ts"
+            )
+            tdSql.checkRows(3)
+            assert float(tdSql.queryResult[0][1]) == 3.14, f"P10: expected 3.14, got {tdSql.queryResult[0][1]}"
+            assert tdSql.queryResult[1][1] is None, f"P10: expected NULL, got {tdSql.queryResult[1][1]}"
+            assert float(tdSql.queryResult[2][1]) == 99.99, f"P10: expected 99.99, got {tdSql.queryResult[2][1]}"
+        finally:
+            os.unlink(path)
+
+        # --- P11: DECIMAL(38,10) from CSV ---
+        tdLog.info("file_source_schema_types P11: DECIMAL(38,10) from CSV")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,12345.6789\n")
+            fh.write("2026-01-01 00:00:02,NULL\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, d FROM FILE('{path}', 'ts TIMESTAMP, d DECIMAL(38,10)') f ORDER BY ts"
+            )
+            tdSql.checkRows(2)
+            assert tdSql.queryResult[0][1] is not None, f"P11: expected value, got None"
+            assert tdSql.queryResult[1][1] is None, f"P11: expected NULL"
         finally:
             os.unlink(path)
 
@@ -586,6 +655,171 @@ class TestFileSource:
             # VARBINARY values are returned as hex-encoded strings by the driver
             assert tdSql.queryResult[0][1] is not None, "P1: row 0 VARBINARY should not be NULL"
             assert tdSql.queryResult[1][1] is not None, "P1: row 1 VARBINARY should not be NULL"
+        finally:
+            os.unlink(path)
+
+        # --- P2: NCHAR column with Chinese characters ---
+        tdLog.info("file_source_schema_types P2: NCHAR column with Chinese text")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,你好\n")
+            fh.write("2026-01-01 00:00:02,世界\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, n FROM FILE('{path}', 'ts TIMESTAMP, n NCHAR(64)') f ORDER BY ts"
+            )
+            tdSql.checkRows(2)
+            assert tdSql.queryResult[0][1] == "你好", f"P2: expected '你好', got '{tdSql.queryResult[0][1]}'"
+            assert tdSql.queryResult[1][1] == "世界", f"P2: expected '世界', got '{tdSql.queryResult[1][1]}'"
+        finally:
+            os.unlink(path)
+
+        # --- P3: SMALLINT, TINYINT, unsigned integer types ---
+        tdLog.info("file_source_schema_types P3: small/unsigned integer types")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,127,32767,255,65535,4294967295,18446744073709551615\n")
+        try:
+            tdSql.query(
+                f"SELECT * FROM FILE('{path}', "
+                f"'ts TIMESTAMP, v1 TINYINT, v2 SMALLINT, v3 UTINYINT, v4 USMALLINT, v5 UINT, v6 UBIGINT') f"
+            )
+            tdSql.checkRows(1)
+            row = tdSql.queryResult[0]
+            assert row[1] == 127, f"P3: TINYINT expected 127, got {row[1]}"
+            assert row[2] == 32767, f"P3: SMALLINT expected 32767, got {row[2]}"
+            assert row[3] == 255, f"P3: UTINYINT expected 255, got {row[3]}"
+            assert row[4] == 65535, f"P3: USMALLINT expected 65535, got {row[4]}"
+            assert row[5] == 4294967295, f"P3: UINT expected 4294967295, got {row[5]}"
+            assert row[6] == 18446744073709551615, f"P3: UBIGINT expected max, got {row[6]}"
+        finally:
+            os.unlink(path)
+
+        # --- P4: CSV NULL representations ---
+        tdLog.info("file_source_schema_types P4: CSV NULL field representations")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            # empty field → NULL
+            fh.write("2026-01-01 00:00:01,,\n")
+            # 'NULL' text → NULL
+            fh.write("2026-01-01 00:00:02,NULL,NULL\n")
+            # 'null' text → NULL
+            fh.write("2026-01-01 00:00:03,null,null\n")
+            # normal value (control)
+            fh.write("2026-01-01 00:00:04,42,hello\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, v, s FROM FILE('{path}', "
+                f"'ts TIMESTAMP, v INT, s VARCHAR(32)') f ORDER BY ts"
+            )
+            tdSql.checkRows(4)
+            # row 0: empty field → NULL for both INT and VARCHAR
+            assert tdSql.queryResult[0][1] is None, f"P4: empty INT should be NULL, got {tdSql.queryResult[0][1]}"
+            assert tdSql.queryResult[0][2] is None, f"P4: empty VARCHAR should be NULL, got {tdSql.queryResult[0][2]}"
+            # row 1: 'NULL' → NULL
+            assert tdSql.queryResult[1][1] is None, f"P4: 'NULL' INT should be NULL, got {tdSql.queryResult[1][1]}"
+            assert tdSql.queryResult[1][2] is None, f"P4: 'NULL' VARCHAR should be NULL, got {tdSql.queryResult[1][2]}"
+            # row 2: 'null' → NULL
+            assert tdSql.queryResult[2][1] is None, f"P4: 'null' INT should be NULL, got {tdSql.queryResult[2][1]}"
+            assert tdSql.queryResult[2][2] is None, f"P4: 'null' VARCHAR should be NULL, got {tdSql.queryResult[2][2]}"
+            # row 3: normal
+            assert tdSql.queryResult[3][1] == 42, f"P4: normal INT expected 42, got {tdSql.queryResult[3][1]}"
+            assert tdSql.queryResult[3][2] == "hello", f"P4: normal VARCHAR expected 'hello', got {tdSql.queryResult[3][2]}"
+        finally:
+            os.unlink(path)
+
+        # --- P5: CSV backslash-N is NOT treated as NULL ---
+        tdLog.info("file_source_schema_types P5: backslash-N is literal, not NULL")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,\\N,\\N\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, v, s FROM FILE('{path}', "
+                f"'ts TIMESTAMP, v INT, s VARCHAR(32)') f"
+            )
+            tdSql.checkRows(1)
+            # \\N for INT becomes 0 (parsed as number)
+            assert tdSql.queryResult[0][1] is not None or tdSql.queryResult[0][1] == 0, \
+                f"P5: \\N INT not treated as NULL, got {tdSql.queryResult[0][1]}"
+            # \\N for VARCHAR becomes literal string "\\N"
+            assert tdSql.queryResult[0][2] is not None, \
+                f"P5: \\N VARCHAR should be literal, got {tdSql.queryResult[0][2]}"
+        finally:
+            os.unlink(path)
+
+        # --- P6: CSV quoted empty string → NULL for VARCHAR ---
+        tdLog.info("file_source_schema_types P6: quoted empty string")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write('2026-01-01 00:00:01,"",""\n')
+        try:
+            tdSql.query(
+                f"SELECT ts, s1, s2 FROM FILE('{path}', "
+                f"'ts TIMESTAMP, s1 VARCHAR(32), s2 NCHAR(32)') f"
+            )
+            tdSql.checkRows(1)
+            # quoted empty strings: may be NULL or empty string depending on implementation
+            # just verify no crash and result returned
+        finally:
+            os.unlink(path)
+
+        # --- P7: BOOL with NULL and various representations ---
+        tdLog.info("file_source_schema_types P7: BOOL values from CSV")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,true\n")
+            fh.write("2026-01-01 00:00:02,false\n")
+            fh.write("2026-01-01 00:00:03,NULL\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, b FROM FILE('{path}', 'ts TIMESTAMP, b BOOL') f ORDER BY ts"
+            )
+            tdSql.checkRows(3)
+            assert tdSql.queryResult[0][1] is True or tdSql.queryResult[0][1] == 1, \
+                f"P7: true expected True, got {tdSql.queryResult[0][1]}"
+            assert tdSql.queryResult[1][1] is False or tdSql.queryResult[1][1] == 0, \
+                f"P7: false expected False, got {tdSql.queryResult[1][1]}"
+            assert tdSql.queryResult[2][1] is None, \
+                f"P7: NULL BOOL expected None, got {tdSql.queryResult[2][1]}"
+        finally:
+            os.unlink(path)
+
+        # --- P8: FLOAT/DOUBLE precision from CSV ---
+        tdLog.info("file_source_schema_types P8: FLOAT/DOUBLE from CSV")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("2026-01-01 00:00:01,3.14,2.718281828459045\n")
+            fh.write("2026-01-01 00:00:02,NULL,NULL\n")
+        try:
+            tdSql.query(
+                f"SELECT ts, f, d FROM FILE('{path}', "
+                f"'ts TIMESTAMP, f FLOAT, d DOUBLE') f_tbl ORDER BY ts"
+            )
+            tdSql.checkRows(2)
+            assert abs(tdSql.queryResult[0][1] - 3.14) < 0.01, \
+                f"P8: FLOAT expected ~3.14, got {tdSql.queryResult[0][1]}"
+            assert abs(tdSql.queryResult[0][2] - 2.718281828459045) < 1e-10, \
+                f"P8: DOUBLE expected ~2.718, got {tdSql.queryResult[0][2]}"
+            assert tdSql.queryResult[1][1] is None, "P8: FLOAT NULL"
+            assert tdSql.queryResult[1][2] is None, "P8: DOUBLE NULL"
+        finally:
+            os.unlink(path)
+
+        # --- P9: CSV partial columns — column_list has fewer cols than CSV ---
+        tdLog.info("file_source_schema_types P9: CSV has more columns than column_list")
+        fd, path = tempfile.mkstemp(suffix=".csv")
+        with os.fdopen(fd, "w") as fh:
+            # CSV has 5 columns but column_list declares only 3; FILE reads first 3 by position
+            fh.write("2026-01-01 00:00:01,10,skip1,hello,skip2\n")
+            fh.write("2026-01-01 00:00:02,20,skip3,world,skip4\n")
+        try:
+            tdSql.query(
+                f"SELECT * FROM FILE('{path}', 'ts TIMESTAMP, a INT, b VARCHAR(32)') f ORDER BY ts"
+            )
+            tdSql.checkRows(2)
+            assert tdSql.queryResult[0][1] == 10, f"P9: row0 a expected 10, got {tdSql.queryResult[0][1]}"
+            assert tdSql.queryResult[0][2] == "skip1", f"P9: row0 b expected 'skip1', got {tdSql.queryResult[0][2]}"
         finally:
             os.unlink(path)
 

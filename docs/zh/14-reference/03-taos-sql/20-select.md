@@ -49,7 +49,12 @@ table_expr: {
     table_name
   | view_name
   | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 }
+
+column_list:
+    col_name type_name [, col_name type_name] ...
 
 join_clause:
     [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
@@ -107,7 +112,8 @@ true_for_expr: {
 - select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
 - from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
-- table_expr: 指定查询数据源，可以为表名，视图名，子查询。
+- table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
+- column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
 - join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
@@ -327,7 +333,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 ### 语法
 
 ```sql
-TEXT(col_name col_type [, col_name col_type] ...)
+TEXT(column_list)
     VALUES (val [, val] ...) [(val [, val] ...)] ...
     [alias]
 ```
@@ -339,6 +345,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
 - 支持 NULL 值，使用关键字 `NULL` 表示。
 - 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
 - `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持 JSON、GEOMETRY、BLOB 之外的其他类型
 
 ### 数据量限制
 
@@ -385,25 +392,26 @@ INTERVAL(6h);
 
 ## FILE CSV 文件数据源
 
-`FILE` 将客户端本地的 CSV 文件作为查询表源，无需导入数据库即可直接查询。
+`FILE` 将本地 CSV 文件作为查询表源，无需导入数据库即可直接查询。
 
 ### 语法
 
 ```sql
-FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
     [alias]
 ```
 
 ### 说明
 
 - 当前仅支持 CSV 文本格式。
-- `file_path`：CSV 文件路径，在**查询计划生成时由执行查询规划的进程**读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
+- `file_path`：CSV 文件路径，由**执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
 - 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
 - CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
 - `header=true`：CSV 首行为列名头部，读取时跳过；默认为 `false`。
 - `delimiter`：字段分隔符，单个字符，默认为 `,`。
 - 支持 NULL 值（CSV 中的空字段解析为 NULL）。
 - 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
+- 支持的列类型：与 `TEXT` 相同。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
 
 ### 数据量限制
 

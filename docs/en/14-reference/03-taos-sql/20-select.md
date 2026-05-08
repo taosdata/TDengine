@@ -47,7 +47,12 @@ table_expr: {
     table_name
   | view_name
   | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 }
+
+column_list:
+    col_name type_name [, col_name type_name] ...
 
 join_clause:
     [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
@@ -105,7 +110,8 @@ true_for_expr: {
 - select_expr: Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and not support nested aggregate functions.
 - from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
-- table_expr: Specify the query data source, which can be table name, view name, or subquery.
+- table_expr: Specify the query data source, which can be a table name, view name, subquery, or an inline data source (`TEXT` or `FILE`). See [TEXT Inline Data Source](#text-inline-data-source) and [FILE CSV Data Source](#file-csv-data-source) for details.
+- column_list: Column definition list shared by `TEXT` and `FILE`. Each entry is `col_name type_name`. All types except JSON, GEOMETRY, and BLOB are supported.
 - join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](./01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0, 1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](24-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only), such as SESSION (ts, 12s).
@@ -325,7 +331,7 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 ### Syntax
 
 ```sql
-TEXT(col_name col_type [, col_name col_type] ...)
+TEXT(column_list)
     VALUES (val [, val] ...) [(val [, val] ...)] ...
     [alias]
 ```
@@ -337,6 +343,7 @@ TEXT(col_name col_type [, col_name col_type] ...)
 - NULL values are supported using the `NULL` keyword.
 - An optional alias assigns a table alias to the data source, useful in JOIN or subquery contexts.
 - `TEXT` can be used as a `FROM` table source, in subqueries, JOIN, window queries, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
+- All types except JSON, GEOMETRY, and BLOB are supported.
 
 ### Volume Limits
 
@@ -383,25 +390,26 @@ INTERVAL(6h);
 
 ## FILE CSV Data Source
 
-`FILE` uses a client-local CSV file as a query table source, allowing direct queries without importing data into the database.
+`FILE` uses a local CSV file as a query table source, allowing direct queries without importing data into the database.
 
 ### Syntax
 
 ```sql
-FILE('file_path', 'col_name col_type [, col_name col_type] ...' [, header=true] [, delimiter='char'])
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
     [alias]
 ```
 
 ### Description
 
 - Only CSV text format is currently supported.
-- `file_path`: Path to the CSV file. Read at query-plan time by the process performing query planning. Both relative paths (relative to that process's working directory) and absolute paths are accepted.
+- `file_path`: Path to the CSV file. The file is read by the process that performs query planning (typically the client process such as `taos` CLI or client driver). Both relative paths (relative to that process's working directory) and absolute paths are accepted.
 - The second argument is a schema declaration string; column definitions are comma-separated and must match the CSV column order.
 - Columns in the CSV that exceed the declared schema count are ignored. You can read a subset of the file's columns by declaring only the columns you need.
 - `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. Defaults to `false`.
 - `delimiter`: Field separator character (single character). Defaults to `,`.
 - NULL values are supported; empty fields in the CSV are parsed as NULL.
 - Both the file path and schema must be string literals; runtime expressions are not supported.
+- Supported column types: same as `TEXT`. All types except JSON, GEOMETRY, and BLOB are supported.
 
 ### Volume Limits
 

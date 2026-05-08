@@ -3,46 +3,46 @@ taos> use text_src_db;
 Database changed.
 
 taos> SELECT cat, COUNT(*) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) ('2024-01-04 00:00:00', 'B', 40) t_gb1 GROUP BY cat ORDER BY cat;
-   cat    |       count(*)        |
-===================================
- A        |                     2 |
- B        |                     2 |
+    cat     |       count(*)        |
+=====================================
+ A          |                     2 |
+ B          |                     2 |
 
 taos> SELECT cat, SUM(v), COUNT(*) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) ('2024-01-04 00:00:00', 'B', 40) t_gb2 GROUP BY cat ORDER BY cat;
-   cat    |        sum(v)         |       count(*)        |
-===========================================================
- A        |                    40 |                     2 |
- B        |                    60 |                     2 |
+    cat     |        sum(v)         |       count(*)        |
+=============================================================
+ A          |                    40 |                     2 |
+ B          |                    60 |                     2 |
 
 taos> SELECT cat, MAX(v), MIN(v) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) ('2024-01-04 00:00:00', 'B', 40) t_gb3 GROUP BY cat ORDER BY cat;
-   cat    |   max(v)    |   min(v)    |
-=======================================
- A        |          30 |          10 |
- B        |          40 |          20 |
+    cat     |   max(v)    |   min(v)    |
+=========================================
+ A          |          30 |          10 |
+ B          |          40 |          20 |
 
 taos> SELECT cat, SUM(v) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) t_gb4 WHERE v > 10 GROUP BY cat ORDER BY cat;
-   cat    |        sum(v)         |
-===================================
- A        |                    30 |
- B        |                    20 |
+    cat     |        sum(v)         |
+=====================================
+ A          |                    30 |
+ B          |                    20 |
 
 taos> SELECT cat, SUM(v) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) t_gb5 GROUP BY cat HAVING SUM(v) > 15 ORDER BY cat;
-   cat    |        sum(v)         |
-===================================
- A        |                    40 |
- B        |                    20 |
+    cat     |        sum(v)         |
+=====================================
+ A          |                    40 |
+ B          |                    20 |
 
 taos> SELECT k1, k2, COUNT(*) FROM TEXT(ts TIMESTAMP, k1 VARCHAR(4), k2 INT, v INT) VALUES ('2024-01-01 00:00:00', 'A', 1, 10) ('2024-01-02 00:00:00', 'A', 2, 20) ('2024-01-03 00:00:00', 'B', 1, 30) t_gb6 GROUP BY k1, k2 ORDER BY k1, k2;
-  k1  |     k2      |       count(*)        |
-=============================================
- A    |           1 |                     1 |
- A    |           2 |                     1 |
- B    |           1 |                     1 |
+   k1   |     k2      |       count(*)        |
+===============================================
+ A      |           1 |                     1 |
+ A      |           2 |                     1 |
+ B      |           1 |                     1 |
 
 taos> SELECT cat, cnt FROM (SELECT cat, COUNT(*) AS cnt FROM TEXT(ts TIMESTAMP, cat VARCHAR(8)) VALUES ('2024-01-01 00:00:00', 'X') ('2024-01-02 00:00:00', 'Y') ('2024-01-03 00:00:00', 'X') t_gb7_i GROUP BY cat) sub WHERE cnt > 1;
-   cat    |          cnt          |
-===================================
- X        |                     2 |
+    cat     |          cnt          |
+=====================================
+ X          |                     2 |
 
 taos> SELECT score, COUNT(*) FROM TEXT(ts TIMESTAMP, score INT, label VARCHAR(8)) VALUES ('2024-01-01 00:00:00', 100, 'a') ('2024-01-02 00:00:00', 200, 'b') ('2024-01-03 00:00:00', 100, 'c') t_gb8 GROUP BY score ORDER BY score;
     score    |       count(*)        |
@@ -51,33 +51,33 @@ taos> SELECT score, COUNT(*) FROM TEXT(ts TIMESTAMP, score INT, label VARCHAR(8)
          200 |                     1 |
 
 taos> SELECT cat, v FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) t_pb1 PARTITION BY cat ORDER BY cat, ts;
-   cat    |      v      |
-=========================
- A        |          10 |
- A        |          30 |
- B        |          20 |
+    cat     |      v      |
+===========================
+ A          |          10 |
+ A          |          30 |
+ B          |          20 |
 
 taos> SELECT cat, SUM(v) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) t_pb2 PARTITION BY cat ORDER BY cat;
-   cat    |        sum(v)         |
-===================================
- A        |                    40 |
- B        |                    20 |
+    cat     |        sum(v)         |
+=====================================
+ A          |                    40 |
+ B          |                    20 |
 
 taos> SELECT cat, SUM(v) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) t_pb3 PARTITION BY cat HAVING SUM(v) > 15 ORDER BY cat;
-   cat    |        sum(v)         |
-===================================
- A        |                    40 |
- B        |                    20 |
+    cat     |        sum(v)         |
+=====================================
+ A          |                    40 |
+ B          |                    20 |
 
 taos> SELECT cat, COUNT(*), MAX(v) FROM TEXT(ts TIMESTAMP, cat VARCHAR(8), v INT) VALUES ('2024-01-01 00:00:00', 'A', 10) ('2024-01-02 00:00:00', 'B', 20) ('2024-01-03 00:00:00', 'A', 30) ('2024-01-04 00:00:00', 'B', 5) t_pb4 PARTITION BY cat ORDER BY cat;
-   cat    |       count(*)        |   max(v)    |
-=================================================
- A        |                     2 |          30 |
- B        |                     2 |          20 |
+    cat     |       count(*)        |   max(v)    |
+===================================================
+ A          |                     2 |          30 |
+ B          |                     2 |          20 |
 
 taos> SELECT cat, cnt FROM (SELECT cat, COUNT(*) AS cnt FROM TEXT(ts TIMESTAMP, cat VARCHAR(8)) VALUES ('2024-01-01 00:00:00', 'X') ('2024-01-02 00:00:00', 'Y') ('2024-01-03 00:00:00', 'X') t_pb_gb GROUP BY cat) PARTITION BY cat ORDER BY cat;
-   cat    |          cnt          |
-===================================
- X        |                     2 |
- Y        |                     1 |
+    cat     |          cnt          |
+=====================================
+ X          |                     2 |
+ Y          |                     1 |
 

@@ -34,7 +34,7 @@ class TestTextSource:
         Jira: None
 
         History:
-            - 2026-04-15 Copilot Added for TEXT table source feature
+            - 2026-04-15 Added for TEXT table source feature
             - 2026-04-16 Refactored to file-based comparison with extended coverage
 
         """
@@ -103,7 +103,7 @@ class TestTextSource:
         Jira: None
 
         History:
-            - 2026-04-16 Copilot Added for TEXT table window query coverage
+            - 2026-04-16 Added for TEXT table window query coverage
         """
 
         tdSql.prepare("text_src_db", drop=True)
@@ -118,24 +118,20 @@ class TestTextSource:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "text_window")
 
     def test_text_type_special(self):
-        """TEXT table source — special column type coverage: DECIMAL and GEOMETRY.
+        """TEXT table source — special column type coverage and unsupported type rejection.
 
-        DECIMAL column behaviour (engine limitation: literals stored as 0):
-        - Column declaration is accepted (no parse error)
-        - NULL values are stored and round-trip correctly; IS NULL filter works
-        - Non-NULL literals are written as 0 due to a known limitation in translateNormalValue
-          (TSDB_DATA_TYPE_DECIMAL case in parTranslater.c returns an error that is silently swallowed)
+        Verified supported types:
+        - 15 basic types (TINYINT..UBIGINT, FLOAT, DOUBLE, BOOL, VARCHAR, NCHAR, VARBINARY,
+          TIMESTAMP): all fully supported with NULL values
+        - DECIMAL(10,2): fully supported (DECIMAL64), values round-trip correctly
+        - DECIMAL(38,10): fully supported (DECIMAL128), values round-trip correctly
+        - VARBINARY: fully supported with hex-string format
 
-        GEOMETRY column behaviour (engine limitation: WKT stored as raw VARCHAR bytes):
-        - Column declaration is accepted alongside TIMESTAMP
-        - Real tables convert WKT strings to WKB binary; TEXT tables store the literal as-is
-        - Only the ts column is projected in these tests; direct SELECT of the geometry
-          column or spatial functions (st_astext, st_x) are NOT tested here because they
-          fail with 0x80002803 on TEXT-sourced GEOMETRY data
-
-        NOTE: Must be defined BEFORE test_text_source_groupby. The aggregation path in the
-        TEXT scan operator has a known heap-corruption side-effect; running it before type
-        tests would corrupt allocator state and cause spurious failures here.
+        Rejected types (negative tests):
+        - GEOMETRY: rejected at parse time
+        - JSON: rejected at parse time
+        - BLOB: rejected at parse time
+        - MEDIUMBLOB: rejected at parse time
 
         Since: v3.4.2
 
@@ -144,16 +140,158 @@ class TestTextSource:
         Jira: None
 
         History:
-            - 2026-04-16 Copilot Added for TEXT table special type coverage
+            - 2026-04-16 Added for TEXT table special type coverage
+            - 2026-05-09 Added comprehensive type matrix tests; DECIMAL fully supported
+            - 2026-05-09 GEOMETRY/JSON/BLOB/MEDIUMBLOB changed to rejected types
         """
 
         tdSql.prepare("text_src_db", drop=True)
         self._run_type_special_queries()
 
+        # ================================================================
+        # Programmatic type matrix tests
+        # ================================================================
+
+        # --- T1: VARBINARY full support ---
+        tdLog.info("T1: VARBINARY column round-trip (hex + NULL)")
+        tdSql.query(
+            "SELECT ts, v FROM TEXT(ts TIMESTAMP, v VARBINARY(64)) "
+            "VALUES ('2024-01-01 00:00:00', '\\x48454C4C4F') "
+            "('2024-01-02 00:00:00', NULL) t_vb ORDER BY ts"
+        )
+        tdSql.checkRows(2)
+        assert tdSql.queryResult[0][1] is not None, "T1: VARBINARY row 0 should not be NULL"
+        assert tdSql.queryResult[1][1] is None, "T1: VARBINARY row 1 should be NULL"
+
+        # --- T2: DECIMAL(10,2) short — NULL works, non-NULL stored as 0 ---
+        tdLog.info("T2: DECIMAL(10,2) NULL and non-NULL behaviour")
+        tdSql.query(
+            "SELECT v FROM TEXT(v DECIMAL(10,2)) VALUES (NULL)(NULL) t WHERE v IS NULL"
+        )
+        tdSql.checkRows(2)
+        # non-NULL values should be stored correctly
+        tdSql.query(
+            "SELECT v FROM TEXT(v DECIMAL(10,2)) VALUES (3.14)(0)(NULL) t"
+        )
+        tdSql.checkRows(3)
+        assert float(tdSql.queryResult[0][0]) == 3.14, f"T2: DECIMAL(10,2) expected 3.14, got {tdSql.queryResult[0][0]}"
+        assert float(tdSql.queryResult[1][0]) == 0, f"T2: DECIMAL(10,2) zero expected 0, got {tdSql.queryResult[1][0]}"
+        assert tdSql.queryResult[2][0] is None, f"T2: DECIMAL(10,2) NULL expected None, got {tdSql.queryResult[2][0]}"
+
+        # --- T3: DECIMAL(38,10) long — full support ---
+        tdLog.info("T3: DECIMAL(38,10) full support")
+        tdSql.query(
+            "SELECT v FROM TEXT(v DECIMAL(38,10)) VALUES (NULL) t WHERE v IS NULL"
+        )
+        tdSql.checkRows(1)
+        tdSql.query(
+            "SELECT v FROM TEXT(v DECIMAL(38,10)) VALUES (12345.6789)(NULL) t"
+        )
+        tdSql.checkRows(2)
+        assert tdSql.queryResult[0][0] is not None, f"T3: DECIMAL(38,10) non-NULL expected value, got None"
+        assert tdSql.queryResult[1][0] is None, f"T3: DECIMAL(38,10) NULL expected None"
+        # ORDER BY and SUM should work
+        tdSql.query(
+            "SELECT SUM(v) FROM TEXT(v DECIMAL(10,2)) VALUES (3.14)(0)(99.99) t"
+        )
+        tdSql.checkRows(1)
+        assert abs(float(tdSql.queryResult[0][0]) - 103.13) < 0.01, \
+            f"T3: SUM expected 103.13, got {tdSql.queryResult[0][0]}"
+
+        # --- T4: GEOMETRY — rejected ---
+        tdLog.info("T4: GEOMETRY type should be rejected")
+        tdSql.error(
+            "SELECT ts FROM TEXT(ts TIMESTAMP, g GEOMETRY(100)) "
+            "VALUES ('2024-01-01 00:00:00', 'POINT(1 2)') t"
+        )
+        # GEOMETRY as only column
+        tdSql.error(
+            "SELECT g FROM TEXT(g GEOMETRY(64)) VALUES ('POINT(1 2)') t"
+        )
+
+        # --- T5: JSON — rejected ---
+        tdLog.info("T5: JSON type should be rejected")
+        tdSql.error(
+            "SELECT ts, j FROM TEXT(ts TIMESTAMP, j JSON) "
+            "VALUES ('2024-01-01 00:00:00', '{\"k\":1}') t"
+        )
+        # JSON as only column
+        tdSql.error(
+            "SELECT j FROM TEXT(j JSON) VALUES ('{\"k\":1}') t"
+        )
+
+        # --- T5b: BLOB / MEDIUMBLOB — rejected ---
+        tdLog.info("T5b: BLOB and MEDIUMBLOB types should be rejected")
+        tdSql.error(
+            "SELECT ts, b FROM TEXT(ts TIMESTAMP, b BLOB) "
+            "VALUES ('2024-01-01 00:00:00', 'data') t"
+        )
+        tdSql.error(
+            "SELECT ts, b FROM TEXT(ts TIMESTAMP, b MEDIUMBLOB) "
+            "VALUES ('2024-01-01 00:00:00', 'data') t"
+        )
+
+        # --- T6: All basic types with NULL in one query ---
+        tdLog.info("T6: all basic types with NULL values")
+        tdSql.query(
+            "SELECT * FROM TEXT("
+            "  v1 TINYINT, v2 SMALLINT, v3 INT, v4 BIGINT, "
+            "  v5 FLOAT, v6 DOUBLE, v7 BOOL, v8 VARCHAR(32), v9 NCHAR(64)"
+            ") VALUES "
+            "(127, 32767, 2147483647, 9223372036854775807, 3.14, 2.718, true, 'hello', '中文') "
+            "(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) t"
+        )
+        tdSql.checkRows(2)
+        row0 = tdSql.queryResult[0]
+        assert row0[0] == 127, f"T6: TINYINT expected 127, got {row0[0]}"
+        assert row0[1] == 32767, f"T6: SMALLINT expected 32767, got {row0[1]}"
+        assert row0[2] == 2147483647, f"T6: INT expected max, got {row0[2]}"
+        assert row0[3] == 9223372036854775807, f"T6: BIGINT expected max, got {row0[3]}"
+        assert row0[6] is True or row0[6] == 1, f"T6: BOOL expected true, got {row0[6]}"
+        assert row0[7] == "hello", f"T6: VARCHAR expected 'hello', got {row0[7]}"
+        assert row0[8] == "中文", f"T6: NCHAR expected '中文', got {row0[8]}"
+        row1 = tdSql.queryResult[1]
+        for i in range(9):
+            assert row1[i] is None, f"T6: NULL row col {i} expected None, got {row1[i]}"
+
+        # --- T7: Unsigned integer types with boundary values ---
+        tdLog.info("T7: unsigned integer boundary values")
+        tdSql.query(
+            "SELECT v1, v2, v3, v4 FROM TEXT("
+            "  v1 TINYINT UNSIGNED, v2 SMALLINT UNSIGNED, "
+            "  v3 INT UNSIGNED, v4 BIGINT UNSIGNED"
+            ") VALUES (0, 0, 0, 0)(255, 65535, 4294967295, 18446744073709551615)(NULL, NULL, NULL, NULL) t"
+        )
+        tdSql.checkRows(3)
+        assert tdSql.queryResult[0] == (0, 0, 0, 0) or list(tdSql.queryResult[0]) == [0, 0, 0, 0], \
+            f"T7: zeros expected, got {tdSql.queryResult[0]}"
+        row_max = tdSql.queryResult[1]
+        assert row_max[0] == 255, f"T7: UTINYINT max expected 255, got {row_max[0]}"
+        assert row_max[1] == 65535, f"T7: USMALLINT max expected 65535, got {row_max[1]}"
+        assert row_max[2] == 4294967295, f"T7: UINT max expected 4294967295, got {row_max[2]}"
+        assert row_max[3] == 18446744073709551615, f"T7: UBIGINT max expected, got {row_max[3]}"
+
+        # --- T8: TIMESTAMP as non-first column with NULL ---
+        tdLog.info("T8: TIMESTAMP as non-first column allows NULL")
+        tdSql.query(
+            "SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) "
+            "VALUES (1, '2024-01-01 00:00:00')(2, NULL) t"
+        )
+        tdSql.checkRows(2)
+        assert tdSql.queryResult[0][0] == 1, f"T8: row0 id expected 1"
+        assert tdSql.queryResult[1][0] == 2, f"T8: row1 id expected 2"
+        assert tdSql.queryResult[1][1] is None, f"T8: row1 ts expected NULL"
+
+        # --- T9: Primary TIMESTAMP column NULL should error ---
+        tdLog.info("T9: primary timestamp NULL should error")
+        tdSql.error(
+            "SELECT v FROM TEXT(v TIMESTAMP) VALUES (NULL) t"
+        )
+
         tdLog.debug("test_text_type_special passed")
 
     def _run_type_special_queries(self):
-        tdLog.info("text_source_types: running DECIMAL and GEOMETRY query cases")
+        tdLog.info("text_source_types: running DECIMAL and VARBINARY query cases")
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "text_type_special.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "text_type_special.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "text_type_special")
@@ -188,9 +326,9 @@ class TestTextSource:
         Jira: None
 
         History:
-            - 2026-04-20 Copilot Added for large data volume coverage
-            - 2026-04-20 Copilot Added over-limit negative case (kMaxTextRows = 10000)
-            - 2026-04-22 Copilot Added Q1/Q5/Q6 coverage gaps
+            - 2026-04-20 Added for large data volume coverage
+            - 2026-04-20 Added over-limit negative case (kMaxTextRows = 10000)
+            - 2026-04-22 Added Q1/Q5/Q6 coverage gaps
         """
         import datetime
 
@@ -317,9 +455,9 @@ class TestTextSource:
         Jira: None
 
         History:
-            - 2026-04-16 Copilot Added for TEXT table GROUP BY / PARTITION BY coverage
-            - 2026-04-20 Copilot Removed nested-GROUP-BY+PARTITION-BY case (pre-existing crash)
-            - 2026-05-xx Copilot Restored nested-GROUP-BY+PARTITION-BY case after crash fix in operator.c
+            - 2026-04-16 Added for TEXT table GROUP BY / PARTITION BY coverage
+            - 2026-04-20 Removed nested-GROUP-BY+PARTITION-BY case (pre-existing crash)
+            - 2026-05-xx Restored nested-GROUP-BY+PARTITION-BY case after crash fix in operator.c
         """
 
         tdSql.prepare("text_src_db", drop=True)
@@ -365,7 +503,7 @@ class TestTextSource:
         Jira: None
 
         History:
-            - 2026-05-xx Copilot Added for TEXT no-ts, unsorted-ts, and null-ts coverage
+            - 2026-05-xx Added for TEXT no-ts, unsorted-ts, and null-ts coverage
         """
         tdSql.prepare("text_nots_db", drop=True)
         tdSql.execute("CREATE TABLE ref_ts (ts TIMESTAMP, id INT, label VARCHAR(32))")
@@ -583,7 +721,10 @@ class TestTextSource:
         )
         tdSql.checkRows(5)
         volts = [row[1] for row in tdSql.queryResult]
-        assert volts == [50, 100, 200, 300, 400], f"U5 wrong volt order: {volts}"
+        # First two rows share ts '2026-04-01 00:00:00' (50 from TEXT, 100 from m1),
+        # their relative order is non-deterministic; the rest are deterministic.
+        assert sorted(volts[:2]) == [50, 100], f"U5 wrong first two volts: {volts[:2]}"
+        assert volts[2:] == [200, 300, 400], f"U5 wrong tail volts: {volts[2:]}"
 
         # U6: UNION ALL with GROUP BY aggregation on each side
         tdLog.info("U6: UNION ALL combining two GROUP BY results")

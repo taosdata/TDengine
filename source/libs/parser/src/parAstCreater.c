@@ -8500,7 +8500,11 @@ SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const S
     return NULL;
   }
   if (!pSchemaDecl || pSchemaDecl->n < 2) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a schema_decl string");
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a column_list string");
+    return NULL;
+  }
+  if (pSchemaDecl->n == 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE: column_list must not be empty");
     return NULL;
   }
 

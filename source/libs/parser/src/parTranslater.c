@@ -1852,10 +1852,10 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
         code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
         if (TSDB_CODE_SUCCESS != code) return code;
         pCol->node.resType = pDef->dataType;
-        pCol->colId = slotId + 1;
         pCol->slotId = slotId;
         pCol->colType = COLUMN_TYPE_COLUMN;
         pCol->isPrimTs = (slotId == pText->primaryTsSlot && pText->hasPrimaryTs);
+        pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : (ROWSET_COL_ID_START + slotId);
         tstrncpy(pCol->tableAlias, pText->table.tableAlias, TSDB_TABLE_NAME_LEN);
         tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
         code = nodesListStrictAppend(pList, (SNode*)pCol);
@@ -1875,10 +1875,10 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
         code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
         if (TSDB_CODE_SUCCESS != code) return code;
         pCol->node.resType = pDef->dataType;
-        pCol->colId = slotId + 1;
         pCol->slotId = slotId;
         pCol->colType = COLUMN_TYPE_COLUMN;
         pCol->isPrimTs = (slotId == pFile->primaryTsSlot && pFile->hasPrimaryTs);
+        pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : (ROWSET_COL_ID_START + slotId);
         tstrncpy(pCol->tableAlias, pFile->table.tableAlias, TSDB_TABLE_NAME_LEN);
         tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
         code = nodesListStrictAppend(pList, (SNode*)pCol);
@@ -2827,7 +2827,32 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       varDataSetLen(pVal->datum.p, len);
       break;
     }
-    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      uint8_t precision = targetDt.precision;
+      uint8_t scale     = (uint8_t)targetDt.scale;
+      Decimal64 dec = {0};
+      int32_t rc = decimal64FromStr(pVal->literal, strlen(pVal->literal), precision, scale, &dec);
+      if (TSDB_CODE_SUCCESS != rc) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      *(int64_t*)&pVal->typeData = DECIMAL64_GET_VALUE(&dec);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      uint8_t precision = targetDt.precision;
+      uint8_t scale     = (uint8_t)targetDt.scale;
+      Decimal128 dec = {0};
+      int32_t rc = decimal128FromStr(pVal->literal, strlen(pVal->literal), precision, scale, &dec);
+      if (TSDB_CODE_SUCCESS != rc) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      }
+      pVal->datum.p = taosMemoryCalloc(1, sizeof(Decimal128));
+      if (NULL == pVal->datum.p) {
+        return generateDealNodeErrMsg(pCxt, terrno);
+      }
+      memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
+      break;
+    }
     case TSDB_DATA_TYPE_BLOB:
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
     default:
@@ -2859,7 +2884,12 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   }
   pVal->node.resType.type = targetDt.type;
   pVal->node.resType.bytes = targetDt.bytes;
-  pVal->node.resType.scale = pVal->unit;
+  if (IS_DECIMAL_TYPE(targetDt.type)) {
+    pVal->node.resType.precision = targetDt.precision;
+    pVal->node.resType.scale = targetDt.scale;
+  } else {
+    pVal->node.resType.scale = pVal->unit;
+  }
   pVal->translate = true;
   if (!strict && TSDB_DATA_TYPE_UBIGINT == pVal->node.resType.type && pVal->datum.u <= INT64_MAX) {
     pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
@@ -7490,11 +7520,13 @@ static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode
         tstrncpy(pCol->node.userAlias, pDef->colName, TSDB_COL_NAME_LEN);
       }
       pCol->node.resType = pDef->dataType;
-      pCol->colId        = slot + 1;  // 1-based colId (slot 0 -> colId 1 = PRIMARYKEY_TIMESTAMP_COL_ID)
       pCol->colType      = COLUMN_TYPE_COLUMN;
       // The primary timestamp column is slot 0 if its type is TSDB_DATA_TYPE_TIMESTAMP
       if (slot == 0 && pDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
         pCol->isPrimTs = true;
+        pCol->colId    = PRIMARYKEY_TIMESTAMP_COL_ID;
+      } else {
+        pCol->colId    = ROWSET_COL_ID_START + slot;
       }
       *pFound = true;
     }
@@ -7523,10 +7555,12 @@ static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode
         tstrncpy(pCol->node.userAlias, pDef->colName, TSDB_COL_NAME_LEN);
       }
       pCol->node.resType = pDef->dataType;
-      pCol->colId        = slot + 1;  // 1-based colId
       pCol->colType      = COLUMN_TYPE_COLUMN;
       if (slot == pFileTable->primaryTsSlot && pFileTable->hasPrimaryTs) {
         pCol->isPrimTs = true;
+        pCol->colId    = PRIMARYKEY_TIMESTAMP_COL_ID;
+      } else {
+        pCol->colId    = ROWSET_COL_ID_START + slot;
       }
       *pFound = true;
     }
@@ -7538,6 +7572,11 @@ static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode
 // Validate the structure of pColDefs (no duplicate column names, valid types).
 // Validate the structure of pColDefs (no duplicate column names, valid types).
 // The first column does not need to be TIMESTAMP; hasPrimaryTs is set later in translateTextTable.
+static bool isTextFileUnsupportedType(uint8_t type) {
+  return type == TSDB_DATA_TYPE_JSON || type == TSDB_DATA_TYPE_GEOMETRY ||
+         type == TSDB_DATA_TYPE_BLOB || type == TSDB_DATA_TYPE_MEDIUMBLOB;
+}
+
 static int32_t checkTextTableColDefs(STranslateContext* pCxt, STextTableNode* pTextTable) {
   if (LIST_LENGTH(pTextTable->pColDefs) == 0) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires at least one column");
@@ -7549,6 +7588,12 @@ static int32_t checkTextTableColDefs(STranslateContext* pCxt, STextTableNode* pT
     // check for empty name
     if ('\0' == pODef->colName[0]) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT column name cannot be empty");
+    }
+    // reject unsupported types
+    if (isTextFileUnsupportedType(pODef->dataType.type)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TEXT: unsupported column type '%s' for column '%s'",
+                                     tDataTypes[pODef->dataType.type].name, pODef->colName);
     }
     // check for duplicates
     SNode* pInner = NULL;
@@ -7620,6 +7665,8 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
     SColumnInfoData  col  = {0};
     col.info.type         = pDef->dataType.type;
     col.info.bytes        = pDef->dataType.bytes;
+    col.info.precision    = pDef->dataType.precision;
+    col.info.scale        = pDef->dataType.scale;
     col.info.colId        = 0;
     code = blockDataAppendColInfo(pBlock, &col);
     if (TSDB_CODE_SUCCESS != code) { blockDataDestroy(pBlock); return code; }
@@ -7650,7 +7697,7 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
           blockDataDestroy(pBlock);
           return pCxt->errCode;
         }
-        if (IS_VAR_DATA_TYPE(pDef->dataType.type)) {
+        if (IS_VAR_DATA_TYPE(pDef->dataType.type) || pDef->dataType.type == TSDB_DATA_TYPE_DECIMAL) {
           code = colDataSetVal(pColData, rowIdx, pVal->datum.p, false);
         } else {
           code = colDataSetVal(pColData, rowIdx, (char*)&pVal->typeData, false);
@@ -7830,7 +7877,7 @@ static int32_t parseFileSchemaDecl(STranslateContext* pCxt, const char* schemaDe
     int32_t nameLen = (int32_t)(p - nameStart);
     if (nameLen == 0 || nameLen >= TSDB_COL_NAME_LEN) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "FILE schema_decl: invalid column name length");
+                                  "FILE column_list: invalid column name length");
     }
     char colName[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(colName, nameStart, nameLen + 1);
@@ -7844,22 +7891,30 @@ static int32_t parseFileSchemaDecl(STranslateContext* pCxt, const char* schemaDe
     int32_t typeNameLen = (int32_t)(p - typeStart);
     if (typeNameLen == 0) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "FILE schema_decl: missing type for column '%s'", colName);
+                                  "FILE column_list: missing type for column '%s'", colName);
     }
     char typeName[32] = {0};
     tstrncpy(typeName, typeStart, TMIN((uint32_t)typeNameLen + 1, (uint32_t)sizeof(typeName)));
 
-    // Check for optional length param: type(N)
+    // Check for optional type params: type(N) or type(P,S)
     int32_t typeLen = -1;
+    int32_t typeScale = -1;
     if (*p == '(') {
       p++;
       const char* lenStart = p;
       while (*p && *p != ')') p++;
       if (*p == ')') {
-        char lenBuf[16] = {0};
+        char lenBuf[32] = {0};
         int32_t ll = (int32_t)(p - lenStart);
         tstrncpy(lenBuf, lenStart, TMIN(ll + 1, (int32_t)sizeof(lenBuf)));
-        typeLen = taosStr2Int32(lenBuf, NULL, 10);
+        char* comma = strchr(lenBuf, ',');
+        if (comma) {
+          *comma = '\0';
+          typeLen   = taosStr2Int32(lenBuf, NULL, 10);
+          typeScale = taosStr2Int32(comma + 1, NULL, 10);
+        } else {
+          typeLen = taosStr2Int32(lenBuf, NULL, 10);
+        }
         p++;
       }
     }
@@ -7867,6 +7922,8 @@ static int32_t parseFileSchemaDecl(STranslateContext* pCxt, const char* schemaDe
     // Map type name to TSDB_DATA_TYPE_*
     uint8_t   tsType = TSDB_DATA_TYPE_NULL;
     int32_t   typeBytes = 0;
+    uint8_t   decPrecision = 0;
+    uint8_t   decScale = 0;
     if (strcasecmp(typeName, "timestamp") == 0) {
       tsType = TSDB_DATA_TYPE_TIMESTAMP;
       typeBytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
@@ -7913,12 +7970,20 @@ static int32_t parseFileSchemaDecl(STranslateContext* pCxt, const char* schemaDe
     } else if (strcasecmp(typeName, "ubigint") == 0) {
       tsType = TSDB_DATA_TYPE_UBIGINT;
       typeBytes = tDataTypes[TSDB_DATA_TYPE_UBIGINT].bytes;
+    } else if (strcasecmp(typeName, "decimal") == 0) {
+      uint8_t prec  = (typeLen > 0) ? (uint8_t)typeLen : 10;
+      uint8_t scale = (typeScale >= 0) ? (uint8_t)typeScale : 0;
+      tsType = decimalTypeFromPrecision(prec);
+      typeBytes = tDataTypes[tsType].bytes;
+      // precision/scale are set below via decPrecision/decScale
+      decPrecision = prec;
+      decScale = scale;
     } else {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                  "FILE schema_decl: unsupported type '%s'", typeName);
+                                  "FILE column_list: unsupported type '%s'", typeName);
     }
 
-    SDataType dt = {.type = tsType, .bytes = typeBytes, .precision = 0, .scale = 0};
+    SDataType dt = {.type = tsType, .bytes = typeBytes, .precision = decPrecision, .scale = decScale};
     SColumnDefNode* pDef = NULL;
     code = nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pDef);
     if (TSDB_CODE_SUCCESS != code) return code;
@@ -7931,7 +7996,7 @@ static int32_t parseFileSchemaDecl(STranslateContext* pCxt, const char* schemaDe
 
   if (LIST_LENGTH(*ppColDefs) == 0) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                "FILE schema_decl must define at least one column");
+                                "FILE column_list must define at least one column");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -8008,7 +8073,7 @@ static int32_t convertAndSetField(STranslateContext* pCxt, const char* raw, SCol
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-  if (IS_VAR_DATA_TYPE(targetDt.type)) {
+  if (IS_VAR_DATA_TYPE(targetDt.type) || targetDt.type == TSDB_DATA_TYPE_DECIMAL) {
     code = colDataSetVal(pColData, rowIdx, valNode.datum.p, false);
     taosMemoryFree(valNode.datum.p);
   } else {
@@ -8050,6 +8115,8 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
     SColumnInfoData col  = {0};
     col.info.type        = pDef->dataType.type;
     col.info.bytes       = pDef->dataType.bytes;
+    col.info.precision   = pDef->dataType.precision;
+    col.info.scale       = pDef->dataType.scale;
     PAR_ERR_JRET(blockDataAppendColInfo(pBlock, &col));
   }
 
@@ -8109,7 +8176,7 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
       continue;
     }
 
-    /* header=false: validate schema_decl <= file columns */
+    /* header=false: validate column_list <= file columns */
     if (nFields < colCount) {
       PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
                                         "FILE: line %d has %d fields, expected at least %d",
@@ -8232,7 +8299,7 @@ static int32_t translateFileTable(STranslateContext* pCxt, SNode** pTable) {
   /* 1. Parse schemaDecl string -> pColDefs */
   if (!pFile->schemaDecl || pFile->schemaDecl[0] == '\0') {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                "FILE requires a non-empty schema_decl");
+                                "FILE requires a non-empty column_list");
   }
   PAR_ERR_JRET(parseFileSchemaDecl(pCxt, pFile->schemaDecl, &pFile->pColDefs));
   pFile->colCount = LIST_LENGTH(pFile->pColDefs);

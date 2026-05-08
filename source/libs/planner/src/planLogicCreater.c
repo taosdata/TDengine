@@ -1527,12 +1527,14 @@ static int32_t createRowsetSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       nodesDestroyNode((SNode*)pRowset);
       return code;
     }
-    pCol->node.resType.type  = pDef->dataType.type;
-    pCol->node.resType.bytes = pDef->dataType.bytes;
-    pCol->colId              = slotIdx + 1;
+    pCol->node.resType.type      = pDef->dataType.type;
+    pCol->node.resType.bytes     = pDef->dataType.bytes;
+    pCol->node.resType.precision = pDef->dataType.precision;
+    pCol->node.resType.scale     = pDef->dataType.scale;
+    pCol->isPrimTs           = (slotIdx == pDesc->primaryTsSlot && pDesc->hasPrimaryTs);
+    pCol->colId              = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : (ROWSET_COL_ID_START + slotIdx);
     pCol->slotId             = slotIdx;
     pCol->colType            = COLUMN_TYPE_COLUMN;
-    pCol->isPrimTs           = (slotIdx == pDesc->primaryTsSlot && pDesc->hasPrimaryTs);
     tstrncpy(pCol->tableAlias, pDesc->tableAlias, TSDB_TABLE_NAME_LEN);
     tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
     code = nodesListMakeAppend(&pRowset->node.pTargets, (SNode*)pCol);
