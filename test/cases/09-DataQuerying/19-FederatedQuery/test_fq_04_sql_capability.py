@@ -371,27 +371,36 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert str(tdSql.getData(1, 0)) == "us"
 
             # --- 073: EXISTS / NOT EXISTS ---
-            # Correlated subqueries not supported on external sources (0x26a6)
-            tdSql.error(
+            # Correlated subqueries execute successfully on external sources
+            tdSql.query(
                 f"select u.id from {src}.users u "
                 f"where exists (select 1 from {src}.orders o "
                 f"where o.user_id = u.id) order by u.id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
 
-            tdSql.error(
+            tdSql.query(
                 f"select u.id from {src}.users u "
                 f"where not exists (select 1 from {src}.orders o "
                 f"where o.user_id = u.id and o.status = 2) order by u.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
 
             # --- 073b: Pure EXISTS / NOT EXISTS ---
-            tdSql.error(
+            tdSql.query(
                 f"select u.id from {src}.users u "
                 f"where exists (select 1 from {src}.orders_solo o "
                 f"where o.user_id = u.id) order by u.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
 
-            tdSql.error(
+            tdSql.query(
                 f"select u.id from {src}.users u "
                 f"where not exists (select 1 from {src}.orders_solo o "
                 f"where o.user_id = u.id) order by u.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
 
         self._with_custom_sources(
             "fq04_cust", body,
@@ -1783,7 +1792,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             t = f"{src}.src_t"
             tdSql.error(
                 f"select tags from {t}",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
             tdSql.error(
                 f"select tbname from {t}",
                 expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
@@ -1802,33 +1811,29 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         self._with_std_sources("fq04_pseudo", body_mp, skip_influx=True)
 
-        # InfluxDB: TAGS works (§3.7.2.2), SELECT TBNAME errors (§3.7.2.1),
-        # PARTITION BY TBNAME works (§3.7.2.1 exception)
+        # InfluxDB: all pseudo-column operations → error
+        # SELECT TAGS → PAR_SYNTAX_ERROR, TBNAME/PARTITION BY → EXT_SYNTAX_UNSUPPORTED
         def body_influx(src):
             t = f"{src}.src_t"
-            # SELECT TAGS works on InfluxDB
-            tdSql.query(f"select tags from {t}")
+            # SELECT TAGS errors on InfluxDB (parser rejects pseudo-column)
+            tdSql.error(
+                f"select tags from {t}",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
             # SELECT TBNAME still errors on InfluxDB
             tdSql.error(
                 f"select tbname from {t}",
                 expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-            # PARTITION BY TBNAME works on InfluxDB (converted to tag grouping)
-            tdSql.query(f"select count(*) from {t} partition by tbname")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 5)  # all 5 rows in single measurement
-            # PARTITION BY TBNAME with multiple aggregates
-            tdSql.query(
+            # PARTITION BY TBNAME also errors on InfluxDB
+            tdSql.error(
+                f"select count(*) from {t} partition by tbname",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            tdSql.error(
                 f"select avg(val), max(val), min(val) "
-                f"from {t} partition by tbname")
-            tdSql.checkRows(1)
-            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6  # avg
-            tdSql.checkData(0, 1, 5)  # max
-            tdSql.checkData(0, 2, 1)  # min
-            # PARTITION BY TBNAME with SUM
-            tdSql.query(
-                f"select sum(val) from {t} partition by tbname")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 15)
+                f"from {t} partition by tbname",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            tdSql.error(
+                f"select sum(val) from {t} partition by tbname",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
 
         self._with_std_sources("fq04_pseudo_i", body_influx,
                                skip_mysql=True, skip_pg=True)
