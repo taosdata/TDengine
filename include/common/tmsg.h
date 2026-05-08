@@ -2136,6 +2136,8 @@ typedef struct {
   int32_t  numOfTagRefs;
   SColRef* pTagRefs;
   int8_t   secureDelete;
+  int8_t   numParents;
+  char     parentStbNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_NAME_LEN];
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;

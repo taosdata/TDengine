@@ -6972,6 +6972,12 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pRsp->ownerId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->secureDelete));
 
+  // VST inheritance
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->numParents));
+  for (int8_t i = 0; i < pRsp->numParents; ++i) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->parentStbNames[i]));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -7106,6 +7112,16 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->secureDelete));
   } else {
     pRsp->secureDelete = 0;
+  }
+
+  // VST inheritance
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->numParents));
+    for (int8_t i = 0; i < pRsp->numParents; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->parentStbNames[i]));
+    }
+  } else {
+    pRsp->numParents = 0;
   }
 
   tEndDecode(&decoder);

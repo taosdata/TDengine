@@ -2764,7 +2764,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   TAOS_RETURN(code);
 }
 
-static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName, STableCfgRsp *pRsp) {
+static int32_t mndBuildStbCfgImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, const char *tbName, STableCfgRsp *pRsp) {
   int32_t code = 0;
   taosRLockLatch(&pStb->lock);
 
@@ -2832,6 +2832,28 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->pColRefs = NULL;
   pRsp->secureDelete = pStb->secureDelete;
   pRsp->securityLevel = pStb->securityLevel;
+
+  // VST inheritance info
+  pRsp->numParents = pStb->numParents;
+  if (pStb->numParents > 0) {
+    SSdb *pSdb = pMnode->pSdb;
+    for (int8_t i = 0; i < pStb->numParents; ++i) {
+      pRsp->parentStbNames[i][0] = '\0';
+      void    *pIter2 = NULL;
+      SStbObj *pParent = NULL;
+      while (1) {
+        pIter2 = sdbFetch(pSdb, SDB_STB, pIter2, (void **)&pParent);
+        if (pIter2 == NULL) break;
+        if (pParent->uid == pStb->parentSuids[i]) {
+          mndExtractTbNameFromStbFullName(pParent->name, pRsp->parentStbNames[i], TSDB_TABLE_NAME_LEN);
+          sdbRelease(pSdb, pParent);
+          sdbCancelFetch(pSdb, pIter2);
+          break;
+        }
+        sdbRelease(pSdb, pParent);
+      }
+    }
+  }
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
@@ -2924,7 +2946,7 @@ static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *t
     TAOS_RETURN(code);
   }
 
-  code = mndBuildStbCfgImp(pDb, pStb, tbName, pRsp);
+  code = mndBuildStbCfgImp(pMnode, pDb, pStb, tbName, pRsp);
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
