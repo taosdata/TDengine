@@ -1811,8 +1811,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         self._with_std_sources("fq04_pseudo", body_mp, skip_influx=True)
 
-        # InfluxDB: all pseudo-column operations → error
-        # SELECT TAGS → PAR_SYNTAX_ERROR, TBNAME/PARTITION BY → EXT_SYNTAX_UNSUPPORTED
+        # InfluxDB: SELECT TAGS/TBNAME → error,
+        # PARTITION BY TBNAME works (converted to tag grouping in planner)
         def body_influx(src):
             t = f"{src}.src_t"
             # SELECT TAGS errors on InfluxDB (parser rejects pseudo-column)
@@ -1823,17 +1823,23 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.error(
                 f"select tbname from {t}",
                 expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-            # PARTITION BY TBNAME also errors on InfluxDB
-            tdSql.error(
-                f"select count(*) from {t} partition by tbname",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-            tdSql.error(
+            # PARTITION BY TBNAME works on InfluxDB (converted to tag grouping)
+            tdSql.query(f"select count(*) from {t} partition by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)  # all 5 rows in single measurement
+            # PARTITION BY TBNAME with multiple aggregates
+            tdSql.query(
                 f"select avg(val), max(val), min(val) "
-                f"from {t} partition by tbname",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
-            tdSql.error(
-                f"select sum(val) from {t} partition by tbname",
-                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                f"from {t} partition by tbname")
+            tdSql.checkRows(1)
+            assert abs(float(tdSql.getData(0, 0)) - 3.0) < 1e-6  # avg
+            tdSql.checkData(0, 1, 5)  # max
+            tdSql.checkData(0, 2, 1)  # min
+            # PARTITION BY TBNAME with SUM
+            tdSql.query(
+                f"select sum(val) from {t} partition by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 15)
 
         self._with_std_sources("fq04_pseudo_i", body_influx,
                                skip_mysql=True, skip_pg=True)

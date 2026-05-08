@@ -6478,15 +6478,34 @@ static bool fromTableHasExtSource(SNode* pFromTable) {
   return false;
 }
 
+static int8_t fromTableExtSourceType(SNode* pFromTable) {
+  if (NULL == pFromTable) return -1;
+  if (QUERY_NODE_REAL_TABLE == nodeType(pFromTable)) {
+    SExtTableNode* pExt = (SExtTableNode*)((SRealTableNode*)pFromTable)->pExtTableNode;
+    return pExt ? pExt->sourceType : -1;
+  }
+  if (QUERY_NODE_JOIN_TABLE == nodeType(pFromTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pFromTable;
+    int8_t left = fromTableExtSourceType(pJoin->pLeft);
+    if (left >= 0) return left;
+    return fromTableExtSourceType(pJoin->pRight);
+  }
+  return -1;
+}
+
 static int32_t checkExtTableTbnameUsage(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (!fromTableHasExtSource(pSelect->pFromTable)) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int8_t srcType = fromTableExtSourceType(pSelect->pFromTable);
+  bool   isInflux = (srcType == EXT_SOURCE_INFLUXDB);
+
   bool found = false;
   nodesWalkExprs(pSelect->pProjectionList, detectTbNameWalker, &found);
   if (!found) nodesWalkExpr(pSelect->pWhere, detectTbNameWalker, &found);
-  if (!found) nodesWalkExprs(pSelect->pPartitionByList, detectTbNameWalker, &found);
+  // InfluxDB supports PARTITION BY TBNAME (converted to tag grouping in planner)
+  if (!found && !isInflux) nodesWalkExprs(pSelect->pPartitionByList, detectTbNameWalker, &found);
   if (!found) nodesWalkExprs(pSelect->pGroupByList, detectTbNameWalker, &found);
   if (!found) nodesWalkExpr(pSelect->pHaving, detectTbNameWalker, &found);
   if (!found) nodesWalkExprs(pSelect->pOrderByList, detectTbNameWalker, &found);

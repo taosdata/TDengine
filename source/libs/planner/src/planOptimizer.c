@@ -11403,6 +11403,35 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
             pScan->pScanCols ? (int)pScan->pScanCols->length : -1,
             (int)srcType, pMeta, pMeta ? pMeta->numOfCols : -1);
   int32_t code = TSDB_CODE_SUCCESS;
+
+  // Check whether the external metadata has any tag columns.
+  bool hasTags = false;
+  for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+    if (pMeta->pCols[i].isTag) {
+      hasTags = true;
+      break;
+    }
+  }
+
+  // Tagless measurement (e.g. InfluxDB with no tag keys): PARTITION BY TBNAME
+  // is a no-op because all rows belong to the same measurement.  Remove the
+  // PARTITION node from the logic plan so the AGG operates on all rows
+  // directly (producing a single group — the correct result).
+  if (!hasTags) {
+    SLogicNode* pPartChild = (SLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+    if (pPartChild != NULL) {
+      if (NULL == pPart->node.pParent) {
+        TSWAP(pPart->node.pTargets, pPartChild->pTargets);
+      }
+      code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pPart, pPartChild);
+      if (TSDB_CODE_SUCCESS == code) {
+        NODES_CLEAR_LIST(pPart->node.pChildren);
+        nodesDestroyNode((SNode*)pPart);
+      }
+    }
+    return code;
+  }
+
   // Iterate in reverse so that nodesListPushFront preserves original tag order
   // (tag[0] pushed last → ends up first in the list, i.e. slot 0).
   for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
