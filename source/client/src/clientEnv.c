@@ -580,6 +580,10 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
     releaseTscObj(connId);
     TSC_ERR_JRET(TSDB_CODE_MND_USER_DISABLED);
   }
+  if (atomic_load_8(&pTscObj->passInfo.passChanged)) {
+    releaseTscObj(connId);
+    TSC_ERR_JRET(TSDB_CODE_TSC_PASS_CHANGED);
+  }
   SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
   if (interParam == NULL) {
     releaseTscObj(connId);
