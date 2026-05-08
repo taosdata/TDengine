@@ -970,7 +970,16 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
   if (taosHashGetSize(pVnode->pFinalizedTxns) == 0) return 0;
 
   int32_t totalProcessed = 0;
-  SArray *pCompletedTxns = NULL;  // Array of int64_t txnIds to remove after iteration
+
+  // Pre-allocate before entering the loop. Lazy allocation inside the loop causes a silent
+  // stuck-entry bug: if taosArrayInit returns NULL on OOM mid-loop, a fully-vacuumed txn
+  // is never added to the removal list, leaks in pTxnHash/pFinalizedTxns forever, and
+  // causes vnodeTxnVacuumExecute to spin in infinite no-op retries.
+  SArray *pCompletedTxns = taosArrayInit(4, sizeof(int64_t));
+  if (pCompletedTxns == NULL) {
+    vError("vgId:%d, out of memory allocating completed-txns array in vacuum batch", TD_VID(pVnode));
+    return 0;
+  }
 
   (void)taosThreadMutexLock(&pVnode->txnMutex);
 
@@ -992,11 +1001,11 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
 
     // Check if this txn is fully vacuumed
     if (pEntry->vacuumIdx >= pEntry->numVacuumUids) {
-      if (pCompletedTxns == NULL) {
-        pCompletedTxns = taosArrayInit(4, sizeof(int64_t));
-      }
-      if (pCompletedTxns) {
-        (void)taosArrayPush(pCompletedTxns, &pEntry->txnId);
+      if (taosArrayPush(pCompletedTxns, &pEntry->txnId) == NULL) {
+        // OOM: txnId not recorded, entry will not be cleaned this round.
+        // Next vacuum cycle will retry. Log so the condition is observable.
+        vWarn("vgId:%d, out of memory recording completed txnId:% " PRId64 " in vacuum batch", TD_VID(pVnode),
+               pEntry->txnId);
       }
     }
 
@@ -1006,26 +1015,34 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
   (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
   // Remove fully-vacuumed txns (outside iteration)
-  if (pCompletedTxns) {
-    int32_t numCompleted = taosArrayGetSize(pCompletedTxns);
-    for (int32_t i = 0; i < numCompleted; i++) {
-      int64_t txnId = *(int64_t *)taosArrayGet(pCompletedTxns, i);
+  int32_t numCompleted = taosArrayGetSize(pCompletedTxns);
+  for (int32_t i = 0; i < numCompleted; i++) {
+    int64_t txnId = *(int64_t *)taosArrayGet(pCompletedTxns, i);
 
-      // Remove from txn_final.idx
-      (void)metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
-
-      // Remove from in-memory cache
-      (void)taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
-
-      // Remove SVnodeTxnEntry
-      (void)taosThreadMutexLock(&pVnode->txnMutex);
-      vnodeRemoveTxnEntry(pVnode, txnId);
-      (void)taosThreadMutexUnlock(&pVnode->txnMutex);
-
-      vInfo("vgId:%d, vacuum complete for txnId:%" PRId64, TD_VID(pVnode), txnId);
+    // Remove from txn_final.idx
+    int32_t delCode = metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
+    if (delCode != 0) {
+      // Persistent record survives; vacuum will retry on next restart (idempotent).
+      vWarn("vgId:%d, failed to delete txn_final.idx for txnId:% " PRId64 ": %s", TD_VID(pVnode), txnId,
+             tstrerror(delCode));
     }
-    taosArrayDestroy(pCompletedTxns);
+
+    // Remove from in-memory cache
+    int32_t rmCode = taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+    if (rmCode != 0) {
+      // Stale key left in pFinalizedTxns; vacuum will be re-triggered unnecessarily.
+      vWarn("vgId:%d, failed to remove txnId:% " PRId64 " from pFinalizedTxns: %s", TD_VID(pVnode), txnId,
+             tstrerror(rmCode));
+    }
+
+    // Remove SVnodeTxnEntry
+    (void)taosThreadMutexLock(&pVnode->txnMutex);
+    vnodeRemoveTxnEntry(pVnode, txnId);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    vInfo("vgId:%d, vacuum complete for txnId:%" PRId64, TD_VID(pVnode), txnId);
   }
+  taosArrayDestroy(pCompletedTxns);
 
   if (totalProcessed > 0) {
     vDebug("vgId:%d, vacuum batch: processed %d UIDs", TD_VID(pVnode), totalProcessed);

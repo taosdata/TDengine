@@ -482,14 +482,22 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 static int32_t tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE || pTscObj->pTxnVgList == NULL || vgId <= 0) return TSDB_CODE_SUCCESS;
 
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+
   // Dedup: check if vgId is already tracked
   int32_t sz = (int32_t)taosArrayGetSize(pTscObj->pTxnVgList);
   for (int32_t i = 0; i < sz; ++i) {
-    if (*(int32_t*)taosArrayGet(pTscObj->pTxnVgList, i) == vgId) return TSDB_CODE_SUCCESS;
+    if (*(int32_t*)taosArrayGet(pTscObj->pTxnVgList, i) == vgId) {
+      (void)taosThreadMutexUnlock(&pTscObj->mutex);
+      return TSDB_CODE_SUCCESS;
+    }
   }
   if (taosArrayPush(pTscObj->pTxnVgList, &vgId) == NULL) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
     return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
   return TSDB_CODE_SUCCESS;
 }
 
