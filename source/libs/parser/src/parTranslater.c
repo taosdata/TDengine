@@ -9758,6 +9758,104 @@ static bool sessionWindowMatchesOrderColumn(SColumnNode* pSessionCol, SColumnNod
           pSessionCol->dataBlockId == pOrderCol->dataBlockId);
 }
 
+static SNode* getPrimaryTsSourceExpr(SNode* pExpr) {
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    return isPrimaryKeyImpl(pExpr) ? pExpr : NULL;
+  }
+
+  if (QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+    return NULL;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+  if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
+      FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_IROWTS_ORIGIN == pFunc->funcType ||
+      FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType || FUNCTION_TYPE_IMPUTATION_ROWTS == pFunc->funcType ||
+      FUNCTION_TYPE_TPREV_TS == pFunc->funcType || FUNCTION_TYPE_TCURRENT_TS == pFunc->funcType) {
+    return pExpr;
+  }
+
+  if (!isPrimaryKeyImpl(pExpr) || NULL == pFunc->pParameterList || 0 == pFunc->pParameterList->length) {
+    return NULL;
+  }
+
+  return getPrimaryTsSourceExpr(nodesListGetNode(pFunc->pParameterList, 0));
+}
+
+static bool sessionWindowSamePrimaryTsSource(SNode* pLeft, SNode* pRight) {
+  SNode* pLeftSrc = getPrimaryTsSourceExpr(pLeft);
+  SNode* pRightSrc = getPrimaryTsSourceExpr(pRight);
+  if (NULL == pLeftSrc || NULL == pRightSrc) {
+    return false;
+  }
+
+  if (nodesEqualNode(pLeftSrc, pRightSrc)) {
+    return true;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pLeftSrc) && QUERY_NODE_COLUMN == nodeType(pRightSrc)) {
+    SColumnNode* pLeftCol = (SColumnNode*)pLeftSrc;
+    SColumnNode* pRightCol = (SColumnNode*)pRightSrc;
+    return pLeftCol->colId == pRightCol->colId && pLeftCol->tableId == pRightCol->tableId &&
+           pLeftCol->dataBlockId == pRightCol->dataBlockId;
+  }
+
+  return false;
+}
+
+static bool sessionWindowIsIntervalEquivalentTimelineExpr(SNode* pExpr) {
+  SNode* pSource = getPrimaryTsSourceExpr(pExpr);
+  if (NULL == pSource) {
+    return false;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pSource)) {
+    return true;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pSource)) {
+    int32_t funcType = ((SFunctionNode*)pSource)->funcType;
+    return FUNCTION_TYPE_WSTART == funcType || FUNCTION_TYPE_WEND == funcType || FUNCTION_TYPE_IROWTS == funcType ||
+           FUNCTION_TYPE_IROWTS_ORIGIN == funcType || FUNCTION_TYPE_FORECAST_ROWTS == funcType ||
+           FUNCTION_TYPE_IMPUTATION_ROWTS == funcType || FUNCTION_TYPE_TPREV_TS == funcType ||
+           FUNCTION_TYPE_TCURRENT_TS == funcType;
+  }
+
+  return false;
+}
+
+static bool sessionWindowMatchesEquivalentPrimaryTsAlias(SSessionWindowNode* pSession, SNode* pSubquery, SColumnNode* pOrderCol) {
+  if (!hasUniqueProjectionAlias(pSubquery, pSession->pCol->colName) || !hasUniqueProjectionAlias(pSubquery, pOrderCol->colName)) {
+    return false;
+  }
+
+  SNode* pOrderProjection = findProjectionByAlias(pSubquery, pOrderCol->colName);
+  SNode* pSessionProjection = findProjectionByAlias(pSubquery, pSession->pCol->colName);
+  if (NULL == pOrderProjection || NULL == pSessionProjection ||
+      QUERY_NODE_OPERATOR == nodeType(pOrderProjection) || QUERY_NODE_OPERATOR == nodeType(pSessionProjection)) {
+    return false;
+  }
+
+  if (sessionWindowSamePrimaryTsSource(pSessionProjection, pOrderProjection)) {
+    return true;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    SSelectStmt* pSubSelect = (SSelectStmt*)pSubquery;
+    if (NULL != pSubSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSubSelect->pWindow) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pSessionProjection) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pOrderProjection)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static bool sessionWindowMatchesOrderExpr(SSessionWindowNode* pSession, SNode* pSubquery, SNode* pExpr) {
   if (NULL == pExpr) {
     return false;
@@ -9772,10 +9870,30 @@ static bool sessionWindowMatchesOrderExpr(SSessionWindowNode* pSession, SNode* p
         isPrimaryKeyImpl((SNode*)pSession->pCol) && isPrimaryKeyImpl((SNode*)pOrderCol)) {
       return true;
     }
+    if (sessionWindowMatchesEquivalentPrimaryTsAlias(pSession, pSubquery, pOrderCol)) {
+      return true;
+    }
   }
 
   SNode* pProjection = findProjectionByAlias(pSubquery, pSession->pCol->colName);
-  return NULL != pProjection && nodesEqualNode(pExpr, pProjection);
+  if (NULL == pProjection) {
+    return false;
+  }
+
+  if (nodesEqualNode(pExpr, pProjection) || sessionWindowSamePrimaryTsSource(pProjection, pExpr)) {
+    return true;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    SSelectStmt* pSubSelect = (SSelectStmt*)pSubquery;
+    if (NULL != pSubSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSubSelect->pWindow) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pProjection) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pExpr)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 static bool orderByStartsWithPartitionList(SNodeList* pOrderByList, SNodeList* pPartitionByList) {
