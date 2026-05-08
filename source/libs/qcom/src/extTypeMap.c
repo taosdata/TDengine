@@ -111,7 +111,9 @@ static void setDecimalMapping(const char *typeName, SDataType *pTd) {
                                  (pTd)->scale = 0;  (pTd)->bytes = (b); } while (0)
 
 // Default VARCHAR/NCHAR column length used when no explicit width is given.
-#define EXT_DEFAULT_VARCHAR_LEN 65535
+// Must not exceed TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE (65517) to avoid
+// CAST overflow when UNION reconciles column types across sources.
+#define EXT_DEFAULT_VARCHAR_LEN 65517
 
 // ---------------------------------------------------------------------------
 // MySQL type mapping  (DS §5.3.2 — MySQL → TDengine)

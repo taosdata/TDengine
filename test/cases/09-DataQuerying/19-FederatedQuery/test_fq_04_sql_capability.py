@@ -1312,12 +1312,17 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkData(1, 0, 2); tdSql.checkData(1, 1, "Bob")
             tdSql.checkData(2, 0, 3); tdSql.checkData(2, 1, "Carol")
 
-            # M+P UNION ALL → cross-source UNION ALL is not supported (0x26a6)
-            tdSql.error(
+            # M+P UNION ALL → 4 rows (Alice appears from both sources)
+            tdSql.query(
                 f"select id, name from {m_users} "
                 f"union all "
                 f"select id, name from {p_users} "
                 f"order by id")
+            tdSql.checkRows(4)
+            tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, "Alice")
+            tdSql.checkData(1, 0, 1); tdSql.checkData(1, 1, "Alice")
+            tdSql.checkData(2, 0, 2); tdSql.checkData(2, 1, "Bob")
+            tdSql.checkData(3, 0, 3); tdSql.checkData(3, 1, "Carol")
 
             # M+I UNION → 4 rows (no overlap)
             tdSql.query(
@@ -1343,14 +1348,15 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkData(2, 0, 4); tdSql.checkData(2, 1, "Dave")
             tdSql.checkData(3, 0, 5); tdSql.checkData(3, 1, "Eve")
 
-            # M+P+I UNION ALL → cross-source UNION ALL is not supported (0x26a6)
-            tdSql.error(
+            # M+P+I UNION ALL → 6 rows (2+2+2, no dedup)
+            tdSql.query(
                 f"select id, name from {m_users} "
                 f"union all "
                 f"select id, name from {p_users} "
                 f"union all "
                 f"select id, name from {i_users} "
                 f"order by id")
+            tdSql.checkRows(6)
         finally:
             self._cleanup_src(src_m, src_p, src_i)
             try:
@@ -2051,7 +2057,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._mk_mysql_real(src, database=ext_db)
             tdSql.query(
                 f"select count(*) from {src}.information_schema.TABLES "
-                f"where `TABLE_SCHEMA` = '{ext_db}'")
+                f"where table_schema = '{ext_db}'")
             tdSql.checkRows(1)
             assert int(tdSql.getData(0, 0)) >= 1
         finally:
