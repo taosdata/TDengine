@@ -13,6 +13,7 @@
 
 from new_test_framework.utils import tdLog, tdSql
 from collections import defaultdict
+import inspect
 import random
 import string
 import threading

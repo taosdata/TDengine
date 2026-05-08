@@ -1264,18 +1264,36 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
         )
         add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
     else()
-        # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts
+        # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts.
         # Validate that the cached library actually exists.
-        # Use TD_CONFIG_NAME_RESOLVED because ext_rocksdb_libs contains generator
-        # expressions that are not evaluated at configure time.
-        set(_rocksdb_check_path "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}/lib/${ext_rocksdb_static}")
+        #
+        # INIT_EXT declares LIB as "lib/librocksdb.a" and ExternalProject forces
+        # -DCMAKE_INSTALL_LIBDIR:PATH=lib, so the primary check uses "lib/".
+        # For backward compatibility with caches built before this fix (where
+        # CMAKE_INSTALL_LIBDIR may have resolved to "lib64" on x86_64), we also
+        # check the CMAKE_INSTALL_LIBDIR path as a fallback and update
+        # ext_rocksdb_libs so the linker can find the library.
+        set(_rocksdb_install_prefix "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}")
+        set(_rocksdb_check_path "${_rocksdb_install_prefix}/lib/${ext_rocksdb_static}")
         if(NOT EXISTS "${_rocksdb_check_path}")
-            message(FATAL_ERROR
-                "[rocksdb] Expecting cached ExternalProject artifact at:\n"
-                "  ${_rocksdb_check_path}\n"
-                "  but it does not exist. Either:\n"
-                "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
-                "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
+            # Fallback: older caches may have installed into CMAKE_INSTALL_LIBDIR (e.g. lib64)
+            set(_rocksdb_found FALSE)
+            if(NOT "${CMAKE_INSTALL_LIBDIR}" STREQUAL "lib")
+                set(_rocksdb_check_alt "${_rocksdb_install_prefix}/${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}")
+                if(EXISTS "${_rocksdb_check_alt}")
+                    set(ext_rocksdb_libs "${_rocksdb_check_alt}")
+                    set(_rocksdb_found TRUE)
+                    message(STATUS "[rocksdb] Found cached library at legacy path: ${_rocksdb_check_alt}")
+                endif()
+            endif()
+            if(NOT _rocksdb_found)
+                message(FATAL_ERROR
+                    "[rocksdb] Expecting cached ExternalProject artifact at:\n"
+                    "  ${_rocksdb_check_path}\n"
+                    "  but it does not exist. Either:\n"
+                    "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
+                    "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
+            endif()
         endif()
     endif()
 endif()                                          # }

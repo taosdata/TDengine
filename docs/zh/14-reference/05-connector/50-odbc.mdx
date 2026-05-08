@@ -7,8 +7,7 @@ TDengine TSDB ODBC 是为 TDengine TSDB 实现的 ODBC 驱动程序，支持 Win
 
 TDengine TSDB ODBC 提供基于 WebSocket（推荐）和 原生连接两种方式连接 TDengine TSDB 数据库，使用时可以为 TDengine TSDB 数据源设置不同的连接方式。访问云服务时必须使用 WebSocket 连接方式。
 
-TDengine TSDB ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 WebSocket 连接方式。
-
+TDengine TSDB ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 WebSocket 连接方式。  
 **注意** ：
 
 - 驱动管理器：确保使用与应用程序架构匹配的 ODBC 驱动管理器。32 位应用程序需要使用 32 位 ODBC 驱动管理器，64 位应用程序需要使用 64 位 ODBC 驱动管理器。
@@ -16,37 +15,13 @@ TDengine TSDB ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅�
 
 想更多了解 TDengine TSDB 时序时序数据库的使用，可访问 [TDengine TSDB 官方文档](https://docs.taosdata.com/intro/)。
 
-:::warning 原生连接即将废弃
-
-<font color="red">ODBC 的原生连接将于 2027-01-01 下线</font>，请迁移到 WebSocket 连接。
-
-详细的迁移指引请参考：[连接方式说明](../#连接方式)
-
-:::
-
-:::info 原生连接说明
-
-ODBC 驱动的**原生连接（Native）**直接调用 TDengine 客户端驱动（`taosnative` 库）通过 TDengine 私有协议与服务端通信，与 **WebSocket 连接**通过 `taosAdapter` 的 WebSocket 接口访问服务端不同。
-
-- 原生连接通常拥有更好的性能，但要求客户端驱动版本与服务端版本一致。
-- WebSocket 连接兼容性更好，一般无需随服务端升级而更新客户端，且支持云服务和 32 位应用程序。
-- 建议一般场景优先使用 WebSocket 连接。详细的连接方式说明请参考：[连接方式说明](../#连接方式)
-
-:::
-
-:::warning 原生连接与 WebSocket 连接不可混用
-
-原生连接（Native）和 WebSocket 连接在同一进程中**不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式。如果需要同时使用两种连接方式，请在不同的进程中分别使用。
-
-:::
-
 ## ODBC 版本兼容性
 
 支持 ODBC 所有版本
 
 ## 安装
 
-1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) 如果已经安装 VS 开发工具可忽略。
+1. 仅支持 Windows 平台。Windows 上需要安装过 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) 如果已经安装 VS 开发工具可忽略。  
 
 2. 安装 TDengine TSDB Windows 客户端。版本在 3.2.1.0 或以上，包含 TDengine TSDB 的 ODBC 64 位驱动；版本在 3.3.3.0 或以上，包含 TDengine TSDB 的 ODBC 32/64 位驱动。
 
@@ -65,8 +40,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 4. Native 连接通常性能更好一点，但是必须与 TDengine TSDB 数据库服务端的版本保持一致。
 
 5. 对于一般用户，建议使用 **WebSocket** 连接方式，性能与 Native 差别不大，兼容性更好。
-
-6. 原生连接（Native）和 WebSocket 连接在同一进程中**不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式，请在创建数据源时确定所需的连接类型。
 
 ### WebSocket 连接
 
@@ -294,12 +267,12 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
   - **是否支持**：支持（仅 Windows）
   - **标准**：ODBC
   - **作用**：配置数据源
-
+  
 - API：ConfigDriver
   - **是否支持**：支持（仅 Windows）
   - **标准**：ODBC
   - **作用**：用于执行与特定驱动程序相关的安装和配置任务
-
+  
 - API：ConfigTranslator
   - **是否支持**：不支持
   - **标准**：ODBC
