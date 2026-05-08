@@ -5,14 +5,24 @@ include_directories("${TD_SOURCE_DIR}/include/client")
 include_directories("${TD_SOURCE_DIR}/include/os")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 
+if(${BUILD_TEST})
 add_executable(runUdf runUdf.c)
 target_link_libraries(
     runUdf
     PRIVATE os util common nodes function
 )
+endif(${BUILD_TEST})
 
 add_library(udf1 STATIC MODULE udf1.c)
 target_link_libraries(udf1 PUBLIC os)
+
+# perm_entropy: aggregate UDF example demonstrating the
+# "accumulate-all-data-then-compute" pattern (permutation entropy).
+add_library(perm_entropy STATIC MODULE perm_entropy.c)
+target_link_libraries(perm_entropy PUBLIC os)
+if(NOT TD_WINDOWS)
+    target_link_libraries(perm_entropy PRIVATE m)
+endif()
 
 add_library(udf2 STATIC MODULE udf2.c)
 target_link_libraries(udf2 PUBLIC os)
