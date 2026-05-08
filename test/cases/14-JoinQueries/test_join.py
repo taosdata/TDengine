@@ -1,5 +1,5 @@
 import datetime
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom, etool
 from dataclasses import dataclass, field
 from typing import List, Any, Tuple
 from new_test_framework.utils.tserror import TSDB_CODE_PAR_SYNTAX_ERROR
@@ -1356,6 +1356,91 @@ class TestJoin:
     #
     # ---------------- 5 ---------------------
     #
+    def prepare_asof_join_right_ts_pushdown_data(self):
+        tdSql.execute("drop database if exists db_asof_pushdown")
+        tdSql.execute("create database db_asof_pushdown")
+        tdSql.execute("use db_asof_pushdown")
+        tdSql.execute("create stable sa (ts timestamp, v int) tags(tg int)")
+        tdSql.execute("create stable sb (ts timestamp, v int) tags(tg int)")
+        tdSql.execute("create table sa1 using sa tags(1)")
+        tdSql.execute("create table sb1 using sb tags(1)")
+        tdSql.execute("create table sa2 using sa tags(2)")
+        tdSql.execute("create table sb2 using sb tags(2)")
+        tdSql.execute("create table sa3 using sa tags(3)")
+        tdSql.execute("create table sb3 using sb tags(3)")
+        tdSql.execute("create table sa4 using sa tags(4)")
+        tdSql.execute("create table sb4 using sb tags(4)")
+        tdSql.execute("create table sa5 using sa tags(5)")
+        tdSql.execute("create table sb5 using sb tags(5)")
+        tdSql.execute("create table sa6 using sa tags(6)")
+        tdSql.execute("create table sb6 using sb tags(6)")
+        tdSql.execute("create table sa8 using sa tags(8)")
+        tdSql.execute("create table sb8 using sb tags(8)")
+
+        # Base timestamp: 2026-01-01 00:00:01 in Asia/Shanghai.
+        base_ts = 1767196801000
+        # In-range rows: base_ts ~ base_ts+4
+        for i in range(5):
+            tdSql.execute(f"insert into sa1 values({base_ts + i}, {i})")
+            tdSql.execute(f"insert into sb1 values({base_ts + i}, {i + 10})")
+        # Out-of-range rows: base_ts+1000 ~ base_ts+1004 (must NOT appear in result)
+        for i in range(5):
+            tdSql.execute(f"insert into sa1 values({base_ts + 1000 + i}, {i + 100})")
+            tdSql.execute(f"insert into sb1 values({base_ts + 1000 + i}, {i + 200})")
+
+        # Forward LEFT ASOF: sparse matched side with only future out-of-range candidate.
+        for i in range(5):
+            tdSql.execute(f"insert into sa2 values({base_ts + i}, {i})")
+        tdSql.execute(f"insert into sb2 values({base_ts + 0}, 10)")
+        tdSql.execute(f"insert into sb2 values({base_ts + 1}, 11)")
+        tdSql.execute(f"insert into sb2 values({base_ts + 1000}, 20)")
+
+        # Forward LEFT ASOF unsafe lower-bound copy case.
+        for i in range(4):
+            tdSql.execute(f"insert into sa3 values({base_ts + i}, {i})")
+        tdSql.execute(f"insert into sb3 values({base_ts + 0}, 10)")
+        tdSql.execute(f"insert into sb3 values({base_ts + 1}, 11)")
+        tdSql.execute(f"insert into sb3 values({base_ts + 3}, 13)")
+
+        # Forward RIGHT ASOF: sparse matched side with only future out-of-range candidate.
+        tdSql.execute(f"insert into sa4 values({base_ts + 0}, 10)")
+        tdSql.execute(f"insert into sa4 values({base_ts + 1}, 11)")
+        tdSql.execute(f"insert into sa4 values({base_ts + 1000}, 20)")
+        for i in range(5):
+            tdSql.execute(f"insert into sb4 values({base_ts + i}, {i})")
+
+        # Forward RIGHT ASOF unsafe lower-bound copy case.
+        tdSql.execute(f"insert into sa5 values({base_ts + 0}, 10)")
+        tdSql.execute(f"insert into sa5 values({base_ts + 1}, 11)")
+        tdSql.execute(f"insert into sa5 values({base_ts + 3}, 13)")
+        for i in range(4):
+            tdSql.execute(f"insert into sb5 values({base_ts + i}, {i})")
+
+        # Forward RIGHT ASOF with probe column on the left side of "<".
+        tdSql.execute(f"insert into sa6 values({base_ts + 5}, 15)")
+        tdSql.execute(f"insert into sb6 values({base_ts + 0}, 0)")
+        tdSql.execute(f"insert into sb6 values({base_ts + 1}, 1)")
+
+        # Function-wrapped matched-side ts must not enable raw-ts range derivation/copy.
+        for i in range(5):
+            tdSql.execute(f"insert into sa8 values({base_ts + i}, {i})")
+        tdSql.execute(f"insert into sb8 values({base_ts + 500}, 15)")
+
+    def do_asof_join_right_ts_pushdown(self):
+        """Verify ASOF JOIN pushdown/copy/range-derivation behavior with result-file comparison."""
+        self.prepare_asof_join_right_ts_pushdown_data()
+
+        testCase = "test_asof_join_pushdown"
+        tdLog.info(f"test case : {testCase}.")
+        sqlFile = etool.curFile(__file__, "in/test_asof_join_pushdown.in")
+        ansFile = etool.curFile(__file__, "ans/test_asof_join_pushdown.ans")
+        tdCom.compare_testcase_result(sqlFile, ansFile, testCase)
+
+        tdSql.execute("drop database db_asof_pushdown")
+        # Restore DB context for subsequent tests that rely on the default 'db'.
+        tdSql.execute("use db")
+        print("do asof join right ts pushdown ........ [passed]")
+
     def do_join_hint(self):
         tdSql.query(f"select /*+ batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
         tdSql.checkRows(3)
@@ -1391,7 +1476,7 @@ class TestJoin:
 
         1. Join with inner/left/right/outer/asof/semi/anti/full
         2. Join with tb1.ts = tb2.ts
-        3. Join with tb1.int = tb2.int limit 
+        3. Join with tb1.int = tb2.int limit
         4. Join with tb1.int = tb2.int and ts filter
         5. Join with multiple tables
         6. Join with group by/order by/limit
@@ -1404,6 +1489,7 @@ class TestJoin:
         14. Join semantic test
         15. Join with interval
         16. Join bug TS-5863
+        17. ASOF JOIN right-side ts condition pushdown correctness
 
         Since: v3.0.0.0
 
@@ -1424,6 +1510,7 @@ class TestJoin:
         self.do_system_test_join()
         self.init_data()
         self.do_stbJoin()
+        self.do_asof_join_right_ts_pushdown()
         self.do_join_hint()
 
     

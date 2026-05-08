@@ -119,13 +119,20 @@ typedef enum ECondAction {
   COND_ACTION_STAY = 1,
   COND_ACTION_PUSH_JOIN,
   COND_ACTION_PUSH_LEFT_CHILD,
-  COND_ACTION_PUSH_RIGHT_CHILD
-  // after supporting outer join, there are other possibilities
+  COND_ACTION_PUSH_RIGHT_CHILD,
+  // Copy-down: push a clone to child scan while keeping the original in WHERE.
+  // Used for ASOF/WINDOW join right-side (or left-side) WHERE conditions to
+  // reduce the scan range without altering join semantics.
+  COND_ACTION_COPY_RIGHT_CHILD,
+  COND_ACTION_COPY_LEFT_CHILD
 } ECondAction;
 
-#define PUSH_DOWN_LEFT_FLT  (1 << 0)
-#define PUSH_DOWN_RIGHT_FLT (1 << 1)
-#define PUSH_DOWN_ON_COND   (1 << 2)
+#define PUSH_DOWN_LEFT_FLT       (1 << 0)
+#define PUSH_DOWN_RIGHT_FLT      (1 << 1)
+#define PUSH_DOWN_ON_COND        (1 << 2)
+// Copy (not move) the condition to the child scan and keep it in WHERE.
+#define PUSH_DOWN_RIGHT_FLT_COPY (1 << 3)
+#define PUSH_DOWN_LEFT_FLT_COPY  (1 << 4)
 #define PUSH_DONW_FLT_COND  (PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT)
 #define PUSH_DOWN_ALL_COND  (PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT | PUSH_DOWN_ON_COND)
 
@@ -135,6 +142,12 @@ typedef struct SJoinOptimizeOpt {
 
 typedef bool (*FMayBeOptimized)(SLogicNode* pNode, void* pCtx);
 typedef bool (*FShouldBeOptimized)(SLogicNode* pNode, void* pInfo);
+
+static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHashObj* pTables);
+static bool joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin);
+static const char* getJoinCondPKTable(SNode* pNode);
+static EOperatorType asofJoinGetReverseOp(EOperatorType opType);
+static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType);
 
 #if 0
 static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
@@ -146,16 +159,18 @@ static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 };
 #else
 static SJoinOptimizeOpt gJoinWhereOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
-    /* NONE                OUTER                  SEMI                  ANTI                   ASOF WINDOW */
+    /* NONE                OUTER                  SEMI                  ANTI                   ASOF                                           WINDOW */
     /*INNER*/ {{PUSH_DOWN_ALL_COND}, {0}, {0}, {0}, {0}, {0}},
     /*LEFT*/
-    {{0}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT}},
+    {{0}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT},
+     {PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT_COPY},
+     {PUSH_DOWN_LEFT_FLT}},
     /*RIGHT*/
     {{0},
      {PUSH_DOWN_RIGHT_FLT},
      {PUSH_DOWN_RIGHT_FLT},
      {PUSH_DOWN_RIGHT_FLT},
-     {PUSH_DOWN_RIGHT_FLT},
+     {PUSH_DOWN_RIGHT_FLT | PUSH_DOWN_LEFT_FLT_COPY},
      {PUSH_DOWN_RIGHT_FLT}},
     /*FULL*/ {{0}, {0}, {0}, {0}, {0}, {0}},
 };
@@ -925,6 +940,11 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
         (!whereCond && gJoinOnOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT)) {
       return COND_ACTION_PUSH_LEFT_CHILD;
     }
+    if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT_COPY &&
+        joinCondHasValidPrimKeyCond(pJoin) &&
+        pdcJoinIsSafeAsofCopyCond(pJoin, pNode, pLeftTbls)) {
+      return COND_ACTION_COPY_LEFT_CHILD;
+    }
     return COND_ACTION_STAY;
   }
 
@@ -932,6 +952,11 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
     if ((whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT) ||
         (!whereCond && gJoinOnOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT)) {
       return COND_ACTION_PUSH_RIGHT_CHILD;
+    }
+    if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT_COPY &&
+        joinCondHasValidPrimKeyCond(pJoin) &&
+        pdcJoinIsSafeAsofCopyCond(pJoin, pNode, pRightTbls)) {
+      return COND_ACTION_COPY_RIGHT_CHILD;
     }
     return COND_ACTION_STAY;
   }
@@ -980,6 +1005,27 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
       code = nodesListMakeAppend(&pLeftChildConds, pNew);
     } else if (COND_ACTION_PUSH_RIGHT_CHILD == condAction) {
       code = nodesListMakeAppend(&pRightChildConds, pNew);
+    } else if (COND_ACTION_COPY_RIGHT_CHILD == condAction || COND_ACTION_COPY_LEFT_CHILD == condAction) {
+      // Clone condition into the child scan for scan-range optimization, while
+      // keeping the original in the WHERE clause for correct join semantics.
+      SNode* pNew2 = NULL;
+      code = nodesCloneNode(pCond, &pNew2);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pNew);
+        break;
+      }
+      SNodeList** ppCopyList =
+          (COND_ACTION_COPY_RIGHT_CHILD == condAction) ? &pRightChildConds : &pLeftChildConds;
+      code = nodesListMakeAppend(&pRemainConds, pNew2);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListMakeAppend(ppCopyList, pNew);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode(pNew);
+        }
+      } else {
+        nodesDestroyNode(pNew);
+        nodesDestroyNode(pNew2);
+      }
     } else {
       code = nodesListMakeAppend(&pRemainConds, pNew);
     }
@@ -1059,6 +1105,12 @@ static int32_t pdcJoinSplitOpCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode
     *pLeftChildCond = *pSrcCond;
   } else if (COND_ACTION_PUSH_RIGHT_CHILD == condAction) {
     *pRightChildCond = *pSrcCond;
+  } else if (COND_ACTION_COPY_RIGHT_CHILD == condAction) {
+    // Clone to right child scan; keep original in WHERE for join semantics.
+    return nodesCloneNode(*pSrcCond, pRightChildCond);
+  } else if (COND_ACTION_COPY_LEFT_CHILD == condAction) {
+    // Clone to left child scan; keep original in WHERE for join semantics.
+    return nodesCloneNode(*pSrcCond, pLeftChildCond);
   }
   *pSrcCond = NULL;
   return TSDB_CODE_SUCCESS;
@@ -1119,6 +1171,148 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
     return false;
   }
   return pdcJoinColInTableList(pNode, pTables);
+}
+
+static EOperatorType asofJoinGetReverseOp(EOperatorType opType) {
+  switch (opType) {
+    case OP_TYPE_GREATER_THAN:
+      return OP_TYPE_LOWER_THAN;
+    case OP_TYPE_GREATER_EQUAL:
+      return OP_TYPE_LOWER_EQUAL;
+    case OP_TYPE_LOWER_THAN:
+      return OP_TYPE_GREATER_THAN;
+    case OP_TYPE_LOWER_EQUAL:
+      return OP_TYPE_GREATER_EQUAL;
+    case OP_TYPE_EQUAL:
+      return OP_TYPE_EQUAL;
+    default:
+      break;
+  }
+
+  return opType;
+}
+
+static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType) {
+  if (NULL == pMatchedOpType || NULL == pJoin->pPrimKeyEqCond || QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
+    return false;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+  const char*    pLeftTable = getJoinCondPKTable(pOp->pLeft);
+  const char*    pRightTable = getJoinCondPKTable(pOp->pRight);
+  if (NULL == pLeftTable || NULL == pRightTable) {
+    return false;
+  }
+
+  SSHashObj* pLeftTables = NULL;
+  SSHashObj* pRightTables = NULL;
+  int32_t    code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    return false;
+  }
+
+  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(pLeftTables);
+    return false;
+  }
+
+  bool leftExprOnLeft = NULL != tSimpleHashGet(pLeftTables, pLeftTable, strlen(pLeftTable));
+  bool leftExprOnRight = NULL != tSimpleHashGet(pRightTables, pLeftTable, strlen(pLeftTable));
+  bool rightExprOnLeft = NULL != tSimpleHashGet(pLeftTables, pRightTable, strlen(pRightTable));
+  bool rightExprOnRight = NULL != tSimpleHashGet(pRightTables, pRightTable, strlen(pRightTable));
+
+  tSimpleHashCleanup(pLeftTables);
+  tSimpleHashCleanup(pRightTables);
+
+  bool matchedOnLeftExpr = false;
+  bool probeOnRightExpr = false;
+  bool probeOnLeftExpr = false;
+  bool matchedOnRightExpr = false;
+  if (JOIN_TYPE_LEFT == pJoin->joinType) {
+    matchedOnLeftExpr = leftExprOnRight;
+    probeOnRightExpr = rightExprOnLeft;
+    probeOnLeftExpr = leftExprOnLeft;
+    matchedOnRightExpr = rightExprOnRight;
+  } else if (JOIN_TYPE_RIGHT == pJoin->joinType) {
+    matchedOnLeftExpr = leftExprOnLeft;
+    probeOnRightExpr = rightExprOnRight;
+    probeOnLeftExpr = leftExprOnRight;
+    matchedOnRightExpr = rightExprOnLeft;
+  } else {
+    return false;
+  }
+
+  if (matchedOnLeftExpr && probeOnRightExpr) {
+    *pMatchedOpType = pOp->opType;
+    return true;
+  }
+
+  if (probeOnLeftExpr && matchedOnRightExpr) {
+    *pMatchedOpType = asofJoinGetReverseOp(pOp->opType);
+    return true;
+  }
+
+  return false;
+}
+
+static bool asofJoinCanDeriveMatchedUpperBound(SJoinLogicNode* pJoin) {
+  EOperatorType matchedOpType = OP_TYPE_EQUAL;
+  if (!asofJoinGetMatchedCmpOp(pJoin, &matchedOpType)) {
+    return false;
+  }
+
+  return OP_TYPE_LOWER_THAN == matchedOpType || OP_TYPE_LOWER_EQUAL == matchedOpType || OP_TYPE_EQUAL == matchedOpType;
+}
+
+static bool asofJoinCanDeriveMatchedLowerBound(SJoinLogicNode* pJoin) {
+  EOperatorType matchedOpType = OP_TYPE_EQUAL;
+  if (!asofJoinGetMatchedCmpOp(pJoin, &matchedOpType)) {
+    return false;
+  }
+
+  return OP_TYPE_GREATER_THAN == matchedOpType || OP_TYPE_GREATER_EQUAL == matchedOpType ||
+         OP_TYPE_EQUAL == matchedOpType;
+}
+
+static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHashObj* pTables) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  if (OP_TYPE_GREATER_THAN != pOper->opType && OP_TYPE_GREATER_EQUAL != pOper->opType &&
+      OP_TYPE_LOWER_THAN != pOper->opType && OP_TYPE_LOWER_EQUAL != pOper->opType) {
+    return false;
+  }
+
+  bool leftDummy = false;
+  bool rightDummy = false;
+  bool primOnLeft = pdcJoinIsPrim(pOper->pLeft, pTables, false, &leftDummy);
+  bool primOnRight = pdcJoinIsPrim(pOper->pRight, pTables, false, &rightDummy);
+  if (primOnLeft == primOnRight) {
+    return false;
+  }
+
+  if (primOnLeft) {
+    bool rightConst = false;
+    if (!pdcJoinIsPrim(pOper->pRight, pTables, true, &rightConst) || !rightConst) {
+      return false;
+    }
+    if (OP_TYPE_GREATER_THAN == pOper->opType || OP_TYPE_GREATER_EQUAL == pOper->opType) {
+      return asofJoinCanDeriveMatchedUpperBound(pJoin);
+    }
+    return asofJoinCanDeriveMatchedLowerBound(pJoin);
+  }
+
+  bool leftConst = false;
+  if (!pdcJoinIsPrim(pOper->pLeft, pTables, true, &leftConst) || !leftConst) {
+    return false;
+  }
+  if (OP_TYPE_LOWER_THAN == pOper->opType || OP_TYPE_LOWER_EQUAL == pOper->opType) {
+    return asofJoinCanDeriveMatchedUpperBound(pJoin);
+  }
+  return asofJoinCanDeriveMatchedLowerBound(pJoin);
 }
 
 static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool constAsPrim) {
@@ -3450,9 +3644,12 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pNode->pChildren->length != 2 || JOIN_STYPE_ASOF == pJoin->subType || JOIN_STYPE_WIN == pJoin->subType ||
-      JOIN_TYPE_FULL == pJoin->joinType) {
+  if (pNode->pChildren->length != 2 || JOIN_STYPE_WIN == pJoin->subType || JOIN_TYPE_FULL == pJoin->joinType) {
     OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+    return false;
+  }
+
+  if (JOIN_STYPE_ASOF == pJoin->subType) {
     return false;
   }
 
@@ -3496,9 +3693,14 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  return joinCondHasValidPrimKeyCond(pJoin);
+}
+
+static bool joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin) {
   if (pJoin->pPrimKeyEqCond && QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)) {
     SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
-    if ((pOp->pLeft && QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) || (pOp->pRight && QUERY_NODE_COLUMN != nodeType(pOp->pRight))) {
+    if ((pOp->pLeft && QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) ||
+        (pOp->pRight && QUERY_NODE_COLUMN != nodeType(pOp->pRight))) {
       return false;
     }
   }
@@ -3574,6 +3776,109 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
 
   pCxt->optimized = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool asofJoinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode) ||
+      OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND)) {
+    return false;
+  }
+
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (pNode->pChildren->length != 2 || JOIN_STYPE_ASOF != pJoin->subType || JOIN_TYPE_FULL == pJoin->joinType) {
+    return false;
+  }
+
+  if (JOIN_TYPE_LEFT != pJoin->joinType && JOIN_TYPE_RIGHT != pJoin->joinType) {
+    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+    return false;
+  }
+
+  SLogicNode*     pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode*     pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  SScanLogicNode* pLScan = joinCondGetScanNode(pLeft);
+  SScanLogicNode* pRScan = joinCondGetScanNode(pRight);
+
+  if (NULL == pLScan || NULL == pRScan || !joinCondHasValidPrimKeyCond(pJoin)) {
+    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+    return false;
+  }
+
+  STimeWindow* pProbeRange = (JOIN_TYPE_LEFT == pJoin->joinType) ? &pLScan->scanRange : &pRScan->scanRange;
+  bool         canDerive = false;
+
+  if (asofJoinCanDeriveMatchedLowerBound(pJoin) && pProbeRange->skey != TSKEY_MIN) {
+    canDerive = true;
+  }
+  if (asofJoinCanDeriveMatchedUpperBound(pJoin) && pProbeRange->ekey != TSKEY_MAX) {
+    canDerive = true;
+  }
+
+  if (!canDerive) {
+    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+  }
+
+  return canDerive;
+}
+
+static bool asofJoinDeriveMatchedScanRange(SJoinLogicNode* pJoin, SScanLogicNode* pLScan, SScanLogicNode* pRScan) {
+  STimeWindow* pProbeRange = NULL;
+  STimeWindow* pMatchedRange = NULL;
+
+  if (JOIN_TYPE_LEFT == pJoin->joinType) {
+    pProbeRange = &pLScan->scanRange;
+    pMatchedRange = &pRScan->scanRange;
+  } else if (JOIN_TYPE_RIGHT == pJoin->joinType) {
+    pProbeRange = &pRScan->scanRange;
+    pMatchedRange = &pLScan->scanRange;
+  } else {
+    return false;
+  }
+
+  bool   updated = false;
+  int64_t oldEKey = pMatchedRange->ekey;
+  if (asofJoinCanDeriveMatchedUpperBound(pJoin) && pProbeRange->ekey != TSKEY_MAX &&
+      pProbeRange->ekey < pMatchedRange->ekey) {
+    pMatchedRange->ekey = pProbeRange->ekey;
+    updated = true;
+  }
+
+  int64_t oldSKey = pMatchedRange->skey;
+  if (asofJoinCanDeriveMatchedLowerBound(pJoin) && pProbeRange->skey != TSKEY_MIN &&
+      pProbeRange->skey > pMatchedRange->skey) {
+    pMatchedRange->skey = pProbeRange->skey;
+    updated = true;
+  }
+
+  return updated || oldEKey != pMatchedRange->ekey || oldSKey != pMatchedRange->skey;
+}
+
+static int32_t asofJoinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  while (true) {
+    SJoinLogicNode* pJoin = (SJoinLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, asofJoinCondMayBeOptimized, NULL);
+    if (NULL == pJoin) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SLogicNode*     pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+    SLogicNode*     pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+    SScanLogicNode* pLScan = joinCondGetScanNode(pLeft);
+    SScanLogicNode* pRScan = joinCondGetScanNode(pRight);
+    if (NULL == pLScan || NULL == pRScan) {
+      OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+      continue;
+    }
+
+    OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+    if (!asofJoinDeriveMatchedScanRange(pJoin, pLScan, pRScan)) {
+      continue;
+    }
+
+    pCxt->optimized = true;
+    break;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -10557,6 +10862,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
   {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
+  {.pName = "AsofJoinCondOptimize",       .optimizeFunc = asofJoinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
   {.pName = "GroupJoin",                  .optimizeFunc = groupJoinOptimize},
