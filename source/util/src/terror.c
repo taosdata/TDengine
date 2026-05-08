@@ -1117,6 +1117,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE,      "Virtual table has too many reference tables")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,     "Virtual table query find invalid origin scan")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL,   "Virtual table query cannot find origin timestamp column")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,      "Virtual table reference depth exceeds limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_REF_COLUMN,      "Virtual table query cannot resolve ref column")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
@@ -1153,6 +1155,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_TOO_DEEP,       "Stream vtable ref chain too deep")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_CIRCULAR_REF,       "Stream vtable circular reference detected")
 
 // Xnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")

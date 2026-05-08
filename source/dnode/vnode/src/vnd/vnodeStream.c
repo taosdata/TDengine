@@ -3785,6 +3785,136 @@ end:
   return code;
 }
 
+// Resolve a physical table's cid from schema by column name.
+static int32_t resolvePhysicalTableCid(SMetaReader* pReader, const char* refColName, OTableInfoRsp* rsp, int64_t ver,
+                                        SStorageAPI* pApi) {
+  SSchemaWrapper* sSchemaWrapper = NULL;
+  if (pReader->me.type == TD_CHILD_TABLE) {
+    int64_t suid = pReader->me.ctbEntry.suid;
+    rsp->suid = suid;
+    tDecoderClear(&pReader->coder);
+    int32_t code = pApi->metaReaderFn.getTableEntryByVersionUid(pReader, ver, suid);
+    if (code != 0) return code;
+    sSchemaWrapper = &pReader->me.stbEntry.schemaRow;
+  } else if (pReader->me.type == TD_NORMAL_TABLE) {
+    rsp->suid = 0;
+    sSchemaWrapper = &pReader->me.ntbEntry.schemaRow;
+  } else {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
+    SSchema* s = sSchemaWrapper->pSchema + j;
+    if (strcmp(s->name, refColName) == 0) {
+      rsp->cid = s->colId;
+      break;
+    }
+  }
+  if (rsp->cid == 0) {
+    return TSDB_CODE_PAR_INVALID_COLUMN;
+  }
+  return 0;
+}
+
+// Follow a virtual table's colRef chain locally as far as possible.
+// If the chain ends at a physical table on this VNode, fill resolved=1 with suid/uid/cid.
+// If the chain exits this VNode, fill resolved=0 with next-hop reference info.
+static int32_t resolveVtableOTableInfo(SVnode* pVnode, SMetaReader* pReader, OTableInfo* oInfo,
+                                        OTableInfoRsp* rsp, int64_t ver, SStorageAPI* pApi, void* pTask) {
+  int32_t depth = 0;
+  const int32_t maxDepth = 32;
+  char curRefCol[TSDB_COL_NAME_LEN];
+  tstrncpy(curRefCol, oInfo->refColName, TSDB_COL_NAME_LEN);
+
+  while (depth < maxDepth) {
+    // Get vtable schema to look up column by name (colRef entries are positionally matched to schema)
+    SSchemaWrapper* pSchemaWrapper = NULL;
+    if (pReader->me.type == TD_VIRTUAL_NORMAL_TABLE) {
+      pSchemaWrapper = &pReader->me.ntbEntry.schemaRow;
+    } else if (pReader->me.type == TD_VIRTUAL_CHILD_TABLE) {
+      // For virtual child table, schema is on the parent super table
+      // The colRef is still on the child entry itself
+      pSchemaWrapper = NULL; // will fallback to colRef.colName matching
+    }
+
+    SColRef* pFound = NULL;
+    SColRefWrapper* pColRef = &pReader->me.colRef;
+    ST_TASK_DLOG("vgId:%d resolveVtableOTableInfo: looking for col '%s' in vtable with %d colRefs (type=%d name=%s)",
+                 TD_VID(pVnode), curRefCol, pColRef->nCols, pReader->me.type,
+                 pReader->me.name ? pReader->me.name : "(null)");
+
+    if (pSchemaWrapper != NULL && pSchemaWrapper->nCols == pColRef->nCols) {
+      // Match by schema column name (positional correspondence with colRef)
+      for (int32_t j = 0; j < pSchemaWrapper->nCols; j++) {
+        if (strcmp(pSchemaWrapper->pSchema[j].name, curRefCol) == 0 &&
+            pColRef->pColRef[j].hasRef) {
+          pFound = &pColRef->pColRef[j];
+          break;
+        }
+      }
+    } else {
+      // Fallback: match by colRef.colName (for virtual child tables or mismatched counts)
+      for (int32_t j = 0; j < pColRef->nCols; j++) {
+        if (pColRef->pColRef[j].hasRef &&
+            strcmp(pColRef->pColRef[j].colName, curRefCol) == 0) {
+          pFound = &pColRef->pColRef[j];
+          break;
+        }
+      }
+    }
+    if (pFound == NULL) {
+      ST_TASK_ELOG("vgId:%d resolveVtableOTableInfo: col %s not found in vtable colRef", TD_VID(pVnode), curRefCol);
+      return TSDB_CODE_PAR_INVALID_COLUMN;
+    }
+
+    // Get next-hop reference
+    char nextDb[TSDB_DB_NAME_LEN];
+    char nextTable[TSDB_TABLE_NAME_LEN];
+    char nextCol[TSDB_COL_NAME_LEN];
+    tstrncpy(nextDb, pFound->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(nextTable, pFound->refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(nextCol, pFound->refColName, TSDB_COL_NAME_LEN);
+    tDecoderClear(&pReader->coder);
+
+    // Try to look up next-hop locally
+    int32_t code = pApi->metaReaderFn.getTableEntryByVersionName(pReader, ver, nextTable);
+    if (code != 0) {
+      // Next-hop not on this VNode: return forwarded
+      rsp->resolved = 0;
+      rsp->suid = 0;
+      rsp->uid = 0;
+      rsp->cid = 0;
+      tstrncpy(rsp->nextRefDbName, nextDb, TSDB_DB_NAME_LEN);
+      tstrncpy(rsp->nextRefTableName, nextTable, TSDB_TABLE_NAME_LEN);
+      tstrncpy(rsp->nextRefColName, nextCol, TSDB_COL_NAME_LEN);
+      ST_TASK_DLOG("vgId:%d resolveVtableOTableInfo: forwarding to %s.%s.%s", TD_VID(pVnode), nextDb, nextTable, nextCol);
+      return 0;
+    }
+
+    if (pReader->me.type == TD_NORMAL_TABLE || pReader->me.type == TD_CHILD_TABLE) {
+      // Reached physical table: resolve suid/uid/cid
+      rsp->resolved = 1;
+      rsp->uid = pReader->me.uid;
+      code = resolvePhysicalTableCid(pReader, nextCol, rsp, ver, pApi);
+      if (code != 0) return code;
+      ST_TASK_DLOG("vgId:%d resolveVtableOTableInfo: resolved to physical uid:%" PRId64 " cid:%d",
+                   TD_VID(pVnode), rsp->uid, rsp->cid);
+      return 0;
+    }
+
+    if (pReader->me.type != TD_VIRTUAL_NORMAL_TABLE && pReader->me.type != TD_VIRTUAL_CHILD_TABLE) {
+      ST_TASK_ELOG("vgId:%d resolveVtableOTableInfo: unexpected table type:%d", TD_VID(pVnode), pReader->me.type);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    // Still a virtual table: continue chasing locally
+    tstrncpy(curRefCol, nextCol, TSDB_COL_NAME_LEN);
+    depth++;
+  }
+
+  return TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
+}
+
 static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t                   code = 0;
   int32_t                   lino = 0;
@@ -3809,13 +3939,17 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     OTableInfoRsp* vTableInfo = taosArrayReserve(oTableInfo.cols, 1);
     STREAM_CHECK_NULL_GOTO(oInfo, terrno);
     STREAM_CHECK_NULL_GOTO(vTableInfo, terrno);
+    ST_TASK_DLOG("vgId:%d %s i=%zu refTableName='%s' refColName='%s'",
+                 TD_VID(pVnode), __func__, i, oInfo->refTableName, oInfo->refColName);
     code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionName(&metaReader, req->origTableInfoReq.ver, oInfo->refTableName);
     if (code != 0) {
+      int32_t origCode = code;
       code = 0;
-      ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(code));
+      ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(origCode));
       continue;
     }
     vTableInfo->uid = metaReader.me.uid;
+    vTableInfo->resolved = 1;  // default: resolved
     ST_TASK_DLOG("vgId:%d %s get original uid:%"PRId64, TD_VID(pVnode), __func__, vTableInfo->uid);
 
     SSchemaWrapper* sSchemaWrapper = NULL;
@@ -3828,20 +3962,39 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     } else if (metaReader.me.type == TD_NORMAL_TABLE) {
       vTableInfo->suid = 0;
       sSchemaWrapper = &metaReader.me.ntbEntry.schemaRow;
+    } else if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE ||
+               metaReader.me.type == TD_VIRTUAL_CHILD_TABLE) {
+      // Virtual table: follow colRef chain locally, or forward to next VNode
+      code = resolveVtableOTableInfo(pVnode, &metaReader, oInfo, vTableInfo,
+                                      req->origTableInfoReq.ver,
+                                      &sStreamReaderInfo->storageApi, pTask);
+      if (code != 0) {
+        ST_TASK_ELOG("vgId:%d %s resolve vtable otable info failed: %s",
+                     TD_VID(pVnode), __func__, tstrerror(code));
+        vTableInfo->resolved = 0;
+        vTableInfo->uid = 0;
+        vTableInfo->suid = 0;
+        vTableInfo->cid = 0;
+      }
+      // resolveVtableOTableInfo sets resolved, suid/uid/cid or nextRef fields
+      tDecoderClear(&metaReader.coder);
+      continue;
     } else {
       ST_TASK_ELOG("invalid table type:%d", metaReader.me.type);
     }
 
-    for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
-      SSchema* s = sSchemaWrapper->pSchema + j;
-      if (strcmp(s->name, oInfo->refColName) == 0) {
-        vTableInfo->cid = s->colId;
-        break;
+    if (sSchemaWrapper != NULL) {
+      for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
+        SSchema* s = sSchemaWrapper->pSchema + j;
+        if (strcmp(s->name, oInfo->refColName) == 0) {
+          vTableInfo->cid = s->colId;
+          break;
+        }
       }
-    }
-    if (vTableInfo->cid == 0) {
-      stError("vgId:%d %s, not found col %s in table %s", TD_VID(pVnode), __func__, oInfo->refColName,
-              oInfo->refTableName);
+      if (vTableInfo->cid == 0) {
+        stError("vgId:%d %s, not found col %s in table %s", TD_VID(pVnode), __func__, oInfo->refColName,
+                oInfo->refTableName);
+      }
     }
     tDecoderClear(&metaReader.coder);
   }

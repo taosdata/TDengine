@@ -744,18 +744,27 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       }
     }
 
-    if (refColsNum <= 0) {
+    int32_t tagRefColsNum = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
+      if (mr.me.colRef.pTagRef[j].hasRef) {
+        tagRefColsNum++;
+      }
+    }
+
+    if (refColsNum <= 0 && tagRefColsNum <= 0) {
       pHandle->api.metaReaderFn.clearReader(&mr);
       readerInit = false;
       continue;
     }
 
-    pTb = taosMemoryCalloc(1, refColsNum * sizeof(SRefColInfo) + sizeof(*pTb));
+    pTb = taosMemoryCalloc(1, (refColsNum + tagRefColsNum) * sizeof(SRefColInfo) + sizeof(*pTb));
     QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
 
     pTb->uid = mr.me.uid;
     pTb->numOfColRefs = refColsNum;
     pTb->refCols = (SRefColInfo*)(pTb + 1);
+    pTb->numOfTagRefs = tagRefColsNum;
+    pTb->tagRefCols = pTb->refCols + refColsNum;
 
     refColsNum = 0;
     tSimpleHashClear(pSrcTbls);
@@ -776,6 +785,27 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       }
 
       refColsNum++;
+    }
+
+    // Fill tag refs
+    tagRefColsNum = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
+      if (!mr.me.colRef.pTagRef[j].hasRef) {
+        continue;
+      }
+
+      pTb->tagRefCols[tagRefColsNum].colId = mr.me.colRef.pTagRef[j].id;
+      tstrncpy(pTb->tagRefCols[tagRefColsNum].refColName, mr.me.colRef.pTagRef[j].refColName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTb->tagRefCols[tagRefColsNum].refTableName, mr.me.colRef.pTagRef[j].refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pTb->tagRefCols[tagRefColsNum].refDbName, mr.me.colRef.pTagRef[j].refDbName, TSDB_DB_NAME_LEN);
+
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->tagRefCols[tagRefColsNum].refDbName, pTb->tagRefCols[tagRefColsNum].refTableName);
+
+      if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
+        QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
+      }
+
+      tagRefColsNum++;
     }
 
     pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
@@ -1169,7 +1199,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   SVnode      *pVnodeObj = pVnode;
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
   if (NULL == pCur) {
-    qError("vnode get all table list failed");
+    qError("vnode get ctb id list failed, suid:%" PRId64, suid);
     return terrno;
   }
 

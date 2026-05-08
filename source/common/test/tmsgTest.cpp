@@ -365,6 +365,39 @@ void processCommandArgs(int argc, char** argv) {
   }
 }
 
+TEST(td_msg_test, destroy_sv_create_tb_req_frees_tag_ref) {
+  SVCreateTbReq req = {0};
+  req.type = TSDB_VIRTUAL_CHILD_TABLE;
+  req.colRef.nCols = 1;
+  req.colRef.pColRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pColRef, nullptr);
+  req.colRef.nTagRefs = 2;
+  req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(2, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pTagRef, nullptr);
+
+  req.colRef.pTagRef[0].hasRef = true;
+  req.colRef.pTagRef[0].id = 1;
+
+  tDestroySVCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+
+  ASSERT_EQ(req.colRef.pColRef, nullptr);
+  ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
+TEST(td_msg_test, destroy_sv_submit_create_tb_req_frees_tag_ref) {
+  SVCreateTbReq req = {0};
+  req.type = TSDB_VIRTUAL_CHILD_TABLE;
+  req.colRef.nCols = 0;
+  req.colRef.pColRef = nullptr;
+  req.colRef.nTagRefs = 1;
+  req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pTagRef, nullptr);
+
+  tDestroySVSubmitCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+
+  ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
 
 #include "SClientHbBatchReq.cpp"
 int main(int argc, char **argv) {

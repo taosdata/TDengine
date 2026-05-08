@@ -276,6 +276,14 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
     }
     memcpy(pDst->pColRef, pSrc->pColRef, pSrc->nCols * sizeof(SColRef));
   }
+  if (pSrc->nTagRefs > 0 && pSrc->pTagRef) {
+    pDst->nTagRefs = pSrc->nTagRefs;
+    pDst->pTagRef = (SColRef*)taosMemoryCalloc(pSrc->nTagRefs, sizeof(SColRef));
+    if (NULL == pDst->pTagRef) {
+      return terrno;
+    }
+    memcpy(pDst->pTagRef, pSrc->pTagRef, pSrc->nTagRefs * sizeof(SColRef));
+  }
   return 0;
 }
 
@@ -356,6 +364,7 @@ static int32_t metaCloneColCmpr(const SColCmprWrapper *pSrc, SColCmprWrapper *pD
 static void metaCloneColRefFree(SColRefWrapper *pColRef) {
   if (pColRef) {
     taosMemoryFreeClear(pColRef->pColRef);
+    taosMemoryFreeClear(pColRef->pTagRef);
   }
 }
 

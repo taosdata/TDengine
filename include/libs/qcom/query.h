@@ -173,8 +173,11 @@ typedef struct STableMeta {
 #define TABLE_META_COL_REF_SIZE(pMeta) \
   ((hasRefCol((pMeta)->tableType) && NULL != (pMeta)->colRef) ? (pMeta)->numOfColRefs * sizeof(SColRef) : 0)
 
+#define TABLE_META_TAG_REF_SIZE(pMeta) \
+  ((hasRefCol((pMeta)->tableType) && NULL != (pMeta)->tagRef && (pMeta)->numOfTagRefs > 0) ? (pMeta)->numOfTagRefs * sizeof(SColRef) : 0)
+
 #define TABLE_META_FULL_SIZE(pMeta) \
-  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta))))
+  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta)) + TABLE_META_TAG_REF_SIZE((pMeta))))
 
 static inline void tableMetaResetPointers(STableMeta *pMeta) {
   if (NULL == pMeta) {
@@ -197,8 +200,13 @@ static inline void tableMetaResetPointers(STableMeta *pMeta) {
     pMeta->colRef = NULL;
   }
 
-  pMeta->tagRef = NULL;
-  pMeta->numOfTagRefs = 0;
+  if (hasRefCol(pMeta->tableType) && NULL != pMeta->tagRef && pMeta->numOfTagRefs > 0) {
+    pMeta->tagRef = (SColRef *)pCursor;
+    pCursor += pMeta->numOfTagRefs * sizeof(SColRef);
+  } else {
+    pMeta->tagRef = NULL;
+    pMeta->numOfTagRefs = 0;
+  }
 }
 
 typedef struct SViewMeta {

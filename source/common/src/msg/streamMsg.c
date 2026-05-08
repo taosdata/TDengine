@@ -3060,6 +3060,19 @@ int32_t tSerializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, const SSTr
     TAOS_CHECK_EXIT(tEncodeI16(&encoder, oInfo->cid));
   }
 
+  // Extension: resolution info (after the main loop for backward compat)
+  // Old decoders will skip this via tEndDecode; new decoders read via tDecodeIsEnd
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));  // marker: has resolution info
+  for (int32_t i = 0; i < size; ++i) {
+    OTableInfoRsp* oInfo = taosArrayGet(pRsp->cols, i);
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, oInfo->resolved));
+    if (!oInfo->resolved) {
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->nextRefDbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->nextRefTableName));
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, oInfo->nextRefColName));
+    }
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -3095,9 +3108,31 @@ int32_t tDserializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, SSTrigger
       uError("failed to reserve memory for OTableInfo, size: %d, errno: %d", size, code);
       goto _exit;
     }
-    TAOS_CHECK_RETURN(tDecodeI64(&decoder, &oInfo->suid));
-    TAOS_CHECK_RETURN(tDecodeI64(&decoder, &oInfo->uid));
-    TAOS_CHECK_RETURN(tDecodeI16(&decoder, &oInfo->cid));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &oInfo->suid));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &oInfo->uid));
+    TAOS_CHECK_EXIT(tDecodeI16(&decoder, &oInfo->cid));
+    oInfo->resolved = 1;  // default: resolved (backward compat with old VNode)
+  }
+
+  // Extension: resolution info (after the main loop)
+  if (!tDecodeIsEnd(&decoder)) {
+    int8_t hasResInfo = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &hasResInfo));
+    if (hasResInfo) {
+      for (int32_t i = 0; i < size; ++i) {
+        OTableInfoRsp* oInfo = taosArrayGet(pRsp->cols, i);
+        TAOS_CHECK_EXIT(tDecodeI8(&decoder, &oInfo->resolved));
+        if (!oInfo->resolved) {
+          char *str = NULL;
+          TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &str));
+          tstrncpy(oInfo->nextRefDbName, str, sizeof(oInfo->nextRefDbName));
+          TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &str));
+          tstrncpy(oInfo->nextRefTableName, str, sizeof(oInfo->nextRefTableName));
+          TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &str));
+          tstrncpy(oInfo->nextRefColName, str, sizeof(oInfo->nextRefColName));
+        }
+      }
+    }
   }
 
   tEndDecode(&decoder);

@@ -721,6 +721,8 @@ Below are the business error codes for each module.
 | 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
 | 0x8000620A | Virtual table query find invalid origin scan                               | The optimizer generated an invalid origin scan node for a virtual table query during primary-key condition pushdown.                             | Keep the SQL and explain plan, then contact development for handling.         |
 | 0x8000620B | Virtual table query cannot find origin timestamp column                    | The origin scan schema of a virtual table query cannot provide the timestamp primary key column needed for ts-condition pushdown.                | Keep the SQL and explain plan, then contact development for handling.         |
+| 0x8000620C | Virtual table reference depth exceeds limit                                | The recursive reference chain of a virtual table query exceeds the maximum depth supported by the executor.                                      | Check the virtual-table reference chain, shorten it, or contact development. |
+| 0x8000620D | Virtual table query cannot resolve ref column                              | The virtual-table query cannot resolve a valid next reference or final referenced column while recursively expanding the reference chain.         | Check the virtual-table reference chain and metadata definition, or contact development. |
 
 #### stream
 

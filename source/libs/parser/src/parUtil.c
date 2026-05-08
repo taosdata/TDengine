@@ -413,12 +413,37 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     return NULL;
   }
 
-  size_t      size = TABLE_META_FULL_SIZE(pTableMeta);
-  STableMeta* p = taosMemoryMalloc(size);
+  bool   hasSchemaExt = pTableMeta->schemaExt == NULL ? false : true;
+  size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
+  bool   hasColRef = pTableMeta->colRef == NULL ? false : true;
+  size_t colRefSize = hasColRef ? pTableMeta->numOfColRefs * sizeof(SColRef) : 0;
+  bool   hasTagRef = pTableMeta->tagRef == NULL ? false : true;
+  size_t tagRefSize = hasTagRef ? pTableMeta->numOfTagRefs * sizeof(SColRef) : 0;
+
+  size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
+  STableMeta* p = taosMemoryMalloc(size + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == p) return NULL;
 
   memcpy(p, pTableMeta, size);
-  tableMetaResetPointers(p);
+  if (hasSchemaExt) {
+    p->schemaExt = (SSchemaExt*)(((char*)p) + size);
+    memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
+  } else {
+    p->schemaExt = NULL;
+  }
+  if (hasColRef) {
+    p->colRef = (SColRef*)(((char*)p) + size + schemaExtSize);
+    memcpy(p->colRef, pTableMeta->colRef, colRefSize);
+  } else {
+    p->colRef = NULL;
+  }
+  if (hasTagRef) {
+    p->tagRef = (SColRef*)(((char*)p) + size + schemaExtSize + colRefSize);
+    memcpy(p->tagRef, pTableMeta->tagRef, tagRefSize);
+  } else {
+    p->tagRef = NULL;
+    p->numOfTagRefs = 0;
+  }
   return p;
 }
 
@@ -1242,7 +1267,13 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableName, (void**)&pMeta);
   if (TSDB_CODE_SUCCESS == code) {
     if (!pMeta) code = TSDB_CODE_PAR_INTERNAL_ERROR;
-    const char* pTableName = (const char *)pMeta + TABLE_META_FULL_SIZE(pMeta);
+    int32_t metaSize =
+        sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
+    int32_t schemaExtSize =
+        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+    int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
+    int32_t tagRefSize = (hasRefCol(pMeta->tableType) && pMeta->tagRef) ? sizeof(SColRef) * pMeta->numOfTagRefs : 0;
+    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize + tagRefSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
 

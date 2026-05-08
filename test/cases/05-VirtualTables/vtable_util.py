@@ -14,6 +14,237 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from datetime import datetime, timedelta
 import os
 
+VTABLE_VIRTUAL_REF_COLUMN_DEFS = [
+    ("u_tinyint_col", "tinyint unsigned"),
+    ("u_smallint_col", "smallint unsigned"),
+    ("u_int_col", "int unsigned"),
+    ("u_bigint_col", "bigint unsigned"),
+    ("tinyint_col", "tinyint"),
+    ("smallint_col", "smallint"),
+    ("int_col", "int"),
+    ("bigint_col", "bigint"),
+    ("float_col", "float"),
+    ("double_col", "double"),
+    ("bool_col", "bool"),
+    ("binary_16_col", "binary(16)"),
+    ("binary_32_col", "binary(32)"),
+    ("nchar_16_col", "nchar(16)"),
+    ("nchar_32_col", "nchar(32)"),
+]
+
+VTABLE_VIRTUAL_REF_NORMAL_FULL_REFS = [
+    ("u_tinyint_col", "vtb_org_normal_0", "u_tinyint_col"),
+    ("u_smallint_col", "vtb_org_normal_1", "u_smallint_col"),
+    ("u_int_col", "vtb_org_normal_2", "u_int_col"),
+    ("u_bigint_col", "vtb_org_normal_0", "u_bigint_col"),
+    ("tinyint_col", "vtb_org_normal_1", "tinyint_col"),
+    ("smallint_col", "vtb_org_normal_2", "smallint_col"),
+    ("int_col", "vtb_org_normal_0", "int_col"),
+    ("bigint_col", "vtb_org_normal_1", "bigint_col"),
+    ("float_col", "vtb_org_normal_2", "float_col"),
+    ("double_col", "vtb_org_normal_0", "double_col"),
+    ("bool_col", "vtb_org_normal_1", "bool_col"),
+    ("binary_16_col", "vtb_org_normal_2", "binary_16_col"),
+    ("binary_32_col", "vtb_org_normal_0", "binary_32_col"),
+    ("nchar_16_col", "vtb_org_normal_1", "nchar_16_col"),
+    ("nchar_32_col", "vtb_org_normal_2", "nchar_32_col"),
+]
+
+VTABLE_VIRTUAL_REF_NORMAL_HALF_REFS = [
+    ("u_tinyint_col", "vtb_org_normal_0", "u_tinyint_col"),
+    ("u_smallint_col", "vtb_org_normal_1", "u_smallint_col"),
+    ("u_int_col", "vtb_org_normal_2", "u_int_col"),
+    ("int_col", "vtb_org_normal_0", "int_col"),
+    ("bigint_col", "vtb_org_normal_1", "bigint_col"),
+    ("float_col", "vtb_org_normal_2", "float_col"),
+    ("binary_32_col", "vtb_org_normal_0", "binary_32_col"),
+    ("nchar_16_col", "vtb_org_normal_1", "nchar_16_col"),
+    ("nchar_32_col", "vtb_org_normal_2", "nchar_32_col"),
+]
+
+VTABLE_VIRTUAL_REF_MODE2_CHILD_REFS = [
+    (
+        "vtb_virtual_ctb_full_0",
+        "vtb_virtual_ref_ctb_full_0",
+        [
+            ("u_tinyint_col", "vtb_org_normal_0", "u_tinyint_col"),
+            ("u_smallint_col", "vtb_org_normal_1", "u_smallint_col"),
+            ("u_int_col", "vtb_org_normal_2", "u_int_col"),
+            ("u_bigint_col", "vtb_org_normal_0", "u_bigint_col"),
+            ("tinyint_col", "vtb_org_normal_1", "tinyint_col"),
+            ("smallint_col", "vtb_org_normal_2", "smallint_col"),
+            ("int_col", "vtb_org_normal_0", "int_col"),
+            ("bigint_col", "vtb_org_normal_1", "bigint_col"),
+            ("float_col", "vtb_org_normal_2", "float_col"),
+            ("double_col", "vtb_org_normal_0", "double_col"),
+            ("bool_col", "vtb_org_normal_1", "bool_col"),
+            ("binary_16_col", "vtb_org_normal_2", "binary_16_col"),
+            ("binary_32_col", "vtb_org_normal_0", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_normal_1", "nchar_16_col"),
+            ("nchar_32_col", "vtb_org_normal_2", "nchar_32_col"),
+        ],
+        "0, false, 0, 0, 'full', 'child0'",
+    ),
+    (
+        "vtb_virtual_ctb_full_1",
+        "vtb_virtual_ref_ctb_full_1",
+        [
+            ("u_tinyint_col", "vtb_org_normal_3", "u_tinyint_col"),
+            ("u_smallint_col", "vtb_org_normal_4", "u_smallint_col"),
+            ("u_int_col", "vtb_org_normal_5", "u_int_col"),
+            ("u_bigint_col", "vtb_org_normal_3", "u_bigint_col"),
+            ("tinyint_col", "vtb_org_normal_4", "tinyint_col"),
+            ("smallint_col", "vtb_org_normal_5", "smallint_col"),
+            ("int_col", "vtb_org_normal_3", "int_col"),
+            ("bigint_col", "vtb_org_normal_4", "bigint_col"),
+            ("float_col", "vtb_org_normal_5", "float_col"),
+            ("double_col", "vtb_org_normal_3", "double_col"),
+            ("bool_col", "vtb_org_normal_4", "bool_col"),
+            ("binary_16_col", "vtb_org_normal_5", "binary_16_col"),
+            ("binary_32_col", "vtb_org_normal_3", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_normal_4", "nchar_16_col"),
+            ("nchar_32_col", "vtb_org_normal_5", "nchar_32_col"),
+        ],
+        "0, false, 0, 0, 'full', 'child1'",
+    ),
+    (
+        "vtb_virtual_ctb_full_2",
+        "vtb_virtual_ref_ctb_full_2",
+        [
+            ("u_tinyint_col", "vtb_org_normal_6", "u_tinyint_col"),
+            ("u_smallint_col", "vtb_org_normal_7", "u_smallint_col"),
+            ("u_int_col", "vtb_org_normal_8", "u_int_col"),
+            ("u_bigint_col", "vtb_org_normal_6", "u_bigint_col"),
+            ("tinyint_col", "vtb_org_normal_7", "tinyint_col"),
+            ("smallint_col", "vtb_org_normal_8", "smallint_col"),
+            ("int_col", "vtb_org_normal_6", "int_col"),
+            ("bigint_col", "vtb_org_normal_7", "bigint_col"),
+            ("float_col", "vtb_org_normal_8", "float_col"),
+            ("double_col", "vtb_org_normal_6", "double_col"),
+            ("bool_col", "vtb_org_normal_7", "bool_col"),
+            ("binary_16_col", "vtb_org_normal_8", "binary_16_col"),
+            ("binary_32_col", "vtb_org_normal_6", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_normal_7", "nchar_16_col"),
+            ("nchar_32_col", "vtb_org_normal_8", "nchar_32_col"),
+        ],
+        "0, false, 0, 0, 'full', 'child2'",
+    ),
+    (
+        "vtb_virtual_ctb_half_full_0",
+        "vtb_virtual_ref_ctb_half_0",
+        [
+            ("u_tinyint_col", "vtb_org_normal_9", "u_tinyint_col"),
+            ("u_smallint_col", "vtb_org_normal_10", "u_smallint_col"),
+            ("u_int_col", "vtb_org_normal_11", "u_int_col"),
+            ("int_col", "vtb_org_normal_9", "int_col"),
+            ("bigint_col", "vtb_org_normal_10", "bigint_col"),
+            ("float_col", "vtb_org_normal_11", "float_col"),
+            ("binary_32_col", "vtb_org_normal_9", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_normal_10", "nchar_16_col"),
+            ("nchar_32_col", "vtb_org_normal_11", "nchar_32_col"),
+        ],
+        "1, false, 1, 1, 'half', 'child0'",
+    ),
+    (
+        "vtb_virtual_ctb_half_full_1",
+        "vtb_virtual_ref_ctb_half_1",
+        [
+            ("tinyint_col", "vtb_org_normal_12", "tinyint_col"),
+            ("smallint_col", "vtb_org_normal_13", "smallint_col"),
+            ("int_col", "vtb_org_normal_14", "int_col"),
+            ("bigint_col", "vtb_org_normal_12", "bigint_col"),
+            ("float_col", "vtb_org_normal_13", "float_col"),
+            ("double_col", "vtb_org_normal_14", "double_col"),
+            ("bool_col", "vtb_org_normal_12", "bool_col"),
+            ("binary_16_col", "vtb_org_normal_13", "binary_16_col"),
+            ("binary_32_col", "vtb_org_normal_14", "binary_32_col"),
+        ],
+        "1, false, 1, 1, 'half', 'child1'",
+    ),
+    (
+        "vtb_virtual_ctb_half_full_2",
+        "vtb_virtual_ref_ctb_half_2",
+        [
+            ("u_int_col", "vtb_org_normal_15", "u_int_col"),
+            ("u_bigint_col", "vtb_org_normal_16", "u_bigint_col"),
+            ("tinyint_col", "vtb_org_normal_17", "tinyint_col"),
+            ("smallint_col", "vtb_org_normal_15", "smallint_col"),
+            ("int_col", "vtb_org_normal_16", "int_col"),
+            ("bigint_col", "vtb_org_normal_17", "bigint_col"),
+            ("float_col", "vtb_org_normal_15", "float_col"),
+            ("binary_32_col", "vtb_org_normal_16", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_normal_17", "nchar_16_col"),
+        ],
+        "1, false, 1, 1, 'half', 'child2'",
+    ),
+]
+
+VTABLE_VIRTUAL_REF_MODE2_EMPTY_CHILD_TAGS = [
+    ("vtb_virtual_ctb_empty_0", "2, true, 2, 2, 'empty', 'child0'"),
+    ("vtb_virtual_ctb_empty_1", "2, true, 2, 2, 'empty', 'child1'"),
+    ("vtb_virtual_ctb_empty_2", "2, true, 2, 2, 'empty', 'child2'"),
+]
+
+VTABLE_VIRTUAL_REF_MODE1_CHILD_REFS = [
+    (
+        "vtb_virtual_ctb_full",
+        "vtb_virtual_ref_ctb_full",
+        VTABLE_VIRTUAL_REF_NORMAL_FULL_REFS,
+        "0, false, 0, 0, 'child0', 'child0'",
+    ),
+    (
+        "vtb_virtual_ctb_half_full",
+        "vtb_virtual_ref_ctb_half_full",
+        [
+            ("u_tinyint_col", "vtb_org_normal_3", "u_tinyint_col"),
+            ("u_smallint_col", "vtb_org_normal_4", "u_smallint_col"),
+            ("u_int_col", "vtb_org_normal_5", "u_int_col"),
+            ("int_col", "vtb_org_normal_3", "int_col"),
+            ("bigint_col", "vtb_org_normal_4", "bigint_col"),
+            ("float_col", "vtb_org_normal_5", "float_col"),
+            ("binary_32_col", "vtb_org_normal_3", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_normal_4", "nchar_16_col"),
+            ("nchar_32_col", "vtb_org_normal_5", "nchar_32_col"),
+        ],
+        "1, false, 1, 1, 'child1', 'child1'",
+    ),
+    (
+        "vtb_virtual_ctb_mix",
+        "vtb_virtual_ref_ctb_mix",
+        [
+            ("u_tinyint_col", "vtb_org_child_6", "u_tinyint_col"),
+            ("u_smallint_col", "vtb_org_child_7", "u_smallint_col"),
+            ("u_int_col", "vtb_org_child_8", "u_int_col"),
+            ("u_bigint_col", "vtb_org_child_6", "u_bigint_col"),
+            ("tinyint_col", "vtb_org_child_7", "tinyint_col"),
+            ("smallint_col", "vtb_org_child_8", "smallint_col"),
+            ("int_col", "vtb_org_child_6", "int_col"),
+            ("bigint_col", "vtb_org_child_7", "bigint_col"),
+            ("float_col", "vtb_org_child_8", "float_col"),
+            ("double_col", "vtb_org_child_6", "double_col"),
+            ("bool_col", "vtb_org_child_7", "bool_col"),
+            ("binary_16_col", "vtb_org_child_8", "binary_16_col"),
+            ("binary_32_col", "vtb_org_child_6", "binary_32_col"),
+            ("nchar_16_col", "vtb_org_child_7", "nchar_16_col"),
+            ("nchar_32_col", "vtb_org_child_8", "nchar_32_col"),
+        ],
+        "3, false, 3, 3, 'child3', 'child3'",
+    ),
+]
+
+VTABLE_VIRTUAL_REF_MODE1_EMPTY_CHILD_TAGS = [
+    ("vtb_virtual_ctb_empty", "2, false, 2, 2, 'child2', 'child2'"),
+]
+
+VTABLE_VIRTUAL_REF_CROSS_ROOT_DB = "test_vtable_select"
+VTABLE_VIRTUAL_REF_CROSS_RAW_DB = "test_vtable_select_virtual_ref_raw"
+VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS = [
+    "test_vtable_select_ref_1",
+    "test_vtable_select_ref_2",
+    "test_vtable_select_ref_3",
+    "test_vtable_select_ref_4",
+]
+
 class VtableQueryUtil:
     def prepare_ts_subquery_pushdown_env(self):
         tdLog.info("prepare origin tables for vtable ts pushdown test.")
@@ -92,12 +323,211 @@ class VtableQueryUtil:
                       "value_col from test_vtable_ts_pushdown_origin.ctb_0.value_col) "
                       "using vstb_0 tags (1);")
 
+    def _build_virtual_ref_map(self, db_name, ref_specs):
+        ref_map = {}
+        for col_name, table_name, src_col_name in ref_specs:
+            ref_map[col_name] = f"{db_name}.{table_name}.{src_col_name}"
+        return ref_map
+
+    def _build_virtual_ref_normal_columns(self, ref_map):
+        columns = ["ts timestamp"]
+        for col_name, col_type in VTABLE_VIRTUAL_REF_COLUMN_DEFS:
+            if col_name in ref_map:
+                columns.append(f"{col_name} {col_type} from {ref_map[col_name]}")
+            else:
+                columns.append(f"{col_name} {col_type}")
+        return ", ".join(columns)
+
+    def _build_virtual_ref_child_columns(self, ref_map):
+        columns = []
+        for col_name, _ in VTABLE_VIRTUAL_REF_COLUMN_DEFS:
+            if col_name in ref_map:
+                columns.append(f"{col_name} from {ref_map[col_name]}")
+        return ", ".join(columns)
+
+    def _create_virtual_ref_normal_table(self, db_name, table_name, ref_map):
+        tdSql.execute(f"use {db_name};")
+        tdSql.execute(f"CREATE VTABLE `{table_name}` ({self._build_virtual_ref_normal_columns(ref_map)})")
+
+    def _create_virtual_ref_child_table(self, db_name, table_name, ref_map, tags_sql):
+        tdSql.execute(f"use {db_name};")
+        child_columns = self._build_virtual_ref_child_columns(ref_map)
+        if child_columns:
+            tdSql.execute(f"CREATE VTABLE `{table_name}` ({child_columns}) USING `vtb_virtual_stb` TAGS ({tags_sql})")
+        else:
+            tdSql.execute(f"CREATE VTABLE `{table_name}` USING `vtb_virtual_stb` TAGS ({tags_sql})")
+
+    def _create_virtual_ref_chain(self, layer_dbs, chain_prefix, raw_ref_map):
+        next_ref_map = dict(raw_ref_map)
+
+        for level_idx in range(4, 0, -1):
+            db_name = layer_dbs[level_idx - 1]
+            table_name = f"{chain_prefix}_l{level_idx}"
+
+            self._create_virtual_ref_normal_table(db_name, table_name, next_ref_map)
+            next_ref_map = {col_name: f"{db_name}.{table_name}.{col_name}" for col_name in raw_ref_map}
+
+        return next_ref_map
+
+    def _create_virtual_ref_stable(self, db_name):
+        tdSql.execute(f"use {db_name};")
+        tdSql.execute(f"CREATE STABLE `vtb_virtual_stb` ("
+                      "ts timestamp, "
+                      "u_tinyint_col tinyint unsigned, "
+                      "u_smallint_col smallint unsigned, "
+                      "u_int_col int unsigned, "
+                      "u_bigint_col bigint unsigned, "
+                      "tinyint_col tinyint, "
+                      "smallint_col smallint, "
+                      "int_col int, "
+                      "bigint_col bigint, "
+                      "float_col float, "
+                      "double_col double, "
+                      "bool_col bool, "
+                      "binary_16_col binary(16),"
+                      "binary_32_col binary(32),"
+                      "nchar_16_col nchar(16),"
+                      "nchar_32_col nchar(32)"
+                      ") TAGS ("
+                      "int_tag int,"
+                      "bool_tag bool,"
+                      "float_tag float,"
+                      "double_tag double,"
+                      "nchar_32_tag nchar(32),"
+                      "binary_32_tag binary(32))"
+                      "VIRTUAL 1")
+
+    def _prepare_virtual_ref_normal_tables(self, root_db, layer_dbs, raw_db):
+        full_ref_map = self._build_virtual_ref_map(raw_db, VTABLE_VIRTUAL_REF_NORMAL_FULL_REFS)
+        full_root_ref_map = self._create_virtual_ref_chain(layer_dbs, "vtb_virtual_ref_ntb_full", full_ref_map)
+        self._create_virtual_ref_normal_table(root_db, "vtb_virtual_ntb_full", full_root_ref_map)
+
+        half_ref_map = self._build_virtual_ref_map(raw_db, VTABLE_VIRTUAL_REF_NORMAL_HALF_REFS)
+        half_root_ref_map = self._create_virtual_ref_chain(layer_dbs, "vtb_virtual_ref_ntb_half_full", half_ref_map)
+        self._create_virtual_ref_normal_table(root_db, "vtb_virtual_ntb_half_full", half_root_ref_map)
+
+        self._create_virtual_ref_normal_table(root_db, "vtb_virtual_ntb_empty", {})
+
+    def _prepare_virtual_ref_child_tables(self, root_db, layer_dbs, raw_db, child_ref_defs, empty_child_defs):
+        self._create_virtual_ref_stable(root_db)
+
+        for table_name, chain_prefix, ref_specs, tags_sql in child_ref_defs:
+            raw_ref_map = self._build_virtual_ref_map(raw_db, ref_specs)
+            root_ref_map = self._create_virtual_ref_chain(layer_dbs, chain_prefix, raw_ref_map)
+            self._create_virtual_ref_child_table(root_db, table_name, root_ref_map, tags_sql)
+
+        for table_name, tags_sql in empty_child_defs:
+            self._create_virtual_ref_child_table(root_db, table_name, {}, tags_sql)
+
+    def _prepare_virtual_ref_source_tables(self, db_name, sma=False):
+        tdSql.execute(f"use {db_name};")
+
+        tdLog.info("prepare org super table for virtual_ref.")
+        tdSql.execute(f"CREATE STABLE `vtb_org_stb` ("
+                      "ts timestamp, "
+                      "u_tinyint_col tinyint unsigned, "
+                      "u_smallint_col smallint unsigned, "
+                      "u_int_col int unsigned, "
+                      "u_bigint_col bigint unsigned, "
+                      "tinyint_col tinyint, "
+                      "smallint_col smallint, "
+                      "int_col int, "
+                      "bigint_col bigint, "
+                      "float_col float, "
+                      "double_col double, "
+                      "bool_col bool, "
+                      "binary_16_col binary(16),"
+                      "binary_32_col binary(32),"
+                      "nchar_16_col nchar(16),"
+                      "nchar_32_col nchar(32)"
+                      ") TAGS ("
+                      "int_tag int,"
+                      "bool_tag bool,"
+                      "float_tag float,"
+                      "double_tag double,"
+                      "nchar_32_tag nchar(32),"
+                      "binary_32_tag binary(32))")
+
+        tdLog.info("prepare org child table for virtual_ref.")
+        for i in range(18):
+            tdSql.execute(f"CREATE TABLE `vtb_org_child_{i}` USING `vtb_org_stb` TAGS ({i}, false, {i}, {i}, 'child{i}', 'child{i}');")
+
+        tdLog.info("prepare org normal table for virtual_ref.")
+        for i in range(18):
+            tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col)")
+
+        for i in range(9):
+            datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
+            tdSql.execute(f"insert into vtb_org_normal_{i} file" + "'%s';" % datafile)
+            tdSql.execute(f"insert into vtb_org_child_{i} file" + "'%s';" % datafile)
+
+        for i in range(9, 18):
+            tdSql.execute(f"insert into vtb_org_normal_{i} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_normal_{i-9};")
+            tdSql.execute(f"insert into vtb_org_child_{i} select ts + 3d, u_tinyint_col, u_smallint_col, u_int_col, u_bigint_col, tinyint_col, smallint_col, int_col, bigint_col, float_col, double_col, bool_col, binary_16_col, binary_32_col, nchar_16_col, nchar_32_col from vtb_org_child_{i-9};")
+
+        tdSql.execute(f"flush database {db_name};")
+
+    def prepare_same_db_virtual_normal_table_virtual_ref(self):
+        same_db_layers = ["test_vtable_select"] * 4
+        self._prepare_virtual_ref_normal_tables("test_vtable_select", same_db_layers, "test_vtable_select")
+
+    def prepare_same_db_virtual_super_child_table_mode_1_virtual_ref(self):
+        same_db_layers = ["test_vtable_select"] * 4
+        self._prepare_virtual_ref_child_tables("test_vtable_select", same_db_layers, "test_vtable_select",
+                                               VTABLE_VIRTUAL_REF_MODE1_CHILD_REFS,
+                                               VTABLE_VIRTUAL_REF_MODE1_EMPTY_CHILD_TAGS)
+
+    def prepare_same_db_virtual_super_child_table_mode_2_virtual_ref(self):
+        same_db_layers = ["test_vtable_select"] * 4
+        self._prepare_virtual_ref_child_tables("test_vtable_select", same_db_layers, "test_vtable_select",
+                                               VTABLE_VIRTUAL_REF_MODE2_CHILD_REFS,
+                                               VTABLE_VIRTUAL_REF_MODE2_EMPTY_CHILD_TAGS)
+
+    def prepare_cross_db_virtual_ref_vtables(self, mode=1, sma=False):
+        tdSql.execute(f"alter all dnodes 'debugflag 131';")
+        tdLog.info("prepare cross db virtual_ref tables.")
+
+        self.clean_up_cross_db_vtables()
+        tdSql.execute(f"drop database if exists {VTABLE_VIRTUAL_REF_CROSS_RAW_DB};")
+        for db_name in VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS:
+            tdSql.execute(f"drop database if exists {db_name};")
+
+        if sma:
+            tdSql.execute(f"create database {VTABLE_VIRTUAL_REF_CROSS_RAW_DB} vgroups 2 minrows 10 maxrows 200 stt_trigger 1;")
+        else:
+            tdSql.execute(f"create database {VTABLE_VIRTUAL_REF_CROSS_RAW_DB} vgroups 2;")
+        self._prepare_virtual_ref_source_tables(VTABLE_VIRTUAL_REF_CROSS_RAW_DB, sma)
+
+        for db_name in VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS:
+            tdSql.execute(f"create database {db_name} vgroups 2;")
+
+        tdSql.execute(f"create database {VTABLE_VIRTUAL_REF_CROSS_ROOT_DB} vgroups 2;")
+        self._prepare_virtual_ref_normal_tables(VTABLE_VIRTUAL_REF_CROSS_ROOT_DB,
+                                                VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS,
+                                                VTABLE_VIRTUAL_REF_CROSS_RAW_DB)
+
+        if mode == 2:
+            self._prepare_virtual_ref_child_tables(VTABLE_VIRTUAL_REF_CROSS_ROOT_DB,
+                                                   VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS,
+                                                   VTABLE_VIRTUAL_REF_CROSS_RAW_DB,
+                                                   VTABLE_VIRTUAL_REF_MODE2_CHILD_REFS,
+                                                   VTABLE_VIRTUAL_REF_MODE2_EMPTY_CHILD_TAGS)
+        else:
+            self._prepare_virtual_ref_child_tables(VTABLE_VIRTUAL_REF_CROSS_ROOT_DB,
+                                                   VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS,
+                                                   VTABLE_VIRTUAL_REF_CROSS_RAW_DB,
+                                                   VTABLE_VIRTUAL_REF_MODE1_CHILD_REFS,
+                                                   VTABLE_VIRTUAL_REF_MODE1_EMPTY_CHILD_TAGS)
+
     def clean_up_cross_db_vtables(self):
         tdLog.info(f"clean up cross db vtables.")
 
         tdSql.execute(f"drop database if exists test_vtable_select;")
         for i in range(4):
             tdSql.execute(f"drop database if exists test_vtable_select_{i};")
+        tdSql.execute(f"drop database if exists {VTABLE_VIRTUAL_REF_CROSS_RAW_DB};")
+        for db_name in VTABLE_VIRTUAL_REF_CROSS_LAYER_DBS:
+            tdSql.execute(f"drop database if exists {db_name};")
 
     def prepare_cross_db_virtual_normal_table(self):
         tdSql.execute(f"use test_vtable_select;")
@@ -371,7 +801,11 @@ class VtableQueryUtil:
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_empty_2` "
                       "USING `vtb_virtual_stb` TAGS (2, true, 2, 2, 'empty', 'child2')")
 
-    def prepare_cross_db_vtables(self, mode = 1, sma = False):
+    def prepare_cross_db_vtables(self, mode = 1, sma = False, ref_mode = "no_virtual_ref"):
+        if ref_mode == "virtual_ref":
+            self.prepare_cross_db_virtual_ref_vtables(mode, sma)
+            return
+
         tdSql.execute(f"alter all dnodes 'debugflag 131';")
         tdLog.info(f"prepare org tables.")
         for i in range(4):
@@ -717,7 +1151,7 @@ class VtableQueryUtil:
                       f"nchar_32_col from vtb_org_child_8.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
-    def prepare_same_db_vtables(self, mode = 1, sma = False):
+    def prepare_same_db_vtables(self, mode = 1, sma = False, ref_mode = "no_virtual_ref"):
         tdSql.execute(f"alter all dnodes 'debugflag 131';")
         tdLog.info(f"prepare org tables.")
 
@@ -775,7 +1209,13 @@ class VtableQueryUtil:
 
         tdSql.execute(f"flush database test_vtable_select;")
 
-        if mode == 2:
+        if ref_mode == "virtual_ref":
+            self.prepare_same_db_virtual_normal_table_virtual_ref()
+            if mode == 2:
+                self.prepare_same_db_virtual_super_child_table_mode_2_virtual_ref()
+            else:
+                self.prepare_same_db_virtual_super_child_table_mode_1_virtual_ref()
+        elif mode == 2:
             self.prepare_same_db_virtual_normal_table()
             self.prepare_same_db_virtual_super_child_table_mode_2()
         else:
