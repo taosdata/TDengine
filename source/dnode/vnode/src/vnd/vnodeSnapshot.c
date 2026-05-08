@@ -48,6 +48,8 @@ struct SVSnapReader {
   // meta
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
+  // txn_final.idx (§44 lazy COMMIT/ROLLBACK durable transfer)
+  int8_t txnFinalDone;
   // tsdb
   int8_t              tsdbDone;
   TFileSetRangeArray *pRanges;
@@ -325,6 +327,21 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       pReader->metaDone = 1;
       metaSnapReaderClose(&pReader->pMetaReader);
     }
+  }
+
+  // TXN_FINAL ==============
+  // §44: replicate txn_final.idx so that a follower joining via full snapshot
+  // resumes lazy vacuum of large-txn shadow entries instead of leaking PRE_*
+  // status forever. Emitted exactly once, AFTER all META entries are sent.
+  if (!pReader->txnFinalDone) {
+    code = metaSnapTxnFinalRead(pReader->pVnode->pMeta, ppData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pReader->txnFinalDone = 1;  // single-shot: one block contains all entries
+    if (*ppData) {
+      goto _exit;
+    }
+    // empty txn_final.idx: fall through to tsdb stage
   }
 
   // TSDB ==============
@@ -784,6 +801,13 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_TXN_FINAL: {
+      // §44: bulk-apply finalized-txn records into local txn_final.idx so
+      // that follower-side vnodeTxnRebuildFromMeta Phase 2 can resume vacuum.
+      // metaSnapTxnFinalWrite manages its own meta txn (begin/commit/abort).
+      code = metaSnapTxnFinalWrite(pVnode->pMeta, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
     case SNAP_DATA_TSDB:

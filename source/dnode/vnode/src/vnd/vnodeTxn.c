@@ -1107,6 +1107,18 @@ static void vnodeTxnSubmitVacuumAsync(SVnode *pVnode) {
   if (code != 0) {
     atomic_store_8(&pVnode->vacuumRunning, 0);
     vError("vgId:%d, failed to submit async vacuum task, code:0x%x", TD_VID(pVnode), code);
+    return;
+  }
+
+  // TOCTOU guard: vnodeClose may have set closing=1 and even completed its
+  // vnodeAWait(&vacuumTask) between our initial closing-check and vnodeAsync
+  // populating vacuumTask. In that case the close path will not wait for the
+  // freshly-submitted task, leading to use-after-free of pVnode resources.
+  // Re-check closing AFTER vnodeAsync has filled in vacuumTask; if a close
+  // raced in, await our own submission here so vnodeClose's subsequent state
+  // teardown is safe even if it already returned from its own vnodeAWait.
+  if (atomic_load_8(&pVnode->closing)) {
+    vnodeAWait(&pVnode->vacuumTask);
   }
 }
 

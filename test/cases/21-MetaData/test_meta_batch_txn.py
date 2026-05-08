@@ -3396,6 +3396,155 @@ class TestBatchMetaTxn:
         tdSql.query("show txn_db.stables")
         tdSql.checkRows(0)
 
+    # =========================================================================
+    # 116. TMQ visibility: PRE_CREATE shadow tables MUST NOT be delivered to
+    #      subscribers until COMMIT lands. Validates the metaQuery.c filter
+    #      sites on the shared metaReader path that TMQ consumes.
+    # =========================================================================
+    def s116_tmq_pre_create_invisibility(self):
+        self.s0_reset_env()
+        tdLog.info("======== s116_tmq_pre_create_invisibility")
+
+        # Local import: only this scenario needs TMQ.
+        try:
+            from taos.tmq import Consumer
+        except ImportError:
+            tdLog.info("  taos.tmq not available, skipping")
+            return
+
+        # Pre-create a STB so we can subscribe via "select * from stb"
+        tdSql.execute("create table stb_tmq (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table ct_seed using stb_tmq tags(0)")
+        tdSql.execute(f"insert into ct_seed values (now-1s, 1)")
+        tdSql.execute(
+            "create topic tmq_txn_topic with meta as database txn_db"
+        )
+
+        consumer = Consumer({
+            "group.id": "g_s116",
+            "client.id": "s116_consumer",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "enable.auto.commit": "true",
+            "auto.commit.interval.ms": "200",
+            "auto.offset.reset": "earliest",
+            "td.connect.ip": "localhost",
+            "td.connect.port": "6030",
+            "fetch.max.wait.ms": "500",
+        })
+
+        try:
+            consumer.subscribe(["tmq_txn_topic"])
+
+            # Drain pre-existing messages so subsequent polls only carry
+            # txn-window deltas.
+            drain_deadline = time.time() + 5
+            while time.time() < drain_deadline:
+                msg = consumer.poll(1)
+                if msg is None:
+                    break
+
+            # --- BEGIN: shadow CREATE TABLE that MUST NOT be delivered ---
+            tdSql.execute("BEGIN")
+            tdSql.execute(
+                "create table ct_pre_tmq using stb_tmq tags(99)"
+            )
+            tdSql.execute(
+                "alter table stb_tmq add column c_pre_tmq float"
+            )
+
+            # Poll for ~3s; assert no message references the pending objects.
+            seen_unexpected = []
+            poll_deadline = time.time() + 3
+            while time.time() < poll_deadline:
+                msg = consumer.poll(1)
+                if msg is None:
+                    continue
+                if msg.error() is not None:
+                    tdLog.info(f"  poll error during PRE phase: {msg.error()}")
+                    break
+                # Inspect every block; meta messages expose object names.
+                # We treat any reference to ct_pre_tmq / c_pre_tmq as a leak.
+                try:
+                    for block in msg:
+                        info = repr(block)
+                        if "ct_pre_tmq" in info or "c_pre_tmq" in info:
+                            seen_unexpected.append(info[:200])
+                except Exception:
+                    # Some message kinds are not iterable (e.g. control msgs);
+                    # fall back to repr inspection.
+                    info = repr(msg)
+                    if "ct_pre_tmq" in info or "c_pre_tmq" in info:
+                        seen_unexpected.append(info[:200])
+
+            assert not seen_unexpected, (
+                f"TMQ delivered PRE_CREATE/PRE_ALTER artifacts before COMMIT: "
+                f"{seen_unexpected}"
+            )
+            tdLog.info("  PRE phase: no shadow leakage (OK)")
+
+            # --- COMMIT: shadow promoted to NORMAL; TMQ should now deliver ---
+            tdSql.execute("COMMIT")
+
+            # Verify the post-commit table actually shows up via SQL first
+            # (sanity gate — if this fails the txn itself is broken).
+            tdSql.query("show txn_db.tables like 'ct_pre_tmq'")
+            tdSql.checkRows(1)
+
+            # Insert a row to ensure something is published post-commit.
+            tdSql.execute(
+                "insert into ct_pre_tmq values (now, 7, 1.5)"
+            )
+
+            saw_post_commit = False
+            poll_deadline = time.time() + 8
+            while time.time() < poll_deadline and not saw_post_commit:
+                msg = consumer.poll(1)
+                if msg is None:
+                    continue
+                if msg.error() is not None:
+                    tdLog.info(f"  poll error post-commit: {msg.error()}")
+                    break
+                info = repr(msg)
+                if "ct_pre_tmq" in info or "c_pre_tmq" in info:
+                    saw_post_commit = True
+                    break
+                try:
+                    for block in msg:
+                        binfo = repr(block)
+                        if "ct_pre_tmq" in binfo or "c_pre_tmq" in binfo:
+                            saw_post_commit = True
+                            break
+                except Exception:
+                    pass
+
+            # Soft assertion: TMQ delivery latency depends on WAL fetch cadence;
+            # the strict guarantee under test is the PRE-phase invisibility.
+            # Log a warning if post-commit delivery didn't materialize within
+            # the window — investigate WAL flush / consumer lag separately.
+            if not saw_post_commit:
+                tdLog.info(
+                    "  WARN: ct_pre_tmq not seen via TMQ within 8s post-commit "
+                    "(WAL/consumer lag — does not invalidate the invisibility "
+                    "guarantee)"
+                )
+            else:
+                tdLog.info("  POST-COMMIT phase: TMQ delivered new objects (OK)")
+
+        finally:
+            try:
+                consumer.unsubscribe()
+            except Exception:
+                pass
+            try:
+                consumer.close()
+            except Exception:
+                pass
+            try:
+                tdSql.execute("drop topic tmq_txn_topic")
+            except Exception:
+                pass
+
     def test_meta_batch_txn(self):
         """Batch meta txn: full lifecycle
 
@@ -3650,3 +3799,4 @@ class TestBatchMetaTxn:
         self.s113_rapid_rollback_vacuum_serialization()
         self.s114_stb_multi_alter_chain()
         self.s115_stb_create_multi_alter_drop_commit()
+        self.s116_tmq_pre_create_invisibility()

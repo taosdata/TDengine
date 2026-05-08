@@ -632,7 +632,15 @@ void vnodeClose(SVnode *pVnode) {
     vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
 
+    // Vacuum may submit follow-up vacuum tasks (chained submission inside
+    // vnodeTxnVacuumExecute when more entries remain). Loop until vacuumRunning
+    // settles to 0 with no in-flight task. Bounded by the fact that
+    // vnodeTxnSubmitVacuumAsync rejects new submissions once closing==1, so
+    // at most one extra task can be queued past the closing barrier.
     vnodeAWait(&pVnode->vacuumTask);
+    if (atomic_load_8(&pVnode->vacuumRunning)) {
+      vnodeAWait(&pVnode->vacuumTask);
+    }
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);

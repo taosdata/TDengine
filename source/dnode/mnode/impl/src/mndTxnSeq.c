@@ -404,10 +404,17 @@ txn_id_t mndGenTxnId(SMnode *pMnode) {
 
   mndReleaseTxnSeq(pMnode, pObj);
   if (nextId < 0) {
-    // needAlloc=true 且 currentTxnId 已耗尽，等待下次分配完成后重试
-    mError("txnSeq, txn id exhausted, please retry after allocation completes");
+    // Two cases collapse here: (a) needAlloc=true 且 currentTxnId 已耗尽，等待
+    // 下次分配完成后重试; (b) signed int64 wraparound — currentTxnId crossed 2^63
+    // and would now collide with TXN_REPLICATED_FLAG. (b) is engineering-impossible
+    // at any realistic rate (range-allocated, ~10^4 ids per range) but if it ever
+    // happens, returning to caller stops txn creation rather than corrupting the
+    // replicated-txn namespace.
+    mError("txnSeq, txn id unavailable (exhausted-or-wrap, currentId=%" PRId64 "), refusing BEGIN",
+           pMnode->txnMgmt.currentTxnId);
     TAOS_RETURN(TSDB_CODE_MND_TXN_IN_CREATING);
   }
+
   return nextId;
 }
 #endif

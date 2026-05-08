@@ -333,6 +333,13 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
+// metaSnapshot.c — txn_final.idx batched snapshot read/write (§44 lazy COMMIT/ROLLBACK)
+//   metaSnapTxnFinalRead: emits one SNAP_DATA_TXN_FINAL block per call until done.
+//                          On *ppData==NULL with code==0 the stream is finished.
+//   metaSnapTxnFinalWrite: bulk-applies a SNAP_DATA_TXN_FINAL payload via
+//                          metaTxnFinalIdxUpsert (idempotent — safe on retry).
+int32_t metaSnapTxnFinalRead(SMeta* pMeta, uint8_t** ppData);
+int32_t metaSnapTxnFinalWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
                            STsdbSnapReader** ppReader);
@@ -625,6 +632,12 @@ enum {
   // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
   SNAP_DATA_BSE = 15,
+  // Batch-meta-txn (§44 lazy COMMIT/ROLLBACK): replicate txn_final.idx so that
+  // a follower joining via full snapshot can resume vacuum of large-txn
+  // shadow entries instead of leaking PRE_* status forever. Reader emits
+  // these AFTER SNAP_DATA_META so that the meta entries referenced by each
+  // finalized txn already exist on the receiving side.
+  SNAP_DATA_TXN_FINAL = 16,
 };
 
 struct SSnapDataHdr {
