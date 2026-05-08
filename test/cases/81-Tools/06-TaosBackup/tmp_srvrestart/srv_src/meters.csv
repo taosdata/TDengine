@@ -1,7 +1,0 @@
-field,type,length,note
-ts,TIMESTAMP,8,
-current,FLOAT,4,
-voltage,INT,4,
-phase,FLOAT,4,
-groupid,INT,4,TAG
-location,VARCHAR,24,TAG
