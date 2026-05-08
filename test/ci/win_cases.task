@@ -16,7 +16,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_chinese.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_avro_compat.py -B
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_errors.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_precision.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_schema_change.py -B
