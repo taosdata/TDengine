@@ -9706,13 +9706,105 @@ static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
-                                   "SESSION requires valid time series input");
+static SNodeList* getOrderByList(const SNode* pNode) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+    return ((SSelectStmt*)pNode)->pOrderByList;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    return ((SSetOperator*)pNode)->pOrderByList;
+  }
+  return NULL;
+}
+
+static SNode* findProjectionByAlias(SNode* pSubquery, const char* alias) {
+  SNodeList* pProjectionList = getProjectList(pSubquery);
+  if (NULL == pProjectionList) {
+    return NULL;
   }
 
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 == strcmp(alias, pExpr->userAlias) || 0 == strcmp(alias, pExpr->aliasName)) {
+      return pNode;
+    }
+  }
+  return NULL;
+}
+
+static bool sessionWindowMatchesOrderExpr(SSessionWindowNode* pSession, SNode* pSubquery, SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    SColumnNode* pOrderCol = (SColumnNode*)pExpr;
+    if (0 == strcmp(pOrderCol->colName, pSession->pCol->colName)) {
+      return true;
+    }
+  }
+
+  SNode* pProjection = findProjectionByAlias(pSubquery, pSession->pCol->colName);
+  return NULL != pProjection && nodesEqualNode(pExpr, pProjection);
+}
+
+static bool orderByStartsWithPartitionList(SNodeList* pOrderByList, SNodeList* pPartitionByList) {
+  if (NULL == pPartitionByList || pPartitionByList->length <= 0) {
+    return true;
+  }
+
+  if (NULL == pOrderByList || pOrderByList->length <= pPartitionByList->length) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pPartitionByList->length; ++i) {
+    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, i);
+    SNode* pPartitionExpr = nodesListGetNode(pPartitionByList, i);
+    if (NULL == pOrderExpr || NULL == pOrderExpr->pExpr || NULL == pPartitionExpr ||
+        !nodesEqualNode(pOrderExpr->pExpr, pPartitionExpr)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool sessionWindowOrderedByWindowCol(SSessionWindowNode* pSession, SNode* pSubquery, SNodeList* pPartitionByList) {
+  SNodeList* pOrderByList = getOrderByList(pSubquery);
+  if (NULL == pOrderByList || pOrderByList->length <= 0) {
+    return false;
+  }
+
+  int32_t orderExprIdx = 0;
+  if (NULL != pPartitionByList && pPartitionByList->length > 0) {
+    if (!orderByStartsWithPartitionList(pOrderByList, pPartitionByList)) {
+      return false;
+    }
+    orderExprIdx = pPartitionByList->length;
+  }
+
+  SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, orderExprIdx);
+  if (NULL == pOrderExpr || NULL == pOrderExpr->pExpr) {
+    return false;
+  }
+
+  return sessionWindowMatchesOrderExpr(pSession, pSubquery, pOrderExpr->pExpr);
+}
+
+static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
+    SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    SSessionWindowNode* pSession = (SSessionWindowNode*)pSelect->pWindow;
+    SNodeList* pOrderByList = getOrderByList(pSubquery);
+    if (NULL != pOrderByList && pOrderByList->length > 0) {
+      if (!sessionWindowOrderedByWindowCol(pSession, pSubquery, pSelect->pPartitionByList)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                       "SESSION requires valid time series input");
+      }
+    } else if (!isTimeLineQuery(pSubquery)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                     "SESSION requires valid time series input");
+    }
+  }
   return checkSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
 }
 
@@ -9976,6 +10068,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = 0;
   if (QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow)) {
     if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+        QUERY_NODE_SESSION_WINDOW != nodeType(pSelect->pWindow) &&
         !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
       bool isTimelineAlignedQuery = false;
       code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);

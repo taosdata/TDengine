@@ -725,7 +725,7 @@ taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) INTERVAL(2s);
 
 taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) SESSION(ts, 1s);
 
-DB error: Window query not supported, since not valid primary timestamp column as input [0x00000003] 
+DB error: SESSION requires valid time series input [0x80002666] 
 taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY val) STATE_WINDOW(st);
 
 DB error: Window query not supported, since not valid primary timestamp column as input [0x00000003] 
@@ -746,14 +746,8 @@ taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) INTERVAL(2s);
                      2 |
 
 taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) SESSION(ts, 1s);
-       count(*)        |
-========================
-                     1 |
-                     1 |
-                     1 |
-                     1 |
-                     1 |
 
+DB error: SESSION requires valid time series input [0x80002666] 
 taos> SELECT count(*) FROM (SELECT * FROM t_base ORDER BY t2) STATE_WINDOW(st);
        count(*)        |
 ========================

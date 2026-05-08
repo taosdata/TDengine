@@ -439,7 +439,7 @@ typedef struct SStateWindowNode {
 
 typedef struct SSessionWindowNode {
   ENodeType    type;  // QUERY_NODE_SESSION_WINDOW
-  SColumnNode* pCol;  // timestamp primary key
+  SColumnNode* pCol;  // timestamp column used by session window
   SValueNode*  pGap;  // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
