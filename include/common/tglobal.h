@@ -418,6 +418,7 @@ extern bool    tsSessionControl;
 extern bool    tsClsEnabled;
 extern char    tsClsUrl[];
 extern char    tsClsLicenseId[];
+extern char    tsClsQuotaSlotId[];
 extern int32_t tsClsRefreshInterval;
 extern int32_t gGrantClsPreRefreshInterval;
 

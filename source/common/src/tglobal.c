@@ -129,6 +129,7 @@ char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
 bool    tsClsEnabled = 0;
 char    tsClsUrl[TSDB_FQDN_LEN] = {0};
 char    tsClsLicenseId[TSDB_FQDN_LEN] = {0};
+char    tsClsQuotaSlotId[TSDB_FQDN_LEN] = {0};
 int32_t tsClsRefreshInterval = 3600;
 int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
@@ -1159,6 +1160,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "clsEnabled", tsClsEnabled, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsUrl", tsClsUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLicenseId", tsClsLicenseId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsQuotaSlotId", tsClsQuotaSlotId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 10, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
@@ -1848,6 +1850,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLicenseId");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
   tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsQuotaSlotId");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_FQDN_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
   TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
@@ -3004,6 +3010,11 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   if (strcasecmp(name, "clsLicenseId") == 0) {
     TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
     tstrncpy(tsClsLicenseId, pItem->str, TSDB_FQDN_LEN);
+    goto _exit;
+  }
+  if (strcasecmp(name, "clsQuotaSlotId") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN), &lino, _exit);
+    tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_FQDN_LEN);
     goto _exit;
   }
   if (strcasecmp(name, "clsRefreshInterval") == 0) {
