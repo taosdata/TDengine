@@ -170,8 +170,8 @@ build-externals:
     - |
       echo "=== [build-externals] Pre-building all external dependencies ==="
       # flock: 多 MR 并发时排队，防止同时写入同一 externals 缓存目录导致踩踏
-      # 使用 exclusive lock 保证写入互斥；build-noasan / build-asan 同样用 exclusive lock
-      # 因为 cmake configure 也会向 externals stamp 目录写临时文件，必须串行
+      # 使用 exclusive lock 保证写入互斥；build-noasan / build-asan 使用 shared lock
+      # 防止读写竞态（另一 pipeline 的 build-externals 在 build job 链接期间修改缓存）
       (
         flock -x 9
         echo "[build-externals] acquired exclusive lock, starting build..."
@@ -213,13 +213,12 @@ build-noasan:
   script:
     - |
       echo "=== [build-noasan] Building NoSan ==="
-      # exclusive lock: cmake configure 会向共享的 externals stamp 目录写临时文件
-      # （git-update 脚本、CMakeTmp/），多 MR 并发时会互删导致 configure_file 报错。
-      # 整个 build（cmake configure + make）串行化，彻底消除竞态。
+      # shared lock: 允许多个 build job 并行读取 externals 缓存，但阻止
+      # 另一 pipeline 的 build-externals 在链接期间修改缓存（排他锁互斥）
       _EXT_INSTALL="${CI_CACHE_DIR}/externals-core-amd64/install"
       (
-        flock -x 9
-        echo "[build-noasan] acquired exclusive lock on externals"
+        flock -s 9
+        echo "[build-noasan] acquired shared lock on externals"
         # 验证关键 externals 文件存在（提前失败，避免晦涩的链接错误）
         for _p in ext_libs3/Debug/lib/liblibs3.a ext_curl/Debug/lib/libcurl.a ext_zlib/Debug/lib/libz.a; do
           if [ ! -f "${_EXT_INSTALL}/${_p}" ]; then
@@ -274,11 +273,11 @@ build-asan:
     - |
       echo "=== [build-asan] Building ASAN ==="
       # externals 与 NoSan 共用同一缓存（第三方 .a 无需 ASAN 插桩，first-party 代码由 cmake 插桩）
-      # exclusive lock: 同 build-noasan，cmake configure 写共享 stamp 目录，必须串行
+      # shared lock: 防止另一 pipeline 的 build-externals 在链接期间修改缓存
       _EXT_INSTALL="${CI_CACHE_DIR}/externals-core-amd64/install"
       (
-        flock -x 9
-        echo "[build-asan] acquired exclusive lock on externals"
+        flock -s 9
+        echo "[build-asan] acquired shared lock on externals"
         # 验证关键 externals 文件存在
         for _p in ext_libs3/Debug/lib/liblibs3.a ext_curl/Debug/lib/libcurl.a ext_zlib/Debug/lib/libz.a; do
           if [ ! -f "${_EXT_INSTALL}/${_p}" ]; then

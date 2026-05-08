@@ -252,8 +252,17 @@ ELSE()
         CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
     ENDIF()
 
+    # Use -Werror in the probe: GCC < 8 silently accepts unknown -Wno-xxx flags
+    # when the translation unit produces no other warnings, but emits a warning
+    # about the unrecognized option when other warnings are present.  Without
+    # -Werror in the probe that warning-only case passes the check, yet in the
+    # actual build (where -Werror is active) files with other warnings fail.
+    INCLUDE(CMakePushCheckState)
+    cmake_push_check_state()
+    set(CMAKE_REQUIRED_FLAGS "-Werror")
     CHECK_C_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
     CHECK_CXX_COMPILER_FLAG("-Wno-stringop-overread" COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
+    cmake_pop_check_state()
 
     IF(COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
@@ -299,9 +308,15 @@ ELSE()
     SET(CMAKE_CXX_FLAGS_REL "${CMAKE_CXX_FLAGS} -Werror -Wno-reserved-user-defined-literal -Wno-literal-suffix -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
 
     IF(BUILD_SANITIZER)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+        # Note: -fsanitize=undefined is intentionally omitted from C_FLAGS.
+        # The manylinux2014 (CentOS 7) build container ships GCC 7 which generates
+        # ubsan v0 ABI calls (e.g. __ubsan_handle_type_mismatch) but the only
+        # available 64-bit libubsan (devtoolset-10) provides v1 symbols only
+        # (__ubsan_handle_type_mismatch_v1), causing an unresolvable link error
+        # with the mold linker.  ASan (-fsanitize=address) works correctly.
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
 
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
         MESSAGE(STATUS "Compile with Address Sanitizer!")
     ELSEIF(BUILD_RELEASE)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
