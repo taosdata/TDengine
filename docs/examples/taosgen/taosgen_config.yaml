@@ -285,7 +285,7 @@ schema:
       type: timestamp
       start: now
       precision: ns
-      step: 10000000000
+      step: 10s
     - name: usage_idle
       type: float
       min: 50
