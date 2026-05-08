@@ -4075,40 +4075,51 @@ static int32_t dumpInAvroTagBinary(FieldStruct *field, avro_value_t *value,
     avro_value_get_current_branch(
         value, &branch);
 
-    char *buf = NULL;
-    size_t bin_size;
-
-    avro_value_get_string(&branch,
-        (const char **)&buf, &bin_size);
-
-    if (NULL == buf) {
+    if (0 == avro_value_get_null(&branch)) {
         debugPrint2("%s | ", "NULL");
         curr_sqlstr_len += sprintf(
             sqlstr+curr_sqlstr_len, "NULL,");
     } else {
-        debugPrint2("%s | ", (char *)buf);
-        curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, buf);
+        char *buf = NULL;
+        size_t bin_size;
+
+        avro_value_get_string(&branch,
+            (const char **)&buf, &bin_size);
+
+        if (NULL == buf) {
+            debugPrint2("%s | ", "NULL");
+            curr_sqlstr_len += sprintf(
+                sqlstr+curr_sqlstr_len, "NULL,");
+        } else {
+            debugPrint2("%s | ", (char *)buf);
+            curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, buf);
+        }
     }
     return curr_sqlstr_len;
 }
 
 static int32_t dumpInAvroTagNChar(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
-    size_t bytessize;
-    void *bytesbuf = NULL;
-
     avro_value_t nchar_branch;
     avro_value_get_current_branch(value, &nchar_branch);
 
-    avro_value_get_bytes(&nchar_branch,
-        (const void **)&bytesbuf, &bytessize);
-
-    if (NULL == bytesbuf) {
+    if (0 == avro_value_get_null(&nchar_branch)) {
         debugPrint2("%s | ", "NULL");
         curr_sqlstr_len += sprintf(sqlstr+curr_sqlstr_len, "NULL,");
     } else {
-        debugPrint2("%s | ", (char *)bytesbuf);
-        curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, (char *)bytesbuf);
+        size_t bytessize;
+        void *bytesbuf = NULL;
+
+        avro_value_get_bytes(&nchar_branch,
+            (const void **)&bytesbuf, &bytessize);
+
+        if (NULL == bytesbuf) {
+            debugPrint2("%s | ", "NULL");
+            curr_sqlstr_len += sprintf(sqlstr+curr_sqlstr_len, "NULL,");
+        } else {
+            debugPrint2("%s | ", (char *)bytesbuf);
+            curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, (char *)bytesbuf);
+        }
     }
     return curr_sqlstr_len;
 }
@@ -5196,43 +5207,53 @@ static void dumpInAvroDataNChar(FieldStruct *field,
                               avro_value_t *value,
                               TAOS_STMT2_BIND *bind,
                               char *is_null) {
-    size_t bytessize = 0;
-    void *bytesbuf = NULL;
-
     avro_value_t nchar_branch;
     avro_value_get_current_branch(value, &nchar_branch);
 
-    avro_value_get_bytes(&nchar_branch,
-        (const void **)&bytesbuf, &bytessize);
-    if (NULL == bytesbuf) {
+    if (0 == avro_value_get_null(&nchar_branch)) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        debugPrint2("%s | ", (char*)bytesbuf);
-        if (bind->length) *bind->length = (int32_t)bytessize;
+        size_t bytessize = 0;
+        void *bytesbuf = NULL;
+
+        avro_value_get_bytes(&nchar_branch,
+            (const void **)&bytesbuf, &bytessize);
+        if (NULL == bytesbuf) {
+            debugPrint2("%s | ", "NULL");
+            bind->is_null = is_null;
+        } else {
+            debugPrint2("%s | ", (char*)bytesbuf);
+            if (bind->length) *bind->length = (int32_t)bytessize;
+            bind->buffer = bytesbuf;
+        }
     }
-    bind->buffer = bytesbuf;
 }
 
 static void dumpInAvroDataBytes(FieldStruct *field,
                               avro_value_t *value,
                               TAOS_STMT2_BIND *bind,
                               char *is_null) {
-    size_t bytessize = 0;
-    void *bytesbuf = NULL;
-
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
 
-    avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
-    if (NULL == bytesbuf) {
+    if (0 == avro_value_get_null(&branch)) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        debugPrint2("bytes len =%ld | ", bytessize);
-        if (bind->length) *bind->length = (int32_t)bytessize;
+        size_t bytessize = 0;
+        void *bytesbuf = NULL;
+
+        avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
+        if (NULL == bytesbuf) {
+            debugPrint2("%s | ", "NULL");
+            bind->is_null = is_null;
+        } else {
+            debugPrint2("bytes len =%ld | ", bytessize);
+            if (bind->length) *bind->length = (int32_t)bytessize;
+            bind->buffer = bytesbuf;
+        }
     }
-    bind->buffer = bytesbuf;
 }
 
 static void dumpInAvroDataBinary(FieldStruct *field,
@@ -5242,19 +5263,24 @@ static void dumpInAvroDataBinary(FieldStruct *field,
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
 
-    char *buf = NULL;
-    size_t size;
-    avro_value_get_string(&branch, (const char **)&buf, &size);
-
-    if (NULL == buf || size == 0) {
+    if (0 == avro_value_get_null(&branch)) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        debugPrint2("%s | ", (char *)buf);
-        if (size > 0 && buf[size - 1] == '\0') size -= 1;
-        if (bind->length) *bind->length = (int32_t)size;
+        char *buf = NULL;
+        size_t size;
+        avro_value_get_string(&branch, (const char **)&buf, &size);
+
+        if (NULL == buf || size == 0) {
+            debugPrint2("%s | ", "NULL");
+            bind->is_null = is_null;
+        } else {
+            debugPrint2("%s | ", (char *)buf);
+            if (size > 0 && buf[size - 1] == '\0') size -= 1;
+            if (bind->length) *bind->length = (int32_t)size;
+            bind->buffer = buf;
+        }
     }
-    bind->buffer = buf;
 }
 
 static void dumpInAvroDataDouble(FieldStruct *field,
