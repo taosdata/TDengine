@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -6,9 +6,14 @@ use rdkafka::consumer::{BaseConsumer, Consumer};
 use taosx_core::core_metrics::CoreMetrics;
 
 use crate::{
-    FETCH_METADATA_TIMEOUT, LoggingConsumer, METRIC_TOTAL_PARTITIONS,
+    LoggingConsumer, METRIC_TOTAL_PARTITIONS,
+    blocking::fetch_metadata,
     config::task::{KafkaTaskConfig, build_client_config},
 };
+
+const METADATA_RETRIES: usize = 3;
+const METADATA_TIMEOUT: Duration = Duration::from_secs(10);
+const METADATA_RETRY_SLEEP: Duration = Duration::from_secs(2);
 
 pub struct SubTask {
     /// kafka task config for rebuilding consumer.
@@ -28,7 +33,7 @@ impl SubTask {
         config: KafkaTaskConfig,
         metrics: &Arc<CoreMetrics>,
     ) -> anyhow::Result<Vec<Self>> {
-        let client_config = build_client_config(config.connect.clone())?;
+        let client_config = build_client_config(config.connect.clone()).await?;
 
         // create a base consumer
         let consumer: BaseConsumer = client_config
@@ -36,9 +41,7 @@ impl SubTask {
             .context("failed to create consumer")?;
 
         // fetch metadata
-        let metadata = consumer
-            .fetch_metadata(None, FETCH_METADATA_TIMEOUT)
-            .context("failed to load meta data")?;
+        let metadata = fetch_metadata_with_retries(consumer).await?;
 
         tracing::info!(
             brokers = metadata
@@ -144,5 +147,132 @@ impl SubTask {
         }
 
         Ok(sub_tasks)
+    }
+}
+
+async fn fetch_metadata_with_retries(
+    consumer: BaseConsumer,
+) -> anyhow::Result<rdkafka::metadata::Metadata> {
+    retry_startup_metadata(
+        consumer,
+        METADATA_RETRY_SLEEP,
+        |_attempt, consumer| async move {
+            let (next_consumer, metadata_result) =
+                fetch_metadata(consumer, None, METADATA_TIMEOUT).await?;
+            Ok((next_consumer, metadata_result))
+        },
+    )
+    .await
+}
+
+async fn retry_startup_metadata<S, T, Op, Fut>(
+    mut state: S,
+    retry_sleep: Duration,
+    mut op: Op,
+) -> anyhow::Result<T>
+where
+    Op: FnMut(usize, S) -> Fut,
+    Fut: Future<Output = anyhow::Result<(S, anyhow::Result<T>)>>,
+{
+    let mut last_error = None;
+
+    for attempt in 1..=METADATA_RETRIES {
+        let (next_state, result) = op(attempt, state).await?;
+        state = next_state;
+        match result {
+            Ok(value) => return Ok(value),
+            Err(err) => {
+                tracing::warn!(
+                    "failed to load kafka metadata while building startup tasks, attempt: {attempt}/{METADATA_RETRIES}, error: {err:#}"
+                );
+                last_error = Some(err);
+                if attempt < METADATA_RETRIES {
+                    tokio::time::sleep(retry_sleep).await;
+                }
+            }
+        }
+    }
+
+    let err = last_error
+        .unwrap_or_else(|| anyhow::anyhow!("metadata load failed without an underlying error"));
+    Err(err).context(format!(
+        "failed to load meta data after {METADATA_RETRIES} attempts"
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use std::time::Duration;
+
+    use anyhow::anyhow;
+
+    use super::{METADATA_RETRIES, METADATA_RETRY_SLEEP, METADATA_TIMEOUT, retry_startup_metadata};
+
+    #[test]
+    fn startup_metadata_retry_constants_match_plan() {
+        assert_eq!(METADATA_RETRIES, 3);
+        assert_eq!(METADATA_TIMEOUT, Duration::from_secs(10));
+        assert_eq!(METADATA_RETRY_SLEEP, Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn retry_startup_metadata_stops_after_success() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let result = retry_startup_metadata((), Duration::ZERO, {
+            let attempts = attempts.clone();
+            move |_attempt, state| {
+                let attempts = attempts.clone();
+                async move {
+                    let current = attempts.fetch_add(1, Ordering::SeqCst) + 1;
+                    if current < 2 {
+                        Ok((
+                            state,
+                            Err::<usize, _>(anyhow!(
+                                "transient startup metadata failure #{current}"
+                            )),
+                        ))
+                    } else {
+                        Ok((state, Ok(current)))
+                    }
+                }
+            }
+        })
+        .await
+        .expect("retry helper should return the first successful startup attempt");
+
+        assert_eq!(result, 2);
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn retry_startup_metadata_returns_last_error_with_context() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let err = retry_startup_metadata((), Duration::ZERO, {
+            let attempts = attempts.clone();
+            move |_attempt, state| {
+                let attempts = attempts.clone();
+                async move {
+                    let current = attempts.fetch_add(1, Ordering::SeqCst) + 1;
+                    Ok((
+                        state,
+                        Err::<usize, _>(anyhow!("transient startup metadata failure #{current}")),
+                    ))
+                }
+            }
+        })
+        .await
+        .expect_err("retry helper should fail after exhausting startup metadata retries");
+
+        assert_eq!(attempts.load(Ordering::SeqCst), METADATA_RETRIES);
+        assert_eq!(
+            format!("{err:#}"),
+            format!(
+                "failed to load meta data after {METADATA_RETRIES} attempts: transient startup metadata failure #{METADATA_RETRIES}"
+            )
+        );
     }
 }

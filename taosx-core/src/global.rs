@@ -62,6 +62,10 @@ pub fn get_agent_client_ca() -> Option<Certificate> {
     AGENT_CLIENT_CA.get().cloned()
 }
 
+pub fn dry_run() -> bool {
+    unsafe { DRY_RUN }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +96,10 @@ mod tests {
         let ca = Certificate::from_pem(b"test_ca");
         set_agent_client_ca(ca.clone());
         assert!(get_agent_client_ca().is_some());
+    }
+
+    #[test]
+    fn test_dry_run_defaults_false() {
+        assert!(!dry_run());
     }
 }

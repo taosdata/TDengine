@@ -1,4 +1,9 @@
-use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use faststr::FastStr;
@@ -10,6 +15,7 @@ use taosx_core::{
     core_metrics::CoreMetrics,
     utils::{self, codec::StringDecoder},
 };
+use tokio::process::Command;
 
 use crate::{
     LoggingConsumer, METRIC_CONSUMERS, config::connect::KafkaConnectConfig, context::CustomContext,
@@ -297,7 +303,7 @@ impl KafkaTaskConfig {
         topics: &[&str],
         mut context: CustomContext,
     ) -> anyhow::Result<LoggingConsumer> {
-        let mut client = build_client_config(self.connect.clone())?;
+        let mut client = build_client_config(self.connect.clone()).await?;
         // Client identifier, default "rdkafka".
         if let Some(client_id) = &self.client_id {
             client.set("client.id", client_id);
@@ -429,7 +435,47 @@ impl KafkaTaskConfig {
     }
 }
 
-pub fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
+fn expand_kerberos_init_cmd(template: &str, keytab: &str, principal: &str) -> String {
+    template
+        .replace("%{sasl.kerberos.keytab}", keytab)
+        .replace("%{sasl.kerberos.principal}", principal)
+}
+
+fn stderr_first_line(stderr: &[u8]) -> String {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .next()
+        .unwrap_or("EMPTY STDERR")
+        .to_string()
+}
+
+async fn run_kerberos_init_cmd(init_cmd: &str) -> anyhow::Result<Duration> {
+    let start = Instant::now();
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(init_cmd)
+        .output()
+        .await?;
+    let elapsed = start.elapsed();
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(
+            "kerberos kinit command failed, exit_code: {:?}, stderr: {}",
+            output.status.code(),
+            stderr
+        );
+        anyhow::bail!("{}", stderr_first_line(&output.stderr));
+    }
+    Ok(elapsed)
+}
+
+pub async fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfig> {
+    build_client_config_inner(config).await
+}
+
+pub(crate) async fn build_client_config_inner(
+    config: KafkaConnectConfig,
+) -> anyhow::Result<ClientConfig> {
     let mut client_config = ClientConfig::new();
 
     // set bootstrap servers
@@ -488,25 +534,14 @@ pub fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientC
             } else {
                 "".to_string()
             };
-            // verify the broker's kinit.cmd, keytab and principal
-            let init_cmd = sasl_kerberos_kinit_cmd
-                .replace("%{sasl.kerberos.keytab}", sasl_kerberos_keytab.as_str())
-                .replace(
-                    "%{sasl.kerberos.principal}",
-                    sasl_kerberos_principal.as_str(),
-                );
-            let output = std::process::Command::new("bash")
-                .arg("-c")
-                .arg(init_cmd)
-                .output();
-            if let Ok(output) = output
-                && !output.status.success()
-            {
-                let stderr =
-                    std::str::from_utf8(&output.stderr).expect("Output should always be UTF-8");
-                tracing::error!("{stderr}");
-                anyhow::bail!("{}", stderr.lines().next().unwrap_or("EMPTY STDERR"));
-            }
+            let init_cmd = expand_kerberos_init_cmd(
+                &sasl_kerberos_kinit_cmd,
+                sasl_kerberos_keytab.as_str(),
+                sasl_kerberos_principal.as_str(),
+            );
+            tracing::info!("starting kerberos kinit command");
+            let elapsed = run_kerberos_init_cmd(&init_cmd).await?;
+            tracing::info!(elapsed = ?elapsed, "kerberos kinit command completed");
             // set to client
             client_config.set("sasl.kerberos.service.name", sasl_kerberos_service_name);
             client_config.set("sasl.kerberos.principal", sasl_kerberos_principal);
@@ -769,5 +804,28 @@ mod tests {
         let dsn = Dsn::from_str("kafka://?timeout=invalid").unwrap();
         let result = KafkaTaskConfig::parse_timeout(&dsn);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_expand_kerberos_init_cmd() {
+        let cmd = expand_kerberos_init_cmd(
+            "kinit -R -t \"%{sasl.kerberos.keytab}\" -k %{sasl.kerberos.principal}",
+            "/tmp/test.keytab",
+            "alice@EXAMPLE.COM",
+        );
+        assert_eq!("kinit -R -t \"/tmp/test.keytab\" -k alice@EXAMPLE.COM", cmd);
+    }
+
+    #[tokio::test]
+    async fn test_run_kerberos_init_cmd_returns_elapsed() {
+        let elapsed = run_kerberos_init_cmd("sleep 0.01").await.unwrap();
+        assert!(elapsed >= Duration::from_millis(5));
+    }
+
+    #[test]
+    fn stderr_first_line_handles_non_utf8_without_panicking() {
+        let stderr = [0xff, b'b', b'a', b'd', b'\n', b'n', b'e', b'x', b't'];
+        let line = stderr_first_line(&stderr);
+        assert_eq!("\u{fffd}bad", line);
     }
 }
