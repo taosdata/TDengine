@@ -458,6 +458,7 @@ priv_type: {
 ```
 
 > **说明（省略 priv_obj 时的行为）：**
+>
 > - **3.4.0.0 至 3.4.0.10**：省略 `priv_obj` 时，默认视为 `table`。
 > - **3.4.0.11+**：省略 `priv_obj` 时的扩展行为由参数 [`enableGrantLegacySyntax`](../01-components/01-taosd.md#enablegrantlegacysyntax) 控制（默认 `0`）。为避免歧义，推荐始终明确指定 `priv_obj`。
 

@@ -461,6 +461,7 @@ priv_type: {
 ```
 
 > **Note (behavior when `priv_obj` is omitted):**
+>
 > - **3.4.0.0 to 3.4.0.10**: When `priv_obj` is omitted, it defaults to `table`.
 > - **3.4.0.11+**: The expansion behavior when `priv_obj` is omitted is controlled by the parameter [`enableGrantLegacySyntax`](../01-components/01-taosd.md#security-related) (default `0`). To avoid ambiguity, it is recommended to always explicitly specify `priv_obj`.
 
