@@ -1862,6 +1862,10 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.error(
                 f"select tbname from {t}",
                 expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            # WHERE TBNAME still errors on InfluxDB
+            tdSql.error(
+                f"select * from {t} where tbname = 'src_t'",
+                expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
             # PARTITION BY TBNAME works on InfluxDB (converted to tag grouping)
             tdSql.query(f"select count(*) from {t} partition by tbname")
             tdSql.checkRows(1)
@@ -1879,6 +1883,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"select sum(val) from {t} partition by tbname")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 15)
+            # GROUP BY TBNAME works on InfluxDB
+            tdSql.query(
+                f"select count(*) from {t} group by tbname")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
 
         self._with_std_sources("fq04_pseudo_i", body_influx,
                                skip_mysql=True, skip_pg=True)

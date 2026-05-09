@@ -6438,19 +6438,20 @@ static int8_t fromTableExtSourceType(SNode* pFromTable) {
 }
 
 static int32_t checkExtTableTbnameUsage(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!fromTableHasNonInfluxExtSource(pSelect->pFromTable)) {
+  int8_t srcType = fromTableExtSourceType(pSelect->pFromTable);
+  if (srcType < 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int8_t srcType = fromTableExtSourceType(pSelect->pFromTable);
-  bool   isInflux = (srcType == EXT_SOURCE_INFLUXDB);
+  // Pure InfluxDB (no mixed non-Influx JOINs) allows PARTITION BY / GROUP BY TBNAME
+  bool isInflux = (srcType == EXT_SOURCE_INFLUXDB) && !fromTableHasNonInfluxExtSource(pSelect->pFromTable);
 
   bool found = false;
   nodesWalkExprs(pSelect->pProjectionList, detectTbNameWalker, &found);
   if (!found) nodesWalkExpr(pSelect->pWhere, detectTbNameWalker, &found);
-  // InfluxDB supports PARTITION BY TBNAME (converted to tag grouping in planner)
+  // InfluxDB supports PARTITION BY / GROUP BY TBNAME (converted to tag grouping in planner)
   if (!found && !isInflux) nodesWalkExprs(pSelect->pPartitionByList, detectTbNameWalker, &found);
-  if (!found) nodesWalkExprs(pSelect->pGroupByList, detectTbNameWalker, &found);
+  if (!found && !isInflux) nodesWalkExprs(pSelect->pGroupByList, detectTbNameWalker, &found);
   if (!found) nodesWalkExpr(pSelect->pHaving, detectTbNameWalker, &found);
   if (!found) nodesWalkExprs(pSelect->pOrderByList, detectTbNameWalker, &found);
   if (!found) nodesWalkExpr(pSelect->pWindow, detectTbNameWalker, &found);

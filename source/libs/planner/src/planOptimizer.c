@@ -11280,6 +11280,233 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
   return createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
 }
 
+// ---------------------------------------------------------------------------
+// fqConvertGroupBy: handle GROUP BY TBNAME on federated (external) scans.
+//
+// Mirrors fqConvertPartition for the GROUP BY path:
+//   - MySQL/PG: return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+//   - InfluxDB tagless: remove TBNAME from pGroupKeys (single-group semantics)
+//   - InfluxDB with tags: replace TBNAME in pGroupKeys with real tag column
+//     nodes and add those tag columns to pScanCols so the physi creator can
+//     resolve slot IDs correctly.
+// ---------------------------------------------------------------------------
+static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
+  taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "entry pScan=%p pParent=%p parentType=%d",
+               pScan, pScan->node.pParent,
+               pScan->node.pParent ? (int)nodeType(pScan->node.pParent) : -1);
+  // Walk up from the external scan to find the nearest AGG node whose
+  // pGroupKeys contains TBNAME.
+  SLogicNode*    pParentNode = pScan->node.pParent;
+  SAggLogicNode* pAgg        = NULL;
+  while (pParentNode != NULL) {
+    ENodeType pt = nodeType(pParentNode);
+    if (pt == QUERY_NODE_LOGIC_PLAN_AGG) {
+      SAggLogicNode* pAggCandidate = (SAggLogicNode*)pParentNode;
+      // Use keysHasTbname which correctly unwraps GROUPING_SET nodes.
+      if (keysHasTbname(pAggCandidate->pGroupKeys)) {
+        pAgg = pAggCandidate;
+        break;
+      }
+      pParentNode = pParentNode->pParent;
+      continue;
+    }
+    // Walk through single-child passthrough nodes.
+    if (pt == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+        pt == QUERY_NODE_LOGIC_PLAN_SORT) {
+      if (pParentNode->pChildren != NULL && LIST_LENGTH(pParentNode->pChildren) == 1) {
+        pParentNode = pParentNode->pParent;
+        continue;
+      }
+    }
+    break;
+  }
+
+  if (pAgg == NULL) {
+    taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "pAgg not found, returning success");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "found pAgg=%p pGroupKeys len=%d",
+               pAgg, pAgg->pGroupKeys ? (int)LIST_LENGTH(pAgg->pGroupKeys) : -1);
+
+  // Resolve external table info.
+  if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  EExtSourceType srcType  = (EExtSourceType)pExtNode->sourceType;
+
+  // MySQL and PostgreSQL do not support GROUP BY TBNAME.
+  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  SExtTableMeta* pMeta = pExtNode->pExtMeta;
+  if (pMeta == NULL || pMeta->pCols == NULL || pMeta->numOfCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Check whether the external metadata has any tag columns.
+  bool hasTags = false;
+  for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+    if (pMeta->pCols[i].isTag) {
+      hasTags = true;
+      break;
+    }
+  }
+
+  // Tagless measurement: GROUP BY TBNAME is a no-op because all rows belong
+  // to the same measurement.  Remove TBNAME from pGroupKeys so the AGG
+  // operates on all rows directly (producing a single group).
+  taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "srcType=%d hasTags=%d numOfCols=%d",
+               (int)srcType, hasTags, pMeta->numOfCols);
+  if (!hasTags) {
+    SNodeList* pNewKeys = NULL;
+    SNode* pKey = NULL;
+    FOREACH(pKey, pAgg->pGroupKeys) {
+      SNode* pActualKey = pKey;
+      if (QUERY_NODE_GROUPING_SET == nodeType(pActualKey)) {
+        pActualKey = nodesListGetNode(((SGroupingSetNode*)pActualKey)->pParameterList, 0);
+      }
+      bool isTbname = false;
+      if ((nodeType(pActualKey) == QUERY_NODE_FUNCTION &&
+           ((SFunctionNode*)pActualKey)->funcType == FUNCTION_TYPE_TBNAME) ||
+          (nodeType(pActualKey) == QUERY_NODE_COLUMN &&
+           ((SColumnNode*)pActualKey)->colType == COLUMN_TYPE_TBNAME)) {
+        isTbname = true;
+      }
+      if (!isTbname) {
+        if (pNewKeys == NULL) {
+          code = nodesMakeList(&pNewKeys);
+          if (TSDB_CODE_SUCCESS != code) return code;
+        }
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pKey, &pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+        code = nodesListStrictAppend(pNewKeys, pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      }
+    }
+    nodesDestroyList(pAgg->pGroupKeys);
+    pAgg->pGroupKeys = pNewKeys;
+    pAgg->isGroupTb = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // InfluxDB with tags: add tag columns to the scan and replace TBNAME in
+  // pGroupKeys with tag column nodes so the group operator groups by real
+  // tag values.
+
+  // 1. Add tag columns to pScanCols (same logic as fqConvertPartition).
+  for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
+    if (!pMeta->pCols[i].isTag) continue;
+    const char* tagColName = pMeta->pCols[i].colName;
+
+    // Skip if already present.
+    bool   found    = false;
+    SNode* pExisting = NULL;
+    FOREACH(pExisting, pScan->pScanCols) {
+      if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
+          strcmp(((SColumnNode*)pExisting)->colName, tagColName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (found) continue;
+
+    SColumnNode* pTagCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagCol);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pTagCol->colName, tagColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTagCol->node.aliasName, tagColName, TSDB_COL_NAME_LEN);
+    pTagCol->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+    pTagCol->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+
+    if (pScan->pScanCols == NULL) {
+      code = nodesMakeList(&pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pTagCol);
+        return code;
+      }
+    }
+
+    code = nodesListPushFront(pScan->pScanCols, (SNode*)pTagCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pTagCol);
+      return code;
+    }
+  }
+
+  // 2. Replace TBNAME in pGroupKeys with actual tag column nodes.
+  {
+    SNodeList* pNewKeys = NULL;
+    code = nodesMakeList(&pNewKeys);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    // Keep non-TBNAME group keys.
+    SNode* pKey = NULL;
+    FOREACH(pKey, pAgg->pGroupKeys) {
+      SNode* pActualKey = pKey;
+      if (QUERY_NODE_GROUPING_SET == nodeType(pActualKey)) {
+        pActualKey = nodesListGetNode(((SGroupingSetNode*)pActualKey)->pParameterList, 0);
+      }
+      bool isTbname = false;
+      if (nodeType(pActualKey) == QUERY_NODE_FUNCTION &&
+          ((SFunctionNode*)pActualKey)->funcType == FUNCTION_TYPE_TBNAME) {
+        isTbname = true;
+      } else if (nodeType(pActualKey) == QUERY_NODE_COLUMN &&
+                 ((SColumnNode*)pActualKey)->colType == COLUMN_TYPE_TBNAME) {
+        isTbname = true;
+      }
+      if (!isTbname) {
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pKey, &pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+        code = nodesListStrictAppend(pNewKeys, pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      }
+    }
+
+    // Append tag column nodes.
+    for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+      if (!pMeta->pCols[i].isTag) continue;
+      SColumnNode* pTagKey = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      tstrncpy(pTagKey->colName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTagKey->node.aliasName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      pTagKey->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+      pTagKey->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+      code = nodesListStrictAppend(pNewKeys, (SNode*)pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+    }
+
+    nodesDestroyList(pAgg->pGroupKeys);
+    pAgg->pGroupKeys = pNewKeys;
+    pAgg->isGroupTb = false;
+  }
+
+  // 3. Rebuild scan targets from the updated pScanCols.
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = NULL;
+  code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  // 4. Rebuild AGG node targets: aggregate functions + group keys.
+  nodesDestroyList(pAgg->node.pTargets);
+  pAgg->node.pTargets = NULL;
+  if (pAgg->pAggFuncs != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  if (pAgg->pGroupKeys != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+
+  return code;
+}
+
 // Convert TDengine window functions (INTERVAL/SESSION/STATE) into standard SQL
 // window expressions or GROUP BY + aggregation for remote execution.
 static int32_t fqConvertWindow(SScanLogicNode* pScan) {
@@ -11596,6 +11823,8 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   code = fqHarvestConditions(pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
   code = fqConvertPartition(pScan, pLogicSubplan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqConvertGroupBy(pScan, pLogicSubplan);
   if (TSDB_CODE_SUCCESS != code) return code;
   code = fqConvertWindow(pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
