@@ -2641,10 +2641,10 @@ tag_mode_opt(A) ::= .                                                           
 tag_mode_opt(A) ::= TAGS.                                                         { A = true; }
 
 %type window_mode_opt                                                             { EWindowMode }
-%destructor window_mode_opt                                                          { }
-tag_mode_opt(A) ::= .                                                             { A = WINDOW_MODE_NONE; }
-tag_mode_opt(A) ::= SCALAR.                                                       { A = WINDOW_MODE_SCALAR; }
-tag_mode_opt(A) ::= AGG.                                                          { A = WINDOW_MODE_AGG; }
+%destructor window_mode_opt                                                       { }
+window_mode_opt(A) ::= .                                                          { A = WINDOW_MODE_NONE; }
+window_mode_opt(A) ::= SCALAR.                                                    { A = WINDOW_MODE_SCALAR; }
+window_mode_opt(A) ::= AGG.                                                       { A = WINDOW_MODE_AGG; }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }
