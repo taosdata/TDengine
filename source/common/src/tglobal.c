@@ -1861,6 +1861,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
   tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastSucTime");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_TIME_LEN));
+  tstrncpy(tsClsLastSucTime, pItem->str, TSDB_GRANT_CLS_TIME_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastReqTime");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_TIME_LEN));
+  tstrncpy(tsClsLastReqTime, pItem->str, TSDB_GRANT_CLS_TIME_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastFailReason");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_REASON_LEN));
+  tstrncpy(tsClsLastFailReason, pItem->str, TSDB_GRANT_CLS_REASON_LEN);
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
   TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
 #endif
