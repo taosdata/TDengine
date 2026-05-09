@@ -3312,7 +3312,9 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
         STableMeta* pMeta = NULL;
         code = catalogGetTableMeta(pCxt->pComCxt->pCatalog, &conn, &pStbRowsCxt->ctbName, &pMeta);
         if (TSDB_CODE_SUCCESS == code) {
-          if (TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pStbRowsCxt->pStbMeta->uid) {
+          if (pMeta == NULL) {
+            code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+          } else if (TSDB_CHILD_TABLE != pMeta->tableType || pMeta->suid != pStbRowsCxt->pStbMeta->uid) {
             taosMemoryFreeClear(pMeta);
             code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
           } else {

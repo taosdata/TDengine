@@ -13,6 +13,18 @@
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+/* Free any existing siInfo.dbname and replace with a heap copy of src.
+ * src may be NULL or empty — in either case dbname is left NULL. */
+static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
+  taosMemoryFreeClear(pSi->dbname);
+  if (src != NULL && src[0] != '\0') {
+    pSi->dbname = taosStrdup(src);
+    if (pSi->dbname == NULL) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
@@ -890,7 +902,8 @@ static void stmtFreeHeapPatchRowsArray(SArray* aHeapRows) {
 }
 
 // After refreshMeta: set sver from catalog; decode each row with inferred old schema and tRowBuild with latest schema.
-// aHeapRows: receives pointers from tRowBuild so they can be freed before tDestroySubmitReq (decode path does not free rows).
+// aHeapRows: receives pointers from tRowBuild so they can be freed before tDestroySubmitReq (decode path does not free
+// rows).
 static void stmtPatchOneSubmitTbDataSchemaVer(SSubmitTbData* pTb, SHashObj* pUidMetaHash, SArray* aHeapRows) {
   if (pTb->uid == 0) {
     return;
@@ -958,8 +971,7 @@ static int32_t stmtBuildUidToTableMetaHash(STscStmt2* pStmt, SRequestObj* pReque
     }
   }
 
-  SHashObj* pHash =
-      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+  SHashObj* pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
   if (pHash == NULL) {
     return terrno;
   }
@@ -1050,9 +1062,9 @@ static int32_t stmtUpdateVgDataBlocksSchemaVer(STscStmt2* pStmt, SRequestObj* pR
       continue;
     }
 
-    SDecoder     decoder = {0};
-    int32_t      bodyLen = pVg->size - headSz;
-    SSubmitReq2  req = {0};
+    SDecoder    decoder = {0};
+    int32_t     bodyLen = pVg->size - headSz;
+    SSubmitReq2 req = {0};
 
     tDecoderInit(&decoder, (uint8_t*)pVg->pData + headSz, bodyLen);
     code = tDecodeSubmitReq(&decoder, &req, NULL);
@@ -1258,9 +1270,9 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
 
   // 1) Auto-create child: look up by child table name (never use STB-only name without child name).
   if (pTb->pCreateTbReq != NULL && pTb->pCreateTbReq->name != NULL) {
-    SName         nm = {0};
-    int32_t       nc = TSDB_CODE_SUCCESS;
-    STableMeta*   pMeta = NULL;
+    SName       nm = {0};
+    int32_t     nc = TSDB_CODE_SUCCESS;
+    STableMeta* pMeta = NULL;
     if (pStmt->bInfo.sname.type != 0) {
       tNameAssign(&nm, &pStmt->bInfo.sname);
       nc = tNameAddTbName(&nm, pTb->pCreateTbReq->name, strlen(pTb->pCreateTbReq->name));
@@ -1297,8 +1309,8 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
 
   // 2) request->tableList: align tbIdx with the tbIdx-th non-super-table entry (skip super table names).
   if (pRequest->tableList != NULL) {
-    int32_t          nList = (int32_t)taosArrayGetSize(pRequest->tableList);
-    int32_t          nonStbOrd = 0;
+    int32_t nList = (int32_t)taosArrayGetSize(pRequest->tableList);
+    int32_t nonStbOrd = 0;
     for (int32_t li = 0; li < nList; ++li) {
       SName*      pName = taosArrayGet(pRequest->tableList, li);
       STableMeta* pMeta = NULL;
@@ -1369,10 +1381,10 @@ static int32_t stmtUpdateVgDataBlocksTbMetaFromCatalog(STscStmt2* pStmt, SReques
       continue;
     }
 
-    SDecoder     decoder = {0};
-    int32_t      bodyLen = pVg->size - headSz;
-    SSubmitReq2  req = {0};
-    int32_t      code = 0;
+    SDecoder    decoder = {0};
+    int32_t     bodyLen = pVg->size - headSz;
+    SSubmitReq2 req = {0};
+    int32_t     code = 0;
 
     tDecoderInit(&decoder, (uint8_t*)pVg->pData + headSz, bodyLen);
     code = tDecodeSubmitReq(&decoder, &req, NULL);
@@ -1878,19 +1890,8 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    const char* siDbSrc = NULL;
-    if (pStmt->db != NULL && pStmt->db[0] != '\0') {
-      siDbSrc = pStmt->db;
-    } else if (taos->db[0] != '\0') {
-      siDbSrc = taos->db;
-    }
-    if (siDbSrc != NULL) {
-      pStmt->sql.siInfo.dbname = taosStrdup(siDbSrc);
-      if (pStmt->sql.siInfo.dbname == NULL) {
-        code = terrno;
-      }
-    }
+    const char* siDbSrc = (pStmt->db != NULL && pStmt->db[0] != '\0') ? pStmt->db : taos->db;
+    code = stmtDupSiInfoDbname(&pStmt->sql.siInfo, siDbSrc);
     if (TSDB_CODE_SUCCESS != code) {
       STMT2_ELOG("fail to dup siInfo dbname in stmtInit2:%s", tstrerror(code));
       (void)stmtClose2(pStmt);
@@ -1986,11 +1987,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
     return terrno;
   }
   if (pStmt->sql.stbInterlaceMode) {
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    pStmt->sql.siInfo.dbname = taosStrdup(pStmt->exec.pRequest->pDb);
-    if (pStmt->sql.siInfo.dbname == NULL) {
-      STMT_ERR_RET(terrno);
-    }
+    STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, pStmt->exec.pRequest->pDb));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2076,15 +2073,8 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   if (stbInterlaceMode) {
     pStmt->sql.siInfo.transport = pStmt->taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = pStmt->taos->acctId;
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    if (db != NULL && db[0] != '\0') {
-      pStmt->sql.siInfo.dbname = taosStrdup(db);
-    } else if (pStmt->taos->db[0] != '\0') {
-      pStmt->sql.siInfo.dbname = taosStrdup(pStmt->taos->db);
-    }
-    if (pStmt->sql.siInfo.dbname == NULL && ((db != NULL && db[0] != '\0') || pStmt->taos->db[0] != '\0')) {
-      STMT_ERR_RET(terrno);
-    }
+    const char* siDbSrc = (db != NULL && db[0] != '\0') ? db : pStmt->taos->db;
+    STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, siDbSrc));
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
 
     if (NULL == pStmt->pCatalog) {
@@ -2170,11 +2160,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       (void)strdequote(pStmt->exec.pRequest->pDb);
 
       if (pStmt->sql.stbInterlaceMode) {
-        taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-        pStmt->sql.siInfo.dbname = taosStrdup(pStmt->exec.pRequest->pDb);
-        if (pStmt->sql.siInfo.dbname == NULL) {
-          STMT_ERR_RET(terrno);
-        }
+        STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, pStmt->exec.pRequest->pDb));
       }
     }
 
@@ -2422,7 +2408,6 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     STMT2_DLOG_E("don't need to create, will not check tags");
     return TSDB_CODE_SUCCESS;
   }
-
 
   if ((*pDataBlock)->pData->pCreateTbReq) {
     STMT2_TLOG_E("tags are fixed, set createTbReq first time");
@@ -3277,7 +3262,8 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
           retryCode = createParseContext(pNewReq, &pWrapper->pParseCtx, pWrapper);
           if (retryCode == TSDB_CODE_SUCCESS) {
             pNewReq->syncQuery = false;
-            // Same as first exec: asyncQueryCb invokes user asyncExecFn once with userdata (not raw pStmt as fp's 1st arg).
+            // Same as first exec: asyncQueryCb invokes user asyncExecFn once with userdata (not raw pStmt as fp's 1st
+            // arg).
             pNewReq->body.queryFp = asyncQueryCb;
             ((SSyncQueryParam*)(pNewReq)->body.interParam)->userParam = pStmt;
             launchAsyncQuery(pNewReq, pStmt->sql.pQuery, NULL, pWrapper);
