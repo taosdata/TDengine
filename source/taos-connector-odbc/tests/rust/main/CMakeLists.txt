@@ -34,7 +34,7 @@ if(HAVE_CARGO)
     add_custom_target(rust_test_build ALL
         COMMAND ${CARGO_NAME} build --manifest-path ${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml --target=${RUST_TARGET} --target-dir ${CMAKE_CURRENT_BINARY_DIR})
 
-    if(NOT FAKE_TAOS)
+    if(HAVE_NATIVE)
         add_test(NAME rust_test
             COMMAND ${CARGO_NAME} run --manifest-path ${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml --target=${RUST_TARGET} --target-dir ${CMAKE_CURRENT_BINARY_DIR})
     endif()

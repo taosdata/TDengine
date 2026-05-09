@@ -1,4 +1,4 @@
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use chrono::{DateTime, Local};
 use faststr::FastStr;
 use serde::{Deserialize, Serialize};
@@ -126,7 +126,13 @@ impl TryFrom<&Dsn> for KingHistConnectConfig {
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("invalid dsn (missing password): {}", dsn))?
             .to_string();
-        let timeout_ms = parse_key_in_dsn::<u32>(dsn, "conn_timeout")?.map(|sec| sec * 1000);
+        let timeout_ms = parse_duration_in_dsn(dsn, "conn_timeout")?
+            .or(parse_duration_in_dsn(dsn, "connect_timeout")?)
+            .map(|duration| {
+                u32::try_from(duration.as_millis())
+                    .context("kinghistorian timeout is too large in milliseconds")
+            })
+            .transpose()?;
         Ok(Self {
             host,
             port,
@@ -213,5 +219,16 @@ mod tests {
             history.end,
             DateTime::<Local>::from_str("2023-10-02T00:00:00Z").unwrap()
         );
+    }
+
+    #[test]
+    fn test_kinghist_config_connect_timeout_alias() {
+        let dsn: Dsn = "kinghist://sa:sa@127.0.0.1:5678?connect_timeout=5s&mode=history&start=2023-10-01T00:00:00Z&end=2023-10-02T00:00:00Z&time_range=1h&restro=10m&interval=500"
+            .into_dsn()
+            .unwrap();
+
+        let config = KingHistConfig::try_from_dsn(&dsn).unwrap();
+
+        assert_eq!(config.connect.timeout_ms, Some(5000));
     }
 }

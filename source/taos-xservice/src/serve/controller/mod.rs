@@ -260,7 +260,11 @@ impl TaskController {
                 bail!("Agent {} is not alive", via);
             }
             if from.driver == "pibackfill" || from.driver == "pi" {
-                let file_to_send = from.params.get("transform_config_file");
+                let file_to_send = from
+                    .params
+                    .get("transform_config_file")
+                    .or(from.params.get("single-column.transform_config_file"))
+                    .or(from.params.get("multi-column.transform_config_file"));
                 if let Some(path) = file_to_send {
                     tracing::info!("Put file to agent {}: {}", via, path);
                     self.put_file_to_agent(via, path.clone()).await?;

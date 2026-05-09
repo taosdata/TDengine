@@ -11,7 +11,7 @@ use faststr::FastStr;
 use rhai::{AST, Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope};
 use rhai_dylib::module_resolvers::libloading::DylibModuleResolver;
 use rhai_dylib::rhai::{Engine, config::hashing::set_hashing_seed};
-use serde::{Deserialize, Deserializer, Serialize, de::Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Visitor};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 use std::{fmt, sync::LazyLock};
@@ -209,15 +209,21 @@ impl ArrowDataField {
     }
 }
 
-#[derive(Debug, Serialize, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct UdtAST {
-    #[serde(skip)]
     pub(crate) script: String,
-    #[serde(skip)]
     pub(crate) ast: Option<AST>,
 
-    #[serde(skip)]
     pub(crate) error: Option<ParseError>,
+}
+
+impl Serialize for UdtAST {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.script)
+    }
 }
 
 impl std::cmp::PartialEq for UdtAST {
@@ -549,6 +555,25 @@ mod tests {
                 .contains("expected a string to parse into UdtAST")
         );
     }
+
+    #[test]
+    fn udt_serialize_round_trip_preserves_script() {
+        let script = "let result = []; for item in data.data { result.push(item); } result";
+        let json = serde_json::json!({ "udt": script });
+        let udt: Udt = serde_json::from_value(json).unwrap();
+        assert_eq!(udt.udt.script, script);
+
+        let serialized = serde_json::to_value(&udt).unwrap();
+        assert_eq!(
+            serialized,
+            serde_json::json!({ "udt": script }),
+            "UDT must round-trip as the script string, not an empty object"
+        );
+
+        let udt2: Udt = serde_json::from_value(serialized).unwrap();
+        assert_eq!(udt, udt2);
+    }
+
     #[test]
     fn eval_with_udt_nested_array() {
         let udt: Udt = serde_json::from_str(

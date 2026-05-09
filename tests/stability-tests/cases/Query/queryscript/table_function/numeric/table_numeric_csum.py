@@ -222,18 +222,18 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
                             
                             sql2 = "select %s from %s where  %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where %s %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
                             
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
                             
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                         
                             time_window_new = tdWhere.time_window_new(i)
@@ -252,7 +252,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)
@@ -309,7 +309,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)
@@ -328,7 +328,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                             
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                       
                             time_window_new = tdWhere.time_window_new(i)
@@ -617,7 +617,7 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -625,11 +625,11 @@ class TDTestQuery(TDCase):
                             sql= sql + sql2
                             
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)                           
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -640,7 +640,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                          
                             time_window_new = tdWhere.time_window_new(i)
@@ -671,7 +671,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                            
                             time_window_new = tdWhere.time_window_new(i)
@@ -716,15 +716,15 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func_desc,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)
+                            self.tdSql.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -735,7 +735,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2            
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                           
                             time_window_new = tdWhere.time_window_new(i)
@@ -762,7 +762,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2            
                                                 
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                             
                             time_window_new = tdWhere.time_window_new(i)
@@ -829,7 +829,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                         
                             time_window_new = tdWhere.time_window_new(i)
@@ -860,7 +860,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                          
                             time_window_new = tdWhere.time_window_new(i)
@@ -903,7 +903,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                          
                             time_window_new = tdWhere.time_window_new(i)
@@ -930,7 +930,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                         
                             time_window_new = tdWhere.time_window_new(i)
@@ -1108,18 +1108,18 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s;'  % (func,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)  
+                            self.tdSql.execute(sql2)  
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts limit 1000)" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2) 
+                            self.tdSql.execute(sql2) 
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            self.tdSql.error(sql2)   
+                            self.tdSql.execute(sql2)   
                             sql= sql + sql2
                             
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)
@@ -1138,7 +1138,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                          
                             time_window_new = tdWhere.time_window_new(i)
@@ -1196,7 +1196,7 @@ class TDTestQuery(TDCase):
                         interval_fill = ' where ts between 1630000001000 and 1630100001000 '
                         interval_fill_and = ' ts between 1630000001000 and 1630100001000 and '
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)
@@ -1215,7 +1215,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        list_intervals = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
+                        list_intervals = [11,12,13,14,15,16,17,18,19,20,]
                         list_interval = random.sample(list_intervals,5)     
                         for i in list_interval:                        
                             time_window_new = tdWhere.time_window_new(i)

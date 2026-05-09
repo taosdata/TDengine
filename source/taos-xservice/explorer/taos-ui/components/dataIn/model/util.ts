@@ -258,20 +258,23 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
   const keys = Object.getOwnPropertyNames(dataDisplay);
 
   keys.forEach(key => {
+    const legacyKey = dstype === 'kinghist' && key === 'connect_timeout' ? 'conn_timeout' : undefined;
+    const rawVal = rdata[key] !== undefined ? rdata[key] : legacyKey ? rdata[legacyKey] : undefined;
+
     if (typeof dataDisplay[key] === 'object') {
       // 对象或数组类型
       recoverFromData(dstype, dataDisplay[key], rdata, key);
-    } else if (rdata[key] !== undefined) {
+    } else if (rawVal !== undefined) {
       // 有值的情况下，需要恢复
       if (dstype === 'opentsdb' && key === 'metrics') {
-        if (rdata[key].length > 0) {
-          dataDisplay[key] = rdata[key].split(',');
+        if (rawVal.length > 0) {
+          dataDisplay[key] = rawVal.split(',');
         } else {
           dataDisplay[key] = [];
         }
-      } else if (dstype === 'opcua' && key === 'namespaces') {
+      } else if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'namespaces') {
         // OPC UA: 后端保存为逗号分隔字符串（例如 "7,9"），前端需要数组（索引值）
-        const rawNs = rdata[key];
+        const rawNs = rawVal;
         if (typeof rawNs === 'string') {
           dataDisplay[key] = rawNs
             .split(',')
@@ -282,23 +285,22 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
         } else {
           dataDisplay[key] = [];
         }
-      } else if (key === 'port' && typeof rdata[key] === 'number') {
-        dataDisplay[key] = String(rdata[key]);
+      } else if (key === 'port' && typeof rawVal === 'number') {
+        dataDisplay[key] = String(rawVal);
       } else if (typeof dataDisplay[key] === 'boolean') {
-        if (rdata[key] === 'true') {
+        if (rawVal === 'true') {
           dataDisplay[key] = true;
-        } else if (rdata[key] === 'false') {
+        } else if (rawVal === 'false') {
           dataDisplay[key] = false;
         } else {
-          dataDisplay[key] = rdata[key];
+          dataDisplay[key] = rawVal;
         }
       } else {
         // 兼容旧版本时间格式：当后端返回的时间为 "YYYY-MM-DD HH:mm:ss" 等非 RFC3339 格式时，转换为前端时间组件所需的
         // "YYYY-MM-DDTHH:mm:ssZ" 规范格式，避免编辑时时间控件不显示。
-        const rawVal = rdata[key];
-        // 修复：编辑或复制 OPCUA 任务时，Server Endpoint 不应自动带上 opc_ua:// 前缀。
-        if (dstype === 'opcua' && key === 'endpoint' && typeof rawVal === 'string') {
-          dataDisplay[key] = rawVal.replace(/^(opcua):\/\//i, '');
+        // 修复：编辑或复制 OPCUA/OPCUA+ 任务时，Server Endpoint 不应自动带上 opcua_plus:// 或 opc_ua:// 前缀。
+        if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'endpoint' && typeof rawVal === 'string') {
+          dataDisplay[key] = rawVal.replace(/^(opcua(?:_plus)?|opc_ua(?:_plus)?):\/\//i, '');
           return; // 已处理，直接返回
         }
         if (
@@ -316,7 +318,7 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
       // 有值的情况下，需要恢复
       const rawVal = rdata[`${parentKey}.${key}`];
       // OPC UA nested case: datasets.select_all_points.namespaces
-      if (dstype === 'opcua' && key === 'namespaces') {
+      if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'namespaces') {
         if (typeof rawVal === 'string') {
           dataDisplay[key] = rawVal
             .split(',')
@@ -330,8 +332,8 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
         return; // 已处理
       }
       // 同样处理嵌套键的 endpoint 前缀问题
-      if (dstype === 'opcua' && key === 'endpoint' && typeof rawVal === 'string') {
-        dataDisplay[key] = rawVal.replace(/^(opcua):\/\//i, '');
+      if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'endpoint' && typeof rawVal === 'string') {
+        dataDisplay[key] = rawVal.replace(/^(opcua(?:_plus)?|opc_ua(?:_plus)?):\/\//i, '');
         return; // 已处理
       }
       if (

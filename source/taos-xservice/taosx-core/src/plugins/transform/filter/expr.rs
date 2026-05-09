@@ -20,6 +20,10 @@ impl ExprRecordFilter {
     pub fn from_condition(expr: ConditionExpr) -> Self {
         Self { expr }
     }
+
+    pub(super) fn condition(&self) -> &ConditionExpr {
+        &self.expr
+    }
 }
 
 impl RecordFilter for ExprRecordFilter {
