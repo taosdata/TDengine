@@ -6466,14 +6466,20 @@ static EDealRes detectTbNameWalker(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool fromTableHasExtSource(SNode* pFromTable) {
-  if (NULL == pFromTable) return false;
+static bool fromTableHasNonInfluxExtSource(SNode* pFromTable) {
+  if (NULL == pFromTable) {
+    return false;
+  }
   if (QUERY_NODE_REAL_TABLE == nodeType(pFromTable)) {
-    return NULL != ((SRealTableNode*)pFromTable)->pExtTableNode;
+    SRealTableNode* pReal = (SRealTableNode*)pFromTable;
+    if (NULL == pReal->pExtTableNode) {
+      return false;
+    }
+    return ((SExtTableNode*)pReal->pExtTableNode)->sourceType != EXT_SOURCE_INFLUXDB;
   }
   if (QUERY_NODE_JOIN_TABLE == nodeType(pFromTable)) {
     SJoinTableNode* pJoin = (SJoinTableNode*)pFromTable;
-    return fromTableHasExtSource(pJoin->pLeft) || fromTableHasExtSource(pJoin->pRight);
+    return fromTableHasNonInfluxExtSource(pJoin->pLeft) || fromTableHasNonInfluxExtSource(pJoin->pRight);
   }
   return false;
 }
@@ -6494,7 +6500,7 @@ static int8_t fromTableExtSourceType(SNode* pFromTable) {
 }
 
 static int32_t checkExtTableTbnameUsage(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (!fromTableHasExtSource(pSelect->pFromTable)) {
+  if (!fromTableHasNonInfluxExtSource(pSelect->pFromTable)) {
     return TSDB_CODE_SUCCESS;
   }
 
