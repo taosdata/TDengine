@@ -190,6 +190,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   // =========================================================================
   // Step 2: Fetch next data block
   // =========================================================================
+_fetchNext:
   {
     SSDataBlock*        pBlock   = NULL;
     SExtConnectorError  fetchErr = {0};
@@ -249,6 +250,17 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
           }
           idx++;
         }
+      }
+    }
+
+    // Apply local filter for conditions that could not be pushed down
+    // to the remote source (e.g., like_in_set, regexp_in_set).
+    if (pOperator->exprSupp.pFilterInfo != NULL) {
+      code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      QUERY_CHECK_CODE(code, lino, _return);
+      if (pBlock->info.rows == 0) {
+        // All rows filtered out — fetch next block
+        goto _fetchNext;
       }
     }
 
@@ -517,6 +529,15 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   setOperatorInfo(pOperator, "FederatedScanOperator",
                   QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,
                   false, OP_NOT_OPENED, pInfo, pTaskInfo);
+
+  // Initialize local filter from pConditions (for conditions like like_in_set
+  // that cannot be pushed down to the remote source)
+  if (pFedScanNode->node.pConditions != NULL) {
+    code = filterInitFromNode((SNode*)pFedScanNode->node.pConditions,
+                              &pOperator->exprSupp.pFilterInfo, 0,
+                              pTaskInfo->pStreamRuntimeInfo);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
 
   pOperator->fpSet = createOperatorFpSet(
       optrDummyOpenFn,           // open: lazy — real connect happens in getNext

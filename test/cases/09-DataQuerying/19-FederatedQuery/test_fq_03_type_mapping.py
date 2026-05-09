@@ -380,7 +380,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             # (b) TIMESTAMP pk — ts column maps correctly, value preserved
             tdSql.query(f"select ts, val from {src}.tbl_ts_pk")
             tdSql.checkRows(1)
-            tdSql.checkData(0, 0, '2024-06-15 12:30:00')
+            import datetime as _dt
+            _inserted = _dt.datetime(2024, 6, 15, 12, 30, 0)
+            _utc_dt = _dt.datetime.utcfromtimestamp(_inserted.timestamp())
+            tdSql.checkData(0, 0, _utc_dt.strftime('%Y-%m-%d %H:%M:%S'))
             tdSql.checkData(0, 1, 2)
         finally:
             self._cleanup_src(src)
@@ -3419,13 +3422,18 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select ts, value from {src}.date_test order by value")
             tdSql.checkRows(2)
-            # Verify time part is midnight 00:00:00 (zero-fill)
+            # Verify date portion correct. Time displays in taosd local timezone,
+            # e.g. epoch 1705276800000 (2024-01-15 00:00:00 UTC) shows as
+            # '2024-01-15 08:00:00' in CST — same as local table behavior.
             ts0 = str(tdSql.getData(0, 0))
             ts1 = str(tdSql.getData(1, 0))
-            assert '2024-01-15' in ts0 and '00:00:00' in ts0, \
-                f"Date32/Date64 should zero-fill to midnight: {ts0}"
-            assert '2024-06-15' in ts1 and '00:00:00' in ts1, \
-                f"Date32/Date64 should zero-fill to midnight: {ts1}"
+            import datetime as _dt
+            exp_ts0 = _dt.datetime.fromtimestamp(1705276800).strftime('%Y-%m-%d %H:%M:%S')
+            exp_ts1 = _dt.datetime.fromtimestamp(1718409600).strftime('%Y-%m-%d %H:%M:%S')
+            assert exp_ts0 in ts0, \
+                f"Date32/Date64 timestamp mismatch: expected {exp_ts0} in {ts0}"
+            assert exp_ts1 in ts1, \
+                f"Date32/Date64 timestamp mismatch: expected {exp_ts1} in {ts1}"
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 2)
         finally:

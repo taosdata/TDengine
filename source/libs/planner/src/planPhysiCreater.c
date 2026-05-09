@@ -1501,13 +1501,11 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     code = setNodeSlotId(pCxt, pScan->node.pOutputDataBlockDesc->dataBlockId, -1,
                          pScanLogicNode->node.pConditions, &pScan->node.pConditions);
     if (TSDB_CODE_SUCCESS != code) {
-      // Some condition columns (e.g. WHERE-only columns like "active") are not
-      // present in the scan output because they were fully pushed down to the
-      // external database's SQL.  setNodeSlotId cannot resolve them, so we
-      // leave pConditions NULL here: the SQL pushdown already handles that
-      // filtering, so no local re-evaluation is needed.
-      planDebug("createFederatedScanPhysiNode: setNodeSlotId failed (%d), "
-               "condition columns not in scan output — relying on SQL pushdown", code);
+      // setNodeSlotId fails when condition columns are not in the output hash
+      // (e.g. conditions already pushed to remote SQL, referencing columns not
+      // in SELECT).  Clear pConditions — the remote source handles filtering.
+      // Only conditions whose columns ARE in the output (setNodeSlotId succeeds)
+      // will be kept for local doFilter evaluation in the executor.
       pScan->node.pConditions = NULL;
       code = TSDB_CODE_SUCCESS;
     }
