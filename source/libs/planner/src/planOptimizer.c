@@ -10838,18 +10838,186 @@ static bool fqIsFullyPushedCondition(SNode* pCond) {
   return false;
 }
 
-// Harvest WHERE conditions that can be pushed entirely to the remote source.
-// Moves them from pScan->node.pConditions to pScan->pPushedConditions so that
-// the outer physical scan gets pConditions=NULL (safe for executor/scalar) while
-// the inner leaf physical node still carries the condition for SQL generation.
+// Returns true if this condition is LIKE / NOT LIKE on a PG JSONB column.
+// Such conditions cannot be sent to the remote DB (PG rejects LIKE on JSONB);
+// they must be executed locally by the FederatedScan operator instead.
+static bool fqIsJsonbLikeOp(SNode* pCond, SScanLogicNode* pScan) {
+  if (pCond == NULL || pScan == NULL) return false;
+  if (nodeType(pCond) != QUERY_NODE_OPERATOR) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (pOp->opType != OP_TYPE_LIKE && pOp->opType != OP_TYPE_NOT_LIKE) return false;
+  SNode* pLeft = pOp->pLeft;
+  if (pLeft == NULL || nodeType(pLeft) != QUERY_NODE_COLUMN) return false;
+  const char* colName = ((SColumnNode*)pLeft)->colName;
+  if (colName == NULL || colName[0] == '\0') return false;
+
+  // Look up the column's external type in the ext table metadata.
+  if (pScan->pExtTableNode == NULL) return false;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  SExtTableMeta* pExtMeta = pExtNode->pExtMeta;
+  if (pExtMeta == NULL || pExtMeta->pCols == NULL) return false;
+
+  for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
+    if (strcasecmp(pExtMeta->pCols[i].colName, colName) == 0) {
+      return strcasecmp(pExtMeta->pCols[i].extTypeName, "jsonb") == 0;
+    }
+  }
+  return false;
+}
+
+// Returns true if pCond (or any sub-condition) is a JSONB LIKE op that
+// cannot be pushed to the remote DB and must be executed locally.
+static bool fqCondHasNonPushable(SNode* pCond, SScanLogicNode* pScan) {
+  if (pCond == NULL) return false;
+  if (fqIsJsonbLikeOp(pCond, pScan)) return true;
+  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    SNode* pChild = NULL;
+    FOREACH(pChild, pLogic->pParameterList) {
+      if (fqCondHasNonPushable(pChild, pScan)) return true;
+    }
+  }
+  return false;
+}
+
+// Harvest WHERE conditions that can be pushed to the remote source.
+// Classifies each condition:
+//   - EXISTS/NOT EXISTS with RAW_SQL_FRAG → always pushed (pPushedConditions)
+//   - LIKE / NOT LIKE on a JSONB column   → kept local (node.pConditions)
+//   - Everything else (simple comparisons, BETWEEN, IS NULL, etc.)
+//                                         → pushed to remote SQL (pPushedConditions)
+//
+// If a condition (or sub-condition) is non-pushable, the ENTIRE condition stays
+// in node.pConditions for local execution by FederatedScan.  This is conservative
+// for mixed AND conditions (the whole AND stays local) but always correct.
+// fqEnsureLocalFilterColsInScanCols ensures all referenced columns are fetched.
 static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
   if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
+
+  // Special case: EXISTS/RAW_SQL_FRAG — always pushed.
   if (fqIsFullyPushedCondition(pScan->node.pConditions)) {
     pScan->pPushedConditions = pScan->node.pConditions;
     pScan->node.pConditions = NULL;
+    return TSDB_CODE_SUCCESS;
   }
+
+  // If any sub-condition is non-pushable (JSONB LIKE), keep the entire
+  // condition in node.pConditions for local execution.
+  if (fqCondHasNonPushable(pScan->node.pConditions, pScan)) {
+    // node.pConditions stays as-is; pPushedConditions remains NULL.
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // All sub-conditions are safe to push to the remote DB.
+  pScan->pPushedConditions = pScan->node.pConditions;
+  pScan->node.pConditions = NULL;
   return TSDB_CODE_SUCCESS;
 }
+
+// ---------------------------------------------------------------------------
+// fqEnsureLocalFilterColsInScanCols
+//
+// After the pushdown optimizer reduces pScanCols to only the SELECT output
+// columns, any column referenced exclusively in the local WHERE clause
+// (node.pConditions) would be missing from pScanCols.  The remote SQL would
+// then not fetch those columns, making local filter evaluation impossible.
+//
+// This helper re-adds any such missing columns to:
+//   1. pScan->pScanCols       — so the remote SQL's SELECT includes them
+//   2. pRemoteLogicPlan->pTargets — so planPhysiCreater uses the right list
+//      for pLeaf->pScanCols (when pRemoteLogicPlan != NULL)
+//   3. The Project logic node's pProjections (if a Project is in the chain)
+//      — so assembleRemoteSQL emits them in the SELECT clause
+//
+// Called immediately after pScanCols is reduced in fqPushdownOptimize.
+// ---------------------------------------------------------------------------
+static int32_t fqEnsureLocalFilterColsInScanCols(SScanLogicNode* pScan) {
+  if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
+
+  // Collect all column references from the local filter condition.
+  SNodeList* pCondCols = NULL;
+  int32_t    code      = nodesCollectColumnsFromNode(pScan->node.pConditions, NULL,
+                                                     COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (TSDB_CODE_SUCCESS != code || pCondCols == NULL) return code;
+
+  SLogicNode* pTopRemote = (pScan->pRemoteLogicPlan != NULL)
+                               ? (SLogicNode*)pScan->pRemoteLogicPlan
+                               : NULL;
+
+  // Find the Project logic node in the chain (if any).
+  // It may be pTopRemote itself, or a child node in the chain.
+  SProjectLogicNode* pProjLogic = NULL;
+  if (pTopRemote != NULL) {
+    SLogicNode* pCurr = pTopRemote;
+    while (pCurr != NULL) {
+      if (nodeType(pCurr) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+        pProjLogic = (SProjectLogicNode*)pCurr;
+        break;
+      }
+      pCurr = (pCurr->pChildren && LIST_LENGTH(pCurr->pChildren) > 0)
+                  ? (SLogicNode*)nodesListGetNode(pCurr->pChildren, 0)
+                  : NULL;
+    }
+  }
+
+  SNode* pCondCol = NULL;
+  FOREACH(pCondCol, pCondCols) {
+    if (nodeType(pCondCol) != QUERY_NODE_COLUMN) continue;
+    const char* condColName = ((const SColumnNode*)pCondCol)->colName;
+
+    // Check whether condColName already exists in pScan->pScanCols.
+    bool found = false;
+    SNode* pScanCol = NULL;
+    FOREACH(pScanCol, pScan->pScanCols) {
+      const SNode* pInner = pScanCol;
+      if (nodeType(pInner) == QUERY_NODE_TARGET)
+        pInner = ((const STargetNode*)pInner)->pExpr;
+      if (pInner != NULL && nodeType(pInner) == QUERY_NODE_COLUMN) {
+        if (strcasecmp(((const SColumnNode*)pInner)->colName, condColName) == 0) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (found) continue;
+
+    // Column is only in the local filter — add it to pScanCols.
+    SNode* pClone1 = NULL;
+    code = nodesCloneNode(pCondCol, &pClone1);
+    if (TSDB_CODE_SUCCESS != code) goto _done;
+    code = nodesListMakeStrictAppend(&pScan->pScanCols, pClone1);
+    if (TSDB_CODE_SUCCESS != code) goto _done;
+
+    // Also add to pRemoteLogicPlan->pTargets so that pLeaf->pScanCols in
+    // planPhysiCreater.c (which uses pTargets when pRemoteLogicPlan is set)
+    // also includes the column.
+    if (pTopRemote != NULL) {
+      SNode* pClone2 = NULL;
+      code = nodesCloneNode(pCondCol, &pClone2);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+      code = nodesListMakeStrictAppend(&pTopRemote->pTargets, pClone2);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+    }
+
+    // If a Project node is in the chain, add the column to its pProjections
+    // so that assembleRemoteSQL emits it in the SELECT clause.
+    // Without this, the SELECT list is built from pProjections = {id} only,
+    // so the WHERE-only column (e.g. data) would not be fetched by the
+    // external DB, making local LIKE evaluation impossible.
+    if (pProjLogic != NULL) {
+      SNode* pClone3 = NULL;
+      code = nodesCloneNode(pCondCol, &pClone3);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+      code = nodesListMakeStrictAppend(&pProjLogic->pProjections, pClone3);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+    }
+  }
+
+_done:
+  nodesDestroyList(pCondCols);
+  return code;
+}
+
 
 // Convert TDengine PARTITION BY semantics into standard SQL GROUP BY for remote.
 //
@@ -11121,8 +11289,90 @@ static int32_t fqConvertWindow(SScanLogicNode* pScan) {
 
 // Harvest aggregation nodes (AGG) detached by aggOptimize and push them
 // into the remote plan for remote-side aggregation.
-static int32_t fqHarvestAgg(SScanLogicNode* pScan) {
-  // Phase 2: move AGG node into pRemoteLogicPlan
+// Check if a logic node (expected: AGG) contains any REPEAT_SCAN_FUNC (e.g. PERCENTILE).
+static bool fqNodeHasRepeatScanFunc(const SLogicNode* pNode) {
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_AGG) {
+    taosPrintLog("FQ-RSFUNC ", DEBUG_ERROR, 255,
+                 "fqNodeHasRepeatScanFunc: pNode=%p type=%d → false (not AGG)",
+                 pNode, pNode ? (int)nodeType(pNode) : -1);
+    return false;
+  }
+  const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
+  int32_t cnt = pAgg->pAggFuncs ? (int32_t)LIST_LENGTH(pAgg->pAggFuncs) : 0;
+  taosPrintLog("FQ-RSFUNC ", DEBUG_ERROR, 255,
+               "fqNodeHasRepeatScanFunc: AGG pNode=%p pAggFuncs=%p cnt=%d",
+               pNode, pAgg->pAggFuncs, cnt);
+  const SNode* pFunc = NULL;
+  FOREACH(pFunc, pAgg->pAggFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pFunc)) {
+      int32_t funcId   = ((const SFunctionNode*)pFunc)->funcId;
+      bool    isRepeat = fmIsRepeatScanFunc(funcId);
+      taosPrintLog("FQ-RSFUNC ", DEBUG_ERROR, 255,
+                   "fqNodeHasRepeatScanFunc:   func funcId=%d isRepeatScan=%d",
+                   funcId, (int)isRepeat);
+      if (isRepeat) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Insert a GroupCacheLogicNode(twoPassMode=true) between FedScan and its AGG parent when the
+// AGG contains REPEAT_SCAN_FUNC (e.g. PERCENTILE).  The GroupCache intercepts the two-phase
+// scan: Phase 1 (PRE_SCAN) fetches + caches all blocks; Phase 2 (MAIN_SCAN) replays them.
+// This gives PERCENTILE the two-pass behaviour it requires even when the source is FedScan.
+static int32_t fqInjectTwoPassGroupCache(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
+  if (!fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SGroupCacheLogicNode* pGrpCache = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, (SNode**)&pGrpCache);
+  if (NULL == pGrpCache) return code;
+
+  pGrpCache->twoPassMode      = true;
+  pGrpCache->grpByUid         = false;
+  pGrpCache->globalGrp        = false;
+  pGrpCache->batchFetch       = false;
+  pGrpCache->grpColsMayBeNull = false;
+
+  // GroupCache output = FedScan output (same column set)
+  code = nodesCloneList(pScan->node.pTargets, &pGrpCache->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pGrpCache);
+    return code;
+  }
+
+  // replaceLogicNode: puts pGrpCache where pScan was in pParent->pChildren,
+  //                   sets pGrpCache->pParent = pScan->pParent (AGG).
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pScan, (SLogicNode*)pGrpCache);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pGrpCache);
+    return code;
+  }
+
+  // Wire pScan as the sole child of pGrpCache.
+  pScan->node.pParent = (SLogicNode*)pGrpCache;
+  code = nodesMakeList(&pGrpCache->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = nodesListStrictAppend(pGrpCache->node.pChildren, (SNode*)pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  planDebug("FqInjectTwoPassGroupCache: inserted GroupCache(twoPassMode) between AGG and FedScan for PERCENTILE");
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqHarvestAgg(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
+  // Two-pass PERCENTILE support: set scanSeq[0]=2 when the parent AGG has REPEAT_SCAN_FUNC.
+  // planPhysiCreater reads scanSeq[0]>1 → sets twoPassMode on SFederatedScanPhysiNode.
+  // This is done here (in optimizer) rather than in createExternalScanLogicNode to ensure
+  // the parent chain is fully built and fqNodeHasRepeatScanFunc can check pAgg->pAggFuncs.
+  if (fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
+    pScan->scanSeq[0] = 2;
+    planDebug("FqHarvestAgg: set scanSeq[0]=2 (twoPassMode) for REPEAT_SCAN_FUNC (PERCENTILE)");
+  }
+  (void)pLogicSubplan;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -11349,7 +11599,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   if (TSDB_CODE_SUCCESS != code) return code;
   code = fqConvertWindow(pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
-  code = fqHarvestAgg(pScan);
+  code = fqHarvestAgg(pLogicSubplan, pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
 
   // ── Phase 1: harvest Sort + Project chain ──
@@ -11474,6 +11724,13 @@ _chain_done:
       if (TSDB_CODE_SUCCESS != code) goto _cleanup;
       nodesDestroyList(pScan->pScanCols);
       pScan->pScanCols = pNewScanCols;
+
+      // Re-add any columns that appear only in local WHERE conditions
+      // (node.pConditions) but were dropped from pScanCols during reduction.
+      // Without these columns the remote DB won't return them and local
+      // filter evaluation (e.g. LIKE on PG JSONB) will silently fail.
+      code = fqEnsureLocalFilterColsInScanCols(pScan);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
     }
   }
   // If chain is empty, pScan->pRemoteLogicPlan stays NULL and

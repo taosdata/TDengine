@@ -274,6 +274,7 @@ typedef struct SGroupCacheLogicNode {
   bool       grpByUid;
   bool       globalGrp;
   bool       batchFetch;
+  bool       twoPassMode;  // single-group two-pass for repeat-scan functions (e.g. PERCENTILE)
   SNodeList* pGroupCols;
 } SGroupCacheLogicNode;
 
@@ -678,6 +679,8 @@ typedef struct SFederatedScanPhysiNode {
   // --- column type mappings (computed by Parser, carried to Executor via plan) ---
   SExtColTypeMapping* pColTypeMappings;  // one entry per pScanCols column, in the same order
   int32_t             numColTypeMappings;
+  // --- two-pass scan support (for PERCENTILE and other REPEAT_SCAN_FUNC) ---
+  bool                twoPassMode;       // true: FedScan must do PRE_SCAN pass then MAIN_SCAN pass
 } SFederatedScanPhysiNode;
 
 typedef struct SProjectPhysiNode {
@@ -771,6 +774,7 @@ typedef struct SGroupCachePhysiNode {
   bool       grpByUid;
   bool       globalGrp;
   bool       batchFetch;
+  bool       twoPassMode;  // single-group two-pass for repeat-scan functions (e.g. PERCENTILE)
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 

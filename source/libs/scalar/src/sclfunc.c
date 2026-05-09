@@ -1548,13 +1548,15 @@ int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 }
 
 static bool likeInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = input string, b = pattern from set
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
-  return patternMatch(a, aLen, b, bLen, &pInfo) == TSDB_PATTERN_MATCH;
+  return patternMatch(b, bLen, a, aLen, &pInfo) == TSDB_PATTERN_MATCH;
 }
 
 static bool wcsLikeInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = input string, b = pattern from set
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
-  return wcsPatternMatch((TdUcs4 *)a, aLen / TSDB_NCHAR_SIZE, (TdUcs4 *)b, bLen / TSDB_NCHAR_SIZE, &pInfo) ==
+  return wcsPatternMatch((TdUcs4 *)b, bLen / TSDB_NCHAR_SIZE, (TdUcs4 *)a, aLen / TSDB_NCHAR_SIZE, &pInfo) ==
          TSDB_PATTERN_MATCH;
 }
 
@@ -1570,20 +1572,21 @@ int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 
 static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = input string, b = regex pattern from set
   char patBuf[256], strBuf[256], msgbuf[256];
 
   char *pattern = patBuf, *str = strBuf;
-  if (aLen >= sizeof(patBuf)) {
-    pattern = taosMemoryMalloc(aLen + 1);
+  if (bLen >= sizeof(patBuf)) {
+    pattern = taosMemoryMalloc(bLen + 1);
     if (NULL == pattern) {
       return false;  // terrno has been set
     }
   }
-  (void)memcpy(pattern, a, aLen);
-  pattern[aLen] = 0;
+  (void)memcpy(pattern, b, bLen);
+  pattern[bLen] = 0;
 
-  if (bLen >= sizeof(strBuf)) {
-    str = taosMemoryMalloc(bLen + 1);
+  if (aLen >= sizeof(strBuf)) {
+    str = taosMemoryMalloc(aLen + 1);
     if (NULL == str) {
       if (pattern != patBuf) {
         taosMemoryFree(pattern);
@@ -1591,8 +1594,8 @@ static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32
       return false;  // terrno has been set
     }
   }
-  (void)memcpy(str, b, bLen);
-  str[bLen] = 0;
+  (void)memcpy(str, a, aLen);
+  str[aLen] = 0;
 
   regex_t *regex = NULL;
   int32_t  ret = threadGetRegComp(&regex, pattern);
@@ -1654,8 +1657,8 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   if (setNum == 1) {
     setLen = varDataLen(colDataGetData(sets, 0));
     setstr = varDataVal(colDataGetData(sets, 0));
-    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
       needFreeSet = true;
     }
   }

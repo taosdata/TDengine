@@ -995,6 +995,7 @@ static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, S
   COPY_CHAR_ARRAY_FIELD(srcSchema);
   COPY_CHAR_ARRAY_FIELD(srcOptions);
   COPY_SCALAR_FIELD(metaVersion);
+  COPY_SCALAR_FIELD(twoPassMode);
   // pColTypeMappings: deep copy if present
   if (pSrc->pColTypeMappings && pSrc->numColTypeMappings > 0) {
     pDst->pColTypeMappings = (SExtColTypeMapping*)taosMemoryMalloc(

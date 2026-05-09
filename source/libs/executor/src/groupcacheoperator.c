@@ -189,11 +189,35 @@ static void destroySGcBlkCacheInfo(SGcBlkCacheInfo* pBlkCache) {
   taosHashCleanup(pBlkCache->pReadBlk);
 }
 
+// Forward declarations needed by destroyGroupCacheOperator and groupCacheTwoPassGetNext.
+static int32_t releaseBaseBlockToList(SGcDownstreamCtx* pCtx, SSDataBlock* pBlock);
+static int32_t acquireBaseBlockFromList(SGcDownstreamCtx* pCtx, SSDataBlock** ppRes);
+static int32_t buildGroupCacheResultBlock(SGroupCacheOperatorInfo* pGCache, int32_t downstreamIdx, void* pBuf, SSDataBlock** ppRes);
+static int32_t buildGroupCacheBaseBlock(SSDataBlock** ppDst, SSDataBlock* pSrc);
+
 static void destroyGroupCacheOperator(void* param) {
   SGroupCacheOperatorInfo* pGrpCacheOperator = (SGroupCacheOperatorInfo*)param;
 
   logGroupCacheExecInfo(pGrpCacheOperator);
   
+  // twoPassMode: release in-flight MAIN_SCAN block before downstream ctx is destroyed
+  if (pGrpCacheOperator->twoPassMode && pGrpCacheOperator->pTwoPassCurBlock != NULL &&
+      pGrpCacheOperator->pDownstreams != NULL) {
+    (void)releaseBaseBlockToList(&pGrpCacheOperator->pDownstreams[0], pGrpCacheOperator->pTwoPassCurBlock);
+    pGrpCacheOperator->pTwoPassCurBlock = NULL;
+  }
+  // twoPassMode: free cached block buffers
+  if (pGrpCacheOperator->pTwoPassBlocks != NULL) {
+    int32_t n = (int32_t)taosArrayGetSize(pGrpCacheOperator->pTwoPassBlocks);
+    for (int32_t i = 0; i < n; ++i) {
+      // SGcTwoPassBlkBuf is defined below; pBuf is the first field
+      void** ppBuf = (void**)taosArrayGet(pGrpCacheOperator->pTwoPassBlocks, i);
+      if (ppBuf && *ppBuf) taosMemoryFree(*ppBuf);
+    }
+    taosArrayDestroy(pGrpCacheOperator->pTwoPassBlocks);
+    pGrpCacheOperator->pTwoPassBlocks = NULL;
+  }
+
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pColsInfo);
   taosMemoryFree(pGrpCacheOperator->groupColsInfo.pBuf);
 
@@ -1463,6 +1487,85 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
+// ─── twoPassMode two-pass getNextFn ─────────────────────────────────────────
+// Used when GroupCache is injected for repeat-scan functions (e.g. PERCENTILE).
+// Phase 1 (PRE_SCAN):  fetch all blocks from downstream FedScan, serialize and
+//                       cache them in memory, return each to AGG with PRE_SCAN flag.
+// Phase 2 (MAIN_SCAN): replay cached blocks (deserialized via buildGroupCacheResultBlock)
+//                       to AGG with MAIN_SCAN flag.
+// This gives the AGG two complete passes over the data without FedScan being called twice.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Each entry in SGroupCacheOperatorInfo.pTwoPassBlocks stores a serialized block.
+typedef struct SGcTwoPassBlkBuf {
+  void*   pBuf;     // serialized block data (malloc'd; freed in destroyGroupCacheOperator)
+  int64_t bufSize;  // size of pBuf in bytes
+} SGcTwoPassBlkBuf;
+
+static int32_t groupCacheTwoPassGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  SGroupCacheOperatorInfo* pInfo = pOperator->info;
+  *ppRes = NULL;
+
+  // Release previously returned MAIN_SCAN block back to the free pool.
+  if (pInfo->pTwoPassCurBlock != NULL) {
+    (void)releaseBaseBlockToList(&pInfo->pDownstreams[0], pInfo->pTwoPassCurBlock);
+    pInfo->pTwoPassCurBlock = NULL;
+  }
+
+  if (!pInfo->twoPassPhase1Done) {
+    // ── Phase 1 (PRE_SCAN) ──
+    SSDataBlock* pBlock = NULL;
+    int32_t code = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0], &pBlock);
+    if (code) return code;
+
+    if (pBlock != NULL) {
+      // Initialize pBaseBlock on first block so buildGroupCacheResultBlock works in Phase 2.
+      if (NULL == pInfo->pDownstreams[0].pBaseBlock) {
+        code = buildGroupCacheBaseBlock(&pInfo->pDownstreams[0].pBaseBlock, pBlock);
+        if (code) return code;
+        if (NULL == taosArrayPush(pInfo->pDownstreams[0].pFreeBlock, &pInfo->pDownstreams[0].pBaseBlock)) {
+          return terrno;
+        }
+      }
+      // Serialize block for Phase 2 replay.
+      int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) +
+                        (int64_t)taosArrayGetSize(pBlock->pDataBlock) * (int64_t)sizeof(int32_t);
+      SGcTwoPassBlkBuf entry = {.pBuf = taosMemoryMalloc(bufSize), .bufSize = bufSize};
+      if (NULL == entry.pBuf) return terrno;
+      code = blockDataToBuf(entry.pBuf, pBlock);
+      if (code) { taosMemoryFree(entry.pBuf); return code; }
+      if (NULL == taosArrayPush(pInfo->pTwoPassBlocks, &entry)) {
+        taosMemoryFree(entry.pBuf);
+        return terrno;
+      }
+      // Return block to AGG with PRE_SCAN so repeat-scan functions do their first pass.
+      pBlock->info.scanFlag = PRE_SCAN;
+      *ppRes = pBlock;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    // Downstream EOF — Phase 1 complete.
+    pInfo->twoPassPhase1Done = true;
+    pInfo->twoPassNextIdx    = 0;
+  }
+
+  // ── Phase 2 (MAIN_SCAN) ──
+  int32_t n = (int32_t)taosArrayGetSize(pInfo->pTwoPassBlocks);
+  if (pInfo->twoPassNextIdx < n) {
+    SGcTwoPassBlkBuf* pEntry = taosArrayGet(pInfo->pTwoPassBlocks, pInfo->twoPassNextIdx++);
+    SSDataBlock*      pResult = NULL;
+    int32_t code = buildGroupCacheResultBlock(pInfo, 0, pEntry->pBuf, &pResult);
+    if (code) return code;
+    pResult->info.scanFlag  = MAIN_SCAN;
+    pInfo->pTwoPassCurBlock = pResult;
+    *ppRes = pResult;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Both phases complete — signal EOF.
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
   *pRes = NULL;
 
@@ -1602,11 +1705,20 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
   pInfo->grpByUid = pPhyciNode->grpByUid;
   pInfo->globalGrp = pPhyciNode->globalGrp;
   pInfo->batchFetch = pPhyciNode->batchFetch;
+  pInfo->twoPassMode = pPhyciNode->twoPassMode;
   
-  if (!pInfo->grpByUid) {
+  if (!pInfo->grpByUid && !pInfo->twoPassMode) {
     qError("only group cache by uid is supported now");
     code = TSDB_CODE_INVALID_PARA;
     goto _error;
+  }
+
+  if (pInfo->twoPassMode) {
+    pInfo->pTwoPassBlocks = taosArrayInit(16, sizeof(SGcTwoPassBlkBuf));
+    if (NULL == pInfo->pTwoPassBlocks) {
+      code = terrno;
+      goto _error;
+    }
   }
   
   if (pPhyciNode->pGroupCols) {
@@ -1645,7 +1757,10 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
     goto _error;
   }
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, NULL, NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL, groupCacheGetNext, groupCacheTableCacheEnd);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn,
+                                         pInfo->twoPassMode ? groupCacheTwoPassGetNext : NULL,
+                                         NULL, destroyGroupCacheOperator, optrDefaultBufFn, NULL,
+                                         pInfo->twoPassMode ? NULL : groupCacheGetNext, groupCacheTableCacheEnd);
 
   setOperatorResetStateFn(pOperator, resetGroupCacheOperState);
 

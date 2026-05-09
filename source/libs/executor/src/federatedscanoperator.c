@@ -100,6 +100,7 @@ static int32_t federatedScanGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     return TSDB_CODE_SUCCESS;
   }
 
+_restart:  // Entry point for phase-2 re-execution in twoPassMode
   // =========================================================================
   // Step 1: First call — connect + generate SQL + issue query
   // =========================================================================
@@ -212,6 +213,26 @@ _fetchNext:
 
     if (pBlock == NULL) {
       // EOF
+      if (pInfo->twoPassMode && !pInfo->twoPassPhase1Done) {
+        // Phase-1 (PRE_SCAN) exhausted.  Close the current connection and
+        // immediately restart for phase-2 (MAIN_SCAN) without returning NULL
+        // to the caller.  PERCENTILE needs a continuous stream of
+        // PRE_SCAN blocks followed by MAIN_SCAN blocks within a single
+        // nextGroupedResult() loop.
+        qError("FQ-DIAG-TWOPASS: phase-1 done, rows=%" PRId64
+               " blocks=%" PRId64 " — restarting for phase-2 (twoPassMode=%d)",
+               pInfo->fetchedRows, pInfo->fetchBlockCount, (int)pInfo->twoPassMode);
+        pInfo->twoPassPhase1Done = true;
+        if (pInfo->pQueryHandle) {
+          extConnectorCloseQuery(pInfo->pQueryHandle);
+          pInfo->pQueryHandle = NULL;
+        }
+        extConnectorClose(pInfo->pConnHandle);
+        pInfo->pConnHandle  = NULL;
+        pInfo->queryStarted = false;
+        goto _restart;
+      }
+      // True EOF (phase-2 done, or non-twoPass mode)
       pInfo->queryFinished = true;
       setOperatorCompleted(pOperator);
       qDebug("FederatedScan: EOF, totalRows=%" PRId64 ", blocks=%" PRId64
@@ -219,6 +240,13 @@ _fetchNext:
              pInfo->fetchedRows, pInfo->fetchBlockCount, pInfo->elapsedTimeUs);
       *ppRes = NULL;
       return TSDB_CODE_SUCCESS;
+    }
+
+    // Set scan flag for PERCENTILE two-pass support.
+    // Phase-1 returns PRE_SCAN (stage-0: collect min/max/count).
+    // Phase-2 returns MAIN_SCAN (stage-1: fill tMemBucket).
+    if (pInfo->twoPassMode) {
+      pBlock->info.scanFlag = pInfo->twoPassPhase1Done ? MAIN_SCAN : PRE_SCAN;
     }
 
     pInfo->fetchedRows += pBlock->info.rows;
@@ -546,6 +574,10 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
   }
 
   // FederatedScan is a leaf node — no downstream
+  pInfo->twoPassMode = pFedScanNode->twoPassMode;
+  pInfo->twoPassPhase1Done = false;
+  qError("FQ-DIAG-EXECUTOR: createFederatedScanOperatorInfo twoPassMode=%d", (int)pInfo->twoPassMode);
+
   setOperatorInfo(pOperator, "FederatedScanOperator",
                   QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN,
                   false, OP_NOT_OPENED, pInfo, pTaskInfo);

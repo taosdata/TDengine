@@ -742,11 +742,21 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
     # ==================================================================
     # 6  JSON operators
-    #    Covers: 010/011/012/038/082
+    #    Covers: FQ-SQL-010/011/012/038/082
     # ==================================================================
 
     def test_fq_sql_json_operators(self):
-        """FQ-SQL-JSON: JSON value extraction via -> and value filter on all sources.
+        """FQ-SQL-JSON: JSON operator rejection and LIKE workaround on all sources.
+
+        TDengine's native JSON type (TSDB_DATA_TYPE_JSON / STag format) is only
+        valid for tag columns.  External source columns (MySQL JSON, PG JSONB,
+        InfluxDB string field) have no tag concept and are all mapped to NCHAR.
+        Therefore:
+          - '->' (JSON_GET_VALUE) on an external column → PAR_INVALID_COL_JSON at
+            parse time (caught in translateOperator via sclGetJsonOperatorResType).
+          - 'CONTAINS' on an external column  → same error, same stage.
+        Users who need to search inside JSON strings stored as NCHAR should use
+        the LIKE operator instead.
 
         Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
@@ -772,13 +782,28 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         def body(src, db_type):
             t = f"{src}.jdata"
 
-            # -> JSON extraction requires JSON type, but external source JSON/JSONB
-            # columns are mapped to NCHAR in TDengine → type error (0x2652)
+            # --- rejection cases (parser stage, PAR_INVALID_COL_JSON) ---
+
+            # '->' extraction: external JSON/JSONB/string → NCHAR, not JSON type
             tdSql.error(f"select id, data->'k' from {t} order by id")
 
-            # -> value filter also fails for the same reason
+            # '->' in a filter predicate
             tdSql.error(
                 f"select id from {t} where data->'num' = 10")
+
+            # CONTAINS: same reason — NCHAR is not the JSON tag type
+            tdSql.error(
+                f"select id from {t} where data contains 'num' order by id")
+
+            # --- workaround: LIKE-based key search on the raw JSON string ---
+            # External JSON/JSONB/string columns are mapped to NCHAR.  LIKE is
+            # not pushed to the remote source; TDengine executes it locally on
+            # the fetched NCHAR values.  All 3 sources return the same result.
+            tdSql.query(
+                f"select id from {t} where data like '%\"num\"%' order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
 
         self._with_custom_sources(
             "fq04_json", body,
@@ -2194,7 +2219,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert abs(float(tdSql.getData(0, 0)) - 1.5811) < 1e-3
 
             # GROUP_CONCAT
-            tdSql.query(f"select group_concat(name) from {t}")
+            tdSql.query(f"select group_concat(name, ',') from {t}")
             tdSql.checkRows(1)
             result = str(tdSql.getData(0, 0))
             for n in ['alpha', 'beta', 'gamma', 'delta', 'epsilon']:
@@ -2550,51 +2575,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 1, 0)  # name='alpha' is not null → 0
 
         self._with_std_sources("fq04_opext", body_std)
-
-        # JSON CONTAINS on custom data
-        mysql_setup = [
-            "DROP TABLE IF EXISTS jdata",
-            "CREATE TABLE jdata (id INT, data JSON)",
-            "INSERT INTO jdata VALUES (1, JSON_OBJECT('k', 'v1', 'num', 10))",
-            "INSERT INTO jdata VALUES (2, JSON_OBJECT('k', 'v2'))",
-        ]
-        pg_setup = [
-            "DROP TABLE IF EXISTS jdata",
-            "CREATE TABLE jdata (id INT, data JSONB)",
-            "INSERT INTO jdata VALUES "
-            "(1, '{\"k\": \"v1\", \"num\": 10}'::jsonb)",
-            "INSERT INTO jdata VALUES "
-            "(2, '{\"k\": \"v2\"}'::jsonb)",
-        ]
-        influx_lines_jc = [
-            'jdata data="{\\\"k\\\": \\\"v1\\\", \\\"num\\\": 10}",id=1i 1704067200000000000',
-            'jdata data="{\\\"k\\\": \\\"v2\\\"}",id=2i 1704067260000000000',
-        ]
-
-        def body_json(src, db_type):
-            t = f"{src}.jdata"
-            if db_type == 'influx':
-                # InfluxDB maps JSON strings to NCHAR; CONTAINS requires JSON type → error
-                tdSql.error(
-                    f"select id from {t} where data contains 'num' order by id")
-                # NCHAR alternative: LIKE-based key search on the raw JSON string
-                tdSql.query(
-                    f"select id from {t} where data like '%\"num\"%' order by id")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 1)
-            else:
-                # CONTAINS: check if key 'num' exists
-                tdSql.query(
-                    f"select id from {t} where data contains 'num' order by id")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 1)
-
-        self._with_custom_sources(
-            "fq04_opext_j", body_json,
-            mysql_setup=mysql_setup,
-            pg_setup=pg_setup,
-            influx_lines=influx_lines_jc,
-        )
+        # JSON CONTAINS and -> rejection is tested in test_fq_sql_json_operators.
 
     # ==================================================================
     # 28  SHA1/SHA2 hash functions

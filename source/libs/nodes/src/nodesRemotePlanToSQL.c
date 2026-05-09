@@ -467,7 +467,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     case OP_TYPE_GREATER_EQUAL: opStr = " >= ";   break;
     case OP_TYPE_LOWER_THAN:    opStr = " < ";    break;
     case OP_TYPE_LOWER_EQUAL:   opStr = " <= ";   break;
-    case OP_TYPE_LIKE:          opStr = " LIKE ";  break;
+    case OP_TYPE_LIKE:          opStr = " LIKE ";     break;
     case OP_TYPE_NOT_LIKE:      opStr = " NOT LIKE "; break;
     case OP_TYPE_MATCH:
       // TDengine MATCH → MySQL REGEXP / PostgreSQL ~ / InfluxDB(DataFusion) ~
@@ -612,6 +612,13 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
         dynSQLAppendChar(s, ')');
         return TSDB_CODE_SUCCESS;
       }
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    case OP_TYPE_JSON_CONTAINS:
+      // CONTAINS requires a TDengine JSON tag column (TSDB_DATA_TYPE_JSON / STag format).
+      // External source columns (MySQL JSON, PG JSONB, InfluxDB string) are all mapped to
+      // NCHAR, not the native JSON type, so CONTAINS is rejected at the parser type-check
+      // stage (PAR_INVALID_COL_JSON) before reaching here.  This branch is unreachable for
+      // external sources; return unsupported defensively.
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     default:
       return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
@@ -834,7 +841,7 @@ static int32_t collectRemoteParts(const SPhysiNode* pNode, SRemoteSQLParts* pPar
       pParts->pScanCols      = pScan->pScanCols;
       pParts->pOutputTargets = pNode->pOutputDataBlockDesc ? pNode->pOutputDataBlockDesc->pSlots : NULL;
       pParts->pConditions    = pNode->pConditions;
-      pParts->pLimit      = (const SLimitNode*)pNode->pLimit;
+      pParts->pLimit         = (const SLimitNode*)pNode->pLimit;
       return TSDB_CODE_SUCCESS;
     }
 
@@ -944,15 +951,23 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   dynSQLAppendStr(&s, " FROM ");
   dynAppendTablePath(&s, pParts->pExtTable, dialect);
 
-  // WHERE clause (best-effort: skip on expression-render failure — local Filter handles it)
+  // WHERE clause. Best-effort: skip EXT_SYNTAX_UNSUPPORTED expressions (local Filter
+  // handles them), but propagate all other errors.
   if (pParts->pConditions) {
+    const SExtTableMeta* pEffectiveMeta = pParts->pExtTable ? pParts->pExtTable->pExtMeta : NULL;
     SDynSQL cond;
     dynSQLInit(&cond);
-    int32_t code = dynAppendExpr(&cond, pParts->pConditions, dialect,
-                                  pParts->pExtTable->pExtMeta, pCtx);
-    if (code == TSDB_CODE_SUCCESS && !cond.err && cond.pos > 0) {
+    int32_t whereCode = dynAppendExpr(&cond, pParts->pConditions, dialect,
+                                       pEffectiveMeta, pCtx);
+    if (whereCode == TSDB_CODE_SUCCESS && !cond.err && cond.pos > 0) {
       dynSQLAppendStr(&s, " WHERE ");
       dynSQLAppendLen(&s, cond.buf, cond.pos);
+    } else if (whereCode != TSDB_CODE_SUCCESS &&
+               whereCode != TSDB_CODE_EXT_SYNTAX_UNSUPPORTED) {
+      // Hard failure: propagate and abort SQL generation.
+      dynSQLFree(&cond);
+      dynSQLFree(&s);
+      return whereCode;
     }
     dynSQLFree(&cond);
   }
