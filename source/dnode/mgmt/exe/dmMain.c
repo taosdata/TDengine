@@ -268,7 +268,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "--vnode") == 0) {
-      if (i < argc - 1) {
+      if (global.repairCopy.vnodeIds != NULL) {
+        printf("duplicate --vnode argument\n");
+        return TSDB_CODE_INVALID_CFG;
+      } else if (i < argc - 1) {
         global.repairCopy.vnodeIds = dmParseVnodeIds(argv[++i]);
         if (global.repairCopy.vnodeIds == NULL) {
           printf("invalid --vnode format: '%s'\n", argv[i]);

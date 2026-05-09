@@ -1085,7 +1085,7 @@ static int32_t dmRemapDiskId(STfs *pTgtTfs, int32_t srcLevel, int64_t fileSize, 
 
       SDiskSize diskSize = {0};
       if (taosGetDiskSize((char *)diskPath, &diskSize) != 0) continue;
-      if (diskSize.avail < fileSize + TFS_MIN_DISK_FREE_SIZE) continue;
+      if (diskSize.avail < fileSize + tsMinDiskFreeSize) continue;
 
       pAlloc->nextId[tryLevel] = (id + 1) % ndisk;
       *pTgtDid = did;
