@@ -5370,7 +5370,7 @@ static EDealRes checkProjectionModeHasScalarExpr(SNode* pNode, void* pCtx) {
     SNode* pExpr = NULL;
     FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
       if (nodesEqualNode(pExpr, pNode)) {
-        return DEAL_RES_CONTINUE;
+        return DEAL_RES_IGNORE_CHILD;
       }
     }
   }
