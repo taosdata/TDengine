@@ -827,7 +827,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
     # ==================================================================
 
     def test_fq_sql_type_conversion(self):
-        """FQ-SQL-CAST: CAST on all sources, TO_CHAR/TO_TIMESTAMP on MySQL+PG.
+        """FQ-SQL-CAST: CAST on all sources, TO_CHAR/TO_TIMESTAMP on all sources.
 
         Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
@@ -868,17 +868,25 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         def tochar_body(src, db_type):
             if db_type == 'influx':
                 # InfluxDB: ts is the native line-protocol TIMESTAMP column.
-                # to_char works on it; to_timestamp fails on NCHAR ts_str;
-                # to_unixtimestamp fails on TIMESTAMP ts — same semantics as MySQL/PG.
                 tdSql.query(
                     f"select to_char(ts, 'yyyy-MM-dd') from {src}.times where id = 1")
                 tdSql.checkRows(1)
-                assert "2024-01-15" in str(tdSql.getData(0, 0))
+                tdSql.checkData(0, 0, "2024-01-15")
 
-                # ts_str is NCHAR on InfluxDB → to_timestamp encoding mismatch error
-                tdSql.error(
-                    f"select to_timestamp(ts_str, 'yyyy-MM-dd HH:mm:ss') "
+                # ts_str is NCHAR on InfluxDB → to_timestamp parses UCS-4 bytes, result is wrong
+                tdSql.query(
+                    f"select to_timestamp(ts_str, 'YYYY-MM-DD HH24:mi:ss') "
                     f"from {src}.times where id = 1")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, "0002-01-01 00:00:00.000")
+
+                # CAST(NCHAR→VARCHAR) gives correct result
+                tdSql.query(
+                    f"select to_timestamp(CAST(ts_str AS VARCHAR(30)), "
+                    f"'YYYY-MM-DD HH24:mi:ss') "
+                    f"from {src}.times where id = 1")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, "2024-01-15 12:30:00.000")
 
                 # ts is TIMESTAMP on InfluxDB → to_unixtimestamp type mismatch error
                 tdSql.error(
@@ -889,12 +897,14 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select to_char(ts, 'yyyy-MM-dd') from {src}.times where id = 1")
             tdSql.checkRows(1)
-            assert "2024-01-15" in str(tdSql.getData(0, 0))
+            tdSql.checkData(0, 0, "2024-01-15")
 
-            # MySQL/PG VARCHAR → encoding causes to_timestamp failure (0x2807)
-            tdSql.error(
-                f"select to_timestamp(ts_str, 'yyyy-MM-dd HH:mm:ss') "
+            # MySQL/PG VARCHAR → to_timestamp with correct format
+            tdSql.query(
+                f"select to_timestamp(ts_str, 'YYYY-MM-DD HH24:mi:ss') "
                 f"from {src}.times where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "2024-01-15 12:30:00.000")
 
             # MySQL/PG timestamp type mapping causes to_unixtimestamp failure (0x2802)
             tdSql.error(
@@ -1102,9 +1112,13 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
         def body(src, db_type):
             if db_type == 'influx':
-                # InfluxDB maps strings to NCHAR; md5/to_base64 require VARCHAR → error
-                tdSql.error(f"select md5(name) from {src}.data where id = 1")
-                tdSql.error(f"select to_base64(name) from {src}.data where id = 1")
+                # InfluxDB maps strings to NCHAR; md5 requires VARCHAR → 0x80002802
+                tdSql.error(f"select md5(name) from {src}.data where id = 1",
+                            expectedErrno=0x80002802)
+                # to_base64 accepts NCHAR (result is UCS-4 encoded)
+                tdSql.query(f"select to_base64(name) from {src}.data where id = 1")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, "QQAAAGwAAABpAAAAYwAAAGUAAAA=")
 
                 # Use CAST to convert NCHAR to VARCHAR for influx
                 tdSql.query(f"select md5(CAST(name AS VARCHAR(50))) from {src}.data where id = 1")
@@ -2427,7 +2441,10 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 tdSql.error(
                     f"select sm4_encrypt(plain, 'mykeystring12345') "
                     f"from {src}.data where id = 1")
-                tdSql.error(f"select crc32(plain) from {src}.data where id = 1")
+                # crc32 accepts NCHAR; value differs from VARCHAR (UCS-4 encoding)
+                tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 927702683)
 
                 # Use CAST to convert NCHAR to VARCHAR for influx
                 col = "CAST(plain AS VARCHAR(100))"
