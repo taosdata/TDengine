@@ -1143,6 +1143,7 @@ class FederatedQueryTestMixin:
     def _cleanup_src(self, *names):
         """Drop external sources by name (idempotent)."""
         for n in names:
+            tdSql.execute(f"drop database if exists {n}")
             tdSql.execute(f"drop external source if exists {n}")
 
     # Alias used by some files
@@ -1166,6 +1167,8 @@ class FederatedQueryTestMixin:
             user:          Override the MySQL user (default: cfg.user).
             password:      Override the MySQL password (default: cfg.password).
         """
+        tdSql.execute(f"drop database if exists {name}")
+        tdSql.execute(f"drop external source if exists {name}")
         cfg = self._mysql_cfg()
         _user = user if user is not None else cfg.user
         _pass = password if password is not None else cfg.password
@@ -1182,6 +1185,8 @@ class FederatedQueryTestMixin:
 
     def _mk_pg_real(self, name, database="pgdb", schema="public"):
         """Create PG external source pointing to the configured primary test PostgreSQL."""
+        tdSql.execute(f"drop database if exists {name}")
+        tdSql.execute(f"drop external source if exists {name}")
         cfg = self._pg_cfg()
         sql = (f"create external source {name} "
                f"type='postgresql' host='{cfg.host}' "
@@ -1196,6 +1201,8 @@ class FederatedQueryTestMixin:
 
     def _mk_influx_real(self, name, database="telegraf"):
         """Create InfluxDB external source pointing to the configured primary test InfluxDB."""
+        tdSql.execute(f"drop database if exists {name}")
+        tdSql.execute(f"drop external source if exists {name}")
         cfg = self._influx_cfg()
         sql = (f"create external source {name} "
                f"type='influxdb' host='{cfg.host}' "

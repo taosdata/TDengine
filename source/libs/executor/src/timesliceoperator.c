@@ -936,9 +936,12 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
     if (pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
-        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE &&
+        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
       /**
-        Only table scan and exchange operator are supported right now.
+        Only table scan, exchange and federated scan operators are supported right now.
+        Federated scan is treated as a no-op for notify (UNION ALL LIMIT already
+        controls boundary data precisely).
       */
       qWarn("%s, %s only table scan and exchange operators are supported "
              "for notify right now, but got %d, skip notify step done",
@@ -984,6 +987,11 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
         p->multiParams = false;
         p->basic.paramType = NOTIFY_TYPE_EXCHANGE_PARAM;
         p->basic.notifyTs = notifyTs;
+        break;
+      }
+      case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+        // Federated scan: no-op for notify.  UNION ALL LIMIT in the remote SQL
+        // already precisely controls boundary data.
         break;
       }
       default: {

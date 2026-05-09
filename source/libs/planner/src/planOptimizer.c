@@ -59,6 +59,7 @@ typedef struct SOptimizeRule {
 // Forward declarations for functions used before their definitions.
 static bool    nodeHasExternalScan(const SLogicNode* pNode);
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
+static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
 
 typedef struct SOptimizePKCtx {
   SNodeList* pList;
@@ -2759,6 +2760,13 @@ static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInte
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+
+  // External scan INTERP is handled by the dedicated FqInterp optimizer rule — skip here.
+  if (pScan->scanType == SCAN_TYPE_EXTERNAL) {
+    OPTIMIZE_FLAG_SET_MASK(pInterp->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pInterp->pTimeRange) {
     pScan->pExtScanRange = taosMemoryMalloc(sizeof(*pScan->pExtScanRange));
     TSDB_CHECK_NULL(pScan->pExtScanRange, code, lino, _exit, terrno);
@@ -10626,6 +10634,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   //   - PushDownCondition: pdcDealScan has SCAN_TYPE_EXTERNAL guard
   //   - EliminateNotNullCond: explicit SCAN_TYPE_EXTERNAL guard
   {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
+  {.pName = "FqInterp",                   .optimizeFunc = fqInterpOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
@@ -11796,6 +11805,309 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   planError("FQ-DIAG-INJECT: injected ORDER BY \"%s\" ASC pRemoteLogicPlan=%p pSortKeys len=%d",
             pkColName, pScan->pRemoteLogicPlan,
             (pScan->pRemoteLogicPlan ? LIST_LENGTH(((SSortLogicNode*)pScan->pRemoteLogicPlan)->pSortKeys) : -1));
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── FqInterp: build UNION ALL remote plan for INTERP on external scan ──────
+//
+// For INTERP queries on external tables, the local TimeSlice operator needs
+// boundary data rows (PREV / NEXT) in addition to the RANGE data for
+// fill modes that require interpolation beyond the query range.
+//
+// This rule runs AFTER FqPushdown.  It finds the INTERP logic node above an
+// external scan, reads fillMode + timeRange, and constructs a complete
+// pRemoteLogicPlan sub-tree using UNION ALL (SProjectLogicNode with
+// isSetOpProj=true and multiple children) so that the remote source returns
+// all necessary data in a single query.
+//
+// Fill mode → branches:
+//   NULL/VALUE/VALUE_F/NULL_F/NONE → 1 branch  (MAIN only)
+//   PREV                          → 2 branches (PREV + MAIN)
+//   NEXT                          → 2 branches (MAIN + NEXT)
+//   LINEAR/NEAR                   → 3 branches (PREV + MAIN + NEXT)
+//
+// Each branch is: SSortLogicNode → SScanLogicNode (with WHERE + optional LIMIT).
+// The UNION ALL container is: SProjectLogicNode(isSetOpProj=true, ignoreGroupId=true).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: find SInterpFuncLogicNode ancestor above a given scan node.
+static SInterpFuncLogicNode* fqFindInterpAboveScan(SScanLogicNode* pScan) {
+  SLogicNode* pCur = pScan->node.pParent;
+  while (pCur != NULL) {
+    if (nodeType(pCur) == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC) {
+      return (SInterpFuncLogicNode*)pCur;
+    }
+    pCur = pCur->pParent;
+  }
+  return NULL;
+}
+
+// Helper: create one branch (Sort→Scan) for the UNION ALL plan.
+// pScan: the original external scan node (used for column/table info cloning).
+// pkColName: primary key column name for ORDER BY.
+// order: ORDER_ASC or ORDER_DESC.
+// pCondExpr: WHERE condition (owned by caller, will be cloned).
+// hasLimit1: whether to add LIMIT 1 to the scan.
+static int32_t fqInterpCreateBranch(SScanLogicNode* pScan, const char* pkColName,
+                                    EOrder order, SNode* pCondExpr, bool hasLimit1,
+                                    SLogicNode** ppBranch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // ── Create SScanLogicNode (leaf of the branch) ──
+  SScanLogicNode* pNewScan = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pNewScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  pNewScan->scanType = SCAN_TYPE_EXTERNAL;
+  // Clone pScanCols, pExtTableNode
+  code = nodesCloneList(pScan->pScanCols, &pNewScan->pScanCols);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+  code = nodesCloneNode(pScan->pExtTableNode, &pNewScan->pExtTableNode);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+  code = nodesCloneList(pScan->node.pTargets, &pNewScan->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+
+  // Set WHERE condition
+  if (pCondExpr != NULL) {
+    code = nodesCloneNode(pCondExpr, &pNewScan->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+  }
+
+  // Set LIMIT 1
+  if (hasLimit1) {
+    SLimitNode* pLimit = NULL;
+    code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&pLimit);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+    code = nodesMakeValueNodeFromInt64(1, (SNode**)&pLimit->limit);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pLimit); return code; }
+    code = nodesMakeValueNodeFromInt64(0, (SNode**)&pLimit->offset);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pLimit); return code; }
+    pNewScan->node.pLimit = (SNode*)pLimit;
+  }
+
+  // ── Create SSortLogicNode (wraps the scan) ──
+  SSortLogicNode* pSort = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+
+  // Create ORDER BY key
+  SColumnNode* pPkCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+  tstrncpy(pPkCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+
+  SOrderByExprNode* pOrd = NULL;
+  code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrd);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); nodesDestroyNode((SNode*)pPkCol); return code; }
+  pOrd->pExpr     = (SNode*)pPkCol;
+  pOrd->order     = order;
+  pOrd->nullOrder = NULL_ORDER_FIRST;
+
+  code = nodesMakeList(&pSort->pSortKeys);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); nodesDestroyNode((SNode*)pOrd); return code; }
+  code = nodesListStrictAppend(pSort->pSortKeys, (SNode*)pOrd);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+
+  // Clone pTargets for sort
+  code = nodesCloneList(pScan->node.pTargets, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+
+  // Wire scan as child of sort
+  code = nodesMakeList(&pSort->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+  code = nodesListStrictAppend(pSort->node.pChildren, (SNode*)pNewScan);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+  pNewScan->node.pParent = (SLogicNode*)pSort;
+
+  *ppBranch = (SLogicNode*)pSort;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create a comparison condition node: <pkCol> <op> <tsValue>
+static int32_t fqInterpCreateTsCond(const char* pkColName, EOperatorType opType,
+                                    int64_t tsVal, SNode** ppCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SOperatorNode* pOp = NULL;
+  code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pOp->opType = opType;
+  pOp->node.resType.type  = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+
+  // Left: column node
+  SColumnNode* pCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pOp); return code; }
+  tstrncpy(pCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+  pOp->pLeft = (SNode*)pCol;
+
+  // Right: value node
+  SValueNode* pVal = NULL;
+  code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pOp); return code; }
+  pVal->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pVal->node.resType.bytes = (int32_t)sizeof(int64_t);
+  pVal->datum.i   = tsVal;
+  pVal->translate  = true;
+  pOp->pRight = (SNode*)pVal;
+
+  *ppCond = (SNode*)pOp;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create AND(left, right) condition node.  Takes ownership of pLeft and pRight.
+static int32_t fqInterpCreateAndCond(SNode* pLeft, SNode* pRight, SNode** ppCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SLogicConditionNode* pAnd = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pAnd);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pLeft); nodesDestroyNode(pRight); return code; }
+  pAnd->condType = LOGIC_COND_TYPE_AND;
+  pAnd->node.resType.type  = TSDB_DATA_TYPE_BOOL;
+  pAnd->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  code = nodesMakeList(&pAnd->pParameterList);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pLeft); nodesDestroyNode(pRight); nodesDestroyNode((SNode*)pAnd); return code; }
+  code = nodesListStrictAppend(pAnd->pParameterList, pLeft);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pRight); nodesDestroyNode((SNode*)pAnd); return code; }
+  code = nodesListStrictAppend(pAnd->pParameterList, pRight);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pAnd); return code; }
+  *ppCond = (SNode*)pAnd;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  // Find external scan node
+  SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
+  if (NULL == pScan) return TSDB_CODE_SUCCESS;
+
+  // Find INTERP ancestor above the scan
+  SInterpFuncLogicNode* pInterp = fqFindInterpAboveScan(pScan);
+  if (NULL == pInterp) return TSDB_CODE_SUCCESS;
+
+  // Get pk column name
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
+      pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    return TSDB_CODE_SUCCESS;  // no pk info — cannot build time conditions
+  }
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+
+  int64_t   t1       = pInterp->timeRange.skey;
+  int64_t   t2       = pInterp->timeRange.ekey;
+  EFillMode fillMode = pInterp->fillMode;
+
+  // Determine which branches are needed
+  bool needPrev = (fillMode == FILL_MODE_PREV || fillMode == FILL_MODE_LINEAR || fillMode == FILL_MODE_NEAR);
+  bool needNext = (fillMode == FILL_MODE_NEXT || fillMode == FILL_MODE_LINEAR || fillMode == FILL_MODE_NEAR);
+  int  nBranches = 1 + (needPrev ? 1 : 0) + (needNext ? 1 : 0);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Destroy existing pRemoteLogicPlan (injected by FqPushdown's fqInjectPkOrderBy)
+  if (pScan->pRemoteLogicPlan != NULL) {
+    nodesDestroyNode(pScan->pRemoteLogicPlan);
+    pScan->pRemoteLogicPlan = NULL;
+  }
+
+  if (nBranches == 1) {
+    // Single branch: Sort(ASC) → Scan(WHERE ts >= t1 AND ts <= t2)
+    SNode* pGe = NULL;
+    code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_EQUAL, t1, &pGe);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    SNode* pLe = NULL;
+    code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_EQUAL, t2, &pLe);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pGe); return code; }
+    SNode* pCond = NULL;
+    code = fqInterpCreateAndCond(pGe, pLe, &pCond);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    SLogicNode* pBranch = NULL;
+    code = fqInterpCreateBranch(pScan, pkColName, ORDER_ASC, pCond, false, &pBranch);
+    nodesDestroyNode(pCond);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    pScan->pRemoteLogicPlan = (SNode*)pBranch;
+  } else {
+    // Multiple branches: wrap in SProjectLogicNode(isSetOpProj=true)
+    SProjectLogicNode* pUnion = NULL;
+    code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pUnion);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    pUnion->isSetOpProj   = true;
+    pUnion->ignoreGroupId = true;
+
+    // Clone pTargets from scan
+    code = nodesCloneList(pScan->node.pTargets, &pUnion->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+
+    // Build projections = simple column refs matching pTargets
+    code = nodesCloneList(pScan->node.pTargets, &pUnion->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+
+    code = nodesMakeList(&pUnion->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+
+    // ── PREV branch: Sort(DESC) → Scan(WHERE ts < t1, LIMIT 1) ──
+    if (needPrev) {
+      SNode* pCond = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_THAN, t1, &pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SLogicNode* pBranch = NULL;
+      code = fqInterpCreateBranch(pScan, pkColName, ORDER_DESC, pCond, true, &pBranch);
+      nodesDestroyNode(pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      pBranch->pParent = (SLogicNode*)pUnion;
+      code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pBranch);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    }
+
+    // ── MAIN branch: Sort(ASC) → Scan(WHERE ts >= t1 AND ts <= t2) ──
+    {
+      SNode* pGe = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_EQUAL, t1, &pGe);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SNode* pLe = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_EQUAL, t2, &pLe);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pGe); nodesDestroyNode((SNode*)pUnion); return code; }
+      SNode* pCond = NULL;
+      code = fqInterpCreateAndCond(pGe, pLe, &pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SLogicNode* pBranch = NULL;
+      code = fqInterpCreateBranch(pScan, pkColName, ORDER_ASC, pCond, false, &pBranch);
+      nodesDestroyNode(pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      pBranch->pParent = (SLogicNode*)pUnion;
+      code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pBranch);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    }
+
+    // ── NEXT branch: Sort(ASC) → Scan(WHERE ts > t2, LIMIT 1) ──
+    if (needNext) {
+      SNode* pCond = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_THAN, t2, &pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SLogicNode* pBranch = NULL;
+      code = fqInterpCreateBranch(pScan, pkColName, ORDER_ASC, pCond, true, &pBranch);
+      nodesDestroyNode(pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      pBranch->pParent = (SLogicNode*)pUnion;
+      code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pBranch);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    }
+
+    pScan->pRemoteLogicPlan = (SNode*)pUnion;
+  }
+
+  planInfo("FqInterp: built %d-branch remote plan for fillMode=%d range=[%" PRId64 ",%" PRId64 "]",
+           nBranches, fillMode, t1, t2);
+
+  // Mark scan as processed by FqPushdown flag to prevent re-entry
+  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+  pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
 }
 
