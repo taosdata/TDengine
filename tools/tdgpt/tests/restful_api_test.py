@@ -564,9 +564,12 @@ class RestfulTest(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["status"], "success")
-        self.assertIn("deployed successfully", response.json["message"])
-        mock_deploy.assert_called_once()
+        res = response.json
+        self.assertEqual(res["rows"], 2)
+        self.assertEqual(res["metric_type"], "dtw_distance")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
+        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
+
 
     @patch("taosanalytics.app.do_handle_undeploy_model")
     def test_undeploy_model(self, mock_undeploy):
@@ -583,11 +586,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.json["status"], "success")
         self.assertIn("undeployed successfully", response.json["message"])
         mock_undeploy.assert_called_once()
-        res = response.json
-        self.assertEqual(res["rows"], 2)
-        self.assertEqual(res["metric_type"], "dtw_distance")
-        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
-        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
+
 
     def test_profile_search_happy_path_cosine(self):
         """happy path: cosine similarity profile search"""

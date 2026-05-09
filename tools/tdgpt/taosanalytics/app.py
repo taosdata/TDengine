@@ -27,8 +27,6 @@ from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 
 from taosanalytics.handlers.dynamic_model import (do_handle_undeploy_model, do_handle_dynamic_model)
 
-app_logger = AppLogger()
-
 
 def _init_app():
     """Initialize configuration, logger, and load services. Called on module import."""
@@ -149,7 +147,7 @@ def handle_pearsonr(request, api_version):
         return {"msg": str(e), "rows": -1}
 
     if api_version != 'v1':
-        app_logger.log_inst.error('unsupported API version: %s', api_version)
+        AppLogger.error('unsupported API version: %s', api_version)
         return {"msg": f"unsupported API version: {api_version}", "rows": -1}
 
     try:
@@ -165,12 +163,12 @@ def handle_pearsonr(request, api_version):
         correlation = float(correlation)
         p_value = float(p_value)
 
-        app_logger.log_inst.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
+        AppLogger.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
         res = {"option": options, "rows": 1, "correlation_coefficient": correlation, "p_value": p_value}
 
         return res
     except Exception as e:
-        app_logger.log_inst.error('pearsonr correlation failed, %s', str(e))
+        AppLogger.error('pearsonr correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 def do_profile_search(request, api_version):
@@ -258,7 +256,7 @@ def do_profile_search(request, api_version):
 
     """
     if api_version != 'v1':
-        app_logger.log_inst.error('unsupported API version: %s', api_version)
+        AppLogger.error('unsupported API version: %s', api_version)
         return {"msg": f"unsupported API version: {api_version}", "rows": -1}
 
     try:
@@ -268,25 +266,25 @@ def do_profile_search(request, api_version):
 
     try:
         result = do_profile_search_impl(req_json)
-        app_logger.log_inst.debug("profile-search result: %s", result)
+        AppLogger.debug("profile-search result: %s", result)
         return result
 
     except Exception as e:
-        app_logger.log_inst.error('profile search failed, %s', str(e))
+        AppLogger.error('profile search failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 
 @app.route('/api/v1/analysis/pearsonr', methods=['POST'])
 def handle_pearsonr_req():
     """handle the pearsonr correlation request """
-    app_logger.log_inst.info('recv pearsonr correlation request from %s', request.remote_addr)
+    AppLogger.info('recv pearsonr correlation request from %s', request.remote_addr)
     return handle_pearsonr(request, api_version='v1')
 
 
 @app.route('/api/v1/analysis/profile-search', methods=['POST'])
 def handle_profile_search_req():
     """handle the profile search request """
-    app_logger.log_inst.info('recv profile search request from %s', request.remote_addr)
+    AppLogger.info('recv profile search request from %s', request.remote_addr)
     return do_profile_search(request, api_version='v1')
 
 
