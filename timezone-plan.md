@@ -12,6 +12,7 @@
 | 2026-05-06 | 0.6 | AI | 代码比照修正：Task 3.1 明确 `validateTimezoneFormat` 实为纯格式校验（不含 tzalloc）及 scalar inputNum 死代码问题；Task 3.3 修正内部参数顺序（precision 在 timezoneStr 之前），补充 translator 也需停止注入固定偏移；Task 3.2 补充 `toCharFunction` 无 translator 注入问题，明确第三参数的 scalar 分支实现路径 |
 | 2026-05-06 | 0.7 | AI | 增补测试优先执行节奏：先生成单元/pytest 测试清单与测试代码，待人工评审通过后再进入功能开发与全量回归 |
 | 2026-05-07 | 0.8 | AI | 补充 9.1 当前可编译单元测试与阻塞项说明：增强 common 自然单位/周边界断言；记录 parser 新语法、共享 timezone helper、TIMEZONE(1) 组装与消息透传因功能未落地暂无法补充 |
+| 2026-05-09 | 0.9 | AI | 同步最新落地状态：P3 已完成并通过 scalar 回归；P4 维持部分 skip，恢复最小 1w 回归与 1w+DST 一致性回归；移除过期阻塞描述 |
 
 ## 2. 概述
 
@@ -52,6 +53,12 @@
 2. 第一轮交付目标是测试设计与测试代码，而不是实现代码；测试应尽量覆盖本计划第 9 章列出的功能点、回退链、DST 边界和兼容性约束。
 3. 测试生成完成后，先由你检查测试内容是否正确、是否遗漏关键场景；未获得评审结论前，不进入实现阶段。
 4. 只有在测试评审通过后，才进入对应功能开发、局部验证与最终全量回归。
+
+### 2.6 当前落地状态（2026-05-09）
+
+1. P3 三项任务（TO_ISO8601 IANA、TO_CHAR 第三参数、TIMETRUNCATE 字符串时区）已落地。
+2. `test/cases/11-Functions/01-Scalar/test_tz_scalar_functions.py` 当前回归结果为 `37 passed, 14 skipped`。
+3. P4 仍处于阶段性推进：自然单位与 firstDayOfWeek 全量周语义用例仍按计划保持 skip，但已恢复最小可运行的 `1w + IANA` 回归，并新增 `1w + DST` 一致性回归。
 
 ---
 
@@ -514,6 +521,11 @@ SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w);  -- 2026-04-26 00:00:00 (周日)
 
 **风险提示**：这是高风险行为变更，会影响所有现有 `TIMETRUNCATE(..., 1w)` 查询结果。
 
+**当前状态补充（2026-05-09）**：
+1. `firstDayOfWeek` 全量语义（fdow 0-6、2w、多场景周边界）仍在 P4 路线中，相关 pytest 维持 skip。
+2. 为防止 P3 路径回退，已恢复最小非 skip 回归：`1w + IANA` 显式参数与 session 路径一致。
+3. 已补充 `America/New_York` 春跳/秋退窗口下的 `1w + IANA` 一致性回归。
+
 ---
 
 ### 6.3 Task 4.3：`INTERVAL` 自然单位边界与步进对齐
@@ -733,14 +745,14 @@ SELECT TIMEZONE(1);
 
 1. parser 新语法单元测试
    - 阻塞原因：`QUERY_NODE_SET_TIMEZONE_STMT` / `QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT` 节点类型、对应 grammar 规则和 AST 构造函数当前尚不存在，直接补 parser gtest 会因符号缺失无法编译
-2. 共享 timezone 校验 helper 单元测试
-   - 阻塞原因：当前 `validateTimezoneFormat()` 仍是 `source/libs/function/src/builtins.c` 内部 `static` 函数，且行为仍是旧的“纯格式校验”；plan 要求的共享 helper 及 IANA 校验入口尚未抽出，无法做稳定的独立单测
 3. `firstDayOfWeek` 请求透传 / 编解码单元测试
    - 阻塞原因：`SSubQueryMsg` / `SInterval` 当前尚无 `firstDayOfWeek` 字段，`tSerializeSSubQueryMsg()` / `tDeserializeSSubQueryMsg()` 也无对应编解码路径
 4. `TIMEZONE(1)` 组装单元测试
    - 阻塞原因：`timezoneFunction()` 当前仍仅返回单层时区字符串，尚无 `TIMEZONE(1)` 的 `session/client/server` JSON 组装分支；`clientTimezoneStr` 透传字段也未进入请求结构
 5. `WEEK` / `WEEKOFYEAR` 的 `firstDayOfWeek` 回退链单元测试
    - 阻塞原因：当前周函数尚未接入 plan 要求的 `SET -> server -> default` 解析链，补单测只能固化旧行为，和目标实现不一致
+
+说明：共享 timezone 校验入口已具备可复用实现（`taosValidateTimezone`），不再作为阻塞项保留在本节。
 
 ### 9.2 集成测试（pytest）
 
@@ -849,9 +861,9 @@ SELECT TIMEZONE(1);
 - [ ] P2：SHOW/EXPLAIN 使用连接时区
 - [x] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
 - [x] P2：写入路径 DST 行为回归加固
-- [ ] P3：TO_ISO8601 支持 IANA
-- [ ] P3：TO_CHAR 支持第三参数
-- [ ] P3：TIMETRUNCATE 第三参数支持字符串时区
+- [x] P3：TO_ISO8601 支持 IANA
+- [x] P3：TO_CHAR 支持第三参数
+- [x] P3：TIMETRUNCATE 第三参数支持字符串时区
 - [ ] P4：TIMETRUNCATE 支持 n/q/y
 - [ ] P4：TIMETRUNCATE 1w 对齐修正
 - [ ] P4：INTERVAL(w) 尊重 firstDayOfWeek

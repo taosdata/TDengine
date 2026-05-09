@@ -27,6 +27,7 @@
 #include "taoserror.h"
 #include "tbase64.h"
 #include "tglobal.h"
+#include "ttime.h"
 #include "ttypes.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
@@ -138,21 +139,37 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   return numOfSpaces;
 }
 
-static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
-  char    buf[TD_TIME_STR_LEN] = {0};
+/*
+ * Inject the timezone IANA name string as a parameter, preserving
+ * DST semantics.  Falls back to the system timezone string if tz is NULL
+ * or the name lookup fails.
+ */
+static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
+  char    buf[TD_TIMEZONE_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t offsetSeconds = taosGetTZOffsetSeconds(tz, &code);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+
+  if (tz != NULL && pTimezoneNameMap != NULL) {
+    char *tzName = (char *)taosHashGet(pTimezoneNameMap, &tz, sizeof(timezone_t));
+    if (tzName != NULL) {
+      /* extract original name before " (" from formatted "Asia/Shanghai (CST, +0800)" */
+      const char *paren = strchr(tzName, ' ');
+      int32_t nameLen = paren ? (int32_t)(paren - tzName) : (int32_t)strlen(tzName);
+      int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
+      (void)memcpy(buf, tzName, cpLen);
+      buf[cpLen] = '\0';
+    }
   }
 
-  int32_t absOffset = (offsetSeconds < 0) ? -offsetSeconds : offsetSeconds;
-  int32_t hours = absOffset / 3600;
-  int32_t minutes = (absOffset % 3600) / 60;
-  (void)snprintf(buf, sizeof(buf), "%c%02d%02d", (offsetSeconds < 0) ? '-' : '+', hours, minutes);
+  if (buf[0] == '\0') {
+    /* fallback: extract name from system timezone string */
+    const char *paren = strchr(tsTimezoneStr, ' ');
+    int32_t nameLen = paren ? (int32_t)(paren - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
+    int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
+    (void)memcpy(buf, tsTimezoneStr, cpLen);
+    buf[cpLen] = '\0';
+  }
 
   int32_t len = (int32_t)strlen(buf);
-
   SValueNode* pVal = NULL;
   code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
@@ -176,12 +193,29 @@ static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
   varDataSetLen(pVal->datum.p, len);
   tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
-  //printf("%s literal:%s", __func__, pVal->literal);
-
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pVal);
     return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf, int32_t len) {
+  if (TSDB_DATA_TYPE_BINARY != pValue->node.resType.type) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone format");
+  }
+
+  char*   tz = varDataVal(pValue->datum.p);
+  int32_t tzLen = varDataLen(pValue->datum.p);
+  char    tzBuf[TD_TIMEZONE_LEN] = {0};
+  int32_t cpLen = TMIN(tzLen, TD_TIMEZONE_LEN - 1);
+  (void)memcpy(tzBuf, tz, cpLen);
+  tzBuf[cpLen] = '\0';
+
+  int32_t code = taosValidateTimezone(tzBuf, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone format");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1996,11 +2030,13 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   // param1
   if (numOfParams == 2) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-    if (!validateTimezoneFormat(pValue)) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
+    int32_t code = validateTimezoneValueNode(pValue, pErrBuf, len);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
-  } else {  // add default client timezone
-    int32_t code = addTimezoneParam(pFunc->pParameterList, pFunc->tz);
+  } else {
+    /* inject connection timezone name (IANA-preserving) as default param */
+    int32_t code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2047,17 +2083,42 @@ static int32_t translateToTimestamp(SFunctionNode* pFunc, char* pErrBuf, int32_t
 
 static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  bool hasStringTz = false;
+  if (numOfParams == 3) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    if (TSDB_DATA_TYPE_BINARY == pValue->node.resType.type) {
+      int32_t code = validateTimezoneValueNode(pValue, pErrBuf, len);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      hasStringTz = true;
+    } else if (IS_INTEGER_TYPE(pValue->node.resType.type)) {
+      /* integer 0/1 — validate value */
+      if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "TIMETRUNCATE third parameter should be 0/1 or a timezone string");
+      }
+    } else {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "TIMETRUNCATE third parameter should be 0/1 or a timezone string");
+    }
+  }
+
   uint8_t dbPrec = pFunc->node.resType.precision;
-  // add database precision as param
+  /* add database precision as param */
   int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  // add client timezone as param
-  code = addTimezoneParam(pFunc->pParameterList, pFunc->tz);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  if (!hasStringTz) {
+    /* add connection timezone name (IANA-preserving) as param for DST-aware truncation */
+    code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   pFunc->node.resType =
@@ -2153,6 +2214,28 @@ static int32_t translateServerStatusFunc(SFunctionNode* pFunc, char* pErrBuf, in
 
 static int32_t translateTagsPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The _tags pseudo-column will be expanded to the actual tags on the client side
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams == 3) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    int32_t code = validateTimezoneValueNode(pValue, pErrBuf, len);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    /* inject connection timezone name so scalar layer gets DST-aware tz;
+     * pInput->tz alone does not reliably reflect SET TIMEZONE updates */
+    int32_t code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  /* when numOfParams == 2 (no explicit tz), scalar layer uses pInput->tz directly */
+  pFunc->node.resType = (SDataType){.bytes = 4096, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4584,12 +4667,10 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
-                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
-                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
-                                           .fixedValueSize = 2,
-                                           .fixedNumValue = {0, 1}},
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translateTimeTruncate,
     .getEnvFunc   = NULL,
@@ -5192,7 +5273,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_TO_CHAR,
     .classification = FUNC_MGT_SCALAR_FUNC,
     .parameters = {.minParamNum = 2,
-                   .maxParamNum = 2,
+                   .maxParamNum = 3,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
@@ -5201,15 +5282,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .inputParaInfo[0][1] = {.isLastParam = true,
+                   .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
-    .translateFunc = translateOutVarchar,
+    .translateFunc = translateToChar,
     .getEnvFunc = NULL,
     .initFunc = NULL,
     .sprocessFunc = toCharFunction,

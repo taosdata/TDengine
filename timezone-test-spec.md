@@ -8,6 +8,7 @@
 | 2026-05-06 | 0.2 | AI | 合并 20 个文件为 3 个，更新文件清单与验证要点 |
 | 2026-05-07 | 0.3 | AI | 同步 plan 9.1：补充当前已落地的 common gtest 单元测试与暂未开发完成的阻塞项 |
 | 2026-05-07 | 0.4 | AI | 补充 async local SET client gtest 与 parser 负数 firstDayOfWeek 回归 |
+| 2026-05-09 | 0.5 | AI | 同步最新实现状态：恢复最小 1w 回归、补充 1w+DST 一致性回归、更新 P4 skip 现状与执行结果 |
 
 ## 2. 概述
 
@@ -103,18 +104,17 @@
 - ✅ IANA 字符串时区不同截断边界（UTC vs Shanghai）
 - ✅ 整数 0/1 / 无参向后兼容
 - ✅ 非法时区报错；L1 覆盖 L2；无参回退链
+- ✅ 子日粒度字符串时区回归：`1h` 在 `Asia/Kathmandu` / `+05:45` 下对齐到目标时区整点
 
 #### TestTimetruncateNaturalUnits — TIMETRUNCATE n/q/y + 倍数（P4 Task 4.1）
-- ✅ `1n` 月首对齐；`1q` 四季度边界；`1y` 年首对齐
-- ✅ `1q == 3n`、`2q == 6n` 等价性验证
-- ✅ 多倍数：2n/3n/6n/2q/2y/5y/4n
-- ✅ 自然单位 + 时区参数组合
+- ⏸️ 当前整组按 `pytestmark=skip` 暂挂（P4 未实现），保留测试定义作为后续启用模板
+- ⏸️ 覆盖目标仍包括：`1n/1q/1y` 边界、`1q==3n`、`2q==6n`、多倍数及自然单位+时区参数
 
 #### TestTimetruncateWeek — TIMETRUNCATE 1w/Nw 对齐修正（P4 Task 4.2）
-- ✅ fdow 0-6 产生不同 1w 对齐
-- ✅ 周起始日上截断返回当天；2w 多倍数
-- ✅ 1w + IANA 时区；DST 春跳日周截断
-- ⚠️ **高风险变更**：从 epoch 星期四对齐改为 firstDayOfWeek 对齐
+- ✅ 最小可运行回归已恢复：`1w + IANA` 显式参数与 session 参数路径一致
+- ✅ 新增 DST 一致性回归：`America/New_York` 春跳/秋退窗口中，`1w + IANA` 与 session 路径结果一致
+- ⏸️ fdow 0-6、周起始日、2w、多数 firstDayOfWeek 语义验证仍按 P4 维持 skip
+- ⚠️ **高风险变更**仍在：firstDayOfWeek 全量语义未完全放开前，仅保留最小回归防止行为回退
 
 #### TestWeekFunctions — WEEK/WEEKOFYEAR/DAYOFWEEK/WEEKDAY（P4 Task 4.4）
 - ✅ WEEKOFYEAR 受 fdow 影响；WEEK mode 0-7 全覆盖；mode=8 报错
@@ -195,7 +195,7 @@
 
 | 变更项 | 风险等级 | 覆盖测试类 |
 |--------|---------|-----------|
-| TIMETRUNCATE(1w) 从 epoch 星期四改为 fdow 对齐 | ⚠️ 高 | TestTimetruncateWeek |
+| TIMETRUNCATE(1w) 从 epoch 星期四改为 fdow 对齐 | ⚠️ 高 | TestTimetruncateWeek（当前为最小回归覆盖，P4 全量用例仍部分 skip） |
 | INTERVAL(1w) 从 epoch 星期四改为 fdow 对齐 | ⚠️ 高 | TestIntervalWeek |
 | INTERVAL(1d) 从 24h 固定步进改为日历日步进 | ⚠️ 高 | TestIntervalNatural |
 | TO_ISO8601 无参从 translator 折叠改为运行时 IANA | ⚠️ 中 | TestToIso8601Iana |
@@ -240,8 +240,6 @@
 
 - parser：`SET TIMEZONE` / `SET FIRST_DAY_OF_WEEK` 语法节点与错误码
 	- 阻塞原因：对应 grammar、query node type、AST 构造函数当前尚不存在
-- 时区校验 helper：IANA / 固定偏移 / 非法输入
-	- 阻塞原因：`validateTimezoneFormat()` 仍是 `builtins.c` 内部 `static` 函数，且还是旧的纯格式校验实现，plan 要求的共享 helper 尚未抽出
 - 请求透传与编解码：`firstDayOfWeek` / `clientTimezoneStr`
 	- 阻塞原因：`SSubQueryMsg` / `SInterval` 当前没有对应字段，序列化/反序列化路径也不存在
 - scalar/TIMEZONE(1) 组装：`session/client/server` 来源与缺省分支
@@ -262,4 +260,6 @@ pytest cases/11-Functions/01-Scalar/test_tz_config_display.py --clean
 pytest cases/11-Functions/01-Scalar/test_tz_config_display.py cases/11-Functions/01-Scalar/test_tz_scalar_functions.py cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py --clean
 ```
 
-> **注意**：当前所有测试必定失败（SET TIMEZONE / SET FIRST_DAY_OF_WEEK 等语法尚未实现）。测试通过的前提是完成对应功能的开发。
+> **执行状态（2026-05-09）**：时区测试并非“全部必失败”。
+> 其中 `test_tz_scalar_functions.py` 在当前分支已可执行并通过（`37 passed, 14 skipped`）；
+> 当前 skip 主要集中在明确标记为 P4 未完成的周对齐/自然单位能力，不属于本轮 P3 回归失败。

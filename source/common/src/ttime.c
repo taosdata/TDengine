@@ -187,6 +187,103 @@ int32_t offsetOfTimezone(char* tzStr, int64_t* offset) {
 }
 
 /*
+ * Normalize a fixed-offset timezone string to POSIX TZ format for tzalloc().
+ * Handles: Z, +HH, +HHMM, +HH:MM, -HH, -HHMM, -HH:MM.
+ * Two-digit hours required; single-digit (+8) is rejected.
+ */
+static bool normalizeOffsetTzCommon(const char *val, char *buf, int32_t bufLen) {
+  if (val == NULL || val[0] == '\0') return false;
+
+  if ((val[0] == 'Z' || val[0] == 'z') && val[1] == '\0') {
+    tstrncpy(buf, "UTC", bufLen);
+    return true;
+  }
+
+  if (val[0] != '+' && val[0] != '-') return false;
+
+  char        sign = val[0];
+  const char *p = val + 1;
+  if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
+  int hours = (p[0] - '0') * 10 + (p[1] - '0');
+  p += 2;
+
+  int minutes = 0;
+  if (*p == ':') {
+    p++;
+    if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+    p += 2;
+  } else if (p[0] >= '0' && p[0] <= '9' && p[1] >= '0' && p[1] <= '9') {
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+    p += 2;
+  }
+  if (*p != '\0') return false;
+  if (hours > 14 || minutes > 59 || (hours == 14 && minutes > 0)) return false;
+
+  /* POSIX offset sign is inverted vs ISO-8601 */
+  char inv = (sign == '+') ? '-' : '+';
+  if (minutes == 0) {
+    snprintf(buf, bufLen, "<%s>%c%d", val, inv, hours);
+  } else {
+    snprintf(buf, bufLen, "<%s>%c%d:%02d", val, inv, hours, minutes);
+  }
+  return true;
+}
+
+int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
+  if (tzStr == NULL || tzStr[0] == '\0') {
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  }
+
+  /* Reject ambiguous abbreviations: 2-6 uppercase letters, no slash, not UTC */
+  {
+    const char *p = tzStr;
+    bool        allUpper = true;
+    bool        hasSlash = false;
+    int32_t     len = 0;
+    while (*p) {
+      if (*p == '/') hasSlash = true;
+      if (*p < 'A' || *p > 'Z') allUpper = false;
+      p++;
+      len++;
+    }
+    if (allUpper && len >= 2 && strcmp(tzStr, "UTC") != 0) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    if (!hasSlash && tzStr[0] != '+' && tzStr[0] != '-'
+        && strcmp(tzStr, "UTC") != 0
+        && !(tzStr[0] == 'Z' && tzStr[1] == '\0')
+        && !(tzStr[0] == 'z' && tzStr[1] == '\0')) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+  }
+
+  /* Normalize fixed-offset for tzalloc */
+  char        posixBuf[TD_TIMEZONE_LEN] = {0};
+  const char *tzName = tzStr;
+  if (tzStr[0] == '+' || tzStr[0] == '-') {
+    if (!normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    tzName = posixBuf;
+  } else if (normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
+    tzName = posixBuf;
+  }
+
+  timezone_t tz = tzalloc(tzName);
+  if (tz == NULL) {
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  }
+
+  if (pTz != NULL) {
+    *pTz = tz;
+  } else {
+    tzfree(tz);
+  }
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+/*
  * rfc3339 format:
  * 2013-04-12T15:52:01+08:00
  * 2013-04-12T15:52:01.123+08:00

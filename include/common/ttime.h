@@ -124,6 +124,15 @@ int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const c
 /// @return 0 success, other fail
 int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
 
+/*
+ * Validate a timezone string (IANA name or fixed offset) and optionally
+ * return a timezone_t handle.  Rejects ambiguous abbreviations (CST, EST).
+ * Accepted formats: IANA ("Asia/Shanghai"), "UTC", "Z", "+HH", "+HHMM",
+ * "+HH:MM".  If pTz is non-NULL and validation succeeds, *pTz is set
+ * to a freshly allocated timezone_t (caller must tzfree).
+ */
+int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz);
+
 bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision,
                                 bool checkEq);
 

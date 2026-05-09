@@ -49,7 +49,7 @@ class TestSetTimezone:
             'Asia/Shanghai': ['+08:00', '+0800'],
             'America/New_York': ['-05:00', '-0500', '-04:00', '-0400'],  # EST or EDT
             'UTC': ['+00:00', '+0000', 'Z'],
-            'Europe/London': ['+00:00', '+0000', '+01:00', '+0100'],     # GMT or BST
+            'Europe/London': ['+00:00', '+0000', '+01:00', '+0100', 'Z'],  # GMT(Z) or BST
             'Asia/Tokyo': ['+09:00', '+0900'],
         }
         for tz, expected_any in cases.items():
