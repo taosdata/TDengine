@@ -142,6 +142,64 @@ void vnodeTxnCleanup(SVnode *pVnode) {
   vInfo("vgId:%d, txn manager cleaned up", TD_VID(pVnode));
 }
 
+/**
+ * Reset in-memory txn state after snapshot apply on a follower.
+ *
+ * After a snapshot replaces all meta B+ trees, the old in-memory txn state
+ * (pTxnHash, pFinalizedTxns, pTxnTableLock) is stale.  This function clears
+ * those structures and rebuilds them from the new B+ tree content (txn.idx
+ * and txn_final.idx populated during snapshot write).
+ *
+ * Must be called AFTER vnodeBegin (so pMeta->txn is active for any cleanup
+ * deletes inside vnodeTxnRebuildFromMeta).
+ */
+int32_t vnodeTxnResetForSnapshot(SVnode *pVnode) {
+  vInfo("vgId:%d, resetting txn state after snapshot apply", TD_VID(pVnode));
+
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
+
+  // Free all SVnodeTxnEntry internals (same pattern as vnodeTxnCleanup)
+  if (pVnode->pTxnHash) {
+    void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+    while (pIter) {
+      SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+      tSimpleHashCleanup(pEntry->pTouchedUids);
+      tSimpleHashCleanup(pEntry->pAlterPrevVers);
+      if (pEntry->pLockedTables) {
+        int32_t sz = taosArrayGetSize(pEntry->pLockedTables);
+        for (int32_t i = 0; i < sz; i++) {
+          taosMemoryFree(*(char **)taosArrayGet(pEntry->pLockedTables, i));
+        }
+        taosArrayDestroy(pEntry->pLockedTables);
+      }
+      taosMemoryFreeClear(pEntry->pVacuumUids);
+      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+    }
+    taosHashClear(pVnode->pTxnHash);
+  }
+
+  if (pVnode->pFinalizedTxns) {
+    taosHashClear(pVnode->pFinalizedTxns);
+  }
+
+  if (pVnode->pTxnTableLock) {
+    taosHashClear(pVnode->pTxnTableLock);
+  }
+
+  pVnode->maxSeenTerm = 0;
+
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+
+  // Rebuild from the new snapshot's B+ tree content
+  int32_t code = vnodeTxnRebuildFromMeta(pVnode);
+  if (code != 0) {
+    vError("vgId:%d, failed to rebuild txn state after snapshot, code:0x%x", TD_VID(pVnode), code);
+  } else {
+    vInfo("vgId:%d, txn state reset and rebuilt after snapshot apply", TD_VID(pVnode));
+  }
+  return code;
+}
+
 // ============================================================================
 // Rebuild in-memory txn state from B+ tree (VNode startup / snapshot recovery)
 // ============================================================================
@@ -1004,8 +1062,8 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
       if (taosArrayPush(pCompletedTxns, &pEntry->txnId) == NULL) {
         // OOM: txnId not recorded, entry will not be cleaned this round.
         // Next vacuum cycle will retry. Log so the condition is observable.
-        vWarn("vgId:%d, out of memory recording completed txnId:% " PRId64 " in vacuum batch", TD_VID(pVnode),
-               pEntry->txnId);
+        vWarn("vgId:%d, out of memory recording completed txnId:%" PRId64 " in vacuum batch", TD_VID(pVnode),
+              pEntry->txnId);
       }
     }
 
@@ -1023,16 +1081,16 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
     int32_t delCode = metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
     if (delCode != 0) {
       // Persistent record survives; vacuum will retry on next restart (idempotent).
-      vWarn("vgId:%d, failed to delete txn_final.idx for txnId:% " PRId64 ": %s", TD_VID(pVnode), txnId,
-             tstrerror(delCode));
+      vWarn("vgId:%d, failed to delete txn_final.idx for txnId:%" PRId64 ": %s", TD_VID(pVnode), txnId,
+            tstrerror(delCode));
     }
 
     // Remove from in-memory cache
     int32_t rmCode = taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
     if (rmCode != 0) {
       // Stale key left in pFinalizedTxns; vacuum will be re-triggered unnecessarily.
-      vWarn("vgId:%d, failed to remove txnId:% " PRId64 " from pFinalizedTxns: %s", TD_VID(pVnode), txnId,
-             tstrerror(rmCode));
+      vWarn("vgId:%d, failed to remove txnId:%" PRId64 " from pFinalizedTxns: %s", TD_VID(pVnode), txnId,
+            tstrerror(rmCode));
     }
 
     // Remove SVnodeTxnEntry

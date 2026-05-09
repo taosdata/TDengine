@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "taos.h"
 
 #define SRC_DB "src_txn_db"
@@ -101,6 +102,7 @@ static TAOS *connect_db(const char *db) {
 }
 
 static tmq_t *create_consumer_ex(const char *group_id);
+static void   replicate_with_delay(int delay_after_first_msg_sec);
 
 static void setup_source(int scenario) {
   TAOS *taos = connect_db(NULL);
@@ -275,6 +277,17 @@ static void setup_source(int scenario) {
       do_query(taos, "ROLLBACK");
       break;
     }
+    case 17: {
+      // Replicated txn timeout exemption: same DDL as s1, but the Python test
+      // injects a delay during target-side replication to verify that the MNode
+      // timeout scan does NOT kill replicated txns (TXN_IS_REPLICATED skip).
+      do_query(taos, "BEGIN");
+      do_query(taos, "create table stb1 (ts timestamp, v int) tags (t1 int)");
+      do_query(taos, "create table ct1 using stb1 tags(1)");
+      do_query(taos, "create table ct2 using stb1 tags(2)");
+      do_query(taos, "COMMIT");
+      break;
+    }
     default:
       printf("Unknown scenario: %d\n", scenario);
       exit(1);
@@ -314,14 +327,23 @@ static tmq_t *create_consumer_ex(const char *group_id) {
   return consumer;
 }
 
-static void replicate_to_target(void) {
+static void replicate_to_target(void) { replicate_with_delay(0); }
+
+/**
+ * Replicate from source to target with an optional delay after the first
+ * write_raw call.  Used by scenario 17 to test replicated txn timeout
+ * exemption — the delay allows the MNode timeout scan to run while the
+ * replicated txn is still in progress on the target.
+ */
+static void replicate_with_delay(int delay_after_first_msg_sec) {
   tmq_t *consumer = create_consumer();
   TAOS  *dst = connect_db(DST_DB);
   int    msg_count = 0;
   int    empty_polls = 0;
   int    max_empty = 10;
+  int    delayed = 0;
 
-  printf("Starting replication...\n");
+  printf("Starting replication (delay=%ds)...\n", delay_after_first_msg_sec);
   while (empty_polls < max_empty) {
     TAOS_RES *msg = tmq_consumer_poll(consumer, 1000);
     if (!msg) {
@@ -338,12 +360,21 @@ static void replicate_to_target(void) {
     int32_t code = tmq_get_raw(msg, &raw);
     if (code == 0) {
       printf("  raw type=%d, len=%d\n", raw.raw_type, raw.raw_len);
-      int32_t ret = tmq_write_raw(dst, raw);
-      printf("  write_raw result: %s (%d)\n", tmq_err2str(ret), ret);
-      // Don't assert — some messages may fail (e.g. table already exists)
+      code = tmq_write_raw(dst, raw);
+      if (code != 0) {
+        printf("  write_raw FAILED: %s (0x%x)\n", tmq_err2str(code), code);
+      }
       tmq_free_raw(raw);
     }
     taos_free_result(msg);
+
+    // Inject delay after first message to test timeout exemption
+    if (!delayed && delay_after_first_msg_sec > 0) {
+      printf("  Injecting %ds delay after first message to test replicated txn timeout exemption...\n",
+             delay_after_first_msg_sec);
+      sleep(delay_after_first_msg_sec);
+      delayed = 1;
+    }
   }
 
   printf("Replication finished: %d messages\n", msg_count);
@@ -562,6 +593,19 @@ static int verify_scenario(int scenario) {
       if (cnt != 1) pass = 0;
       break;
     }
+    case 17: {
+      // Replicated txn timeout exemption: same expected result as s1 — STB + 2 CTBs
+      // Despite 15s delay during replication (exceeding 10s ACTIVE timeout),
+      // the replicated txn should survive because TXN_IS_REPLICATED skips timeout scan.
+      int stb_count = query_rows(dst, "show " DST_DB ".stables");
+      printf("verify s17: stables=%d (expected 1)\n", stb_count);
+      if (stb_count != 1) pass = 0;
+
+      int tbl_count = query_rows(dst, "show " DST_DB ".tables");
+      printf("verify s17: tables=%d (expected 2)\n", tbl_count);
+      if (tbl_count != 2) pass = 0;
+      break;
+    }
     default:
       printf("Unknown scenario: %d\n", scenario);
       pass = 0;
@@ -598,6 +642,7 @@ int main(int argc, char *argv[]) {
     printf("  14: Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)\n");
     printf("  15: Pre-existing STB → ALTER STB → ROLLBACK (first MNode DDL = ALTER)\n");
     printf("  16: Pre-existing STB → DROP STB → ROLLBACK (first MNode DDL = DROP)\n");
+    printf("  17: Replicated txn timeout exemption (15s delay during replication)\n");
     return 1;
   }
 
@@ -608,7 +653,12 @@ int main(int argc, char *argv[]) {
   setup_source(scenario);
 
   // Phase 2: Replicate via TMQ
-  replicate_to_target();
+  if (scenario == 17) {
+    // Scenario 17: inject 15s delay after first write_raw to test timeout exemption
+    replicate_with_delay(15);
+  } else {
+    replicate_to_target();
+  }
 
   // Phase 2b: For scenario 12, replay again with a new consumer group
   // Simulates crash recovery with low-watermark offset reset

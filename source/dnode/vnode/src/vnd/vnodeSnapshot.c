@@ -718,6 +718,15 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   code = vnodeBegin(pVnode);
   if (code) goto _exit;
 
+  // After snapshot apply, reset in-memory txn state and rebuild from the new
+  // B+ tree content.  txn.idx was populated during metaSnapWrite; txn_final.idx
+  // was written by metaSnapTxnFinalWrite.  The old in-memory state (from before
+  // the snapshot) is now stale and must be replaced.
+  if (!rollback) {
+    code = vnodeTxnResetForSnapshot(pVnode);
+    if (code) goto _exit;
+  }
+
   (void)taosThreadMutexLock(&pVnode->mutex);
   pVnode->disableWrite = false;
   (void)taosThreadMutexUnlock(&pVnode->mutex);

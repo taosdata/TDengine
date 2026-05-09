@@ -688,6 +688,7 @@ int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
 int32_t vnodeTxnInit(SVnode* pVnode);
 void    vnodeTxnCleanup(SVnode* pVnode);
+int32_t vnodeTxnResetForSnapshot(SVnode* pVnode);
 int32_t vnodeProcessTxnCommitReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
 int32_t vnodeProcessTxnRollbackReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
 int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);

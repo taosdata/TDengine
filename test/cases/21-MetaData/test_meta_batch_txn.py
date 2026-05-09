@@ -3397,6 +3397,104 @@ class TestBatchMetaTxn:
         tdSql.checkRows(0)
 
     # =========================================================================
+    # 117. Heartbeat keepalive: verify that client connection heartbeat
+    #      prevents txn timeout even during a long idle DDL gap (>10s).
+    #      Unlike s95 which relies on DDL activity, this test has a single
+    #      idle gap of 15s between DDL ops, relying solely on the client
+    #      connection heartbeat to refresh MNode lastActiveTime.
+    # =========================================================================
+    def s117_heartbeat_keepalive_idle_gap(self):
+        self.s0_reset_env()
+        tdLog.info("======== s117_heartbeat_keepalive_idle_gap")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_hb1 using stb tags(1)")
+
+        # Sleep 15s with no DDL activity.
+        # The ACTIVE state timeout is 10s, but the client connection heartbeat
+        # (mndTxnRefreshKeepalive) should keep the txn alive.
+        tdLog.info("  sleeping 15s to test heartbeat keepalive (ACTIVE timeout=10s)...")
+        time.sleep(15)
+
+        # If heartbeat failed, this DDL or COMMIT would get a txn-not-found error
+        tdSql.execute("create table ct_hb2 using stb tags(2)")
+        tdSql.execute("COMMIT")
+
+        # Verify both tables exist
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+        tdSql.execute("insert into ct_hb1 values(now, 1)")
+        tdSql.execute("insert into ct_hb2 values(now, 2)")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 2)
+
+    # =========================================================================
+    # 118. Replicated txn timeout exemption: verify that replicated transactions
+    #      (TXN_IS_REPLICATED flag) are NOT rolled back by the MNode timeout
+    #      scan, even when idle for longer than the ACTIVE timeout.
+    #      Uses tmq_taosx_txn scenario 17 which injects a 15s delay during
+    #      target-side replication.
+    # =========================================================================
+    def s118_replicated_txn_timeout_exemption(self):
+        self.s0_reset_env()
+        tdLog.info("======== s118_replicated_txn_timeout_exemption")
+
+        # This test delegates to the C binary tmq_taosx_txn scenario 17.
+        # The scenario:
+        #   1. Source: BEGIN → CREATE STB + 2 CTBs → COMMIT
+        #   2. Target replication with 15s delay after first write_raw
+        #   3. Despite 15s idle gap (> 10s ACTIVE timeout), the replicated
+        #      txn should survive because TXN_IS_REPLICATED causes the
+        #      timeout scan to skip it.
+        import subprocess
+        import os
+
+        # Find the binary
+        binary = None
+        search_paths = [
+            os.path.join(os.environ.get("TDENGINE_DIR", ""), "debug/build/bin/tmq_taosx_txn"),
+            "/proj/github/3.ims/TDinternal/debug/build/bin/tmq_taosx_txn",
+        ]
+        for p in search_paths:
+            if os.path.isfile(p) and os.access(p, os.X_OK):
+                binary = p
+                break
+
+        if binary is None:
+            # Try to compile in-place
+            src = os.path.join(os.path.dirname(__file__), "../../../utils/test/c/tmq_taosx_txn.c")
+            src = os.path.normpath(src)
+            if not os.path.isfile(src):
+                tdLog.info("  SKIP: tmq_taosx_txn.c not found, cannot run replicated txn test")
+                return
+            dst = "/tmp/tmq_taosx_txn"
+            cmd = [
+                "gcc", "-o", dst, src,
+                "-I/usr/local/taos/include", "-L/usr/lib", "-ltaos", "-lpthread", "-lm"
+            ]
+            ret = subprocess.run(cmd, capture_output=True, text=True)
+            if ret.returncode != 0:
+                tdLog.info("  SKIP: failed to compile tmq_taosx_txn: %s" % ret.stderr)
+                return
+            binary = dst
+
+        tdLog.info("  running scenario 17 (replicated txn timeout exemption, ~20s)...")
+        ret = subprocess.run(
+            [binary, "17"],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, "LD_LIBRARY_PATH": "/usr/lib:/usr/local/taos/driver"}
+        )
+        tdLog.info("  stdout: %s" % ret.stdout[-500:] if len(ret.stdout) > 500 else ret.stdout)
+        if ret.stderr:
+            tdLog.info("  stderr: %s" % ret.stderr[-500:] if len(ret.stderr) > 500 else ret.stderr)
+        assert ret.returncode == 0, \
+            "Scenario 17 FAILED (exit=%d)\nstdout: %s\nstderr: %s" % (
+                ret.returncode, ret.stdout[-1000:], ret.stderr[-1000:])
+        tdLog.info("  replicated txn timeout exemption verified (PASS)")
+
+    # =========================================================================
     # 116. TMQ visibility: PRE_CREATE shadow tables MUST NOT be delivered to
     #      subscribers until COMMIT lands. Validates the metaQuery.c filter
     #      sites on the shared metaReader path that TMQ consumes.
@@ -3659,6 +3757,8 @@ class TestBatchMetaTxn:
         109. No-txn fast-path smoke test (metaHasPendingTxnEntries guard)
         110. Sequential large txn cycles (vacuum pipeline stress)
         111. Concurrent BEGIN admission stability near 200 limit
+        117. Heartbeat keepalive: idle DDL gap >10s survives via client HB
+        118. Replicated txn timeout exemption (TXN_IS_REPLICATED skip)
 
 
         Since: v3.3.6.0
@@ -3800,3 +3900,5 @@ class TestBatchMetaTxn:
         self.s114_stb_multi_alter_chain()
         self.s115_stb_create_multi_alter_drop_commit()
         self.s116_tmq_pre_create_invisibility()
+        self.s117_heartbeat_keepalive_idle_gap()
+        self.s118_replicated_txn_timeout_exemption()

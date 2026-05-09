@@ -246,6 +246,19 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
 
   metaHandleSyncEntry(pMeta, &metaEntry);
 
+  // Batch-meta-txn: if the snapshot entry carries a pending txn marker (txnId != 0),
+  // populate txn.idx so vnodeTxnRebuildFromMeta can reconstruct in-memory txn state
+  // on the follower after snapshot apply.  Without this, shadow entries (PRE_CREATE /
+  // PRE_ALTER / PRE_DROP) become zombie when COMMIT/ROLLBACK arrives later.
+  // Only insert/update entries (type > 0) carry meaningful txn state.
+  if (metaEntry.txnId != 0 && metaEntry.type > 0) {
+    int64_t txnPrevVer = (metaEntry.txnStatus == META_TXN_PRE_ALTER) ? metaEntry.txnPrevVer : -1;
+    code = metaTxnIdxUpsert(pMeta, metaEntry.uid, metaEntry.txnId, metaEntry.txnStatus, txnPrevVer);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    metaDebug("vgId:%d, snap write: upserted txn.idx uid:%" PRId64 " txnId:%" PRId64 " status:%d",
+              TD_VID(pMeta->pVnode), metaEntry.uid, metaEntry.txnId, metaEntry.txnStatus);
+  }
+
 _exit:
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));

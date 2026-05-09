@@ -260,6 +260,19 @@ class TestTaosxTxn:
         tdLog.info("s16 PASSED")
 
     # =========================================================================
+    # s17: Replicated txn timeout exemption
+    #   The C binary injects a 15s delay during target-side replication
+    #   (after the first write_raw call).  Despite exceeding the 10s ACTIVE
+    #   timeout, the replicated txn survives because mndTxnTimeoutScanImpl
+    #   skips entries with TXN_IS_REPLICATED.
+    # =========================================================================
+    def s17_replicated_txn_timeout_exemption(self):
+        self.s0_cleanup()
+        tdLog.info("======== s17: Replicated txn timeout exemption (~20s)")
+        _run_scenario(17)
+        tdLog.info("s17 PASSED")
+
+    # =========================================================================
     # Entry point
     # =========================================================================
     def test_taosx_txn(self):
@@ -275,6 +288,7 @@ class TestTaosxTxn:
         14. Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)
         15. Pre-existing STB → ALTER STB → ROLLBACK (first MNode DDL = ALTER)
         16. Pre-existing STB → DROP STB → ROLLBACK (first MNode DDL = DROP)
+        17. Replicated txn timeout exemption (15s delay, TXN_IS_REPLICATED skip)
 
         Since: v3.3.6.0
 
@@ -305,3 +319,4 @@ class TestTaosxTxn:
         self.s14_drop_existing_stb_commit()
         self.s15_alter_existing_stb_rollback()
         self.s16_drop_existing_stb_rollback()
+        self.s17_replicated_txn_timeout_exemption()
