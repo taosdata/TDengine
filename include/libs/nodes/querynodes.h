@@ -577,6 +577,12 @@ typedef struct SPeriodWindowNode {
   SNode*    pOffset;
 } SPeriodWindowNode;
 
+typedef enum EWindowMode {
+  WINDOW_MODE_NONE = 1,
+  WINDOW_MODE_SCALAR,
+  WINDOW_MODE_AGG,
+} EWindowMode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
@@ -701,6 +707,7 @@ typedef struct SSelectStmt {
   int32_t         returnRows;  // EFuncReturnRows
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
+  EWindowMode     windowMode;
   int32_t         lastProcessByRowFuncId;
   bool            hasNonLocalSubQ;
   int32_t         timeLineFromOrderBy;

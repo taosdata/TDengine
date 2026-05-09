@@ -5390,7 +5390,11 @@ static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
   SCheckProjectionModeContext ctx = {.pSelect = pSelect, .hasScalarExpr = false};
   nodesWalkExprs(pSelect->pProjectionList, checkProjectionModeHasScalarExpr, &ctx);
 
-  return ctx.hasScalarExpr;
+  if (ctx.hasScalarExpr) {
+    return true;
+  } else {
+    return (pSelect->windowMode == WINDOW_MODE_SCALAR);
+  }
 }
 
 

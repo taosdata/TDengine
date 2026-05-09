@@ -2614,11 +2614,12 @@ jlimit_clause_opt(A) ::= JLIMIT unsigned_integer(B).                            
 
 /************************************************ query_specification *************************************************/
 query_specification(A) ::= 
-  SELECT hint_list(M) set_quantifier_opt(B) tag_mode_opt(N) select_list(C) from_clause_opt(D)
+  SELECT hint_list(M) set_quantifier_opt(B) tag_mode_opt(N) window_mode_opt(O) select_list(C) from_clause_opt(D)
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
   fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
                                                                                     A = createSelectStmt(pCxt, B, C, D, M);
                                                                                     A = setSelectStmtTagMode(pCxt, A, N);
+                                                                                    A = setSelectStmtWindowMode(pCxt, A, O);
                                                                                     A = addWhereClause(pCxt, A, E);
                                                                                     A = addPartitionByClause(pCxt, A, F);
                                                                                     A = addWindowClauseClause(pCxt, A, G);
@@ -2638,6 +2639,12 @@ hint_list(A) ::= NK_HINT(B).                                                    
 %destructor tag_mode_opt                                                          { }
 tag_mode_opt(A) ::= .                                                             { A = false; }
 tag_mode_opt(A) ::= TAGS.                                                         { A = true; }
+
+%type window_mode_opt                                                             { EWindowMode }
+%destructor window_mode_opt                                                          { }
+tag_mode_opt(A) ::= .                                                             { A = WINDOW_MODE_NONE; }
+tag_mode_opt(A) ::= SCALAR.                                                       { A = WINDOW_MODE_SCALAR; }
+tag_mode_opt(A) ::= AGG.                                                          { A = WINDOW_MODE_AGG; }
 
 %type set_quantifier_opt                                                          { bool }
 %destructor set_quantifier_opt                                                    { }
