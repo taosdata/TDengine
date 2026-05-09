@@ -1182,6 +1182,7 @@ static const char *dmGetSourceDiskPath(const SRepairTfs *pTfs, SDiskID did) {
 
 // Check if a target TFS disk is disabled, based on global tsDiskCfg[].
 static bool dmIsTgtDiskDisabled(int32_t level, int32_t id) {
+  if (tsDiskCfgNum <= 0) return false;  // fallback single-disk mode: never disabled
   int32_t count = 0;
   for (int32_t i = 0; i < tsDiskCfgNum; i++) {
     if (tsDiskCfg[i].level == level) {
@@ -1992,7 +1993,7 @@ int32_t dmRepairCopyMode(const SRepairCopyOpt *pOpts) {
 #ifdef WINDOWS
 
     uError("repair: copy-mode repair is not supported on Windows");
-    return 2;
+    return 1;
 
 #else
 

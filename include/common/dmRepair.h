@@ -62,8 +62,12 @@ bool                       dmRepairNeedWalRepair(int32_t vnodeId);
 // Returns NULL on parse error.
 SArray *dmParseVnodeIds(const char *str);
 
-// Execute copy-mode repair. Returns exit code: 0=all ok, 1=bad args,
-// 2=SSH fail, 3=partial failure, 4=all failed.
+// Execute copy-mode repair. Returns exit code:
+//   0 = all vnodes succeeded
+//   1 = setup/config error (unsupported platform, config parse, TFS, dnode.json)
+//   2 = remote connection / SSH error
+//   3 = partial failure (some vnodes succeeded, some failed)
+//   4 = all vnodes failed
 int32_t dmRepairCopyMode(const SRepairCopyOpt *pOpts);
 
 #ifdef __cplusplus
