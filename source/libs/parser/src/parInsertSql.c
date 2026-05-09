@@ -3327,8 +3327,10 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
       } else {
         pStbRowsCxt->pCtbMeta->uid = taosHashGetSize(pStmt->pSubTableHashObj) + 1;
       }
-      pStbRowsCxt->pCtbMeta->vgId = vg.vgId;
-      code = cloneTableMeta(pStbRowsCxt->pCtbMeta, &pBackup);
+      if (TSDB_CODE_SUCCESS == code) {
+        pStbRowsCxt->pCtbMeta->vgId = vg.vgId;
+        code = cloneTableMeta(pStbRowsCxt->pCtbMeta, &pBackup);
+      }
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = taosHashPut(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName), &pBackup, POINTER_BYTES);

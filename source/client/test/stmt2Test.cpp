@@ -1813,8 +1813,6 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,tbname)  VALUES (?,?,?)", 0);
   bindv3 = {1, &tbname3[0], NULL, &paramvs2[0]};
   code = taos_stmt2_bind_param(stmt, &bindv3, -1);
-  checkError(stmt, code, __FILE__, __LINE__);
-  code = taos_stmt2_exec(stmt, &affected_rows);
   ASSERT_EQ(code, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
 
   taos_stmt2_close(stmt);
