@@ -3127,6 +3127,7 @@ class TDCom:
                     "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
                     "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
                     "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| tr -d '\\r' "
                     f"> {self.query_result_file}"
                 )
             return self.query_result_file

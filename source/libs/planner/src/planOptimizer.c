@@ -2468,6 +2468,14 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   SNode*       pLeftChildCond = NULL;
   SNode*       pRightChildCond = NULL;
   int32_t      code = pdcJoinCheckAllCond(pCxt, pJoin);
+
+  // For ASOF joins, extract pPrimKeyEqCond from pFullOnCond early so that the COPY safety
+  // check in pdcJoinIsSafeAsofCopyCond can determine the ASOF direction during WHERE splitting.
+  if (TSDB_CODE_SUCCESS == code && IS_ASOF_JOIN(pJoin->subType) && NULL != pJoin->pFullOnCond &&
+      NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
+    code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
+  }
+
   while (true) {
     if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions) {
       if (0 != gJoinWhereOpt[t][s].pushDownFlag) {
