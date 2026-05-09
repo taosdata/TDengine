@@ -809,6 +809,10 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
     code = dmParseLongOptionValue(argc, argv, &index, "--vnode", vnodeBuf, sizeof(vnodeBuf), &optMatched);
     if (code != 0) return code;
     if (optMatched) {
+      if (global.repairOpt.copyOpt.vnodeIds != NULL) {
+        printf("--vnode specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
       global.repairOpt.copyOpt.vnodeIds = dmParseVnodeIds(vnodeBuf);
       if (global.repairOpt.copyOpt.vnodeIds == NULL) {
         printf("invalid --vnode format: '%s'\n", vnodeBuf);
