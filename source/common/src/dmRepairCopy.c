@@ -193,6 +193,7 @@ _err:
 
 // Fetch a remote file to a local path via SSH.
 // Returns 0 on success, -1 on error.
+#ifndef WINDOWS
 static int32_t dmSshFetchFile(const char *host, const char *remotePath, char *localPathBuf, size_t bufLen) {
   // Create a secure temp file with mkstemp (O_EXCL prevents symlink attacks)
   strncpy(localPathBuf, "/tmp/tdrepair_XXXXXX", bufLen - 1);
@@ -266,6 +267,7 @@ static int32_t dmSshFetchFile(const char *host, const char *remotePath, char *lo
   }
   return 0;
 }
+#endif // !WINDOWS
 
 // Parse a taos.cfg file and extract SDiskCfg entries from the dataDir items.
 // Returns 0 on success. On success, caller must free *ppDisks.

@@ -1154,16 +1154,29 @@ static void dmPrintHelp() {
 }
 
 static void dmPrintRepairHelp() {
-  printf("Usage: %sd -r --mode force --node-type vnode [--backup-path PATH]\n", CUS_PROMPT);
+  printf("Usage:\n");
+  printf("  Force mode (in-place repair):\n");
+  printf("    %sd -r --mode force --node-type vnode [--backup-path PATH]\n", CUS_PROMPT);
   printf("              --repair-target TARGET [--repair-target TARGET]...\n\n");
 
-  printf("Current scope\n");
-  printf("  --node-type: vnode (only)\n");
-  printf("  --mode: force (only)\n");
-  printf("  --backup-path: optional global backup root\n");
-  printf("  --repair-target: <file-type>:<key>=<value>[:<key>=<value>]...\n\n");
+  printf("  Copy mode (copy vnode data from a source cluster):\n");
+  printf("    %sd -r --mode copy --node-type vnode --source-cfg PATH\n", CUS_PROMPT);
+  printf("              [--source-host HOST] --vnode ID[,ID]...\n\n");
 
-  printf("Supported targets\n");
+  printf("Common options\n");
+  printf("  --node-type: vnode (only)\n");
+  printf("  --mode:      force | copy\n\n");
+
+  printf("Force mode options\n");
+  printf("  --backup-path:    optional global backup root\n");
+  printf("  --repair-target:  <file-type>:<key>=<value>[:<key>=<value>]...\n\n");
+
+  printf("Copy mode options\n");
+  printf("  --source-cfg:     path to the source cluster taos.cfg\n");
+  printf("  --source-host:    SSH host for remote source (omit for local copy)\n");
+  printf("  --vnode:          comma-separated list of vnode IDs to copy\n\n");
+
+  printf("Supported force-mode targets\n");
   printf("  meta:vnode=<id>[:strategy=from_uid|from_redo]\n");
   printf("  tsdb:vnode=<id>:fileid=<id|*>[:strategy=drop_invalid_only|head_only_rebuild|full_rebuild]\n");
   printf("  wal:vnode=<id>\n");
