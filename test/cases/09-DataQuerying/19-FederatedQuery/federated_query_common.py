@@ -198,6 +198,7 @@ TSDB_CODE_EXT_NO_TS_KEY                        = _code('TSDB_CODE_EXT_NO_TS_KEY'
 TSDB_CODE_EXT_SYNTAX_UNSUPPORTED               = _code('TSDB_CODE_EXT_SYNTAX_UNSUPPORTED')
 TSDB_CODE_EXT_TABLE_NOT_EXIST                  = _code('TSDB_CODE_EXT_TABLE_NOT_EXIST')
 TSDB_CODE_EXT_PUSHDOWN_FAILED                  = _code('TSDB_CODE_EXT_PUSHDOWN_FAILED')
+TSDB_CODE_EXT_CONNECT_FAILED                   = _code('TSDB_CODE_EXT_CONNECT_FAILED')
 TSDB_CODE_EXT_SOURCE_UNAVAILABLE               = _code('TSDB_CODE_EXT_SOURCE_UNAVAILABLE')
 TSDB_CODE_EXT_RESOURCE_EXHAUSTED               = _code('TSDB_CODE_EXT_RESOURCE_EXHAUSTED')
 TSDB_CODE_EXT_WRITE_DENIED                     = _code('TSDB_CODE_EXT_WRITE_DENIED')
@@ -828,7 +829,16 @@ class ExtSrcEnv:
 
     @classmethod
     def mysql_exec_cfg(cls, cfg, database, sqls):
-        """Execute SQL on a specific MySQL version instance."""
+        """Execute SQL on a specific MySQL version instance.
+
+        The session timezone is always fixed to UTC (+00:00) so that:
+        - TIMESTAMP columns are stored/retrieved in UTC.
+        - Test cases can write epoch-based WHERE filters against known UTC
+          epochs without worrying about the MySQL server's default timezone.
+        Note: DATETIME columns are timezone-naive and unaffected by this
+        setting; they are parsed by the TDengine ext-connector using the
+        taosd system timezone, which is also UTC in the test environment.
+        """
         import pymysql
         conn = pymysql.connect(
             host=cfg.host, port=cfg.port,
@@ -836,6 +846,7 @@ class ExtSrcEnv:
             database=database, autocommit=True, charset="utf8mb4")
         try:
             with conn.cursor() as cur:
+                cur.execute("SET time_zone = '+00:00'")
                 for sql in sqls:
                     cur.execute(sql)
         finally:

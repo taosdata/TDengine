@@ -169,10 +169,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.error("select * from no_such_source_xyz.t001",
                         expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND)
 
-            # (d) Filtered query
-            # Note: '2024-01-01 00:00:02' inserted as local time → epoch 1704038402000 (CST).
-            # 1704067202000 is UTC epoch which doesn't match any row.
-            tdSql.query(f"select val from {src}.t001 where id = 1704067202000")
+            # (d) Filtered query — verify WHERE clause is applied.
+            # t001 has rows only at epoch 1704067201000 and 1704067202000
+            # (2024-01-01 00:00:01 and 00:00:02 UTC); midnight 1704067200000
+            # is not present, so this must return 0 rows.
+            tdSql.query(f"select val from {src}.t001 where id = 1704067200000")
             tdSql.checkRows(0)
         finally:
             self._cleanup_src(src)
@@ -224,11 +225,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 202)  # proves override worked
 
-            # (c) 3-seg with WHERE
-            # Note: '2024-01-01 00:00:01' local time → epoch 1704038401000 (CST).
-            # 1704067201000 is UTC epoch which doesn't match.
+            # (c) 3-seg with WHERE — t002 has one row at epoch 1704067201000
+            # (2024-01-01 00:00:01 UTC); 1704067202000 is absent → 0 rows.
             tdSql.query(
-                f"select val from {src}.{MYSQL_DB}.t002 where id = 1704067201000")
+                f"select val from {src}.{MYSQL_DB}.t002 where id = 1704067202000")
             tdSql.checkRows(0)
 
             # (d) 2-seg default vs 3-seg override — different values
@@ -279,10 +279,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 301)
             tdSql.checkData(0, 1, 'public_row')
 
-            # (b) With alias + WHERE
-            # Note: '2024-01-01 00:00:01' local time → epoch 1704038401000 (CST).
-            # 1704067201000 is UTC epoch which doesn't match.
-            tdSql.query(f"select t.val from {src}.t003 t where t.id = 1704067201000")
+            # (b) With alias + WHERE — t003 has one row at epoch 1704067201000
+            # (2024-01-01 00:00:01 UTC); 1704067202000 is absent → 0 rows.
+            tdSql.query(f"select t.val from {src}.t003 t where t.id = 1704067202000")
             tdSql.checkRows(0)
 
             # (c) Without explicit schema → PG defaults to 'public'
@@ -356,11 +355,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 402)
 
-            # (d) 3-seg with WHERE
-            # Note: '2024-01-01 00:00:01' local time → epoch 1704038401000 (CST).
-            # 1704067201000 is UTC epoch which doesn't match.
+            # (d) 3-seg with WHERE — analytics.t004 has one row at epoch
+            # 1704067201000 (2024-01-01 00:00:01 UTC); 1704067202000 absent → 0 rows.
             tdSql.query(
-                f"select val from {src}.analytics.t004 where id = 1704067201000")
+                f"select val from {src}.analytics.t004 where id = 1704067202000")
             tdSql.checkRows(0)
         finally:
             self._cleanup_src(src)
@@ -896,11 +894,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1101)
 
-            # (d) Disambiguation: source exists → 3-seg resolves externally
-            # Note: '2024-01-01 00:00:01' local time → epoch 1704038401000 (CST).
-            # 1704067201000 is UTC epoch which doesn't match.
+            # (d) Disambiguation: source exists → 3-seg resolves externally.
+            # t011 has one row at epoch 1704067201000 (2024-01-01 00:00:01 UTC);
+            # 1704067202000 is absent → 0 rows, proving the path resolved correctly.
             tdSql.query(
-                f"select val from {src}.{MYSQL_DB}.t011 where id = 1704067201000")
+                f"select val from {src}.{MYSQL_DB}.t011 where id = 1704067202000")
             tdSql.checkRows(0)
         finally:
             self._cleanup_src(src, src2)
@@ -1686,7 +1684,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
      expectedErrno=TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
             # (d) USE external → CREATE TABLE should fail
-            tdSql.error("create table new_ext_tbl (ts timestamp, v int)")
+            tdSql.error("create table new_ext_tbl (ts timestamp, v int)",
+                        expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
 
             # (e) Switch between two external sources
             tdSql.execute(f"use {m}")
@@ -1877,7 +1876,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.error(
                 f"create vtable vt_s03a ("
                 f"  v1 from {phantom}.tbl.col"
-                f") using vstb_s03 tags(1)"
+                f") using vstb_s03 tags(1)",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
             )
 
             # Confirm phantom doesn't exist
@@ -2479,7 +2479,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (f) ALTER TABLE on external path → error
             tdSql.error(
-                f"alter table {src}.ext_table add column new_col int")
+                f"alter table {src}.ext_table add column new_col int",
+                expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
             # (g) DESCRIBE external 2-seg table path
             self._assert_error_not_syntax(f"describe {src}.ext_table")
