@@ -15772,6 +15772,11 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
         "alter column reference only available for virtual normal table and virtual child table");
   }
 
+  if (TSDB_ALTER_TABLE_ALTER_TAG_REF == pStmt->alterType) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "alter tag reference only available for virtual child table");
+  }
+
   if (TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Rename column only available for normal table");
@@ -26222,15 +26227,6 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tag
     return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
   }
 
-  if (pTableMeta->numOfTagRefs > 0 && pTableMeta->tagRef != NULL) {
-    for (int32_t i = 0; i < pTableMeta->numOfTagRefs; ++i) {
-      if (pTableMeta->tagRef[i].hasRef && pTableMeta->tagRef[i].id == pSchema->colId) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                       "tag `%s` is referenced and cannot be altered", colName);
-      }
-    }
-  }
-
   pReq->tagName = taosStrdup(colName);
   if (NULL == pReq->tagName) {
     TAOS_CHECK_GOTO(terrno, &lino, _err);
@@ -26686,6 +26682,34 @@ static int buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+static int buildAlterTableTagRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+                                 SVAlterTbReq* pReq) {
+  if (!isVirtualTable(pTableMeta)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+  int32_t        code = TSDB_CODE_SUCCESS;
+  const SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
+  if (NULL == pSchema) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pStmt->colName);
+  }
+
+  SDataType tagType = {0};
+  schemaToRefDataType(pSchema, 0, &tagType);
+
+  PAR_ERR_JRET(checkTagRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, tagType));
+
+  pReq->colName = taosStrdup(pStmt->colName);
+  pReq->refDbName = taosStrdup(pStmt->refDbName);
+  pReq->refTbName = taosStrdup(pStmt->refTableName);
+  pReq->refColName = taosStrdup(pStmt->refColName);
+  if (NULL == pReq->colName || NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName) {
+    return terrno;
+  }
+
+_return:
+  return code;
+}
+
 static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
@@ -26724,6 +26748,8 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       return buildAlterTableColumnRef(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_REMOVE_COLUMN_REF:
       return buildRemoveTableColumnRef(pCxt, pStmt, pTableMeta, pReq);
+    case TSDB_ALTER_TABLE_ALTER_TAG_REF:
+      return buildAlterTableTagRef(pCxt, pStmt, pTableMeta, pReq);
     default:
       break;
   }

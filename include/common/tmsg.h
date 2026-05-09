@@ -251,6 +251,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
 #define TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL      19 // alter multiple tag values of multi tables
 #define TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL      20 // alter multiple tag values of the child tables of a stable
+#define TSDB_ALTER_TABLE_ALTER_TAG_REF                  21 // set/change tag reference for virtual child table
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -5152,7 +5153,7 @@ typedef struct SVAlterTbReq {
   uint8_t* where;      // [where] is the encode where condition.
   // for Add column
   STypeMod typeMod;
-  // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
+  // TSDB_ALTER_TABLE_ALTER_COLUMN_REF / TSDB_ALTER_TABLE_ALTER_TAG_REF
   char* refDbName;
   char* refTbName;
   char* refColName;

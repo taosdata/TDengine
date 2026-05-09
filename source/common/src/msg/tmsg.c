@@ -15668,6 +15668,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeU32(pEncoder, pReq->compress));
       break;
     case TSDB_ALTER_TABLE_ALTER_COLUMN_REF:
+    case TSDB_ALTER_TABLE_ALTER_TAG_REF:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refTbName));
@@ -15958,6 +15959,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeU32(pDecoder, &pReq->compress));
       break;
     case TSDB_ALTER_TABLE_ALTER_COLUMN_REF:
+    case TSDB_ALTER_TABLE_ALTER_TAG_REF:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));

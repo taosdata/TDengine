@@ -806,7 +806,8 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
   PAR_ERR_RET(collectMetaKeyFromAlterTable(pCxt, pStmt));
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
-      pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+      pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF) {
     PAR_ERR_RET(
         reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache));
     PAR_ERR_RET(

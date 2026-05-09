@@ -206,10 +206,10 @@ class TestVtableTagRefAlter:
         )
         assert tag_ref_values == [("local0_updated", "beijing", "200")]
 
-    def test_alter_tag_ref_vtable_set_ref_tag_to_literal_is_rejected(self):
-        """Direct SET TAG cannot rewrite a tag-ref field to a literal value.
+    def test_alter_tag_ref_vtable_set_ref_tag_to_literal_clears_ref(self):
+        """Direct SET TAG on a tag-ref field clears the ref and sets static value.
 
-        Verify that the system correctly handles the case: direct set tag cannot rewrite a tag-ref field to a literal value.
+        Verify that the system correctly handles the case: direct set tag clears tag-ref and sets a static literal value.
 
         Catalog:
             - VirtualTable
@@ -220,11 +220,11 @@ class TestVtableTagRefAlter:
 
         """
         tdSql.execute(f"USE {DB}")
-        tdSql.error("ALTER VTABLE v0 SET TAG ref_city='literal_city'")
+        tdSql.execute("ALTER VTABLE v0 SET TAG ref_city='literal_city'")
         tag_ref_values = self._distinct_values(
             "SELECT DISTINCT local_tag, ref_city, ref_code FROM v0"
         )
-        assert tag_ref_values == [("local0", "beijing", "200")]
+        assert tag_ref_values == [("local0", "literal_city", "200")]
 
     def test_alter_vtable_using_stable_can_update_local_tag(self):
         """Batch SET TAG through the virtual stable can update non-ref local tags.
@@ -246,10 +246,10 @@ class TestVtableTagRefAlter:
         )
         assert tag_ref_values == [("local0_batch", "beijing", "200")]
 
-    def test_alter_vtable_using_stable_cannot_override_tag_ref_with_literal(self):
-        """Batch SET TAG on a tag-ref field is rejected with an error.
+    def test_alter_vtable_using_stable_can_override_tag_ref_with_literal(self):
+        """Batch SET TAG on a tag-ref field clears the ref and sets static value.
 
-        Tag-ref values come from the source table and cannot be overwritten with a literal via ALTER VTABLE USING ... SET TAG. The source table's own tag value should be changed instead.
+        Tag-ref values are cleared when overwritten with a literal via ALTER VTABLE USING ... SET TAG.
 
         Catalog:
             - VirtualTable
@@ -260,12 +260,11 @@ class TestVtableTagRefAlter:
 
         """
         tdSql.execute(f"USE {DB}")
-        tdSql.error("ALTER VTABLE USING vstb SET TAG ref_city='literal_city' WHERE tbname='v0'")
-        # tag-ref values remain unchanged
+        tdSql.execute("ALTER VTABLE USING vstb SET TAG ref_city='literal_city' WHERE tbname='v0'")
         tag_ref_values = self._distinct_values(
             "SELECT DISTINCT local_tag, ref_city, ref_code FROM v0"
         )
-        assert tag_ref_values == [("local0", "beijing", "200")]
+        assert tag_ref_values == [("local0", "literal_city", "200")]
 
     def test_alter_vtable_using_stable_cannot_set_tag_ref_to_another_reference(self):
         """ALTER ... SET TAG only accepts literal values, not tag-reference syntax.

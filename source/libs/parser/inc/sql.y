@@ -1096,6 +1096,10 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) ALTER COLUMN column_name(C) SET NULL(D).                     { A = createAlterTableRemoveColRef(pCxt, B, TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, &C, &D); }
 
+alter_table_clause(A) ::=
+  full_table_name(B) SET TAG column_name(C) NK_EQ column_ref(D).
+                                                                                  { A = createAlterTableAlterTagRef(pCxt, B, TSDB_ALTER_TABLE_ALTER_TAG_REF, &C, D); }
+
 /* update multi table tag values */
 %type column_tag_value_list                                                          { SNodeList* }
 %destructor column_tag_value_list                                                    { nodesDestroyList($$); }
