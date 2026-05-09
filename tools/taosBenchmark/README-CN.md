@@ -42,7 +42,7 @@ cmake 提示无法发现 libsnappy，实际上工作正常。
 
 如果有些包由于 CentOS 8 EOL 的问题无法下载，可以尝试先执行如下命令：
 
-```
+```bash
 sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
 sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
 ```
@@ -51,7 +51,7 @@ sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /
 
 除上述编译依赖包，需要执行以下命令：
 
-```
+```bash
 sudo yum install centos-release-scl
 sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
 scl enable devtoolset-9 -- bash

@@ -449,26 +449,26 @@ class TestTaosBackupExcept:
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_BCK)
 
         cmd = f"-T 2 -D {self._SRV_DB_SRC} -o {tmpdir}"
-        etool.taosbackup(cmd, checkRun=False)
+        etool.taosdump(cmd, checkRun=False)
 
         # Wait for pause thread to finish (its finally block restarts taosd)
         self._restart_taosd()
         self._wait_dnode_ready()
 
         # Continue backup with checkpoint
-        etool.taosbackup(f"-C {cmd}")
+        etool.taosdump(f"-C {cmd}")
 
         tdLog.info("=== step 4: restore ===")
         cmd = f" -T 2 -k 5 -z 2000 -W \"{self._SRV_DB_SRC}->{self._SRV_DB_DST}\" -i {tmpdir}"        
         self._start_pause_thread(presleep=self._SRV_PRESLEEP_RST)
-        etool.taosbackup(cmd, checkRun=False)
+        etool.taosdump(cmd, checkRun=False)
 
         # Wait for pause thread to finish (its finally block restarts taosd)
         self._restart_taosd()
         self._wait_dnode_ready()
 
         # Continue restore with checkpoint
-        etool.taosbackup(f"-C {cmd}")
+        etool.taosdump(f"-C {cmd}")
 
         # verify
         tdLog.info("=== step 5: verify data correctness ===")

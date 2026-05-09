@@ -35,7 +35,7 @@ class TestTaosBackupEdge:
         os.makedirs(path)
 
     def taosbackup(self, cmd, checkRun=True):
-        return etool.taosbackup(cmd, checkRun=checkRun)
+        return etool.taosdump(cmd, checkRun=checkRun)
 
     def isDbFound(self, dbname):
         tdSql.query("select name from information_schema.ins_databases")
@@ -192,12 +192,12 @@ class TestTaosBackupEdge:
         bin = etool.taosDumpFile()
 
         # Backup without -g (normal mode)
-        rlist_norm = etool.taosbackup(f"-D debugdb -o {tmpdir_norm} -T 1")
+        rlist_norm = etool.taosdump(f"-D debugdb -o {tmpdir_norm} -T 1")
         count_norm = len(rlist_norm) if rlist_norm else 0
 
         self.makeDir(tmpdir_debug)
         # Backup with -g (debug mode)
-        rlist_debug = etool.taosbackup(f"-g -D debugdb -o {tmpdir_debug} -T 1")
+        rlist_debug = etool.taosdump(f"-g -D debugdb -o {tmpdir_debug} -T 1")
         count_debug = len(rlist_debug) if rlist_debug else 0
 
         assert count_debug > count_norm, (
@@ -210,7 +210,7 @@ class TestTaosBackupEdge:
 
         # Restore with -g and verify data is intact
         tdSql.execute("drop database debugdb")
-        etool.taosbackup(f"-g -i {tmpdir_debug} -T 1")
+        etool.taosdump(f"-g -i {tmpdir_debug} -T 1")
 
         tdSql.query("select count(*) from debugdb.st")
         tdSql.checkData(0, 0, 6)
@@ -250,7 +250,7 @@ class TestTaosBackupEdge:
 
         # --- Scenario A: root with correct password succeeds ---
         self.makeDir(tmpdir)
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-D authdb -o {tmpdir}",
             checkRun=True,
         )
@@ -272,7 +272,7 @@ class TestTaosBackupEdge:
             tdLog.info(f"  GRANT not supported (Community edition?): {e} — skipping grant")
 
         self.makeDir(tmpdir)
-        rlist2 = etool.taosbackup(
+        rlist2 = etool.taosdump(
             f"-u baktest -p Bak@2026 -D authdb -o {tmpdir}",
             checkRun=True,
         )
@@ -367,7 +367,7 @@ class TestTaosBackupEdge:
         tdSql.execute("create database errordb")
 
         # Case A: missing database
-        rlist = etool.taosbackup(f"-D nonexistdb -o {tmpdir}", checkRun=False)
+        rlist = etool.taosdump(f"-D nonexistdb -o {tmpdir}", checkRun=False)
         self.checkListString(rlist, "0x80000388 Database not exist")
 
         tdLog.info("do_error_cases ................................ [passed]")

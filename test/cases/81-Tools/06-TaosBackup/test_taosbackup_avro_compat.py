@@ -127,7 +127,7 @@ class TestTaosBackupAvroCompat:
         # --- Restore with taosBackup ---
         tdLog.info("Restoring with taosBackup (AVRO compat path)")
         tdSql.execute(f"drop database if exists {DST_DB}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-W "{SRC_DB}={DST_DB}" -i {tmpdir}'
         )
         output = "\n".join(rlist) if rlist else ""
@@ -251,7 +251,7 @@ class TestTaosBackupAvroCompat:
 
         # Restore with taosBackup using -W rename
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-W "{src_db}={dst_db}" -i {tmpdir}'
         )
         output = "\n".join(rlist) if rlist else ""
@@ -328,7 +328,7 @@ class TestTaosBackupAvroCompat:
             f.write(dbs_sql_content)
 
         # Restore with taosBackup — should detect AVRO and execute SQL
-        rlist = etool.taosbackup(f"-i {tmpdir}", checkRun=False)
+        rlist = etool.taosdump(f"-i {tmpdir}", checkRun=False)
         output = "\n".join(rlist) if rlist else ""
         tdLog.info(f"AVRO schema-only output: {output[:500]}")
 

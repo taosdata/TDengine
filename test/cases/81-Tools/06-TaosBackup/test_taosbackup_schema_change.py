@@ -33,7 +33,7 @@ class TestTaosBackupSchemaChange:
 
     def taosbackup(self, cmd, show=True):
         """Run taosBackup with the given arguments and return the output lines."""
-        return etool.taosbackup(cmd, show=show)
+        return etool.taosdump(cmd, show=show)
 
     def benchmark(self, command):
         """Run taosBenchmark with the given arguments."""
@@ -235,7 +235,7 @@ class TestTaosBackupSchemaChange:
         cmd = f'-W "{db}={newdb}" -i {tmpdir}'
         # The restore exits non-zero because meters2/meters3 have incompatible
         # schemas; use checkRun=False so we capture the output instead of raising.
-        rlist = etool.taosbackup(cmd, checkRun=False)
+        rlist = etool.taosdump(cmd, checkRun=False)
         results = [
             f"rename database: {db} -> {newdb}",
             "no matching columns between backup and server",

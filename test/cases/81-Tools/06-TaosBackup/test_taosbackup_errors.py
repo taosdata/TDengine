@@ -127,7 +127,7 @@ class TestTaosBackupErrors:
 
         tdLog.info("=== step 6: restore and verify ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"restore failed:\n{out[:400]}")
@@ -179,7 +179,7 @@ class TestTaosBackupErrors:
         # We only verify getAllDatabases() was invoked (no -D argument triggers it).
         # SHOW DATABASES returns by creation time, so err_alldb (just created) may
         # come after a broken DB and not be reached.  Step 3 uses a separate -D backup.
-        rlist = etool.taosbackup(f"-Z native -T 2 -o {tmpdir}", checkRun=False)
+        rlist = etool.taosdump(f"-Z native -T 2 -o {tmpdir}", checkRun=False)
         out = "\n".join(rlist) if rlist else ""
         if "discovered" not in out:
             tdLog.exit(f"getAllDatabases() was not invoked:\n{out[:400]}")
@@ -187,11 +187,11 @@ class TestTaosBackupErrors:
 
         tdLog.info("=== step 3: backup err_alldb only for restore verification ===")
         tmpdir2 = self._make_tmpdir("tmp_err_alldb2")
-        rlist = etool.taosbackup(f"-Z native -D {db} -T 2 -o {tmpdir2}")
+        rlist = etool.taosdump(f"-Z native -D {db} -T 2 -o {tmpdir2}")
 
         tdLog.info("=== step 4: restore err_alldb ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir2}')
+        rlist = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir2}')
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"restore failed:\n{out[:400]}")
@@ -240,7 +240,7 @@ class TestTaosBackupErrors:
         self._insert_small(benchmark, db, tables=4, rows=500)
 
         tdLog.info("=== step 2: backup with parquet format ===")
-        rlist = etool.taosbackup(f"-Z native -F parquet -D {db} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -F parquet -D {db} -T 2 -o {tmpdir}")
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"parquet backup failed:\n{out[:400]}")
@@ -330,14 +330,14 @@ class TestTaosBackupErrors:
             tdSql.execute(f"insert into {db}.t0 values({ts}, '{big_str}')")
 
         tdLog.info("=== step 3: backup with native binary format ===")
-        rlist = etool.taosbackup(f"-Z native -F binary -D {db} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -F binary -D {db} -T 2 -o {tmpdir}")
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"backup failed:\n{out[:400]}")
 
         tdLog.info("=== step 4: restore and verify ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"restore failed:\n{out[:400]}")
@@ -443,7 +443,7 @@ class TestTaosBackupErrors:
 
         # Verify source data is still intact and a full backup+restore works.
         tdLog.info("=== step 5: fresh complete backup to verify data integrity ===")
-        rlist = etool.taosbackup(f"-Z native -T 2 -D {db} -o {tmpdir_full}")
+        rlist = etool.taosdump(f"-Z native -T 2 -D {db} -o {tmpdir_full}")
         full_out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in full_out:
             tdLog.exit(f"full backup after SIGINT test failed:\n{full_out[:400]}")
@@ -451,7 +451,7 @@ class TestTaosBackupErrors:
 
         tdLog.info("=== step 6: restore and verify COUNT(*) == source ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist2 = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir_full}')
+        rlist2 = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir_full}')
         rst_out = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in rst_out:
             tdLog.exit(f"restore after SIGINT test failed:\n{rst_out[:400]}")
@@ -525,7 +525,7 @@ class TestTaosBackupErrors:
         tdLog.info(f"source voltage sum: {src_sum}")
 
         tdLog.info("=== step 2: create clean backup ===")
-        rlist = etool.taosbackup(f"-Z native -T 2 -D {db} -o {bckdir}")
+        rlist = etool.taosdump(f"-Z native -T 2 -D {db} -o {bckdir}")
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"clean backup failed:\n{out[:400]}")
@@ -572,7 +572,7 @@ class TestTaosBackupErrors:
 
         # Verify backup files are intact by resuming the partial restore with checkpoint.
         tdLog.info("=== step 6: resume restore via checkpoint (dst_db kept as-is) ===")
-        rlist2 = etool.taosbackup(f'-Z native -T 2 -C -W "{db}={dst_db}" -i {bckdir}')
+        rlist2 = etool.taosdump(f'-Z native -T 2 -C -W "{db}={dst_db}" -i {bckdir}')
         rst_out = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in rst_out:
             tdLog.exit(f"checkpoint restore after SIGINT test failed:\n{rst_out[:400]}")
@@ -694,14 +694,14 @@ class TestTaosBackupErrors:
         # Steps 4-5: verify source data intact via normal backup+restore
         tdLog.info("=== step 4: normal backup to valid directory ===")
         tmpdir_ok = self._make_tmpdir("tmp_io_pathfail_ok")
-        rlist = etool.taosbackup(f"-Z native -D {db} -o {tmpdir_ok}")
+        rlist = etool.taosdump(f"-Z native -D {db} -o {tmpdir_ok}")
         ok_out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in ok_out:
             tdLog.exit(f"normal backup failed:\n{ok_out[:400]}")
 
         tdLog.info("=== step 5: restore and verify row count ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist2 = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir_ok}')
+        rlist2 = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir_ok}')
         rst_out = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in rst_out:
             tdLog.exit(f"restore failed:\n{rst_out[:400]}")
@@ -814,14 +814,14 @@ class TestTaosBackupErrors:
         # Steps 4-5: confirm source data is intact via normal backup+restore
         tdLog.info("=== step 4: normal backup to fresh clean directory ===")
         tmpdir_ok = self._make_tmpdir("tmp_io_stbsql_ok")
-        rlist = etool.taosbackup(f"-Z native -D {db} -o {tmpdir_ok}")
+        rlist = etool.taosdump(f"-Z native -D {db} -o {tmpdir_ok}")
         ok_out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in ok_out:
             tdLog.exit(f"normal backup after collision test failed:\n{ok_out[:400]}")
 
         tdLog.info("=== step 5: restore and verify row count ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist2 = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir_ok}')
+        rlist2 = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir_ok}')
         rst_out = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in rst_out:
             tdLog.exit(f"restore failed:\n{rst_out[:400]}")

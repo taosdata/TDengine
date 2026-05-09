@@ -49,12 +49,12 @@ sudo yum config-manager --set-enabled powertools
 sudo yum install -y zlib-devel zlib-static xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libatomic-static libstdc++-static openssl-devel gawk
 ```
 
-Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)),
+Note: Since snappy lacks pkg-config support (refer to [this pull request](https://github.com/google/snappy/pull/86)),
 it lead a cmake prompt libsnappy not found. But snappy will works well.
 
 In case you encounter the issue some packages are not found due to CentOS 8 EOL, you can try following instructions first.
 
-```
+```bash
 sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
 sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
 ```
@@ -63,7 +63,7 @@ sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /
 
 Besides above dependencies, please run following commands:
 
-```
+```bash
 sudo yum install centos-release-scl
 sudo yum install devtoolset-9 devtoolset-9-libatomic-devel
 scl enable devtoolset-9 -- bash

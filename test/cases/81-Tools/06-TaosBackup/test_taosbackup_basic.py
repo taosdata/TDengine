@@ -41,7 +41,7 @@ class TestTaosBackupBasic:
 
     def taosbackup(self, command):
         """Run taosBackup command and return output list."""
-        return etool.taosbackup(command)
+        return etool.taosdump(command)
 
     def makeDir(self, path):
         if not os.path.exists(path):

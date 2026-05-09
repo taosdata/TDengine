@@ -307,7 +307,7 @@ class TestTaosBackupFormat:
         short = fmt[:3]  # "bin" or "par"
 
         # -- Backup ----------------------------------------------------------
-        rlist = etool.taosbackup(f"-F {fmt} -D {SRC_DB} -o {tmpdir}")
+        rlist = etool.taosdump(f"-F {fmt} -D {SRC_DB} -o {tmpdir}")
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
             tdLog.exit(f"Backup ({fmt}) failed:\n{output[:600]}")
@@ -316,7 +316,7 @@ class TestTaosBackupFormat:
         # -- Restore STMT1 ---------------------------------------------------
         dst_v1 = f"fmt_{short}_v1"
         tdSql.execute(f"drop database if exists {dst_v1}")
-        rlist1 = etool.taosbackup(
+        rlist1 = etool.taosdump(
             f'-v 1 -W "{SRC_DB}={dst_v1}" -i {tmpdir}'
         )
         out1 = "\n".join(rlist1) if rlist1 else ""
@@ -328,7 +328,7 @@ class TestTaosBackupFormat:
         # -- Restore STMT2 ---------------------------------------------------
         dst_v2 = f"fmt_{short}_v2"
         tdSql.execute(f"drop database if exists {dst_v2}")
-        rlist2 = etool.taosbackup(
+        rlist2 = etool.taosdump(
             f'-v 2 -W "{SRC_DB}={dst_v2}" -i {tmpdir}'
         )
         out2 = "\n".join(rlist2) if rlist2 else ""
@@ -397,7 +397,7 @@ class TestTaosBackupFormat:
 
         # Binary backup: the first 4096-row block is ~8 MB compressed
         # (incompressible SHA-256 data), which is > the 4 MB write buffer cap.
-        rlist = etool.taosbackup(f"-F binary -D {db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-F binary -D {db} -o {tmpdir}")
         out = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out:
             tdLog.exit(f"binary backup (buffer overflow test) failed:\n{out[:400]}")
@@ -405,7 +405,7 @@ class TestTaosBackupFormat:
 
         # Restore and verify row count is preserved exactly.
         tdSql.execute(f"drop database if exists {dst}")
-        rlist2 = etool.taosbackup(f'-F binary -v 2 -W "{db}={dst}" -i {tmpdir}')
+        rlist2 = etool.taosdump(f'-F binary -v 2 -W "{db}={dst}" -i {tmpdir}')
         out2 = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in out2:
             tdLog.exit(f"restore (buffer overflow test) failed:\n{out2[:400]}")
@@ -557,7 +557,7 @@ class TestTaosBackupFormat:
 
         # ---- backup (parquet) ----------------------------------------------
         tdLog.info("Step 2: backup with -F parquet")
-        rlist = etool.taosbackup(f"-F parquet -D {src_db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-F parquet -D {src_db} -o {tmpdir}")
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
             tdLog.exit(f"Backup (parquet) failed:\n{output[:600]}")
@@ -566,7 +566,7 @@ class TestTaosBackupFormat:
         # ---- restore STMT1 -------------------------------------------------
         tdLog.info("Step 3: restore with STMT1 (-v 1)")
         tdSql.execute(f"drop database if exists {dst_v1}")
-        rlist = etool.taosbackup(f'-v 1 -W "{src_db}={dst_v1}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-v 1 -W "{src_db}={dst_v1}" -i {tmpdir}')
         out1 = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out1:
             tdLog.exit(f"Restore (parquet/STMT1 → {dst_v1}) failed:\n{out1[:600]}")
@@ -600,7 +600,7 @@ class TestTaosBackupFormat:
         # ---- restore STMT2 -------------------------------------------------
         tdLog.info("Step 4: restore with STMT2 (-v 2)")
         tdSql.execute(f"drop database if exists {dst_v2}")
-        rlist = etool.taosbackup(f'-v 2 -W "{src_db}={dst_v2}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-v 2 -W "{src_db}={dst_v2}" -i {tmpdir}')
         out2 = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in out2:
             tdLog.exit(f"Restore (parquet/STMT2 → {dst_v2}) failed:\n{out2[:600]}")
@@ -716,7 +716,7 @@ class TestTaosBackupFormat:
         tdLog.info(f"Source: {src_row_count} STB rows, {src_nt_count} NTB rows")
 
         # --- Backup (binary, native) ---
-        rlist = etool.taosbackup(f"-F binary -D {src_db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-F binary -D {src_db} -o {tmpdir}")
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
             tdLog.exit(f"Backup failed:\n{output[:600]}")
@@ -724,7 +724,7 @@ class TestTaosBackupFormat:
         # --- Restore via WebSocket ---
         tdLog.info("Restore via WebSocket (-Z websocket)")
         tdSql.execute(f"drop database if exists {dst_ws}")
-        rlist_ws = etool.taosbackup(
+        rlist_ws = etool.taosdump(
             f'-Z websocket -X http://127.0.0.1:6041 '
             f'-W "{src_db}={dst_ws}" -i {tmpdir}'
         )
@@ -735,7 +735,7 @@ class TestTaosBackupFormat:
         # --- Restore via native (control group) ---
         tdLog.info("Restore via native (control group)")
         tdSql.execute(f"drop database if exists {dst_nat}")
-        rlist_nat = etool.taosbackup(
+        rlist_nat = etool.taosdump(
             f'-Z native -W "{src_db}={dst_nat}" -i {tmpdir}'
         )
         out_nat = "\n".join(rlist_nat) if rlist_nat else ""
@@ -886,7 +886,7 @@ class TestTaosBackupFormat:
         tdLog.info(f"Source: {src_count} rows, SUM(d1)={src_sum_d1}, SUM(d2)={src_sum_d2}")
 
         # --- Backup ---
-        rlist = etool.taosbackup(f"-F binary -D {src_db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-F binary -D {src_db} -o {tmpdir}")
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
             tdLog.exit(f"Backup failed:\n{output[:600]}")
@@ -894,7 +894,7 @@ class TestTaosBackupFormat:
         # --- Restore with -v 1 (STMT1, should auto-upgrade) ---
         tdLog.info("Restore with -v 1 (expect STMT1→STMT2 auto-upgrade)")
         tdSql.execute(f"drop database if exists {dst_v1}")
-        rlist_v1 = etool.taosbackup(
+        rlist_v1 = etool.taosdump(
             f'-g -v 1 -W "{src_db}={dst_v1}" -i {tmpdir}'
         )
         out_v1 = "\n".join(rlist_v1) if rlist_v1 else ""
@@ -930,7 +930,7 @@ class TestTaosBackupFormat:
         # --- Restore with -v 2 (control group) ---
         tdLog.info("Restore with -v 2 (control group)")
         tdSql.execute(f"drop database if exists {dst_v2}")
-        rlist_v2 = etool.taosbackup(
+        rlist_v2 = etool.taosdump(
             f'-v 2 -W "{src_db}={dst_v2}" -i {tmpdir}'
         )
         out_v2 = "\n".join(rlist_v2) if rlist_v2 else ""

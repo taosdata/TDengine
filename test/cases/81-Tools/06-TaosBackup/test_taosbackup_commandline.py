@@ -152,9 +152,9 @@ class TestTaosBackupCommandline:
         # Drop newdb before backup so it is not accidentally included in the backup package.
         tdSql.execute(f"drop database if exists {newdb}")
         self.clearPath(tmpdir)
-        etool.taosbackup(f"{mode} -D {db} -o {tmpdir}")
+        etool.taosdump(f"{mode} -D {db} -o {tmpdir}")
 
-        etool.taosbackup(f'{mode} -W "{db}={newdb}" -i {tmpdir}')
+        etool.taosdump(f'{mode} -W "{db}={newdb}" -i {tmpdir}')
 
         self.verifyResult(db, newdb, jsonFile)
         tdSql.execute(f"drop database if exists {newdb}")
@@ -214,7 +214,7 @@ class TestTaosBackupCommandline:
             self.clearPath(tmpdir)
             command = item[0]
             results = item[1]
-            rlist = etool.taosbackup(command)
+            rlist = etool.taosdump(command)
             self.checkManyString(rlist, results)
 
     def exceptCommandLine(self, taosbackup, db, tmpdir):
@@ -284,7 +284,7 @@ class TestTaosBackupCommandline:
         """
         # backup once, reuse for all restore tests
         self.clearPath(tmpdir)
-        etool.taosbackup(f"-D {db} -o {tmpdir}")
+        etool.taosdump(f"-D {db} -o {tmpdir}")
 
         cases = [
             # (stmt_ver, batch_size, label)
@@ -299,7 +299,7 @@ class TestTaosBackupCommandline:
         for (stmt_ver, batch, label) in cases:
             newdb = f"bckb{stmt_ver}x{batch}"
             tdSql.execute(f"drop database if exists {newdb}")
-            rlist = etool.taosbackup(
+            rlist = etool.taosdump(
                 f'-v {stmt_ver} -B {batch} -W "{db}={newdb}" -i {tmpdir}'
             )
             self.checkManyString(rlist, [RESULT_SUCCESS])
@@ -320,18 +320,18 @@ class TestTaosBackupCommandline:
 
         # short form with default dir
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-c /etc/taos -D {db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-c /etc/taos -D {db} -o {tmpdir}")
         self.checkManyString(rlist, results_default)
 
         # long form with default dir
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"--config-dir=/etc/taos -D {db} -o {tmpdir}")
+        rlist = etool.taosdump(f"--config-dir=/etc/taos -D {db} -o {tmpdir}")
         self.checkManyString(rlist, results_default)
 
         # custom path (dir need not exist for the summary check — taos_options
         # accepts any path string; connection still uses the real /etc/taos config)
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-c /tmp/taos_cfg_test -D {db} -o {tmpdir}", retFail=False)
+        rlist = etool.taosdump(f"-c /tmp/taos_cfg_test -D {db} -o {tmpdir}", retFail=False)
         self.checkManyString(rlist, results_custom)
 
     def checkConnMode(self, db, tmpdir):
@@ -342,19 +342,19 @@ class TestTaosBackupCommandline:
         # env=invalid port 6043, cmd=valid 6041 -> should use cmd
         os.environ["TDENGINE_CLOUD_DSN"] = "http://127.0.0.1:6043"
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}")
         self.checkManyString(rlist, results)
 
         # env=valid 6041, no cmd -> should use env
         os.environ["TDENGINE_CLOUD_DSN"] = "http://127.0.0.1:6041"
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-D {db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-D {db} -o {tmpdir}")
         self.checkManyString(rlist, results)
 
         # no env, cmd=valid 6041
         os.environ["TDENGINE_CLOUD_DSN"] = ""
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}")
+        rlist = etool.taosdump(f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}")
         self.checkManyString(rlist, results)
 
         # cleanup env
@@ -362,7 +362,7 @@ class TestTaosBackupCommandline:
 
     def checkVersion(self):
         """Check -V version output format."""
-        rlist = etool.taosbackup("-V")
+        rlist = etool.taosdump("-V")
         output = "\n".join(rlist)
         assert "version:" in output, f"'version:' not in output: {output}"
         tdLog.info("checkVersion passed.")
@@ -487,12 +487,12 @@ class TestTaosBackupCommandline:
         self.clearPath(tmpdir)
         # retFail=False, checkRun=False: allow partial failures from stale DBs in the environment;
         # correctness is verified by a successful restore of cmd_alldb in step 3/4.
-        rlist = etool.taosbackup(f"-Z native -T 2 -o {tmpdir}", checkRun=False, retFail=False)
+        rlist = etool.taosdump(f"-Z native -T 2 -o {tmpdir}", checkRun=False, retFail=False)
         tdLog.info("backup all-dbs done (partial failures tolerated)")
 
         tdLog.info("=== step 3: restore cmd_alldb ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
         self.checkListString(rlist, RESULT_SUCCESS)
 
         tdLog.info("=== step 4: verify row count ===")
@@ -542,14 +542,14 @@ class TestTaosBackupCommandline:
 
         tdLog.info("=== step 2: backup ===")
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 2 -o {tmpdir}")
         self.checkListString(rlist, RESULT_SUCCESS)
 
         # --- case 1: '=' separator ---
         dst_eq = "rn_sep_eq"
         tdLog.info(f"=== case 1: '=' separator: {src}={dst_eq} ===")
         tdSql.execute(f"drop database if exists {dst_eq}")
-        rlist = etool.taosbackup(f'-Z native -W "{src}={dst_eq}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-Z native -W "{src}={dst_eq}" -i {tmpdir}')
         self.checkManyString(rlist, [RESULT_SUCCESS, f"rename database: {src} -> {dst_eq}"])
         tdSql.query(f"SELECT count(*) FROM {dst_eq}.meters")
         tdSql.checkData(0, 0, src_count)
@@ -562,7 +562,7 @@ class TestTaosBackupCommandline:
         dst_arrow = "rn_sep_arrow"
         tdLog.info(f"=== case 2: '->' separator: {src}->{dst_arrow} ===")
         tdSql.execute(f"drop database if exists {dst_arrow}")
-        rlist = etool.taosbackup(f'-Z native -W "{src}->{dst_arrow}" -i {tmpdir}')
+        rlist = etool.taosdump(f'-Z native -W "{src}->{dst_arrow}" -i {tmpdir}')
         self.checkManyString(rlist, [RESULT_SUCCESS, f"rename database: {src} -> {dst_arrow}"])
         tdSql.query(f"SELECT count(*) FROM {dst_arrow}.meters")
         tdSql.checkData(0, 0, src_count)
@@ -584,7 +584,7 @@ class TestTaosBackupCommandline:
 
         # backup both sources
         self.clearPath(tmpdir)
-        rlist = etool.taosbackup(f"-Z native -D {src},{src2} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src},{src2} -T 2 -o {tmpdir}")
         self.checkListString(rlist, RESULT_SUCCESS)
 
         dst_mix1 = "rn_sep_mix1"
@@ -592,7 +592,7 @@ class TestTaosBackupCommandline:
         tdLog.info(f"=== case 3: mixed: {src}={dst_mix1}|{src2}->{dst_mix2} ===")
         tdSql.execute(f"drop database if exists {dst_mix1}")
         tdSql.execute(f"drop database if exists {dst_mix2}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src}={dst_mix1}|{src2}->{dst_mix2}" -i {tmpdir}'
         )
         self.checkManyString(rlist, [

@@ -33,7 +33,7 @@ class TestTaosBackupIntegrity:
             os.makedirs(path)
 
     def taosbackup(self, cmd, checkRun=True):
-        return etool.taosbackup(cmd, checkRun=checkRun)
+        return etool.taosdump(cmd, checkRun=checkRun)
 
     def binPath(self):
         p = etool.taosDumpFile()

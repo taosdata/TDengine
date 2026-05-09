@@ -267,7 +267,7 @@ class TestTaosBackupCoverage:
         assert src_count == 200, f"expected 200 rows, got {src_count}"
 
         tdLog.info("=== step 2: backup in parquet format ===")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -D {src} -T 2 -F parquet -o {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "backup")
@@ -280,7 +280,7 @@ class TestTaosBackupCoverage:
 
         tdLog.info("=== step 3: restore via STMT2 to new database ===")
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -W '{src}={dst}' -v 2 -i {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -340,11 +340,11 @@ class TestTaosBackupCoverage:
             vals.append(f"({ts}, {i}, NULL, {bin_val})")
         tdSql.execute(f"insert into {src}.t0 values " + " ".join(vals))
 
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 1 -F parquet -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 1 -F parquet -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -v 2 -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -v 2 -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(c_empty) from {dst}.stb")
@@ -397,7 +397,7 @@ class TestTaosBackupCoverage:
 
         start_ts = 1700000100000
         end_ts = 1700000299000
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -D {src} -T 1 "
             f"--start-time {start_ts} --end-time {end_ts} "
             f"-o {tmpdir}"
@@ -405,7 +405,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -588,11 +588,11 @@ class TestTaosBackupCoverage:
                 vals.append(f"({ts}, '{data_str}_{j}', {j})")
             tdSql.execute(f"insert into {src}.ct{idx} values " + " ".join(vals))
 
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 2 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         for idx, (data_str, tag_str) in enumerate(test_strings):
@@ -660,11 +660,11 @@ class TestTaosBackupCoverage:
         tdSql.query(f"select count(*) from {src}.stb")
         assert tdSql.queryResult[0][0] == 10
 
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select c_big, c_v from {dst}.t0 where c_v = 5")
@@ -716,13 +716,13 @@ class TestTaosBackupCoverage:
                 vals.append(f"({ts}, {j})")
             tdSql.execute(f"insert into {src}.ct{i} values " + " ".join(vals))
 
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -o {tmpdir} {src} ct2 ct7"
         )
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -772,13 +772,13 @@ class TestTaosBackupCoverage:
             vals.append(f"({ts}, {i}, {i * 0.5:.1f})")
         tdSql.execute(f"insert into {src}.t0 values " + " ".join(vals))
 
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -D {src} -T 1 -F parquet -o {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -W '{src}={dst}' -v 1 -i {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -824,14 +824,14 @@ class TestTaosBackupCoverage:
             vals.append(f"({ts}, {i})")
         tdSql.execute(f"insert into {src}.t0 values " + " ".join(vals))
 
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native --dsn 'taos://localhost:6030' "
             f"-D {src} -T 1 -o {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "backup_dsn")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*), sum(v) from {dst}.stb")
@@ -954,11 +954,11 @@ class TestTaosBackupCoverage:
                 f"insert into {src}.ct{tid} values ({ts}, {tid * 10})"
             )
 
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -1011,11 +1011,11 @@ class TestTaosBackupCoverage:
         tdSql.query(f"select count(*) from {src}.ntb0")
         assert tdSql.queryResult[0][0] == 30
 
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 2 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         for i in range(5):
@@ -1071,11 +1071,11 @@ class TestTaosBackupCoverage:
             vals = [f"({1700000000000 + i*10000 + j*100}, {j+100})" for j in range(15)]
             tdSql.execute(f"insert into {src}.ntb{i} values " + " ".join(vals))
 
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 2 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosbackup(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -1137,11 +1137,11 @@ class TestTaosBackupCoverage:
         tdSql.execute(f"create table {src_db}.t3 using {src_db}.{stb} tags(NULL, NULL)")
         tdSql.execute(f"insert into {src_db}.t3 values(now()+3s, 4)")
 
-        rlist = etool.taosbackup(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 1 -i {tmpdir}'
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -1207,11 +1207,11 @@ class TestTaosBackupCoverage:
         )
         tdSql.execute(f"insert into {src_db}.s1 values(now()+1s, 2.71)")
 
-        rlist = etool.taosbackup(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 1 -i {tmpdir}'
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -1267,11 +1267,11 @@ class TestTaosBackupCoverage:
             )
         tdSql.execute(f"create table {src_db}.t_empty using {src_db}.{stb} tags(2)")
 
-        rlist = etool.taosbackup(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 1 -i {tmpdir}'
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -1416,7 +1416,7 @@ class TestTaosBackupCoverage:
         for i in range(5):
             tdSql.execute(f"insert into {src_db}.t0 values(now()+{i}s, {i})")
 
-        rlist = etool.taosbackup(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         db_dir = os.path.join(tmpdir, src_db)
@@ -1426,7 +1426,7 @@ class TestTaosBackupCoverage:
 
         try:
             tdSql.execute(f"drop database if exists {dst_db}")
-            rlist = etool.taosbackup(
+            rlist = etool.taosdump(
                 f'-Z native -W "{src_db}={dst_db}" -T 1 -C -i {tmpdir}'
             )
             _checkstr(rlist, "SUCCESS", "restore (read-only dir)")
@@ -1482,7 +1482,7 @@ class TestTaosBackupCoverage:
                 f"insert into {src_db}.t{i} values(now()+{i}s, {i})"
             )
 
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -D {src_db} -T 1 "
             f"-k 5 -z 100 -m 2 "
             f"-o {tmpdir}"
@@ -1490,7 +1490,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup(-k -z -m)")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 1 '
             f"-B 512 -v 2 "
             f"-i {tmpdir}"
@@ -1551,11 +1551,11 @@ class TestTaosBackupCoverage:
                 f"{i*100}, 'nchar{i}', 'bin{i}')"
             )
 
-        rlist = etool.taosbackup(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 1 -v 1 -i {tmpdir}'
         )
         _checkstr(rlist, "SUCCESS", "restore(-v 1)")
@@ -1607,11 +1607,11 @@ class TestTaosBackupCoverage:
             f"insert into {src_db}.ntb1 values(now()+1s, 1.23)"
         )
 
-        rlist = etool.taosbackup(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src_db} -T 1 -o {tmpdir}")
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 1 -i {tmpdir}'
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -1658,13 +1658,13 @@ class TestTaosBackupCoverage:
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f"-Z native -D {src_db} -T 2 -m 2 -o {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst_db}")
-        rlist = etool.taosbackup(
+        rlist = etool.taosdump(
             f'-Z native -W "{src_db}={dst_db}" -T 2 -i {tmpdir}'
         )
         _checkstr(rlist, "SUCCESS", "restore")
@@ -1953,7 +1953,7 @@ class TestTaosBackupCoverage:
         tdLog.info(f"  source: db1 t0 sum(c1)={sum_t0_db1}, db2 t0 sum(c1)={sum_t0_db2}")
 
         tdLog.info("=== step 2: backup both databases in one call ===")
-        rlist = etool.taosbackup(f"-Z native -D {db1},{db2} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {db1},{db2} -T 2 -o {tmpdir}")
         _checkstr(rlist, "Result       : SUCCESS")
 
         tdLog.info("=== step 3: drop both databases ===")
@@ -1961,7 +1961,7 @@ class TestTaosBackupCoverage:
         tdSql.execute(f"drop database if exists {db2}")
 
         tdLog.info("=== step 4: restore from combined backup ===")
-        rlist2 = etool.taosbackup(f"-Z native -i {tmpdir}")
+        rlist2 = etool.taosdump(f"-Z native -i {tmpdir}")
         _checkstr(rlist2, "Result       : SUCCESS")
 
         tdLog.info("=== step 5: verify both databases ===")
@@ -2015,13 +2015,13 @@ class TestTaosBackupCoverage:
         sum2 = _sum_c1(src2, "st")
 
         tdLog.info("=== step 2: backup both sources ===")
-        rlist = etool.taosbackup(f"-Z native -D {src1},{src2} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src1},{src2} -T 2 -o {tmpdir}")
         _checkstr(rlist, "Result       : SUCCESS")
 
         tdLog.info("=== step 3: drop destinations, restore with two rename pairs ===")
         for db in (dst1, dst2):
             tdSql.execute(f"drop database if exists {db}")
-        rlist2 = etool.taosbackup(
+        rlist2 = etool.taosdump(
             f'-Z native -W "{src1}={dst1}|{src2}={dst2}" -i {tmpdir}'
         )
         _checkstr(rlist2, "Result       : SUCCESS")
@@ -2077,19 +2077,19 @@ class TestTaosBackupCoverage:
         _insert_simple(src, rows=rows)
         sum_st = _sum_c1(src, "st")
         sum_nt = _sum_c1(src, "nt")
-        rlist = etool.taosbackup(f"-Z native -D {src} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -D {src} -T 2 -o {tmpdir}")
         _checkstr(rlist, "Result       : SUCCESS")
 
         tdLog.info("=== step 2: first restore (drop dst first) ===")
         tdSql.execute(f"drop database if exists {dst}")
-        rlist2 = etool.taosbackup(f'-Z native -W "{src}={dst}" -i {tmpdir}')
+        rlist2 = etool.taosdump(f'-Z native -W "{src}={dst}" -i {tmpdir}')
         _checkstr(rlist2, "Result       : SUCCESS")
 
         cnt_after_first = _rowcount(dst, "st")
         tdLog.info(f"  after first restore: dst.st rows={cnt_after_first}")
 
         tdLog.info("=== step 3: second restore WITHOUT dropping dst ===")
-        rlist3 = etool.taosbackup(f'-Z native -W "{src}={dst}" -i {tmpdir}')
+        rlist3 = etool.taosdump(f'-Z native -W "{src}={dst}" -i {tmpdir}')
         _checkstr(rlist3, "Result       : SUCCESS")
 
         tdLog.info("=== step 4: verify row count unchanged ===")
@@ -2134,7 +2134,7 @@ class TestTaosBackupCoverage:
 
         tdLog.info("=== step 1: create DB and backup ===")
         _insert_simple(db, rows=10)
-        rlist = etool.taosbackup(f"-Z native -F binary -D {db} -T 2 -o {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -F binary -D {db} -T 2 -o {tmpdir}")
         _checkstr(rlist, "Result       : SUCCESS")
 
         tdLog.info("=== step 2: find a .dat file ===")
@@ -2208,11 +2208,11 @@ class TestTaosBackupCoverage:
         tdLog.info("=== step 1: create DB and first backup ===")
         _insert_simple(db, rows=rows)
         sum_st = _sum_c1(db, "st")
-        rlist1 = etool.taosbackup(f"-Z native -D {db} -T 2 -o {tmpdir}")
+        rlist1 = etool.taosdump(f"-Z native -D {db} -T 2 -o {tmpdir}")
         _checkstr(rlist1, "Result       : SUCCESS")
 
         tdLog.info("=== step 2: second backup with -C (resume mode) ===")
-        rlist2 = etool.taosbackup(f"-Z native -C -D {db} -T 2 -o {tmpdir}")
+        rlist2 = etool.taosdump(f"-Z native -C -D {db} -T 2 -o {tmpdir}")
         _checkstr(rlist2, "Result       : SUCCESS")
 
         output2 = "\n".join(str(l) for l in (rlist2 or []))
@@ -2226,7 +2226,7 @@ class TestTaosBackupCoverage:
 
         tdLog.info("=== step 3: restore and verify data integrity ===")
         tdSql.execute(f"drop database if exists {dst}")
-        rlist3 = etool.taosbackup(
+        rlist3 = etool.taosdump(
             f'-Z native -W "{db}={dst}" -i {tmpdir}'
         )
         _checkstr(rlist3, "Result       : SUCCESS")
