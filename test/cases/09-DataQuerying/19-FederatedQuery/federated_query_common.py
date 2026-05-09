@@ -519,7 +519,10 @@ class ExtSrcEnv:
         import os, signal, time
         with open(pidfile) as _pf:
             pid = int(_pf.read().strip())
-        os.kill(pid, signal.SIGTERM)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return  # already exited
         deadline = time.time() + wait_s
         while time.time() < deadline:
             try:
@@ -640,9 +643,57 @@ class ExtSrcEnv:
     @classmethod
     def stop_influx_instance(cls, ver):
         """Stop the InfluxDB instance for the given version."""
+        import signal, time
         fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
         pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
-        cls._kill_process_by_pidfile(pidfile)
+        # Try pidfile first.
+        try:
+            cls._kill_process_by_pidfile(pidfile)
+        except (FileNotFoundError, ValueError, ProcessLookupError):
+            pass
+        # Fallback: kill any influxdb3 process matching this version's data dir.
+        data_dir = os.path.join(fq_base, "influxdb", ver, "data")
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", f"influxdb3.*{data_dir}"],
+                capture_output=True, text=True, timeout=5)
+            for line in result.stdout.strip().splitlines():
+                pid = int(line.strip())
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        # Wait up to 5s for the port to become unreachable.
+        cfg = next((c for c in cls.influx_version_configs() if c.version == ver), None)
+        if cfg:
+            import socket
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.5)
+                try:
+                    s.connect((cfg.host, cfg.port))
+                    s.close()
+                    time.sleep(0.3)
+                except (ConnectionRefusedError, OSError):
+                    s.close()
+                    return
+            # Last resort: SIGKILL
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", f"influxdb3.*{data_dir}"],
+                    capture_output=True, text=True, timeout=5)
+                for line in result.stdout.strip().splitlines():
+                    pid = int(line.strip())
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
 
     @classmethod
     def start_influx_instance(cls, ver, wait_s=10):
