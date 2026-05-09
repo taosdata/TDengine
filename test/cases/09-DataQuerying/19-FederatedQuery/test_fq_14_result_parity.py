@@ -1939,10 +1939,10 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
         """
         L, M, P, I = self._L, self._M, self._P, self._I
         self._assert_parity_all(
-            f"SELECT id, MD5(label) FROM {L} ORDER BY ts",
-            f"SELECT id, MD5(label) FROM {M} ORDER BY ts",
-            f"SELECT id, MD5(label) FROM {P} ORDER BY ts",
-            f"SELECT id, MD5(region) FROM {I} ORDER BY time",
+            f"SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {L} ORDER BY ts",
+            f"SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {M} ORDER BY ts",
+            f"SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {P} ORDER BY ts",
+            f"SELECT id, MD5(CAST(region AS VARCHAR(32))) FROM {I} ORDER BY time",
         )
 
     def test_fq_parity_082_to_base64_label(self):
@@ -1999,10 +1999,10 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
         """
         L, M, P, I = self._L, self._M, self._P, self._I
         self._assert_parity_all(
-            f"SELECT id, SHA1(label) FROM {L} ORDER BY ts",
-            f"SELECT id, SHA1(label) FROM {M} ORDER BY ts",
+            f"SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {L} ORDER BY ts",
+            f"SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {M} ORDER BY ts",
             f"SELECT id, encode(sha1(label::bytea), 'hex') FROM {P} ORDER BY ts",
-            f"SELECT id, SHA1(region) FROM {I} ORDER BY time",
+            f"SELECT id, SHA1(CAST(region AS VARCHAR(32))) FROM {I} ORDER BY time",
         )
 
     def test_fq_parity_085_sha2_256_label_hash(self):
@@ -2019,10 +2019,10 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
         """
         L, M, P, I = self._L, self._M, self._P, self._I
         self._assert_parity_all(
-            f"SELECT id, SHA2(label, 256) FROM {L} ORDER BY ts",
-            f"SELECT id, SHA2(label, 256) FROM {M} ORDER BY ts",
+            f"SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {L} ORDER BY ts",
+            f"SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {M} ORDER BY ts",
             f"SELECT id, encode(sha256(label::bytea), 'hex') FROM {P} ORDER BY ts",
-            f"SELECT id, SHA2(region, 256) FROM {I} ORDER BY time",
+            f"SELECT id, SHA2(CAST(region AS VARCHAR(32)), 256) FROM {I} ORDER BY time",
         )
 
     def test_fq_parity_086_crc32_label(self):

@@ -80,6 +80,13 @@ typedef struct SExtColumnDef {
   char colName[TSDB_COL_NAME_LEN];         // TDengine-side column name (may differ from remote)
   char remoteColName[TSDB_COL_NAME_LEN];   // original column name on the remote source; empty = same as colName
   char extTypeName[64];   // original type name from the external source
+  // Charset / encoding for string columns (DS §5.3.2):
+  //   MySQL:  CHARACTER_SET_NAME from INFORMATION_SCHEMA.COLUMNS (e.g. "utf8mb4", "latin1").
+  //           Non-character columns (INT, DATE, …) have empty charset.
+  //   PG:     Server-side database encoding from current_setting('server_encoding') (e.g. "UTF8").
+  //           Same encoding applies to all varchar / character varying columns in the database.
+  //   InfluxDB: empty (Arrow Utf8 is always UTF-8; maps to NCHAR unconditionally).
+  char extCharsetName[32];
   bool nullable;
   bool isTag;             // InfluxDB only
   bool isPrimaryKey;      // true if this column maps to the TDengine primary key (timestamp)

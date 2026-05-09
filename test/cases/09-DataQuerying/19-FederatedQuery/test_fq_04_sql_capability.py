@@ -20,6 +20,7 @@ from new_test_framework.utils import tdLog, tdSql
 
 from federated_query_common import (
     _STD_ROWS,
+    _ms_to_dt,
     ExtSrcEnv,
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
@@ -447,10 +448,10 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             tdSql.query(f"select length(name) from {t} where val = 1")
             tdSql.checkRows(1)
-            # InfluxDB maps strings to NCHAR (UCS-4): LENGTH returns byte count
-            # (5 chars × 4 bytes = 20). MySQL/PG use VARCHAR: LENGTH = 5.
+            # All sources map 'name' to NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
+            # LENGTH returns UCS-4 byte count: 5 chars × 4 bytes = 20.
             v = int(tdSql.getData(0, 0))
-            assert v in (5, 20), f"LENGTH(name) expected 5 or 20, got {v}"
+            assert v == 20, f"LENGTH(name) expected 20 (NCHAR UCS-4), got {v}"
 
             tdSql.query(f"select char_length(name) from {t} where val = 1")
             tdSql.checkRows(1)
@@ -528,10 +529,11 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             assert str(tdSql.getData(0, 0)) == "Alice-A,B,C"
 
-            # LENGTH — InfluxDB NCHAR returns byte count (5×4=20)
+            # LENGTH — all sources now NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
+            # UCS-4 encoding: 5 chars × 4 bytes = 20.
             tdSql.query(f"select length(name) from {t} where id = 1")
             tdSql.checkRows(1)
-            expected_len = 20 if db_type == 'influx' else 5
+            expected_len = 20
             tdSql.checkData(0, 0, expected_len)
 
             # CHAR_LENGTH
@@ -932,14 +934,15 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, "2024-01-15")
 
-            # MySQL/PG VARCHAR → to_timestamp with correct format
+            # ts_str is NCHAR for all sources (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
+            # toTimestampFunction handles NCHAR internally via UCS-4→UTF-8 conversion.
             tdSql.query(
                 f"select to_timestamp(ts_str, 'YYYY-MM-DD HH24:mi:ss') "
                 f"from {src}.times where id = 1")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, "2024-01-15 12:30:00.000")
 
-            # MySQL/PG timestamp type mapping causes to_unixtimestamp failure (0x2802)
+            # ts is TIMESTAMP → to_unixtimestamp expects string input → error for all sources
             tdSql.error(
                 f"select to_unixtimestamp(ts) from {src}.times where id = 1",
                 expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
@@ -1148,50 +1151,31 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         md5_hashes = {}
 
         def body(src, db_type):
-            if db_type == 'influx':
-                # InfluxDB maps strings to NCHAR; md5 requires VARCHAR → 0x80002802
-                tdSql.error(f"select md5(name) from {src}.data where id = 1",
-                            expectedErrno=0x80002802)
-                # to_base64 accepts NCHAR (result is UCS-4 encoded)
-                tdSql.query(f"select to_base64(name) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, "QQAAAGwAAABpAAAAYwAAAGUAAAA=")
+            # All sources map string columns to NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
+            # MD5 accepts only VARCHAR → fails for NCHAR with type error 0x80002802.
+            tdSql.error(f"select md5(name) from {src}.data where id = 1",
+                        expectedErrno=0x80002802)
+            # to_base64 accepts NCHAR → result is UCS-4 base64 for all sources.
+            tdSql.query(f"select to_base64(name) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "QQAAAGwAAABpAAAAYwAAAGUAAAA=")
 
-                # Use CAST to convert NCHAR to VARCHAR for influx
-                tdSql.query(f"select md5(CAST(name AS VARCHAR(50))) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                h = str(tdSql.getData(0, 0))
-                assert len(h) == 32, f"MD5 should be 32 chars: {h}"
-                md5_hashes[db_type] = h
+            # CAST(name AS VARCHAR) converts UCS-4 NCHAR to UTF-8 → correct MD5/base64.
+            tdSql.query(f"select md5(CAST(name AS VARCHAR(50))) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            h = str(tdSql.getData(0, 0))
+            assert len(h) == 32, f"MD5 should be 32 chars: {h}"
+            md5_hashes[db_type] = h
 
-                tdSql.query(f"select to_base64(CAST(name AS VARCHAR(50))) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)).replace("\n", "") == "QWxpY2U="
+            tdSql.query(f"select to_base64(CAST(name AS VARCHAR(50))) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)).replace("\n", "") == "QWxpY2U="
 
-                tdSql.query(
-                    f"select from_base64(to_base64(CAST(name AS VARCHAR(50)))) "
-                    f"from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)) == "Alice"
-            else:
-                # MD5 — MySQL/PG
-                tdSql.query(f"select md5(name) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                h = str(tdSql.getData(0, 0))
-                assert len(h) == 32, f"MD5 should be 32 chars: {h}"
-                md5_hashes[db_type] = h
-
-                # TO_BASE64 — MySQL/PG
-                tdSql.query(f"select to_base64(name) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)).replace("\n", "") == "QWxpY2U="
-
-                # FROM_BASE64 round-trip — MySQL/PG
-                tdSql.query(
-                    f"select from_base64(to_base64(name)) "
-                    f"from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)) == "Alice"
+            tdSql.query(
+                f"select from_base64(to_base64(CAST(name AS VARCHAR(50)))) "
+                f"from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == "Alice"
 
         self._with_custom_sources(
             "fq04_crypto", body,
@@ -2483,64 +2467,42 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         ]
 
         def body(src, db_type):
-            if db_type == 'influx':
-                # InfluxDB maps strings to NCHAR; aes/sm4/crc32 require VARCHAR → error
-                tdSql.error(
-                    f"select aes_encrypt(plain, 'mykeystring12345') "
-                    f"from {src}.data where id = 1",
-     expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
-                tdSql.error(
-                    f"select sm4_encrypt(plain, 'mykeystring12345') "
-                    f"from {src}.data where id = 1")
-                # crc32 accepts NCHAR; value differs from VARCHAR (UCS-4 encoding)
-                tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 927702683)
+            # All sources map 'plain' to NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
+            # aes_encrypt/sm4_encrypt require VARCHAR → error for NCHAR input.
+            tdSql.error(
+                f"select aes_encrypt(plain, 'mykeystring12345') "
+                f"from {src}.data where id = 1",
+                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+            tdSql.error(
+                f"select sm4_encrypt(plain, 'mykeystring12345') "
+                f"from {src}.data where id = 1",
+                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+            # crc32 accepts NCHAR; UCS-4 encoding of "hello" = 927702683 for all sources.
+            tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 927702683)
 
-                # Use CAST to convert NCHAR to VARCHAR for influx
-                col = "CAST(plain AS VARCHAR(100))"
-                tdSql.query(
-                    f"select aes_decrypt("
-                    f"aes_encrypt({col}, 'mykeystring12345'), "
-                    f"'mykeystring12345') "
-                    f"from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)) == 'hello'
+            # CAST to VARCHAR converts UCS-4 NCHAR to UTF-8 → correct round-trip.
+            col = "CAST(plain AS VARCHAR(100))"
+            tdSql.query(
+                f"select aes_decrypt("
+                f"aes_encrypt({col}, 'mykeystring12345'), "
+                f"'mykeystring12345') "
+                f"from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'hello'
 
-                tdSql.query(
-                    f"select sm4_decrypt("
-                    f"sm4_encrypt({col}, 'mykeystring12345'), "
-                    f"'mykeystring12345') "
-                    f"from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)) == 'hello'
+            tdSql.query(
+                f"select sm4_decrypt("
+                f"sm4_encrypt({col}, 'mykeystring12345'), "
+                f"'mykeystring12345') "
+                f"from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            assert str(tdSql.getData(0, 0)) == 'hello'
 
-                tdSql.query(f"select crc32({col}) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 907060870)
-            else:
-                # AES round-trip (16-byte key)
-                tdSql.query(
-                    f"select aes_decrypt("
-                    f"aes_encrypt(plain, 'mykeystring12345'), "
-                    f"'mykeystring12345') "
-                    f"from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)) == 'hello'
-
-                # SM4 round-trip (16-byte key)
-                tdSql.query(
-                    f"select sm4_decrypt("
-                    f"sm4_encrypt(plain, 'mykeystring12345'), "
-                    f"'mykeystring12345') "
-                    f"from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                assert str(tdSql.getData(0, 0)) == 'hello'
-
-                # CRC32
-                tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
-                tdSql.checkRows(1)
-                tdSql.checkData(0, 0, 907060870)
+            tdSql.query(f"select crc32({col}) from {src}.data where id = 1")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 907060870)
 
         self._with_custom_sources(
             "fq04_cryptoext", body,
@@ -2618,34 +2580,23 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         def body(src):
             t = f"{src}.src_t"
 
-            if src.endswith("_i"):
-                # InfluxDB maps strings to NCHAR; sha1/sha2 require VARCHAR → error
-                tdSql.error(f"select sha1(name) from {t} where val = 1",
-                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
-                tdSql.error(f"select sha2(name, 256) from {t} where val = 1")
+            # All sources map 'name' to NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
+            # sha1/sha2 require VARCHAR → error for NCHAR input.
+            tdSql.error(f"select sha1(name) from {t} where val = 1",
+                        expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+            tdSql.error(f"select sha2(name, 256) from {t} where val = 1",
+                        expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
 
-                # Use CAST to convert NCHAR to VARCHAR for influx
-                tdSql.query(f"select sha1(CAST(name AS VARCHAR(32))) from {t} where val = 1")
-                tdSql.checkRows(1)
-                h = str(tdSql.getData(0, 0))
-                assert len(h) == 40, f"SHA1 should be 40 hex chars: {h}"
+            # CAST to VARCHAR converts UCS-4 NCHAR to UTF-8 → correct SHA hash.
+            tdSql.query(f"select sha1(CAST(name AS VARCHAR(32))) from {t} where val = 1")
+            tdSql.checkRows(1)
+            h = str(tdSql.getData(0, 0))
+            assert len(h) == 40, f"SHA1 should be 40 hex chars: {h}"
 
-                tdSql.query(f"select sha2(CAST(name AS VARCHAR(32)), 256) from {t} where val = 1")
-                tdSql.checkRows(1)
-                h = str(tdSql.getData(0, 0))
-                assert len(h) == 64, f"SHA2(256) should be 64 hex chars: {h}"
-            else:
-                # SHA1
-                tdSql.query(f"select sha1(name) from {t} where val = 1")
-                tdSql.checkRows(1)
-                h = str(tdSql.getData(0, 0))
-                assert len(h) == 40, f"SHA1 should be 40 hex chars: {h}"
-
-                # SHA2 with 256-bit
-                tdSql.query(f"select sha2(name, 256) from {t} where val = 1")
-                tdSql.checkRows(1)
-                h = str(tdSql.getData(0, 0))
-                assert len(h) == 64, f"SHA2(256) should be 64 hex chars: {h}"
+            tdSql.query(f"select sha2(CAST(name AS VARCHAR(32)), 256) from {t} where val = 1")
+            tdSql.checkRows(1)
+            h = str(tdSql.getData(0, 0))
+            assert len(h) == 64, f"SHA2(256) should be 64 hex chars: {h}"
 
         self._with_std_sources("fq04_sha", body)
 
@@ -2986,50 +2937,59 @@ tdSql.checkData(0, 0, 1)  # 2024-01-01 → ISO week
         def body(src):
             t = f"{src}.src_t"
 
+            # _STD_ROWS timestamps (epoch ms) → local-time strings for RANGE.
+            # _ms_to_dt converts to the system's local timezone, which matches
+            # how the test framework inserts data into MySQL/PG.
+            ts0 = _ms_to_dt(1704067200000)[:19]   # data row 0  (val=1)
+            ts1 = _ms_to_dt(1704067260000)[:19]   # data row 1  (val=2)
+            ts4 = _ms_to_dt(1704067440000)[:19]   # data row 4  (val=5)
+            # midpoint between row 1 and row 2 for SURROUND test
+            ts_mid = _ms_to_dt(1704067290000)[:19]  # 1.5 min after row 0
+
             # INTERP with RANGE/EVERY/FILL(LINEAR)
-            # data at 00:00, 00:01, 00:02, 00:03, 00:04
-            # interpolate every 30s → should generate intermediate points
+            # data at ts0, ts0+1m, ts0+2m, ts0+3m, ts0+4m
+            # interpolate every 1m → should return exact data points
             tdSql.query(
                 f"select _irowts, interp(val) from {t} "
-                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"range('{ts0}', '{ts4}') "
                 f"every(1m) fill(linear)")
             tdSql.checkRows(5)
-            tdSql.checkData(0, 1, 1)  # at 00:00 → val=1
-            tdSql.checkData(1, 1, 2)  # at 00:01 → val=2
+            tdSql.checkData(0, 1, 1)  # val=1
+            tdSql.checkData(1, 1, 2)  # val=2
 
             # INTERP with FILL(PREV)
             tdSql.query(
                 f"select _irowts, interp(val) from {t} "
-                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"range('{ts0}', '{ts4}') "
                 f"every(30s) fill(prev)")
             tdSql.checkRows(9)
-            tdSql.checkData(0, 1, 1)  # at 00:00 → val=1
-            tdSql.checkData(1, 1, 1)  # at 00:00:30 → prev=1
+            tdSql.checkData(0, 1, 1)  # at ts0 → val=1
+            tdSql.checkData(1, 1, 1)  # at ts0+30s → prev=1
 
             # INTERP with FILL(NEXT)
             tdSql.query(
                 f"select _irowts, interp(val) from {t} "
-                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"range('{ts0}', '{ts4}') "
                 f"every(30s) fill(next)")
             tdSql.checkRows(9)
-            tdSql.checkData(0, 1, 1)  # at 00:00 → val=1
-            tdSql.checkData(1, 1, 2)  # at 00:00:30 → next=2
+            tdSql.checkData(0, 1, 1)  # at ts0 → val=1
+            tdSql.checkData(1, 1, 2)  # at ts0+30s → next=2
 
             # INTERP with FILL(NULL)
             tdSql.query(
                 f"select _irowts, interp(val) from {t} "
-                f"range('2024-01-01 00:00:00', '2024-01-01 00:04:00') "
+                f"range('{ts0}', '{ts4}') "
                 f"every(30s) fill(null)")
             tdSql.checkRows(9)
-            tdSql.checkData(0, 1, 1)  # at 00:00 → exact data point
-            assert tdSql.getData(1, 1) is None  # at 00:00:30 → NULL
+            tdSql.checkData(0, 1, 1)  # exact data point
+            assert tdSql.getData(1, 1) is None  # at ts0+30s → NULL
 
             # INTERP single point with SURROUND
             tdSql.query(
                 f"select _irowts, interp(val) from {t} "
-                f"range('2024-01-01 00:01:30') fill(linear) surround(1)")
+                f"range('{ts_mid}') fill(linear) surround(1)")
             tdSql.checkRows(1)
-            # 00:01:30 between val=2 (00:01) and val=3 (00:02)
+            # ts_mid between val=2 (row1) and val=3 (row2)
             # INTERP on INT column returns INT (truncated), consistent with local table behavior
             tdSql.checkData(0, 1, 2)
 

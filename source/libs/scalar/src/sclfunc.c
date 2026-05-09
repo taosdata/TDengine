@@ -4166,6 +4166,7 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   char   *format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
   int32_t len, code = TSDB_CODE_SUCCESS;
   SArray *formats = NULL;
+  bool    inputIsNchar = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_NCHAR);
 
   if (tsStr == NULL || format == NULL) {
     SCL_ERR_JRET(terrno);
@@ -4178,9 +4179,22 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
     char *tsData = colDataGetData(pInput[0].columnData, i);
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
-    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
-    (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
-    tsStr[len] = '\0';
+
+    if (inputIsNchar) {
+      // NCHAR data is UCS-4; convert to UTF-8 so taosChar2Ts can parse the string.
+      int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(tsData), varDataLen(tsData), tsStr, pInput->charsetCxt);
+      if (mbsLen < 0) {
+        qError("func to_timestamp: UCS-4 to multibyte conversion failed");
+        SCL_ERR_JRET(TSDB_CODE_FAILED);
+      }
+      len = TMIN(TS_FORMAT_MAX_LEN - 1, mbsLen);
+      tsStr[len] = '\0';
+    } else {
+      len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
+      (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
+      tsStr[len] = '\0';
+    }
+
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
       (void)TAOS_STRNCPY(format, varDataVal(formatData), len);  // No need to handle the return value.

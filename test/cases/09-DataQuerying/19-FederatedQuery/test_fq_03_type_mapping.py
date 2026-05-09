@@ -554,7 +554,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           a) MySQL INT → TDengine INT
           b) MySQL DOUBLE → TDengine DOUBLE
           c) MySQL BOOLEAN → TDengine BOOL
-          d) MySQL VARCHAR → TDengine VARCHAR/NCHAR
+          d) MySQL VARCHAR → TDengine NCHAR (utf8mb4 DB) or VARCHAR (ascii DB)
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -1006,8 +1006,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         """FQ-TYPE-016: Composite type degradation — ARRAY/RANGE/COMPOSITE serialized as JSON strings
 
         Dimensions:
-          a) PG integer[] → NCHAR/VARCHAR (JSON serialized)
-          b) PG int4range → VARCHAR (string serialized)
+          a) PG integer[] → NCHAR (JSON serialized)
+          b) PG int4range → NCHAR (string serialized)
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -1934,11 +1934,11 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_032(self):
-        """FQ-TYPE-032: PG tsvector/tsquery → VARCHAR full-text index semantics lost
+        """FQ-TYPE-032: PG tsvector/tsquery → NCHAR, full-text index semantics lost
 
         Dimensions:
-          a) tsvector column → VARCHAR, text representation correct
-          b) tsquery column → VARCHAR, text representation correct
+          a) tsvector column → NCHAR, text representation correct
+          b) tsquery column → NCHAR, text representation correct
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -2485,8 +2485,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         """FQ-TYPE-042: MySQL ENUM/SET/JSON mapping
 
         Dimensions:
-          a) ENUM → VARCHAR/NCHAR, value text preserved
-          b) SET → VARCHAR/NCHAR, comma-separated string
+          a) ENUM → NCHAR or VARCHAR (charset-aware), value text preserved
+          b) SET → NCHAR or VARCHAR (charset-aware), comma-separated string
           c) JSON → NCHAR, serialized string
 
         Catalog: - Query:FederatedTypeMapping
@@ -3313,7 +3313,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_057(self):
-        """FQ-TYPE-057: InfluxDB Dictionary → VARCHAR/NCHAR
+        """FQ-TYPE-057: InfluxDB Dictionary → VARCHAR
 
         Note: InfluxDB v3 Dictionary encoding is an internal Arrow
         optimization. Line protocol string fields may use Dictionary
@@ -4077,7 +4077,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     def test_fq_type_s15(self):
         """S15: InfluxDB string field exact mapping
 
-        InfluxDB string → TDengine NCHAR/VARCHAR, content correct.
+        InfluxDB string → TDengine NCHAR, content correct.
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -4111,8 +4111,8 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
         Background:
             DS §5.3.2 explicitly lists array types (integer[], text[]) →
-            NCHAR/VARCHAR (JSON serialized, array structure semantics lost) and
-            range types (int4range, tsrange) → VARCHAR (serialized as string
+            NCHAR (JSON serialized, array structure semantics lost) and
+            range types (int4range, tsrange) → NCHAR (serialized as string
             like "[1,10)", interval semantics lost).
             Both are in the type mapping table and MUST succeed — they must NOT
             return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE.
@@ -4129,7 +4129,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
           c) Known-type columns in same table → return data normally
 
         DS Reference:
-            DS §5.3.2: array/range type mapping rules (→ NCHAR/VARCHAR, not error)
+            DS §5.3.2: array/range type mapping rules (→ NCHAR, not error)
 
         Catalog: - Query:FederatedTypeMapping
 
@@ -5148,4 +5148,136 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), PG_DB, [
                 "DROP TABLE IF EXISTS serial_alias_test",
+            ])
+
+    def test_fq_type_s31(self):
+        """S31: MySQL VARCHAR/ENUM/SET ascii charset → VARCHAR (not NCHAR)
+
+        When a column uses a non-multibyte charset (ascii), VARCHAR/ENUM/SET
+        must map to TDengine VARCHAR rather than NCHAR.  Verified by checking
+        that LENGTH of a 5-char ASCII string returns 5, not 20 (which would
+        indicate UCS-4 NCHAR encoding: 5 chars × 4 bytes).
+
+        Dimensions:
+          a) VARCHAR CHARACTER SET ascii → VARCHAR; LENGTH('hello') = 5
+          b) ENUM CHARACTER SET ascii → VARCHAR; value readable
+          c) SET CHARACTER SET ascii → VARCHAR; value readable
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap: ascii charset VARCHAR/ENUM/SET → VARCHAR
+
+        """
+        src = "fq_type_s31_mysql"
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS ascii_varchar_test",
+            "CREATE TABLE ascii_varchar_test ("
+            "  ts    DATETIME PRIMARY KEY,"
+            "  name  VARCHAR(20) CHARACTER SET ascii,"
+            "  role  ENUM('admin','user','guest') CHARACTER SET ascii,"
+            "  perms SET('read','write','exec') CHARACTER SET ascii)",
+            "INSERT INTO ascii_varchar_test VALUES "
+            "('2024-01-01 00:00:00', 'hello', 'admin', 'read,write')",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+            # (a) VARCHAR ascii → VARCHAR: LENGTH = byte count = char count for ASCII
+            tdSql.query(
+                f"select name, length(name) from {src}.ascii_varchar_test")
+            tdSql.checkRows(1)
+            name_val = str(tdSql.getData(0, 0))
+            assert name_val == 'hello', \
+                f"VARCHAR ascii value mismatch: '{name_val}'"
+            name_len = int(tdSql.getData(0, 1))
+            assert name_len == 5, (
+                f"VARCHAR ascii LENGTH should be 5 (VARCHAR), "
+                f"got {name_len} (20 indicates NCHAR)")
+            # (b) ENUM ascii → VARCHAR: value readable
+            tdSql.query(
+                f"select role from {src}.ascii_varchar_test")
+            tdSql.checkRows(1)
+            role_val = str(tdSql.getData(0, 0))
+            assert role_val == 'admin', \
+                f"ENUM ascii value mismatch: '{role_val}'"
+            # (c) SET ascii → VARCHAR: multi-value readable
+            tdSql.query(
+                f"select perms from {src}.ascii_varchar_test")
+            tdSql.checkRows(1)
+            perms_val = str(tdSql.getData(0, 0))
+            assert 'read' in perms_val and 'write' in perms_val, \
+                f"SET ascii value mismatch: '{perms_val}'"
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS ascii_varchar_test",
+            ])
+
+    def test_fq_type_s32(self):
+        """S32: MySQL TEXT/TINYTEXT ascii charset → VARCHAR (not NCHAR)
+
+        When TINYTEXT or TEXT uses a non-multibyte charset (ascii), both must
+        map to TDengine VARCHAR rather than NCHAR.  Verified by checking that
+        LENGTH of a 5-char ASCII string returns 5, not 20 (UCS-4 NCHAR).
+
+        Dimensions:
+          a) TINYTEXT CHARACTER SET ascii → VARCHAR; LENGTH('hello') = 5
+          b) TEXT CHARACTER SET ascii → VARCHAR; LENGTH('hello') = 5
+
+        Catalog: - Query:FederatedTypeMapping
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-23 wpan Coverage gap: ascii charset TINYTEXT/TEXT → VARCHAR
+
+        """
+        src = "fq_type_s32_mysql"
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), MYSQL_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+            "DROP TABLE IF EXISTS ascii_text_test",
+            "CREATE TABLE ascii_text_test ("
+            "  ts         DATETIME PRIMARY KEY,"
+            "  c_tiny     TINYTEXT CHARACTER SET ascii,"
+            "  c_text     TEXT CHARACTER SET ascii)",
+            "INSERT INTO ascii_text_test VALUES "
+            "('2024-01-01 00:00:00', 'hello', 'hello')",
+        ])
+        self._cleanup_src(src)
+        try:
+            self._mk_mysql_real(src, database=MYSQL_DB)
+            # (a) TINYTEXT ascii → VARCHAR: LENGTH = 5, not 20
+            tdSql.query(
+                f"select c_tiny, length(c_tiny) from {src}.ascii_text_test")
+            tdSql.checkRows(1)
+            tiny_val = str(tdSql.getData(0, 0))
+            assert tiny_val == 'hello', \
+                f"TINYTEXT ascii value mismatch: '{tiny_val}'"
+            tiny_len = int(tdSql.getData(0, 1))
+            assert tiny_len == 5, (
+                f"TINYTEXT ascii LENGTH should be 5 (VARCHAR), "
+                f"got {tiny_len} (20 indicates NCHAR)")
+            # (b) TEXT ascii → VARCHAR: LENGTH = 5, not 20
+            tdSql.query(
+                f"select c_text, length(c_text) from {src}.ascii_text_test")
+            tdSql.checkRows(1)
+            text_val = str(tdSql.getData(0, 0))
+            assert text_val == 'hello', \
+                f"TEXT ascii value mismatch: '{text_val}'"
+            text_len = int(tdSql.getData(0, 1))
+            assert text_len == 5, (
+                f"TEXT ascii LENGTH should be 5 (VARCHAR), "
+                f"got {text_len} (20 indicates NCHAR)")
+        finally:
+            self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS ascii_text_test",
             ])

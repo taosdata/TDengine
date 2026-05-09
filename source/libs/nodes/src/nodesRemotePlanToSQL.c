@@ -1198,6 +1198,49 @@ int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
     default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
   }
 
+  // ── UNION ALL: multi-child Project node ──
+  // When the root is a SProjectPhysiNode with multiple children, each child
+  // branch is an independent sub-query.  Generate SQL for each branch and
+  // join them with " UNION ALL ".
+  if (nodeType(pRemotePlan) == QUERY_NODE_PHYSICAL_PLAN_PROJECT &&
+      pRemotePlan->pChildren != NULL &&
+      LIST_LENGTH(pRemotePlan->pChildren) > 1) {
+    SDynSQL unionSQL;
+    dynSQLInit(&unionSQL);
+
+    bool firstBranch = true;
+    SNode* pChild = NULL;
+    FOREACH(pChild, pRemotePlan->pChildren) {
+      SRemoteSQLParts branchParts = {0};
+      int32_t code = collectRemoteParts((const SPhysiNode*)pChild, &branchParts);
+      if (code) { dynSQLFree(&unionSQL); return code; }
+
+      char* branchSQL = NULL;
+      code = assembleRemoteSQL(&branchParts, dialect, pResolveCtx, &branchSQL);
+      if (code) { dynSQLFree(&unionSQL); return code; }
+
+      if (!firstBranch) {
+        dynSQLAppendStr(&unionSQL, " UNION ALL ");
+      }
+      dynSQLAppendStr(&unionSQL, branchSQL);
+      taosMemoryFree(branchSQL);
+      firstBranch = false;
+    }
+
+    if (unionSQL.err) {
+      int32_t err = unionSQL.err;
+      dynSQLFree(&unionSQL);
+      return err;
+    }
+
+    char* result = dynSQLDetach(&unionSQL);
+    if (!result) return TSDB_CODE_OUT_OF_MEMORY;
+    *ppSQL = result;
+    qError("nodesRemotePlanToSQL: generated UNION ALL SQL=[%.512s]", result);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // ── Single-chain: existing behavior ──
   SRemoteSQLParts parts = {0};
   int32_t code = collectRemoteParts(pRemotePlan, &parts);
   if (code) return code;

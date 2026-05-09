@@ -118,7 +118,23 @@ static void setDecimalMapping(const char *typeName, SDataType *pTd) {
 // ---------------------------------------------------------------------------
 // MySQL type mapping  (DS §5.3.2 — MySQL → TDengine)
 // ---------------------------------------------------------------------------
-static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
+
+// Returns true when the MySQL column charset requires NCHAR mapping.
+// The MySQL connector forces a utf8mb4 client connection, so the *received* bytes
+// are always valid UTF-8 regardless of this charset; but the charset indicates
+// the *intended* character set of the column:
+//   Multi-byte charsets (utf8*, ucs2, utf16*, utf32) → NCHAR (UCS-4 stored).
+//   Single-byte charsets (ascii, latin1, binary, cp*, …)  → VARCHAR (raw bytes).
+static bool mysqlCharsetNeedsNchar(const char *cs) {
+  if (!cs || !cs[0]) return false;
+  if (strncasecmp(cs, "utf8", 4) == 0) return true;   // utf8, utf8mb3, utf8mb4, utf8unicode_ci…
+  if (strncasecmp(cs, "ucs",  3) == 0) return true;   // ucs2, ucs4
+  if (strncasecmp(cs, "utf16", 5) == 0) return true;  // utf16, utf16le
+  if (strncasecmp(cs, "utf32", 5) == 0) return true;
+  return false;
+}
+
+static int32_t mysqlTypeMap(const char *typeName, const char *charset, SDataType *pTd) {
   // Compute base length (before '(') with trailing spaces stripped, and first char.
   const char *paren = strchr(typeName, '(');
   size_t      blen  = paren ? (size_t)(paren - typeName) : strlen(typeName);
@@ -168,11 +184,15 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'C':
       switch (blen) {
-        case 4:  // CHAR → NCHAR  (MySQL 8.x defaults to utf8mb4; mirrors PG 'character' handling)
+        case 4:  // CHAR — charset-aware: utf8mb4/utf8/… → NCHAR; ascii/latin1/… → BINARY (DS §5.3.2)
         {
           int32_t len = parseTypeLength(typeName);
           if (len == 0) len = 1;
-          SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          if (mysqlCharsetNeedsNchar(charset)) {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
+          }
           return TSDB_CODE_SUCCESS;
         }
         default: break;
@@ -200,8 +220,12 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
       }
       break;
 
-    case 'E':  // ENUM (blen=4)
-      SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+    case 'E':  // ENUM (blen=4) — charset-aware (DS §5.3.2)
+      if (mysqlCharsetNeedsNchar(charset)) {
+        SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      } else {
+        SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+      }
       return TSDB_CODE_SUCCESS;
 
     case 'F':  // FLOAT (blen=5)
@@ -304,8 +328,12 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'S':
       switch (blen) {
-        case 3:  // SET
-          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+        case 3:  // SET — charset-aware (DS §5.3.2)
+          if (mysqlCharsetNeedsNchar(charset)) {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+          }
           return TSDB_CODE_SUCCESS;
         case 8:  // SMALLINT (strlen("SMALLINT") = 8)
           SET_TD(pTd, TSDB_DATA_TYPE_SMALLINT, 2);
@@ -319,9 +347,13 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'T':
       switch (blen) {
-        case 4:  // TEXT vs TIME
+        case 4:  // TEXT vs TIME — TEXT is charset-aware (DS §5.3.2: ASCII→VARCHAR, utf8mb4→NCHAR)
           if (strncasecmp(typeName, "text", 4) == 0) {
-            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, 65535 + VARSTR_HEADER_SIZE);
+            if (mysqlCharsetNeedsNchar(charset)) {
+              SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, 65535 + VARSTR_HEADER_SIZE);
+            } else {
+              SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 65535 + VARSTR_HEADER_SIZE);
+            }
           } else {  // TIME
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
           }
@@ -333,11 +365,15 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
             SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
           }
           return TSDB_CODE_SUCCESS;
-        case 8:  // TINYBLOB → VARBINARY; TINYTEXT → VARCHAR
+        case 8:  // TINYBLOB → VARBINARY; TINYTEXT → charset-aware (DS §5.3.2)
           if (toupper((unsigned char)typeName[4]) == 'B') {
             SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, 255 + VARSTR_HEADER_SIZE);
-          } else {
-            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 255 + VARSTR_HEADER_SIZE);
+          } else {  // TINYTEXT
+            if (mysqlCharsetNeedsNchar(charset)) {
+              SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, 255 + VARSTR_HEADER_SIZE);
+            } else {
+              SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 255 + VARSTR_HEADER_SIZE);
+            }
           }
           return TSDB_CODE_SUCCESS;
         case 9:  // TIMESTAMP
@@ -352,11 +388,15 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'V':
       switch (blen) {
-        case 7:  // VARCHAR
+        case 7:  // VARCHAR — charset-aware: utf8mb4/utf8/… → NCHAR; ascii/latin1/… → VARCHAR
         {
           int32_t len = parseTypeLength(typeName);
           if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-          SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+          if (mysqlCharsetNeedsNchar(charset)) {
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          } else {
+            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+          }
           return TSDB_CODE_SUCCESS;
         }
         case 9:  // VARBINARY
@@ -383,7 +423,17 @@ static int32_t mysqlTypeMap(const char *typeName, SDataType *pTd) {
 // ---------------------------------------------------------------------------
 // PostgreSQL type mapping  (DS §5.3.2 — PostgreSQL → TDengine)
 // ---------------------------------------------------------------------------
-static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
+
+// Returns true when the PG database server encoding requires NCHAR mapping.
+// PG has a single database-level encoding (not per-column).  The encoding
+// string comes from current_setting('server_encoding') (e.g. "UTF8", "SQL_ASCII").
+// Only UTF-8 requires NCHAR; SQL_ASCII and single-byte encodings use VARCHAR.
+static bool pgEncodingNeedsNchar(const char *enc) {
+  if (!enc || !enc[0]) return false;
+  return (strcasecmp(enc, "UTF8") == 0 || strcasecmp(enc, "UTF-8") == 0);
+}
+
+static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *pTd) {
   // Handle "[]" array suffix and array/range/tsvector prefix early.
   if (strstr(typeName, "[]") || typeHasPrefix(typeName, "array") ||
       typeHasPrefix(typeName, "int4range") || typeHasPrefix(typeName, "int8range") ||
@@ -432,24 +482,36 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
 
     case 'C':
       switch (blen) {
-        case 4:  // char vs cidr
+        case 4:  // char vs cidr — char is encoding-aware (DS §5.3.2: ASCII→BINARY, UTF-8→NCHAR)
           if (strncasecmp(typeName, "char", 4) == 0) {
             int32_t len = parseTypeLength(typeName);
             if (len == 0) len = 1;
-            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+            if (pgEncodingNeedsNchar(encoding)) {
+              SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+            } else {
+              SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
+            }
           } else {  // cidr
             SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE);
           }
           return TSDB_CODE_SUCCESS;
-        case 9:   // character
+        case 9:   // character — encoding-aware (DS §5.3.2: ASCII→BINARY, UTF-8→NCHAR)
         case 17:  // character varying
         {
           int32_t len = parseTypeLength(typeName);
           if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-          if (blen == 9) {  // "character" (fixed-length)
-            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-          } else {           // "character varying"
-            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+          if (blen == 9) {  // "character" (fixed-length CHAR) — encoding-aware
+            if (pgEncodingNeedsNchar(encoding)) {
+              SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+            } else {
+              SET_TD(pTd, TSDB_DATA_TYPE_BINARY, len + VARSTR_HEADER_SIZE);
+            }
+          } else {  // "character varying" — encoding-aware
+            if (pgEncodingNeedsNchar(encoding)) {
+              SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+            } else {
+              SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+            }
           }
           return TSDB_CODE_SUCCESS;
         }
@@ -611,10 +673,10 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
       switch (blen) {
         case 4:  // text vs time
           if (strncasecmp(typeName, "text", 4) == 0) {
-            // PG text is variable-length Unicode, but map to VARCHAR (binary storage) for
-            // compatibility with TDengine functions like st_geomfromtext() that do not accept
-            // NCHAR. WKT geometry strings and most practical text values are ASCII-safe.
-            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+            // PG text is variable-length Unicode → NCHAR per DS §5.3.2.
+            // Functions that receive NCHAR input (to_timestamp, st_geomfromtext, etc.) handle
+            // the UCS-4 → UTF-8 conversion internally.
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           } else {  // time
             SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
           }
@@ -656,11 +718,15 @@ static int32_t pgTypeMap(const char *typeName, SDataType *pTd) {
       }
       break;
 
-    case 'V':  // varchar (blen=7)
+    case 'V':  // varchar (blen=7) — encoding-aware
     {
       int32_t len = parseTypeLength(typeName);
       if (len == 0) len = EXT_DEFAULT_VARCHAR_LEN;
-      SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+      if (pgEncodingNeedsNchar(encoding)) {
+        SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+      } else {
+        SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+      }
       return TSDB_CODE_SUCCESS;
     }
 
@@ -799,18 +865,19 @@ static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
-int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName, SDataType *pTdType) {
+int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName,
+                                   const char *extCharsetName, SDataType *pTdType) {
   if (!extTypeName || !pTdType) {
     qError("extTypeNameToTDengineType: invalid param, extTypeName:%p pTdType:%p", extTypeName, pTdType);
     return TSDB_CODE_INVALID_PARA;
   }
   switch (srcType) {
     case EXT_SOURCE_MYSQL:
-      return mysqlTypeMap(extTypeName, pTdType);
+      return mysqlTypeMap(extTypeName, extCharsetName, pTdType);
     case EXT_SOURCE_POSTGRESQL:
-      return pgTypeMap(extTypeName, pTdType);
+      return pgTypeMap(extTypeName, extCharsetName, pTdType);
     case EXT_SOURCE_INFLUXDB:
-      return influxTypeMap(extTypeName, pTdType);
+      return influxTypeMap(extTypeName, pTdType);  // charset unused; Utf8 always maps to NCHAR
     default:
       qError("extTypeNameToTDengineType: unknown source type %d for type '%s'", srcType, extTypeName);
       return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;

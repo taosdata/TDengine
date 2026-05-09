@@ -1130,6 +1130,96 @@ static int32_t remoteLogicNodeToPhysi(SLogicNode* pLogicNode, SPhysiNode* pChild
 // Walks the logic chain top-down (collecting), then converts bottom-up so the
 // leaf SFederatedScanPhysiNode ends up at the bottom of the chain.
 // On error the entire chain (including pLeaf) is left for the caller to destroy.
+//
+// UNION ALL support: when the root of pRemoteLogicPlan is a SProjectLogicNode
+// with isSetOpProj=true and multiple children, each child branch is converted
+// independently (each gets its own Mode-2 FederatedScan leaf cloned from
+// pLeaf) and wired as children of a SProjectPhysiNode container.
+
+// Helper: convert a single-chain logic plan into a physi plan chain.
+// pChainRoot: root of the chain (Sort or Scan logic node).
+// pLeafTemplate: the Mode-1 outer FederatedScanPhysiNode (for cloning Mode-2 leaves).
+// pScanLogic: the original SScanLogicNode (for pExtTable, pScanCols info).
+// On success, *pOut is the physi chain root; the Mode-2 leaf is at the bottom.
+static int32_t buildRemoteBranchPhysi(SLogicNode* pChainRoot,
+                                      SFederatedScanPhysiNode* pLeafTemplate,
+                                      SScanLogicNode* pScanLogic,
+                                      SPhysiNode** pOut) {
+  // Collect chain into array
+  SArray* pArr = taosArrayInit(4, POINTER_BYTES);
+  if (NULL == pArr) return terrno;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SLogicNode* pCurr = pChainRoot;
+  while (pCurr != NULL) {
+    // Stop at SScanLogicNode — it becomes the leaf, not a logic-to-physi conversion
+    if (nodeType(pCurr) == QUERY_NODE_LOGIC_PLAN_SCAN) break;
+    if (NULL == taosArrayPush(pArr, &pCurr)) {
+      code = terrno;
+      taosArrayDestroy(pArr);
+      return code;
+    }
+    SNodeList* pChildren = pCurr->pChildren;
+    pCurr = (pChildren && LIST_LENGTH(pChildren) > 0)
+                ? (SLogicNode*)nodesListGetNode(pChildren, 0) : NULL;
+  }
+
+  // Create the Mode-2 FederatedScan leaf for this branch
+  SFederatedScanPhysiNode* pBranchLeaf = NULL;
+  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, (SNode**)&pBranchLeaf);
+  if (TSDB_CODE_SUCCESS != code) { taosArrayDestroy(pArr); return code; }
+
+  // The branch leaf has its own pExtTable, pScanCols, and pConditions
+  // from the SScanLogicNode at the bottom of this branch's chain.
+  SScanLogicNode* pBranchScan = NULL;
+  if (pCurr != NULL && nodeType(pCurr) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    pBranchScan = (SScanLogicNode*)pCurr;
+  }
+
+  if (pBranchScan != NULL) {
+    // Clone from the branch's scan node
+    code = nodesCloneNode(pBranchScan->pExtTableNode, &pBranchLeaf->pExtTable);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBranchLeaf); taosArrayDestroy(pArr); return code; }
+    code = nodesCloneList(pBranchScan->pScanCols, &pBranchLeaf->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBranchLeaf); taosArrayDestroy(pArr); return code; }
+    if (pBranchScan->node.pConditions != NULL) {
+      code = nodesCloneNode(pBranchScan->node.pConditions, &pBranchLeaf->node.pConditions);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBranchLeaf); taosArrayDestroy(pArr); return code; }
+    }
+    if (pBranchScan->node.pLimit != NULL) {
+      code = nodesCloneNode(pBranchScan->node.pLimit, &pBranchLeaf->node.pLimit);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBranchLeaf); taosArrayDestroy(pArr); return code; }
+    }
+  } else {
+    // Fallback: clone from the outer scan's info
+    code = nodesCloneNode(pScanLogic->pExtTableNode, &pBranchLeaf->pExtTable);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBranchLeaf); taosArrayDestroy(pArr); return code; }
+    code = nodesCloneList(pScanLogic->pScanCols, &pBranchLeaf->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBranchLeaf); taosArrayDestroy(pArr); return code; }
+  }
+
+  pBranchLeaf->pRemotePlan = NULL;  // Mode-2 leaf
+
+  // Convert chain bottom-up
+  int32_t n = (int32_t)taosArrayGetSize(pArr);
+  SPhysiNode* pBottom = (SPhysiNode*)pBranchLeaf;
+  for (int32_t i = n - 1; i >= 0; i--) {
+    SLogicNode* pLogic  = *(SLogicNode**)taosArrayGet(pArr, i);
+    SPhysiNode* pNewTop = NULL;
+    code = remoteLogicNodeToPhysi(pLogic, pBottom, pBranchLeaf, &pNewTop);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pBottom);
+      taosArrayDestroy(pArr);
+      return code;
+    }
+    pBottom = pNewTop;
+  }
+
+  taosArrayDestroy(pArr);
+  *pOut = pBottom;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildRemotePlanFromLogicPlan(SScanLogicNode* pScanLogic,
                                             SFederatedScanPhysiNode* pLeaf,
                                             SPhysiNode** pRemoteRoot) {
@@ -1138,6 +1228,52 @@ static int32_t buildRemotePlanFromLogicPlan(SScanLogicNode* pScanLogic,
     return TSDB_CODE_SUCCESS;
   }
 
+  SLogicNode* pLogicRoot = (SLogicNode*)pScanLogic->pRemoteLogicPlan;
+
+  // ── UNION ALL: multi-child Project with isSetOpProj=true ──
+  if (nodeType(pLogicRoot) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
+      ((SProjectLogicNode*)pLogicRoot)->isSetOpProj &&
+      pLogicRoot->pChildren != NULL &&
+      LIST_LENGTH(pLogicRoot->pChildren) > 1) {
+    SProjectLogicNode* pSetOpLogic = (SProjectLogicNode*)pLogicRoot;
+    int32_t code = TSDB_CODE_SUCCESS;
+
+    // Create container SProjectPhysiNode
+    SProjectPhysiNode* pUnionPhysi = NULL;
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, (SNode**)&pUnionPhysi);
+    if (TSDB_CODE_SUCCESS != code) { *pRemoteRoot = (SPhysiNode*)pLeaf; return code; }
+
+    // Clone projections
+    code = nodesCloneList(pSetOpLogic->pProjections, &pUnionPhysi->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnionPhysi); *pRemoteRoot = (SPhysiNode*)pLeaf; return code; }
+
+    code = nodesMakeList(&pUnionPhysi->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnionPhysi); *pRemoteRoot = (SPhysiNode*)pLeaf; return code; }
+
+    // Convert each child branch
+    SNode* pChild = NULL;
+    FOREACH(pChild, pLogicRoot->pChildren) {
+      SPhysiNode* pBranchPhysi = NULL;
+      code = buildRemoteBranchPhysi((SLogicNode*)pChild, pLeaf, pScanLogic, &pBranchPhysi);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pUnionPhysi);
+        *pRemoteRoot = (SPhysiNode*)pLeaf;
+        return code;
+      }
+      pBranchPhysi->pParent = (SPhysiNode*)pUnionPhysi;
+      code = nodesListStrictAppend(pUnionPhysi->node.pChildren, (SNode*)pBranchPhysi);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pUnionPhysi);
+        *pRemoteRoot = (SPhysiNode*)pLeaf;
+        return code;
+      }
+    }
+
+    *pRemoteRoot = (SPhysiNode*)pUnionPhysi;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // ── Single-chain: existing behavior ──
   // Collect chain top-down into a temporary array.
   SArray* pArr = taosArrayInit(4, POINTER_BYTES);
   if (NULL == pArr) {
