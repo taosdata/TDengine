@@ -1579,6 +1579,12 @@ int32_t stmtGetTableMetaAndValidate(STscStmt2* pStmt, uint64_t* uid, uint64_t* s
 
   STMT_ERR_RET(code);
 
+  if (pStmt->bInfo.tbSuid != pTableMeta->suid) {
+    STMT2_ELOG("table %s is in other stable, suid:0x%" PRIx64 " != 0x%" PRIx64, pStmt->bInfo.tbFName,
+               pStmt->bInfo.tbSuid, pTableMeta->suid);
+    STMT_ERR_RET(TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
+  }
+
   *uid = pTableMeta->uid;
   *suid = pTableMeta->suid;
   *tableType = pTableMeta->tableType;
