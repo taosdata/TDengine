@@ -205,6 +205,7 @@ TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT
 TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED          = _code('TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED')
 TSDB_CODE_EXT_REMOTE_INTERNAL                  = _code('TSDB_CODE_EXT_REMOTE_INTERNAL')
 TSDB_CODE_PAR_NOT_SUPPORT_JOIN                 = _code('TSDB_CODE_PAR_NOT_SUPPORT_JOIN')
+TSDB_CODE_PAR_INVALID_COL_JSON                 = _code('TSDB_CODE_PAR_INVALID_COL_JSON')
 TSDB_CODE_OPS_NOT_SUPPORT                      = _code('TSDB_CODE_OPS_NOT_SUPPORT')
 
 # --- VTable DDL ---
@@ -218,6 +219,15 @@ TSDB_CODE_FOREIGN_NO_TS_KEY                    = _code('TSDB_CODE_FOREIGN_NO_TS_
 # --- System / feature toggle ---
 TSDB_CODE_EXT_CONFIG_PARAM_INVALID             = _code('TSDB_CODE_EXT_CONFIG_PARAM_INVALID')
 TSDB_CODE_EXT_FEATURE_DISABLED                 = _code('TSDB_CODE_EXT_FEATURE_DISABLED')
+
+# --- Mnode (general) ---
+TSDB_CODE_MND_DB_ALREADY_EXIST                 = _code('TSDB_CODE_MND_DB_ALREADY_EXIST')
+TSDB_CODE_MND_FUNC_NOT_EXIST                   = _code('TSDB_CODE_MND_FUNC_NOT_EXIST')
+TSDB_CODE_EXT_SOURCE_EXISTS                    = _code('TSDB_CODE_EXT_SOURCE_EXISTS')
+
+# --- Function errors ---
+TSDB_CODE_FUNC_FUNTION_PARA_TYPE               = _code('TSDB_CODE_FUNC_FUNTION_PARA_TYPE')
+TSDB_CODE_FUNC_FUNTION_PARA_NUM                = _code('TSDB_CODE_FUNC_FUNTION_PARA_NUM')
 
 
 # =====================================================================

@@ -32,6 +32,7 @@ from federated_query_common import (
     TSDB_CODE_FOREIGN_TYPE_MISMATCH,
     TSDB_CODE_FOREIGN_NO_TS_KEY,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_MND_DB_NOT_EXIST,
 )
 
 

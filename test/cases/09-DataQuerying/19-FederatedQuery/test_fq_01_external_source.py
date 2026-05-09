@@ -41,6 +41,11 @@ from federated_query_common import (
     TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+    TSDB_CODE_EXT_SOURCE_EXISTS,
+    TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_MND_DB_ALREADY_EXIST,
+    TSDB_CODE_MND_DB_NOT_EXIST,
 )
 
 # ---------------------------------------------------------------------------
@@ -1364,7 +1369,8 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
                 assert row >= 0, f"{name} must still exist after failed DROP"
                 tdSql.checkData(row, _COL_TYPE, "mysql")
             else:
-                tdSql.error(f"select * from {db_name}.{vtbl_name}")
+                tdSql.error(f"select * from {db_name}.{vtbl_name}",
+                    expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
         finally:
             tdSql.execute(f"drop database if exists {db_name}")

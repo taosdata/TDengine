@@ -638,6 +638,10 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         tdSql.execute(f"alter external source {src} set port=3307")
         tdSql.query("show external sources")
+        altered_row = next((r for r in tdSql.queryResult if str(r[0]) == src), None)
+        assert altered_row is not None, f"source {src} missing after ALTER"
+        assert str(altered_row[3]) == "3307", \
+            f"port not updated after ALTER: expected 3307, got {altered_row[3]}"
 
         tdSql.execute(f"drop external source {src}")
         tdSql.query("show external sources")

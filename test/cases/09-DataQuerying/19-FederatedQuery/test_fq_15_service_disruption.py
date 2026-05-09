@@ -45,6 +45,8 @@ from federated_query_common import (
     ExtSrcEnv,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_CONNECT_FAILED,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
 )
 
 # ---------------------------------------------------------------------------

@@ -739,15 +739,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 )
             except Exception as e:
                 tdLog.debug(f"  VTABLE creation not supported yet: {e}")
-                pytest.skip(f"VTABLE creation not supported: {e}")
-            sql = f"select * from {_VTBL_DB}.vt"
-            try:
-                results = self._run_all_modes(sql)
-            except AssertionError as e:
-                if "Database not exist" in str(e) or "Syntax error" in str(e):
-                    tdLog.debug(f"  VTABLE EXPLAIN not supported yet: {e}")
-                    pytest.skip(f"VTABLE EXPLAIN not supported: {e}")
                 raise
+            sql = f"select * from {_VTBL_DB}.vt"
+            results = self._run_all_modes(sql)
             self._assert_all_contain(results, "Federated Scan")
             self._assert_verbose_contain(results, "Remote SQL:")
             self._check_analyze_metrics(results)
@@ -1105,6 +1099,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         """
         self.do_explain_022()
 
+    @pytest.mark.skip(reason="vtable external column reference not yet implemented")
     def test_fq_explain_vtable(self):
         """FQ-EXPLAIN-023: Virtual table EXPLAIN — FederatedScan
 

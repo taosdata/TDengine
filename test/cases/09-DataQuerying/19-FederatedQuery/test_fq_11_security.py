@@ -54,6 +54,9 @@ from federated_query_common import (
     FQ_PG_CA_CERT,
     FQ_PG_CLIENT_CERT,
     FQ_PG_CLIENT_KEY,
+    TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
+    TSDB_CODE_MND_DB_NOT_EXIST,
 )
 
 # SHOW EXTERNAL SOURCES column indices

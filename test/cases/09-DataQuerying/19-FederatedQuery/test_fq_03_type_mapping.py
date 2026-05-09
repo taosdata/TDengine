@@ -35,6 +35,7 @@ from federated_query_common import (
     TSDB_CODE_FOREIGN_NO_TS_KEY,
     TSDB_CODE_FOREIGN_COLUMN_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_PAR_INVALID_COL_JSON,
 )
 
 # MySQL database used by type-mapping tests
@@ -4764,6 +4765,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.error(
                 f"select doc->'$.k' from {src}.json_op_test",
                 expectErrInfo="type",
+                expectedErrno=TSDB_CODE_PAR_INVALID_COL_JSON,
             )
         finally:
             self._cleanup_src(src)
@@ -4810,11 +4812,13 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.error(
                 f"select doc_json->'k' from {src}.public.json_op_test",
                 expectErrInfo="type",
+                expectedErrno=TSDB_CODE_PAR_INVALID_COL_JSON,
             )
             # (b) jsonb → NCHAR: -> operator must fail
             tdSql.error(
                 f"select doc_jsonb->'k' from {src}.public.json_op_test",
                 expectErrInfo="type",
+                expectedErrno=TSDB_CODE_PAR_INVALID_COL_JSON,
             )
         finally:
             self._cleanup_src(src)
