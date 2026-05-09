@@ -2466,7 +2466,7 @@ static int32_t taosHandleClsEnabledChange(bool enabled) {
   bool oldEnabled = tsClsEnabled;
 
   tsClsEnabled = enabled;
-  if (oldEnabled == enabled) {
+  if (oldEnabled == enabled && enabled == false) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
