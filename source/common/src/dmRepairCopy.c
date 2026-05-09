@@ -191,6 +191,11 @@ static int32_t dmSshFetchFile(const char *host, const char *remotePath, const ch
 // Parse a taos.cfg file and extract SDiskCfg entries from the dataDir items.
 // Returns 0 on success. On success, caller must free *ppDisks.
 static int32_t dmParseSourceCfg(const char *cfgPath, SDiskCfg **ppDisks, int32_t *pNumDisks) {
+  if (!taosCheckExistFile(cfgPath)) {
+    uError("repair: config file does not exist: %s", cfgPath);
+    return -1;
+  }
+
   SConfig *pCfg = NULL;
   int32_t  code = cfgInit(&pCfg);
   if (code != 0) {
@@ -1851,15 +1856,33 @@ int32_t dmRepairCopyMode(const SRepairCopyOpts *pOpts) {
   uInfo("repair: number of vnodes to repair: %d", nVnodes);
 
   // Phase 2: Parse source config file
-  const char *cfgPathToLoad = pOpts->sourceCfg;
+  // If sourceCfg is a directory (not a regular file), use taos.cfg inside it
+  char resolvedCfg[PATH_MAX] = {0};
+  tstrncpy(resolvedCfg, pOpts->sourceCfg, sizeof(resolvedCfg));
+  if (!isRemote && taosIsDir(resolvedCfg)) {
+    size_t len = strlen(pOpts->sourceCfg);
+    const char *sep = (len > 0 && pOpts->sourceCfg[len - 1] == TD_DIRSEP_CHAR) ? "" : TD_DIRSEP;
+    snprintf(resolvedCfg, sizeof(resolvedCfg), "%s%staos.cfg", pOpts->sourceCfg, sep);
+    uInfo("repair: source-cfg is a directory, using %s", resolvedCfg);
+  }
+
+  const char *cfgPathToLoad = resolvedCfg;
   char        tmpCfgPath[PATH_MAX] = {0};
 
   if (isRemote) {
     // Fetch remote config via SSH
     snprintf(tmpCfgPath, sizeof(tmpCfgPath), "/tmp/tdrepair_%d.cfg", (int)taosGetPId());
-    if (dmSshFetchFile(pOpts->sourceHost, pOpts->sourceCfg, tmpCfgPath) != 0) {
-      uError("repair: failed to fetch remote config via SSH (exit code 2)");
-      return 2;
+    if (dmSshFetchFile(pOpts->sourceHost, resolvedCfg, tmpCfgPath) != 0) {
+      // Retry with taos.cfg appended in case sourceCfg is a remote directory
+      char   remoteCfgRetry[PATH_MAX];
+      size_t len = strlen(pOpts->sourceCfg);
+      const char *sep = (len > 0 && pOpts->sourceCfg[len - 1] == TD_DIRSEP_CHAR) ? "" : TD_DIRSEP;
+      snprintf(remoteCfgRetry, sizeof(remoteCfgRetry), "%s%staos.cfg", pOpts->sourceCfg, sep);
+      if (dmSshFetchFile(pOpts->sourceHost, remoteCfgRetry, tmpCfgPath) != 0) {
+        uError("repair: failed to fetch remote config via SSH (exit code 2)");
+        return 2;
+      }
+      uInfo("repair: source-cfg is a remote directory, using %s", remoteCfgRetry);
     }
     cfgPathToLoad = tmpCfgPath;
   }
