@@ -226,11 +226,24 @@ _fetchNext:
 
     // Extend block with extra columns for pushed-down expression slots
     // (e.g., CASE WHEN results needed by the parent Aggregate operator).
+    // Pseudo-column slots (TBNAME) are filled with the external table name;
+    // other extra slots are initialised to NULL.
     SDataBlockDescNode* pDesc = pInfo->pFedScanNode->node.pOutputDataBlockDesc;
     if (pDesc != NULL) {
       int32_t descSlots = LIST_LENGTH(pDesc->pSlots);
       int32_t blockCols = taosArrayGetSize(pBlock->pDataBlock);
       if (descSlots > blockCols) {
+        // Pre-compute external table name for TBNAME pseudo-column fill.
+        const char* extTableName = NULL;
+        int32_t     extTableNameLen = 0;
+        SExtTableNode* pExtTbl = (SExtTableNode*)pInfo->pFedScanNode->pExtTable;
+        if (pExtTbl != NULL) {
+          extTableName = (pExtTbl->remoteTableName[0] != '\0')
+                           ? pExtTbl->remoteTableName
+                           : pExtTbl->table.tableName;
+          extTableNameLen = (int32_t)strlen(extTableName);
+        }
+
         // Iterate over the extra slots in the descriptor and append empty columns
         int32_t idx = 0;
         SNode* pNode = NULL;
@@ -241,11 +254,18 @@ _fetchNext:
                 pSlot->dataType.type, pSlot->dataType.bytes, (int16_t)(idx + 1));
             code = blockDataAppendColInfo(pBlock, &colInfo);
             QUERY_CHECK_CODE(code, lino, _return);
-            // Allocate capacity and set all values to NULL for this column
             SColumnInfoData* pNewCol = taosArrayGetLast(pBlock->pDataBlock);
-            if (pNewCol != NULL) {
-              code = colInfoDataEnsureCapacity(pNewCol, pBlock->info.rows, true);
-              QUERY_CHECK_CODE(code, lino, _return);
+            if (pNewCol == NULL) { idx++; continue; }
+            code = colInfoDataEnsureCapacity(pNewCol, pBlock->info.rows, true);
+            QUERY_CHECK_CODE(code, lino, _return);
+
+            // Fill TBNAME pseudo-column with the external table name.
+            if (extTableName != NULL && strcasecmp(pSlot->name, "tbname") == 0 &&
+                IS_VAR_DATA_TYPE(pSlot->dataType.type)) {
+              for (int32_t r = 0; r < (int32_t)pBlock->info.rows; ++r) {
+                code = varColSetVarData(pNewCol, r, extTableName, extTableNameLen, false);
+                QUERY_CHECK_CODE(code, lino, _return);
+              }
             }
           }
           idx++;

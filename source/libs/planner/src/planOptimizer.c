@@ -10948,8 +10948,6 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
       }
     }
   }
-  planError("FQ-CONVPART: pScan=%p pPart=%p",
-            pScan, pPart);
   if (pPart == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -10974,10 +10972,6 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
     return TSDB_CODE_SUCCESS;
   }
 
-  planError("FQ-CONVPART: pScanCols=%p length=%d srcType=%d pMeta=%p numOfCols=%d",
-            pScan->pScanCols,
-            pScan->pScanCols ? (int)pScan->pScanCols->length : -1,
-            (int)srcType, pMeta, pMeta ? pMeta->numOfCols : -1);
   int32_t code = TSDB_CODE_SUCCESS;
 
   // Check whether the external metadata has any tag columns.
@@ -11049,6 +11043,65 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode((SNode*)pTagCol);
       return code;
+    }
+  }
+
+  // Replace TBNAME in pPartitionKeys with actual tag column nodes so the
+  // partition operator groups by the real tag values instead of the fixed
+  // external table name.  This supersedes the old zero-init slotId hack.
+  {
+    SNodeList* pNewKeys = NULL;
+    code = nodesMakeList(&pNewKeys);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    // First, keep any non-TBNAME partition keys.
+    SNode* pKey = NULL;
+    FOREACH(pKey, pPart->pPartitionKeys) {
+      bool isTbname = false;
+      if (nodeType(pKey) == QUERY_NODE_FUNCTION &&
+          ((SFunctionNode*)pKey)->funcType == FUNCTION_TYPE_TBNAME) {
+        isTbname = true;
+      } else if (nodeType(pKey) == QUERY_NODE_COLUMN &&
+                 ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME) {
+        isTbname = true;
+      }
+      if (!isTbname) {
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pKey, &pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+        code = nodesListStrictAppend(pNewKeys, pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      }
+    }
+
+    // Then, append tag column nodes.
+    for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+      if (!pMeta->pCols[i].isTag) continue;
+      SColumnNode* pTagKey = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      tstrncpy(pTagKey->colName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTagKey->node.aliasName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      pTagKey->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+      pTagKey->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+      code = nodesListStrictAppend(pNewKeys, (SNode*)pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+    }
+
+    nodesDestroyList(pPart->pPartitionKeys);
+    pPart->pPartitionKeys = pNewKeys;
+  }
+
+  // Also rebuild pTargets of the partition node to include the tag columns,
+  // so the physical plan builder can resolve them when assigning slot ids.
+  {
+    nodesDestroyList(pPart->node.pTargets);
+    pPart->node.pTargets = NULL;
+    // Collect targets from children first, then add partition's own expressions.
+    SLogicNode* pPartChild = (SLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+    if (pPartChild != NULL && pPartChild->pTargets != NULL) {
+      code = nodesCloneList(pPartChild->pTargets, &pPart->node.pTargets);
+      if (TSDB_CODE_SUCCESS != code) return code;
     }
   }
 

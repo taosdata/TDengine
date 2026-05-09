@@ -628,6 +628,15 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
                                &pScan->pScanCols);
   }
 
+  // Collect pseudo-column functions (e.g. TBNAME) — needed for PARTITION BY TBNAME.
+  // Without this, the federated scan's output descriptor has no TBNAME slot and the
+  // partition operator cannot resolve the group key → crash (buffer overflow) or
+  // planner error (slot key not found).
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc,
+                             &pScan->pScanPseudoCols);
+  }
+
   // Set output targets
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);

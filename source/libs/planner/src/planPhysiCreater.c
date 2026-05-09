@@ -1442,6 +1442,19 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
+  // Add pseudo-column slots (e.g. TBNAME for PARTITION BY TBNAME on InfluxDB).
+  // Normal table scans handle this via pScanPseudoCols in createSimpleScanPhysiNode.
+  // Without this, PARTITION BY TBNAME on a federated scan crashes: the partition
+  // operator's group-key column references a slot that doesn't exist in the data
+  // block, causing a type mismatch and buffer overflow in doHashPartition.
+  if (TSDB_CODE_SUCCESS == code && NULL != pScanLogicNode->pScanPseudoCols) {
+    code = addDataBlockSlots(pCxt, pScanLogicNode->pScanPseudoCols, pScan->node.pOutputDataBlockDesc);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+  }
+
   // Patch the slot-ID hash so that setNodeSlotId can find external-scan
   // condition columns by their original (user-visible) names.
   //
@@ -3906,6 +3919,32 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pPart->pExprs);
     if (TSDB_CODE_SUCCESS == code) {
       code = pushdownDataBlockSlots(pCxt, pPart->pExprs, pChildTupe);
+    }
+  }
+
+  // Convert pseudo-column functions (e.g. TBNAME) in partition keys to column
+  // nodes.  doSetSlotId only resolves QUERY_NODE_COLUMN; a FUNCTION node passes
+  // through with an uninitialised slotId, and the executor's
+  // makeColumnArrayFromList then casts it to SColumnNode* ⇒ garbage slotId/type
+  // ⇒ buffer overflow in doHashPartition.  Replacing with a COLUMN whose
+  // colName matches the slot added by addDataBlockSlots(pScanPseudoCols) lets
+  // doSetSlotId resolve the correct slotId.
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pKeyNode = NULL;
+    FOREACH(pKeyNode, pPartitionKeys) {
+      if (QUERY_NODE_FUNCTION == nodeType(pKeyNode) &&
+          fmIsScanPseudoColumnFunc(((SFunctionNode*)pKeyNode)->funcId)) {
+        SFunctionNode* pFunc = (SFunctionNode*)pKeyNode;
+        SColumnNode*   pCol  = NULL;
+        code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (TSDB_CODE_SUCCESS != code) break;
+        pCol->node.resType = pFunc->node.resType;
+        tstrncpy(pCol->colName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.aliasName, pFunc->node.aliasName, sizeof(pCol->node.aliasName));
+        tstrncpy(pCol->node.userAlias, pFunc->node.userAlias, sizeof(pCol->node.userAlias));
+        nodesDestroyNode(pKeyNode);
+        REPLACE_NODE(pCol);
+      }
     }
   }
 

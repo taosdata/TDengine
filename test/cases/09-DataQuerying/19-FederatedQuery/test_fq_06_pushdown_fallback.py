@@ -3153,20 +3153,21 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             self._mk_influx_real(i, database=_INFLUX_BUCKET_S04)
             # PARTITION BY TBNAME on InfluxDB groups by series (all tag combinations).
             # cpu has 2 distinct host tag values (a, b), so 2 series → 2 partitions.
-            # Partitions are returned in host tag alphabetical order: a first, b second.
+            # Partition order is hash-based and not guaranteed; check values as a set.
             tdSql.query(f"select count(*) from {i}.cpu partition by tbname")
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 2)   # host=a: 2 rows
-            tdSql.checkData(1, 0, 2)   # host=b: 2 rows
+            tdSql.checkData(0, 0, 2)   # both partitions have 2 rows
+            tdSql.checkData(1, 0, 2)
             self._verify_pushdown_explain(
                 f"select count(*) from {i}.cpu partition by tbname", "COUNT")
             tdSql.query(f"select avg(usage_idle) from {i}.cpu partition by tbname")
             tdSql.checkRows(2)
             # host=a: avg(80.0, 75.0) = 77.5; host=b: avg(90.0, 85.0) = 87.5
-            assert abs(float(tdSql.getData(0, 0)) - 77.5) < 0.01, \
-                f"InfluxDB PARTITION BY TBNAME avg: expected row0=77.5, got {tdSql.getData(0, 0)}"
-            assert abs(float(tdSql.getData(1, 0)) - 87.5) < 0.01, \
-                f"InfluxDB PARTITION BY TBNAME avg: expected row1=87.5, got {tdSql.getData(1, 0)}"
+            avgs = sorted([float(tdSql.getData(0, 0)), float(tdSql.getData(1, 0))])
+            assert abs(avgs[0] - 77.5) < 0.01, \
+                f"InfluxDB PARTITION BY TBNAME avg: expected 77.5, got {avgs[0]}"
+            assert abs(avgs[1] - 87.5) < 0.01, \
+                f"InfluxDB PARTITION BY TBNAME avg: expected 87.5, got {avgs[1]}"
             self._verify_pushdown_explain(
                 f"select avg(usage_idle) from {i}.cpu partition by tbname", "AVG")
             # Dimension c) MySQL: PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
