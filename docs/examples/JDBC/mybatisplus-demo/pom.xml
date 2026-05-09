@@ -18,7 +18,7 @@
         <java.version>17</java.version>
         <logback.version>1.5.25</logback.version>
         <netty.version>4.1.129.Final</netty.version>
-        <tomcat.version>10.1.47</tomcat.version>
+        <tomcat.version>10.1.49</tomcat.version>
         <spring-framework.version>6.2.11</spring-framework.version>
     </properties>
 
@@ -95,19 +95,19 @@
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
-            <version>10.1.47</version>
+            <version>10.1.49</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-el</artifactId>
-            <version>10.1.47</version>
+            <version>10.1.49</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-websocket</artifactId>
-            <version>10.1.47</version>
+            <version>10.1.49</version>
             <scope>provided</scope>
         </dependency>
 
