@@ -858,7 +858,7 @@ static int32_t dmBackupVnode(STfs *pTgtTfs, int32_t vnodeId) {
         }
         uInfo("repair: vnode%d renamed %s to .bak", vnodeId, srcPath);
       } else {
-        if (taosMkDir(dstPath) != 0) {
+        if (taosMulMkDir(dstPath) != 0) {
           uError("repair: vnode%d failed to create backup dir %s", vnodeId, dstPath);
           return -1;
         }
