@@ -16,6 +16,19 @@
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+/* Free any existing siInfo.dbname and replace with a heap copy of src.
+ * src may be NULL or empty — in either case dbname is left NULL. */
+static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
+  taosMemoryFreeClear(pSi->dbname);
+  if (src != NULL && src[0] != '\0') {
+    pSi->dbname = taosStrdup(src);
+    if (pSi->dbname == NULL) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
     *pBuf = (char*)pTblBuf->pCurBuff + pTblBuf->buffOffset;
@@ -1880,19 +1893,8 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    const char* siDbSrc = NULL;
-    if (pStmt->db != NULL && pStmt->db[0] != '\0') {
-      siDbSrc = pStmt->db;
-    } else if (taos->db[0] != '\0') {
-      siDbSrc = taos->db;
-    }
-    if (siDbSrc != NULL) {
-      pStmt->sql.siInfo.dbname = taosStrdup(siDbSrc);
-      if (pStmt->sql.siInfo.dbname == NULL) {
-        code = terrno;
-      }
-    }
+    const char* siDbSrc = (pStmt->db != NULL && pStmt->db[0] != '\0') ? pStmt->db : taos->db;
+    code = stmtDupSiInfoDbname(&pStmt->sql.siInfo, siDbSrc);
     if (TSDB_CODE_SUCCESS != code) {
       STMT2_ELOG("fail to dup siInfo dbname in stmtInit2:%s", tstrerror(code));
       (void)stmtClose2(pStmt);
@@ -1988,11 +1990,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
     return terrno;
   }
   if (pStmt->sql.stbInterlaceMode) {
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    pStmt->sql.siInfo.dbname = taosStrdup(pStmt->exec.pRequest->pDb);
-    if (pStmt->sql.siInfo.dbname == NULL) {
-      STMT_ERR_RET(terrno);
-    }
+    STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, pStmt->exec.pRequest->pDb));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2078,15 +2076,8 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   if (stbInterlaceMode) {
     pStmt->sql.siInfo.transport = pStmt->taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = pStmt->taos->acctId;
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    if (db != NULL && db[0] != '\0') {
-      pStmt->sql.siInfo.dbname = taosStrdup(db);
-    } else if (pStmt->taos->db[0] != '\0') {
-      pStmt->sql.siInfo.dbname = taosStrdup(pStmt->taos->db);
-    }
-    if (pStmt->sql.siInfo.dbname == NULL && ((db != NULL && db[0] != '\0') || pStmt->taos->db[0] != '\0')) {
-      STMT_ERR_RET(terrno);
-    }
+    const char* siDbSrc = (db != NULL && db[0] != '\0') ? db : pStmt->taos->db;
+    STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, siDbSrc));
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
 
     if (NULL == pStmt->pCatalog) {
@@ -2172,11 +2163,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       (void)strdequote(pStmt->exec.pRequest->pDb);
 
       if (pStmt->sql.stbInterlaceMode) {
-        taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-        pStmt->sql.siInfo.dbname = taosStrdup(pStmt->exec.pRequest->pDb);
-        if (pStmt->sql.siInfo.dbname == NULL) {
-          STMT_ERR_RET(terrno);
-        }
+        STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, pStmt->exec.pRequest->pDb));
       }
     }
 

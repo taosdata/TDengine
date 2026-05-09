@@ -10,6 +10,19 @@
 char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                           "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+/* Free any existing siInfo.dbname and replace with a heap copy of src.
+ * src may be NULL or empty — in either case dbname is left NULL. */
+static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
+  taosMemoryFreeClear(pSi->dbname);
+  if (src != NULL && src[0] != '\0') {
+    pSi->dbname = taosStrdup(src);
+    if (pSi->dbname == NULL) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
     *pBuf = (char*)pTblBuf->pCurBuff + pTblBuf->buffOffset;
@@ -923,13 +936,7 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
-    if (taos->db[0] != '\0') {
-      pStmt->sql.siInfo.dbname = taosStrdup(taos->db);
-      if (pStmt->sql.siInfo.dbname == NULL) {
-        code = terrno;
-      }
-    }
+    code = stmtDupSiInfoDbname(&pStmt->sql.siInfo, taos->db);
     if (code != TSDB_CODE_SUCCESS) {
       STMT_ELOG("fail to dup siInfo dbname in stmtInit:%s", tstrerror(code));
       (void)stmtClose(pStmt);
