@@ -33,9 +33,11 @@ trigger_type: {
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
+
+start_event_item: start_condition | (start_event_item, start_event_item [, ...])
 
 true_for_expr: {
     duration_time
@@ -59,6 +61,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
 ```
+
+For `EVENT_WINDOW`, `start_event_item` supports multi-level nested sub-events. For example, `START WITH ((cond_1a, cond_1b), cond_2)`. When a stream calculation uses a sub-event structure, the `_event_condition_path` placeholder can be used in the query part to obtain the static path of the currently matched node in the start-condition tree.
 
 ### Trigger Methods
 

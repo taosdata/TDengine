@@ -1145,6 +1145,11 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
           (SDataType){.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
       break;
     }
+    case FUNCTION_TYPE_EVENT_CONDITION_PATH: {
+      pFunc->node.resType =
+          (SDataType){.bytes = TSDB_MAX_EVENT_CONDITION_PATH_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+      break;
+    }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
       break;
     }
@@ -6426,6 +6431,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_event_condition_path",
+    .type = FUNCTION_TYPE_EVENT_CONDITION_PATH,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = streamPseudoScalarFunction,
     .finalizeFunc = NULL,

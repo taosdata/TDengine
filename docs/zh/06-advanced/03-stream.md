@@ -35,9 +35,11 @@ trigger_type: {
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
+
+start_event_item: start_condition | (start_event_item, start_event_item [, ...])
 
 true_for_expr: {
     duration_time
@@ -61,6 +63,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
 ```
+
+其中 `EVENT_WINDOW` 的 `start_event_item` 支持多级子事件嵌套。例如 `START WITH ((cond_1a, cond_1b), cond_2)`。当流计算使用了子事件结构时，可在查询部分使用 `_event_condition_path` 获取当前命中节点在开始条件树中的静态路径。
 
 ### 触发方式
 

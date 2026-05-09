@@ -498,6 +498,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_EVENT_WINDOW:
       code = makeNode(type, sizeof(SEventWindowNode), &pNode);
       break;
+    case QUERY_NODE_EVENT_START_LEAF:
+      code = makeNode(type, sizeof(SEventStartLeafNode), &pNode);
+      break;
     case QUERY_NODE_COUNT_WINDOW:
       code = makeNode(type, sizeof(SCountWindowNode), &pNode);
       break;
@@ -1630,6 +1633,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
       nodesDestroyNode(pEvent->pTrueForLimit);
+      break;
+    }
+    case QUERY_NODE_EVENT_START_LEAF: {
+      SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
+      nodesDestroyNode(pLeaf->pCond);
+      nodesDestroyNode(pLeaf->pTrueForLimit);
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
@@ -2958,7 +2967,6 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   }
   return NULL;
 }
-
 
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
   SNode* node;
@@ -4356,5 +4364,3 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
-
-

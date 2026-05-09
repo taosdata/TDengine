@@ -1875,9 +1875,35 @@ _err:
   return NULL;
 }
 
+SNode* createEventStartLeafNode(SAstCreateContext* pCxt, SNode* pCond, SNode* pTrueForLimit) {
+  if (pTrueForLimit == NULL) {
+    return pCond;
+  }
+
+  SEventStartLeafNode* pLeaf = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, (SNode**)&pLeaf);
+  CHECK_MAKE_NODE(pLeaf);
+
+  pLeaf->pCond = pCond;
+  pLeaf->pTrueForLimit = pTrueForLimit;
+  return (SNode*)pLeaf;
+
+_err:
+  nodesDestroyNode((SNode*)pLeaf);
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTrueForLimit);
+  return NULL;
+}
+
 SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit) {
   SEventWindowNode* pEvent = NULL;
   CHECK_PARSER_STATUS(pCxt);
+  if (pStartCond != NULL && nodeType(pStartCond) == QUERY_NODE_EVENT_START_LEAF) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "TRUE_FOR after START WITH is only allowed inside a sub-condition list");
+    goto _err;
+  }
   pCxt->errCode = nodesMakeNode(QUERY_NODE_EVENT_WINDOW, (SNode**)&pEvent);
   CHECK_MAKE_NODE(pEvent);
   pEvent->pCol = createPrimaryKeyCol(pCxt, NULL);

@@ -60,6 +60,7 @@ typedef struct STokenBucket       STokenBucket;
 #define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
 #define PLACE_HOLDER_IDLE_START       BIT_FLAG_MASK(14)
 #define PLACE_HOLDER_IDLE_END         BIT_FLAG_MASK(15)
+#define PLACE_HOLDER_EVENT_CONDITION_PATH BIT_FLAG_MASK(16)
 
 #define CREATE_STREAM_FLAG_NONE                     0
 #define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
@@ -904,6 +905,7 @@ typedef struct SSTriggerCalcParam {
   int64_t triggerTime;  // _tlocaltime
 
   int32_t notifyType;           // See also: ESTriggerEventType
+  char*   conditionPath;        // _event_condition_path
   char*   extraNotifyContent;   // NULL if not available
   char*   resultNotifyContent;  // does not serialize
   SArray* pExternalWindowData;

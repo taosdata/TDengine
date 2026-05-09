@@ -14,14 +14,14 @@
  */
 
 #include "cJSON.h"
+#include "cmdnodes.h"
 #include "dataSink.h"
+#include "decimal.h"
 #include "osMemPool.h"
 #include "streamInt.h"
-#include "tdatablock.h"
 #include "tcurl.h"
+#include "tdatablock.h"
 #include "tstrbuild.h"
-#include "decimal.h"
-#include "cmdnodes.h"
 
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
@@ -84,12 +84,11 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
   if (taosArrayGetSize(pStream->undeployTriggers) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, STREAM_TRIGGER_TASK, pStream->undeployTriggers, pStream->triggerList);
   }
-  
+
   if (taosArrayGetSize(pStream->undeployRunners) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, STREAM_RUNNER_TASK, pStream->undeployRunners, pStream->runnerList);
   }
 }
-
 
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask) {
   int32_t code = 0, lino = 0;
@@ -103,7 +102,7 @@ int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pT
   } else {
     TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, pTask), code, lino, _exit, terrno);
   }
-  
+
 _exit:
 
   taosWUnLockLatch(&pTask->mgmtReqLock);
@@ -115,12 +114,11 @@ _exit:
   return code;
 }
 
-
 int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SListIter iter = {0};
-  SListNode* listNode = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SListIter    iter = {0};
+  SListNode*   listNode = NULL;
   SStreamTask* pTask = NULL;
 
   taosWLockLatch(&pStream->lock);
@@ -131,7 +129,7 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     stsDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
     goto _exit;
   }
-  
+
   if (NULL == pMsg->pStreamStatus) {
     pMsg->pStreamStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
     TSDB_CHECK_NULL(pMsg->pStreamStatus, code, lino, _exit, terrno);
@@ -145,9 +143,9 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
       pTask = (SStreamTask*)pReader;
       TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pReader->task), code, lino, _exit, terrno);
-      //if (pReader->task.pMgmtReq) {
-      //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-      //}
+      // if (pReader->task.pMgmtReq) {
+      //   TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
+      // }
       ST_TASK_DLOG("task status added to hb %s mgmtReq", pReader->task.pMgmtReq ? "with" : "without");
     }
 
@@ -163,9 +161,9 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     } else {
       pTask->detailStatus = -1;
     }
-    
+
     TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
-    
+
     ST_TASK_DLOG("task status added to hb %s mgmtReq", pTask->pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
   }
@@ -188,8 +186,9 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
 
     stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
   }
-  
-  stsDebug("total %d:%d tasks status added to hb", (int32_t)taosArrayGetSize(pMsg->pStreamStatus) - origTaskNum, pStream->taskNum);
+
+  stsDebug("total %d:%d tasks status added to hb", (int32_t)taosArrayGetSize(pMsg->pStreamStatus) - origTaskNum,
+           pStream->taskNum);
 
 _exit:
 
@@ -210,7 +209,7 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
   }
 
   stDebug("start to build hb status req, gid:%d", pMsg->streamGId);
-  
+
   SHashObj* pHash = gStreamMgmt.stmGrp[pMsg->streamGId];
   if (NULL == pHash) {
     return TSDB_CODE_SUCCESS;
@@ -239,15 +238,15 @@ void stmDestroySStreamInfo(void* param) {
   }
 
   stDebug("start to destroy stream info");
-  
+
   SStreamInfo* p = (SStreamInfo*)param;
 
-  SListIter iter = {0};
-  SListNode* listNode = NULL;  
+  SListIter  iter = {0};
+  SListNode* listNode = NULL;
   tdListInitIter(p->readerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
-    SListNode* tmp = tdListPopNode(p->readerList, listNode);
+    SListNode*   tmp = tdListPopNode(p->readerList, listNode);
     ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
     taosMemoryFreeClear(tmp);
   }
@@ -257,7 +256,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->triggerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
-    SListNode* tmp = tdListPopNode(p->triggerList, listNode);
+    SListNode*   tmp = tdListPopNode(p->triggerList, listNode);
     ST_TASK_DLOG("task removed from stream triggerList, remain:%d", TD_DLIST_NELES(p->triggerList));
     taosMemoryFreeClear(tmp);
   }
@@ -267,7 +266,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
-    SListNode* tmp = tdListPopNode(p->runnerList, listNode);
+    SListNode*   tmp = tdListPopNode(p->runnerList, listNode);
     ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
     taosMemoryFreeClear(tmp);
   }
@@ -284,7 +283,8 @@ void stmDestroySStreamInfo(void* param) {
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
   QUERY_CHECK_CONDITION(cJSON_AddItemToObjectCS(obj, str, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY)
 
-static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInfo, bool isNull, const char* pData, cJSON* obj) {
+static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInfo, bool isNull, const char* pData,
+                                  cJSON* obj) {
   int8_t  type = colInfo->type;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -487,10 +487,31 @@ _end:
   return code;
 }
 
-static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId);
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, const char* conditionPath,
+                                       char* triggerId);
+
+static int32_t streamGetLastEventConditionIndex(const char* conditionPath) {
+  if (conditionPath == NULL || *conditionPath == '\0') {
+    return 0;
+  }
+
+  const char* p = conditionPath + strlen(conditionPath);
+  while (p > conditionPath && *(p - 1) != '.') {
+    --p;
+  }
+
+  int32_t idx = 0;
+  for (; *p != '\0'; ++p) {
+    if (*p < '0' || *p > '9') {
+      return 0;
+    }
+    idx = idx * 10 + (*p - '0');
+  }
+  return idx;
+}
 
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
+                                      const char* conditionPath, int64_t groupId, int64_t windowStart,
                                       int64_t parentWindowStart, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -513,20 +534,24 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 
   cond = cJSON_CreateObject();
   QUERY_CHECK_NULL(cond, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM(cond, "conditionIndex", cJSON_CreateNumber(condIdx));
+  JSON_CHECK_ADD_ITEM(cond, "conditionPath", cJSON_CreateString(conditionPath != NULL ? conditionPath : ""));
+  JSON_CHECK_ADD_ITEM(cond, "conditionIndex", cJSON_CreateNumber(streamGetLastEventConditionIndex(conditionPath)));
   JSON_CHECK_ADD_ITEM(cond, "fieldValues", fields);
   fields = NULL;
 
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   char triggerId[32];
-  streamBuildNotifyTriggerId(groupId, windowStart, winIdx, triggerId);
+  streamBuildNotifyTriggerId(groupId, windowStart, conditionPath, triggerId);
   JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateString(triggerId));
   JSON_CHECK_ADD_ITEM(obj, "triggerCondition", cond);
-  JSON_CHECK_ADD_ITEM(obj, "windowIndex", cJSON_CreateNumber(winIdx));
-  if (winIdx >= 0) {
+  JSON_CHECK_ADD_ITEM(obj, "windowIndex",
+                      cJSON_CreateNumber((conditionPath != NULL && *conditionPath != '\0')
+                                             ? streamGetLastEventConditionIndex(conditionPath)
+                                             : -1));
+  if (conditionPath != NULL && *conditionPath != '\0') {
     char parentTriggerId[32];
-    streamBuildNotifyTriggerId(groupId, parentWindowStart, -1, parentTriggerId);
+    streamBuildNotifyTriggerId(groupId, parentWindowStart, NULL, parentTriggerId);
     JSON_CHECK_ADD_ITEM(obj, "parentTriggerId", cJSON_CreateString(parentTriggerId));
   }
   cond = NULL;
@@ -550,8 +575,8 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
-                                            const int32_t startRow, const int32_t endRow) {
+int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
+                                            const SArray* pFields, const int32_t startRow, const int32_t endRow) {
   int32_t code = 0, lino = 0;
   cJSON*  pContent = NULL;
   cJSON*  pResult = NULL;
@@ -696,13 +721,13 @@ _end:
   return code;
 }
 
-static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId) {
-  uint64_t hash = 0;
-  if (winIdx >= 0) {
-    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart, (uint64_t)(uint32_t)winIdx};
-    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
-  } else {
-    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart};
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, const char* conditionPath,
+                                       char* triggerId) {
+  uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart};
+  uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
+  if (conditionPath != NULL && *conditionPath != '\0') {
+    ar[0] = hash;
+    ar[1] = MurmurHash3_64(conditionPath, strlen(conditionPath));
     hash = MurmurHash3_64((const char*)ar, sizeof(ar));
   }
   (void)u64toaFastLut(hash, triggerId);
@@ -734,7 +759,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
       (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN || pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) &&
       pParam->extraNotifyContent != NULL;
   if (!hasEventTriggerId) {
-    streamBuildNotifyTriggerId(groupId, pParam->wstart, -1, triggerId);
+    streamBuildNotifyTriggerId(groupId, pParam->wstart, NULL, triggerId);
   }
 
   const char* triggerTypeStr = NULL;
@@ -839,8 +864,8 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   SCURL          conn = {0};
   bool           shouldNotify = false;
 
-  // Remove prefix 1. 
-  char*          pos = strstr(streamName, TS_PATH_DELIMITER);
+  // Remove prefix 1.
+  char* pos = strstr(streamName, TS_PATH_DELIMITER);
   if (pos != NULL) streamName = ++pos;
 
   if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {

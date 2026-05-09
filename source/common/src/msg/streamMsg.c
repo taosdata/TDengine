@@ -3592,10 +3592,12 @@ static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, 
       TAOS_MEMCPY(pEncoder->data + pEncoder->pos, param, plainFieldSize);
     }
     pEncoder->pos += plainFieldSize;
+    uint64_t len = (param->conditionPath != NULL) ? strlen(param->conditionPath) + 1 : 0;
+    TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (uint8_t*)param->conditionPath, len));
 
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
-      uint64_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) + 1 : 0;
+      len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) + 1 : 0;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (uint8_t*)param->extraNotifyContent, len));
     }
   }
@@ -3605,6 +3607,9 @@ _exit:
 
 void tDestroySSTriggerCalcParam(void* ptr) {
   SSTriggerCalcParam* pParam = ptr;
+  if (pParam && pParam->conditionPath != NULL) {
+    taosMemoryFreeClear(pParam->conditionPath);
+  }
   if (pParam && pParam->extraNotifyContent != NULL) {
     taosMemoryFreeClear(pParam->extraNotifyContent);
   }
@@ -3672,10 +3677,11 @@ static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParam
     int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
     TAOS_MEMCPY(param, pDecoder->data + pDecoder->pos, plainFieldSize);
     pDecoder->pos += plainFieldSize;
+    uint64_t len = 0;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&param->conditionPath, &len));
 
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param->notifyType));
-      uint64_t len = 0;
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&param->extraNotifyContent, &len));
     }
   }

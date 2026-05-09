@@ -51,6 +51,11 @@ typedef struct SSTriggerOrigTableInfo {
 typedef struct SSTriggerWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int64_t     calcStartTs;
+  int64_t     calcWrownum;
+  int32_t     eventNodeId;
+  int32_t     parentEventNodeId;
+  int64_t     parentWindowStart;
   int64_t     prevProcTime;  // only used in realtime group for max_delay check
 } SSTriggerWindow;
 
@@ -58,9 +63,62 @@ typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
   bool        forceWinOpen;
+  int64_t     calcStartTs;
+  int64_t     calcWrownum;
+  int32_t     eventNodeId;
+  int32_t     parentEventNodeId;
+  int64_t     parentWindowStart;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
+
+typedef struct SSTriggerEventNodeMeta {
+  int32_t      nodeId;
+  int32_t      parentNodeId;
+  int32_t      localIndex;
+  int32_t      leafIndex;
+  int32_t      priority;
+  bool         isLeaf;
+  bool         hasLocalTrueFor;
+  SNode       *pCond;
+  SNode       *pHistCond;
+  STrueForInfo localTrueForInfo;
+  STrueForInfo effectiveTrueForInfo;
+  char        *path;
+} SSTriggerEventNodeMeta;
+
+typedef enum ESTriggerEventNodeState {
+  STRIGGER_EVENT_NODE_IDLE = 0,
+  STRIGGER_EVENT_NODE_TRACKING,
+  STRIGGER_EVENT_NODE_SATISFIED,
+} ESTriggerEventNodeState;
+
+typedef struct SSTriggerEventInterval {
+  STimeWindow range;
+  int64_t     wrownum;
+  int64_t     calcStartTs;
+  int64_t     calcWrownum;
+} SSTriggerEventInterval;
+
+typedef struct SSTriggerLeafRuntimeState {
+  int32_t                 nodeId;
+  ESTriggerEventNodeState state;
+  int64_t                 curStartTs;
+  int64_t                 curLastTs;
+  int64_t                 curRowCount;
+  int64_t                 calcStartTs;
+  int64_t                 calcRowCount;
+  SArray                 *pQualifiedHistory;  // SArray<SSTriggerEventInterval>
+} SSTriggerLeafRuntimeState;
+
+typedef struct SSTriggerParentRuntimeState {
+  int32_t                 nodeId;
+  ESTriggerEventNodeState state;
+  int64_t                 curStartTs;
+  int64_t                 curLastTs;
+  int64_t                 curRowCount;
+  char                   *pWinOpenNotify;
+} SSTriggerParentRuntimeState;
 
 typedef TRINGBUF(SSTriggerWindow) TriggerWindowBuf;
 
@@ -88,6 +146,8 @@ typedef struct SSTriggerRealtimeGroup {
       char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      SArray               *pLeafStates;    // SArray<SSTriggerLeafRuntimeState>
+      SArray               *pParentStates;  // SArray<SSTriggerParentRuntimeState>
     };
     int64_t totalCount;  // for count window trigger
   };
@@ -131,6 +191,8 @@ typedef struct SSTriggerHistoryGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      SArray               *pLeafStates;    // SArray<SSTriggerLeafRuntimeState>
+      SArray               *pParentStates;  // SArray<SSTriggerParentRuntimeState>
     };
   };
 
@@ -398,7 +460,9 @@ typedef struct SStreamTriggerTask {
       SNode       *pEndCond;
       SNodeList   *pStartCondCols;
       SNodeList   *pEndCondCols;
+      SArray      *pStartCondMeta;  // SArray<SSTriggerEventNodeMeta>
       STrueForInfo eventTrueForInfo;
+      bool         startCondHasSubEvents;
     };
   };
   int32_t trigTsIndex;

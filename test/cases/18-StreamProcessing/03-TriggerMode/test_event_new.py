@@ -44,6 +44,10 @@ class TestStreamEventTrigger:
         streams.append(self.Basic8())
         streams.append(self.Basic9())
         streams.append(self.Basic10())
+        streams.append(self.Basic11())
+        streams.append(self.Basic12())
+        streams.append(self.Basic13())
+        streams.append(self.Basic14())
 
         tdStream.checkAll(streams)
 
@@ -2998,4 +3002,216 @@ class TestStreamEventTrigger:
                 and tdSql.compareData(9, 0, "2025-01-01 00:00:35")
                 and tdSql.compareData(9, 1, "2025-01-01 00:00:38")
                 and tdSql.compareData(9, 2, 4)
+            )
+
+    class Basic11(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb11"
+            self.stbName = "stb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(
+                f"create table if not exists {self.stbName} (cts timestamp, c1 int, c2 int) tags (tint int)"
+            )
+            tdSql.execute("create table ct1 using stb tags(1)")
+            tdSql.execute(
+                "create stream s_path "
+                "event_window(start with ((c1 >= 90, c1 >= 60), c2 < 60) end with c2 < 50) "
+                "from ct1 into res_path(startts, path primary key, cnt) "
+                "as select _twstart, _event_condition_path, count(*) from ct1 where _c0 >= _twstart and _c0 <= _twend;"
+            )
+
+        def insert1(self):
+            tdSql.executes([
+                "insert into ct1 values ('2025-01-01 00:00:00', 95, 95);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 65, 65);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 40, 40);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 70, 70);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 45, 45);",
+            ])
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select startts, path, cnt from {self.db}.res_path order by startts, path",
+                func=lambda: tdSql.getRows() == 9
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(1, 1, "0")
+                and tdSql.compareData(1, 2, 2)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(2, 1, "0.0")
+                and tdSql.compareData(2, 2, 1)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:01")
+                and tdSql.compareData(3, 1, "0.1")
+                and tdSql.compareData(3, 2, 1)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:02")
+                and tdSql.compareData(4, 1, "1")
+                and tdSql.compareData(4, 2, 1)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(5, 1, "")
+                and tdSql.compareData(5, 2, 2)
+                and tdSql.compareData(6, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(6, 1, "0")
+                and tdSql.compareData(6, 2, 1)
+                and tdSql.compareData(7, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(7, 1, "0.1")
+                and tdSql.compareData(7, 2, 1)
+                and tdSql.compareData(8, 0, "2025-01-01 00:00:04")
+                and tdSql.compareData(8, 1, "1")
+                and tdSql.compareData(8, 2, 1),
+            )
+
+    class Basic12(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb12"
+            self.stbName = "stb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(
+                f"create table if not exists {self.stbName} (cts timestamp, c1 int, c2 int) tags (tint int)"
+            )
+            tdSql.execute("create table ct1 using stb tags(1)")
+            tdSql.executes([
+                "insert into ct1 values ('2025-01-01 00:00:00', 95, 95);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 95, 95);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 40, 40);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 70, 70);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 70, 70);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 40, 40);",
+            ])
+            tdSql.execute(
+                "create stream s_path_local_true_for "
+                "event_window(start with ((c1 >= 90 true_for(1s), c1 >= 60), c2 < 0) end with c1 < 50) "
+                "true_for(5s) from ct1 stream_options(fill_history) into res_path(startts, path primary key, cnt) "
+                "as select _twstart, _event_condition_path, count(*) from ct1 where _c0 >= _twstart and _c0 <= _twend;"
+            )
+
+        def insert1(self):
+            return
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select startts, path, cnt from {self.db}.res_path order by startts, path",
+                func=lambda: tdSql.getRows() == 6
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(1, 1, "0")
+                and tdSql.compareData(1, 2, 2)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(2, 1, "0.0")
+                and tdSql.compareData(2, 2, 2)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(3, 1, "")
+                and tdSql.compareData(3, 2, 2)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(4, 1, "0")
+                and tdSql.compareData(4, 2, 2)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(5, 1, "0.1")
+                and tdSql.compareData(5, 2, 2)
+            )
+
+    class Basic13(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb13"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create table ct1 (cts timestamp, c1 int, c2 int)")
+            tdSql.execute(
+                "create stream s_realtime_leaf_true_for "
+                "event_window(start with ((c1 >= 90 true_for(1s), c1 >= 60), c2 > 100) end with c2 < 0) "
+                "true_for(5s) from ct1 into res_path(startts, path primary key, cnt) "
+                "as select _twstart, _event_condition_path, count(*) from ct1 where _c0 >= _twstart and _c0 <= _twend;"
+            )
+
+        def insert1(self):
+            tdSql.executes([
+                "insert into ct1 values ('2025-01-01 00:00:00', 95, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 95, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 10, -1);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 10, -1);",
+            ])
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select startts, path, cnt from {self.db}.res_path order by startts, path",
+                func=lambda: tdSql.getRows() == 6
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(1, 1, "0")
+                and tdSql.compareData(1, 2, 2)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(2, 1, "0.0")
+                and tdSql.compareData(2, 2, 2)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(3, 1, "")
+                and tdSql.compareData(3, 2, 2)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(4, 1, "0")
+                and tdSql.compareData(4, 2, 2)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(5, 1, "0.1")
+                and tdSql.compareData(5, 2, 2)
+            )
+
+    class Basic14(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb14"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create table ct1 (cts timestamp, c1 int, c2 int)")
+            tdSql.execute(
+                "create stream s_realtime_pending_priority "
+                "event_window(start with ((c1 >= 90 true_for(5s), c1 >= 60 true_for(1s)), c2 > 100) end with c2 < 0) "
+                "from ct1 into res_path(startts, path primary key, cnt) "
+                "as select _twstart, _event_condition_path, count(*) from ct1 where _c0 >= _twstart and _c0 <= _twend;"
+            )
+
+        def insert1(self):
+            tdSql.executes([
+                "insert into ct1 values ('2025-01-01 00:00:00', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 95, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 95, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:06', 70, 0);",
+                "insert into ct1 values ('2025-01-01 00:00:07', 70, -1);",
+            ])
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select startts, path, cnt from {self.db}.res_path order by startts, path",
+                func=lambda: tdSql.getRows() == 5
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "")
+                and tdSql.compareData(0, 2, 8)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(1, 1, "0")
+                and tdSql.compareData(1, 2, 8)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(2, 1, "0.1")
+                and tdSql.compareData(2, 2, 3)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:03")
+                and tdSql.compareData(3, 1, "0.0")
+                and tdSql.compareData(3, 2, 2)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:05")
+                and tdSql.compareData(4, 1, "0.1")
+                and tdSql.compareData(4, 2, 3)
             )

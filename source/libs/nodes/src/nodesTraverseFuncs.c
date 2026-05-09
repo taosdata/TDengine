@@ -192,6 +192,14 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_EVENT_START_LEAF: {
+      SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
+      res = walkExpr(pLeaf->pCond, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pLeaf->pTrueForLimit, order, walker, pContext);
+      }
+      break;
+    }
     case QUERY_NODE_PERIOD_WINDOW: {
       SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
       res = walkExpr(pPeriod->pOffset, order, walker, pContext);
@@ -489,6 +497,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pEvent->pTrueForLimit, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EVENT_START_LEAF: {
+      SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
+      res = rewriteExpr(&pLeaf->pCond, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pLeaf->pTrueForLimit, order, rewriter, pContext);
       }
       break;
     }

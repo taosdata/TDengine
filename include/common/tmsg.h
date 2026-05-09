@@ -371,6 +371,7 @@ typedef enum ENodeType {
   QUERY_NODE_UPDATE_TAG_VALUE,
   QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE,
   QUERY_NODE_REMOTE_TABLE,
+  QUERY_NODE_EVENT_START_LEAF,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
