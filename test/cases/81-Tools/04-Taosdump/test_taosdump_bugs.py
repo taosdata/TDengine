@@ -69,12 +69,12 @@ class TestTaosdumpStartEndTime:
         self.prepare(time_unit, precision)
         tdLog.info("taosdump start time end time test, precision: %s" % precision)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
-        backupPath = etool.taosBackupFile()
+            tdLog.info("taosdump found in %s" % oldTaosdump)
+        newTaosdump = etool.taosDumpFile()
 
         #        sys.exit(1)
 
@@ -85,9 +85,9 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision, precision))
+        os.system("%s db t1 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 -E 2023-02-28T12:00:03.%s+0800 " % (oldTaosdump, self.tmpdir, precision, precision))
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [ ("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (start+end) ---")
             tdSql.execute("drop table if exists db.t1")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
@@ -101,9 +101,9 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 " % (binPath, self.tmpdir, precision))
+        os.system("%s db t2 -o %s -T 1 -S 2023-02-28T12:00:01.%s+0800 " % (oldTaosdump, self.tmpdir, precision))
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [ ("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (start-only) ---")
             tdSql.execute("drop table if exists db.t2")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
@@ -117,9 +117,9 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.%s+0800 " % (binPath, self.tmpdir, precision))
+        os.system("%s db t3 -o %s -T 1 -E 2023-02-28T12:00:03.%s+0800 " % (oldTaosdump, self.tmpdir, precision))
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [ ("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (end-only) ---")
             tdSql.execute("drop table if exists db.t3")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
@@ -132,12 +132,12 @@ class TestTaosdumpStartEndTime:
     # ------------------- test_taosdump_start_end_time_long.py ----------------
     #
     def do_taosdump_start_end_time_long(self):
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
-        backupPath = etool.taosBackupFile()
+            tdLog.info("taosdump found in %s" % oldTaosdump)
+        newTaosdump = etool.taosDumpFile()
 
         tdSql.prepare()
 
@@ -173,9 +173,9 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t1 -o %s -T 1 --start-time=2023-02-28T12:00:01.997+0800 --end-time=2023-02-28T12:00:03.997+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t1 -o %s -T 1 --start-time=2023-02-28T12:00:01.997+0800 --end-time=2023-02-28T12:00:03.997+0800 " % (oldTaosdump, self.tmpdir))
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [ ("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (long start+end) ---")
             tdSql.execute("drop table if exists db.t1")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
@@ -189,9 +189,9 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t2 -o %s -T 1 --start-time=2023-02-28T12:00:01.997+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t2 -o %s -T 1 --start-time=2023-02-28T12:00:01.997+0800 " % (oldTaosdump, self.tmpdir))
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [ ("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (long start-only) ---")
             tdSql.execute("drop table if exists db.t2")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
@@ -205,9 +205,9 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t3 -o %s -T 1 --end-time=2023-02-28T12:00:03.997+0800 " % (binPath, self.tmpdir))
+        os.system("%s db t3 -o %s -T 1 --end-time=2023-02-28T12:00:03.997+0800 " % (oldTaosdump, self.tmpdir))
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [ ("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (long end-only) ---")
             tdSql.execute("drop table if exists db.t3")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
@@ -257,11 +257,11 @@ class TestTaosdumpStartEndTime:
         )
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -270,12 +270,12 @@ class TestTaosdumpStartEndTime:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        print("%s Db st -R -e -o %s -T 1" % (binPath, self.tmpdir))
-        os.system("%s Db st -R -e -o %s -T 1" % (binPath, self.tmpdir))
+        print("%s Db st -R -e -o %s -T 1" % (oldTaosdump, self.tmpdir))
+        os.system("%s Db st -R -e -o %s -T 1" % (oldTaosdump, self.tmpdir))
         # sys.exit(1)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool, extra_flags in [("taosdump", binPath, "-R -e"), ("taosBackup", backupPath, "")]:
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool, extra_flags in [("taosdump", oldTaosdump, "-R -e"), ("taosBackup", newTaosdump, "")]:
             tdLog.info(f"--- {tool_name} import+verify (escaped db) ---")
             tdSql.execute("drop database if exists `Db`")
             if extra_flags:

@@ -36,7 +36,7 @@ class TestTaosBackupIntegrity:
         return etool.taosbackup(cmd, checkRun=checkRun)
 
     def binPath(self):
-        p = etool.taosBackupFile()
+        p = etool.taosDumpFile()
         if not p:
             tdLog.exit("taosBackup not found!")
         return p

@@ -59,13 +59,10 @@ IF(GIT_FOUND)
         )
 
     STRING(SUBSTRING "${GIT_COMMIT_ID}" 0 40 TAOSBENCHMARK_COMMIT_ID)
-    SET(TAOSDUMP_COMMIT_ID "${TAOSBENCHMARK_COMMIT_ID}")
 
     # show
-    MESSAGE(STATUS "taosdump commit id: ${TAOSDUMP_COMMIT_ID}")
     MESSAGE(STATUS "taosBenchmark commit id: ${TAOSBENCHMARK_COMMIT_ID}")
     # define
-    ADD_DEFINITIONS(-DTAOSDUMP_COMMIT_ID="${TAOSDUMP_COMMIT_ID}")
     ADD_DEFINITIONS(-DTAOSBENCHMARK_COMMIT_ID="${TAOSBENCHMARK_COMMIT_ID}")
 ELSE()
     MESSAGE(FATAL_ERROR "build taos-tools FIND_PACKAGE(Git) failed.")
@@ -97,34 +94,15 @@ ADD_EXECUTABLE(taosBenchmark
   toolsSys.c toolsString.c ../../src/pub.c
 )
 
-ADD_EXECUTABLE(taosdump
-  taosdump.c dumpUtil.c toolsSys.c toolstime.c
-  toolsDir.c toolsString.c ../../src/pub.c
-)
-DEP_ext_avro(taosdump)
-DEP_ext_zlib(taosdump)
-DEP_ext_jansson(taosdump)
-DEP_ext_snappy(taosdump)
-DEP_ext_xz(taosdump)
-
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  DEP_ext_iconv(taosdump)
-  DEP_ext_msvcregex(taosdump)
-  DEP_ext_pthread(taosdump)
-
   DEP_ext_pthread(taosBenchmark)
   DEP_ext_msvcregex(taosBenchmark)
-  target_include_directories(taosdump PRIVATE "$<TARGET_PROPERTY:libargp,SOURCE_DIR>/argp")
-  target_link_libraries(taosdump PRIVATE libargp)
 ENDIF ()
-target_link_libraries(taosdump PRIVATE toolscJson)
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE toolscJson)
 
-TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos)
 
 if(NOT WIN32)
-  target_link_libraries(taosdump PRIVATE stdc++)
   target_link_libraries(taosBenchmark PRIVATE stdc++)
   target_link_libraries(taosBenchmark PRIVATE m)
 endif()
@@ -136,7 +114,5 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   endif()
   # brew install argp-standalone
   target_include_directories(taosBenchmark PRIVATE ${BREW_PREFIX}/include)
-  target_include_directories(taosdump PRIVATE ${BREW_PREFIX}/include)
-  target_link_libraries(taosdump PRIVATE ${BREW_PREFIX}/lib/libargp.a)
 endif()
 

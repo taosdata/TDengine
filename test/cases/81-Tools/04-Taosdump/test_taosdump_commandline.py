@@ -28,7 +28,7 @@ class TestTaosdumpCommandline:
 
     def findPrograme(self):
         # taosdump 
-        taosdump = etool.taosDumpFile()
+        taosdump = etool.taosOldDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
@@ -142,18 +142,17 @@ class TestTaosdumpCommandline:
     def dumpInOutMode(self, mode, db, json, tmpdir):
         # dump out
         self.clearPath(tmpdir)
-        self.taosdump(f"{mode} -D {db} -o {tmpdir}")
+        etool.taosdump(f"{mode} -D {db} -o {tmpdir}")
 
         # dump in with taosdump
         newdb = "new" + db
-        self.taosdump(f"{mode} -W \"{db}={newdb}\" -i {tmpdir}")
+        etool.taosdump(f"{mode} -W \"{db}={newdb}\" -i {tmpdir}")
 
         # check same
         self.verifyResult(db, newdb, json)
 
         # dump in with taosBackup (avro compatible)
-        tdLog.info("--- taosBackup import+verify ---")
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         bk_newdb = "bk" + db
         tdSql.execute(f"drop database if exists {bk_newdb}")
         self.exec(f'{taosbackup} -W "{db}={bk_newdb}" -i {tmpdir}')

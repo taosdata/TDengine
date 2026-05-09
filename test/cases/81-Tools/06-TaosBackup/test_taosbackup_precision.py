@@ -192,7 +192,7 @@ class TestTaosBackupPrecision:
             - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_precision.py
 
         """
-        self.binPath = etool.taosBackupFile()
+        self.binPath = etool.taosDumpFile()
         if self.binPath == "":
             tdLog.exit("taosBackup not found!")
         else:

@@ -293,7 +293,7 @@ class TestTaosBackupVtable:
           create -> snapshot -> full backup -> verify artifacts
           -> restore -> verify schema -> verify tag values -> verify data
         """
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if not binPath:
             tdLog.exit("taosBackup binary not found")
 

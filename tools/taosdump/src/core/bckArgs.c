@@ -71,9 +71,9 @@ static bool g_stmtVersionSet = false;
 //
 
 void printVersion(bool verbose) {
-    printf("taosBackup version: %s\n", TD_VER_NUMBER);
+    printf("taosDump new version: %s\n", TD_VER_NUMBER);
     if (verbose) {
-        printf("git: %s\n", TAOSBACKUP_COMMIT_ID);
+        printf("git: %s\n", TAOSDUMP_COMMIT_ID);
         printf("build: %s\n", BUILD_INFO);
     }
 }

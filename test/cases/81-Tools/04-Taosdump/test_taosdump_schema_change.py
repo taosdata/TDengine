@@ -21,7 +21,7 @@ class TestTaosdumpSchemaChange:
 
     def backupIn(self, db, newdb, tmpdir):
         """Import with taosBackup from taosdump avro data."""
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         self.exec(f'{taosbackup} -W "{db}={newdb}" -i {tmpdir}')
 
     def createDir(self, path):
@@ -326,7 +326,6 @@ class TestTaosdumpSchemaChange:
         self.checkCorrect(db, newdb)
 
         # dump in with taosBackup (avro compatible)
-        tdLog.info("--- taosBackup import+verify ---")
         tdSql.execute(f"drop database if exists {newdb}")
         # Recreate newdd with new schema so schema change detection works
         command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
@@ -351,7 +350,6 @@ class TestTaosdumpSchemaChange:
         self.checkCorrect(db, newdb)
 
         # dump in with taosBackup (avro compatible)
-        tdLog.info("--- taosBackup import+verify (specify) ---")
         tdSql.execute(f"drop database if exists {newdb}")
         # Recreate newdd with new schema so schema change detection works
         command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"

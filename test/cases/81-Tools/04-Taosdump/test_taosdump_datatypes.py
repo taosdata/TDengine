@@ -47,10 +47,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -126,8 +126,8 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")            
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -201,8 +201,8 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -265,8 +265,8 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -336,11 +336,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
             os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
@@ -425,10 +424,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -531,11 +530,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
             os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
@@ -628,11 +626,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
             os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
@@ -710,9 +707,9 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -809,10 +806,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -892,10 +889,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -976,10 +973,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -1049,10 +1046,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -1125,10 +1122,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -1200,10 +1197,10 @@ class TestTaosdumpDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
-        for tool_name, tool in [("taosdump", self.binPath), ("taosBackup", self.backupPath)]:
+        for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             import_mode = mode if tool_name == "taosdump" else ""
             tdSql.execute("drop database db")
@@ -1257,7 +1254,7 @@ class TestTaosdumpDataTypes:
 
     def findPrograme(self):
         # taosdump
-        taosdump = etool.taosDumpFile()
+        taosdump = etool.taosOldDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
@@ -1418,7 +1415,7 @@ class TestTaosdumpDataTypes:
         self.dumpOut(taosdump, db, tmpdir)
 
         # import and verify with both taosdump and taosBackup
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             tdSql.execute(f"drop database if exists {newdb}")
@@ -1495,7 +1492,7 @@ class TestTaosdumpDataTypes:
         self.dumpOut(taosdump, db, tmpdir)
 
         # import and verify with both taosdump and taosBackup
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
             tdSql.execute(f"drop database if exists {newdb}")
@@ -1581,12 +1578,12 @@ class TestTaosdumpDataTypes:
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_tiny_int.py
         """
         # init
-        self.binPath = etool.taosDumpFile()
-        if self.binPath == "":
+        self.oldTaosdump = etool.taosOldDumpFile()
+        if self.oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found: %s" % self.binPath)
-        self.backupPath = etool.taosBackupFile()
+            tdLog.info("taosdump found: %s" % self.oldTaosdump)
+        self.newTaosdump = etool.taosDumpFile()
 
         # native
         self.do_all_datatypes("-Z 'Native'")

@@ -1,4 +1,4 @@
-# taosBackup test CMakeLists.txt
+# taosdump test CMakeLists.txt
 # Placeholder for test directory
 
 # Add test executables here if needed

@@ -91,7 +91,7 @@ class TestTaosBackupProgress:
 
         """
         benchmark  = etool.benchMarkFile()
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not benchmark or not taosbackup:
             tdLog.exit("required binaries not found")
         db     = "prog_tty"
@@ -199,7 +199,7 @@ class TestTaosBackupProgress:
 
         """
         benchmark  = etool.benchMarkFile()
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not benchmark or not taosbackup:
             tdLog.exit("required binaries not found")
         db     = "prog_pipe"
@@ -282,7 +282,7 @@ class TestTaosBackupProgress:
 
         """
         benchmark  = etool.benchMarkFile()
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not benchmark or not taosbackup:
             tdLog.exit("required binaries not found")
         src_db  = "prog_rst_tty_src"
@@ -393,7 +393,7 @@ class TestTaosBackupProgress:
 
         """
         benchmark  = etool.benchMarkFile()
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not benchmark or not taosbackup:
             tdLog.exit("required binaries not found")
         src_db    = "prog_rst_pipe_src"

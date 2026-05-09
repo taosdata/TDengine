@@ -739,7 +739,7 @@ class TestTaosBackupDataTypes:
         return os.system(command)
 
     def findPrograme(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if taosbackup == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1338,7 +1338,7 @@ class TestTaosBackupDataTypes:
             - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_datatypes.py
 
         """
-        self.binPath = etool.taosBackupFile()
+        self.binPath = etool.taosDumpFile()
         if self.binPath == "":
             tdLog.exit("taosBackup not found!")
         else:

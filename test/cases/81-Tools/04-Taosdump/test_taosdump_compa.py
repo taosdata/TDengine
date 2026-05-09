@@ -26,7 +26,7 @@ class TestTaosdumpCompa:
 
     def findPrograme(self):
         # taosdump 
-        taosdump = etool.taosDumpFile()
+        taosdump = etool.taosOldDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
@@ -110,13 +110,12 @@ class TestTaosdumpCompa:
         db = "test"
         
         # find
-        taosdump, tmpdir = self.findPrograme()
-        taosbackup = etool.taosBackupFile()
+        oldTaosdump, tmpdir = self.findPrograme()
+        newTaosdump = etool.taosDumpFile()
         data = f"{os.path.dirname(os.path.abspath(__file__))}/compa"
 
         # import and verify with both taosdump and taosBackup
-        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdSql.execute(f"drop database if exists {db}")
             self.dumpIn(tool, data)
             self.verifyResult(db)

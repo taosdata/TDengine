@@ -128,7 +128,6 @@ class ColdUpgradeTask:
                 f"Version directory not found for '{version}': {dirPath}"
             )
         return dirPath
-
     def resolveAllPairs(self) -> List[Tuple[str, str]]:
         """Resolve every base version to (fromDir, toDir).
 

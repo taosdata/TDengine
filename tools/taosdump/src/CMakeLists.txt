@@ -1,7 +1,7 @@
 # CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 MESSAGE("")
-MESSAGE("********** Start build taosBackup **********")
+MESSAGE("********** Start build taosdump **********")
 MESSAGE("")
 
 #
@@ -56,11 +56,11 @@ IF(GIT_FOUND)
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )    
     # show
-    MESSAGE(STATUS "taosBackup commit id: ${GIT_COMMIT_ID}")
+    MESSAGE(STATUS "taosdump commit id: ${GIT_COMMIT_ID}")
     # define
-    ADD_DEFINITIONS(-DTAOSBACKUP_COMMIT_ID="${GIT_COMMIT_ID}")
+    ADD_DEFINITIONS(-DTAOSDUMP_COMMIT_ID="${GIT_COMMIT_ID}")
 ELSE()
-    MESSAGE(FATAL_ERROR "build taosBackup FIND_PACKAGE(Git) failed.")
+    MESSAGE(FATAL_ERROR "build taosdump FIND_PACKAGE(Git) failed.")
 ENDIF (GIT_FOUND)
 
 
@@ -75,11 +75,11 @@ IF (DEFINED TD_VER_NUMBER)
     MESSAGE(STATUS "version:${TD_VER_NUMBER}")
 ELSE ()    
     # abort build
-    MESSAGE(FATAL_ERROR "build taosBackup not found TD_VER_NUMBER define.")
+    MESSAGE(FATAL_ERROR "build taosdump not found TD_VER_NUMBER define.")
 ENDIF ()
 
 #
-# ------------- taosBackup --------------
+# ------------- taosdump --------------
 #
 # Apache Arrow + Parquet are built from source via ExternalProject_Add in
 # cmake/external.cmake (ext_arrow), using ARROW_DEPENDENCY_SOURCE=BUNDLED so
@@ -97,7 +97,7 @@ INCLUDE_DIRECTORIES(../inc)
 
 # src
 ADD_EXECUTABLE(
-        taosBackup
+        taosdump
         main.c
         # core
         core/bckUtil.c
@@ -128,26 +128,26 @@ ADD_EXECUTABLE(
     )
 
 # Enable C++ for the mixed C/C++ target
-SET_TARGET_PROPERTIES(taosBackup PROPERTIES LINKER_LANGUAGE CXX)
+SET_TARGET_PROPERTIES(taosdump PROPERTIES LINKER_LANGUAGE CXX)
 
 # C++ standard required by Arrow C++ headers
-target_compile_features(taosBackup PRIVATE cxx_std_17)
+target_compile_features(taosdump PRIVATE cxx_std_17)
 
 # Arrow include directory (set by INIT_EXT in external.cmake)
-target_include_directories(taosBackup PRIVATE "${ext_arrow_inc_dir}")
+target_include_directories(taosdump PRIVATE "${ext_arrow_inc_dir}")
 
-# Declare build-time dependency so ext_arrow is compiled before taosBackup links
-add_dependencies(taosBackup ext_arrow)
+# Declare build-time dependency so ext_arrow is compiled before taosdump links
+add_dependencies(taosdump ext_arrow)
 
 if(NOT ${TD_WINDOWS})
     # Put each function/data in its own section so --gc-sections can dead-strip
     # unused code that is dragged in from Arrow/Parquet static libraries.
-    target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
+    target_compile_options(taosdump PRIVATE -ffunction-sections -fdata-sections)
 
     # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
     # which collide with ext_arrow's statically bundled ZSTD.
     if(NOT APPLE)
-        target_link_options(taosBackup PRIVATE
+        target_link_options(taosdump PRIVATE
             -Wl,--gc-sections
             -Wl,-Bsymbolic-functions
             -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/zstd_local.map
@@ -161,10 +161,10 @@ if(NOT ${TD_WINDOWS})
         include(CheckIPOSupported)
         check_ipo_supported(RESULT _ipo_ok OUTPUT _ipo_err LANGUAGES C CXX)
         if(_ipo_ok)
-            set_target_properties(taosBackup PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
-            message(STATUS "taosBackup: LTO enabled")
+            set_target_properties(taosdump PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+            message(STATUS "taosdump: LTO enabled")
         else()
-            message(STATUS "taosBackup: LTO not available (${_ipo_err}), skipping")
+            message(STATUS "taosdump: LTO not available (${_ipo_err}), skipping")
         endif()
     endif()
 endif()
@@ -174,39 +174,39 @@ if(TD_WINDOWS)
     # These macros switch to the static-library ABI (no dllimport decoration),
     # which is mandatory when linking against .lib static archives.
     # See: https://arrow.apache.org/docs/developers/cpp/windows.html#statically-linking-to-arrow-on-windows
-    target_compile_definitions(taosBackup PRIVATE ARROW_STATIC PARQUET_STATIC)
+    target_compile_definitions(taosdump PRIVATE ARROW_STATIC PARQUET_STATIC)
 
     # MSVC size-reduction equivalents of the Linux -ffunction-sections /
     # -fdata-sections / --gc-sections / -Os chain:
     #   /Gy  - function-level linking: each function in its own COMDAT so the
     #          linker's /OPT:REF can discard unreferenced ones
     #   /Gw  - each global variable in its own COMDAT (same, for data)
-    target_compile_options(taosBackup PRIVATE /Gy /Gw)
+    target_compile_options(taosdump PRIVATE /Gy /Gw)
 
     # /OPT:REF - remove unreferenced COMDATs (dead-code stripping)
     # /OPT:ICF - merge identical COMDATs (size deduplication)
-    target_link_options(taosBackup PRIVATE /OPT:REF /OPT:ICF)
+    target_link_options(taosdump PRIVATE /OPT:REF /OPT:ICF)
 
     # Link-Time Code Generation for non-Debug builds.
     # /GL (compile) + /LTCG (link) = whole-program optimisation, the MSVC
     # equivalent of GCC/Clang -flto.  Dead-strips and inlines across TUs.
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(taosBackup PRIVATE /GL)
-        target_link_options(taosBackup PRIVATE /LTCG)
+        target_compile_options(taosdump PRIVATE /GL)
+        target_link_options(taosdump PRIVATE /LTCG)
     endif()
 endif()
 
 # link taos
-TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)
+TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
 
 # link AVRO compatibility module
-TARGET_LINK_LIBRARIES(taosBackup PRIVATE compatAvro)
-target_include_directories(taosBackup PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../compatible)
-target_compile_definitions(taosBackup PRIVATE COMPAT_AVRO_ENABLED)
+TARGET_LINK_LIBRARIES(taosdump PRIVATE compatAvro)
+target_include_directories(taosdump PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../compatible)
+target_compile_definitions(taosdump PRIVATE COMPAT_AVRO_ENABLED)
 
 if(TD_WINDOWS)
     # Windows: link standard system libraries needed by TDengine client
-    target_link_libraries(taosBackup PRIVATE ws2_32 advapi32)
+    target_link_libraries(taosdump PRIVATE ws2_32 advapi32)
 
     # Transitive dependencies (e.g. from compatAvro) may reference "lzma.lib"
     # as a bare library name.  Add ext_xz's install directory so the MSVC
@@ -214,18 +214,18 @@ if(TD_WINDOWS)
     if(ext_xz_libs)
         list(GET ext_xz_libs 0 _xz_first_lib)
         get_filename_component(_xz_lib_dir "${_xz_first_lib}" DIRECTORY)
-        target_link_directories(taosBackup PRIVATE "${_xz_lib_dir}")
+        target_link_directories(taosdump PRIVATE "${_xz_lib_dir}")
     endif()
 endif()
 
 # link Arrow static libs: parquet → arrow → bundled deps (order matters for linker)
 foreach(_arrow_lib ${ext_arrow_libs})
-    target_link_libraries(taosBackup PRIVATE "${_arrow_lib}")
+    target_link_libraries(taosdump PRIVATE "${_arrow_lib}")
 endforeach()
 
 # On macOS, Arrow's bundled thrift / zlib need these system frameworks
 if(APPLE)
-    target_link_libraries(taosBackup PRIVATE
+    target_link_libraries(taosdump PRIVATE
         "-framework CoreFoundation"
         "-framework Security"
     )
@@ -239,12 +239,12 @@ if(NOT ${TD_WINDOWS})
     else()
         set(_strip_flag --strip-debug)
     endif()
-    add_custom_command(TARGET taosBackup POST_BUILD
-        COMMAND ${CMAKE_STRIP} ${_strip_flag} $<TARGET_FILE:taosBackup>
-        COMMENT "Stripping debug sections from taosBackup"
+    add_custom_command(TARGET taosdump POST_BUILD
+        COMMAND ${CMAKE_STRIP} ${_strip_flag} $<TARGET_FILE:taosdump>
+        COMMENT "Stripping debug sections from taosdump"
     )
 endif()
 
 MESSAGE("")
-MESSAGE("********** End build taosBackup ! **********")
+MESSAGE("********** End build taosdump ! **********")
 MESSAGE("")

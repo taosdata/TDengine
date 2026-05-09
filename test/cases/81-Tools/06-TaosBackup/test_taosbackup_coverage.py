@@ -225,7 +225,7 @@ class TestTaosBackupCoverage:
 
         Labels: common
         """
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -443,7 +443,7 @@ class TestTaosBackupCoverage:
 
         Labels: common
         """
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         tmpdir = _tmpdir("tmp_cov_badargs")
 
         rc, lines = _run(f"{taosbackup} -D testdb --data-batch 100 -o {tmpdir}")
@@ -493,7 +493,7 @@ class TestTaosBackupCoverage:
         """
         src = "cov_sigint_src"
         tmpdir = _tmpdir("tmp_cov_sigint")
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
 
         tdSql.execute(f"drop database if exists {src}")
         tdSql.execute(f"create database {src}")
@@ -861,7 +861,7 @@ class TestTaosBackupCoverage:
         """
         src = "cov_poolretry_src"
         tmpdir = _tmpdir("tmp_cov_poolretry")
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
 
         tdSql.execute(f"drop database if exists {src}")
         tdSql.execute(f"create database {src}")
@@ -1115,7 +1115,7 @@ class TestTaosBackupCoverage:
         stb    = "st"
         tmpdir = _tmpdir("tmp_cov_null_tag")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1183,7 +1183,7 @@ class TestTaosBackupCoverage:
         stb    = "sensors"
         tmpdir = _tmpdir("tmp_cov_ts_tag")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1248,7 +1248,7 @@ class TestTaosBackupCoverage:
         stb    = "measures"
         tmpdir = _tmpdir("tmp_cov_empty_ctb")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1316,7 +1316,7 @@ class TestTaosBackupCoverage:
         ROWS   = 50
         KILL_S = 20
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("taosBackup or taosBenchmark not found")
@@ -1400,7 +1400,7 @@ class TestTaosBackupCoverage:
         stb    = "st"
         tmpdir = _tmpdir("tmp_cov_ro_ckpt")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1462,7 +1462,7 @@ class TestTaosBackupCoverage:
         stb    = "st"
         tmpdir = _tmpdir("tmp_cov_extra_args")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1525,7 +1525,7 @@ class TestTaosBackupCoverage:
         stb    = "st"
         tmpdir = _tmpdir("tmp_cov_stmt1")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1586,7 +1586,7 @@ class TestTaosBackupCoverage:
         dst_db = "cov_ntb_only_dst"
         tmpdir = _tmpdir("tmp_cov_ntb_only")
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1646,7 +1646,7 @@ class TestTaosBackupCoverage:
         TABLES = 100
         ROWS   = 20
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("taosBackup or taosBenchmark not found")
@@ -1711,7 +1711,7 @@ class TestTaosBackupCoverage:
         stb    = "metrics"
         ROWS   = 10
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found")
 
@@ -1827,7 +1827,7 @@ class TestTaosBackupCoverage:
         ROWS      = 10
         SKIP_CNT  = 2
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("taosBackup or taosBenchmark not found")
@@ -2155,7 +2155,7 @@ class TestTaosBackupCoverage:
 
         tdLog.info("=== step 4: attempt restore — expect non-zero exit ===")
         tdSql.execute(f"drop database if exists {dst}")
-        taosbackup_bin = etool.taosBackupFile()
+        taosbackup_bin = etool.taosDumpFile()
         proc = subprocess.Popen(
             f"unset LD_PRELOAD; {taosbackup_bin}"
             f' -Z native -W "{db}={dst}" -i {tmpdir}',

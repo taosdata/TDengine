@@ -73,12 +73,12 @@ class TestTaosdumpBasic:
 
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
-        backupPath = etool.taosBackupFile()
+            tdLog.info("taosdump found in %s" % oldTaosdump)
+        newTaosdump = etool.taosDumpFile()
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -87,10 +87,9 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s -D db -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s -D db -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True, )
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (basic) ---")
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdSql.execute("drop database if exists db")
             os.system("%s -i %s -T 1" % (tool, self.tmpdir))
 
@@ -173,18 +172,17 @@ class TestTaosdumpBasic:
         )
         tdSql.execute("create vtable vt1(c1 from t1.c1, c2 from t1.c2) using vst(t1, t2) tags(1, 'beijing')")
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found: %s" % binPath)
-        backupPath = etool.taosBackupFile()
+            tdLog.info("taosdump found: %s" % oldTaosdump)
+        newTaosdump = etool.taosDumpFile()
 
-        os.system("%s --password < %s --databases db -o ./taosdumptest/tmp1 -c /etc/taos" % (binPath, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"))
-        os.system("%s -p < %s --databases db1 -o ./taosdumptest/tmp2" % (binPath, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"))
+        etool.runRetList("%s --password < %s --databases db -o ./taosdumptest/tmp1 -c /etc/taos" % (oldTaosdump, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"), checkRun=True)
+        etool.runRetList("%s -p < %s --databases db1 -o ./taosdumptest/tmp2" % (oldTaosdump, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"), checkRun=True)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (test) ---")
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdSql.execute("drop database if exists db")
             tdSql.execute("drop database if exists db1")
             tdSql.execute("drop database if exists newdb")
@@ -289,13 +287,12 @@ class TestTaosdumpBasic:
         )
         tdSql.query("show stables")
         tdSql.checkRows(2)
-        os.system(
+        etool.runRetList(
             "%s --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1"
-            % binPath
+            % oldTaosdump, checkRun=True
         )
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (boundary) ---")
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdSql.execute("drop database if exists db12312313231231321312312312_323")
             tdSql.execute("drop database if exists db12312313231231321312312312_323abc")
             os.system("%s -W db12312313231231321312312312_323=db12312313231231321312312312_323abc -i ./taosdumptest/tmp1" % tool)
@@ -352,19 +349,19 @@ class TestTaosdumpBasic:
                     break
             tdSql.execute(sql)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
-        backupPath = etool.taosBackupFile()
+            tdLog.info("taosdump found in %s" % oldTaosdump)
+        newTaosdump = etool.taosDumpFile()
 
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
         os.system("rm -rf ./taosdumptest/taosdump.*")
-        os.system("%s --databases db -o ./taosdumptest/tmp " % binPath)
+        etool.runRetList("%s --databases db -o ./taosdumptest/tmp " % oldTaosdump, checkRun=True)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (test2-db) ---")
             tdSql.execute("drop database if exists db")
             tdSql.query("show databases")
@@ -402,9 +399,9 @@ class TestTaosdumpBasic:
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
         os.system("rm -rf ./taosdumptest/tmp/taosdump.*")
-        os.system("%s -D test -o ./taosdumptest/tmp " % binPath)
+        etool.runRetList("%s -D test -o ./taosdumptest/tmp " % oldTaosdump, checkRun=True)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (test2-test) ---")
             tdSql.execute("drop database if exists test")
             tdSql.query("show databases")
@@ -455,11 +452,11 @@ class TestTaosdumpBasic:
 
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -468,14 +465,13 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s -L -D db -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s -L -D db -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (loose) ---")
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdSql.execute("drop database if exists db")
 
-            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            etool.runRetList("%s -i %s -T 1" % (tool, self.tmpdir), checkRun=True)
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -527,11 +523,11 @@ class TestTaosdumpBasic:
 
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -540,19 +536,19 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s --databases db -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s --databases db -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
 
         #        sys.exit(1)
         avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump.*", "*.avro*"))
         for avro_file in avro_files:
-            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\" -s"
+            taosdumpInspectCmd = f"{oldTaosdump} -I \"{avro_file}\" -s"
             print(taosdumpInspectCmd)
-            os.system(taosdumpInspectCmd)
+            etool.runRetList(taosdumpInspectCmd, checkRun=True)
 
         avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump.*", "*.avro*"))
         schemaTimes = 0
         for avro_file in avro_files:
-            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\" -s"
+            taosdumpInspectCmd = f"{oldTaosdump} -I \"{avro_file}\" -s"
             output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
             schemaTimes += sum(1 for line in output.splitlines() if "Schema:" in line)
         print("schema found times: %d" % int(schemaTimes))
@@ -567,7 +563,7 @@ class TestTaosdumpBasic:
         data_avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump*", "data*", "*.avro*"))
         schemaTimes = 0
         for avro_file in data_avro_files:
-            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\" -s"
+            taosdumpInspectCmd = f"{oldTaosdump} -I \"{avro_file}\" -s"
             output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
             schemaTimes += sum(1 for line in output.splitlines() if "Schema:" in line)
         print("schema found times: %d" % int(schemaTimes))
@@ -582,7 +578,7 @@ class TestTaosdumpBasic:
         avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump.*", "*.avro*"))
         recordsTimes = 0
         for avro_file in avro_files:
-            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\""
+            taosdumpInspectCmd = f"{oldTaosdump} -I \"{avro_file}\""
             print(taosdumpInspectCmd)
             output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
             recordsTimes += sum(1 for line in output.splitlines() if "=== Records:" in line)
@@ -598,7 +594,7 @@ class TestTaosdumpBasic:
         data_avro_files = glob.glob(os.path.join(self.tmpdir, "taosdump*", "data*", "*.avro*"))
         recordsTimes = 0
         for avro_file in data_avro_files:
-            taosdumpInspectCmd = f"{binPath} -I \"{avro_file}\""
+            taosdumpInspectCmd = f"{oldTaosdump} -I \"{avro_file}\""
             output = subprocess.check_output(taosdumpInspectCmd, shell=True).decode("utf-8")
             recordsTimes += sum(1 for line in output.splitlines() if "=== Records:" in line)
         print("records found times: %d" % int(recordsTimes))
@@ -649,11 +645,11 @@ class TestTaosdumpBasic:
 
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -662,10 +658,10 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db t1 -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s db t1 -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (db_ntb) ---")
             tdSql.execute("drop database if exists db")
             tdSql.execute("drop database if exists newdb")
@@ -731,11 +727,11 @@ class TestTaosdumpBasic:
 
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -744,10 +740,10 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db st -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s db st -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (db_stb) ---")
             tdSql.execute("drop database if exists db")
             tdSql.execute("drop database if exists newdb")
@@ -797,11 +793,11 @@ class TestTaosdumpBasic:
         )
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -810,12 +806,12 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        print("%s Db st -e -o %s -T 1" % (binPath, self.tmpdir))
-        os.system("%s Db st -e -o %s -T 1" % (binPath, self.tmpdir))
+        print("%s Db st -e -o %s -T 1" % (oldTaosdump, self.tmpdir))
+        etool.runRetList("%s Db st -e -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
         # sys.exit(1)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool, extra_flags in [("taosdump", binPath, "-e"), ("taosBackup", backupPath, "")]:
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool, extra_flags in [("taosdump", oldTaosdump, "-e"), ("taosBackup", newTaosdump, "")]:
             tdLog.info(f"--- {tool_name} import+verify (escaped_db) ---")
             tdSql.execute("drop database if exists `Db`")
             tdSql.execute("drop database if exists `NewDb`")
@@ -851,11 +847,11 @@ class TestTaosdumpBasic:
     # ------------------- test_taosdump_in_diff_type.py ----------------
     #
     def do_taosdump_in_diff_type(self):
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         tdSql.prepare()
 
@@ -876,10 +872,10 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s db -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (diff_type) ---")
             # re-create the table with different types for each iteration
             tdSql.execute("drop table if exists db.tb")
@@ -945,11 +941,11 @@ class TestTaosdumpBasic:
             ins_sql += ")"
             tdSql.execute(ins_sql)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
+        oldTaosdump = etool.taosOldDumpFile()
+        if oldTaosdump == "":
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % binPath)
+            tdLog.info("taosdump found in %s" % oldTaosdump)
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -958,14 +954,14 @@ class TestTaosdumpBasic:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%s db -o %s -T 1" % (binPath, self.tmpdir))
+        etool.runRetList("%s db -o %s -T 1" % (oldTaosdump, self.tmpdir), checkRun=True)
 
-        backupPath = etool.taosBackupFile()
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        newTaosdump = etool.taosDumpFile()
+        for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify (many_cols) ---")
             tdSql.execute("drop database if exists db")
 
-            os.system("%s -i %s -T 1" % (tool, self.tmpdir))
+            etool.runRetList("%s -i %s -T 1" % (tool, self.tmpdir), checkRun=True)
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult

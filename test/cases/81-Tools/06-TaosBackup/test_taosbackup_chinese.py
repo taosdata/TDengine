@@ -83,7 +83,7 @@ class TestTaosBackupChinese:
         return any(row[0] == dbname for row in tdSql.queryResult)
 
     def binPath(self):
-        p = etool.taosBackupFile()
+        p = etool.taosDumpFile()
         if not p:
             tdLog.exit("taosBackup binary not found")
         return p

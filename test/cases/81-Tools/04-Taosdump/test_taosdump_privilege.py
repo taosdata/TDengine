@@ -68,12 +68,12 @@ class TestTaosdumpNonRoot:
 
         #        sys.exit(1)
 
-        binPath = etool.taosDumpFile()
+        binPath = etool.taosOldDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % binPath)
-        backupPath = etool.taosBackupFile()
+        backupPath = etool.taosDumpFile()
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -88,8 +88,7 @@ class TestTaosdumpNonRoot:
         os.system(f"%s -D db -o %s -T 1" % (binPath, self.tmpdir))
 
         # import and verify with both taosdump and taosBackup
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database if exists db")
             tdSql.execute("drop database if exists newdb")
             os.system("%s -i %s -T 1 -W db=newdb" % (tool, self.tmpdir))

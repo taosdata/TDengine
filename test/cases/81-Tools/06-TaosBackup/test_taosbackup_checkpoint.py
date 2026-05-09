@@ -81,7 +81,7 @@ class TestTaosBackupCheckpoint:
     # ------------------------------------------------------------------
 
     def find_programs(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found!")
         tdLog.info(f"taosBackup: {taosbackup}")

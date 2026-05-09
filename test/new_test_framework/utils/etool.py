@@ -25,8 +25,8 @@ from .log import *
 from .sql import tdSql
 
 TAOS = "taos"
+OLD_TAOSDUMP = "old_taosdump"
 TAOSDUMP = "taosdump"
-TAOSBACKUP = "taosBackup"
 TAOSBENCHMARK = "taosBenchmark"
 TAOSADAPTER = "taosadapter"
 TAOSK = "taosk"
@@ -57,15 +57,12 @@ def taosDumpFile():
     return bmFile
 
 # taosBackup
-def taosBackupFile():
-    """Get the path to the `taosBackup` binary file.
-
-    Returns:
-        str: The full path to the `taosBackup` binary file, with `.exe` appended if on Windows.
-    """
-    bmFile = binFile(TAOSBACKUP)
+def taosOldDumpFile():
+    bmFile = binFile(OLD_TAOSDUMP)
     if isWin():
         bmFile += ".exe"
+    if not os.path.exists(bmFile):
+        downOldTaosDump()
     return bmFile
 
 # taosBenchmark
@@ -171,12 +168,6 @@ def runBinFile(fname, command, show = True, checkRun = False, retFail = False ):
     cmd = f"{bin_file} {command}"
     if show:
         tdLog.info(cmd)
-    # Unset LD_PRELOAD so that ASAN (preloaded for taosd) does not instrument
-    # standalone tools like taosBackup/taosdump/taosBenchmark, which would
-    # otherwise exit with code 1 on leak-detection false-positives from the
-    # TDengine client STMT async thread.
-    if not isWin():
-        cmd = f"unset LD_PRELOAD; {cmd}"
     return runRetList(cmd, checkRun=checkRun, retFail=retFail, show=show)
 
 # exe build/bin file
@@ -225,8 +216,8 @@ def taos(command, show = True, checkRun = False):
 def taosdump(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSDUMP, command, show, checkRun, retFail)
 
-def taosbackup(command, show = True, checkRun = True, retFail = True):
-    return runBinFile(TAOSBACKUP, command, show, checkRun, retFail)
+def taosolddump(command, show = True, checkRun = True, retFail = True):
+    return runBinFile(OLD_TAOSDUMP, command, show, checkRun, retFail)
 
 def benchmark(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSBENCHMARK, command, show, checkRun, retFail)        
@@ -245,3 +236,13 @@ def getFilePath(base_dir, *parts):
     if platform.system().lower() == 'windows':
         file_path = file_path.replace("\\", "\\\\")
     return file_path
+
+def downOldTaosDump():
+    dest = binFile(OLD_TAOSDUMP)
+    url = "http://192.168.1.131/data/nas/TDengine/old_taosdump/old_taosdump"
+    tdLog.info(f"download {url} to {dest}")
+    ret = exe(f"wget -q -O {dest} {url}")
+    if ret != 0:
+        tdLog.exit(f"download old_taosdump failed, ret={ret}")
+    os.chmod(dest, 0o755)
+    print(f"download old_taosdump success: {dest}")

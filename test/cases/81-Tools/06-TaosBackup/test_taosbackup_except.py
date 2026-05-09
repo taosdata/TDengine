@@ -123,7 +123,7 @@ class TestTaosBackupExcept:
         return os.system(command)
 
     def findPrograme(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if taosbackup == "":
             tdLog.exit("taosBackup not found!")
         else:
@@ -255,7 +255,7 @@ class TestTaosBackupExcept:
     # =========================================================================
 
     def _srv_find_programs(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found!")
         benchmark = etool.benchMarkFile()
@@ -354,7 +354,7 @@ class TestTaosBackupExcept:
     # =========================================================================
 
     def _rr_find_programs(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found!")
         benchmark = etool.benchMarkFile()
@@ -400,7 +400,7 @@ class TestTaosBackupExcept:
     # =========================================================================
 
     def _tf_find_programs(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if not taosbackup:
             tdLog.exit("taosBackup not found!")
         benchmark = etool.benchMarkFile()

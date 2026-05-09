@@ -189,7 +189,7 @@ class TestTaosBackupBugs:
               Removed do_taosdump_escaped_db (uses -R/-e flags not available in taosBackup)
 
         """
-        self.binPath = etool.taosBackupFile()
+        self.binPath = etool.taosDumpFile()
         if self.binPath == "":
             tdLog.exit("taosBackup not found!")
         else:

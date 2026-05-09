@@ -27,7 +27,7 @@ class TestTaosBackupCommandline:
 
     def findPrograme(self):
         # taosBackup
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if taosbackup == "":
             tdLog.exit("taosBackup not found!")
         else:
@@ -336,7 +336,7 @@ class TestTaosBackupCommandline:
 
     def checkConnMode(self, db, tmpdir):
         """Test connection mode priority: cmd option > env variable."""
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         results = [RESULT_SUCCESS]
 
         # env=invalid port 6043, cmd=valid 6041 -> should use cmd

@@ -22,7 +22,7 @@ class TestTaosBackupPrimaryKey:
         return os.system(command)
 
     def findPrograme(self):
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         if taosbackup == "":
             tdLog.exit("taosBackup not found!")
         else:

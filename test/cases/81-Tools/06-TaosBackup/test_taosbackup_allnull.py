@@ -330,7 +330,7 @@ class TestTaosBackupAllNull:
         4. Binary backup → restore to DST DB.
         5. Snapshot DST aggregates and compare with source – must match exactly.
         """
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if not binPath:
             tdLog.exit("taosBackup binary not found")
 

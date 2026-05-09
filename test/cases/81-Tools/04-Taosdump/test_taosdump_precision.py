@@ -98,12 +98,12 @@ class TestTaosdumpPrecision:
         if not os.path.exists("./taosdumptest/dumptmp3"):
             os.makedirs("./taosdumptest/dumptmp3")
 
-        binPath = etool.taosDumpFile()
+        binPath = etool.taosOldDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found: %s" % binPath)
-        backupPath = etool.taosBackupFile()
+        backupPath = etool.taosDumpFile()
 
         # create nano second database
 
@@ -123,22 +123,19 @@ class TestTaosdumpPrecision:
             % binPath
         )
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (dumptmp2) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp2" % tool)
             tdSql.query("select count(*) from timedb1.st")
             tdSql.checkData(0, 0, 510)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (dumptmp3) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp3" % tool)
             tdSql.query("select count(*) from timedb1.st")
             tdSql.checkData(0, 0, 900)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (dumptmp1) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp1" % tool)
             tdSql.query("select count(*) from timedb1.st")
@@ -146,7 +143,7 @@ class TestTaosdumpPrecision:
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdLog.info(f"--- {tool_name} data compare (nano second) ---")
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp1" % tool)
@@ -189,22 +186,19 @@ class TestTaosdumpPrecision:
         os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
         os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (dumptmp2) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp2" % tool)
             tdSql.query("select count(*) from timedb1.st")
             tdSql.checkData(0, 0, 510)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (dumptmp3) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp3" % tool)
             tdSql.query("select count(*) from timedb1.st")
             tdSql.checkData(0, 0, 900)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} import+verify (dumptmp1) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp1" % tool)
             tdSql.query("select count(*) from timedb1.st")
@@ -212,8 +206,7 @@ class TestTaosdumpPrecision:
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
-            tdLog.info(f"--- {tool_name} data compare (micro second) ---")
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp1" % tool)
             dump_res = tdSql.getResult("select * from timedb1.st")
@@ -255,21 +248,21 @@ class TestTaosdumpPrecision:
         os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
         os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdLog.info(f"--- {tool_name} import+verify (dumptmp2) ---")
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp2" % tool)
             tdSql.query("select count(*) from timedb1.st")
             tdSql.checkData(0, 0, 510)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdLog.info(f"--- {tool_name} import+verify (dumptmp3) ---")
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp3" % tool)
             tdSql.query("select count(*) from timedb1.st")
             tdSql.checkData(0, 0, 900)
 
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdLog.info(f"--- {tool_name} import+verify (dumptmp1) ---")
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp1" % tool)
@@ -278,7 +271,7 @@ class TestTaosdumpPrecision:
 
         # check data
         origin_res = tdSql.getResult("select * from timedb1.st")
-        for tool_name, tool in [("taosdump", binPath), ("taosBackup", backupPath)]:
+        for tool_name, tool in [("taosBackup", backupPath)]:
             tdLog.info(f"--- {tool_name} data compare (million second) ---")
             tdSql.execute("drop database timedb1")
             os.system("%s -i ./taosdumptest/dumptmp1" % tool)

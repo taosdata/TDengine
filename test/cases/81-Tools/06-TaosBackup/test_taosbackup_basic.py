@@ -114,7 +114,7 @@ class TestTaosBackupBasic:
             "insert into nt1 values(1640000000001, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
         )
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
         else:
@@ -198,7 +198,7 @@ class TestTaosBackupBasic:
             sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
         tdSql.execute(sql)
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -280,7 +280,7 @@ class TestTaosBackupBasic:
         tdSql.execute("create table nt1(ts timestamp, c1 int)")
         tdSql.execute("insert into nt1 values(1640000000000, 100)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -344,7 +344,7 @@ class TestTaosBackupBasic:
         tdSql.execute("create table db.nt1 (ts timestamp, c1 INT)")
         tdSql.execute("insert into nt1 values(1640000000000, 100)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -407,7 +407,7 @@ class TestTaosBackupBasic:
         tdSql.execute("create table t3 using st2 tags(3)")
         tdSql.execute("insert into t3 values(1640000000000, 3)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -472,7 +472,7 @@ class TestTaosBackupBasic:
                 % (1640000000000 + i, i + 50, (i + 50) * 1.0, i + 50)
             )
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -549,7 +549,7 @@ class TestTaosBackupBasic:
                     break
             tdSql.execute(sql)
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -651,7 +651,7 @@ class TestTaosBackupBasic:
             ins_sql += ")"
             tdSql.execute(ins_sql)
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -712,7 +712,7 @@ class TestTaosBackupBasic:
                 "insert into t%d values(1640000000000, %d)" % (i, i)
             )
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -768,7 +768,7 @@ class TestTaosBackupBasic:
                 % (1640000000000 + i, i, i)
             )
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -871,7 +871,7 @@ class TestTaosBackupBasic:
             "insert into nt1 values(1640000000001, NULL, NULL, NULL, NULL)"
         )
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -954,7 +954,7 @@ class TestTaosBackupBasic:
         tdSql.execute("insert into t1 values(1640000000000, 100)")  # has data
         tdSql.execute("create table t2 using st tags(2)")           # empty
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1009,7 +1009,7 @@ class TestTaosBackupBasic:
         tdSql.execute("insert into nt1 values(1640000000000, 42)")  # has data
         tdSql.execute("create table nt2(ts timestamp, c1 int)")     # empty
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1066,7 +1066,7 @@ class TestTaosBackupBasic:
         # t2: data in 2021 — outside the backup range
         tdSql.execute("insert into t2 values(1609459200000, 20)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1125,7 +1125,7 @@ class TestTaosBackupBasic:
         tdSql.execute("create table t1 using st tags(1)")
         tdSql.execute("insert into t1 values(1640000000000, 1)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1185,7 +1185,7 @@ class TestTaosBackupBasic:
         tdSql.execute("create table t4 using st tags(4)")
         tdSql.execute("create table t5 using st tags(5)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1267,7 +1267,7 @@ class TestTaosBackupBasic:
         # t4: empty
         tdSql.execute("create table t4 using st tags(4)")
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1353,7 +1353,7 @@ class TestTaosBackupBasic:
                 "insert into t3 values(%d, %d)" % (1641000000000 + j, j + 100)
             )
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 
@@ -1409,7 +1409,7 @@ class TestTaosBackupBasic:
         """
         tmpdir = "./taosbackuptest/tmpdir_table_level"
 
-        binPath = etool.taosBackupFile()
+        binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosBackup not found!")
 

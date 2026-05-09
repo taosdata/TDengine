@@ -1740,7 +1740,7 @@ if(NOT ${TD_WINDOWS})
     # Debug: -Og is GCC's "optimize for debugging" level — produces accurate
     # backtraces/watchpoints like -O0 but inlines trivial wrappers, resulting in
     # ~50-60 % smaller code sections compared to -O0.  This is safe to use
-    # for Arrow because we only debug taosBackup itself, not Arrow internals.
+    # for Arrow because we only debug taosdump itself, not Arrow internals.
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
         "-DCMAKE_C_FLAGS_DEBUG:STRING=-Og -g"
         "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-Og -g"

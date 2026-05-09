@@ -84,7 +84,7 @@ class TestTaosBackupErrors:
             - 2026-03-24 Alex Duan Created to cover bckPool.c back-off path
 
         """
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("required binaries not found")
@@ -263,7 +263,7 @@ class TestTaosBackupErrors:
         tdLog.info("=== step 4: attempt restore - expect failure ===")
         tdSql.execute(f"drop database if exists {dst_db}")
         proc = subprocess.Popen(
-            f"{etool.taosBackupFile()}"
+            f"{etool.taosDumpFile()}"
             f' -Z native -W "{db}={dst_db}" -i {tmpdir}',
             shell=True,
             stdout=subprocess.PIPE,
@@ -385,7 +385,7 @@ class TestTaosBackupErrors:
             - 2026-03-27 Alex Duan Created to cover g_interrupted backup code paths
 
         """
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("required binaries not found")
@@ -505,7 +505,7 @@ class TestTaosBackupErrors:
             - 2026-03-27 Alex Duan Created to cover g_interrupted restore code paths
 
         """
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("required binaries not found")
@@ -633,7 +633,7 @@ class TestTaosBackupErrors:
         """
         import tempfile as _tempfile
 
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("required binaries not found")
@@ -755,7 +755,7 @@ class TestTaosBackupErrors:
             - 2026-03-27 Alex Duan Created to cover backupMeta.c stb.sql open-failure path
 
         """
-        taosbackup = etool.taosBackupFile()
+        taosbackup = etool.taosDumpFile()
         benchmark  = etool.benchMarkFile()
         if not taosbackup or not benchmark:
             tdLog.exit("required binaries not found")

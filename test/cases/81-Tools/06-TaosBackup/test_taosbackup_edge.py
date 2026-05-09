@@ -90,7 +90,7 @@ class TestTaosBackupEdge:
             f"insert into {digit_db}.{digit_tbl} values(1640000000000, 99)"
         )
 
-        bin = etool.taosBackupFile()
+        bin = etool.taosDumpFile()
         os.system(f"{bin} --databases {long_db},{short_db},{digit_db} -o {tmpdir}")
 
         for db in (long_db, short_db, digit_db):
@@ -134,7 +134,7 @@ class TestTaosBackupEdge:
         tdSql.execute("insert into pathdb.nt values(1640000000000, 1)")
         tdSql.execute("insert into pathdb.nt values(1640000001000, 2)")
 
-        bin = etool.taosBackupFile()
+        bin = etool.taosDumpFile()
 
         # Case A: directory name containing spaces  (must be pre-created;
         # taosBackup does not auto-create output directories)
@@ -189,7 +189,7 @@ class TestTaosBackupEdge:
         tdSql.execute("create table nt(ts timestamp, v int)")
         tdSql.execute("insert into nt values(1640000000000, 100)")
 
-        bin = etool.taosBackupFile()
+        bin = etool.taosDumpFile()
 
         # Backup without -g (normal mode)
         rlist_norm = etool.taosbackup(f"-D debugdb -o {tmpdir_norm} -T 1")
@@ -310,7 +310,7 @@ class TestTaosBackupEdge:
             sql += f"({1640000000000 + i * 1000}, {i})"
         tdSql.execute(sql)
 
-        bin = etool.taosBackupFile()
+        bin = etool.taosDumpFile()
 
         # Build a writer script: inserts rows using the taos CLI in a tight loop.
         # Each row uses now() for the timestamp to avoid collisions with pre-rows.
