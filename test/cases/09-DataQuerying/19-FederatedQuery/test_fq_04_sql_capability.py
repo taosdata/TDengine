@@ -801,7 +801,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             # CONTAINS: same reason — NCHAR is not the JSON tag type
             tdSql.error(
-                f"select id from {t} where data contains 'num' order by id")
+                f"select id from {t} where data contains 'num' order by id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_COL_JSON)
 
             # --- workaround: LIKE-based key search on the raw JSON string ---
             # External JSON/JSONB/string columns are mapped to NCHAR.  LIKE is
@@ -2467,20 +2468,20 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         ]
 
         def body(src, db_type):
-            # All sources map 'plain' to NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
-            # aes_encrypt/sm4_encrypt require VARCHAR → error for NCHAR input.
-            tdSql.error(
-                f"select aes_encrypt(plain, 'mykeystring12345') "
-                f"from {src}.data where id = 1",
-                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
-            tdSql.error(
-                f"select sm4_encrypt(plain, 'mykeystring12345') "
-                f"from {src}.data where id = 1",
-                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
-            # crc32 accepts NCHAR; UCS-4 encoding of "hello" = 927702683 for all sources.
-            tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 927702683)
+            if db_type == 'influx':
+                # InfluxDB maps strings to NCHAR; aes/sm4/crc32 require VARCHAR → error
+                tdSql.error(
+                    f"select aes_encrypt(plain, 'mykeystring12345') "
+                    f"from {src}.data where id = 1",
+     expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+                tdSql.error(
+                    f"select sm4_encrypt(plain, 'mykeystring12345') "
+                    f"from {src}.data where id = 1",
+                    expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+                # crc32 accepts NCHAR; value differs from VARCHAR (UCS-4 encoding)
+                tdSql.query(f"select crc32(plain) from {src}.data where id = 1")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 927702683)
 
             # CAST to VARCHAR converts UCS-4 NCHAR to UTF-8 → correct round-trip.
             col = "CAST(plain AS VARCHAR(100))"
@@ -2580,12 +2581,12 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         def body(src):
             t = f"{src}.src_t"
 
-            # All sources map 'name' to NCHAR (MySQL utf8mb4/PG UTF-8/InfluxDB → NCHAR).
-            # sha1/sha2 require VARCHAR → error for NCHAR input.
-            tdSql.error(f"select sha1(name) from {t} where val = 1",
-                        expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
-            tdSql.error(f"select sha2(name, 256) from {t} where val = 1",
-                        expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+            if src.endswith("_i"):
+                # InfluxDB maps strings to NCHAR; sha1/sha2 require VARCHAR → error
+                tdSql.error(f"select sha1(name) from {t} where val = 1",
+                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
+                tdSql.error(f"select sha2(name, 256) from {t} where val = 1",
+                            expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
 
             # CAST to VARCHAR converts UCS-4 NCHAR to UTF-8 → correct SHA hash.
             tdSql.query(f"select sha1(CAST(name AS VARCHAR(32))) from {t} where val = 1")
