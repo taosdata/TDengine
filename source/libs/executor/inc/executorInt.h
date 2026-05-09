@@ -259,6 +259,8 @@ typedef struct SFederatedScanOperatorInfo {
   SExtQueryHandle*          pQueryHandle;       // query handle (Module B)
   bool                      queryStarted;       // query has been issued
   bool                      queryFinished;      // EOF reached
+  bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
+  bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
   int64_t                   fetchedRows;        // cumulative rows fetched
   int64_t                   fetchBlockCount;    // cumulative block count
   int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)

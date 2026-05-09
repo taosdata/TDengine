@@ -1435,6 +1435,11 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
   tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
   pScan->metaVersion = pExtNode->metaVersion;
+  // Propagate two-pass mode: set when the parent AGG has PERCENTILE or other REPEAT_SCAN_FUNC.
+  pScan->twoPassMode = (pScanLogicNode->scanSeq[0] > 1);
+  taosPrintLog("FQ-DIAG2 ", DEBUG_ERROR, 255,
+               "createFederatedScanPhysiNode scanSeq[0]=%d twoPassMode=%d",
+               (int)pScanLogicNode->scanSeq[0], (int)pScan->twoPassMode);
 
   // Add output data block slots.
   {
@@ -1587,14 +1592,26 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     return code;
   }
 
+  // Copy pColTypeMappings from Mode 1 pScan to Mode 2 pLeaf so that
+  // nodesRemotePlanToSQL (executor side) can detect column source types
+  // (e.g. PG JSONB) even after pExtMeta has been freed.
+  if (pScan->numColTypeMappings > 0 && pScan->pColTypeMappings) {
+    pLeaf->pColTypeMappings = (SExtColTypeMapping*)taosMemoryCalloc(
+        pScan->numColTypeMappings, sizeof(SExtColTypeMapping));
+    if (pLeaf->pColTypeMappings) {
+      (void)memcpy(pLeaf->pColTypeMappings, pScan->pColTypeMappings,
+                   pScan->numColTypeMappings * sizeof(SExtColTypeMapping));
+      pLeaf->numColTypeMappings = pScan->numColTypeMappings;
+    }
+  }
+
   // WHERE clause: clone conditions with original column names (not slot IDs).
-  // pPushedConditions holds conditions that are fully remote (e.g. EXISTS with
-  // RAW_SQL_FRAG); these must appear in the leaf for SQL generation but NOT in
-  // the outer scan operator.  Fall back to node.pConditions for ordinary scans.
+  // Only pPushedConditions are sent to the remote DB (they are fully-pushdownable,
+  // e.g. EXISTS with RAW_SQL_FRAG).  node.pConditions (e.g. LIKE on JSONB) are
+  // executed locally by the FederatedScan operator and must NOT appear in the
+  // leaf's remote SQL.
   {
-    SNode* pLeafCond = (pScanLogicNode->pPushedConditions != NULL)
-                         ? pScanLogicNode->pPushedConditions
-                         : pScanLogicNode->node.pConditions;
+    SNode* pLeafCond = pScanLogicNode->pPushedConditions;
     if (pLeafCond != NULL) {
       code = nodesCloneNode(pLeafCond, &pLeaf->node.pConditions);
       if (TSDB_CODE_SUCCESS != code) {
@@ -2734,6 +2751,7 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   pGrpCache->grpByUid = pLogicNode->grpByUid;
   pGrpCache->globalGrp = pLogicNode->globalGrp;
   pGrpCache->batchFetch = pLogicNode->batchFetch;
+  pGrpCache->twoPassMode = pLogicNode->twoPassMode;
   SDataBlockDescNode* pChildDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
   int32_t             code = TSDB_CODE_SUCCESS;
   /*

@@ -1706,6 +1706,7 @@ static const char* jkGroupCacheLogicPlanGrpColsMayBeNull = "GroupColsMayBeNull";
 static const char* jkGroupCacheLogicPlanGroupByUid = "GroupByUid";
 static const char* jkGroupCacheLogicPlanGlobalGroup = "GlobalGroup";
 static const char* jkGroupCacheLogicPlanGroupCols = "GroupCols";
+static const char* jkGroupCacheLogicPlanTwoPassMode = "TwoPassMode";
 
 static int32_t logicGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   const SGroupCacheLogicNode* pNode = (const SGroupCacheLogicNode*)pObj;
@@ -1719,6 +1720,9 @@ static int32_t logicGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCacheLogicPlanGlobalGroup, pNode->globalGrp);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkGroupCacheLogicPlanTwoPassMode, pNode->twoPassMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCacheLogicPlanGroupCols, pNode->pGroupCols);
@@ -1739,6 +1743,9 @@ static int32_t jsonToLogicGroupCacheNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkGroupCacheLogicPlanGlobalGroup, &pNode->globalGrp);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkGroupCacheLogicPlanTwoPassMode, &pNode->twoPassMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkGroupCacheLogicPlanGroupCols, &pNode->pGroupCols);
@@ -2845,6 +2852,9 @@ static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
                          pNode->pColTypeMappings, sizeof(SExtColTypeMapping),
                          pNode->numColTypeMappings);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "TwoPassMode", pNode->twoPassMode);
+  }
   return code;
 }
 
@@ -2907,6 +2917,17 @@ static int32_t jsonToFederatedScanPhysiNode(const SJson* pJson, void* pObj) {
       }
     }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    // TwoPassMode: optional field (absent in older plans = false)
+    code = tjsonGetBoolValue(pJson, "TwoPassMode", &pNode->twoPassMode);
+    if (TSDB_CODE_SUCCESS != code) {
+      pNode->twoPassMode = false;
+      code = TSDB_CODE_SUCCESS;
+    }
+  }
+  taosPrintLog("FQ-DIAG-DECODE ", DEBUG_ERROR, 255,
+               "jsonToFederatedScanPhysiNode: decoded twoPassMode=%d code=%d",
+               (int)pNode->twoPassMode, code);
   return code;
 }
 
@@ -4654,6 +4675,7 @@ static const char* jkGroupCachePhysiPlanGrpColsMayBeNull = "GroupColumnsMayBeNul
 static const char* jkGroupCachePhysiPlanGroupByUid = "GroupByUid";
 static const char* jkGroupCachePhysiPlanGlobalGroup = "GlobalGroup";
 static const char* jkGroupCachePhysiPlanBatchFetch = "BatchFetch";
+static const char* jkGroupCachePhysiPlanTwoPassMode = "TwoPassMode";
 
 static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   const SGroupCachePhysiNode* pNode = (const SGroupCachePhysiNode*)pObj;
@@ -4670,6 +4692,9 @@ static int32_t physiGroupCacheNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanBatchFetch, pNode->batchFetch);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkGroupCachePhysiPlanTwoPassMode, pNode->twoPassMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkGroupCachePhysiPlanGroupCols, pNode->pGroupCols);
@@ -4692,6 +4717,9 @@ static int32_t jsonToPhysiGroupCacheNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkGroupCachePhysiPlanBatchFetch, &pNode->batchFetch);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkGroupCachePhysiPlanTwoPassMode, &pNode->twoPassMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkGroupCachePhysiPlanGroupCols, &pNode->pGroupCols);

@@ -2607,6 +2607,7 @@ enum {
   PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA,
   PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS,
   PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,  // SExtColTypeMapping[] blob
+  PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE,
 };
 
 static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2652,6 +2653,9 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
     code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,
                            pNode->pColTypeMappings,
                            (int32_t)(pNode->numColTypeMappings * sizeof(SExtColTypeMapping)));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE, pNode->twoPassMode);
   }
   return code;
 }
@@ -2718,6 +2722,9 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
         }
         break;
       }
+      case PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->twoPassMode);
+        break;
       default:
         break;
     }

@@ -164,6 +164,12 @@ typedef struct SGroupCacheOperatorInfo {
   bool              globalGrp;
   bool              grpByUid;
   bool              batchFetch;
+  // twoPassMode: single-group two-pass for repeat-scan functions (e.g. PERCENTILE over FedScan)
+  bool              twoPassMode;
+  bool              twoPassPhase1Done;    // false=PRE_SCAN phase collecting data, true=MAIN_SCAN replay
+  int32_t           twoPassNextIdx;       // index into pTwoPassBlocks for MAIN_SCAN replay
+  SSDataBlock*      pTwoPassCurBlock;     // currently returned MAIN_SCAN block (released on next call)
+  SArray*           pTwoPassBlocks;       // array of SGcTwoPassBlkBuf (serialized blocks for replay)
   int32_t           downstreamNum;
   SGcDownstreamCtx* pDownstreams;
   SGcBlkCacheInfo   blkCache;

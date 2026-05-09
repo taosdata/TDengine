@@ -161,8 +161,28 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
 
-  char          *input = colDataGetData(pInputData, i);
+  char          *rawInput = colDataGetData(pInputData, i);
+  char          *input = rawInput;
+  char          *ncharBuf = NULL;
   unsigned char *output = NULL;
+
+  // NCHAR data is UCS-4 encoded; convert to a VARSTR-format ASCII/UTF-8 buffer
+  // so that the GEOS WKT parser receives a proper string.
+  if (pInputData->info.type == TSDB_DATA_TYPE_NCHAR) {
+    int32_t ucs4Bytes = varDataLen(rawInput);
+    ncharBuf = taosMemoryCalloc(1, ucs4Bytes + VARSTR_HEADER_SIZE + 1);
+    if (ncharBuf == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(rawInput), ucs4Bytes, varDataVal(ncharBuf), NULL);
+    if (mbsLen < 0) {
+      code = TSDB_CODE_FAILED;
+      goto _exit;
+    }
+    varDataSetLen(ncharBuf, mbsLen);
+    input = ncharBuf;
+  }
 
   TAOS_CHECK_GOTO(doGeomFromTextFunc(input, &output), NULL, _exit);
   if (output) {
@@ -175,6 +195,7 @@ _exit:
   if (output) {
     taosMemoryFree(output);
   }
+  taosMemoryFree(ncharBuf);
 
   return code;
 }
