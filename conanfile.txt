@@ -15,6 +15,7 @@ spdlog/1.16.0
 librdkafka/2.12.1
 vincentlaucsb-csv-parser/2.3.0
 cctz/2.4
+libcurl/8.11.1
 
 [generators]
 CMakeDeps

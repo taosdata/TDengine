@@ -118,6 +118,10 @@ void TDengineConnector::init_driver() {
         taos_stmt2_close_     = reinterpret_cast<taos_stmt2_close_func>(DYNLIB_SYM(taos_lib_handle_, "taos_stmt2_close"));
         taos_stmt2_error_     = reinterpret_cast<taos_stmt2_error_func>(DYNLIB_SYM(taos_lib_handle_, "taos_stmt2_error"));
 
+        // Schemaless API (optional - loaded lazily, may not be available on older libtaos)
+        taos_schemaless_insert_raw_ttl_with_reqid_ = reinterpret_cast<taos_schemaless_insert_raw_ttl_with_reqid_func>(
+            DYNLIB_SYM(taos_lib_handle_, "taos_schemaless_insert_raw_ttl_with_reqid"));
+
         if (!taos_options_ || !taos_errstr_ || !taos_errno_ || !taos_connect_ ||
             !taos_query_   || !taos_free_result_ || !taos_select_db_ || !taos_close_ ||
             !taos_stmt2_init_ || !taos_stmt2_prepare_ || !taos_stmt2_bind_param_ ||
@@ -311,6 +315,47 @@ bool TDengineConnector::execute(const StmtV2InsertData& data) {
     }
 
     return true;
+}
+
+bool TDengineConnector::execute(const SchemalessInsertData& data) {
+    if (!is_connected_ && !connect()) return false;
+
+    if (!taos_schemaless_insert_raw_ttl_with_reqid_) {
+        throw std::runtime_error(
+            "taos_schemaless_insert_raw_ttl_with_reqid not available in loaded libtaos. "
+            "Please upgrade to a version that supports schemaless insert.");
+    }
+
+    int32_t totalRows = 0;
+    TAOS_RES* res = taos_schemaless_insert_raw_ttl_with_reqid_(
+        conn_,
+        const_cast<char*>(data.lines.data()),
+        static_cast<int>(data.lines.size()),
+        &totalRows,
+        data.protocol,
+        data.precision,
+        0,      // ttl: use default
+        0       // reqid: no tracking
+    );
+
+    const int code = taos_errno_(res);
+    const bool success = (code == 0);
+
+    if (!success) {
+        constexpr size_t max_preview = 300;
+        const bool is_truncated = data.lines.length() > max_preview;
+        LogUtils::error("{} schemaless insert failed [{}]: {}", display_name_, code, taos_errstr_(res));
+        LogUtils::error(
+            "{}Lines: {}{}, total length: {} bytes",
+            is_truncated ? "(truncated) " : "",
+            data.lines.substr(0, max_preview),
+            is_truncated ? "..." : "",
+            data.lines.length()
+        );
+    }
+
+    taos_free_result_(res);
+    return success;
 }
 
 void TDengineConnector::reset_state() noexcept {

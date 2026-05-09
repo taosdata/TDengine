@@ -14,6 +14,7 @@ struct DummyConnector : public DatabaseConnector {
     bool execute(const std::string&) override { return true; }
     bool execute(const SqlInsertData&) override { return true; }
     bool execute(const StmtV2InsertData&) override { return true; }
+    bool execute(const SchemalessInsertData&) override { return true; }
     bool is_connected() const override { return connected; }
     bool is_valid() const override { return valid; }
     void reset_state() noexcept override {}

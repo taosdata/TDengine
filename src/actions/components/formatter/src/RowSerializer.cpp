@@ -195,20 +195,39 @@ static inline std::string to_utf8_for_text_like(const ColumnType& cell) {
     }, cell);
 }
 
+static inline void append_int_suffix(fmt::memory_buffer& out, IntSuffixMode mode,
+                                     const char* standard_suffix, const char* tdengine_suffix) {
+    if (mode == IntSuffixMode::TDENGINE) {
+        fmt::format_to(std::back_inserter(out), "{}", tdengine_suffix);
+    } else {
+        fmt::format_to(std::back_inserter(out), "{}", standard_suffix);
+    }
+}
+
 void RowSerializer::to_influx_inplace(
     const ColumnConfigInstanceVector& col_instances,
     const ColumnConfigInstanceVector& tag_instances,
     const MemoryPool::TableBlock& table,
     size_t row_index,
-    fmt::memory_buffer& out) {
+    const std::string& measurement,
+    const std::string& id_tag_key,
+    fmt::memory_buffer& out,
+    IntSuffixMode suffix_mode) {
 
     if (row_index >= table.used_rows) {
         throw std::out_of_range("Row index " + std::to_string(row_index) + " is out of range for table with " + std::to_string(table.used_rows) + " used rows");
     }
 
     // measurement
-    const char* measurement = table.table_name ? table.table_name : "unknown";
     append_escape_measure_or_key(out, measurement);
+
+    // id tag for child table name
+    if (!id_tag_key.empty() && table.table_name) {
+        out.push_back(',');
+        append_escape_measure_or_key(out, id_tag_key);
+        out.push_back('=');
+        append_escape_tag_value(out, table.table_name);
+    }
 
     // tags
     for (size_t tag_idx = 0; tag_idx < tag_instances.size(); ++tag_idx) {
@@ -240,7 +259,24 @@ void RowSerializer::to_influx_inplace(
             if constexpr (std::is_same_v<T, bool>) {
                 fmt::format_to(std::back_inserter(out), "{}", value ? "true" : "false");
             } else if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-                fmt::format_to(std::back_inserter(out), "{}i", value);
+                fmt::format_to(std::back_inserter(out), "{}", value);
+                if constexpr (std::is_same_v<T, int8_t>) {
+                    append_int_suffix(out, suffix_mode, "i", "i8");
+                } else if constexpr (std::is_same_v<T, uint8_t>) {
+                    append_int_suffix(out, suffix_mode, "u", "u8");
+                } else if constexpr (std::is_same_v<T, int16_t>) {
+                    append_int_suffix(out, suffix_mode, "i", "i16");
+                } else if constexpr (std::is_same_v<T, uint16_t>) {
+                    append_int_suffix(out, suffix_mode, "u", "u16");
+                } else if constexpr (std::is_same_v<T, int32_t>) {
+                    append_int_suffix(out, suffix_mode, "i", "i32");
+                } else if constexpr (std::is_same_v<T, uint32_t>) {
+                    append_int_suffix(out, suffix_mode, "u", "u32");
+                } else if constexpr (std::is_same_v<T, int64_t>) {
+                    append_int_suffix(out, suffix_mode, "i", "i64");
+                } else if constexpr (std::is_same_v<T, uint64_t>) {
+                    append_int_suffix(out, suffix_mode, "u", "u64");
+                }
             } else if constexpr (std::is_floating_point_v<T>) {
                 fmt::format_to(std::back_inserter(out), "{}", value);
             } else {

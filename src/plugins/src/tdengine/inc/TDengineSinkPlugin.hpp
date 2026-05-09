@@ -4,6 +4,7 @@
 #include "TDengineConfig.hpp"
 #include "SqlInsertDataFormatter.hpp"
 #include "StmtInsertDataFormatter.hpp"
+#include "SchemalessInsertDataFormatter.hpp"
 #include "DatabaseConnector.hpp"
 #include "CheckpointAction.hpp"
 #include "ActionRegisterInfo.hpp"
