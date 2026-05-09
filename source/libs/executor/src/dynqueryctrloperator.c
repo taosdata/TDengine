@@ -5575,6 +5575,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.pExcludedSourceNames = NULL;
   pInfo->vtbScan.tagRefFilterColName = NULL;
   pInfo->vtbScan.tagRefFilterColId = 0;
+  tstrncpy(pInfo->vtbScan.tagRefTerminalColName, pPhyciNode->vtbScan.tagRefTerminalColName, TSDB_COL_NAME_LEN);
   pInfo->vtbScan.pTagRefFilterCond = NULL;
   pInfo->vtbScan.pTagRefFilterColInfos = NULL;
 

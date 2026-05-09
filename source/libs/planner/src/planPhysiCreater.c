@@ -2289,6 +2289,7 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   pDynCtrl->vtbScan.tagRefSourceSuid = pLogicNode->vtbScan.tagRefSourceSuid;
   pDynCtrl->vtbScan.tagRefSourceColId = pLogicNode->vtbScan.tagRefSourceColId;
   pDynCtrl->vtbScan.tagRefSourceColType = pLogicNode->vtbScan.tagRefSourceColType;
+  tstrncpy(pDynCtrl->vtbScan.tagRefTerminalColName, pLogicNode->vtbScan.tagRefTerminalColName, TSDB_COL_NAME_LEN);
 
   return code;
 _return:

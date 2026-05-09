@@ -6953,43 +6953,94 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
 
-  // Add tag-ref source tables to refTables so planner can find them via findRefTableNode
+  // Add tag-ref source tables (including transitive sources for multi-hop chains)
+  // to refTables so planner can find them via findRefTableNode and resolve the chain
+  // to the terminal physical STB.
   if (pVTable->pMeta->tagRef && pVTable->pMeta->numOfTagRefs > 0) {
-    SHashObj* pTagRefDedup = taosHashInit(pVTable->pMeta->numOfTagRefs,
+    SHashObj* pTagRefDedup = taosHashInit(pVTable->pMeta->numOfTagRefs * 2,
                                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    if (pTagRefDedup) {
-      bool tmpAsync = pCxt->pParseCxt->async;
-      pCxt->pParseCxt->async = false;
-      pCxt->refTable = true;
-      for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; i++) {
-        SColRef* pTagRef = &pVTable->pMeta->tagRef[i];
-        if (!pTagRef->hasRef) continue;
+    PAR_ERR_JRET(pTagRefDedup ? TSDB_CODE_SUCCESS : terrno);
+    bool tmpAsync = pCxt->pParseCxt->async;
+    pCxt->pParseCxt->async = false;
+    pCxt->refTable = true;
+
+    // Seed with direct tag-ref sources from this virtual STB
+    SArray* pPendingRefs = taosArrayInit(pVTable->pMeta->numOfTagRefs, sizeof(SColRef));
+    if (!pPendingRefs) {
+      pCxt->refTable = false;
+      pCxt->pParseCxt->async = tmpAsync;
+      taosHashCleanup(pTagRefDedup);
+      PAR_ERR_JRET(terrno);
+    }
+    for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; i++) {
+      SColRef* pTagRef = &pVTable->pMeta->tagRef[i];
+      if (pTagRef->hasRef) {
+        taosArrayPush(pPendingRefs, pTagRef);
+      }
+    }
+
+    // BFS through the chain: fetch each level's source tables until physical terminal
+    for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH && taosArrayGetSize(pPendingRefs) > 0; ++depth) {
+      SArray* pNextRefs = taosArrayInit(4, sizeof(SColRef));
+
+      for (int32_t i = 0; i < taosArrayGetSize(pPendingRefs); i++) {
+        SColRef* pRef = taosArrayGet(pPendingRefs, i);
 
         char   tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
         TSlice buf = {0};
         sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
-        PAR_ERR_JRET(sliceAppend(&buf, pTagRef->refDbName, strlen(pTagRef->refDbName)));
-        PAR_ERR_JRET(sliceAppend(&buf, ".", 1));
-        PAR_ERR_JRET(sliceAppend(&buf, pTagRef->refTableName, strlen(pTagRef->refTableName)));
+        (void)sliceAppend(&buf, pRef->refDbName, strlen(pRef->refDbName));
+        (void)sliceAppend(&buf, ".", 1);
+        (void)sliceAppend(&buf, pRef->refTableName, strlen(pRef->refTableName));
 
-        if (taosHashGet(pTagRefDedup, tableNameKey, strlen(tableNameKey)) == NULL) {
-          SRealTableNode* pRefNode = NULL;
-          PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRefNode));
-          setTableNameByColRef(pRefNode, pTagRef);
-          int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
-          if (rc == TSDB_CODE_SUCCESS) {
-            PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRefNode));
-            PAR_ERR_JRET(taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0));
-          } else {
-            nodesDestroyNode((SNode*)pRefNode);
-            qWarn("translateVirtualSuperTable: failed to get tag-ref source table %s, rc=%d", tableNameKey, rc);
+        if (taosHashGet(pTagRefDedup, tableNameKey, strlen(tableNameKey)) != NULL) continue;
+
+        SRealTableNode* pRefNode = NULL;
+        code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRefNode);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pNextRefs);
+          taosArrayDestroy(pPendingRefs);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          taosHashCleanup(pTagRefDedup);
+          goto _return;
+        }
+        setTableNameByColRef(pRefNode, pRef);
+        int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
+        if (rc != TSDB_CODE_SUCCESS) {
+          nodesDestroyNode((SNode*)pRefNode);
+          continue;
+        }
+        code = nodesListMakeAppend(&pVTable->refTables, (SNode*)pRefNode);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pNextRefs);
+          taosArrayDestroy(pPendingRefs);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          taosHashCleanup(pTagRefDedup);
+          goto _return;
+        }
+        (void)taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0);
+
+        // If this source is also virtual with tag-refs, queue its refs for next depth
+        if (pRefNode->pMeta && pRefNode->pMeta->tagRef && pRefNode->pMeta->numOfTagRefs > 0) {
+          for (int32_t j = 0; j < pRefNode->pMeta->numOfTagRefs; j++) {
+            SColRef* pTransRef = &pRefNode->pMeta->tagRef[j];
+            if (pTransRef->hasRef) {
+              taosArrayPush(pNextRefs, pTransRef);
+            }
           }
         }
       }
-      pCxt->refTable = false;
-      pCxt->pParseCxt->async = tmpAsync;
-      taosHashCleanup(pTagRefDedup);
+
+      taosArrayDestroy(pPendingRefs);
+      pPendingRefs = pNextRefs;
     }
+    taosArrayDestroy(pPendingRefs);
+
+    pCxt->refTable = false;
+    pCxt->pParseCxt->async = tmpAsync;
+    taosHashCleanup(pTagRefDedup);
   }
 
   *pTable = (SNode*)pVTable;
@@ -7168,6 +7219,31 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
         PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
         PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
+
+        // Recursively fetch transitive tag-ref sources for multi-hop chains
+        SRealTableNode* pCurRef = pRTNode;
+        for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH && pCurRef != NULL; ++depth) {
+          if (!pCurRef->pMeta || !pCurRef->pMeta->tagRef || pCurRef->pMeta->numOfTagRefs <= 0) break;
+          SRealTableNode* pNextRef = NULL;
+          for (int32_t j = 0; j < pCurRef->pMeta->numOfTagRefs; j++) {
+            SColRef* pTransRef = &pCurRef->pMeta->tagRef[j];
+            if (!pTransRef->hasRef) continue;
+            char   transKey[TSDB_TABLE_FNAME_LEN] = {0};
+            TSlice tbuf = {0};
+            sliceInit(&tbuf, transKey, sizeof(transKey));
+            (void)sliceAppend(&tbuf, pTransRef->refDbName, strlen(pTransRef->refDbName));
+            (void)sliceAppend(&tbuf, ".", 1);
+            (void)sliceAppend(&tbuf, pTransRef->refTableName, strlen(pTransRef->refTableName));
+            if (taosHashGet(pTableNameHash, transKey, strlen(transKey)) != NULL) continue;
+            PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNextRef));
+            setTableNameByColRef(pNextRef, pTransRef);
+            PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pNextRef, false));
+            PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pNextRef));
+            PAR_ERR_JRET(taosHashPut(pTableNameHash, transKey, strlen(transKey), NULL, 0));
+            break;  // follow the chain one hop at a time
+          }
+          pCurRef = pNextRef;
+        }
       }
     }
   }

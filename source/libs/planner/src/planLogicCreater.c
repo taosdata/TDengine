@@ -2617,23 +2617,98 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   tstrncpy(pDynCtrl->vtbScan.dbName, pVtableScan->tableName.dbname, TSDB_DB_NAME_LEN);
   tstrncpy(pDynCtrl->vtbScan.tbName, pVtableScan->tableName.tname, TSDB_TABLE_NAME_LEN);
 
-  // Extract tag-ref source info for filter optimization (before split replaces children with Exchange)
+  // Resolve tag-ref chain to terminal physical STB for filter optimization.
+  // Chase the chain through pRefTableNodeMap (which now includes transitive sources
+  // populated by the translator) until reaching a physical table.
   if (pVtableScan->hasTagRef) {
     SNode* pVScanChild = NULL;
     FOREACH(pVScanChild, pVtableScan->node.pChildren) {
-      if (nodeType(pVScanChild) == QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE) {
-        STagRefSourceLogicNode* pSrc = (STagRefSourceLogicNode*)pVScanChild;
-        if (pSrc->sourceSuid != 0 && pSrc->pRefCols) {
-          pDynCtrl->vtbScan.tagRefSourceSuid = pSrc->sourceSuid;
-          SNode* pRefCol = nodesListGetNode(pSrc->pRefCols, 0);
-          if (pRefCol) {
-            STagRefColumn* pRC = (STagRefColumn*)pRefCol;
-            pDynCtrl->vtbScan.tagRefSourceColId = pRC->sourceColId;
-            pDynCtrl->vtbScan.tagRefSourceColType = pRC->dataType;
+      if (nodeType(pVScanChild) != QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE) continue;
+      STagRefSourceLogicNode* pSrc = (STagRefSourceLogicNode*)pVScanChild;
+      if (pSrc->sourceSuid == 0 || !pSrc->pRefCols) continue;
+
+      SNode* pRefCol = nodesListGetNode(pSrc->pRefCols, 0);
+      if (!pRefCol) continue;
+      STagRefColumn* pRC = (STagRefColumn*)pRefCol;
+
+      // Start with direct source info
+      uint64_t terminalSuid = pSrc->sourceSuid;
+      col_id_t terminalColId = pRC->sourceColId;
+      int8_t   terminalColType = pRC->dataType;
+      char     terminalColName[TSDB_COL_NAME_LEN] = {0};
+      tstrncpy(terminalColName, pRC->sourceColName, TSDB_COL_NAME_LEN);
+
+      // Chase through source tables: if source is virtual with tag-ref, follow to next
+      char curDbName[TSDB_DB_NAME_LEN] = {0};
+      char curTbName[TSDB_TABLE_NAME_LEN] = {0};
+      tstrncpy(curDbName, pSrc->sourceTableName.dbname, TSDB_DB_NAME_LEN);
+      tstrncpy(curTbName, pSrc->sourceTableName.tname, TSDB_TABLE_NAME_LEN);
+
+      for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH; ++depth) {
+        // Look up the current source table in the ref table map
+        char refKey[TSDB_TABLE_FNAME_LEN] = {0};
+        buildRefTableKey(refKey, sizeof(refKey), curDbName, curTbName);
+        SNode** ppRefTable = (SNode**)taosHashGet(pRefTableNodeMap, refKey, strlen(refKey));
+        if (!ppRefTable) break;
+
+        SRealTableNode* pRefTbl = (SRealTableNode*)*ppRefTable;
+        if (!pRefTbl->pMeta || !pRefTbl->pMeta->tagRef || pRefTbl->pMeta->numOfTagRefs <= 0) break;
+
+        // Find the tag-ref entry matching the current terminal colId
+        int32_t totalCols = pRefTbl->pMeta->tableInfo.numOfColumns + pRefTbl->pMeta->tableInfo.numOfTags;
+        int32_t tagSchemaIdx = -1;
+        for (int32_t si = pRefTbl->pMeta->tableInfo.numOfColumns; si < totalCols; ++si) {
+          if (pRefTbl->pMeta->schema[si].colId == terminalColId) {
+            tagSchemaIdx = si - pRefTbl->pMeta->tableInfo.numOfColumns;
+            break;
           }
-          break;  // Phase 1: single source only
+        }
+        // Also try matching by name if colId didn't match
+        if (tagSchemaIdx < 0) {
+          for (int32_t si = pRefTbl->pMeta->tableInfo.numOfColumns; si < totalCols; ++si) {
+            if (strcasecmp(pRefTbl->pMeta->schema[si].name, terminalColName) == 0) {
+              tagSchemaIdx = si - pRefTbl->pMeta->tableInfo.numOfColumns;
+              break;
+            }
+          }
+        }
+        if (tagSchemaIdx < 0 || tagSchemaIdx >= pRefTbl->pMeta->numOfTagRefs) break;
+        if (!pRefTbl->pMeta->tagRef[tagSchemaIdx].hasRef) break;
+
+        // Follow the chain to the next level
+        SColRef* pNextRef = &pRefTbl->pMeta->tagRef[tagSchemaIdx];
+        tstrncpy(curDbName, pNextRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(curTbName, pNextRef->refTableName, TSDB_TABLE_NAME_LEN);
+
+        // Find the next source table and update terminal info
+        char nextKey[TSDB_TABLE_FNAME_LEN] = {0};
+        buildRefTableKey(nextKey, sizeof(nextKey), curDbName, curTbName);
+        SNode** ppNextTable = (SNode**)taosHashGet(pRefTableNodeMap, nextKey, strlen(nextKey));
+        if (!ppNextTable) break;
+
+        SRealTableNode* pNextTbl = (SRealTableNode*)*ppNextTable;
+        terminalSuid = pNextTbl->pMeta->suid;
+
+        // Find the colId and type in the next table's schema
+        int32_t nextTotal = pNextTbl->pMeta->tableInfo.numOfColumns + pNextTbl->pMeta->tableInfo.numOfTags;
+        for (int32_t si = pNextTbl->pMeta->tableInfo.numOfColumns; si < nextTotal; ++si) {
+          if (strcasecmp(pNextTbl->pMeta->schema[si].name, pNextRef->refColName) == 0) {
+            terminalColId = pNextTbl->pMeta->schema[si].colId;
+            terminalColType = pNextTbl->pMeta->schema[si].type;
+            tstrncpy(terminalColName, pNextTbl->pMeta->schema[si].name, TSDB_COL_NAME_LEN);
+            break;
+          }
         }
       }
+
+      pDynCtrl->vtbScan.tagRefSourceSuid = terminalSuid;
+      pDynCtrl->vtbScan.tagRefSourceColId = terminalColId;
+      pDynCtrl->vtbScan.tagRefSourceColType = terminalColType;
+      tstrncpy(pDynCtrl->vtbScan.tagRefTerminalColName, terminalColName, TSDB_COL_NAME_LEN);
+
+      planDebug("tag-ref chain resolved: terminalSuid=%" PRIu64 " colId=%d type=%d colName=%s",
+                terminalSuid, terminalColId, terminalColType, terminalColName);
+      break;
     }
   }
 

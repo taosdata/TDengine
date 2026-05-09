@@ -4697,6 +4697,7 @@ static const char* jkDynQueryCtrlPhysiPlanRefTagCols = "RefTagCols";
 static const char* jkDynQueryCtrlPhysiPlanTagRefSourceSuid = "TagRefSourceSuid";
 static const char* jkDynQueryCtrlPhysiPlanTagRefSourceColId = "TagRefSourceColId";
 static const char* jkDynQueryCtrlPhysiPlanTagRefSourceColType = "TagRefSourceColType";
+static const char* jkDynQueryCtrlPhysiPlanTagRefTerminalColName = "TagRefTerminalColName";
 
 
 static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
@@ -4804,6 +4805,9 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColType, pNode->vtbScan.tagRefSourceColType);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddStringToObject(pJson, jkDynQueryCtrlPhysiPlanTagRefTerminalColName, pNode->vtbScan.tagRefTerminalColName);
         }
         break;
       }
@@ -4927,6 +4931,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanTagRefSourceColType, pNode->vtbScan.tagRefSourceColType, code);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetStringValue2(pJson, jkDynQueryCtrlPhysiPlanTagRefTerminalColName, pNode->vtbScan.tagRefTerminalColName, sizeof(pNode->vtbScan.tagRefTerminalColName));
         }
         break;
       }

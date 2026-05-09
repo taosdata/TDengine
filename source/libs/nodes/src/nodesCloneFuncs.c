@@ -966,6 +966,7 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_SCALAR_FIELD(vtbScan.tagRefSourceSuid);
   COPY_SCALAR_FIELD(vtbScan.tagRefSourceColId);
   COPY_SCALAR_FIELD(vtbScan.tagRefSourceColType);
+  COPY_CHAR_ARRAY_FIELD(vtbScan.tagRefTerminalColName);
   COPY_SCALAR_FIELD(vtbWindow.wstartSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wendSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wdurationSlotId);

@@ -5120,6 +5120,7 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_SUID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_ID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_TERMINAL_COL_NAME,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5227,6 +5228,9 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeI8(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE, pNode->vtbScan.tagRefSourceColType);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeCStr(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_TERMINAL_COL_NAME, pNode->vtbScan.tagRefTerminalColName);
         }
         break;
       }
@@ -5348,6 +5352,9 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_SOURCE_COL_TYPE:
         code = tlvDecodeI8(pTlv, &pNode->vtbScan.tagRefSourceColType);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_TAG_REF_TERMINAL_COL_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->vtbScan.tagRefTerminalColName, sizeof(pNode->vtbScan.tagRefTerminalColName));
         break;
       default:
         break;
