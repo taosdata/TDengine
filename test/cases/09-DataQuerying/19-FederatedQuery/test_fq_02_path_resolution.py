@@ -37,6 +37,9 @@ from federated_query_common import (
     TSDB_CODE_EXT_DB_NOT_EXIST,
     TSDB_CODE_EXT_DEFAULT_NS_MISSING,
     TSDB_CODE_EXT_INVALID_PATH,
+    TSDB_CODE_EXT_SOURCE_EXISTS,
+    TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_MND_DB_ALREADY_EXIST,
 )
 
 # Test databases in external sources
@@ -1679,7 +1682,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (c) USE external → INSERT should fail
             tdSql.execute(f"use {m}")
-            tdSql.error("insert into ext_tbl values (now, 1)")
+            tdSql.error("insert into ext_tbl values (now, 1)",
+     expectedErrno=TSDB_CODE_PAR_TABLE_NOT_EXIST)
 
             # (d) USE external → CREATE TABLE should fail
             tdSql.error("create table new_ext_tbl (ts timestamp, v int)")
@@ -2451,22 +2455,27 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (a) INSERT INTO external path → error
             tdSql.error(
-                f"insert into {src}.ext_table values (now, 1)")
+                f"insert into {src}.ext_table values (now, 1)",
+                expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
             # (b) INSERT INTO external 3-seg → error
             tdSql.error(
-                f"insert into {src}.{MYSQL_DB}.ext_table values (now, 1)")
+                f"insert into {src}.{MYSQL_DB}.ext_table values (now, 1)",
+                    expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
             # (c) DELETE FROM external path → error
             tdSql.error(
-                f"delete from {src}.ext_table where ts < now")
+                f"delete from {src}.ext_table where ts < now",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND)
 
             # (d) CREATE TABLE on external path → error
             tdSql.error(
-                f"create table {src}.ext_new_table (ts timestamp, v int)")
+                f"create table {src}.ext_new_table (ts timestamp, v int)",
+                    expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
             # (e) DROP TABLE on external path → error
-            tdSql.error(f"drop table {src}.ext_table")
+            tdSql.error(f"drop table {src}.ext_table",
+                    expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
             # (f) ALTER TABLE on external path → error
             tdSql.error(

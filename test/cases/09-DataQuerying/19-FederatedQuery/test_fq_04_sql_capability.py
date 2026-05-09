@@ -26,6 +26,10 @@ from federated_query_common import (
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_FUNC_FUNTION_PARA_NUM,
+    TSDB_CODE_FUNC_FUNTION_PARA_TYPE,
+    TSDB_CODE_MND_FUNC_NOT_EXIST,
+    TSDB_CODE_PAR_INVALID_COL_JSON,
 )
 
 
@@ -785,11 +789,13 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             # --- rejection cases (parser stage, PAR_INVALID_COL_JSON) ---
 
             # '->' extraction: external JSON/JSONB/string → NCHAR, not JSON type
-            tdSql.error(f"select id, data->'k' from {t} order by id")
+            tdSql.error(f"select id, data->'k' from {t} order by id",
+     expectedErrno=TSDB_CODE_PAR_INVALID_COL_JSON)
 
             # '->' in a filter predicate
             tdSql.error(
-                f"select id from {t} where data->'num' = 10")
+                f"select id from {t} where data->'num' = 10",
+                expectedErrno=TSDB_CODE_PAR_INVALID_COL_JSON)
 
             # CONTAINS: same reason — NCHAR is not the JSON tag type
             tdSql.error(
@@ -837,7 +843,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         def body(src, db_type):
             # to_json() requires JSON type input; external sources map
             # VARCHAR/TEXT to VARCHAR/NCHAR → invalid parameter type (0x2802)
-            tdSql.error(f"select to_json(attrs) from {src}.data where id = 1")
+            tdSql.error(f"select to_json(attrs) from {src}.data where id = 1",
+     expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
 
         self._with_custom_sources(
             "fq04_tojson", body,
@@ -915,7 +922,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
                 # ts is TIMESTAMP on InfluxDB → to_unixtimestamp type mismatch error
                 tdSql.error(
-                    f"select to_unixtimestamp(ts) from {src}.times where id = 1")
+                    f"select to_unixtimestamp(ts) from {src}.times where id = 1",
+                    expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
                 return
 
             # MySQL/PG have explicit ts DATETIME/TIMESTAMP column
@@ -933,7 +941,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             # MySQL/PG timestamp type mapping causes to_unixtimestamp failure (0x2802)
             tdSql.error(
-                f"select to_unixtimestamp(ts) from {src}.times where id = 1")
+                f"select to_unixtimestamp(ts) from {src}.times where id = 1",
+                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
 
         self._with_custom_sources(
             "fq04_tochar", tochar_body,
@@ -1086,18 +1095,21 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             # GROUP BY YEAR(ts) — not supported on external sources (0x6404)
             tdSql.error(
                 f"select year(ts) as yr, count(*) from {src}.events "
-                f"group by year(ts) order by yr")
+                f"group by year(ts) order by yr",
+            expectedErrno=TSDB_CODE_MND_FUNC_NOT_EXIST)
 
             # GROUP BY HOUR(ts) — not supported on external sources (0x6404)
             tdSql.error(
                 f"select hour(ts) as hr, count(*) from {src}.events "
-                f"where ts < '2025-01-01' group by hour(ts) order by hr")
+                f"where ts < '2025-01-01' group by hour(ts) order by hr",
+                    expectedErrno=TSDB_CODE_MND_FUNC_NOT_EXIST)
 
             # GROUP BY MINUTE(ts) — not supported on external sources (0x6404)
             tdSql.error(
                 f"select minute(ts) as mi, count(*) from {src}.events "
                 f"where ts < '2024-01-01 11:00:00' "
-                f"group by minute(ts) order by mi")
+                f"group by minute(ts) order by mi",
+                    expectedErrno=TSDB_CODE_MND_FUNC_NOT_EXIST)
 
         self._with_custom_sources(
             "fq04_timebkt", body,
@@ -1938,7 +1950,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"select v.id, v.name, sum(o.amount) as total "
                 f"from {src_m}.{m_db}.v_users v "
                 f"join {src_m}.{m_db}.orders o on v.id = o.user_id "
-                f"group by v.id, v.name order by v.id")
+                f"group by v.id, v.name order by v.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # 081: REFRESH
             tdSql.execute(f"refresh external source {src_m}")
@@ -1985,7 +1998,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 f"select v.id, v.name, sum(o.amount) as total "
                 f"from {src_p}.{p_db}.public.v_users v "
                 f"join {src_p}.{p_db}.public.orders o on v.id = o.user_id "
-                f"group by v.id, v.name order by v.id")
+                f"group by v.id, v.name order by v.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # 081: REFRESH
             tdSql.execute(f"refresh external source {src_p}")
@@ -2031,7 +2045,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
         def body(src):
             t = f"{src}.src_t"
             # mask_full requires 2 params (string, mask_char) — 1 param is invalid
-            tdSql.error(f"select mask_full(name) from {t} order by val limit 1")
+            tdSql.error(f"select mask_full(name) from {t} order by val limit 1",
+            expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_NUM)
             # Correct: mask_full(name, 'X')
             tdSql.query(f"select mask_full(name, 'X') from {t} order by val limit 1")
             tdSql.checkRows(1)
@@ -2040,7 +2055,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             # mask_partial requires 4 params (string, start, end, mask_char) — 3 is invalid
             tdSql.error(
-                f"select mask_partial(name, 2, 'X') from {t} where val = 1")
+                f"select mask_partial(name, 2, 'X') from {t} where val = 1",
+                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_NUM)
             # Correct: mask_partial(name, 0, 2, 'X')
             tdSql.query(
                 f"select name, mask_partial(name, 0, 2, 'X') from {t} where val = 1")
@@ -2471,7 +2487,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 # InfluxDB maps strings to NCHAR; aes/sm4/crc32 require VARCHAR → error
                 tdSql.error(
                     f"select aes_encrypt(plain, 'mykeystring12345') "
-                    f"from {src}.data where id = 1")
+                    f"from {src}.data where id = 1",
+     expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
                 tdSql.error(
                     f"select sm4_encrypt(plain, 'mykeystring12345') "
                     f"from {src}.data where id = 1")
@@ -2603,7 +2620,8 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             if src.endswith("_i"):
                 # InfluxDB maps strings to NCHAR; sha1/sha2 require VARCHAR → error
-                tdSql.error(f"select sha1(name) from {t} where val = 1")
+                tdSql.error(f"select sha1(name) from {t} where val = 1",
+                expectedErrno=TSDB_CODE_FUNC_FUNTION_PARA_TYPE)
                 tdSql.error(f"select sha2(name, 256) from {t} where val = 1")
 
                 # Use CAST to convert NCHAR to VARCHAR for influx
@@ -2707,32 +2725,38 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             # RIGHT JOIN on non-ts column → error
             tdSql.error(
                 f"select a.id, a.name, b.val from {l} a "
-                f"right join {r} b on a.id = b.id order by b.id")
+                f"right join {r} b on a.id = b.id order by b.id",
+                expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # FULL OUTER JOIN on non-ts column → error
             tdSql.error(
                 f"select a.id, b.id from {l} a "
-                f"full join {r} b on a.id = b.id order by a.id, b.id")
+                f"full join {r} b on a.id = b.id order by a.id, b.id",
+                    expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # LEFT SEMI JOIN on non-ts column → error
             tdSql.error(
                 f"select a.id, a.name from {l} a "
-                f"left semi join {r} b on a.id = b.id order by a.id")
+                f"left semi join {r} b on a.id = b.id order by a.id",
+                    expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # LEFT ANTI JOIN on non-ts column → error
             tdSql.error(
                 f"select a.id, a.name from {l} a "
-                f"left anti join {r} b on a.id = b.id order by a.id")
+                f"left anti join {r} b on a.id = b.id order by a.id",
+                    expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # RIGHT SEMI JOIN on non-ts column → error
             tdSql.error(
                 f"select b.id, b.val from {l} a "
-                f"right semi join {r} b on a.id = b.id order by b.id")
+                f"right semi join {r} b on a.id = b.id order by b.id",
+                    expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # RIGHT ANTI JOIN on non-ts column → error
             tdSql.error(
                 f"select b.id, b.val from {l} a "
-                f"right anti join {r} b on a.id = b.id order by b.id")
+                f"right anti join {r} b on a.id = b.id order by b.id",
+                    expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
         self._with_custom_sources(
             "fq04_joins", body,
