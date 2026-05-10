@@ -1925,7 +1925,7 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
     if (code) {
       metaError("vgId:%d, %s failed to build meta response for %s, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, tbName, version);
-      code = TSDB_CODE_SUCCESS;  // non-fatal, tag update still succeeded
+      goto _exit;
     }
   }
 
@@ -2414,6 +2414,9 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
         if (rc) {
           metaError("vgId:%d, %s failed to build meta response for %s, version:%" PRId64,
                     TD_VID(pMeta->pVnode), __func__, pChild->name, version);
+          code = rc;
+          metaFetchEntryFree(&pChild);
+          goto _exit;
         }
       }
     }
