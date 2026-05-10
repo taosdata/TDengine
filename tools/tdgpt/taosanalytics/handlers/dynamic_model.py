@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from taosanalytics.conf import Configure
+from taosanalytics.exception import NotFoundDynamicModelError
 from taosanalytics.log import AppLogger
 from taosanalytics.service_registry import loader
 
@@ -162,7 +163,15 @@ def do_handle_undeploy_model(request):
         }, 200
     except Exception as e:
         AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
-        return {
-            'status': 'error',
-            'error': f"Error undeploying model {model_name}: {str(e)}"
-        }, 500
+
+        if isinstance(e, NotFoundDynamicModelError):
+            AppLogger.warning("Model %s not found during undeploy, maybe already undeployed", model_name)
+            return {
+                'status': 'error',
+                'error': f"Model {model_name} not found for undeployment"
+            }, 404
+        else:
+            return {
+                'status': 'error',
+                'error': f"Error undeploying model {model_name}: {str(e)}"
+            }, 500

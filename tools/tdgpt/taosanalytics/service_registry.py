@@ -13,6 +13,7 @@ import pandas as pd
 
 from taosanalytics.algo.tool.forecaster import ArimaModelForecaster
 from taosanalytics.conf import Configure
+from taosanalytics.exception import NotFoundDynamicModelError
 from taosanalytics.log import AppLogger
 from taosanalytics.base import (
     AbstractAnomalyDetectionService,
@@ -244,7 +245,7 @@ class ServiceRegistry:
             del self.services[name]
             AppLogger.info("unregister dynamic model:'%s'", name)
         else:
-            raise RuntimeError(f"try to unregister non-existing model:'{name}', operation failed")
+            raise NotFoundDynamicModelError(f"try to unregister non-existing model:'{name}', operation failed")
 
     @staticmethod
     def _register_service(container, name: str, service):
