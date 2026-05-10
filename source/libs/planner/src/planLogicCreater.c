@@ -1517,7 +1517,9 @@ static int32_t eliminateDupTagRefSources(SNodeList* pSources) {
     STagRefColumn*          pRefCol =
         (STagRefColumn*)(pSource->pRefCols ? nodesListGetNode(pSource->pRefCols, 0) : NULL);
     char key[TSDB_COL_FNAME_EX_LEN] = {0};
-    snprintf(key, sizeof(key), "%s.%s.%s", pSource->sourceTableName.dbname, pSource->sourceTableName.tname,
+    snprintf(key, sizeof(key), "%s:%s.%s.%s",
+             pRefCol != NULL ? pRefCol->colName : "",
+             pSource->sourceTableName.dbname, pSource->sourceTableName.tname,
              pRefCol != NULL ? pRefCol->sourceColName : "");
 
     if (NULL != taosHashGet(sourceMap, key, strlen(key))) {

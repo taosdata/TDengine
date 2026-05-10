@@ -84,17 +84,25 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
                               SLOT_KEY_TYPE_COLNAME);
     }
     if (pCol->hasRef) {
-      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      int32_t allocLen = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+      if (pCol->colType == COLUMN_TYPE_TAG) {
+        allocLen += TSDB_COL_NAME_LEN + 1;
+      }
+      *ppKey = taosMemoryCalloc(1, allocLen);
       if (!*ppKey) {
         return terrno;
+      }
+      if (pCol->colType == COLUMN_TYPE_TAG) {
+        TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
+        TAOS_STRNCAT(*ppKey, ":", 2);
       }
       TAOS_STRNCAT(*ppKey, pCol->refDbName, TSDB_DB_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->refTableName, TSDB_TABLE_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->refColName, TSDB_COL_NAME_LEN);
-      *pLen = taosHashBinary(*ppKey, strlen(*ppKey), TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-      *cap = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+      *pLen = taosHashBinary(*ppKey, strlen(*ppKey), allocLen);
+      *cap = allocLen;
       return code;
     }
     if (pCol->hasDep) {
