@@ -294,6 +294,7 @@ typedef struct SDynQueryCtrlVtbScan {
   bool          hasPartition;
   bool          scanAllCols;
   bool          isSuperTable;
+  bool          hasLocalTag;       // Planner flag: true if STB has local (non-ref) tags
   bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tbName[TSDB_TABLE_NAME_LEN];
@@ -777,6 +778,7 @@ typedef struct SVtbScanDynCtrlBasic {
   bool       hasPartition;
   bool       scanAllCols;
   bool       isSuperTable;
+  bool       hasLocalTag;       // Planner flag: true if STB has local (non-ref) tags
   char       dbName[TSDB_DB_NAME_LEN];
   char       tbName[TSDB_TABLE_NAME_LEN];
   uint64_t   suid;

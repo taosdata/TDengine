@@ -4677,6 +4677,7 @@ static const char* jkDynQueryCtrlPhysiPlanBatchProcessChild = "BatchProcessChild
 static const char* jkDynQueryCtrlPhysiPlanHasPartition = "HasPartition";
 static const char* jkDynQueryCtrlPhysiPlanScanAllCols = "ScanAllCols";
 static const char* jkDynQueryCtrlPhysiPlanIsSuperTable = "IsSuperTable";
+static const char* jkDynQueryCtrlPhysiPlanHasLocalTag = "HasLocalTag";
 static const char* jkDynQueryCtrlPhysiPlanDbName= "DbName";
 static const char* jkDynQueryCtrlPhysiPlanStbName= "StbName";
 static const char* jkDynQueryCtrlPhysiPlanSuid= "Suid";
@@ -4760,6 +4761,9 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanIsSuperTable, pNode->vtbScan.isSuperTable);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanHasLocalTag, pNode->vtbScan.hasLocalTag);
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddStringToObject(pJson, jkDynQueryCtrlPhysiPlanDbName, pNode->vtbScan.dbName);
@@ -4884,6 +4888,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanIsSuperTable, &pNode->vtbScan.isSuperTable);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanHasLocalTag, &pNode->vtbScan.hasLocalTag);
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetStringValue1(pJson, jkDynQueryCtrlPhysiPlanDbName, pNode->vtbScan.dbName,

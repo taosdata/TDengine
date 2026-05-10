@@ -954,6 +954,7 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_SCALAR_FIELD(vtbScan.hasPartition);
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
   COPY_SCALAR_FIELD(vtbScan.isSuperTable);
+  COPY_SCALAR_FIELD(vtbScan.hasLocalTag);
   COPY_SCALAR_FIELD(vtbScan.useTagScan);
   COPY_SCALAR_FIELD(vtbScan.rversion);
   COPY_SCALAR_FIELD(vtbScan.suid);

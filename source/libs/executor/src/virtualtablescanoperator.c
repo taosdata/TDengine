@@ -1257,7 +1257,7 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
 
       if (pTagBlock == NULL) {
-        // dynamic vtable scan may skip dedicated tag-scan param; fallback tag list will be applied later.
+        // Tag scan may return NULL for STB scans; local tag values are provided by DynQueryCtrl.
       } else if (pTagBlock->info.rows != 1) {
       VTS_ERR_JRET(TSDB_CODE_FAILED);
     } else {

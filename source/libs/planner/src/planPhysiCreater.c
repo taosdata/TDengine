@@ -2187,7 +2187,7 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
       pScanCol->colType = COLUMN_TYPE_TAG;
       pScanCol->node.resType.type = pTagRef->dataType;
       pScanCol->node.resType.bytes = pTagRef->bytes;
-      tstrncpy(pScanCol->colName, pTagRef->sourceColName, TSDB_COL_NAME_LEN);
+      tstrncpy(pScanCol->colName, pTagRef->colName, TSDB_COL_NAME_LEN);
       tstrncpy(pScanCol->dbName, pLogicNode->sourceTableName.dbname, TSDB_DB_NAME_LEN);
       tstrncpy(pScanCol->tableName, pLogicNode->sourceTableName.tname, TSDB_TABLE_NAME_LEN);
       // tableAlias must be non-empty so getSlotKey reaches the hasRef branch
@@ -2269,6 +2269,7 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   pDynCtrl->vtbScan.suid = pLogicNode->vtbScan.suid;
   pDynCtrl->vtbScan.uid = pLogicNode->vtbScan.uid;
   pDynCtrl->vtbScan.isSuperTable = pLogicNode->vtbScan.isSuperTable;
+  pDynCtrl->vtbScan.hasLocalTag = false;
   pDynCtrl->vtbScan.batchProcessChild = pLogicNode->vtbScan.batchProcessChild;
   pDynCtrl->vtbScan.hasPartition = pLogicNode->vtbScan.hasPartition;
   pDynCtrl->vtbScan.rversion = pLogicNode->vtbScan.rversion;
@@ -2290,6 +2291,7 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
       if (pVScanLogic->pRefTagCols) {
         PLAN_ERR_JRET(nodesCloneList(pVScanLogic->pRefTagCols, &pDynCtrl->vtbScan.pRefTagCols));
       }
+      pDynCtrl->vtbScan.hasLocalTag = pVScanLogic->hasLocalTag;
       break;
     }
   }

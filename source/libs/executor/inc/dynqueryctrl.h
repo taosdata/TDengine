@@ -89,10 +89,10 @@ typedef struct SVtbScanDynCtrlInfo {
   bool             scanAllCols;
   bool             useTagScan;
   bool             isSuperTable;
+  bool             hasLocalTag;     // Planner flag: STB has local (non-ref) tags
   bool             needRedeploy;
   bool             hasPartition;
   bool             genNewParam;
-  bool             hasAnyChildTagRef; // true if any child table has a tag-ref (refType==1)
   char*            dbName;
   char*            tbName;
   tsem_t           ready;

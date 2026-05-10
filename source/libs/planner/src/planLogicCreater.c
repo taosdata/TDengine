@@ -2599,6 +2599,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   pDynCtrl->vtbScan.useTagScan = (pTagScan != NULL);
   if (pVtableScan->tableType == TSDB_SUPER_TABLE) {
     pDynCtrl->vtbScan.isSuperTable = true;
+    pDynCtrl->vtbScan.hasLocalTag = pVtableScan->hasLocalTag;
     pDynCtrl->vtbScan.suid = pVtableScan->stableId;
     pDynCtrl->vtbScan.rversion = 0;
   } else {

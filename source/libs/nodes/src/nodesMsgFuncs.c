@@ -5104,6 +5104,7 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_DYN_TBNAME,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_UID,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_IS_SUPER_TABLE,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_LOCAL_TAG,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_RVERSION,
   PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ORG_VG_IDS,
   PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WSTART_SLOTID,
@@ -5201,6 +5202,9 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_IS_SUPER_TABLE, pNode->vtbScan.isSuperTable);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_LOCAL_TAG, pNode->vtbScan.hasLocalTag);
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_RVERSION, pNode->vtbScan.rversion);
@@ -5307,6 +5311,9 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_IS_SUPER_TABLE:
         code = tlvDecodeBool(pTlv, &pNode->vtbScan.isSuperTable);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_LOCAL_TAG:
+        code = tlvDecodeBool(pTlv, &pNode->vtbScan.hasLocalTag);
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_RVERSION:
         code = tlvDecodeI32(pTlv, &pNode->vtbScan.rversion);
