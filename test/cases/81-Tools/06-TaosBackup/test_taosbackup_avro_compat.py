@@ -16,18 +16,44 @@ taosBackup AVRO backward-compatibility tests.
 
 taosBackup can restore legacy taosdump AVRO-format backups by detecting
 the presence of a `dbs.sql` file in the backup directory.  This test
-creates a database with rich data, uses taosdump to produce an AVRO
-backup, then restores it with taosBackup and verifies full data
-correctness.
+uses pre-generated taosdump AVRO backup fixtures (produced once with the
+legacy `old_taosdump` binary at /root/TDinternal/debug/build/bin/old_taosdump
+and stored under data/) and verifies that taosBackup can fully restore
+them with correct data and schema.  No live taosdump invocation is needed.
 """
 
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import shutil
 
-
-SRC_DB = "avro_src"
+# Destination database names used during restore
 DST_DB = "avro_dst"
+
+# DB names as recorded inside the pre-generated AVRO fixtures
+_AVRO_FULL_ORIG_DB = "avro_compat_full"
+_AVRO_RENAME_ORIG_DB = "avro_compat_rn"
+
+# Absolute path to the fixture data directories (next to this test file)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_AVRO_FULL_DIR = os.path.join(_HERE, "data", "avro_full")
+_AVRO_RENAME_DIR = os.path.join(_HERE, "data", "avro_rename")
+
+# Expected aggregate values derived from the fixture data:
+#   meters STB: 5 child tables (d0-d4), 100 rows each
+#     ic = i*t, bi = i*t*10 for t in 0..4, i in 0..99
+#   ntb1: 30 rows, v = i*100 for i in 0..29
+_FULL_STB_ROWS = 500
+_FULL_CTB_COUNT = 5
+_FULL_SUM_IC = 49500        # sum(t=0..4) t * sum(i=0..99) i = 10 * 4950
+_FULL_SUM_BI = 495000       # 10 * _FULL_SUM_IC
+_FULL_NTB_ROWS = 30
+_FULL_NTB_SUM = 43500       # 100 * sum(i=0..29) i = 100 * 435
+
+# Expected values for the rename fixture:
+#   st1 STB: 3 child tables (ct0-ct2), 20 rows each
+#     v = i + t*100 for t in 0..2, i in 0..19
+_RENAME_TOTAL_ROWS = 60
+_RENAME_SUM_V = 6570        # sum(t=0..2) [190 + 2000*t] = 190+2190+4190
 
 
 class TestTaosBackupAvroCompat:
@@ -46,89 +72,34 @@ class TestTaosBackupAvroCompat:
     # -----------------------------------------------------------------------
 
     def do_avro_full_restore(self):
-        """Create data, dump with taosdump (AVRO), restore with taosBackup.
+        """Restore a pre-generated taosdump AVRO backup with taosBackup.
+
+        The AVRO fixture was produced once with the legacy old_taosdump binary
+        and is stored under data/avro_full/.  This test skips data generation
+        and starts directly from the pre-backed-up AVRO data.
 
         Verification:
           - Database exists after restore.
           - STB DDL preserved (column count, tag count).
-          - Child table count matches source.
-          - Row count matches source.
-          - SUM of numeric columns matches source.
+          - Child table count matches expected fixture value.
+          - Row count matches expected fixture value.
+          - SUM of numeric columns matches expected fixture value.
           - NTB data preserved.
           - Tag values preserved.
         """
-        tmpdir = "./taosbackuptest/tmpdir_avro_full"
-        self.makeDir(tmpdir)
-
-        # --- Setup source database ---
-        tdSql.execute(f"drop database if exists {SRC_DB}")
-        tdSql.execute(f"create database {SRC_DB} keep 3649 vgroups 2")
-        tdSql.execute(f"use {SRC_DB}")
-
-        # STB with multiple data types
-        tdSql.execute(
-            f"create stable {SRC_DB}.meters"
-            f"(ts timestamp, ic int, bi bigint, fc float,"
-            f" bc bool, bin binary(16), nch nchar(16))"
-            f" tags(tid int, loc nchar(10))"
+        # Verify that the fixture directory exists before proceeding
+        assert os.path.isdir(_AVRO_FULL_DIR), (
+            f"AVRO full fixture directory not found: {_AVRO_FULL_DIR}"
         )
-        for t in range(5):
-            tdSql.execute(
-                f"create table {SRC_DB}.d{t} using {SRC_DB}.meters"
-                f" tags({t}, '城市{t}')"
-            )
-            vals = []
-            for i in range(100):
-                ts = 1640000000000 + i * 1000
-                bc = 1 if i % 2 == 0 else 0
-                vals.append(
-                    f"({ts}, {i*t}, {i*t*10}, {i*0.5},"
-                    f" {bc}, 'b{t}r{i}', '中{t}行{i}')"
-                )
-            batch = 50
-            for start in range(0, len(vals), batch):
-                chunk = ",".join(vals[start:start + batch])
-                tdSql.execute(f"insert into {SRC_DB}.d{t} values {chunk}")
-
-        # Normal table
-        tdSql.execute(f"create table {SRC_DB}.ntb1(ts timestamp, v int, s binary(20))")
-        vals = ",".join(
-            f"({1640000000000 + i * 1000}, {i * 100}, 'nt{i}')" for i in range(30)
+        assert os.path.exists(os.path.join(_AVRO_FULL_DIR, "dbs.sql")), (
+            f"dbs.sql missing from fixture: {_AVRO_FULL_DIR}"
         )
-        tdSql.execute(f"insert into {SRC_DB}.ntb1 values {vals}")
-
-        # Record source aggregates
-        src_stb_rows = tdSql.getResult(f"select count(*) from {SRC_DB}.meters")[0][0]
-        src_sum_ic = tdSql.getResult(f"select sum(ic) from {SRC_DB}.meters")[0][0]
-        src_sum_bi = tdSql.getResult(f"select sum(bi) from {SRC_DB}.meters")[0][0]
-        src_ntb_rows = tdSql.getResult(f"select count(*) from {SRC_DB}.ntb1")[0][0]
-        src_ntb_sum = tdSql.getResult(f"select sum(v) from {SRC_DB}.ntb1")[0][0]
-        src_ctb_count = tdSql.getResult(
-            f"select count(*) from information_schema.ins_tables "
-            f"where db_name='{SRC_DB}' and stable_name='meters'"
-        )[0][0]
-
-        tdLog.info(
-            f"Source: {src_stb_rows} STB rows, {src_ctb_count} CTBs, "
-            f"{src_ntb_rows} NTB rows, SUM(ic)={src_sum_ic}"
-        )
-
-        # --- Dump with taosdump (AVRO format) ---
-        tdLog.info("Dumping with taosdump (AVRO format)")
-        etool.taosdump(f"-D {SRC_DB} -o {tmpdir}")
-
-        # Verify dbs.sql exists (AVRO format marker)
-        dbs_sql_path = os.path.join(tmpdir, "dbs.sql")
-        assert os.path.exists(dbs_sql_path), (
-            f"taosdump did not produce dbs.sql at {dbs_sql_path}"
-        )
-        tdLog.info(f"  dbs.sql found: {dbs_sql_path}")
 
         # --- Restore with taosBackup ---
-        tdLog.info("Restoring with taosBackup (AVRO compat path)")
+        tdLog.info(f"Restoring AVRO fixture from {_AVRO_FULL_DIR}")
         tdSql.execute(f"drop database if exists {DST_DB}")
         rlist = etool.taosdump(
-            f'-W "{SRC_DB}={DST_DB}" -i {tmpdir}'
+            f'-W "{_AVRO_FULL_ORIG_DB}={DST_DB}" -i {_AVRO_FULL_DIR}'
         )
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
@@ -154,19 +125,19 @@ class TestTaosBackupAvroCompat:
             f"select count(*) from information_schema.ins_tables "
             f"where db_name='{DST_DB}' and stable_name='meters'"
         )
-        tdSql.checkData(0, 0, src_ctb_count)
-        tdLog.info(f"  CTB count = {src_ctb_count} ............................ [passed]")
+        tdSql.checkData(0, 0, _FULL_CTB_COUNT)
+        tdLog.info(f"  CTB count = {_FULL_CTB_COUNT} ............................ [passed]")
 
         # --- Verify STB row count ---
         tdSql.query(f"select count(*) from {DST_DB}.meters")
-        tdSql.checkData(0, 0, src_stb_rows)
-        tdLog.info(f"  STB row count = {src_stb_rows} ........................ [passed]")
+        tdSql.checkData(0, 0, _FULL_STB_ROWS)
+        tdLog.info(f"  STB row count = {_FULL_STB_ROWS} ........................ [passed]")
 
         # --- Verify numeric aggregates ---
         tdSql.query(f"select sum(ic) from {DST_DB}.meters")
-        tdSql.checkData(0, 0, src_sum_ic)
+        tdSql.checkData(0, 0, _FULL_SUM_IC)
         tdSql.query(f"select sum(bi) from {DST_DB}.meters")
-        tdSql.checkData(0, 0, src_sum_bi)
+        tdSql.checkData(0, 0, _FULL_SUM_BI)
         tdLog.info("  SUM(ic), SUM(bi) match ...................... [passed]")
 
         # --- Verify tag values ---
@@ -187,9 +158,9 @@ class TestTaosBackupAvroCompat:
 
         # --- Verify normal table ---
         tdSql.query(f"select count(*) from {DST_DB}.ntb1")
-        tdSql.checkData(0, 0, src_ntb_rows)
+        tdSql.checkData(0, 0, _FULL_NTB_ROWS)
         tdSql.query(f"select sum(v) from {DST_DB}.ntb1")
-        tdSql.checkData(0, 0, src_ntb_sum)
+        tdSql.checkData(0, 0, _FULL_NTB_SUM)
         tdSql.query(f"select s from {DST_DB}.ntb1 order by ts limit 1")
         tdSql.checkData(0, 0, "nt0")
         tdLog.info("  NTB data correct ............................ [passed]")
@@ -205,7 +176,6 @@ class TestTaosBackupAvroCompat:
         tdLog.info("  per-row spot check (d3, ts=10s) ............. [passed]")
 
         # Cleanup
-        tdSql.execute(f"drop database if exists {SRC_DB}")
         tdSql.execute(f"drop database if exists {DST_DB}")
 
         tdLog.info("do_avro_full_restore ......................... [passed]")
@@ -217,60 +187,43 @@ class TestTaosBackupAvroCompat:
     def do_avro_rename(self):
         """Verify -W rename works correctly on AVRO-format backups.
 
+        The AVRO fixture was produced once with the legacy old_taosdump binary
+        and is stored under data/avro_rename/.  This test skips data generation
+        and starts directly from the pre-backed-up AVRO data.
+
         The rename must apply to CREATE DATABASE, CREATE STABLE, USE, and
         all table references inside dbs.sql (handled by avroAfterRenameSql).
         """
-        tmpdir = "./taosbackuptest/tmpdir_avro_rename"
-        self.makeDir(tmpdir)
-
-        src_db = "avro_rn_src"
         dst_db = "avro_rn_dst"
 
-        tdSql.execute(f"drop database if exists {src_db}")
-        tdSql.execute(f"create database {src_db} keep 3649")
-        tdSql.execute(
-            f"create stable {src_db}.st1"
-            f"(ts timestamp, v int) tags(tid int)"
+        # Verify fixture exists
+        assert os.path.isdir(_AVRO_RENAME_DIR), (
+            f"AVRO rename fixture directory not found: {_AVRO_RENAME_DIR}"
         )
-        for t in range(3):
-            tdSql.execute(
-                f"create table {src_db}.ct{t} using {src_db}.st1 tags({t})"
-            )
-            vals = ",".join(
-                f"({1640000000000 + i * 1000}, {i + t * 100})" for i in range(20)
-            )
-            tdSql.execute(f"insert into {src_db}.ct{t} values {vals}")
-
-        src_sum = tdSql.getResult(f"select sum(v) from {src_db}.st1")[0][0]
-
-        # Dump with taosdump
-        etool.taosdump(f"-D {src_db} -o {tmpdir}")
-
-        # Drop source DB before restore so we can verify rename isolation
-        tdSql.execute(f"drop database if exists {src_db}")
 
         # Restore with taosBackup using -W rename
         tdSql.execute(f"drop database if exists {dst_db}")
+        tdSql.execute(f"drop database if exists {_AVRO_RENAME_ORIG_DB}")
         rlist = etool.taosdump(
-            f'-W "{src_db}={dst_db}" -i {tmpdir}'
+            f'-W "{_AVRO_RENAME_ORIG_DB}={dst_db}" -i {_AVRO_RENAME_DIR}'
         )
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
             tdLog.exit(f"AVRO rename restore failed:\n{output[:600]}")
 
-        # Verify renamed database
+        # Verify renamed database exists; original DB name must NOT appear
         tdSql.query("select name from information_schema.ins_databases")
         db_names = [row[0] for row in tdSql.queryResult]
         assert dst_db in db_names, f"{dst_db} not found"
-        assert src_db not in db_names or src_db == dst_db, (
-            f"Source DB {src_db} should not exist (was dropped before restore)"
+        assert _AVRO_RENAME_ORIG_DB not in db_names, (
+            f"Original DB {_AVRO_RENAME_ORIG_DB} should not exist after rename restore"
         )
 
         # Verify data in renamed DB
         tdSql.query(f"select sum(v) from {dst_db}.st1")
-        tdSql.checkData(0, 0, src_sum)
+        tdSql.checkData(0, 0, _RENAME_SUM_V)
         tdSql.query(f"select count(*) from {dst_db}.st1")
-        tdSql.checkData(0, 0, 60)
+        tdSql.checkData(0, 0, _RENAME_TOTAL_ROWS)
         tdSql.query(
             f"select distinct tid from {dst_db}.st1 order by tid"
         )
@@ -279,7 +232,6 @@ class TestTaosBackupAvroCompat:
             tdSql.checkData(t, 0, t)
 
         # Cleanup
-        tdSql.execute(f"drop database if exists {src_db}")
         tdSql.execute(f"drop database if exists {dst_db}")
 
         tdLog.info("do_avro_rename ............................... [passed]")
@@ -387,8 +339,12 @@ class TestTaosBackupAvroCompat:
           - Restores data from .avro files in data*/ subdirectories
           - Applies -W database rename transformations
 
+        Fixture data (under data/avro_full/ and data/avro_rename/) was
+        generated once with the legacy old_taosdump binary.  No live
+        taosdump invocation is performed during this test.
+
         Test scenarios:
-          1. Full data: taosdump → taosBackup restore → verify all data.
+          1. Full data: pre-generated AVRO backup → taosBackup restore → verify all data.
           2. Rename: AVRO restore with -W rename → verify renamed DB.
           3. Schema-only: hand-crafted dbs.sql (no data) → verify schema.
 
@@ -400,11 +356,13 @@ class TestTaosBackupAvroCompat:
 
         History:
             - 2026-05-04 Created; AVRO backward-compatibility coverage
+            - 2026-05-10 Refactored; use pre-generated AVRO fixtures instead of
+                         live old_taosdump invocation (old_taosdump no longer
+                         compiled in CI)
 
         """
         self.do_avro_full_restore()
         self.do_avro_rename()
         self.do_avro_schema_only()
 
-        os.system("rm -rf ./taosbackuptest/tmpdir_avro*")
         tdLog.info("test_taosbackup_avro_compat .................. [passed]")
