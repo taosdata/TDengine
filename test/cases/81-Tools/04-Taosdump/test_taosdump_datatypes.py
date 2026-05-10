@@ -19,42 +19,26 @@ import os
 
 
 class TestTaosdumpDataTypes:
+    def _datadir(self, subdir):
+        return os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", subdir)
+
+    def _prepare_dir(self, path):
+        if os.path.exists(path):
+            os.system("rm -rf %s" % path)
+        os.makedirs(path)
+
 
     #
     # ------------------- test_taosdump_test_type_big_int.py ----------------
     #
     def do_taosdump_type_big_int(self, mode = ""):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-        tdSql.execute("create table db.st(ts timestamp, c1 BIGINT) tags(bntag BIGINT)")
-        tdSql.execute("create table db.t1 using db.st tags(1)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 1)")
-
-        tdSql.execute("create table db.t2 using db.st tags(9223372036854775807)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 9223372036854775807)")
-
-        tdSql.execute("create table db.t3 using db.st tags(-9223372036854775807)")
-        tdSql.execute("insert into db.t3 values(1640000000000, -9223372036854775807)")
-
-        tdSql.execute("create table db.t4 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -106,33 +90,12 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_binary.py ----------------
     #
     def do_taosdump_type_binary(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute(
-            "create table db.st(ts timestamp, c1 BINARY(5), c2 BINARY(5)) tags(btag BINARY(5))"
-        )
-        tdSql.execute("create table db.t1 using  db.st tags('test')")
-        tdSql.execute("insert into db.t1 values(1640000000000, '01234', '56789')")
-        tdSql.execute("insert into db.t1 values(1640000000001, 'abcd', 'efgh')")
-        tdSql.execute("create table db.t2 using  db.st tags(NULL)")
-        tdSql.execute("insert into db.t2 values(1640000000000, NULL, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")            
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            print(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
-            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            print(f"%s -i %s" % (tool, self.tmpdir))
+            os.system(f"%s -i %s" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -185,28 +148,11 @@ class TestTaosdumpDataTypes:
             tdLog.debug("WebSocket mode does not support decimal type, skip this test")
             return
 
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-        tdSql.execute("create table db.st(ts timestamp, c1 DECIMAL(30, 16), c2 DECIMAL(16, 10)) tags(dtag DOUBLE)")
-        tdSql.execute("create table db.t1 using  db.st tags(98765.123456)")
-        tdSql.execute("insert into db.t1 values(1640000000000, '98765432109876.1234567890123456', '56789.1234567890')")
-        tdSql.execute("create table db.t2 using  db.st tags(NULL)")
-        tdSql.execute("insert into db.t2 values(1640000000000, NULL, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -249,28 +195,11 @@ class TestTaosdumpDataTypes:
             tdLog.debug("WebSocket mode does not support blob type, skip this test")
             return
 
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db keep 3649 ")
 
-        tdSql.execute("create table db.st(ts timestamp, c1 BLOB) tags(ntag INT)")
-        tdSql.execute("create table db.t1 using db.st tags(1)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 'abc')")
-        tdSql.execute("insert into db.t1 values(1640000000001, '\\x61620063')")
-        tdSql.execute("create table db.t2 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t2 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -317,32 +246,12 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_bool.py ----------------
     #
     def do_taosdump_type_bool(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db keep 3649 ")
 
-
-        tdSql.execute("create table db.st(ts timestamp, c1 BOOL) tags(btag BOOL)")
-        tdSql.execute("create table db.t1 using  db.st tags(true)")
-        tdSql.execute("insert into db.t1 values(1640000000000, true)")
-        tdSql.execute("create table db.t2 using  db.st tags(false)")
-        tdSql.execute("insert into db.t2 values(1640000000000, false)")
-        tdSql.execute("create table db.t3 using  db.st tags(NULL)")
-        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -400,38 +309,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_double.py ----------------
     #
     def do_taosdump_type_double(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute("create table db.st(ts timestamp, c1 DOUBLE) tags(dbtag DOUBLE)")
-        tdSql.execute("create table db.t1 using db.st tags(1.0)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 1.0)")
-
-        tdSql.execute("create table db.t2 using db.st tags(1.7E308)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 1.7E308)")
-
-        tdSql.execute("create table db.t3 using db.st tags(-1.7E308)")
-        tdSql.execute("insert into db.t3 values(1640000000000, -1.7E308)")
-
-        tdSql.execute("create table db.t4 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -506,37 +390,12 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_float.py ----------------
     #
     def do_taosdump_type_float(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute("create table db.st(ts timestamp, c1 FLOAT) tags(ftag FLOAT)")
-        tdSql.execute("create table db.t1 using db.st tags(1.0)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 1.0)")
-
-        tdSql.execute("create table db.t2 using db.st tags(3.40E+38)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 3.40E+38)")
-
-        tdSql.execute("create table db.t3 using db.st tags(-3.40E+38)")
-        tdSql.execute("insert into db.t3 values(1640000000000, -3.40E+38)")
-
-        tdSql.execute("create table db.t4 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -606,33 +465,12 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_int.py ----------------
     #
     def do_taosdump_type_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649")
 
-        tdSql.execute("create table db.st(ts timestamp, c1 INT) tags(ntag INT)")
-        tdSql.execute("create table db.t1 using db.st tags(1)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 1)")
-        tdSql.execute("create table db.t2 using db.st tags(2147483647)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 2147483647)")
-        tdSql.execute("create table db.t3 using db.st tags(-2147483647)")
-        tdSql.execute("insert into db.t3 values(1640000000000, -2147483647)")
-        tdSql.execute("create table db.t4 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -686,34 +524,12 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_json.py ----------------
     #
     def do_taosdump_type_json(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db keep 3649 ")
 
-
-        tdSql.execute("create table db.st(ts timestamp, c1 int) tags(jtag JSON)")
-        tdSql.execute('create table db.t1 using db.st tags(\'{"location": "beijing"}\')')
-        tdSql.execute("insert into db.t1 values(1500000000000, 1)")
-
-        tdSql.execute("create table db.t2 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t2 values(1500000000000, NULL)")
-
-        tdSql.execute("create table db.t3 using db.st tags('')")
-        tdSql.execute("insert into db.t3 values(1500000000000, 0)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s" % (self.oldTaosdump, self.tmpdir))
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -782,38 +598,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_small_int.py ----------------
     #
     def do_taosdump_type_small_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute("create table db.st(ts timestamp, c1 SMALLINT) tags(sntag SMALLINT)")
-        tdSql.execute("create table db.t1 using db.st tags(1)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 1)")
-
-        tdSql.execute("create table db.t2 using db.st tags(32767)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 32767)")
-
-        tdSql.execute("create table db.t3 using db.st tags(-32767)")
-        tdSql.execute("insert into db.t3 values(1640000000000, -32767)")
-
-        tdSql.execute("create table db.t4 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -865,38 +656,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_tiny_int.py ----------------
     #
     def do_taosdump_type_tiny_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute("create table db.st(ts timestamp, c1 TINYINT) tags(tntag TINYINT)")
-        tdSql.execute("create table db.t1 using db.st tags(1)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 1)")
-
-        tdSql.execute("create table db.t2 using db.st tags(127)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 127)")
-
-        tdSql.execute("create table db.t3 using db.st tags(-127)")
-        tdSql.execute("insert into db.t3 values(1640000000000, -127)")
-
-        tdSql.execute("create table db.t4 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -951,36 +717,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_unsigned_big_int.py ----------------
     #
     def do_taosdump_type_unsigned_big_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute(
-            "create table db.st(ts timestamp, c1 BIGINT UNSIGNED) \
-                    tags(ubntag BIGINT UNSIGNED)"
-        )
-        tdSql.execute("create table db.t1 using db.st tags(0)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 0)")
-        tdSql.execute("create table db.t2 using db.st tags(18446744073709551614)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 18446744073709551614)")
-        tdSql.execute("create table db.t3 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -1026,34 +769,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_unsigned_int.py ----------------
     #
     def do_taosdump_type_unsigned_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-        tdSql.execute(
-            "create table db.st(ts timestamp, c1 INT UNSIGNED) tags(untag INT UNSIGNED)"
-        )
-        tdSql.execute("create table db.t1 using db.st tags(0)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 0)")
-        tdSql.execute("create table db.t2 using db.st tags(4294967294)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 4294967294)")
-        tdSql.execute("create table db.t3 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -1102,34 +824,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_unsigned_small_int.py ----------------
     #
     def do_taosdump_type_unsigned_small_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-        tdSql.execute(
-            "create table db.st(ts timestamp, c1 SMALLINT UNSIGNED) \
-                    tags(usntag SMALLINT UNSIGNED)"
-        )
-        tdSql.execute("create table db.t1 using db.st tags(0)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 0)")
-        tdSql.execute("create table db.t2 using db.st tags(65534)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 65534)")
-        tdSql.execute("create table db.t3 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -1175,36 +876,13 @@ class TestTaosdumpDataTypes:
     # ------------------- test_taosdump_test_type_unsigned_tiny_int.py ----------------
     #
     def do_taosdump_type_unsigned_tiny_int(self, mode):
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
 
-
-        tdSql.execute(
-            "create table db.st(ts timestamp, c1 TINYINT UNSIGNED) \
-                    tags(utntag TINYINT UNSIGNED)"
-        )
-        tdSql.execute("create table db.t1 using db.st tags(0)")
-        tdSql.execute("insert into db.t1 values(1640000000000, 0)")
-        tdSql.execute("create table db.t2 using db.st tags(254)")
-        tdSql.execute("insert into db.t2 values(1640000000000, 254)")
-        tdSql.execute("create table db.t3 using db.st tags(NULL)")
-        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
-
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.oldTaosdump, self.tmpdir))
 
 
         for tool_name, tool in [("taosBackup", self.newTaosdump)]:
             tdLog.info(f"--- {tool_name} import+verify ---")
-            import_mode = mode if tool_name == "taosdump" else ""
-            tdSql.execute("drop database db")
-            os.system(f"%s {import_mode} -i %s -T 1" % (tool, self.tmpdir))
+            tdSql.execute("drop database if exists db")
+            os.system(f"%s -i %s -T 1" % (tool, self.tmpdir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult
@@ -1403,25 +1081,26 @@ class TestTaosdumpDataTypes:
         # database
         db = "geodb"
         newdb = "ngeodb"
-
-        # find
-        taosdump, benchmark, tmpdir = self.findPrograme()
-        json = os.path.dirname(__file__) + "/json/geometry.json"
-
-        # insert data with taosBenchmark
-        self.insertDataGeometry(benchmark, json, db)
-
-        # dump out
-        self.dumpOut(taosdump, db, tmpdir)
-
-        # import and verify with both taosdump and taosBackup
+        datadir = self._datadir("dt_geometry")
+        json_file = os.path.dirname(__file__) + "/json/geometry.json"
         taosbackup = etool.taosDumpFile()
-        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
-            tdSql.execute(f"drop database if exists {newdb}")
-            self.dumpIn(tool, db, newdb, tmpdir)
-            self.verifyResultGeometry(db, newdb, json)
 
+        # import and verify with taosBackup
+        tdSql.execute(f"drop database if exists {newdb}")
+        self.exec(f'{taosbackup} -W "{db}={newdb}" -i {datadir}')
+
+        # verify newdb directly (source db not available in compatibility test)
+        self.checkCorrectWithJson(json_file, newdb)
+        stb = "meters"
+        tdSql.query(f"select sum(ic) from {newdb}.{stb}")
+        tdSql.checkRows(1)
+        tdSql.query(f"select sum(usi) from {newdb}.{stb}")
+        tdSql.checkRows(1)
+        # normal table: 6 rows inserted
+        tdSql.query(f"select count(*) from {newdb}.ntb")
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.execute(f"drop database if exists {newdb}")
         print("do type geometry ...................... [passed]")
 
     #
@@ -1480,25 +1159,26 @@ class TestTaosdumpDataTypes:
         # database
         db = "varbin"
         newdb = "nvarbin"
-
-        # find
-        taosdump, benchmark, tmpdir = self.findPrograme()
-        json =  os.path.dirname(__file__) + "/json/varbinary.json"
-
-        # insert data with taosBenchmark
-        self.insertDataVarbinary(benchmark, json, db)
-
-        # dump out
-        self.dumpOut(taosdump, db, tmpdir)
-
-        # import and verify with both taosdump and taosBackup
+        datadir = self._datadir("dt_varbinary")
+        json_file = os.path.dirname(__file__) + "/json/varbinary.json"
         taosbackup = etool.taosDumpFile()
-        for tool_name, tool in [("taosdump", taosdump), ("taosBackup", taosbackup)]:
-            tdLog.info(f"--- {tool_name} import+verify ---")
-            tdSql.execute(f"drop database if exists {newdb}")
-            self.dumpIn(tool, db, newdb, tmpdir)
-            self.verifyResultVarbinary(db, newdb, json)
 
+        # import and verify with taosBackup
+        tdSql.execute(f"drop database if exists {newdb}")
+        self.exec(f'{taosbackup} -W "{db}={newdb}" -i {datadir}')
+
+        # verify newdb directly (source db not available in compatibility test)
+        self.checkCorrectWithJson(json_file, newdb)
+        stb = "meters"
+        tdSql.query(f"select sum(ic) from {newdb}.{stb}")
+        tdSql.checkRows(1)
+        tdSql.query(f"select sum(usi) from {newdb}.{stb}")
+        tdSql.checkRows(1)
+        # normal table: 6 rows inserted
+        tdSql.query(f"select count(*) from {newdb}.ntb")
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.execute(f"drop database if exists {newdb}")
         print("do type varbinary ..................... [passed]")
 
 
@@ -1506,21 +1186,28 @@ class TestTaosdumpDataTypes:
     # ------------------- main ----------------
     #
     def do_all_datatypes(self, mode):
-        self.do_taosdump_type_big_int(mode)
-        self.do_taosdump_type_binary(mode)
-        self.do_taosdump_type_bool(mode)
-        self.do_taosdump_type_double(mode)
-        self.do_taosdump_type_float(mode)
-        self.do_taosdump_type_json(mode)
-        self.do_taosdump_type_small_int(mode)
-        self.do_taosdump_type_int(mode)
-        self.do_taosdump_type_tiny_int(mode)
-        self.do_taosdump_type_unsigned_big_int(mode)
-        self.do_taosdump_type_unsigned_int(mode)
-        self.do_taosdump_type_unsigned_small_int(mode)
-        self.do_taosdump_type_unsigned_tiny_int(mode)
-        self.do_taosdump_type_decimal(mode)
-        self.do_taosdump_type_blob(mode)
+        type_dirs = [
+            ("big_int", self.do_taosdump_type_big_int),
+            ("binary", self.do_taosdump_type_binary),
+            ("bool", self.do_taosdump_type_bool),
+            ("double", self.do_taosdump_type_double),
+            ("float", self.do_taosdump_type_float),
+            ("json", self.do_taosdump_type_json),
+            ("small_int", self.do_taosdump_type_small_int),
+            ("int", self.do_taosdump_type_int),
+            ("tiny_int", self.do_taosdump_type_tiny_int),
+            ("unsigned_big_int", self.do_taosdump_type_unsigned_big_int),
+            ("unsigned_int", self.do_taosdump_type_unsigned_int),
+            ("unsigned_small_int", self.do_taosdump_type_unsigned_small_int),
+            ("unsigned_tiny_int", self.do_taosdump_type_unsigned_tiny_int),
+            ("decimal", self.do_taosdump_type_decimal),
+            ("blob", self.do_taosdump_type_blob),
+        ]
+        for type_name, method in type_dirs:
+            self.tmpdir = self._datadir(f"dt_{type_name}")
+            if not os.path.exists(self.tmpdir):
+                os.makedirs(self.tmpdir)
+            method(mode)
 
     def test_taosdump_datatypes(self):
         """taosdump data types
@@ -1578,17 +1265,9 @@ class TestTaosdumpDataTypes:
             - 2025-10-30 Alex Duan Migrated from uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_unsigned_tiny_int.py
         """
         # init
-        self.oldTaosdump = etool.taosOldDumpFile()
-        if self.oldTaosdump == "":
-            tdLog.exit("taosdump not found!")
-        else:
-            tdLog.info("taosdump found: %s" % self.oldTaosdump)
         self.newTaosdump = etool.taosDumpFile()
+        self.tmpdir = self._datadir("dt_tmp")  # will be overridden per type
 
-        # native
         self.do_all_datatypes("-Z 'Native'")
         self.do_taosdump_type_geometry()
         self.do_taosdump_type_varbinary()
-
-        # websocket
-        self.do_all_datatypes("-Z 'WebSocket'")

@@ -56,15 +56,6 @@ def taosDumpFile():
         bmFile += ".exe"
     return bmFile
 
-# taosBackup
-def taosOldDumpFile():
-    bmFile = binFile(OLD_TAOSDUMP)
-    if isWin():
-        bmFile += ".exe"
-    if not os.path.exists(bmFile):
-        downOldTaosDump()
-    return bmFile
-
 # taosBenchmark
 def benchMarkFile():
     """Get the path to the `taosBenchmark` binary file.
@@ -216,9 +207,6 @@ def taos(command, show = True, checkRun = False):
 def taosdump(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSDUMP, command, show, checkRun, retFail)
 
-def taosolddump(command, show = True, checkRun = True, retFail = True):
-    return runBinFile(OLD_TAOSDUMP, command, show, checkRun, retFail)
-
 def benchmark(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSBENCHMARK, command, show, checkRun, retFail)        
 
@@ -236,15 +224,3 @@ def getFilePath(base_dir, *parts):
     if platform.system().lower() == 'windows':
         file_path = file_path.replace("\\", "\\\\")
     return file_path
-
-def downOldTaosDump():
-    dest = binFile(OLD_TAOSDUMP)
-    url = "http://192.168.1.131/data/nas/TDengine/old_taosdump/old_taosdump"
-    print(f"download {url} to {dest}")
-    ret = exe(f"wget -q -O {dest} {url}")
-    if ret != 0:
-        if os.path.exists(dest):
-            os.remove(dest)
-        tdLog.exit(f"download old_taosdump failed, ret={ret}")
-    os.chmod(dest, 0o755)
-    print(f"download old_taosdump success: {dest}")

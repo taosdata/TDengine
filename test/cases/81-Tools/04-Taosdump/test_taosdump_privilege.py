@@ -15,6 +15,14 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
 class TestTaosdumpNonRoot:
+    def _datadir(self, subdir):
+        return os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", subdir)
+
+    def _prepare_dir(self, path):
+        if os.path.exists(path):
+            os.system("rm -rf %s" % path)
+        os.makedirs(path)
+
     def test_taosdump_non_root(self):
         """taosdump privilege
 
@@ -37,61 +45,14 @@ class TestTaosdumpNonRoot:
         """
         tdSql.prepare()
 
-        tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
-
-        tdSql.execute("use db")
-        tdSql.execute(
-            "create table st(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED) tags(n1 INT, w2 BOOL, t3 TINYINT, t4 SMALLINT, t5 BIGINT, t6 FLOAT, t7 DOUBLE, t8 TIMESTAMP, t9 BINARY(10), t10 NCHAR(10), t11 TINYINT UNSIGNED, t12 SMALLINT UNSIGNED, t13 INT UNSIGNED, t14 BIGINT UNSIGNED)"
-        )
-        tdSql.execute(
-            "create table t1 using st tags(1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
-        )
-        tdSql.execute(
-            "insert into t1 values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
-        )
-        tdSql.execute(
-            "create table t2 using st tags(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
-        )
-        tdSql.execute(
-            "insert into t2 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
-        )
-        tdSql.execute(
-            "create table db.nt1 (ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
-        )
-        tdSql.execute(
-            "insert into nt1 values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
-        )
-        tdSql.execute(
-            "insert into nt1 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
-        )
-
-        #        sys.exit(1)
-
-        binPath = etool.taosOldDumpFile()
-        if binPath == "":
-            tdLog.exit("taosdump not found!")
-        else:
-            tdLog.info("taosdump found in %s" % binPath)
         backupPath = etool.taosDumpFile()
+        datadir = self._datadir("privilege")
 
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-            print("directory exists")
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
-
-        pwd = "Taos@123456"        
-        tdSql.execute(f"create user test pass '{pwd}'")
-
-        os.system(f"%s -D db -o %s -T 1" % (binPath, self.tmpdir))
-
-        # import and verify with both taosdump and taosBackup
+        # import and verify with taosBackup using pre-generated AVRO backup
         for tool_name, tool in [("taosBackup", backupPath)]:
             tdSql.execute("drop database if exists db")
             tdSql.execute("drop database if exists newdb")
-            os.system("%s -i %s -T 1 -W db=newdb" % (tool, self.tmpdir))
+            os.system("%s -i %s -T 1 -W db=newdb" % (tool, datadir))
 
             tdSql.query("show databases")
             dbresult = tdSql.queryResult

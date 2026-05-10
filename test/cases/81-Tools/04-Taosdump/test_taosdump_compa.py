@@ -109,12 +109,10 @@ class TestTaosdumpCompa:
         # database
         db = "test"
         
-        # find
-        oldTaosdump, tmpdir = self.findPrograme()
         newTaosdump = etool.taosDumpFile()
         data = f"{os.path.dirname(os.path.abspath(__file__))}/compa"
 
-        # import and verify with both taosdump and taosBackup
+        # import and verify with taosBackup (pre-generated AVRO backup from v3.1.0.0)
         for tool_name, tool in [("taosBackup", newTaosdump)]:
             tdSql.execute(f"drop database if exists {db}")
             self.dumpIn(tool, data)
