@@ -1,19 +1,20 @@
 /*
-* Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-*
-* This program is free software: you can use, redistribute, and/or modify
-* it under the terms of the GNU Affero General Public License, version 3
-* or later ("AGPL"), AS published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.
-*
-* You should have received a copy of the GNU Affero General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), AS published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <fstream>
+#include <memory>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
@@ -56,7 +57,7 @@ static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SQueryPla
     SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
     SNode*         pSubplanNode = nullptr;
     FOREACH(pSubplanNode, pLevel->pNodeList) {
-      const SSubplan* pSubplan = (const SSubplan*)pSubplanNode;
+      const SSubplan*                 pSubplan = (const SSubplan*)pSubplanNode;
       const SExternalWindowPhysiNode* pExternal = pstFindExternalWindowNode(pSubplan->pNode);
       if (nullptr != pExternal) {
         return pExternal;
@@ -74,6 +75,142 @@ TEST_F(ParserDdlTest, stateWindowKeywordSyntax) {
   run("create stream stream_streamdb.s_legacy_extend state_window(c1, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s_legacy_zeroth state_window(c1, 1, 0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s_keyword_mix state_window(c1, 1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+}
+
+static int32_t pstCountExternalWindowNodes(const SPhysiNode* pNode) {
+  if (nullptr == pNode) {
+    return 0;
+  }
+
+  int32_t count = (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == nodeType((const SNode*)pNode) ||
+                   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == nodeType((const SNode*)pNode))
+                      ? 1
+                      : 0;
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { count += pstCountExternalWindowNodes((const SPhysiNode*)pChild); }
+
+  return count;
+}
+
+static int32_t pstCountExternalWindowNodes(const SQueryPlan* pPlan) {
+  if (nullptr == pPlan) {
+    return 0;
+  }
+
+  int32_t count = 0;
+  SNode*  pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
+    SNode*         pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const SSubplan* pSubplan = (const SSubplan*)pSubplanNode;
+      count += pstCountExternalWindowNodes(pSubplan->pNode);
+    }
+  }
+
+  return count;
+}
+
+static int32_t pstCountExternalWindowNodesNeedCalcTimeRange(const SPhysiNode* pNode) {
+  if (nullptr == pNode) {
+    return 0;
+  }
+
+  int32_t count =
+      ((QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == nodeType((const SNode*)pNode) ||
+        QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == nodeType((const SNode*)pNode)) &&
+       ((const SExternalWindowPhysiNode*)pNode)->pTimeRange != nullptr &&
+       ((const STimeRangeNode*)((const SExternalWindowPhysiNode*)pNode)->pTimeRange)->needCalc)
+          ? 1
+          : 0;
+
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { count += pstCountExternalWindowNodesNeedCalcTimeRange((const SPhysiNode*)pChild); }
+
+  return count;
+}
+
+static int32_t pstCountExternalWindowNodesNeedCalcTimeRange(const SQueryPlan* pPlan) {
+  if (nullptr == pPlan) {
+    return 0;
+  }
+
+  int32_t count = 0;
+  SNode*  pLevelNode = nullptr;
+  FOREACH(pLevelNode, pPlan->pSubplans) {
+    SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
+    SNode*         pSubplanNode = nullptr;
+    FOREACH(pSubplanNode, pLevel->pNodeList) {
+      const SSubplan* pSubplan = (const SSubplan*)pSubplanNode;
+      count += pstCountExternalWindowNodesNeedCalcTimeRange(pSubplan->pNode);
+    }
+  }
+
+  return count;
+}
+
+static void pstCheckCalcPlanExternalWindowCount(const SQuery* pQuery, ParserStage stage, int32_t expectedCount) {
+  ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+
+  int32_t count = pstCountExternalWindowNodes((const SQueryPlan*)pPlanNode);
+  EXPECT_EQ(count, expectedCount);
+}
+
+static void pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(const SQuery* pQuery, ParserStage stage,
+                                                                 int32_t expectedCount) {
+  ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+
+  int32_t count = pstCountExternalWindowNodesNeedCalcTimeRange((const SQueryPlan*)pPlanNode);
+  EXPECT_EQ(count, expectedCount);
+}
+
+static const SSelectStmt* pstGetCreateStreamSelect(const SQuery* pQuery, ParserStage stage) {
+  EXPECT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  EXPECT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  EXPECT_NE(pStmt->pQuery, nullptr);
+  EXPECT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+  return (const SSelectStmt*)pStmt->pQuery;
+}
+
+static void pstCheckCreateStreamSelectTimeRange(const SQuery* pQuery, ParserStage stage, bool expectedPresent,
+                                                bool expectedNeedCalc = false) {
+  const SSelectStmt* pSelect = pstGetCreateStreamSelect(pQuery, stage);
+  ASSERT_NE(pSelect, nullptr);
+
+  if (!expectedPresent) {
+    EXPECT_EQ(pSelect->pTimeRange, nullptr);
+    return;
+  }
+
+  ASSERT_NE(pSelect->pTimeRange, nullptr);
+  ASSERT_EQ(nodeType(pSelect->pTimeRange), QUERY_NODE_TIME_RANGE);
+  const STimeRangeNode* pTimeRange = (const STimeRangeNode*)pSelect->pTimeRange;
+  EXPECT_EQ(pTimeRange->needCalc, expectedNeedCalc);
 }
 
 /*
@@ -1796,15 +1933,172 @@ TEST_F(ParserStreamTest, TestQueryFromPartTbnamePlaceholder) {
       "from %%tbname where ts >= _twstart and ts < _twstart + 5m");
 }
 
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueries) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 3); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueriesByTwend) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 3);
+    pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(pQuery, stage, 1);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.te, a.cnt, b.minv from "
+      "(select _twend te, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join "
+      "(select _twend te, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.te = b.te");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueriesByTwendAddsOuterTimeRange) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCreateStreamSelectTimeRange(pQuery, stage, true, true); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.te, a.cnt, b.minv from "
+      "(select _twend te, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join "
+      "(select _twend te, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.te = b.te");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowLeftJoinAggSubqueriesDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "left join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowThreeInnerJoinAggSubqueries) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 4); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv, c.maxv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts "
+      "join "
+      "(select _twstart ts, max(c1) maxv from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) c "
+      "on b.ts = c.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinNonWindowKeyDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts and a.cnt = b.minv");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinParentLimitDisablesAll) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts limit 10");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinChildPlaceholderDisablesAll) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend and c1 > cast(_twstart as bigint)) a "
+      "join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinChildLimitKeepsOuterTimeRangeEmpty) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0);
+    pstCheckCreateStreamSelectTimeRange(pQuery, stage, false);
+  });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.te, a.cnt, b.minv from "
+      "(select _twend te, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend limit 1) a "
+      "join "
+      "(select _twend te, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.te = b.te");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinBaseTableDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.c1 from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend) a "
+      "join stream_querydb.stream_t2 b on a.ts = b.ts");
+}
+
 TEST_F(ParserStreamTest, TestOutTagExprSpecialCases) {
   setAsyncFlag("-1");
   useDb("root", "testus");
 
-  ITableBuilder& builder = g_mockCatalogService->createTableBuilder("stream_triggerdb", "stn_tag_precision",
-                                                                    TSDB_SUPER_TABLE, 1, 1)
-                               .setPrecision(TSDB_TIME_PRECISION_NANO)
-                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-                               .addTag("tag1", TSDB_DATA_TYPE_TIMESTAMP);
+  ITableBuilder& builder =
+      g_mockCatalogService->createTableBuilder("stream_triggerdb", "stn_tag_precision", TSDB_SUPER_TABLE, 1, 1)
+          .setPrecision(TSDB_TIME_PRECISION_NANO)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addTag("tag1", TSDB_DATA_TYPE_TIMESTAMP);
   builder.done();
   g_mockCatalogService->createSubTable("stream_triggerdb", "stn_tag_precision", "stn_tag_precision_s1", 2);
 
