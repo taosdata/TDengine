@@ -9039,6 +9039,7 @@ static void stRealtimeGroupDestroy(void *ptr) {
     taosMemoryFreeClear(pGroup->stateVal.pData);
   } else if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_EVENT) {
     stRealtimeContextDestroyWindow(&pGroup->parentWindow);
+    taosMemoryFreeClear(pGroup->pFirstSubWinOpenNotify);
   }
   taosObjListClear(&pGroup->windows);
   taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
@@ -9859,6 +9860,11 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
               code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, -1,
                                                    &pGroup->parentWindow.pWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
+              // A single sub-event is still a regular event window. Keep the first sub-window open pending until a
+              // second sub-window proves that parent/child window events are needed.
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, 0,
+                                                   &pGroup->pFirstSubWinOpenNotify);
+              QUERY_CHECK_CODE(code, lino, _end);
             }
           }
           pGroup->numSubWindows++;
@@ -9870,7 +9876,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         newWin.range.ekey = INT64_MAX;
         pWin = taosArrayPush(pContext->pWindows, &newWin);
         QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+        if ((pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) && (!checkSubEvent || pGroup->numSubWindows > 1)) {
           int32_t winIdx = -1;
           if (checkSubEvent && pGroup->numSubWindows > 1) {
             winIdx = pGroup->numSubWindows - 1;
@@ -9887,6 +9893,11 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
 
       if (checkSubEvent && ps[i] && ps[i] != pGroup->conditionIdx) {
         // close previous sub-window since start condition index is changed
+        pWin->forceWinOpen = true;
+        if (pGroup->pFirstSubWinOpenNotify != NULL && pWin->pWinOpenNotify == NULL) {
+          pWin->pWinOpenNotify = pGroup->pFirstSubWinOpenNotify;
+          pGroup->pFirstSubWinOpenNotify = NULL;
+        }
         pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int32_t winIdx = pGroup->numSubWindows - 1;
@@ -9906,6 +9917,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         pGroup->parentWindow.range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
       }
       if (pe[i] || (checkSubEvent && !ps[i])) {
+        SSTriggerNotifyWindow *pClosedWin = pWin;
         pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int32_t winIdx = -1;
@@ -9927,9 +9939,14 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             void *px = taosArrayPush(pContext->pParentWindows, &pGroup->parentWindow);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           } else {
+            if (pClosedWin->pWinOpenNotify == NULL) {
+              pClosedWin->pWinOpenNotify = pGroup->parentWindow.pWinOpenNotify;
+              pGroup->parentWindow.pWinOpenNotify = NULL;
+            }
             stRealtimeContextDestroyWindow(&pGroup->parentWindow);
           }
           pGroup->parentWindow = (SSTriggerNotifyWindow){0};
+          taosMemoryFreeClear(pGroup->pFirstSubWinOpenNotify);
           pGroup->numSubWindows = 0;
           pGroup->conditionIdx = 0;
         }
@@ -10243,11 +10260,14 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
                        isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
                                           pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
-    bool ignore = (i < nInitWins) || !meetTrueFor;
-    if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
-      SSTriggerCalcParam    param = {.triggerTime = now,
-                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                     .extraNotifyContent = pWin->pWinOpenNotify};
+    bool forceWinOpen = pWin->forceWinOpen;
+    bool ignore = ((i < nInitWins) && !forceWinOpen) || !meetTrueFor;
+    bool deferFirstSubWinOpen = (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows == 1 &&
+                                 pWin->range.skey == pGroup->parentWindow.range.skey);
+    if ((calcOpen || notifyOpen) && !ignore && !deferFirstSubWinOpen && !pContext->recovering) {
+      SSTriggerCalcParam param = {.triggerTime = now,
+                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                  .extraNotifyContent = pWin->pWinOpenNotify};
       SSTriggerNotifyWindow win = *pWin;
       if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
         win.range.ekey = win.range.skey;
@@ -10263,6 +10283,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         pWin->pWinOpenNotify = NULL;
       }
+    }
+    if (forceWinOpen) {
+      pWin->forceWinOpen = false;
     }
 
     ignore = (i >= numClosed) || !meetTrueFor || (pTask->ignoreNoDataTrigger && pWin->wrownum == 0);
