@@ -533,9 +533,10 @@ static int appendVtabTagValue(char *buf, int bufRemain, int8_t tagType, const ch
     }
     int pos = 0;
     if (pos < bufRemain - 1) buf[pos++] = '\'';
-    for (int i = 0; val[i] && pos < bufRemain - 2; i++) {
-        if (val[i] == '\'') buf[pos++] = '\'';   // double single-quote escape
-        buf[pos++] = val[i];
+    for (int i = 0; val[i] && pos < bufRemain - 3; i++) {
+        unsigned char _b = (unsigned char)val[i];
+        if (_b == '\'' || _b == '\\') buf[pos++] = '\\';
+        buf[pos++] = (char)_b;
     }
     if (pos < bufRemain - 1) buf[pos++] = '\'';
     if (pos < bufRemain)     buf[pos]   = '\0';
@@ -1661,8 +1662,9 @@ static int parquetTagCallback(void *userData,
                 } else {
                     pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                     for (int32_t k = 0; k < vLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
-                        if (vPtr[k] == '\'') sql[pos++] = '\\';
-                        if (pos < TSDB_MAX_SQL_LEN - 2) sql[pos++] = vPtr[k];
+                        unsigned char _b = (unsigned char)vPtr[k];
+                        if (_b == '\'' || _b == '\\') sql[pos++] = '\\';
+                        if (pos < TSDB_MAX_SQL_LEN - 2) sql[pos++] = (char)_b;
                     }
                     pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                 }
