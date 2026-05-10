@@ -92,6 +92,7 @@ typedef struct SVtbScanDynCtrlInfo {
   bool             needRedeploy;
   bool             hasPartition;
   bool             genNewParam;
+  bool             hasAnyChildTagRef; // true if any child table has a tag-ref (refType==1)
   char*            dbName;
   char*            tbName;
   tsem_t           ready;

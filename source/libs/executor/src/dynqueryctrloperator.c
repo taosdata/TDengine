@@ -2346,6 +2346,53 @@ static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColR
 _vtb_tag_cleanup:
     tFreeSTableCfgRsp(&vtbCfgRsp);
     QUERY_CHECK_CODE(code, lino, _return);
+  } else if (pTagList == NULL && pVtbScan->isSuperTable && vtbName != NULL && pVtbScan->hasAnyChildTagRef) {
+    // For STB scans, each child may have a different mix of ref and literal tags.
+    // Fetch the child's own stored tag metadata as a baseline for literal (non-ref) tags only.
+    // Tags with active refs will be resolved by the tag-ref resolution loop below.
+    SName          vtbTblName = {0};
+    char           vtbDbFName[TSDB_DB_FNAME_LEN] = {0};
+    SDBVgInfo*     vtbDbVgInfo = NULL;
+    int32_t        vtbVgId = 0;
+    STableCfgRsp   vtbCfgRsp = {0};
+
+    toName(pVtbScan->acctId, pVtbScan->dbName, vtbName, &vtbTblName);
+    code = getDbVgInfo(pOperator, &vtbTblName, &vtbDbVgInfo);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = tNameGetFullDbName(&vtbTblName, vtbDbFName);
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = getVgId(vtbDbVgInfo, vtbDbFName, &vtbVgId, vtbTblName.tname);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    code = fetchRemoteTableCfg(pOperator, vtbDbVgInfo, vtbDbFName, vtbTblName.tname, vtbVgId, &vtbCfgRsp);
+    if (code == TSDB_CODE_SUCCESS && vtbCfgRsp.pTags != NULL && vtbCfgRsp.pSchemas != NULL) {
+      *ppResolvedTags = taosArrayInit(vtbCfgRsp.numOfTags, sizeof(STagVal));
+      QUERY_CHECK_NULL(*ppResolvedTags, code, lino, _vtb_stb_tag_cleanup, terrno)
+      for (int32_t tagIdx = 0; tagIdx < vtbCfgRsp.numOfTags; ++tagIdx) {
+        SSchema* pSchema = &vtbCfgRsp.pSchemas[vtbCfgRsp.numOfColumns + tagIdx];
+        // Skip tags that have active refs — those will be resolved by the tag-ref loop
+        bool hasActiveRef = false;
+        if (vtbCfgRsp.pTagRefs != NULL) {
+          for (int32_t r = 0; r < vtbCfgRsp.numOfTagRefs; ++r) {
+            if (vtbCfgRsp.pTagRefs[r].hasRef && vtbCfgRsp.pTagRefs[r].id == pSchema->colId) {
+              hasActiveRef = true;
+              break;
+            }
+          }
+        }
+        if (hasActiveRef) {
+          continue;
+        }
+        code = appendResolvedTagVal(*ppResolvedTags, pSchema->colId, pSchema, (const STag*)vtbCfgRsp.pTags);
+        if (code != TSDB_CODE_SUCCESS) {
+          tFreeSTableCfgRsp(&vtbCfgRsp);
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
+      }
+    }
+_vtb_stb_tag_cleanup:
+    tFreeSTableCfgRsp(&vtbCfgRsp);
+    QUERY_CHECK_CODE(code, lino, _return);
   } else if (pTagList == NULL) {
     // keep going: TagRef columns in dynamic VSTB scan do not use DynQueryCtrl tag cache
     // and must be resolved from their source child table metadata below.
@@ -4340,6 +4387,10 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
 
+          if (info.refType == 1 && info.colrefName != NULL) {
+            pVtbScan->hasAnyChildTagRef = true;
+          }
+
           if (pInfo->qType == DYN_QTYPE_VTB_SCAN) {
             if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
               qTrace("dynQueryCtrl tb uid filter, info uid:%" PRIu64 ", dyn tb uid:%" PRIu64, info.uid,
@@ -5504,6 +5555,7 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.hasPartition = pPhyciNode->vtbScan.hasPartition;
   pInfo->vtbScan.scanAllCols = pPhyciNode->vtbScan.scanAllCols;
   pInfo->vtbScan.useTagScan = false;
+  pInfo->vtbScan.hasAnyChildTagRef = false;
   pInfo->vtbScan.isSuperTable = pPhyciNode->vtbScan.isSuperTable;
   pInfo->vtbScan.rversion = pPhyciNode->vtbScan.rversion;
   pInfo->vtbScan.uid = pPhyciNode->vtbScan.uid;
