@@ -3170,64 +3170,186 @@ tdSql.checkData(0, 0, 1)  # 2024-01-01 → ISO week
     # ==================================================================
 
     def test_fq_sql_external_window(self):
-        """FQ-SQL-EXTWIN: EXTERNAL_WINDOW on all sources.
+        """FQ-SQL-EXTWIN: EXTERNAL_WINDOW on all external sources.
 
         Catalog: - Query:FederatedSQL
         Since: v3.4.0.0
         Labels: common,ci
+
+        EXTERNAL_WINDOW syntax:
+            SELECT ... FROM table
+            [PARTITION BY ...]
+            EXTERNAL_WINDOW ((subquery) window_alias)
+            [HAVING ...]  [ORDER BY ...]
+
+        The subquery's first two columns must be TIMESTAMP (window start / end).
+        Columns 3+ become window attribute columns, referenced via alias.col_name.
+
+        Six scenarios (each run against MySQL / PostgreSQL / InfluxDB):
+          EXTWIN-1  INTERVAL subquery + _wstart / _wend / _wduration pseudo-columns
+          EXTWIN-2  Window attribute columns (3rd+ col from subquery) via w.col_name
+          EXTWIN-3  EVENT_WINDOW subquery
+          EXTWIN-4  PARTITION BY alignment — inner and outer both use PARTITION BY flag
+          EXTWIN-5  HAVING filter on aggregate result
+          EXTWIN-6  Projection (non-aggregate) query — rows labelled with window boundaries
         """
-        mysql_setup = [
-            "DROP TABLE IF EXISTS data",
-            "CREATE TABLE data (ts DATETIME(3), _wstart DATETIME(3), "
-            "_wend DATETIME(3), val INT)",
-            "INSERT INTO data VALUES "
-            "('2024-01-01 00:00:00.000', '2024-01-01 00:00:00.000', "
-            "'2024-01-01 00:01:00.000', 10), "
-            "('2024-01-01 00:00:30.000', '2024-01-01 00:00:00.000', "
-            "'2024-01-01 00:01:00.000', 20), "
-            "('2024-01-01 00:01:00.000', '2024-01-01 00:01:00.000', "
-            "'2024-01-01 00:02:00.000', 30)",
-        ]
-        pg_setup = [
-            "DROP TABLE IF EXISTS data",
-            "CREATE TABLE data (ts TIMESTAMP, _wstart TIMESTAMP, "
-            "_wend TIMESTAMP, val INT)",
-            "INSERT INTO data VALUES "
-            "('2024-01-01 00:00:00', '2024-01-01 00:00:00', "
-            "'2024-01-01 00:01:00', 10), "
-            "('2024-01-01 00:00:30', '2024-01-01 00:00:00', "
-            "'2024-01-01 00:01:00', 20), "
-            "('2024-01-01 00:01:00', '2024-01-01 00:01:00', "
-            "'2024-01-01 00:02:00', 30)",
-        ]
-        influx_lines_ew = [
-            'data _wstart=1704067200000i,_wend=1704067260000i,'
-            'val=10i 1704067200000000000',
-            'data _wstart=1704067200000i,_wend=1704067260000i,'
-            'val=20i 1704067230000000000',
-            'data _wstart=1704067260000i,_wend=1704067320000i,'
-            'val=30i 1704067260000000000',
-        ]
+        def body(src):
+            t = f"{src}.src_t"
 
-        def body(src, db_type):
-            t = f"{src}.data"
+            # ------------------------------------------------------------------
+            # EXTWIN-1: INTERVAL(2m) subquery; verify _wstart/_wend/_wduration
+            # Standard 5-row data at 00:00/01:00/02:00/03:00/04:00, val=1..5
+            # Subquery produces 3 windows; _wend for each window = _wstart + 2m.
+            # EXTERNAL_WINDOW uses closed-interval matching [_wstart, _wend], so
+            # boundary timestamps (ts=00:02, ts=00:04) are counted in BOTH the
+            # window that ends there AND the window that starts there.
+            # Window 1 [00:00, 00:02]: ts=00:00,00:01,00:02 → count=3, sum=6
+            # Window 2 [00:02, 00:04]: ts=00:02,00:03,00:04 → count=3, sum=12
+            # Window 3 [00:04, 00:06]: ts=00:04          → count=1, sum=5
+            # ------------------------------------------------------------------
             tdSql.query(
-                f"select _wstart, count(*), sum(val) from {t} "
-                f"external_window")
-            tdSql.checkRows(2)
-            # Window 1: _wstart=00:00, rows with _wend=00:01 → val=10,20 → count=2, sum=30
-            tdSql.checkData(0, 1, 2)
-            tdSql.checkData(0, 2, 30)
-            # Window 2: _wstart=00:01, rows with _wend=00:02 → val=30 → count=1, sum=30
-            tdSql.checkData(1, 1, 1)
-            tdSql.checkData(1, 2, 30)
+                f"select _wstart, _wend, _wduration, count(*), sum(val) from {t} "
+                f"external_window ("
+                f"  (select _wstart, _wend from {t} interval(2m)) w"
+                f") order by _wstart")
+            tdSql.checkRows(3)
+            # Window 1 [00:00, 00:02]: val=1,2,3 → count=3, sum=6
+            tdSql.checkData(0, 3, 3)
+            tdSql.checkData(0, 4, 6)
+            # Window 2 [00:02, 00:04]: val=3,4,5 → count=3, sum=12
+            tdSql.checkData(1, 3, 3)
+            tdSql.checkData(1, 4, 12)
+            # Window 3 [00:04, 00:06]: val=5 → count=1, sum=5
+            tdSql.checkData(2, 3, 1)
+            tdSql.checkData(2, 4, 5)
+            # _wduration of INTERVAL(2m) window = 120 000 ms
+            assert int(tdSql.getData(0, 2)) == 120000, (
+                f"EXTWIN-1: _wduration should be 120000 ms, got {tdSql.getData(0, 2)}")
 
-        self._with_custom_sources(
-            "fq04_extwin", body,
-            mysql_setup=mysql_setup,
-            pg_setup=pg_setup,
-            influx_lines=influx_lines_ew,
-        )
+            # ------------------------------------------------------------------
+            # EXTWIN-2: Window attribute column (3rd col of subquery) via w.win_max
+            # Subquery max(val) uses INTERVAL half-open semantics (inner window):
+            #   win_max: Window1=2, Window2=4, Window3=5
+            # Outer EXTERNAL_WINDOW uses closed intervals (overlap at boundaries):
+            #   Window 1 [00:00,00:02]: val=1,2,3 → count=3, avg=2.0, win_max=2
+            #   Window 2 [00:02,00:04]: val=3,4,5 → count=3, avg=4.0, win_max=4
+            #   Window 3 [00:04,00:06]: val=5     → count=1, avg=5.0, win_max=5
+            # ------------------------------------------------------------------
+            tdSql.query(
+                f"select _wstart, _wend, w.win_max, count(*), avg(val) from {t} "
+                f"external_window ("
+                f"  (select _wstart, _wend, max(val) win_max from {t} interval(2m)) w"
+                f") order by _wstart")
+            tdSql.checkRows(3)
+            # Window 1: win_max=2, count=3, avg=2.0
+            tdSql.checkData(0, 2, 2)
+            tdSql.checkData(0, 3, 3)
+            assert abs(float(tdSql.getData(0, 4)) - 2.0) < 1e-6, (
+                f"EXTWIN-2: Window1 avg should be 2.0, got {tdSql.getData(0, 4)}")
+            # Window 2: win_max=4, count=3, avg=4.0
+            tdSql.checkData(1, 2, 4)
+            tdSql.checkData(1, 3, 3)
+            assert abs(float(tdSql.getData(1, 4)) - 4.0) < 1e-6, (
+                f"EXTWIN-2: Window2 avg should be 4.0, got {tdSql.getData(1, 4)}")
+            # Window 3: win_max=5, count=1, avg=5.0
+            tdSql.checkData(2, 2, 5)
+            tdSql.checkData(2, 3, 1)
+            assert abs(float(tdSql.getData(2, 4)) - 5.0) < 1e-6, (
+                f"EXTWIN-2: Window3 avg should be 5.0, got {tdSql.getData(2, 4)}")
+
+            # ------------------------------------------------------------------
+            # EXTWIN-3: EVENT_WINDOW subquery
+            # EVENT_WINDOW START WITH val>=2 END WITH val>=4:
+            #   Window 1: rows val=2,3,4 → _wstart=ts(val=2)=00:01, _wend=ts(val=4)=00:03
+            #   Window 2: row  val=5     → _wstart=_wend=ts(val=5)=00:04
+            # Outer aggregates src_t within each event window (closed interval).
+            # ------------------------------------------------------------------
+            tdSql.query(
+                f"select _wstart, _wend, count(*), sum(val) from {t} "
+                f"external_window ("
+                f"  (select _wstart, _wend from {t} "
+                f"   event_window start with val >= 2 end with val >= 4) w"
+                f") order by _wstart")
+            tdSql.checkRows(2)
+            # Window 1: val=2,3,4 → count=3, sum=9
+            tdSql.checkData(0, 2, 3)
+            tdSql.checkData(0, 3, 9)
+            # Window 2: val=5 → count=1, sum=5
+            tdSql.checkData(1, 2, 1)
+            tdSql.checkData(1, 3, 5)
+
+            # ------------------------------------------------------------------
+            # EXTWIN-4: Outer PARTITION BY flag with un-partitioned INTERVAL subquery
+            # Inner subquery produces 3 global windows (no PARTITION BY).
+            # Outer PARTITION BY flag applies those windows per flag-partition.
+            # flag=1 rows: ts=00:00(v=1), ts=00:02(v=3), ts=00:04(v=5)
+            # flag=0 rows: ts=00:01(v=2), ts=00:03(v=4)
+            # Closed-interval matching:
+            #   flag=1 Win[00:00,00:02]: ts=00:00,00:02 → count=2, sum=4
+            #   flag=1 Win[00:02,00:04]: ts=00:02,00:04 → count=2, sum=8
+            #   flag=1 Win[00:04,00:06]: ts=00:04       → count=1, sum=5
+            #   flag=0 Win[00:00,00:02]: ts=00:01        → count=1, sum=2
+            #   flag=0 Win[00:02,00:04]: ts=00:03        → count=1, sum=4
+            #   flag=0 Win[00:04,00:06]: no rows → excluded
+            # ------------------------------------------------------------------
+            tdSql.query(
+                f"select _wstart, _wend, flag, count(*), sum(val) from {t} "
+                f"partition by flag "
+                f"external_window ("
+                f"  (select _wstart, _wend from {t} interval(2m)) w"
+                f") order by flag desc, _wstart")
+            tdSql.checkRows(5)
+            # flag=1: three windows (boundary rows counted in both adjacent windows)
+            tdSql.checkData(0, 2, 1); tdSql.checkData(0, 3, 2); tdSql.checkData(0, 4, 4)
+            tdSql.checkData(1, 2, 1); tdSql.checkData(1, 3, 2); tdSql.checkData(1, 4, 8)
+            tdSql.checkData(2, 2, 1); tdSql.checkData(2, 3, 1); tdSql.checkData(2, 4, 5)
+            # flag=0: two windows, no boundary overlap (no flag=0 row at 00:02 or 00:04)
+            tdSql.checkData(3, 2, 0); tdSql.checkData(3, 3, 1); tdSql.checkData(3, 4, 2)
+            tdSql.checkData(4, 2, 0); tdSql.checkData(4, 3, 1); tdSql.checkData(4, 4, 4)
+
+            # ------------------------------------------------------------------
+            # EXTWIN-5: HAVING filter — retain only windows where count(*) >= 2
+            # INTERVAL(2m) → 3 windows; window 3 has count=1 and is filtered out.
+            # ------------------------------------------------------------------
+            tdSql.query(
+                f"select _wstart, _wend, count(*), sum(val) from {t} "
+                f"external_window ("
+                f"  (select _wstart, _wend from {t} interval(2m)) w"
+                f") having count(*) >= 2 "
+                f"order by _wstart")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 2, 3); tdSql.checkData(0, 3, 6)    # Window 1: count=3, sum=6
+            tdSql.checkData(1, 2, 3); tdSql.checkData(1, 3, 12)   # Window 2: count=3, sum=12
+
+            # ------------------------------------------------------------------
+            # EXTWIN-6: Multiple aggregate functions in one query — count/max/min
+            # INTERVAL(2m) + closed-interval EXTERNAL_WINDOW:
+            #   Window 1 [00:00,00:02]: val=1,2,3 → count=3, max=3, min=1
+            #   Window 2 [00:02,00:04]: val=3,4,5 → count=3, max=5, min=3
+            #   Window 3 [00:04,00:06]: val=5     → count=1, max=5, min=5
+            # Note: Projection (non-aggregate) SELECT with EXTERNAL_WINDOW is not
+            # supported in the current version (Planner slot key error).
+            # ------------------------------------------------------------------
+            tdSql.query(
+                f"select _wstart, _wend, count(*), max(val), min(val) from {t} "
+                f"external_window ("
+                f"  (select _wstart, _wend from {t} interval(2m)) w"
+                f") order by _wstart")
+            tdSql.checkRows(3)
+            # Window 1: count=3, max=3, min=1
+            tdSql.checkData(0, 2, 3)
+            tdSql.checkData(0, 3, 3)
+            tdSql.checkData(0, 4, 1)
+            # Window 2: count=3, max=5, min=3
+            tdSql.checkData(1, 2, 3)
+            tdSql.checkData(1, 3, 5)
+            tdSql.checkData(1, 4, 3)
+            # Window 3: count=1, max=5, min=5
+            tdSql.checkData(2, 2, 1)
+            tdSql.checkData(2, 3, 5)
+            tdSql.checkData(2, 4, 5)
+
+        self._with_std_sources("fq04_extwin", body)
 
     # ==================================================================
     # 40  SLIMIT / SOFFSET

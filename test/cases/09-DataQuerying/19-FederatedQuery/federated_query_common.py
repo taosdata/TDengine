@@ -831,13 +831,16 @@ class ExtSrcEnv:
     def mysql_exec_cfg(cls, cfg, database, sqls):
         """Execute SQL on a specific MySQL version instance.
 
-        The session timezone is always fixed to UTC (+00:00) so that:
-        - TIMESTAMP columns are stored/retrieved in UTC.
-        - Test cases can write epoch-based WHERE filters against known UTC
-          epochs without worrying about the MySQL server's default timezone.
-        Note: DATETIME columns are timezone-naive and unaffected by this
-        setting; they are parsed by the TDengine ext-connector using the
-        taosd system timezone, which is also UTC in the test environment.
+        The session timezone is NOT overridden here; MySQL uses its server
+        default (SYSTEM, typically matching the taosd host timezone, e.g. CST).
+        This keeps TIMESTAMP storage consistent with what the TDengine
+        ext-connector reads back: the FQ connector sets UTC on its own
+        connection, so a CST-stored TIMESTAMP is returned as UTC string, then
+        taosParseTime uses the taosd local timezone (CST) to re-interpret it,
+        and the resulting TDengine epoch matches what callers expect when they
+        insert a local-time literal.
+        Note: DATETIME columns are timezone-naive and always round-trip as
+        their literal string value regardless of session timezone.
         """
         import pymysql
         conn = pymysql.connect(
@@ -846,7 +849,6 @@ class ExtSrcEnv:
             database=database, autocommit=True, charset="utf8mb4")
         try:
             with conn.cursor() as cur:
-                cur.execute("SET time_zone = '+00:00'")
                 for sql in sqls:
                     cur.execute(sql)
         finally:
