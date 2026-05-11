@@ -5351,6 +5351,53 @@ static bool IsEqualTbNameFuncNode(SSelectStmt* pSelect, SNode* pFunc1, SNode* pF
   return false;
 }
 
+typedef struct SCheckProjectionModeContext {
+  SSelectStmt* pSelect;
+  bool         hasScalarExpr;
+} SCheckProjectionModeContext;
+
+static EDealRes checkProjectionModeHasScalarExpr(SNode* pNode, void* pCtx) {
+  SCheckProjectionModeContext *ctx = (SCheckProjectionModeContext*)pCtx;
+  SSelectStmt                 *pSelect = ctx->pSelect;
+  if (!nodesIsExprNode(pNode) || isAliasColumn(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (isVectorFunc(pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+
+  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+    SNode* pExpr = NULL;
+    FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
+      if (nodesEqualNode(pExpr, pNode)) {
+        return DEAL_RES_IGNORE_CHILD;
+      }
+    }
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_COLUMN) {
+    ctx->hasScalarExpr = true;
+    return DEAL_RES_CONTINUE;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
+  if (pSelect->pProjectionList == NULL || pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc || pSelect->pGroupByList) {
+    return false;
+  }
+
+  SCheckProjectionModeContext ctx = {.pSelect = pSelect, .hasScalarExpr = false};
+  nodesWalkExprs(pSelect->pProjectionList, checkProjectionModeHasScalarExpr, &ctx);
+
+  if (ctx.hasScalarExpr) {
+    return true;
+  } else {
+    return (pSelect->windowMode == WINDOW_MODE_SCALAR);
+  }
+}
+
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   SSelectStmt*       pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -5361,6 +5408,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   bool   isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
+  bool   isScalarMode = checkWindowProjectionMode(pSelect);
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
@@ -5378,35 +5426,38 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
   }
-  if (pSelect->pWindow && isSingleTable &&
-      ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
-    return rewriteExprToSelectTagFunc(pCxt, pNode);
-  }
-  if (pSelect->pWindow && isSingleTable && isTbnameFuction(*pNode)) {
-    return rewriteExprToGroupKeyFunc(pCxt, pNode);
-  }
 
-  SNode* pPartKey = NULL;
-  bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
-  FOREACH(pPartKey, pSelect->pPartitionByList) {
-    if (nodesEqualNode(pPartKey, *pNode)) {
-      return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
-                                                        : DEAL_RES_IGNORE_CHILD;
+  if (!isScalarMode) {
+    if (pSelect->pWindow && isSingleTable &&
+        ((QUERY_NODE_COLUMN == nodeType(*pNode) && ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG))) {
+      return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
-    if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
-        ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+    if (pSelect->pWindow && isSingleTable && isTbnameFuction(*pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
-    if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
-      return rewriteExprToGroupKeyFunc(pCxt, pNode);
-    }
-  }
-  if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
-    SNode* pExpr = NULL;
-    FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
-      if (nodesEqualNode(pExpr, *pNode)) {
-        pSelect->hasStateKey = true;
+
+    SNode* pPartKey = NULL;
+    bool   partionByTbname = hasTbnameFunction(pSelect->pPartitionByList);
+    FOREACH(pPartKey, pSelect->pPartitionByList) {
+      if (nodesEqualNode(pPartKey, *pNode)) {
+        return (pSelect->hasAggFuncs || pSelect->pWindow) ? rewriteExprToGroupKeyFunc(pCxt, pNode)
+                                                          : DEAL_RES_IGNORE_CHILD;
+      }
+      if ((partionByTbname) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+          ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
         return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      }
+      if (IsEqualTbNameFuncNode(pSelect, pPartKey, *pNode)) {
+        return rewriteExprToGroupKeyFunc(pCxt, pNode);
+      }
+    }
+    if (NULL != pSelect->pWindow && QUERY_NODE_STATE_WINDOW == nodeType(pSelect->pWindow)) {
+      SNode* pExpr = NULL;
+      FOREACH(pExpr, ((SStateWindowNode*)pSelect->pWindow)->pExprList) {
+        if (nodesEqualNode(pExpr, *pNode)) {
+          pSelect->hasStateKey = true;
+          return rewriteExprToGroupKeyFunc(pCxt, pNode);
+        }
       }
     }
   }
@@ -5433,8 +5484,17 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
 
-    if ((pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
+    if (pSelect->hasOtherVectorFunc && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
+    }
+
+    if (!pSelect->hasSelectFunc && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
+      if (!pSelect->pGroupByList) {
+        pSelect->hasScalarExpr = true;
+        return DEAL_RES_CONTINUE;
+      } else {
+        return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
+      }
     }
 
     return rewriteColToSelectValFunc(pCxt, pNode);
@@ -7923,20 +7983,42 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+typedef struct SNeedFillContext {
+  bool hasFillFunc;
+  bool isScalarMode;
+} SNeedFillContext;
+
 static EDealRes needFillImpl(SNode* pNode, void* pContext) {
-  if ((isAggFunc(pNode) || isInterpFunc(pNode) || isIndefiniteRowsFunc(pNode)) &&
-      FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType &&
-      FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
-    *(bool*)pContext = true;
-    return DEAL_RES_END;
+  SNeedFillContext* cxt = (SNeedFillContext*)pContext;
+  if (cxt->isScalarMode) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+      if (((SFunctionNode*)pNode)->funcType == FUNCTION_TYPE_GROUP_KEY) {
+        return DEAL_RES_IGNORE_CHILD;
+      }
+    }
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      EColumnType colType = ((SColumnNode*)pNode)->colType;
+      if (colType == COLUMN_TYPE_COLUMN || colType == COLUMN_TYPE_TAG || colType == COLUMN_TYPE_TBNAME) {
+        cxt->hasFillFunc = true;
+        return DEAL_RES_END;
+      }
+    }
+  } else {
+    if ((isAggFunc(pNode) || isInterpFunc(pNode) || isIndefiniteRowsFunc(pNode)) &&
+        FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType &&
+        FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
+      cxt->hasFillFunc = true;
+      return DEAL_RES_END;
+    }
   }
   return DEAL_RES_CONTINUE;
 }
 
-static bool needFill(SNode* pNode) {
-  bool hasFillFunc = false;
-  nodesWalkExpr(pNode, needFillImpl, &hasFillFunc);
-  return hasFillFunc;
+
+static bool needFill(SNode* pNode, bool isScalarMode) {
+  SNeedFillContext cxt = {.hasFillFunc = false, isScalarMode = isScalarMode};
+  nodesWalkExpr(pNode, needFillImpl, &cxt);
+  return cxt.hasFillFunc;
 }
 
 static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList* pValues, int32_t index) {
@@ -7958,12 +8040,12 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   return code;
 }
 
-static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
+static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList, bool isScalarMode) {
   int32_t        fillNo = 0;
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
   FOREACH(pProject, pProjectionList) {
-    if (needFill(pProject)) {
+    if (needFill(pProject, isScalarMode)) {
       if (NULL == pFillValues || fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Too few fill values specified");
       }
@@ -7991,7 +8073,7 @@ static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SSelec
   */
   if ((FILL_MODE_VALUE == pFill->mode || FILL_MODE_VALUE_F == pFill->mode) ||
       (pFill->pSurroundingTime != NULL || pSelect->pRangeAround != NULL)) {
-    return doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
+    return doCheckFillValues(pCxt, pFill, pSelect->pProjectionList, pSelect->hasScalarExpr);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -12110,6 +12192,26 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSelectList(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code &&
+      NULL != pSelect->pWindow &&
+      nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW &&
+     (pSelect->hasScalarExpr || pSelect->hasIndefiniteRowsFunc)) {
+    if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
+      if (NULL != pInterval->pFill) {
+        SFillNode* pFillNode = (SFillNode*)pInterval->pFill;
+        if (pFillNode->mode != FILL_MODE_NONE &&
+            pFillNode->mode != FILL_MODE_NULL &&
+            pFillNode->mode != FILL_MODE_NULL_F &&
+            pFillNode->mode != FILL_MODE_VALUE &&
+            pFillNode->mode != FILL_MODE_VALUE_F) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,
+              "Only FILL(NONE/NULL/NULL_F/VALUE/VALUE_F) is supported "
+              "when SELECT list contains no aggregate functions");
+        }
+      }
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkHavingGroupBy(pCxt, pSelect);
