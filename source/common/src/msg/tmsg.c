@@ -15626,6 +15626,27 @@ int32_t tDecodeSVDropStbReq(SDecoder *pCoder, SVDropStbReq *pReq) {
   return 0;
 }
 
+int32_t tSerializeSVCheckHasCtbReq(void *buf, int32_t bufLen, const SVCheckHasCtbReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_RETURN(tStartEncode(&encoder));
+  TAOS_CHECK_RETURN(tEncodeI64(&encoder, pReq->suid));
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVCheckHasCtbReq(const void *buf, int32_t bufLen, SVCheckHasCtbReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf, bufLen);
+  TAOS_CHECK_RETURN(tStartDecode(&decoder));
+  TAOS_CHECK_RETURN(tDecodeI64(&decoder, &pReq->suid));
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBlock) {
   int32_t code = 0;
   int32_t lino;

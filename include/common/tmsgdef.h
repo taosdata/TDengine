@@ -354,6 +354,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_TABLE_NAME, "vnode-table-name", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSUBTABLES_META, "vnode-virtual_stables-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_VSTB_REF_DBS, "vnode-virtual-stables-ref-dbs", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CHECK_HAS_CTB, "vnode-check-has-ctb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_QUERY_SSMIGRATE_PROGRESS, "vnode-query-ssmigrate-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_SSMIGRATE_FILESET, "vnode-ssmigrate-fileset", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_FOLLOWER_SSMIGRATE, "vnode-follower-ssmigrate", NULL, NULL)

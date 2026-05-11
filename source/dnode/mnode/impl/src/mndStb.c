@@ -88,6 +88,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessAlterStbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessDropStbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_CHECK_HAS_CTB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TTL_TABLE_RSP, mndProcessDropTtltbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_TRIM_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_TRIM_WAL_RSP, mndProcessTrimDbWalRsp);
@@ -898,12 +899,74 @@ int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
   TAOS_RETURN(code);
 }
 
+// Build VCT check actions (group 1) for specified parent suids.
+// Sends TDMT_VND_CHECK_HAS_CTB to ALL vgroups in the DB for each parent.
+// If any vgroup has a child table for a parent suid, the transaction fails with ROLLBACK.
+static int32_t mndSetCheckHasCtbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
+                                            int64_t *parentSuids, int8_t numParents) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  for (int8_t p = 0; p < numParents; ++p) {
+    SVCheckHasCtbReq checkReq = {.suid = parentSuids[p]};
+    int32_t          reqLen = tSerializeSVCheckHasCtbReq(NULL, 0, &checkReq);
+    if (reqLen < 0) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    int32_t contLen = reqLen + sizeof(SMsgHead);
+
+    SVgObj *pVgroup = NULL;
+    void   *pIter = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+      if (!mndVgroupInDb(pVgroup, pDb->uid)) {
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
+
+      SMsgHead *pHead = taosMemoryCalloc(1, contLen);
+      if (pHead == NULL) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(terrno);
+      }
+      pHead->contLen = htonl(contLen);
+      pHead->vgId = htonl(pVgroup->vgId);
+      void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+      if (tSerializeSVCheckHasCtbReq(pBuf, reqLen, &checkReq) < 0) {
+        taosMemoryFree(pHead);
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
+
+      STransAction action = {0};
+      action.mTraceId = pTrans->mTraceId;
+      action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+      action.pCont = pHead;
+      action.contLen = contLen;
+      action.msgType = TDMT_VND_CHECK_HAS_CTB;
+      if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+        taosMemoryFree(pHead);
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        TAOS_RETURN(code);
+      }
+      sdbRelease(pSdb, pVgroup);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
 static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
   void   *pIter = NULL;
   int32_t contLen;
+  int32_t groupId = (pTrans->exec == TRN_EXEC_GROUP_PARALLEL) ? 2 : 0;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -930,6 +993,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.msgType = TDMT_VND_CREATE_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_ALREADY_EXIST;
     action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    action.groupId = groupId;
     mInfo("trans:%d, add create stb to redo action", pTrans->id);
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
@@ -1352,6 +1416,13 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   idxObj.dbUid = stbObj.dbUid;
 
   TAOS_CHECK_GOTO(mndSetCreateIdxCommitLogs(pMnode, pTrans, &idxObj), NULL, _OVER);
+
+  // If inherited VST, use SERIAL execution: check actions first, then DDL actions
+  if (stbObj.numParents > 0) {
+    mndTransSetSerial(pTrans);
+    TAOS_CHECK_GOTO(mndSetCheckHasCtbRedoActions(pMnode, pTrans, pDb,
+                    stbObj.parentSuids, stbObj.numParents), NULL, _OVER);
+  }
 
   TAOS_CHECK_GOTO(mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
@@ -2027,11 +2098,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
         code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
         goto _OVER;
       }
-      if (mndStbHasVCT(pMnode, pParentStb->uid)) {
-        mndReleaseStb(pMnode, pParentStb);
-        code = TSDB_CODE_MND_VST_PARENT_HAS_VCT;
-        goto _OVER;
-      }
+      // VCT check is done via TDMT_VND_CHECK_HAS_CTB in transaction group 1
       // Same DB check
       if (strncmp(pParentStb->db, pDb->name, TSDB_DB_FNAME_LEN) != 0) {
         mndReleaseStb(pMnode, pParentStb);
@@ -2710,6 +2777,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   SVgObj *pVgroup = NULL;
   void   *pIter = NULL;
   int32_t contLen;
+  int32_t groupId = (pTrans->exec == TRN_EXEC_GROUP_PARALLEL) ? 2 : 0;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -2732,6 +2800,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_ALTER_STB;
+    action.groupId = groupId;
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -3198,6 +3267,46 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// ALTER ADD BASE ON uses ROLLBACK + SERIAL: check actions first, then DDL actions
+static int32_t mndAlterStbAddBaseOnImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb,
+                                       int64_t *newParentSuids, int8_t numNewParents,
+                                       void *alterOriData, int32_t alterOriDataLen) {
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "alter-stb-add-baseon");
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  mInfo("trans:%d, used to alter stb add base on:%s", pTrans->id, pStb->name);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+
+  mndTransSetSerial(pTrans);
+
+  // VCT check actions (executed first in serial order)
+  TAOS_CHECK_GOTO(mndSetCheckHasCtbRedoActions(pMnode, pTrans, pDb,
+                  newParentSuids, numNewParents), NULL, _OVER);
+
+  // ALTER STB actions (executed after checks pass)
+  void   *pCont = NULL;
+  int32_t contLen = 0;
+  TAOS_CHECK_GOTO(mndBuildSMAlterStbRsp(pDb, pStb, &pCont, &contLen), NULL, _OVER);
+  mndTransSetRpcRsp(pTrans, pCont, contLen);
+
+  TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                                              void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter) {
   int32_t code = -1;
@@ -3304,10 +3413,7 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
       code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL;
       goto _ADD_OVER;
     }
-    if (mndStbHasVCT(pMnode, pAddParents[i]->uid)) {
-      code = TSDB_CODE_MND_VST_PARENT_HAS_VCT;
-      goto _ADD_OVER;
-    }
+    // VCT check is done via TDMT_VND_CHECK_HAS_CTB in transaction group 1
     if (strncmp(pAddParents[i]->db, pDb->name, TSDB_DB_FNAME_LEN) != 0) {
       code = TSDB_CODE_MND_VST_CROSS_DB;
       goto _ADD_OVER;
@@ -3714,7 +3820,13 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   }
 
   if (code != 0) goto _OVER;
-  if (updateTagIndex == false) {
+  if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON) {
+    // Only check newly added parents (starting at pOld->numParents)
+    int8_t numNew = stbObj.numParents - pOld->numParents;
+    code = mndAlterStbAddBaseOnImp(pMnode, pReq, pDb, &stbObj,
+                                   &stbObj.parentSuids[pOld->numParents], numNew,
+                                   pReq->pCont, pReq->contLen);
+  } else if (updateTagIndex == false) {
     code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
   } else {
     code = mndAlterStbAndUpdateTagIdxImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen, pAlter);
