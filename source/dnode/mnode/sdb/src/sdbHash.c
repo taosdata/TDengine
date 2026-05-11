@@ -121,7 +121,7 @@ const char *sdbTableName(ESdbType type) {
     case SDB_TXN:
       return "txn";
     case SDB_TXN_SEQ:
-      return "txn_seq";gst  
+      return "txn_seq";
     default:
       return "undefine";
   }
