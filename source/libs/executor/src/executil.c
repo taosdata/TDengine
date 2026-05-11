@@ -2154,18 +2154,17 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     bool      isStream = (pStreamInfo != NULL);
     bool      hasTagCond = (pTagCond != NULL);
     bool      canCacheTagEqCondFilter = false;
+    bool      stableTagCachePrewarmed = false;
     T_MD5_CTX context = {0};
 
-    qTrace("start to get table list by tag filter, suid:%" PRIu64
-      ",tsStableTagFilterCache:%d, tsTagFilterCache:%d", 
-      pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache);
+    qTrace("start to get table list by tag filter, suid:%" PRIu64 ",tsStableTagFilterCache:%d, tsTagFilterCache:%d",
+           pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache);
 
     bool acquired = false;
     // first, check whether we can use stable tag filter cache
     if (tsStableTagFilterCache && isStream && hasTagCond) {
       canCacheTagEqCondFilter = true;
-      nodesWalkExpr(pTagCond, canOptimizeTagCondFilter,
-        (void*)&canCacheTagEqCondFilter);
+      nodesWalkExpr(pTagCond, canOptimizeTagCondFilter, (void*)&canCacheTagEqCondFilter);
     }
     if (canCacheTagEqCondFilter) {
       qDebug("%s, stable tag filter condition can be optimized", idstr);
@@ -2174,7 +2173,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
         QUERY_CHECK_CODE(code, lino, end);
 
-        PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
+        PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS,
+                                  .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
         nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
         if (TSDB_CODE_SUCCESS != ctx.code) {
           nodesDestroyNode(tmp);
@@ -2188,13 +2188,29 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
       QUERY_CHECK_CODE(code, lino, end);
 
-      code = buildTagCondKey(
-        pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
+      code = buildTagCondKey(pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
       QUERY_CHECK_CODE(code, lino, end);
-      code = pStorageAPI->metaFn.getStableCachedTableList(
-        pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
-        context.digest, tListLen(context.digest), pUidList, &acquired);
+      code =
+          pStorageAPI->metaFn.getStableCachedTableList(pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+                                                       context.digest, tListLen(context.digest), pUidList, &acquired);
       QUERY_CHECK_CODE(code, lino, end);
+
+      if (!acquired && pStorageAPI->metaFn.warmupStableCachedTableList != NULL) {
+        code = pStorageAPI->metaFn.warmupStableCachedTableList(pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+                                                               pTagColIds, &stableTagCachePrewarmed);
+        QUERY_CHECK_CODE(code, lino, end);
+
+        if (stableTagCachePrewarmed) {
+          code = pStorageAPI->metaFn.getStableCachedTableList(pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
+                                                              context.digest, tListLen(context.digest), pUidList,
+                                                              &acquired);
+          QUERY_CHECK_CODE(code, lino, end);
+
+          if (!acquired) {
+            acquired = true;
+          }
+        }
+      }
     } else if (tsTagFilterCache) {
       // second, try to use normal tag filter cache
       qDebug("%s using normal tag filter cache", idstr);
