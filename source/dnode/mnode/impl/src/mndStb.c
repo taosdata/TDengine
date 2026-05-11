@@ -1020,6 +1020,12 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
 
     SColCmpr *pColCmpr = &pDst->pCmpr[i];
     pColCmpr->id = pSchema->colId;
+    if (pField->compress != 0) {
+      code = validColCmprByType(pSchema->type, pField->compress);
+      if (code != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
+    }
     pColCmpr->alg = pField->compress;
   }
 
@@ -1573,6 +1579,10 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     if (pField->compress == 0) {
       p->alg = createDefaultColCmprByType(pSchema->type);
     } else {
+      code = validColCmprByType(pSchema->type, pField->compress);
+      if (code != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
       p->alg = pField->compress;
     }
     if (pField->flags & COL_HAS_TYPE_MOD) {
@@ -2267,6 +2277,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
 
       SColCmpr *pCmpr = &pNew->pCmpr[pOld->numOfColumns + i];
       pCmpr->id = pSchema->colId;
+      code = validColCmprByType(pSchema->type, pField->compress);
+      if (code != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
       pCmpr->alg = pField->compress;
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     } else {
