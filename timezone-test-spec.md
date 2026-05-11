@@ -9,6 +9,8 @@
 | 2026-05-07 | 0.3 | AI | 同步 plan 9.1：补充当前已落地的 common gtest 单元测试与暂未开发完成的阻塞项 |
 | 2026-05-07 | 0.4 | AI | 补充 async local SET client gtest 与 parser 负数 firstDayOfWeek 回归 |
 | 2026-05-09 | 0.5 | AI | 同步最新实现状态：恢复最小 1w 回归、补充 1w+DST 一致性回归、更新 P4 skip 现状与执行结果 |
+| 2026-05-09 | 0.6 | AI | `firstDayOfWeek` 从服务端改为客户端参数：TestSetFirstDayOfWeek 改为 `ALTER LOCAL` 验证；TestIntervalWeek 改为客户端配置生效；回退链矩阵更新 |
+| 2026-05-11 | 0.7 | AI | 新增 Finding 1 连接隔离回归测试：`test_fdow_alter_local_updates_process_global_not_existing_connection`（立即运行）和 `test_fdow_alter_local_does_not_affect_existing_connection_timetruncate`（P4 skip）；更新 TestSetFirstDayOfWeek 验证要点 |
 
 ## 2. 概述
 
@@ -48,8 +50,9 @@
 - ✅ 合法值 0-6 全覆盖；非法值 7、-1、100 → 报错
 - ✅ 新增 parser gtest：`SET FIRST_DAY_OF_WEEK -1` 在 parse 阶段不报语法错，而返回 `TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK`
 - ✅ 影响 TIMETRUNCATE(1w) 结果
-- ✅ `ALTER ALL DNODES` 接受；`ALTER DNODE N` 被拒绝
-- ✅ 服务端 `firstDayOfWeek` 在无连接级 override 时，经新连接生效
+- ✅ `ALTER LOCAL 'firstDayOfWeek'` 接受；`ALTER ALL DNODES` / `ALTER DNODE N` 被拒绝
+- ✅ `ALTER LOCAL 'firstDayOfWeek'` 更新进程全局 L3，`SHOW LOCAL VARIABLES` 立即可见，新连接继承新值
+- ✅ **连接隔离回归（Finding 1）**：`test_fdow_alter_local_updates_process_global_not_existing_connection` 验证 `ALTER LOCAL` 仅影响新连接；`test_fdow_alter_local_does_not_affect_existing_connection_timetruncate`（P4 skip）为完整行为回归，待 qworker→executor 链路打通后解除 skip
 
 #### TestTimezoneFunc — TIMEZONE() 函数（P6 Task 6.1, 6.2）
 - ✅ `TIMEZONE()` / `TIMEZONE(0)` 返回客户端时区字符串，SET TIMEZONE 后不变
@@ -146,7 +149,7 @@
 #### TestIntervalWeek — INTERVAL(1w) + firstDayOfWeek（P4 Task 4.3）
 - ✅ fdow=0 vs fdow=1 产生不同窗口边界
 - ✅ fdow 0-6 全覆盖；DST 期间不漂移
-- ✅ 服务端 `firstDayOfWeek` 在无连接级 override 时，经新连接生效
+- ✅ 客户端 `firstDayOfWeek` 在无连接级 override 时，经新连接生效
 - ✅ 超级表查询
 - ⚠️ **高风险变更**
 
@@ -174,7 +177,7 @@
 | TODAY() | L2 → L3 → L5 | TestTodayNowTz |
 | TIMEZONE() / TIMEZONE(0) | 返回 L3 (client tz) | TestTimezoneFunc |
 | TIMEZONE(1) | 返回 L2/L3/L4 三层 | TestTimezoneFunc |
-| firstDayOfWeek | SET → server → default 1 | TestSetFirstDayOfWeek, TestTimetruncateWeek, TestWeekFunctions, TestIntervalWeek |
+| firstDayOfWeek | SET → client → default 4 | TestSetFirstDayOfWeek, TestTimetruncateWeek, TestWeekFunctions, TestIntervalWeek |
 
 ---
 
@@ -195,8 +198,8 @@
 
 | 变更项 | 风险等级 | 覆盖测试类 |
 |--------|---------|-----------|
-| TIMETRUNCATE(1w) 从 epoch 星期四改为 fdow 对齐 | ⚠️ 高 | TestTimetruncateWeek（当前为最小回归覆盖，P4 全量用例仍部分 skip） |
-| INTERVAL(1w) 从 epoch 星期四改为 fdow 对齐 | ⚠️ 高 | TestIntervalWeek |
+| TIMETRUNCATE(1w) 从 epoch 取模改为 fdow 对齐 | ⚠️ 低（默认 fdow=4 兼容旧行为） | TestTimetruncateWeek（当前为最小回归覆盖，P4 全量用例仍部分 skip） |
+| INTERVAL(1w) 从 epoch 取模改为 fdow 对齐 | ⚠️ 低（默认 fdow=4 兼容旧行为） | TestIntervalWeek |
 | INTERVAL(1d) 从 24h 固定步进改为日历日步进 | ⚠️ 高 | TestIntervalNatural |
 | TO_ISO8601 无参从 translator 折叠改为运行时 IANA | ⚠️ 中 | TestToIso8601Iana |
 | TIMEZONE() 保持返回客户端时区（不变为 session） | ⚠️ 中 | TestTimezoneFunc |
@@ -211,7 +214,7 @@
 4. **TIMEZONE() 在 SET TIMEZONE 后的行为**：FS 明确说返回客户端时区（L3），不是 session 时区（L2） — 已按此编写测试
 5. **TIMETRUNCATE 多倍数的 epoch 基准**：`Nn`/`Nq`/`Ny` 的 epoch 起计数是否从 1970-01-01 UTC 开始？
 6. **INTERVAL(1d) DST 行为**：Plan 明确 `d` 不纳入 `IS_CALENDAR_TIME_DURATION` 但走专用日历分支 — 测试按此预期
-7. **错误码**：已在 pytest 中显式锁定 `TSDB_CODE_PAR_INVALID_TIMEZONE=0x26B2`、`TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK=0x26B3`；函数参数非法场景当前沿用 `0x2803`，`ALTER DNODE` 拒绝当前锁定 `0x03B2`
+7. **错误码**：已在 pytest 中显式锁定 `TSDB_CODE_PAR_INVALID_TIMEZONE=0x26B2`、`TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK=0x26B3`；函数参数非法场景当前沿用 `0x2803`
 
 ---
 

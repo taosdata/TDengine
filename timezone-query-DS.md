@@ -70,7 +70,7 @@
 - SQL 参数（L1） → 连接级（L2） → 客户端全局/服务端全局（L3/L4） → 系统默认（L5）
 
 2. 周起始日层级：
-- `SET FIRST_DAY_OF_WEEK`（连接级） → 服务端 `firstDayOfWeek` → 默认值 `1`
+- `SET FIRST_DAY_OF_WEEK`（连接级）→ 客户端 `firstDayOfWeek` → 默认值 `4`
 
 ### 4.2 设计原则
 
@@ -142,7 +142,7 @@ int8_t firstDayOfWeek;  // -1: unset, 0..6: session override
 - 客户端本地执行
 - 仅影响当前连接
 
-### 5.3 F7: 服务端 `firstDayOfWeek` 配置
+### 5.3 F7: 客户端 `firstDayOfWeek` 配置
 
 #### 5.3.1 配置注册
 
@@ -151,14 +151,15 @@ int8_t firstDayOfWeek;  // -1: unset, 0..6: session override
 新增全局配置：
 - 名称：`firstDayOfWeek`
 - 范围：`0..6`
-- 默认：`1`
+- 默认：`4`
+- 配置端：客户端（`CFG_SCOPE_CLIENT`）
 
 #### 5.3.2 读取回退
 
-服务端取值顺序：
+客户端取值顺序：
 - 连接级 `fdow`（若设置）
-- 服务端全局 `tsFirstDayOfWeek`
-- 默认 `1`
+- 客户端全局 `tsFirstDayOfWeek`
+- 默认 `4`
 
 ### 5.4 F1/F2: 普通查询列、SHOW/EXPLAIN 使用连接时区
 
@@ -267,7 +268,7 @@ TIMEZONE(1)
 
 **参数为 1**：
 - `TIMEZONE(1)`：返回 JSON 字符串，包含三层时区信息 (`session/client/server`)
-- **需下发服务端执行**（新增）：原因是需要访问服务端的 `tsTimezoneStr` 配置与 `firstDayOfWeek` 等信息
+- **需下发服务端执行**（新增）：原因是需要访问服务端的 `tsTimezoneStr` 配置等信息
 - 服务端收集三层数据后组装 JSON 返回
 
 #### 5.9.3 实现点
@@ -322,12 +323,10 @@ FS 中定义：
 2. 仅在显式使用新语法/新参数时行为改变。
 3. `TIMEZONE()` 默认返回保持兼容。
 
-### 8.2 高风险行为变更
+### 8.2 行为变更（默认配置下兼容）
 
-1. `TIMETRUNCATE(..., 1w)` 对齐基准变化（周四 -> firstDayOfWeek）
-2. `INTERVAL(..., w)` 周起始日变化
-
-需在版本说明与升级指南明确提示。
+1. `TIMETRUNCATE(..., 1w)` 对齐基准变化（epoch 取模 -> firstDayOfWeek），默认 `firstDayOfWeek=4`（周四）与旧行为结果一致
+2. `INTERVAL(..., w)` 周起始日变化，默认配置下与旧行为兼容
 
 ### 8.3 执行路径变化
 
@@ -346,7 +345,7 @@ FS 中定义：
 1. P1：语法与配置基础设施
 - `SET TIMEZONE`
 - `SET FIRST_DAY_OF_WEEK`
-- 服务端 `firstDayOfWeek`
+- 客户端 `firstDayOfWeek`
 
 2. P2：展示口径统一
 - F1/F2 查询结果、SHOW/EXPLAIN
@@ -379,7 +378,7 @@ FS 中定义：
 - `1w` 对齐符合 `firstDayOfWeek`
 - `INTERVAL(1q)` 与 `INTERVAL(3n)` 等价（按 FS 语义）
 5. 执行路径：
-- 服务端可访问连接级时区与 `firstDayOfWeek`
+- 服务端可访问连接级时区与 `firstDayOfWeek`（由客户端透传）
 - 必要时下发请求到服务端（如 `TIMEZONE(1)`、`TIMETRUNCATE` 带 IANA 等）
 
 ## 11. 参考文件

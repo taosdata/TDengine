@@ -13,6 +13,7 @@
 | 2026-05-06 | 0.7 | AI | 增补测试优先执行节奏：先生成单元/pytest 测试清单与测试代码，待人工评审通过后再进入功能开发与全量回归 |
 | 2026-05-07 | 0.8 | AI | 补充 9.1 当前可编译单元测试与阻塞项说明：增强 common 自然单位/周边界断言；记录 parser 新语法、共享 timezone helper、TIMEZONE(1) 组装与消息透传因功能未落地暂无法补充 |
 | 2026-05-09 | 0.9 | AI | 同步最新落地状态：P3 已完成并通过 scalar 回归；P4 维持部分 skip，恢复最小 1w 回归与 1w+DST 一致性回归；移除过期阻塞描述 |
+| 2026-05-09 | 0.10 | AI | `firstDayOfWeek` 从服务端参数改为客户端参数：Task 1.3 改为客户端 `CFG_SCOPE_CLIENT` 注册，`ALTER LOCAL` 替代 `ALTER ALL DNODES`；Task 1.5 回退链解析改为客户端完成后透传；默认值从 1（周一）改为 4（周四），与 epoch 取模旧行为兼容；用户手册指引同步修正 |
 
 ## 2. 概述
 
@@ -138,9 +139,9 @@
 
 ---
 
-### 3.3 Task 1.3：服务端 `firstDayOfWeek` 配置
+### 3.3 Task 1.3：客户端 `firstDayOfWeek` 配置
 
-**目标**：在服务端注册 `firstDayOfWeek` 全局配置项。
+**目标**：在客户端注册 `firstDayOfWeek` 全局配置项。
 
 **涉及文件**：
 
@@ -151,20 +152,20 @@
 
 **实现步骤**：
 
-1. 在 `tglobal.c` 声明全局变量 `int8_t tsFirstDayOfWeek = 1`
+1. 在 `tglobal.c` 声明全局变量 `int8_t tsFirstDayOfWeek = 4`
 2. 在配置注册表中添加：
    - 名称：`firstDayOfWeek`
    - 类型：`CFG_DTYPE_INT8`
    - 范围：`0..6`
-   - 默认值：`1`
-3. 支持 `ALTER ALL DNODES 'firstDayOfWeek' '<value>'` 动态修改
-4. 拒绝单节点 `ALTER DNODE N 'firstDayOfWeek'`
+   - 默认值：`4`
+   - 配置端：客户端（`CFG_SCOPE_CLIENT`）
+3. 支持 `ALTER LOCAL 'firstDayOfWeek' '<value>'` 动态修改
 
 **验收标准**：
 
-- `taos.cfg` 中可配置 `firstDayOfWeek 0` ~ `6`
-- `ALTER ALL DNODES 'firstDayOfWeek' '0'` 动态生效
-- `ALTER DNODE 1 'firstDayOfWeek' '0'` 被拒绝
+- 客户端 `taos.cfg` 中可配置 `firstDayOfWeek 0` ~ `6`
+- `ALTER LOCAL 'firstDayOfWeek' '0'` 动态生效
+- 仅影响当前客户端进程，不影响服务端
 
 ---
 
@@ -211,16 +212,16 @@
 **实现步骤**：
 
 1. 在 `SSubQueryMsg` 和 `SInterval` 中增加 `firstDayOfWeek` 字段，并完成序列化/反序列化代码
-2. 客户端发送请求时，仅透传连接级覆盖值：
-   - 已执行 `SET FIRST_DAY_OF_WEEK` 时，填充 `0..6`
-   - 未设置时，填充 unset sentinel（如 `-1`）
-3. 服务端执行器读取请求上下文后，再按回退链完成解析：连接级 override → 服务端 `tsFirstDayOfWeek` → 默认 1
-4. 周相关函数与窗口逻辑统一从该解析结果取值，避免客户端提前折叠服务端配置
+2. 客户端发送请求时，按回退链解析最终 `firstDayOfWeek` 值后填充：
+   - 已执行 `SET FIRST_DAY_OF_WEEK` 时，使用连接级值（`0..6`）
+   - 未设置时，使用客户端全局 `tsFirstDayOfWeek`（来自客户端 `taos.cfg` 或默认 4）
+3. 服务端执行器直接使用请求上下文中的 `firstDayOfWeek` 值，不再做二次回退解析
+4. 周相关函数与窗口逻辑统一从该值取值
 
 **验收标准**：
 
-- 未设置连接级覆盖时，服务端 `firstDayOfWeek` 配置仍然生效
-- 已设置连接级覆盖时，可正确覆盖服务端 `firstDayOfWeek`
+- 未设置连接级覆盖时，客户端 `firstDayOfWeek` 配置（`taos.cfg` 或默认 4）被透传到服务端
+- 已设置连接级覆盖时，可正确覆盖客户端 `firstDayOfWeek`
 - 服务端函数和窗口计算时可读到正确的最终 `firstDayOfWeek` 值
 
 ---
@@ -491,7 +492,7 @@ SELECT TIMETRUNCATE('2026-05-15 10:30:00', 2q);   -- 2026-01-01 00:00:00
 
 **实现步骤**：
 
-1. 获取 `firstDayOfWeek`：按回退链 `SET FIRST_DAY_OF_WEEK` → 服务端 `tsFirstDayOfWeek` → 默认 1
+1. 获取 `firstDayOfWeek`：按回退链 `SET FIRST_DAY_OF_WEEK` → 客户端 `tsFirstDayOfWeek` → 默认 4（由客户端解析后透传到服务端，见 Task 1.5）
 2. 新算法：
    ```
    a. 将 UTC 时间戳转为本地时间
@@ -519,7 +520,7 @@ SET FIRST_DAY_OF_WEEK 0;
 SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w);  -- 2026-04-26 00:00:00 (周日)
 ```
 
-**风险提示**：这是高风险行为变更，会影响所有现有 `TIMETRUNCATE(..., 1w)` 查询结果。
+**风险提示**：这是行为变更，但默认 `firstDayOfWeek=4`（周四）与 epoch 取模旧行为结果一致，未修改配置的用户不受影响。
 
 **当前状态补充（2026-05-09）**：
 1. `firstDayOfWeek` 全量语义（fdow 0-6、2w、多场景周边界）仍在 P4 路线中，相关 pytest 维持 skip。
@@ -573,7 +574,7 @@ SELECT COUNT(*) FROM t INTERVAL(3n);
 -- 两者窗口边界与聚合结果一致
 ```
 
-**风险提示**：高风险行为变更，与 Task 4.2 同级。
+**风险提示**：行为变更，与 Task 4.2 同级。默认配置下与旧行为兼容。
 
 ---
 
@@ -594,19 +595,19 @@ SELECT COUNT(*) FROM t INTERVAL(3n);
 2. 将周起始日来源统一切换为 Task 1.5 中的服务端解析结果，而不是隐式固定周一或局部常量
 3. `WEEK(ts, mode)` 中的 `mode` 参数作为 L1 级参数，优先级高于 `firstDayOfWeek` 回退链。`mode` 取值 0-7，语义兼容 MySQL `WEEK()` 函数：mode 同时控制周起始日（0=周日, 1=周一）和年边界归属规则（ISO vs simple）。实现时需确保 mode 指定的周起始日可以独立覆盖 `firstDayOfWeek` 的效果，而非与 `firstDayOfWeek` 值混用
 4. 若当前代码已存在独立周计算 helper，则收口为共享 helper，确保 `TIMETRUNCATE`、`INTERVAL`、`WEEK`、`WEEKOFYEAR` 语义一致
-5. 校验连接级覆盖、服务端配置、默认值三层回退在上述函数中的结果一致性
+5. 校验连接级覆盖、客户端配置、默认值三层回退在上述函数中的结果一致性
 
 **验收标准**：
 
 ```sql
--- 服务端 firstDayOfWeek = 1 (周一)
+-- 客户端 firstDayOfWeek = 1 (周一)
 SELECT WEEKOFYEAR('2026-01-01 12:00:00');
 -- 结果按周一作为周起始日计算
 
 SET FIRST_DAY_OF_WEEK 0;
 SELECT WEEK('2026-01-01 12:00:00');
 SELECT WEEKOFYEAR('2026-01-01 12:00:00');
--- 结果按周日作为周起始日计算，并覆盖服务端配置
+-- 结果按周日作为周起始日计算，并覆盖客户端配置
 ```
 
 **风险提示**：若现有 `WEEK` / `WEEKOFYEAR` 已被上层业务依赖固定周一语义，这一改动同样属于行为变更，需要通过回归用例显式锁定。
@@ -768,7 +769,7 @@ SELECT TIMEZONE(1);
 | `test_interval_quarter` | INTERVAL(1q) 窗口边界；与 INTERVAL(3n) 等价性 |
 | `test_interval_natural` | INTERVAL(d/n/y) 在设置连接时区后的窗口边界、窗口步进与时区回退链回归；覆盖 DST 切换日，防止固定秒数推进导致边界漂移 |
 | `test_interval_week` | INTERVAL(1w) 尊重 firstDayOfWeek |
-| `test_week_functions_fdow` | `WEEK` / `WEEKOFYEAR` 尊重 firstDayOfWeek；覆盖连接级 override / 服务端配置 / 默认值；`WEEK(ts, mode)` 中 mode 作为 L1 覆盖 firstDayOfWeek |
+| `test_week_functions_fdow` | `WEEK` / `WEEKOFYEAR` 尊重 firstDayOfWeek；覆盖连接级 override / 客户端配置 / 默认值；`WEEK(ts, mode)` 中 mode 作为 L1 覆盖 firstDayOfWeek |
 | `test_today_tz` | TODAY() 在设置连接时区后返回正确 UTC 时间戳；未设置 L2 时按 L3→L5 回退，不使用服务端 L4 |
 | `test_now_tz` | NOW() 返回原始 UTC 时间戳，不受 SET TIMEZONE 影响；确认行为未变 |
 | `test_timezone_func` | TIMEZONE() / TIMEZONE(0) / TIMEZONE(1) |
@@ -793,7 +794,7 @@ SELECT TIMEZONE(1);
 
 | 风险 | 影响 | 缓解措施 |
 | --- | --- | --- |
-| `TIMETRUNCATE(1w)` / `INTERVAL(1w)` 行为变更 | 现有查询结果变化 | 版本说明明确告知；默认 `firstDayOfWeek=1` 时从周四变为周一 |
+| `TIMETRUNCATE(1w)` / `INTERVAL(1w)` 对齐机制变更 | 仅修改配置后影响 | 默认 `firstDayOfWeek=4`（周四）与 epoch 取模旧行为结果一致，未修改配置的用户不受影响 |
 | 季度 PR rebase 冲突 | 阻塞 P5 | P1-P4 先行，P5 独立收口 |
 | `TIMEZONE(1)` 需服务端执行 | 增加复杂度 | 放在 P6 最后阶段，充分测试 |
 | 错误码 0x2600/0x2601 编号冲突 | 与现有语义冲突 | 已确认占用，必须在函数/参数错误码域分配新编号；不得复用现有 parser 错误码 |
@@ -815,14 +816,14 @@ SELECT TIMEZONE(1);
 | SQL 语法手册 | `SET TIMEZONE`、`SET FIRST_DAY_OF_WEEK` 新语法、参数约束、错误码 |
 | 函数手册 | `TIMEZONE([0|1])`、`TO_ISO8601`、`TO_CHAR`、`TIMETRUNCATE` 的新增参数、回退链、DST 语义 |
 | 查询/窗口函数手册 | `INTERVAL(w/n/q/y)`、`TIMETRUNCATE(..., w/n/q/y)`、`WEEK` / `WEEKOFYEAR` 与 `firstDayOfWeek` 的关系 |
-| 配置手册 | 服务端 `firstDayOfWeek` 配置项、默认值、动态修改方式与限制 |
+| 配置手册 | 客户端 `firstDayOfWeek` 配置项、默认值、动态修改方式与限制 |
 | 错误码文档 | `TSDB_CODE_PAR_INVALID_TIMEZONE`、`TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK` |
 | 版本说明 / 升级说明 | `TIMETRUNCATE(1w)`、`INTERVAL(1w)` 行为变更与兼容性提示 |
 
 ### 11.2 必须补齐的主题
 
 1. `SET TIMEZONE` 需写明支持的固定偏移格式（`Z` / `±HH` / `±HHMM` / `±HH:MM`）、小时两位限制、`-14:00 ~ +14:00` 范围、模糊缩写如 `CST` 非法。
-2. `SET FIRST_DAY_OF_WEEK` 与服务端 `firstDayOfWeek` 配置需明确优先级链：连接级 override → 服务端配置 → 默认值 1。
+2. `SET FIRST_DAY_OF_WEEK` 与客户端 `firstDayOfWeek` 配置需明确优先级链：连接级 override → 客户端配置 → 默认值 4。
 3. `TIMEZONE()` / `TIMEZONE(0)` 需明确保持兼容，返回客户端时区字符串；`TIMEZONE(1)` 返回 `session/client/server` 三层 JSON 字符串。
 4. `TO_ISO8601(ts)` / `TO_CHAR(ts, fmt)` 无参时的最终回退链为 `L2 → L3 → L5`（客户端执行）；`TIMETRUNCATE(ts, unit)` 无参时为 `L2 → L4 → L5`（服务端执行）；`TODAY()` 为 `L2 → L3 → L5`。
 5. `WHERE` / `CAST` / `JOIN` 中时间字面量的解析需明确仍按 `L2 → L3 → L5`，不引入服务端 `L4`。
@@ -854,9 +855,9 @@ SELECT TIMEZONE(1);
 - [x] 测试内容已完成人工评审，确认正确且覆盖充分后再进入开发
 - [x] P1：`SET TIMEZONE` 语法可用
 - [x] P1：`SET FIRST_DAY_OF_WEEK` 语法可用
-- [x] P1：服务端 `firstDayOfWeek` 配置项可用
+- [x] P1：服务端 `firstDayOfWeek` 配置项可用 → 已改为客户端配置项（配置所有权迁移完成，下游执行链消费待 P4）
 - [x] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
-- [x] P1：请求上下文携带 firstDayOfWeek
+- [ ] P1：请求上下文携带 firstDayOfWeek（客户端填充已完成，qworker→planner→executor 透传待 P4 打通）
 - [x] P2：普通列展示使用连接时区
 - [ ] P2：SHOW/EXPLAIN 使用连接时区
 - [x] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
@@ -867,12 +868,12 @@ SELECT TIMEZONE(1);
 - [ ] P4：TIMETRUNCATE 支持 n/q/y
 - [ ] P4：TIMETRUNCATE 1w 对齐修正
 - [ ] P4：INTERVAL(w) 尊重 firstDayOfWeek
+- [ ] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
 - [x] P5：季度 PR rebase 完成
 - [ ] P5：INTERVAL(1q) 集成验证
-- [ ] P6：TIMEZONE(1) 服务端执行
+- [ ] P6：TIMEZONE(0) planner 不路由到服务端执行确认
 - [ ] P6：TIMEZONE(1) client timezone 来源与透传打通
-- [ ] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
-- [ ] P4：TIMEZONE(0) planner 不路由到服务端执行确认
+- [ ] P6：TIMEZONE(1) 服务端执行
 - [ ] FS 第 12 章错误码编号同步更新（当前仍为 0x2600/0x2601，与实际占用冲突）
 - [ ] 全量回归测试通过
 - [ ] 用户手册已补充新语法、函数参数、回退链、DST 与兼容性说明

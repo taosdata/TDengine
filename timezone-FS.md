@@ -5,6 +5,7 @@
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
 | 2026-04-29 | - | 0.1 | Tony Zhang | 初稿 |
+| 2026-05-09 | - | 0.2 | Tony Zhang | `firstDayOfWeek` 从服务端参数改为客户端参数；配置方式从 `ALTER ALL DNODES` 改为 `ALTER LOCAL`；新增 6.4 节与 `ALTER LOCAL` 的关系说明；回退链更新为 `SET → 客户端 → 默认值 4`；默认值从 1（周一）改为 4（周四），与 epoch 取模旧行为兼容 |
 
 ## 2. 引言
 
@@ -16,8 +17,8 @@
 - **新增 SQL 语法**：`SET TIMEZONE`（F3）的语法定义、参数约束、与现有 `ALTER LOCAL` 的层级关系。
 - **函数时区扩展**：`TO_ISO8601` / `TO_CHAR` 支持 IANA 时区参数及无参时的回退行为（F5）；`TIMETRUNCATE` 第三参数扩展为字符串时区（F6）。
 - **自然单位扩展**：`TIMETRUNCATE` 新增 `n`/`q`/`y` 截断规则（F10）；`INTERVAL` 新增季度单位 `q`（F11）；`1w` 对齐基准改为 `firstDayOfWeek`（F9）。
-- **一周起始日**：`firstDayOfWeek` 服务端配置（F7）与 `SET FIRST_DAY_OF_WEEK` 连接级覆盖语法（F8），共同定义周相关计算的优先级链。
-- **错误码与兼容性**：新增错误码定义；逐项说明行为变更范围和高风险变更。
+- **一周起始日**：`firstDayOfWeek` 客户端配置（F7）与 `SET FIRST_DAY_OF_WEEK` 连接级覆盖语法（F8），共同定义周相关计算的优先级链。
+- **错误码与兼容性**：新增错误码定义；逐项说明行为变更范围和兼容性。
 
 本文档聚焦**行为规格**（做什么、如何表现），不涉及具体实现方案和测试用例。
 
@@ -43,7 +44,7 @@
 | 固定时间单位 | 长度恒定的单位：毫秒（`a`）、秒（`s`）、分钟（`m`）、小时（`h`）等 |
 | 自然时间单位 | 长度不固定的日历单位：天（`d`）、周（`w`）、月（`n`）、季度（`q`）、年（`y`） |
 | L1-L5 | 本文定义的五层时区优先级层级，详见第 4 章 |
-| firstDayOfWeek | 一周起始日配置，0=周日、1=周一（默认）、...、6=周六 |
+| firstDayOfWeek | 一周起始日配置，0=周日、1=周一、...、4=周四（默认）、...、6=周六 |
 
 ## 3. 功能总览与现状对照
 
@@ -55,8 +56,8 @@
 | TIMEZONE() 函数增强 | F4 | 返回单个时区字符串 | 新增可选参数 `all`；默认保持单字符串，`all=1` 返回包含三级时区的字符串 |
 | TO_ISO8601 / TO_CHAR 支持 IANA 时区 | F5 | 仅支持 `±HH:MM` 偏移格式；TO_CHAR 无时区参数 | 扩展支持 IANA；无时区参数时回退连接时区 |
 | TIMETRUNCATE 第三参数扩展 | F6 | 仅支持整数 `0`/`1` | 新增字符串时区参数 |
-| `firstDayOfWeek` 配置参数 | F7 | 不存在 | 新增（服务端 `taos.cfg` 静态配置或 `ALTER ALL DNODES` 动态修改） |
-| `SET FIRST_DAY_OF_WEEK` 语法 | F8 | 不存在 | 新增连接级覆盖，优先级高于服务端 `firstDayOfWeek` |
+| `firstDayOfWeek` 配置参数 | F7 | 不存在 | 新增（客户端 `taos.cfg` 静态配置或 `ALTER LOCAL` 动态修改） |
+| `SET FIRST_DAY_OF_WEEK` 语法 | F8 | 不存在 | 新增连接级覆盖，优先级高于客户端 `firstDayOfWeek` |
 | TIMETRUNCATE `1w` 对齐修正 | F9 | 按 epoch（星期四）整除 | 改为按 `firstDayOfWeek` 对齐 |
 | TIMETRUNCATE 支持 `n`/`q`/`y` | F10 | 仅支持 `b`/`u`/`a`/`s`/`m`/`h`/`d`/`w` | 新增 `n`/`q`/`y` |
 | INTERVAL 支持 `q` | F11 | 已支持 `w`/`n`/`y`，不支持 `q` | 新增 `q` |
@@ -115,10 +116,10 @@
 | `TIMETRUNCATE(ts, Nw [, tz])` | 对齐到本周起始日 00:00:00（详见第 10.5 节） |
 | `INTERVAL(Nw)` | 窗口边界对齐到本周起始日（详见第 11.5 节） |
 
-`firstDayOfWeek` 支持连接级覆盖，其完整回退链见第 6.4 节：
+`firstDayOfWeek` 支持连接级覆盖，其完整回退链见第 6.5 节：
 
 ```
-SET FIRST_DAY_OF_WEEK  →  服务端 firstDayOfWeek  →  默认值 1（周一）
+SET FIRST_DAY_OF_WEEK  →  客户端 firstDayOfWeek  →  默认值 4（周四）
 ```
 
 ## 5. SET TIMEZONE 语法（F3）
@@ -269,32 +270,31 @@ SELECT TIMEZONE(1);
 
 | 属性 | 值 |
 | --- | --- |
-| 配置端 | 服务端 `taos.cfg` |
+| 配置端 | 客户端 `taos.cfg` |
 | 参数名 | `firstDayOfWeek` |
 | 类型 | 整数 |
 | 范围 | 0-6 |
-| 默认值 | 1 |
+| 默认值 | 4 |
 | 影响 | 所有 `w` 单位的边界对齐（TIMETRUNCATE、INTERVAL） |
 
-**取值含义**：0=周日，1=周一（默认），2=周二，...，6=周六
+**取值含义**：0=周日，1=周一，...，4=周四（默认，与 epoch 取模旧行为兼容），...，6=周六
 
 ### 6.2 配置方式
 
-**静态配置**（服务端 `taos.cfg`）：
+**静态配置**（客户端 `taos.cfg`）：
 
 ```
-firstDayOfWeek 1
+firstDayOfWeek 4
 ```
 
-**动态修改**（运行时生效，集群内所有节点同步）：
+**动态修改**（运行时生效，仅影响当前客户端进程）：
 
 ```sql
-ALTER ALL DNODES 'firstDayOfWeek' '1';
+ALTER LOCAL 'firstDayOfWeek' '1';
 ```
 
 **约束**：
 - 超出 0-6 范围返回 `[0x2601] Invalid firstDayOfWeek: <value>, must be 0-6`
-- 为全局配置，不支持单个 dnode 单独设置（`ALTER DNODE N` 对此参数会被拒绝）
 
 ### 6.3 `SET FIRST_DAY_OF_WEEK` 语法
 
@@ -305,12 +305,12 @@ SET FIRST_DAY_OF_WEEK <value>;
 **语义**：为当前连接设置一周起始日，影响该连接后续 `WEEK` / `WEEKOFYEAR` / `TIMETRUNCATE(..., w)` / `INTERVAL(..., w)` 等依赖周边界的计算。
 
 **参数**：
-- `<value>`：0-6 整数，0=周日，1=周一（默认），...，6=周六
+- `<value>`：0-6 整数，0=周日，1=周一，...，4=周四（默认），...，6=周六
 
 **约束**：
 - 仅影响当前连接，不持久化
 - 超出 0-6 范围返回 `[0x2601] Invalid firstDayOfWeek: <value>, must be 0-6`
-- 优先级高于服务端 `firstDayOfWeek` 配置，仅覆盖当前连接
+- 优先级高于客户端 `firstDayOfWeek` 配置，仅覆盖当前连接
 
 **示例**：
 
@@ -319,9 +319,23 @@ SET FIRST_DAY_OF_WEEK 0;
 SET FIRST_DAY_OF_WEEK 1;
 ```
 
-### 6.4 回退链
+### 6.4 与 `ALTER LOCAL` 的关系
 
-连接级 `SET FIRST_DAY_OF_WEEK` → 服务端 `taos.cfg firstDayOfWeek` → 默认值 1
+与 `SET TIMEZONE` / `ALTER LOCAL 'timezone'` 的关系类似，`SET FIRST_DAY_OF_WEEK` 与 `ALTER LOCAL 'firstDayOfWeek'` 作用于不同层级：
+
+| 维度 | `ALTER LOCAL 'firstDayOfWeek' '<value>'` | `SET FIRST_DAY_OF_WEEK <value>` |
+| --- | --- | --- |
+| 修改目标 | 客户端进程全局 `tsFirstDayOfWeek`（**L3 层**） | 当前连接 `STscObj.optionInfo.firstDayOfWeek`（**L2 层**） |
+| 影响范围 | 当前客户端进程内修改后**新创建的连接** | **仅当前连接** |
+| 持久化 | 否（纯内存） | 否（纯内存） |
+
+两者互不影响、互不替代：
+- `ALTER LOCAL` 修改 L3（客户端全局），影响所有需要初始化 L2 的连接
+- `SET FIRST_DAY_OF_WEEK` 修改 L2（当前连接），优先级高于 L3，仅影响当前连接
+
+### 6.5 回退链
+
+连接级 `SET FIRST_DAY_OF_WEEK` → 客户端 `taos.cfg firstDayOfWeek` → 默认值 4
 
 ## 7. 查询相关行为（F1, F2）
 
@@ -615,10 +629,13 @@ TIMETRUNCATE('2026-03-15T10:30:00+08:00', 1d, 'America/New_York')
 **改造后**：按 `firstDayOfWeek` 对齐到本地周起始日 00:00:00。
 
 ```sql
--- 假设服务端配置 firstDayOfWeek = 1（周一）
+-- 假设客户端配置 firstDayOfWeek = 1（周一）
 TIMETRUNCATE('2026-04-30', 1w);  -- 2026-04-27 (周一)
 
--- 假设服务端配置 firstDayOfWeek = 0（周日）
+-- 默认 firstDayOfWeek = 4（周四），与 epoch 取模旧行为结果一致
+TIMETRUNCATE('2026-04-30', 1w);  -- 2026-04-30 (周四)
+
+-- 假设客户端配置 firstDayOfWeek = 0（周日）
 TIMETRUNCATE('2026-04-30', 1w);  -- 2026-04-26 (周日)
 ```
 
@@ -684,7 +701,7 @@ SELECT _wstart, _wend, COUNT(*) FROM t INTERVAL(1q);
 INTERVAL `w` 窗口的起始日改为按 `firstDayOfWeek` 对齐（与 TIMETRUNCATE `1w` 一致）：
 
 ```sql
--- 假设服务端配置 firstDayOfWeek = 0（周日）
+-- 假设客户端配置 firstDayOfWeek = 0（周日）
 SELECT _wstart, COUNT(*) FROM t INTERVAL(1w);
 -- 窗口起始日为周日，而非当前的周四
 ```
@@ -712,16 +729,16 @@ SELECT _wstart, COUNT(*) FROM t INTERVAL(1w);
 | `TO_CHAR(ts, fmt, tz)` / `TO_ISO8601(ts, tz)` IANA 参数 | 新增 | 新增能力，不影响原有二参数/单参数调用 |
 | `TIMETRUNCATE(..., unit, 0/1)` | 不改动 | 整数第三参数 `0`/`1` 保持原语义和兼容性 |
 | `TIMETRUNCATE(..., unit, '<timezone>')` | 新增 | 新增字符串时区参数，不影响旧 SQL |
-| `TIMETRUNCATE(..., 1w)` | 行为变更 | **高风险**：周对齐基准从星期四改为 `firstDayOfWeek`。默认 `firstDayOfWeek=1` 时结果变为按周一对齐，与旧行为不同 |
+| `TIMETRUNCATE(..., 1w)` | 行为变更 | 周对齐基准从 epoch 取模改为按 `firstDayOfWeek` 对齐。默认 `firstDayOfWeek=4`（周四）时结果与旧行为一致；修改配置后才会影响查询结果 |
 | `TIMETRUNCATE(..., n/q/y)` | 新增 | 新增自然时间单位，不影响旧 SQL |
-| 服务端 `firstDayOfWeek` 配置 / `SET FIRST_DAY_OF_WEEK` | 新增 | 新增配置和连接级覆盖能力；默认值为 1，本身不破坏旧语法兼容性，但会与新的周对齐规则共同决定结果 |
+| 客户端 `firstDayOfWeek` 配置 / `SET FIRST_DAY_OF_WEEK` | 新增 | 新增配置和连接级覆盖能力；默认值为 4（周四），与 epoch 取模旧行为兼容，本身不破坏旧查询结果 |
 | `INTERVAL(..., q)` | 新增 | 新增季度窗口，不影响旧 SQL |
-| `INTERVAL(..., w)` | 行为变更 | **高风险**：窗口起始日从星期四改为 `firstDayOfWeek`；默认值 1 时变为按周一起窗 |
+| `INTERVAL(..., w)` | 行为变更 | 窗口起始日从 epoch 取模改为按 `firstDayOfWeek` 对齐；默认值 4（周四）时与旧行为一致；仅修改配置后才会影响窗口边界 |
 | `TIMEZONE()` 返回值 | 有条件改动 | 默认 `TIMEZONE()` / `TIMEZONE(0)` 保持旧格式兼容；仅新增 `TIMEZONE(1)` 扩展字符串返回三级时区信息 |
 | 新增错误码 `0x2600` / `0x2601` | 新增 | 仅在使用新增语法或传入非法参数时返回；不影响原有合法 SQL |
 
-**高风险变更标记**：
-- TIMETRUNCATE `1w` 和 INTERVAL `1w` 的对齐基准变化（星期四 → 周一），即使使用默认配置也会影响现有查询结果。建议在版本说明中明确告知。
+**兼容性说明**：
+- TIMETRUNCATE `1w` 和 INTERVAL `1w` 的对齐机制从 epoch 取模改为按 `firstDayOfWeek` 对齐，但默认值 4（周四）与 epoch 取模旧行为结果一致，因此未修改配置的用户查询结果不变。
 
 ## 14. 参考资料
 

@@ -522,7 +522,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
-  (*pObj)->optionInfo.firstDayOfWeek = -1;
+  (*pObj)->optionInfo.firstDayOfWeek = (int8_t)tsFirstDayOfWeek;
   if (user == NULL) {
     (*pObj)->user[0] = 0;
     (*pObj)->pass[0] = 0;

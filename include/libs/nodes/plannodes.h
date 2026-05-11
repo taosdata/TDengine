@@ -807,7 +807,7 @@ typedef struct SIntervalPhysiNode {
   int64_t          sliding;
   int8_t           intervalUnit;
   int8_t           slidingUnit;
-  int8_t           firstDayOfWeek;  // -1 = unset (use server default), 0-6 = connection override
+  int8_t           firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
   STimeWindow      timeRange;
 } SIntervalPhysiNode;
 

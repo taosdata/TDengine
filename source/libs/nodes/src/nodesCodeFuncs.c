@@ -3592,8 +3592,8 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
     code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanSlidingUnit, &pNode->slidingUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    /* tolerate old plans that omit this field: default -1 (unset) */
-    pNode->firstDayOfWeek = -1;
+    /* field added in this branch; no old plans exist — default to 4 (epoch-aligned) */
+    pNode->firstDayOfWeek = 4;
     (void)tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
   }
   if (TSDB_CODE_SUCCESS == code) {

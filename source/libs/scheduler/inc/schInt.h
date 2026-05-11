@@ -331,7 +331,7 @@ typedef struct SSchJob {
   void                *pWorkerCb;
   int32_t              execPhase;      // Add phase tracking for query execution
   int64_t              phaseStartTime; // When current phase started (ms)
-  int8_t               firstDayOfWeek; // -1 = unset, 0-6 = connection override
+  int8_t               firstDayOfWeek; /* 0-6, resolved by client before dispatch */
 } SSchJob;
 
 typedef struct SSchTaskCtx {

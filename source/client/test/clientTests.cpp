@@ -1937,7 +1937,7 @@ TEST(clientCase, async_local_set_cmd_test) {
 
   STscObj* pObj = acquireTscObj(*(int64_t*)pConn);
   ASSERT_NE(pObj, nullptr);
-  ASSERT_EQ(pObj->optionInfo.firstDayOfWeek, -1);
+  ASSERT_EQ(pObj->optionInfo.firstDayOfWeek, 4);  /* snapshotted from tsFirstDayOfWeek (default 4) at creation */
   ASSERT_EQ(pObj->optionInfo.timezone, nullptr);
   releaseTscObj(*(int64_t*)pConn);
 

@@ -184,37 +184,140 @@ class TestSetFirstDayOfWeek:
 
         assert r1 != r0, f"fdow=1 and fdow=0 should differ: {r1} vs {r0}"
 
-    def test_fdow_alter_all_dnodes_accepted(self):
-        """ALTER ALL DNODES 'firstDayOfWeek' should be accepted."""
-        tdSql.execute("ALTER ALL DNODES 'firstDayOfWeek' '0'")
-        tdSql.execute("ALTER ALL DNODES 'firstDayOfWeek' '1'")
+    def test_fdow_alter_local_accepted(self):
+        """ALTER LOCAL 'firstDayOfWeek' should be accepted (client config)."""
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
+
+    def test_fdow_alter_all_dnodes_rejected(self):
+        """ALTER ALL DNODES 'firstDayOfWeek' should be rejected (client-only config)."""
+        tdSql.error(
+            "ALTER ALL DNODES 'firstDayOfWeek' '0'",
+            expectedErrno=ERR_INVALID_CFG,
+        )
 
     def test_fdow_alter_single_dnode_rejected(self):
-        """ALTER DNODE N 'firstDayOfWeek' should be rejected (global config)."""
+        """ALTER DNODE N 'firstDayOfWeek' should be rejected (client-only config)."""
         tdSql.error(
             "ALTER DNODE 1 'firstDayOfWeek' '0'",
             expectedErrno=ERR_INVALID_CFG,
         )
 
-    @pytest.mark.skip(reason="P4: TIMETRUNCATE(1w) does not yet use server firstDayOfWeek")
-    def test_fdow_server_config_applies_without_session_override(self):
-        """Server config should apply after reconnect when L2 override is absent."""
+    def test_fdow_alter_local_updates_process_global_not_existing_connection(self):
+        """ALTER LOCAL 'firstDayOfWeek' updates the process-global L3 value and is
+        visible to new connections; existing connections snapshot L3 at creation
+        time and must not be affected.
+
+        Regression for: clientEnv.c fix that snapshots tsFirstDayOfWeek into
+        STscObj.optionInfo.firstDayOfWeek at connection creation, so ALTER LOCAL
+        only takes effect for connections created afterwards.
+
+        P1 (immediate): ALTER LOCAL changes SHOW LOCAL VARIABLES, new connections
+        inherit the new value.
+        P4 (skip): full behavioural verification via TIMETRUNCATE(1w) once the
+        qworker->planner->executor chain consumes firstDayOfWeek.
+        """
+        def _get_global_fdow():
+            tdSql.query("SHOW LOCAL VARIABLES LIKE 'firstDayOfWeek'")
+            for row in tdSql.queryResult:
+                if row[0] == 'firstDayOfWeek':
+                    return int(row[1])
+            raise AssertionError("firstDayOfWeek not found in SHOW LOCAL VARIABLES")
+
+        initial = _get_global_fdow()
+        target = 0 if initial != 0 else 1
+
+        try:
+            # ALTER LOCAL must update the process-global value.
+            tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '{target}'")
+            assert _get_global_fdow() == target, (
+                f"ALTER LOCAL should update process-global firstDayOfWeek: "
+                f"expected {target}, got {_get_global_fdow()}"
+            )
+
+            # A new connection created after ALTER LOCAL must inherit the new L3 value.
+            tdSql.connect()
+            assert _get_global_fdow() == target, (
+                f"New connection should see the updated process-global firstDayOfWeek: "
+                f"expected {target}, got {_get_global_fdow()}"
+            )
+        finally:
+            tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '{initial}'")
+            tdSql.connect()
+
+    @pytest.mark.skip(reason=(
+        "P4: TIMETRUNCATE(1w) not yet wired through qworker->planner->executor. "
+        "Un-skip when P4 is complete to verify that an existing connection's "
+        "firstDayOfWeek snapshot (L3 at creation time) is not overwritten by a "
+        "subsequent ALTER LOCAL on another connection. "
+        "This is the full behavioural regression for the clientEnv.c snapshot fix."
+    ))
+    def test_fdow_alter_local_does_not_affect_existing_connection_timetruncate(self):
+        """Existing connection must keep its L3 snapshot; ALTER LOCAL must only
+        affect connections created afterwards.
+
+        2026-04-30 (Thursday) test point:
+          fdow=4 (Thu, epoch default): TIMETRUNCATE(1w) -> 2026-04-30
+          fdow=1 (Mon):                TIMETRUNCATE(1w) -> 2026-04-27
+        """
+        import taos as _taos
+
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
 
-        tdSql.execute("ALTER ALL DNODES 'firstDayOfWeek' '0'")
-        tdSql.connect()
-        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
-        from_server_0 = tdSql.queryResult[0][0]
+        # Ensure the process-global is fdow=4 (default) before we start.
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '4'")
 
-        tdSql.execute("ALTER ALL DNODES 'firstDayOfWeek' '1'")
-        tdSql.connect()
-        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
-        from_server_1 = tdSql.queryResult[0][0]
+        # conn1 snapshots L3=4 at creation time.
+        conn1 = _taos.connect()
+        cur1 = conn1.cursor()
 
-        assert from_server_0 != from_server_1, (
-            f"Server firstDayOfWeek should affect week truncation after reconnect: "
-            f"fdow=0 {from_server_0}, fdow=1 {from_server_1}"
+        try:
+            # Now change the process-global to fdow=1.
+            tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
+
+            # conn2 snapshots L3=1.
+            conn2 = _taos.connect()
+            cur2 = conn2.cursor()
+
+            try:
+                ts_literal = '2026-04-30 10:00:00'
+
+                cur1.execute(f"SELECT TIMETRUNCATE('{ts_literal}', 1w)")
+                result1 = cur1.fetchone()[0]
+
+                cur2.execute(f"SELECT TIMETRUNCATE('{ts_literal}', 1w)")
+                result2 = cur2.fetchone()[0]
+
+                assert result1 != result2, (
+                    f"conn1 (snapshot fdow=4) and conn2 (snapshot fdow=1) should "
+                    f"produce different TIMETRUNCATE(1w) results for the same ts; "
+                    f"conn1={result1}, conn2={result2}"
+                )
+            finally:
+                conn2.close()
+        finally:
+            conn1.close()
+            tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '4'")
+            tdSql.connect()
+
+    @pytest.mark.skip(reason="P4: TIMETRUNCATE(1w) does not yet use client firstDayOfWeek")
+    def test_fdow_client_config_applies_without_session_override(self):
+        """Client config should apply after ALTER LOCAL when L2 override is absent."""
+        self.prepare_data()
+        tdSql.execute("SET TIMEZONE 'UTC'")
+
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
+        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
+        from_client_0 = tdSql.queryResult[0][0]
+
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
+        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
+        from_client_1 = tdSql.queryResult[0][0]
+
+        assert from_client_0 != from_client_1, (
+            f"Client firstDayOfWeek should affect week truncation: "
+            f"fdow=0 {from_client_0}, fdow=1 {from_client_1}"
         )
 
 
