@@ -9858,11 +9858,13 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = pTsData[i], .range.ekey = INT64_MAX};
             if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
               code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, -1,
+                                                   pGroup->gid, 0,
                                                    &pGroup->parentWindow.pWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
               // A single sub-event is still a regular event window. Keep the first sub-window open pending until a
               // second sub-window proves that parent/child window events are needed.
               code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, 0,
+                                                   pGroup->gid, pGroup->parentWindow.range.skey,
                                                    &pGroup->pFirstSubWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
             }
@@ -9882,6 +9884,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             winIdx = pGroup->numSubWindows - 1;
           }
           code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, winIdx,
+                                               pGroup->gid, pGroup->parentWindow.range.skey,
                                                &pWin->pWinOpenNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -9901,7 +9904,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int32_t winIdx = pGroup->numSubWindows - 1;
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, &pWin->pWinCloseNotify);
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, pGroup->gid,
+                                               pGroup->parentWindow.range.skey, &pWin->pWinCloseNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
@@ -9924,7 +9928,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           if (checkSubEvent && pGroup->numSubWindows > 1) {
             winIdx = pGroup->numSubWindows - 1;
           }
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, &pWin->pWinCloseNotify);
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, pGroup->gid,
+                                               pGroup->parentWindow.range.skey, &pWin->pWinCloseNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
@@ -9932,6 +9937,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           pGroup->parentWindow.range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
           if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, -1,
+                                                 pGroup->gid, 0,
                                                  &pGroup->parentWindow.pWinCloseNotify);
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -12099,7 +12105,8 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
             int32_t winIdx = pGroup->numSubWindows - 1;
             code =
-                streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, &pExtraNotifyContent);
+                streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, pGroup->gid,
+                                              pGroup->parentWindow.range.skey, &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
           code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
@@ -12120,6 +12127,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
             pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = pTsData[r], .range.ekey = pTsData[r]};
             if (pTask->notifyHistory && pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
               code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, -1,
+                                                   pGroup->gid, 0,
                                                    &pGroup->parentWindow.pWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
             }
@@ -12134,6 +12142,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
             winIdx = pGroup->numSubWindows - 1;
           }
           code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, winIdx,
+                                               pGroup->gid, pGroup->parentWindow.range.skey,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -12146,7 +12155,8 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           if (checkSubEvent && pGroup->numSubWindows > 1) {
             winIdx = pGroup->numSubWindows - 1;
           }
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, &pExtraNotifyContent);
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, pGroup->gid,
+                                               pGroup->parentWindow.range.skey, &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
@@ -12154,6 +12164,7 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         if (checkSubEvent) {
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, -1,
+                                                 pGroup->gid, 0,
                                                  &pGroup->parentWindow.pWinCloseNotify);
             QUERY_CHECK_CODE(code, lino, _end);
           }

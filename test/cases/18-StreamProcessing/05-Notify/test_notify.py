@@ -2334,3 +2334,13 @@ class TestStreamNotifyTrigger:
                 ("WINDOW_OPEN", 1, 1, 1735660801000),
             ]
             assert actual == expected, events
+            parent_open = events[0]
+            first_child_open = events[1]
+            first_child_close = events[2]
+            second_child_open = events[3]
+            parent_trigger_id = parent_open.get("triggerId")
+            assert parent_trigger_id, events
+            assert first_child_open.get("triggerId") != parent_trigger_id, events
+            assert first_child_open.get("parentTriggerId") == parent_trigger_id, events
+            assert first_child_close.get("parentTriggerId") == parent_trigger_id, events
+            assert second_child_open.get("parentTriggerId") == parent_trigger_id, events
