@@ -1450,26 +1450,24 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             - 2026-04-13 wpan Initial implementation
 
         """
-        # (a) & (b) Semantic correctness on internal vtable
-        src = "fq_05_015"
-        self._prepare_ext_src(src)
-        try:
-            # (a) LIKE_IN_SET: first arg is the LIKE pattern, second arg is the set/column
-            # like_in_set(pattern, set) returns position of first match (>0) or 0
+        # (a)-(c) LIKE_IN_SET / REGEXP_IN_SET: verified against all three real external sources
+        def _body(src):
+            # (a) LIKE_IN_SET: first arg is the input string, second arg is the LIKE pattern set
+            # like_in_set(str, pattern_set) returns position of first matching pattern (>0) or 0
             tdSql.query(
                 f"select name from {src}.src_t "
-                "where like_in_set('alp%', name) > 0 "
-                "   or like_in_set('bet%', name) > 0 "
-                "order by ts")
+                f"where like_in_set(name, 'alp%') > 0 "
+                f"   or like_in_set(name, 'bet%') > 0 "
+                f"order by ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 'alpha')
             tdSql.checkData(1, 0, 'beta')
-            # (b) REGEXP_IN_SET: first arg is the regex pattern, second arg is the set/column
+            # (b) REGEXP_IN_SET: first arg is the input string, second arg is the regex pattern set
             tdSql.query(
                 f"select name from {src}.src_t "
-                "where regexp_in_set('alpha', name) > 0 "
-                "   or regexp_in_set('beta', name) > 0 "
-                "order by ts")
+                f"where regexp_in_set(name, 'alpha') > 0 "
+                f"   or regexp_in_set(name, 'beta') > 0 "
+                f"order by ts")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 'alpha')
             tdSql.checkData(1, 0, 'beta')
@@ -3596,9 +3594,12 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             assert '**' in partial, (
                 f"MASK_PARTIAL should insert mask chars, got: {partial!r}")
             key = "'1234567890abcdef'"
+            # MySQL/PG string columns are mapped to NCHAR in TDengine FQ;
+            # aes_encrypt/aes_decrypt require VARCHAR, so cast first.
+            col = "CAST(name AS VARCHAR(500))"
             tdSql.query(
                 f"select name, "
-                f"aes_decrypt(aes_encrypt(name, {key}), {key}) "
+                f"aes_decrypt(aes_encrypt({col}, {key}), {key}) "
                 f"from {src}.src_t order by ts limit 1")
             tdSql.checkRows(1)
             assert tdSql.getData(0, 1) is not None, (

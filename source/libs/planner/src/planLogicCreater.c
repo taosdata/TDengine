@@ -612,9 +612,7 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   pScan->scanType            = SCAN_TYPE_EXTERNAL;
   // Set scanSeq[0]=2 when the query uses PERCENTILE or other REPEAT_SCAN_FUNC.
   pScan->scanSeq[0]          = pSelect->hasRepeatScanFuncs ? 2 : 1;
-  taosPrintLog("FQ-DIAG2 ", DEBUG_ERROR, 255,
-               "createExternalScanLogicNode hasRepeatScanFuncs=%d scanSeq[0]=%d",
-               (int)pSelect->hasRepeatScanFuncs, (int)pScan->scanSeq[0]);
+
   pScan->scanSeq[1]          = 0;
   pScan->tableId             = 0;
   pScan->stableId            = 0;

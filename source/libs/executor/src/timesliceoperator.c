@@ -949,6 +949,17 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
              pDownstream->operatorType);
       continue;
     }
+
+    // Federated scan: notify is a no-op — do NOT store a pParam in pDownstreamGetParams.
+    // federatedScanGetNextExtFn resets the external-source connection whenever it receives
+    // any non-NULL pParam, so storing even an empty param here would cause an infinite
+    // re-scan loop: INTERP sends a notify on every downstream fetch when checkWindowBound
+    // is true, the FedScan restarts from scratch, returns the same rows, INTERP never
+    // advances, and OOM / taosd crash follows.
+    if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+      continue;
+    }
+
     SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
     if (pParam == NULL) {
       pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));
@@ -987,11 +998,6 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
         p->multiParams = false;
         p->basic.paramType = NOTIFY_TYPE_EXCHANGE_PARAM;
         p->basic.notifyTs = notifyTs;
-        break;
-      }
-      case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
-        // Federated scan: no-op for notify.  UNION ALL LIMIT in the remote SQL
-        // already precisely controls boundary data.
         break;
       }
       default: {

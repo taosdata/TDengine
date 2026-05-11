@@ -11210,31 +11210,21 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_SORT) return true;
   const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
   SNode*                pKey  = NULL;
-  planError("FQ-DIAG-SORTCHECK: pSort=%p pSortKeys=%p len=%d",
-            pSort, pSort->pSortKeys, pSort->pSortKeys ? LIST_LENGTH(pSort->pSortKeys) : -1);
   FOREACH(pKey, pSort->pSortKeys) {
     const SNode* pInner = pKey;
-    planError("FQ-DIAG-SORTCHECK-KEY: pKey nodeType=%d", nodeType(pKey));
     if (nodeType(pInner) == QUERY_NODE_ORDER_BY_EXPR) {
       pInner = ((const SOrderByExprNode*)pInner)->pExpr;
     }
-    planError("FQ-DIAG-SORTCHECK-INNER: pInner nodeType=%d colId=%d colName=%s",
-              nodeType(pInner),
-              nodeType(pInner) == QUERY_NODE_COLUMN ? ((const SColumnNode*)pInner)->colId : -99,
-              nodeType(pInner) == QUERY_NODE_COLUMN ? ((const SColumnNode*)pInner)->colName : "?");
     if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) {
-      planError("FQ-DIAG-SORTCHECK-RESULT: returning false (not a column)");
       return false;
     }
     // colId==0 indicates a synthetic/precalculated column (e.g. _length_name_
     // from ORDER BY length(name)).  These don't exist in the remote table schema
     // and must NOT be pushed down.
     if (((const SColumnNode*)pInner)->colId == 0) {
-      planError("FQ-DIAG-SORTCHECK-RESULT: returning false (colId==0)");
       return false;
     }
   }
-  planError("FQ-DIAG-SORTCHECK-RESULT: returning true");
   return true;
 }
 
@@ -11303,12 +11293,25 @@ static bool fqIsJsonbLikeOp(SNode* pCond, SScanLogicNode* pScan) {
 static bool fqCondHasNonPushable(SNode* pCond, SScanLogicNode* pScan) {
   if (pCond == NULL) return false;
   if (fqIsJsonbLikeOp(pCond, pScan)) return true;
+  if (nodeType(pCond) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)pCond;
+    // TDengine-specific scalar functions that cannot be rendered as MySQL/PostgreSQL SQL
+    if (pFunc->funcType == FUNCTION_TYPE_LIKE_IN_SET ||
+        pFunc->funcType == FUNCTION_TYPE_REGEXP_IN_SET) {
+      return true;
+    }
+  }
   if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
     SNode* pChild = NULL;
     FOREACH(pChild, pLogic->pParameterList) {
       if (fqCondHasNonPushable(pChild, pScan)) return true;
     }
+  }
+  if (nodeType(pCond) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pOp = (SOperatorNode*)pCond;
+    if (fqCondHasNonPushable(pOp->pLeft, pScan)) return true;
+    if (fqCondHasNonPushable(pOp->pRight, pScan)) return true;
   }
   return false;
 }
@@ -11406,9 +11409,29 @@ static int32_t fqEnsureLocalFilterColsInScanCols(SScanLogicNode* pScan) {
       if (nodeType(pInner) == QUERY_NODE_TARGET)
         pInner = ((const STargetNode*)pInner)->pExpr;
       if (pInner != NULL && nodeType(pInner) == QUERY_NODE_COLUMN) {
-        if (strcasecmp(((const SColumnNode*)pInner)->colName, condColName) == 0) {
-          found = true;
-          break;
+        const SColumnNode* pScanColNode = (const SColumnNode*)pInner;
+        if (pScanColNode->colName[0] != '\0') {
+          if (strcasecmp(pScanColNode->colName, condColName) == 0) { found = true; break; }
+        } else {
+          int32_t condColId = ((const SColumnNode*)pCondCol)->colId;
+          if (condColId != 0 && pScanColNode->colId == condColId) { found = true; break; }
+        }
+      }
+    }
+
+    // Also check pProjections to avoid adding a duplicate when the same column
+    // already appears in the SELECT list (handles the case where pScanCols has
+    // slot-id-only refs that fail name comparison above).
+    if (!found && pProjLogic != NULL) {
+      SNode* pProjCol = NULL;
+      FOREACH(pProjCol, pProjLogic->pProjections) {
+        const SNode* pInner = pProjCol;
+        if (nodeType(pInner) == QUERY_NODE_TARGET)
+          pInner = ((const STargetNode*)pInner)->pExpr;
+        if (pInner != NULL && nodeType(pInner) == QUERY_NODE_COLUMN) {
+          if (strcasecmp(((const SColumnNode*)pInner)->colName, condColName) == 0) {
+            found = true; break;
+          }
         }
       }
     }
@@ -11724,9 +11747,6 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
 //     resolve slot IDs correctly.
 // ---------------------------------------------------------------------------
 static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
-  taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "entry pScan=%p pParent=%p parentType=%d",
-               pScan, pScan->node.pParent,
-               pScan->node.pParent ? (int)nodeType(pScan->node.pParent) : -1);
   // Walk up from the external scan to find the nearest AGG node whose
   // pGroupKeys contains TBNAME.
   SLogicNode*    pParentNode = pScan->node.pParent;
@@ -11755,12 +11775,9 @@ static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubp
   }
 
   if (pAgg == NULL) {
-    taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "pAgg not found, returning success");
     return TSDB_CODE_SUCCESS;
   }
 
-  taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "found pAgg=%p pGroupKeys len=%d",
-               pAgg, pAgg->pGroupKeys ? (int)LIST_LENGTH(pAgg->pGroupKeys) : -1);
 
   // Resolve external table info.
   if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
@@ -11791,8 +11808,6 @@ static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubp
   // Tagless measurement: GROUP BY TBNAME is a no-op because all rows belong
   // to the same measurement.  Remove TBNAME from pGroupKeys so the AGG
   // operates on all rows directly (producing a single group).
-  taosPrintLog("FQ-CONVGRP ", DEBUG_ERROR, 255, "srcType=%d hasTags=%d numOfCols=%d",
-               (int)srcType, hasTags, pMeta->numOfCols);
   if (!hasTags) {
     SNodeList* pNewKeys = NULL;
     SNode* pKey = NULL;
@@ -11952,24 +11967,15 @@ static int32_t fqConvertWindow(SScanLogicNode* pScan) {
 // Check if a logic node (expected: AGG) contains any REPEAT_SCAN_FUNC (e.g. PERCENTILE).
 static bool fqNodeHasRepeatScanFunc(const SLogicNode* pNode) {
   if (NULL == pNode || nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_AGG) {
-    taosPrintLog("FQ-RSFUNC ", DEBUG_ERROR, 255,
-                 "fqNodeHasRepeatScanFunc: pNode=%p type=%d → false (not AGG)",
-                 pNode, pNode ? (int)nodeType(pNode) : -1);
     return false;
   }
   const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
   int32_t cnt = pAgg->pAggFuncs ? (int32_t)LIST_LENGTH(pAgg->pAggFuncs) : 0;
-  taosPrintLog("FQ-RSFUNC ", DEBUG_ERROR, 255,
-               "fqNodeHasRepeatScanFunc: AGG pNode=%p pAggFuncs=%p cnt=%d",
-               pNode, pAgg->pAggFuncs, cnt);
   const SNode* pFunc = NULL;
   FOREACH(pFunc, pAgg->pAggFuncs) {
     if (QUERY_NODE_FUNCTION == nodeType(pFunc)) {
       int32_t funcId   = ((const SFunctionNode*)pFunc)->funcId;
       bool    isRepeat = fmIsRepeatScanFunc(funcId);
-      taosPrintLog("FQ-RSFUNC ", DEBUG_ERROR, 255,
-                   "fqNodeHasRepeatScanFunc:   func funcId=%d isRepeatScan=%d",
-                   funcId, (int)isRepeat);
       if (isRepeat) {
         return true;
       }
@@ -12145,16 +12151,10 @@ static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
 // ─────────────────────────────────────────────────────────────────────────────
 static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
-  planError("FQ-DIAG-INJECT-ENTRY: pExtNode=%p pExtMeta=%p tsPrimaryColIdx=%d",
-            pExtNode, pExtNode ? pExtNode->pExtMeta : NULL,
-            pExtNode ? pExtNode->tsPrimaryColIdx : -99);
   if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
       pExtNode->tsPrimaryColIdx < 0 ||
       pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
     // No pk info available — skip silently; local Sort will handle ordering if needed.
-    planError("FQ-DIAG-INJECT-SKIP: pExtNode=%p pExtMeta=%p tsPrimaryColIdx=%d",
-              pExtNode, pExtNode ? pExtNode->pExtMeta : NULL,
-              pExtNode ? pExtNode->tsPrimaryColIdx : -99);
     return TSDB_CODE_SUCCESS;
   }
   const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
@@ -12226,9 +12226,6 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
     pSortLogic->node.pParent = pBottom;
   }
 
-  planError("FQ-DIAG-INJECT: injected ORDER BY \"%s\" ASC pRemoteLogicPlan=%p pSortKeys len=%d",
-            pkColName, pScan->pRemoteLogicPlan,
-            (pScan->pRemoteLogicPlan ? LIST_LENGTH(((SSortLogicNode*)pScan->pRemoteLogicPlan)->pSortKeys) : -1));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12548,11 +12545,9 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
-  planError("FQ-DIAG-OPTIMIZE: fqPushdownOptimize called, pScan=%p", pScan);
   if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;
   }
-  planError("FQ-DIAG-OPTIMIZE: pScan found, pExtTableNode=%p", pScan->pExtTableNode);
 
   // ── Phase 2 stubs (no-ops until implemented) ──
   int32_t code = TSDB_CODE_SUCCESS;
@@ -12575,15 +12570,10 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   bool        hasSortInChain = false;
   SLogicNode* pParent        = pScan->node.pParent;
-  taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
-               "fqPushdown: pScan=%p parentType=%d",
-               pScan, pParent ? (int)nodeType(pParent) : -1);
   while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
          fqProjectIsPushdownable(pParent) &&
          fqSortAllKeysPushdownable(pParent) &&
          LIST_LENGTH(pParent->pChildren) == 1) {
-    taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
-                 "fqPushdown: adding nodeType=%d", (int)nodeType(pParent));
     if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
       hasSortInChain = true;
       // Extra safety: verify sort keys are all simple column refs
@@ -12593,13 +12583,9 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
         const SNode* _pI = _pK;
         if (nodeType(_pI) == QUERY_NODE_ORDER_BY_EXPR)
           _pI = ((const SOrderByExprNode*)_pI)->pExpr;
-        taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
-                     "fqPushdown: sortkey nodeType=%d", _pI ? (int)nodeType(_pI) : -1);
         if (_pI == NULL || nodeType(_pI) != QUERY_NODE_COLUMN ||
             ((const SColumnNode*)_pI)->colId == 0) {
           // Non-renderable sort key — bail out of while loop entirely
-          taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
-                       "fqPushdown: non-renderable sort key, breaking chain");
           goto _chain_done;
         }
       }
@@ -12611,10 +12597,6 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     pParent = pParent->pParent;
   }
 _chain_done:
-  taosPrintLog("FQ-CHAIN ", DEBUG_ERROR, 255,
-               "fqPushdown: chain done size=%d hasSortInChain=%d stopType=%d",
-               (int)taosArrayGetSize(pChain), hasSortInChain,
-               pParent ? (int)nodeType(pParent) : -1);
   // After the loop, pParent == the first non-pushdownable ancestor (or NULL).
   // This is the node that pScan->node.pParent will point to after replaceLogicNode.
 

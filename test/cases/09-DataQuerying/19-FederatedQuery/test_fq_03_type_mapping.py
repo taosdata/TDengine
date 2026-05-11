@@ -5201,7 +5201,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
                 f"got {name_len} (20 indicates NCHAR)")
             # (b) ENUM ascii → VARCHAR: value readable
             tdSql.query(
-                f"select role from {src}.ascii_varchar_test")
+                f"select `role` from {src}.ascii_varchar_test")
             tdSql.checkRows(1)
             role_val = str(tdSql.getData(0, 0))
             assert role_val == 'admin', \
