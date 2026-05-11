@@ -800,7 +800,7 @@ import type { ComponentInternalInstance } from 'vue';
 import ExtractSplit from './extractSplit.vue';
 import FilterExpression from './filterExpression.vue';
 import MappingExpressionCell from './mappingExpressionCell.vue';
-import { hasConfiguredExpression } from './mappingExpressionState';
+import { hasConfiguredExpression, syncMappingColumns } from './mappingExpressionState';
 import RuleBlockCard from './ruleBlockCard.vue';
 import { resolveActiveRuleIdAfterRemoval } from './ruleBlockState';
 import DocsContent from 'components/MdRender.vue';
@@ -821,6 +821,10 @@ import {
   supportTransform,
   transformerState,
   resetTransformerPreviewState,
+  isEmptyParserResult,
+  showEmptyTransformerPreview,
+  limitPreviewRows,
+  mapPreviewRows,
   extractAllProperties,
   getExampleList,
   validateJsonKeys,
@@ -1191,27 +1195,19 @@ async function previewMatches(ruleId: string) {
       return;
     }
 
-    const resultTableData: any[] = result
-      .map((item: Recordable) => {
-        const fields = item.fields;
-        const columns = item.columns;
-        const fieldNames = fields.map((field: Recordable) => field.name);
-        return columns.map((row: any) => {
-          const rowDict: Recordable = {};
-          fieldNames.forEach((fieldName: string, index: number) => {
-            rowDict[fieldName] = filterEmpty(row[index]);
-          });
-          return rowDict;
-        });
-      })
-      .flat(Infinity);
+    const resultTableData: any[] = mapPreviewRows(result, (row: any, item: Recordable) => {
+      const fieldNames = item.fields.map((field: Recordable) => field.name);
+      const rowDict: Recordable = {};
+      fieldNames.forEach((fieldName: string, index: number) => {
+        rowDict[fieldName] = filterEmpty(row[index]);
+      });
+      return rowDict;
+    });
 
     transformerState.transformResultTable = resultTableData;
-    nextTick(() => {
-      transformerState.showResultTb = true;
-      transformerState.resultTbTitle = 'matchesResTb';
-      transformerState.transResultName = 'matches';
-    });
+    transformerState.resultTbTitle = 'matchesResTb';
+    transformerState.transResultName = 'matches';
+    transformerState.showResultTb = true;
   } catch (error) {
     console.error(error);
   }
@@ -1299,16 +1295,9 @@ watch(
   () => transformerState.transformerMapColumns,
   val => {
     options.value = val;
-    mappingcolumns.value = val.filter(item => item.value == 'mapping')[0].children;
-    const newmappings = mappingcolumns.value.map(item => item.label);
-    tableData.value.map(item => {
-      if (item.exprname == 'mapping' && item['Type'] != 'Tablename') {
-        if (!newmappings.includes(item['Expression'])) {
-          item['Expression'] = '';
-        }
-        return item;
-      }
-    });
+    const mappingEntry = val.filter(item => item.value == 'mapping')[0];
+    mappingcolumns.value = mappingEntry?.children ?? [];
+    syncMappingColumns(mappingcolumns.value, tableData.value);
   },
   {
     deep: true
@@ -1636,7 +1625,7 @@ function getTopParserData() {
   }
   return topParser;
 }
-// 调用 flat 接口处理除了 mapping 的结果
+// Call the flat API for non-mapping preview results.
 async function handleParseResult(topParser: TopParseType) {
   const checkResult = checkParseData(topParser);
   if (checkResult) {
@@ -1658,6 +1647,15 @@ async function handleParseResult(topParser: TopParseType) {
     resetTransformerPreviewState();
     ElMessage.error(result.message);
     isbreak.value = true;
+    return;
+  }
+  if (isEmptyParserResult(result)) {
+    transformerState.transformerMapColumns = [];
+    columnsArr.value = [];
+    transformerState.stbDefaultColumns = [];
+    showEmptyTransformerPreview('mappingResTb', 'mapping');
+    isbreak.value = false;
+    refreshRuleColumnsVisibility();
     return;
   }
   const transformerColumns = [
@@ -1695,27 +1693,23 @@ async function handleParseResult(topParser: TopParseType) {
 
   let resultTableData: any[] = [];
   resultTableData = supportTransform.is_sparkplugb
-    ? result
-        .map((result: any) => {
-          return result.columns.map((data: any) => {
-            return Object.fromEntries(
-              result.fields
-                .map((item: { name: any }, index: string | number) => {
-                  return [
-                    item.name,
-                    filterEmpty(data[index])
-                      ? Array.isArray(data[index])
-                        ? JSON.stringify(data[index])
-                        : data[index].toString()
-                      : null
-                  ];
-                })
-                .filter((f: string[]) => !hiddenCols.includes(f[0]))
-            );
-          });
-        })
-        .flat(Infinity)
-    : result[0].columns.map((data: any) => {
+    ? mapPreviewRows(result, (data: any, result: any) => {
+        return Object.fromEntries(
+          result.fields
+            .map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+            .filter((f: string[]) => !hiddenCols.includes(f[0]))
+        );
+      })
+    : limitPreviewRows(result[0].columns).map((data: any) => {
         return Object.fromEntries(
           result[0].fields
             .map((item: { name: any }, index: string | number) => {
@@ -1736,22 +1730,28 @@ async function handleParseResult(topParser: TopParseType) {
   transformerState.activeColumns = [];
   transformerState.resultCurrentPage = 1;
 
-  const tbdata = result[0].columns.map((data: any) => {
-    return Object.fromEntries(
-      result[0].fields
-        .map((item: { name: any }, index: string | number) => {
-          return [
-            item.name,
-            filterEmpty(data[index])
-              ? Array.isArray(data[index])
-                ? JSON.stringify(data[index])
-                : data[index].toString()
-              : null
-          ];
-        })
-        .filter((f: string[]) => !hiddenCols.includes(f[0]))
-    );
-  });
+  // For the non-sparkplugb path, `tbdata` would compute the exact same rows as
+  // `resultTableData`, so reuse it instead of iterating `result[0].columns` a
+  // second time. For sparkplugb, `resultTableData` is flattened across multiple
+  // results, so we still need a `result[0]`-only view here.
+  const tbdata = supportTransform.is_sparkplugb
+    ? limitPreviewRows(result[0].columns).map((data: any) => {
+        return Object.fromEntries(
+          result[0].fields
+            .map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+            .filter((f: string[]) => !hiddenCols.includes(f[0]))
+        );
+      })
+    : resultTableData;
   columnsArr.value = (
     sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya'
       ? result[0].fields
@@ -1786,7 +1786,7 @@ async function handleParseResult(topParser: TopParseType) {
   transformerState.stbDefaultColumns = columnsArr.value;
   refreshRuleColumnsVisibility();
 }
-// 处理 mapping 的结果
+// Process mapping preview results.
 async function getParserData(data: TransformerfullparamsType | TransformerSpbfullparamsType) {
   try {
     const checkResult = checkParseData(data);
@@ -1804,58 +1804,47 @@ async function getParserData(data: TransformerfullparamsType | TransformerSpbful
     }
     isbreak.value = false;
 
-    // 预览映射结果table数据
+    // Preview mapping result table rows.
     let resultTableData: any[] = [];
-    resultTableData = result.map((item: Recordable) => {
-      const fields = item.fields;
-      const columns = item.columns;
-      const fieldNames = fields.map((field: Recordable) => field.name);
-
-      return columns.map((row: any) => {
-        // 为每一行数据创建一个字典，字段名作为键，行数据作为值
-        const rowDict: Recordable = {};
-        fieldNames.forEach((fieldName: string, index: number) => {
-          rowDict[fieldName] = filterEmpty(row[index]);
-        });
-
-        if (sourceForm.type == 'mqtt' || sourceForm.type == 'sparkplugb') {
-          rowDict.SuperTableName = rowDict['__using__'];
-        }
-        rowDict.SubTableName = rowDict['__tbname__'];
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { __using__, __tbname__, ...rest } = rowDict;
-
-        // 统一列顺序: SuperTableName, SubTableName, 其余字段（按原解析顺序）
-        const finalRow: Recordable = {};
-        if (rowDict.SuperTableName !== undefined) {
-          finalRow.SuperTableName = rowDict.SuperTableName;
-        }
-        if (rowDict.SubTableName !== undefined) {
-          finalRow.SubTableName = rowDict.SubTableName;
-        }
-        // 其余字段保持原 fields 顺序（排除已处理和内部字段）
-        fieldNames.forEach((k: string) => {
-          if (!['__using__', '__tbname__', 'SuperTableName', 'SubTableName'].includes(k)) {
-            if (k in rest) finalRow[k] = rest[k];
-          }
-        });
-        // 若解析结果里后来追加的新字段（非常规）也需要保留
-        Object.keys(rest).forEach(k => {
-          if (!(k in finalRow)) {
-            finalRow[k] = rest[k];
-          }
-        });
-
-        return finalRow;
+    resultTableData = mapPreviewRows(result, (row: any, item: Recordable) => {
+      const fieldNames = item.fields.map((field: Recordable) => field.name);
+      const rowDict: Recordable = {};
+      fieldNames.forEach((fieldName: string, index: number) => {
+        rowDict[fieldName] = filterEmpty(row[index]);
       });
+
+      if (sourceForm.type == 'mqtt' || sourceForm.type == 'sparkplugb') {
+        rowDict.SuperTableName = rowDict['__using__'];
+      }
+      rowDict.SubTableName = rowDict['__tbname__'];
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { __using__, __tbname__, ...rest } = rowDict;
+
+      const finalRow: Recordable = {};
+      if (rowDict.SuperTableName !== undefined) {
+        finalRow.SuperTableName = rowDict.SuperTableName;
+      }
+      if (rowDict.SubTableName !== undefined) {
+        finalRow.SubTableName = rowDict.SubTableName;
+      }
+      fieldNames.forEach((k: string) => {
+        if (!['__using__', '__tbname__', 'SuperTableName', 'SubTableName'].includes(k)) {
+          if (k in rest) finalRow[k] = rest[k];
+        }
+      });
+      Object.keys(rest).forEach(k => {
+        if (!(k in finalRow)) {
+          finalRow[k] = rest[k];
+        }
+      });
+
+      return finalRow;
     });
 
     transformerState.transformResultTable = resultTableData;
-    nextTick(() => {
-      transformerState.showResultTb = true;
-      transformerState.resultTbTitle = 'mappingResTb';
-      transformerState.transResultName = 'mapping';
-    });
+    transformerState.resultTbTitle = 'mappingResTb';
+    transformerState.transResultName = 'mapping';
+    transformerState.showResultTb = true;
 
     setPageTableData();
   } catch (error) {

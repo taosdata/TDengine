@@ -100,7 +100,11 @@ import {
   hiddenColsMap,
   checkParseData,
   filterEmpty,
-  resetTransformerPreviewState
+  resetTransformerPreviewState,
+  isEmptyParserResult,
+  showEmptyTransformerPreview,
+  limitPreviewRows,
+  mapPreviewRows
 } from './util';
 import { t } from 'locales';
 import { TransformExtractParseDataType, TopParseType, SpbTopParseType, ConditionExpr } from './type';
@@ -170,7 +174,7 @@ const emit = defineEmits([
   'select-column',
   'delete-extract',
   'validate-msgbody',
-  'update-extract-arr' 
+  'update-extract-arr'
 ]);
 
 watch(
@@ -244,6 +248,15 @@ async function getParserData(data: any, isall: boolean | undefined) {
       ElMessage.error(result.message);
       return;
     }
+    if (isEmptyParserResult(result)) {
+      transformerState.transformerMapColumns = [];
+      tableData.value = [];
+      tableColumns.value = [];
+      if (!props.isViewable) {
+        showEmptyTransformerPreview('extractResTb', props.itemData.columnname);
+      }
+      return;
+    }
 
     const mappingObj = {
       value: 'mapping',
@@ -298,25 +311,21 @@ async function getParserData(data: any, isall: boolean | undefined) {
     });
 
     tbdata = supportTransform.is_sparkplugb
-      ? result
-          .map((result: any) => {
-            return result.columns.map((data: { toString: () => any }[]) => {
-              return Object.fromEntries(
-                result.fields.map((item: { name: any }, index: number) => {
-                  return [
-                    item.name,
-                    filterEmpty(data[index])
-                      ? Array.isArray(data[index])
-                        ? JSON.stringify(data[index])
-                        : data[index].toString()
-                      : null
-                  ];
-                })
-              );
-            });
-          })
-          .flat(Infinity)
-      : result[0].columns.map((data: { toString: () => any }[]) => {
+      ? mapPreviewRows(result, (data: { toString: () => any }[], result: any) => {
+          return Object.fromEntries(
+            result.fields.map((item: { name: any }, index: number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+          );
+        })
+      : limitPreviewRows(result[0].columns).map((data: { toString: () => any }[]) => {
           return Object.fromEntries(
             result[0].fields.map((item: { name: any }, index: number) => {
               return [

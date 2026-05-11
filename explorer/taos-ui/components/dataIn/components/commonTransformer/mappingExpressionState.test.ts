@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyExpressionMode, hasConfiguredExpression } from './mappingExpressionState';
+import { applyExpressionMode, hasConfiguredExpression, syncMappingColumns } from './mappingExpressionState';
 import type { TableRow } from './type';
 
 function createRow(overrides: Partial<TableRow> = {}): TableRow {
@@ -30,5 +30,23 @@ describe('mappingExpressionState', () => {
     expect(hasConfiguredExpression('  ')).toBe(false);
     expect(hasConfiguredExpression(['a'])).toBe(true);
     expect(hasConfiguredExpression([])).toBe(false);
+  });
+
+  it('preserves mapping expressions when preview clears mapping columns', () => {
+    const row = createRow({ Expression: 'source_value' });
+
+    const labels = syncMappingColumns([], [row]);
+
+    expect(labels).toEqual([]);
+    expect(row.Expression).toBe('source_value');
+  });
+
+  it('clears mapping expressions that no longer exist in the latest preview columns', () => {
+    const row = createRow({ Expression: 'stale_value' });
+
+    const labels = syncMappingColumns([{ label: 'fresh_value' }], [row]);
+
+    expect(labels).toEqual(['fresh_value']);
+    expect(row.Expression).toBe('');
   });
 });
