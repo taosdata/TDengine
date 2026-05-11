@@ -1764,12 +1764,7 @@ void udfdDeinitResidentFuncs() {
 }
 
 int32_t udfdCreateUdfSourceDir() {
-#ifdef WINDOWS
-  snprintf(global.udfDataDir, PATH_MAX, "%s.udf", tsDataDir);
-#else
   snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsDataDir);
-#endif
-  //snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsDataDir);
   int32_t code = taosMkDir(global.udfDataDir);
   if (code != TSDB_CODE_SUCCESS) {
     snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsTempDir);
