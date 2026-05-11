@@ -1,10 +1,10 @@
 # JetBrains
 
-TDengine Driver Integration provides TDengine data source setup, driver download, and SQL dialect enhancements for JetBrains IDEs, and supports JetBrains IDEs 2024.3 and later.
+The TDengine Driver Integration plugin enhances JetBrains IDEs with TDengine data source setup, driver download, and SQL dialect support. It is compatible with JetBrains IDEs 2024.3 and later.
 
 ## Prerequisites
 
-- Install [JetBrains IDEs](https://www.jetbrains.com/products/?lang=sql).
+- Install [DataGrip or a JetBrains IDE/edition that includes Database Tools](https://www.jetbrains.com/products/?lang=sql), version 2024.3 or later.
 - Install the [TDengine Driver Integration](https://plugins.jetbrains.com/plugin/30538-tdengine-driver-integration) plugin.
 
 ## Install the Plugin
@@ -18,11 +18,11 @@ TDengine Driver Integration provides TDengine data source setup, driver download
 
 ## Connect to TDengine
 
-1. Open the `Database` tool window.
+1. In DataGrip or a supported JetBrains IDE/edition 2024.3 or later, open the `Database` tool window.
 2. Click `+` and choose `Data Source`.
 3. Select `TDengine` from the data source list.
 4. Download the built-in TDengine JDBC Driver as needed.
-5. Configure the connection parameters and test the connection.
+5. Configure the connection parameters, such as the JDBC URL, username, password, and default database, and test the connection.
 
 ![Create Data Source](./jetbrains/jetbrains-create-db.webp)
 
