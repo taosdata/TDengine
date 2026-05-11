@@ -273,7 +273,9 @@ int32_t mndStartTxnTimer(SMnode *pMnode) {
 void mndCleanupTxn(SMnode *pMnode) {
   STxnMgmt *pMgmt = &pMnode->txnMgmt;
   if (pMgmt->hTimeoutTimer) {
-    (void)taosTmrStop(pMgmt->hTimeoutTimer);
+    if (!taosTmrStop(pMgmt->hTimeoutTimer)) {
+      mWarn("txn, failed to stop timeout timer");
+    }
     pMgmt->hTimeoutTimer = NULL;
   }
   (void)taosThreadRwlockDestroy(&pMgmt->lock);

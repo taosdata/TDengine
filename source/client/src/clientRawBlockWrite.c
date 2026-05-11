@@ -3362,8 +3362,11 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
       if (code == 0) code = sendCode;
       continue;
     }
-    (void)tsem_wait(&pVgReq->body.rspSem);
-    if (pVgReq->code != 0 && code == 0) {
+    int32_t semCode = tsem_wait(&pVgReq->body.rspSem);
+    if (semCode != 0) {
+      uError("taosTxnCommit: tsem_wait failed for vgId:%d, code:0x%x", pInfo->vgId, semCode);
+      if (code == 0) code = semCode;
+    } else if (pVgReq->code != 0 && code == 0) {
       code = pVgReq->code;
     }
     destroyRequest(pVgReq);
@@ -3371,14 +3374,23 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
 
   uDebug("taosTxnCommit txnId:%" PRIu64 " return, msg:%s", req.txnId, tstrerror(code));
 
-  // §35 taosX: also send COMMIT to target MNode for replicated STB shadow ops
+  // §35 taosX: also send COMMIT to target MNode for replicated STB shadow ops.
+  // Only proceed when all vnode commits succeeded — if any vnode failed, the
+  // transaction is not fully committed and we must not finalize MNode state.
+  // taosTxnMarkCompleted is also skipped so a retry from another WAL subscription
+  // can still process this txnId.
   if (TXN_IS_REPLICATED(req.txnId)) {
-    int32_t mnodeCode = taosTxnSendToMnode(taos, req.txnId, TDMT_MND_COMMIT_TXN);
-    if (mnodeCode != 0) {
-      uError("taosTxnCommit: MNode COMMIT for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
-      if (code == 0) code = mnodeCode;
+    if (code == 0) {
+      int32_t mnodeCode = taosTxnSendToMnode(taos, req.txnId, TDMT_MND_COMMIT_TXN);
+      if (mnodeCode != 0) {
+        uError("taosTxnCommit: MNode COMMIT for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
+        code = mnodeCode;
+      }
+      taosTxnMarkCompleted(req.txnId);
+    } else {
+      uWarn("taosTxnCommit: skipping MNode COMMIT for txnId:%" PRIu64 " due to vnode failures: %s", req.txnId,
+            tstrerror(code));
     }
-    taosTxnMarkCompleted(req.txnId);
   }
 
 end:
@@ -3491,8 +3503,11 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
       if (code == 0) code = sendCode;
       continue;
     }
-    (void)tsem_wait(&pVgReq->body.rspSem);
-    if (pVgReq->code != 0 && code == 0) {
+    int32_t semCode = tsem_wait(&pVgReq->body.rspSem);
+    if (semCode != 0) {
+      uError("taosTxnRollback: tsem_wait failed for vgId:%d, code:0x%x", pInfo->vgId, semCode);
+      if (code == 0) code = semCode;
+    } else if (pVgReq->code != 0 && code == 0) {
       code = pVgReq->code;
     }
     destroyRequest(pVgReq);

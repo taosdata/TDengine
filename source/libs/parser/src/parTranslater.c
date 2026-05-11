@@ -24887,7 +24887,9 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
       STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
       if (ppCached && *ppCached) {
         taosMemoryFreeClear(*ppCached);
-        (void)taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+        if (taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName)) != 0) {
+          parserWarn("%s txn: failed to remove dropped table from txn cache: %s", __func__, fullName);
+        }
       }
     }
   }
@@ -24933,7 +24935,9 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
       STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
       if (ppCached && *ppCached) {
         taosMemoryFreeClear(*ppCached);
-        (void)taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+        if (taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName)) != 0) {
+          parserWarn("%s txn: failed to remove dropped vtable from txn cache: %s", __func__, fullName);
+        }
       }
     }
   }

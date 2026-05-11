@@ -344,7 +344,10 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
       // No txn.idx entries remain — vacuum was complete, but txn_final.idx entry is stale.
       // Clean it up (delete from persistent idx; cache entry is harmless and will be ignored).
       (void)metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
-      (void)taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+      if (taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t)) != 0) {
+        vWarn("vgId:%d, txn rebuild: failed to remove stale txnId:%" PRId64 " from finalized cache", TD_VID(pVnode),
+              txnId);
+      }
       numStale++;
       vDebug("vgId:%d, txn rebuild: removed stale txn_final.idx entry for txnId:%" PRId64, TD_VID(pVnode), txnId);
     }
@@ -409,7 +412,9 @@ static void vnodeReleaseTxnTableLocks(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   for (int32_t i = 0; i < sz; i++) {
     char *name = *(char **)taosArrayGet(pEntry->pLockedTables, i);
     if (name) {
-      (void)taosHashRemove(pVnode->pTxnTableLock, name, strlen(name));
+      if (taosHashRemove(pVnode->pTxnTableLock, name, strlen(name)) != 0) {
+        vWarn("vgId:%d, txn: failed to release table lock for:%s", TD_VID(pVnode), name);
+      }
       taosMemoryFree(name);
     }
   }
@@ -427,7 +432,9 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
     taosArrayDestroy(pEntry->pCreatedUids);
     taosArrayDestroy(pEntry->pDroppedUids);
     taosMemoryFreeClear(pEntry->pVacuumUids);
-    (void)taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
+    if (taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t)) != 0) {
+      vWarn("vgId:%d, txn: failed to remove txnId:%" PRId64 " from hash", TD_VID(pVnode), txnId);
+    }
   }
 }
 
@@ -552,7 +559,9 @@ void vnodeTxnTrackCreate(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
       pEntry->pCreatedUids = taosArrayInit(8, sizeof(int64_t));
     }
     if (pEntry->pCreatedUids) {
-      (void)taosArrayPush(pEntry->pCreatedUids, &uid);
+      if (taosArrayPush(pEntry->pCreatedUids, &uid) == NULL) {
+        vWarn("vgId:%d, txn: failed to track created uid:%" PRId64 " for txnId:%" PRId64, TD_VID(pVnode), uid, txnId);
+      }
     }
   }
   (void)taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -582,7 +591,9 @@ void vnodeTxnTrackDrop(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
         pEntry->pDroppedUids = taosArrayInit(8, sizeof(int64_t));
       }
       if (pEntry->pDroppedUids) {
-        (void)taosArrayPush(pEntry->pDroppedUids, &uid);
+        if (taosArrayPush(pEntry->pDroppedUids, &uid) == NULL) {
+          vWarn("vgId:%d, txn: failed to track dropped uid:%" PRId64 " for txnId:%" PRId64, TD_VID(pVnode), uid, txnId);
+        }
       }
     }
   }
@@ -1736,14 +1747,18 @@ int32_t vnodeTxnLockTable(SVnode *pVnode, const char *tableName, int64_t txnId) 
   char *nameCopy = taosStrdup(tableName);
   if (nameCopy == NULL) {
     vError("vgId:%d, failed to allocate locked table name:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
-    (void)taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
+    if (taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen) != 0) {
+      vWarn("vgId:%d, txn: failed to release table lock for:%s on alloc failure", TD_VID(pVnode), tableName);
+    }
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (taosArrayPush(pEntry->pLockedTables, &nameCopy) == NULL) {
     vError("vgId:%d, failed to track locked table:%s, txnId:%" PRId64, TD_VID(pVnode), tableName, txnId);
     taosMemoryFree(nameCopy);
-    (void)taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen);
+    if (taosHashRemove(pVnode->pTxnTableLock, tableName, nameLen) != 0) {
+      vWarn("vgId:%d, txn: failed to release table lock for:%s on push failure", TD_VID(pVnode), tableName);
+    }
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
