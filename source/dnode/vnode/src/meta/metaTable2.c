@@ -1121,8 +1121,31 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
     return code;
   }
 
-  // Restore pUidIdx to point at old version
+  // Restore pUidIdx to point at old version with correct suid/skmVer
   SUidIdxVal uidVal = {.version = prevVersion};
+  {
+    SMetaReader mr2 = {0};
+    metaReaderDoInit(&mr2, pMeta, META_READER_NOLOCK);
+    int32_t readOldCode = metaGetTableEntryByVersion(&mr2, prevVersion, uid);
+    if (readOldCode == 0) {
+      if (mr2.me.type == TSDB_SUPER_TABLE) {
+        uidVal.suid = mr2.me.uid;
+        uidVal.skmVer = mr2.me.stbEntry.schemaRow.version;
+      } else if (mr2.me.type == TSDB_CHILD_TABLE || mr2.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+        uidVal.suid = mr2.me.ctbEntry.suid;
+      } else if (mr2.me.type == TSDB_NORMAL_TABLE || mr2.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        uidVal.skmVer = mr2.me.ntbEntry.schemaRow.version;
+      }
+    } else {
+      // Old entry missing from pTbDb — likely data corruption.
+      // Must still write pUidIdx (otherwise table becomes invisible), but skmVer=0
+      // will cause client schema mismatch on INSERT. Log ERROR for operator awareness.
+      metaError("vgId:%d, rollback alter: cannot read prev entry ver %" PRId64 " uid %" PRId64
+                ", skmVer will be 0 (code:0x%x). Potential data corruption",
+                TD_VID(pMeta->pVnode), prevVersion, uid, readOldCode);
+    }
+    metaReaderClear(&mr2);
+  }
   code = tdbTbUpsert(pMeta->pUidIdx, &uid, sizeof(uid), &uidVal, sizeof(uidVal), pMeta->txn);
   if (code) {
     metaError("vgId:%d, rollback alter: failed to restore uidIdx for uid %" PRId64 " to ver %" PRId64,

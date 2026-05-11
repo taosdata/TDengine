@@ -181,6 +181,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
 
     if (!pData || !nData) {
       metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
+      code = TSDB_CODE_INVALID_DATA_FMT;
       goto _exit;
     }
 

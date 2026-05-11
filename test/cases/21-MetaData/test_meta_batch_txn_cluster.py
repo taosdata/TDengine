@@ -1926,6 +1926,9 @@ class TestBatchMetaTxnCluster:
         time.sleep(2)
 
         # Phase 7: verify schema is reverted to original (NO c2, NO v2)
+        # Uses the SAME connection — the client auto-retries on schema version
+        # mismatch (TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER), which validates
+        # that the server's pUidIdx.skmVer was correctly restored.
         tdSql.query("describe ntb_b")
         cols = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
         assert 'c2' not in cols, f"Column c2 should NOT exist after ROLLBACK, got: {cols}"
@@ -1934,7 +1937,7 @@ class TestBatchMetaTxnCluster:
         cols_stb = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
         assert 'v2' not in cols_stb, f"Column v2 should NOT exist on stb after ROLLBACK, got: {cols_stb}"
 
-        # Verify original schema still works
+        # Verify original schema still works (same connection, auto-refresh)
         tdSql.execute("insert into ntb_b values(now, 30)")
         tdSql.execute("insert into ct_a values(now, 40)")
         tdSql.query("select * from ntb_b")

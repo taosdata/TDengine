@@ -237,8 +237,6 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
-
-
     }
     tFreeSStatusRsp(&statusRsp);
   }
