@@ -279,6 +279,200 @@ static int run_mode_and_capture(const char* exe_path, const char* mode, std::str
 }
 #endif
 
+// --- Schemaless insert tests ---
+// These run in child processes and require a real TDengine on localhost:6030.
+// If TDengine is unavailable, the connect() call fails gracefully and the test
+// reports SKIPPED rather than FAILED.
+
+static bool try_connect_tdengine(TDengineConnector& conn, const std::string& db) {
+    if (!conn.connect()) return false;
+    // Create and select test database
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    conn.execute(std::string("CREATE DATABASE IF NOT EXISTS " + db + " PRECISION 'ns'"));
+    return conn.select_db(db);
+}
+
+static void test_schemaless_insert_basic_child() {
+    TDengineConfig cfg;
+    cfg.host = "127.0.0.1";
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+    const std::string db = "test_schemaless_basic";
+    if (!try_connect_tdengine(conn, db)) {
+        std::cout << "[schemaless_basic] SKIPPED: TDengine not available\n";
+        return;
+    }
+
+    SchemalessInsertData data;
+    data.lines = "cpu,host=h1 usage=50.0 1609459200000000000\n"
+                 "cpu,host=h2 usage=75.5 1609459200000000000\n";
+    data.total_rows = 2;
+    data.protocol = TSDB_SML_LINE_PROTOCOL;
+    data.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    bool ok = conn.execute(data);
+    (void)ok;
+    assert(ok && "Schemaless basic insert should succeed");
+
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    std::cout << "[schemaless_basic] PASSED\n";
+}
+
+static void test_schemaless_insert_multiple_measurements_child() {
+    TDengineConfig cfg;
+    cfg.host = "127.0.0.1";
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+    const std::string db = "test_schemaless_multi";
+    if (!try_connect_tdengine(conn, db)) {
+        std::cout << "[schemaless_multi] SKIPPED: TDengine not available\n";
+        return;
+    }
+
+    SchemalessInsertData data;
+    data.lines = "cpu,host=h1 usage=50.0 1609459200000000000\n"
+                 "mem,host=h1 used=8192i 1609459200000000000\n"
+                 "disk,host=h1 free=500.5 1609459200000000000\n";
+    data.total_rows = 3;
+    data.protocol = TSDB_SML_LINE_PROTOCOL;
+    data.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    bool ok = conn.execute(data);
+    (void)ok;
+    assert(ok && "Schemaless multi-measurement insert should succeed");
+
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    std::cout << "[schemaless_multi] PASSED\n";
+}
+
+static void test_schemaless_insert_empty_lines_child() {
+    TDengineConfig cfg;
+    cfg.host = "127.0.0.1";
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+    const std::string db = "test_schemaless_empty";
+    if (!try_connect_tdengine(conn, db)) {
+        std::cout << "[schemaless_empty] SKIPPED: TDengine not available\n";
+        return;
+    }
+
+    SchemalessInsertData data;
+    data.lines = "";
+    data.total_rows = 0;
+    data.protocol = TSDB_SML_LINE_PROTOCOL;
+    data.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    // Empty lines should fail but not crash
+    bool ok = conn.execute(data);
+    (void)ok;  // result doesn't matter, just no crash
+
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    std::cout << "[schemaless_empty] PASSED (no crash)\n";
+}
+
+static void test_schemaless_insert_invalid_format_child() {
+    TDengineConfig cfg;
+    cfg.host = "127.0.0.1";
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+    const std::string db = "test_schemaless_invalid";
+    if (!try_connect_tdengine(conn, db)) {
+        std::cout << "[schemaless_invalid] SKIPPED: TDengine not available\n";
+        return;
+    }
+
+    SchemalessInsertData data;
+    data.lines = "this is not valid line protocol!!!";
+    data.total_rows = 1;
+    data.protocol = TSDB_SML_LINE_PROTOCOL;
+    data.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    bool ok = conn.execute(data);
+    (void)ok;
+    assert(!ok && "Invalid line protocol should fail");
+
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    std::cout << "[schemaless_invalid] PASSED\n";
+}
+
+static void test_schemaless_insert_not_connected_child() {
+    TDengineConfig cfg;
+    cfg.host = "192.0.2.1";  // unreachable address (TEST-NET)
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "nonexistent";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+
+    SchemalessInsertData data;
+    data.lines = "cpu,host=h1 usage=50.0 1609459200000000000";
+    data.total_rows = 1;
+    data.protocol = TSDB_SML_LINE_PROTOCOL;
+    data.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    // Should fail (cannot connect) but not crash
+    bool ok = conn.execute(data);
+    (void)ok;
+    assert(!ok && "Execute on unreachable host should fail");
+
+    std::cout << "[schemaless_not_connected] PASSED (no crash)\n";
+}
+
+static void test_schemaless_insert_large_batch_child() {
+    TDengineConfig cfg;
+    cfg.host = "127.0.0.1";
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+    const std::string db = "test_schemaless_large";
+    if (!try_connect_tdengine(conn, db)) {
+        std::cout << "[schemaless_large] SKIPPED: TDengine not available\n";
+        return;
+    }
+
+    std::string lines;
+    const int count = 1000;
+    for (int i = 0; i < count; ++i) {
+        int64_t ts = 1609459200000000000LL + static_cast<int64_t>(i) * 1000000LL;
+        lines += "cpu,host=h" + std::to_string(i % 10) +
+                 " usage=" + std::to_string(50.0 + (i % 50)) + " " +
+                 std::to_string(ts) + "\n";
+    }
+
+    SchemalessInsertData data;
+    data.lines = lines;
+    data.total_rows = count;
+    data.protocol = TSDB_SML_LINE_PROTOCOL;
+    data.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    bool ok = conn.execute(data);
+    (void)ok;
+    assert(ok && "Large batch schemaless insert should succeed");
+
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    std::cout << "[schemaless_large] PASSED\n";
+}
+
 int main(int argc, char** argv) {
     std::cout << "Running TDengineConnector library loading tests..." << std::endl;
 
@@ -293,6 +487,25 @@ int main(int argc, char** argv) {
             test_fallback_system_path_child();
             std::cout << "TDengineConnector fallback test completed." << std::endl;
             return 0;
+        }
+        // Schemaless sub-tests (run in child processes)
+        if (arg == "--mode=schemaless_basic") {
+            test_schemaless_insert_basic_child(); return 0;
+        }
+        if (arg == "--mode=schemaless_multi") {
+            test_schemaless_insert_multiple_measurements_child(); return 0;
+        }
+        if (arg == "--mode=schemaless_empty") {
+            test_schemaless_insert_empty_lines_child(); return 0;
+        }
+        if (arg == "--mode=schemaless_invalid") {
+            test_schemaless_insert_invalid_format_child(); return 0;
+        }
+        if (arg == "--mode=schemaless_not_connected") {
+            test_schemaless_insert_not_connected_child(); return 0;
+        }
+        if (arg == "--mode=schemaless_large") {
+            test_schemaless_insert_large_batch_child(); return 0;
         }
     }
 
@@ -318,6 +531,24 @@ int main(int argc, char** argv) {
                out.find("[fallback] Program lib absent, testing system path fallback") != std::string::npos);
         assert(out.find("Loaded libtaos from system path:") != std::string::npos);
         assert(out.find("Setting TDengine driver to native") != std::string::npos);
+    }
+
+    // Schemaless insert tests (each in a subprocess)
+    const char* schemaless_modes[] = {
+        "schemaless_basic",
+        "schemaless_multi",
+        "schemaless_empty",
+        "schemaless_invalid",
+        "schemaless_not_connected",
+        "schemaless_large",
+    };
+    for (const char* mode : schemaless_modes) {
+        std::string out;
+        int rc = run_mode_and_capture(argv[0], mode, out);
+        std::cout << "[parent] " << mode << " output:\n" << out << std::endl;
+        (void)rc;
+        assert(rc == 0 && "schemaless subprocess failed");
+        assert(out.find("PASSED") != std::string::npos || out.find("SKIPPED") != std::string::npos);
     }
 #else
     test_prefer_program_dir_lib_child();

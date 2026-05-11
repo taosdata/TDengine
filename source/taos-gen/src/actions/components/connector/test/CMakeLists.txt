@@ -57,3 +57,13 @@ target_link_libraries(TestPooledConnector
     components_connector
 )
 add_test(NAME TestPooledConnector COMMAND TestPooledConnector)
+
+# Test RestfulConnector
+add_executable(TestRestfulConnector
+  TestRestfulConnector.cpp
+)
+target_link_libraries(TestRestfulConnector
+  PRIVATE
+    components_connector
+)
+add_test(NAME TestRestfulConnector COMMAND TestRestfulConnector)

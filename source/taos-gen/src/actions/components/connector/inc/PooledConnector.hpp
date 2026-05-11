@@ -20,6 +20,7 @@ public:
     bool execute(const std::string& sql) override;
     bool execute(const SqlInsertData& data) override;
     bool execute(const StmtV2InsertData& data) override;
+    bool execute(const SchemalessInsertData& data) override;
 
     bool is_connected() const override;
     bool is_valid() const override;
