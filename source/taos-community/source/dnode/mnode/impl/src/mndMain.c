@@ -63,6 +63,7 @@
 #include "mndXnode.h"
 #include "tencrypt.h"
 
+#define UPGRADE_INTERVAL 10
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
   (void)taosThreadRwlockRdlock(&pMnode->lock);
@@ -118,6 +119,23 @@ static void mndPullupTrans(SMnode *pMnode) {
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
+static void mndPullupUpgradeSdb(SMnode *pMnode) {
+  if (sdbIsUpgraded(pMnode->pSdb)) {
+    pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
+    return;
+  }
+
+  if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION && mndIsLeader(pMnode)) {
+    if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
+      mError("failed to upgrade sdb while start mnode");
+      return;
+    }
+    if (sdbIsUpgraded(pMnode->pSdb)) {
+      pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
     }
   }
 }
@@ -286,6 +304,18 @@ static void mndPullupAuth(SMnode *pMnode) {
   }
 }
 
+static void mndPullupCls(SMnode *pMnode) {
+  mTrace("pullup cls msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CLS_HB_TIMER, .pCont = pReq, .contLen = contLen, .info.notFreeAhandle = 1, .info.ahandle = 0};
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
 static void mndIncreaseUpTime(SMnode *pMnode) {
   mTrace("increate uptime");
   int32_t contLen = 0;
@@ -409,6 +439,9 @@ static int32_t minCronTime() {
   min = TMIN(min, telemInt);
   min = TMIN(min, tsGrantHBInterval);
   min = TMIN(min, tsUptimeInterval);
+#ifdef TD_ENTERPRISE
+  if (tsClsEnabled) min = TMIN(min, tsClsRefreshInterval);
+#endif
 
   return min <= 1 ? 2 : min;
 }
@@ -455,6 +488,11 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
       mndPullupAuth(pMnode);
     }
   }
+  if (tsClsEnabled || tsClsRefreshInterval == GRANT_CLS_CLOSING || tsClsRefreshInterval == GRANT_CLS_OPENING) {
+    if (sec % tsClsRefreshInterval == 0) {
+      mndPullupCls(pMnode);
+    }
+  }
 #endif
   if (sec % tsTransPullupInterval == 0) {
     mndPullupTrans(pMnode);
@@ -480,6 +518,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   }
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
+  }
+
+  if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION && sec % UPGRADE_INTERVAL == 0) {
+    mndPullupUpgradeSdb(pMnode);
   }
 }
 
@@ -970,12 +1012,21 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestored(pMnode, true);
   }
-  if (mndIsLeader(pMnode)) {
+
+  if (sdbIsUpgraded(pMnode->pSdb)) {
+    pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
+  } else if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION) {
     if (sdbUpgrade(pMnode->pSdb, pMnode->version) != 0) {
       mError("failed to upgrade sdb while start mnode");
       return -1;
     }
+    if (sdbIsUpgraded(pMnode->pSdb)) {
+      pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
+    }
+  }
+
 #ifdef TD_ENTERPRISE
+  if (mndIsLeader(pMnode)) {
     if (tsSodEnforceMode) {
       if ((code = mndProcessEnforceSod(pMnode)) != 0) {
         if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
@@ -991,9 +1042,8 @@ int32_t mndStart(SMnode *pMnode) {
         mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
       }
     }
-#endif
   }
-  pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
+#endif
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);
@@ -1101,7 +1151,8 @@ _OVER:
       pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
       pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER ||
-      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER) {
+      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER ||
+      pMsg->msgType == TDMT_MND_CLS_HB_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);
