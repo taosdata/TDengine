@@ -44,6 +44,12 @@ int32_t addDynamicGrantItem2(SGrantUniqObj *pGrantObj, const char *itemName, int
 int32_t addDynamicGrantItemEx(SGrantUniqObj *pGrantObj, const char *itemName, int32_t expire, int32_t number);
 
 int32_t grantGetBasicExpireDays(bool basic);
+
+int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg);
+int64_t grantGetExpireSec(int64_t expireSec);
+int32_t tClsGetDataInType(const char *name);
+int32_t tClsGetGrantIndex(const char *name);
+
 #ifdef __cplusplus
 }
 #endif
