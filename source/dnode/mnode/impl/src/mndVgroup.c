@@ -29,9 +29,10 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 
-#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
-#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
-#define VGROUP_RESERVE_SIZE              60
+#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER  2
+#define VGROUP_VER_COMPAT_SNAP_RESTORING   3
+#define VGROUP_VER_NUMBER                  VGROUP_VER_COMPAT_SNAP_RESTORING
+#define VGROUP_RESERVE_SIZE                60
 // since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 8 + 8 + 64 = 80
 #define DLEN_AFTER_SYNC_CONF_CHANGE_VER 80
 
@@ -121,6 +122,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT32(pRaw, dataPos, pVgroup->mountVgId, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersion, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersionTime, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pVgroup->snapRestoring, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -189,6 +191,11 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersionTime, _OVER)
+  }
+  if (dataPos + sizeof(int8_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pVgroup->snapRestoring, _OVER)
+    // Always clear on decode: ephemeral state, must not survive mnode restart
+    pVgroup->snapRestoring = 0;
   }
   if (dataPos + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
@@ -288,6 +295,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pNew->compStorage = pOld->compStorage;
   pNew->pointsWritten = pOld->pointsWritten;
   pNew->compact = pOld->compact;
+  pOld->snapRestoring = pNew->snapRestoring;
   memcpy(pOld->vnodeGid, pNew->vnodeGid, (TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA) * sizeof(SVnodeGid));
   pOld->syncConfChangeVer = pNew->syncConfChangeVer;
   tstrncpy(pOld->dbName, pNew->dbName, TSDB_DB_FNAME_LEN);
