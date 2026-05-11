@@ -217,6 +217,13 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 }
 
 static STaskQueue taskQueue = {0};
+static int32_t    shutdownSentinel = 0;
+
+bool beginAsyncWorkShutdown() {
+  return atomic_val_compare_exchange_32(&shutdownSentinel, 0, 1) == 0;
+}
+
+bool mayCreateAsyncWork() { return atomic_load_32(&shutdownSentinel) == 0; }
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   if(!pSchedMsg || !pSchedMsg->ahandle) return;
@@ -254,14 +261,25 @@ int32_t cleanupTaskQueue() {
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
   SSchedMsg* pSchedMsg; 
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
   int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
-  if (rc) return rc;
+  if (rc) {
+    return rc;
+  }
   pSchedMsg->fp = NULL;
   pSchedMsg->ahandle = execFn;
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return rc;
 }
 
 int32_t taosAsyncWait() {
@@ -280,16 +298,28 @@ int32_t taosAsyncRecover() {
   return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
 }
 
-int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
+int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam) {
   SSchedMsg* pSchedMsg;
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
   int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
-  if (rc) return rc;
+  if (rc) {
+    return rc;
+  }
+
   pSchedMsg->fp = NULL;
-  pSchedMsg->ahandle = bindFn;
-  pSchedMsg->thandle = bindParam;
+  pSchedMsg->ahandle = execFn;
+  pSchedMsg->thandle = execParam;
   // pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return rc;
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -323,6 +353,11 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   if (NULL == pTransporter || NULL == epSet || NULL == pInfo) {
     destroySendMsgInfo(pInfo);
     return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (!mayCreateAsyncWork()) {
+    destroySendMsgInfo(pInfo);
+    return TSDB_CODE_APP_IS_STOPPING;
   }
 
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);

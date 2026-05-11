@@ -4146,6 +4146,7 @@ enum {
   PHY_FILL_CODE_FILL_NULL_EXPRS,
   PHY_FILL_CODE_TIME_RANGE_EXPR,
   PHY_FILL_CODE_SURROUNDING_TIME,
+  PHY_FILL_CODE_INDEF_ROWS_MODE,
 };
 
 static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4179,6 +4180,9 @@ static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_SURROUNDING_TIME, nodeToMsg,
                         pNode->pSurroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_FILL_CODE_INDEF_ROWS_MODE, pNode->indefRowsMode);
   }
   return code;
 }
@@ -4219,6 +4223,9 @@ static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_FILL_CODE_SURROUNDING_TIME:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSurroundingTime);
+        break;
+      case PHY_FILL_CODE_INDEF_ROWS_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->indefRowsMode);
         break;
       default:
         break;
@@ -4274,6 +4281,9 @@ enum {
   PHY_EXT_CODE_NEED_GROUP_SORT,
   PHY_EXT_CODE_CALC_WITH_PARTITION,
   PHY_EXT_CODE_EXT_WIN_SPLIT,
+  PHY_EXT_CODE_FILL_MODE,
+  PHY_EXT_CODE_FILL_EXPRS,
+  PHY_EXT_CODE_FILL_VALUES,
   PHY_EXT_CODE_SUB_QUERY
 };
 
@@ -4309,6 +4319,15 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_EXT_WIN_SPLIT, pNode->extWinSplit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, PHY_EXT_CODE_FILL_MODE, pNode->extFill.mode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_FILL_EXPRS, nodeListToMsg, pNode->extFill.pFillExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_FILL_VALUES, nodeToMsg, pNode->extFill.pFillValues);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_SUB_QUERY, nodeToMsg, pNode->pSubquery);
@@ -4357,6 +4376,15 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_EXT_CODE_EXT_WIN_SPLIT:
         code = tlvDecodeBool(pTlv, &pNode->extWinSplit);
         break;
+      case PHY_EXT_CODE_FILL_MODE:
+        code = tlvDecodeEnum(pTlv, &pNode->extFill.mode, sizeof(pNode->extFill.mode));
+        break;
+      case PHY_EXT_CODE_FILL_EXPRS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->extFill.pFillExprs);
+        break;
+      case PHY_EXT_CODE_FILL_VALUES:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->extFill.pFillValues);
+        break;
       case PHY_EXT_CODE_SUB_QUERY:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubquery);
         break;
@@ -4374,7 +4402,7 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeToMsg, pNode->pStateKey);
+    code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeListToMsg, pNode->pStateKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_STATE_CODE_TRUE_FOR_TYPE, pNode->trueForType);
@@ -4403,7 +4431,7 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
       case PHY_STATE_CODE_KEY:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStateKey);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pStateKeys);
         break;
       case PHY_STATE_CODE_TRUE_FOR_TYPE:
         code = tlvDecodeI32(pTlv, (int32_t*)&pNode->trueForType);

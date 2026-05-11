@@ -133,20 +133,24 @@ typedef struct SParseContext {
     struct {
       uint8_t hasPrivCols : 1;  // user has priv columns
       uint8_t hasMaskCols : 1;  // user has mask columns
-      uint8_t reserved : 6;     // reserved bits for future use
+      uint8_t sodInitial  : 1;   // 0 stable, 1 initial
+      uint8_t reserved : 5;      // reserved bits for future use
     };
   };
   union {
     uint16_t privInfo;
     struct {
-      uint16_t privLevel : 3;  // user privilege level
+      // N.B. keep the order of the bit definition unchanged
+      uint16_t minSecLevel : 3;  // user min security level
       uint16_t privInfoBasic : 1;
       uint16_t privInfoPrivileged : 1;
       uint16_t privInfoAudit : 1;
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved1 : 7;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode : 1;      // 1 = MAC mandatory, propagates to executor
+      uint16_t reserved1 : 3;
     };
   };
   const char* svrVer;

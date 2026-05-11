@@ -461,6 +461,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
+| SECURITY_LEVEL       | 3.4.1.6+ |
+| SECURITY_POLICIES    | 3.4.1.6+ |
 | SELECT               | |
 | SEMI                 | |
 | SERVER_STATUS        | |

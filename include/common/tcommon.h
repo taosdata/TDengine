@@ -307,6 +307,7 @@ typedef struct STableBlockDistInfo {
   uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
+  int32_t  blockRowsHistoFixed[8];  // buckets: ≤64, ≤128, ≤256, ≤512, ≤1024, ≤2048, ≤4096, >4096
 } STableBlockDistInfo;
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
@@ -449,7 +450,14 @@ typedef struct STUidTagInfo {
 #define NOTIFY_EVENT_STR_COLUMN_INDEX 0
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
-int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern);
+
+#define SHOW_VAR_PRIV_SYSTEM   0x01
+#define SHOW_VAR_PRIV_SECURITY 0x02
+#define SHOW_VAR_PRIV_AUDIT    0x04
+#define SHOW_VAR_PRIV_DEBUG    0x08
+#define SHOW_VAR_PRIV_ALL (SHOW_VAR_PRIV_SYSTEM | SHOW_VAR_PRIV_SECURITY | SHOW_VAR_PRIV_AUDIT | SHOW_VAR_PRIV_DEBUG)
+
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern, uint8_t showPrivMask);
 
 #define TSMA_RES_STB_POSTFIX          "_tsma_res_stb_"
 #define MD5_OUTPUT_LEN                32

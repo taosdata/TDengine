@@ -27,6 +27,14 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 }
 
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
+  if (valueNode->isNull || valueNode->datum.p == NULL) {
+    // NULL value node: update the result type to TIMESTAMP for type consistency
+    // with non-null behavior, but skip datum conversion to avoid dereferencing
+    // the NULL datum.p pointer inside convertStringToTimestamp.
+    valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+    return TSDB_CODE_SUCCESS;
+  }
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
   int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value,
@@ -2128,7 +2136,8 @@ void sclGetValueNodeSrcTable(SNode *pNode, char **ppSrcTable, bool *multiTable) 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) {
+  if ((!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) ||
+      fmIsVolatileFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -2920,11 +2929,16 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
 
   int32_t    code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
+
+  void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
+  sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
   if (NULL != pExtra) {
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
     ctx.fetchFp = pExtra->fp;
+    gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
   }
   
   // TODO: OPT performance
@@ -2966,6 +2980,8 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
   }
 
 _return:
+  gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
+  gTaskScalarExtra.isTaskKilled = savedIsKilled;
   sclFreeRes(ctx.pRes);
   return code;
 }

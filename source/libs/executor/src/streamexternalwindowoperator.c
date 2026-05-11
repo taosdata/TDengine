@@ -597,7 +597,7 @@ static int32_t mergeAlignExtWinProjectDo(SOperatorInfo* pOperator, SResultRowInf
   int32_t                  code = 0, lino = 0;
   
   TAOS_CHECK_EXIT(projectApplyFunctions(pExprSup->pExprInfo, pResultBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                        GET_STM_RTINFO(pOperator->pTaskInfo)));
+                        GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
 
   TAOS_CHECK_EXIT(mergeAlignExtWinBuildWinRowIdx(pOperator, pBlock, pResultBlock));
 
@@ -1529,7 +1529,7 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
 
   qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
   TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc));
+        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc, pOperator->pTaskInfo));
 
   TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
 
@@ -1587,7 +1587,7 @@ static int32_t extWinIndefRowsDoImpl(SOperatorInfo* pOperator, SSDataBlock* pRes
   SExprSupp* pScalarSup = &pExtW->scalarSupp;
   if (pScalarSup->pExprInfo != NULL) {
     TAOS_CHECK_EXIT(projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo)));
+                                 pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
   }
 
   TAOS_CHECK_EXIT(setInputDataBlock(pSup, pBlock, order, scanFlag, false));
@@ -1595,7 +1595,7 @@ static int32_t extWinIndefRowsDoImpl(SOperatorInfo* pOperator, SSDataBlock* pRes
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pRes, pRes->info.rows + pBlock->info.rows));
 
   TAOS_CHECK_EXIT(projectApplyFunctions(pSup->pExprInfo, pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo)));
+                               pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
 
 _exit:
 
@@ -1676,9 +1676,11 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   SExternalWindowOperator* pExtW = pOperator->info;
   SSDataBlock*             pResBlock = NULL;
   SArray*                  pIdx = NULL;
+  int64_t                  rowsBefore = 0;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
   
   TAOS_CHECK_EXIT(extWinGetSetWinResBlockBuf(pOperator, rows, pWin, &pResBlock, &pIdx));
+  rowsBefore = pResBlock->info.rows;
   
   if (!pExtW->pTmpBlock) {
     TAOS_CHECK_EXIT(createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock));
@@ -1691,7 +1693,9 @@ static int32_t extWinIndefRowsDo(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
   TAOS_CHECK_EXIT(extWinIndefRowsDoImpl(pOperator, pResBlock, pExtW->pTmpBlock));
 
-  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
+  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock,
+                                     extWinGetCurWinIdx(pOperator->pTaskInfo),
+                                     (int32_t)(pResBlock->info.rows - rowsBefore)));
 
 _exit:
 
@@ -1857,9 +1861,9 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       if (pExtW->scalarSupp.pExprInfo) {
         SExprSupp* pScalarSup = &pExtW->scalarSupp;
         TAOS_CHECK_EXIT(projectApplyFunctions(pScalarSup->pExprInfo, pInputBlock, pInputBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                     pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo)));
+                                     pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
       }
-      
+
       scalarCalc = true;
     }
 

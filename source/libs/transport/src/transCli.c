@@ -1098,7 +1098,7 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
       return;
     }
 
-    if (!sslIsInited(conn->pTls) || !saslAuthIsInited(conn->saslConn)) {
+    if (!sslIsInited(conn->pTls) || (conn->saslConn && !saslAuthIsInited(conn->saslConn))) {
       return;
     }
 
@@ -2471,6 +2471,7 @@ static void* cliWorkThread(void* arg) {
   tsEnableRandErr = true;
   TAOS_UNUSED(strtolower(threadName, pThrd->pInst->label));
   setThreadName(threadName);
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   TAOS_UNUSED(uv_run(pThrd->loop, UV_RUN_DEFAULT));
 

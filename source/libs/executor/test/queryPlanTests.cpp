@@ -2491,7 +2491,7 @@ SNode* qptCreateStateWindowPhysiNode(int32_t nodeType) {
   qptCreateWindowPhysiNode(&pState->window);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeColumnNode(&pState->pStateKey);
+  qptMakeColumnList(&pState->pStateKeys);
 
   return (SNode*)pPhysiNode;
 }

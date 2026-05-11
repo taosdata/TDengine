@@ -86,6 +86,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->cursorPrev = metaTbCursorPrev;
 
   pMeta->getBasicInfo = vnodeGetInfo;
+  pMeta->getSecurityLevel = vnodeGetSecurityLevel;
   pMeta->getNumOfChildTables = metaGetStbStats;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;
@@ -95,7 +96,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->extractTagVal = (const void* (*)(const void*, int16_t, STagVal*))metaGetTableTagVal;
   pMeta->getTableTags = metaGetTableTags;
-  pMeta->getTableTagsByUid = metaGetTableTagsByUids;
+  pMeta->getTableTagsByUidVersion = metaGetTableTagsByUidsVersion;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
   pMeta->getTableTypeSuidByName = metaGetTableTypeSuidByName;

@@ -75,11 +75,13 @@ void mstDestroySStmTaskToDeployExt(void* param) {
     case STREAM_READER_TASK:
       if (!pExt->deploy.msg.reader.triggerReader) {
         SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
-        taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+        if (pCalcReaderDeploy->freeScanPlan) {
+          taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+        }
       }
       break;
     default:  
-      break;;
+      break;
   }
 }
 
@@ -592,10 +594,13 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_STATE: {
       SStateWinTrigger* t = &q->trigger.stateWin;
+      int32_t           slotIdNum = t->pSlotIds ? taosArrayGetSize(t->pSlotIds) : 0;
+      int16_t           firstSlotId = (slotIdNum > 0) ? *(int16_t*)taosArrayGet(t->pSlotIds, 0) : -1;
       mstsDebug(
-          "state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForType: %d, trueForCount: %d, "
+          "state trigger options, slotIdNum:%d, firstSlotId:%d, expr:%s, extend:%d, zeroth:%s, trueForType: %d, trueForCount: %d, "
           "trueForDuration:%" PRId64,
-          t->slotId, (char*)t->expr, t->extend, (char*)t->zeroth, t->trueForType, t->trueForCount, t->trueForDuration);
+          slotIdNum, firstSlotId, (char*)t->expr, t->extend, (char*)t->zeroth, t->trueForType, t->trueForCount,
+          t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_EVENT:{

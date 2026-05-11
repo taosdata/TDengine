@@ -296,6 +296,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_exact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_funtion_null.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_null.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_quarter.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_operator.py
@@ -303,6 +304,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_null_varbinary_between.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_basic.py
@@ -383,6 +385,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/14-Tags/test_tag_json.py
 ## 15-Explain
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_query_explain.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_explain_case_when.py
 ## 16-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
@@ -453,7 +456,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_iso8601.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_regexp_extract.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_today.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_ignorenull.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_perf.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
 ## 02-Aggregate
@@ -503,12 +510,15 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_statecount.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_twa.py
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_derivative.py 
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_derivative.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_with_window.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_interval_fill.py
 ## 05-Compare
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-others/test_resinfo.py
 ## 06-System
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_info.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_sleep.py
 ## 07-Geometry
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
 ## 08-Window
@@ -547,6 +557,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_block.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_extend.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_zeroth.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_multi_col.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_regression.py
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
@@ -555,6 +568,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
 ## 08-ExternalWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external_fill.py
 
 # 14-JoinQueries
 
@@ -659,7 +673,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_tag_filter.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_and_wal.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_wal_multi_ctb.py -N 3 --replica 3
-#,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_taosx.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_ts6379.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_taosx.py
+#,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_change_epset.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_meta_json.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_seek_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_column.py -N 3 --replica 3
@@ -684,6 +700,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py -N 6 -M 3 -I True
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py -N 6 -M 3 --replica 3 -I True
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_replicate.py -M 3 -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py  -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_subscribe_stb_r3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_replay.py
@@ -748,6 +765,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable2.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
@@ -757,6 +775,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_interval_const_filter_twstart.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_period_1.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_sliding.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_sliding_trigger_check_again.py
 ,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_state_new.py
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_state_disorder_update_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_state_window_close.py
@@ -777,6 +796,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
 ## 05-Notify
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify.py
+,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
 ## 06-ResultSaved
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
@@ -791,6 +811,7 @@
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_vtable_change.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state_join_empty_result.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py
 ## 08-Recalc
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
@@ -825,9 +846,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
-## 21-Stability 
+## 21-Stability
 ## 22-Performance
-## 23-Compatibility 
+## 23-Compatibility
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part1.py
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part2.py
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part3.py
@@ -917,6 +938,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_control.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_dac_mac.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
 # 26-NodeManager
@@ -967,12 +989,23 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/03-KeyBackupRestore/test_key_backup_restore.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/07-EncryptionMultiLevel/test_encryption_mlevel.py -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_buffer_overflow.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_blacklist.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_whitelist.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/12-EncryptPassword/test_encrypt_user_login.py
 
 # 32-Grants
 ,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
+
+# 34-CpuAffinity
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_switch.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_management_cores.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_read_write_ratio.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_show_allocation.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_edge_cases.py
 
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
@@ -983,6 +1016,7 @@
 # 70-Cluster
 
 ,,n,.,pytest cases/70-Cluster/test_cluster_arbitrator.py -N 3
+,,n,.,pytest cases/70-Cluster/test_cluster_arbitrator_applied_index.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_basic.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_drop_table_by_uid.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_kill_restore_dnode.py -N 5
@@ -1038,6 +1072,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
 
+# 73-TLS
+,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py
+
 
 # 80-Components
 
@@ -1047,6 +1084,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_metadata.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_core_e2e.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_stt_e2e.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_wal_force_repair_e2e.py
 ,,n,.,pytest cases/80-Components/01-Taosd/test_com_taosd_log.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
@@ -1054,7 +1092,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_persisit_config.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit_no_token.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_self_audit.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_self_audit_switch_off.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_monitor.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_restart.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_telemetry.py
@@ -1076,6 +1116,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_error.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_net_chk.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_hex.py
 ## 03-Benchmark
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_bugs.py -B
@@ -1162,3 +1203,6 @@
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
 #,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+
+## 02-Repair
+,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py

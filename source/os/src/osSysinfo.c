@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
@@ -58,6 +61,8 @@ typedef struct {
 #endif
 
 #include <objbase.h>
+#include <signal.h>
+#include <stdlib.h>
 
 #pragma warning(push)
 #pragma warning(disable : 4091)
@@ -141,6 +146,14 @@ static void taosWinWriteStackTrace(HANDLE hFile, PEXCEPTION_POINTERS ep) {
 }
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
+  // Only handle fatal exceptions, let others pass through for vectored handler
+  DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+  // Skip non-fatal exceptions (like breakpoints during debugging)
+  if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  
   typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
                                              IN MINIDUMP_TYPE                           DumpType,
                                              IN CONST PMINIDUMP_EXCEPTION_INFORMATION   ExceptionParam,
@@ -191,8 +204,11 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
         MiniDumpWithDataSegs                    |  /* global/static variables     */
         MiniDumpWithProcessThreadData           |  /* all thread stacks + locals  */
         MiniDumpWithHandleData                  |  /* open handles                */
-        MiniDumpWithUnloadedModules             |  /* recently unloaded DLLs      */
-        MiniDumpWithIndirectlyReferencedMemory);   /* memory pointed-to by locals */
+        MiniDumpWithIndirectlyReferencedMemory  |  /* memory pointed-to by locals */
+        MiniDumpWithThreadInfo                  |  /* thread times, start addr    */
+        MiniDumpWithFullMemoryInfo);               /* all VMAs (flags/state)      */
+    // Keep process/thread data and indirectly referenced memory enabled
+    // to capture more complete diagnostic information in the minidump
 
     (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
             dumpType, &mei, NULL, NULL);
@@ -220,13 +236,108 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
   FreeLibrary(dll);
 
-  // Return EXCEPTION_CONTINUE_SEARCH so Windows Error Reporting (WER) also
-  // gets a chance to run and produce its own full memory dump.
-  // That gives two artefacts to choose from:
-  //   - our taosd_*_stack.log : human-readable, no tools needed
-  //   - our taosd_*.dmp       : extended MiniDump, ~20-80 MB, needs PDB
-  //   - WER dump              : full memory dump, = process RSS, needs nothing
+  // Return EXCEPTION_EXECUTE_HANDLER to terminate the process after dump
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+
+// Vectored Exception Handler - called BEFORE SEH, can catch heap corruption
+static LONG WINAPI FlVectoredExceptionHandler(PEXCEPTION_POINTERS ep) {
+  DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+  // Only handle critical exceptions that would terminate the process
+  // These exceptions may bypass SetUnhandledExceptionFilter in some cases
+  if (code == 0xC0000374 ||  // STATUS_HEAP_CORRUPTION
+      code == 0xC0000409 ||  // STATUS_STACK_BUFFER_OVERRUN (fast-fail)
+      code == 0xC00000FD) {  // STATUS_STACK_OVERFLOW
+    // Call FlCrashDump directly for these special exceptions
+    (void)FlCrashDump(ep);
+  }
+
+  // Let other exceptions pass to normal SEH handling
   return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// Helper function to generate dump without exception context (for CRT handlers)
+static void FlCrashDumpNoException(const char* reason) {
+  typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
+                                             IN MINIDUMP_TYPE                           DumpType,
+                                             IN CONST PMINIDUMP_EXCEPTION_INFORMATION   ExceptionParam,
+                                             IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+                                             IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
+
+  HMODULE dll = LoadLibraryA("dbghelp.dll");
+  if (dll == NULL) return;
+  FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
+  if (mdwd == NULL) {
+    FreeLibrary(dll);
+    return;
+  }
+
+  SYSTEMTIME st;
+  GetLocalTime(&st);
+
+  TdWchar exePath[MAX_PATH];
+  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
+  exePath[exeLen] = L'\0';
+
+  TdWchar dmpPath[MAX_PATH];
+  _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
+               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
+               exePath, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+
+  HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (dmpFile != INVALID_HANDLE_VALUE) {
+    MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+        MiniDumpWithDataSegs | MiniDumpWithProcessThreadData |
+        MiniDumpWithHandleData | MiniDumpWithThreadInfo | MiniDumpWithFullMemoryInfo);
+    (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
+            dumpType, NULL, NULL, NULL);  // No exception info
+    CloseHandle(dmpFile);
+  }
+
+  // Write reason to log file
+  TdWchar logPath[MAX_PATH];
+  _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
+               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exePath, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+  HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (logFile != INVALID_HANDLE_VALUE) {
+    char msg[512];
+    int n = _snprintf_s(msg, sizeof(msg), _TRUNCATE,
+                        "CRT/Runtime Error: %s\r\nThreadId: %lu\r\n",
+                        reason, (unsigned long)GetCurrentThreadId());
+    DWORD w = 0;
+    if (n > 0) WriteFile(logFile, msg, (DWORD)n, &w, NULL);
+    CloseHandle(logFile);
+  }
+
+  FreeLibrary(dll);
+}
+
+// CRT invalid parameter handler
+static void FlInvalidParameterHandler(const TdWchar* expression, const TdWchar* function,
+                                       const TdWchar* file, unsigned int line, size_t reserved) {
+  (void)expression; (void)function; (void)file; (void)line; (void)reserved;
+  FlCrashDumpNoException("Invalid parameter detected in CRT function");
+  _exit(3);
+}
+
+// CRT pure virtual call handler
+static void FlPureCallHandler(void) {
+  FlCrashDumpNoException("Pure virtual function call");
+  _exit(3);
+}
+
+// abort() handler - called when abort() is invoked
+static void FlAbortHandler(int sig) {
+  (void)sig;
+  FlCrashDumpNoException("abort() called");
+  _exit(3);
 }
 
 #elif defined(_TD_DARWIN_64)
@@ -1492,10 +1603,21 @@ int64_t taosGetOsUptime() {
 void taosSetCoreDump(bool enable) {
   if (!enable) return;
 #ifdef WINDOWS
-  /* Only one handler can be active at a time; FlCrashDump supersedes the
-   * external exceptionHandler.  Registering both caused the second call to
-   * silently discard the first, so exceptionHandler was never invoked. */
+  /* Register vectored exception handler FIRST - it runs before SEH and can
+   * catch heap corruption (STATUS_HEAP_CORRUPTION 0xC0000374) which may
+   * bypass SetUnhandledExceptionFilter in some cases. */
+  AddVectoredExceptionHandler(1, FlVectoredExceptionHandler);
+  
+  /* Also set the unhandled exception filter for normal crashes */
   SetUnhandledExceptionFilter(&FlCrashDump);
+  
+  /* Register CRT handlers for various runtime errors */
+  _set_invalid_parameter_handler(FlInvalidParameterHandler);
+  _set_purecall_handler(FlPureCallHandler);
+  
+  /* Handle abort() calls */
+  signal(SIGABRT, FlAbortHandler);
+  
 #elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 #else
   // 1. set ulimit -c unlimited
@@ -1693,3 +1815,192 @@ int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
   return r;
 #endif
 }
+
+// --- CPU Affinity Management ---
+
+// Forward-declare config variables from tglobal.h to avoid circular dependency
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
+
+static SCpuAllocStatus gCpuAllocStatus = {0};
+
+#ifdef __linux__
+int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset) {
+  CPU_ZERO(cpuset);
+  if (sched_getaffinity(0, sizeof(cpu_set_t), cpuset) != 0) {
+    // Fallback: set all cores based on tsNumOfCores
+    for (int i = 0; i < (int)tsNumOfCores; i++) {
+      CPU_SET(i, cpuset);
+    }
+    return (int32_t)tsNumOfCores;
+  }
+  return CPU_COUNT(cpuset);
+}
+#endif
+
+int32_t taosInitCpuAllocation(void) {
+  memset(&gCpuAllocStatus, 0, sizeof(gCpuAllocStatus));
+
+  if (!tsEnableCpuAffinity) {
+    gCpuAllocStatus.enabled = false;
+    uInfo("CPU affinity disabled by configuration (enableCpuAffinity=0)");
+    return 0;
+  }
+
+#ifdef __linux__
+  cpu_set_t availSet;
+  int32_t   totalCores = taosGetAvailableCpuSet(&availSet);
+  if (totalCores > TAOS_MAX_CPU_CORES) {
+    uWarn("System has %d cores, but TDengine CPU affinity only supports up to %d. Capping to %d.", totalCores,
+          TAOS_MAX_CPU_CORES, TAOS_MAX_CPU_CORES);
+    totalCores = TAOS_MAX_CPU_CORES;
+  }
+#else
+  int32_t totalCores = (int32_t)tsNumOfCores;
+  if (totalCores > TAOS_MAX_CPU_CORES) totalCores = TAOS_MAX_CPU_CORES;
+#endif
+
+  gCpuAllocStatus.totalCores = totalCores;
+
+  // Disable affinity if fewer than 3 cores available
+  if (totalCores < 3) {
+    gCpuAllocStatus.enabled = false;
+    uWarn("CPU affinity disabled: only %d cores available, need >= 3", totalCores);
+    return 0;
+  }
+
+  // Validate: managementCpuCores must leave at least 2 for write + read
+  if (tsManagementCpuCores > totalCores - 2) {
+    uError("managementCpuCores %d exceeds maximum %d (totalCores=%d)", tsManagementCpuCores, totalCores - 2,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
+  }
+
+  int32_t mgmt = tsManagementCpuCores;
+
+  // Use explicit core counts from config
+  int32_t readCount = tsReadCpuCores;
+  int32_t writeCount = tsOtherCpuCores;
+
+  // Validate sum does not exceed available cores
+  if (mgmt + readCount + writeCount > totalCores) {
+    uError("CPU core sum exceeds total: management=%d + read=%d + write=%d > total=%d", mgmt, readCount, writeCount,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
+  }
+
+  // Collect available core IDs in sorted order
+  int32_t coreIds[TAOS_MAX_CPU_CORES];
+  int32_t nCores = 0;
+#ifdef __linux__
+  for (int i = 0; i < CPU_SETSIZE && nCores < totalCores; i++) {
+    if (CPU_ISSET(i, &availSet)) {
+      coreIds[nCores++] = i;
+    }
+  }
+#else
+  for (int i = 0; i < totalCores && i < TAOS_MAX_CPU_CORES; i++) {
+    coreIds[nCores++] = i;
+  }
+#endif
+
+  // Assign core IDs: management first, then write, then read
+  int32_t idx = 0;
+
+  // Management set
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].category = THREAD_CAT_MANAGEMENT;
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count = mgmt;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  for (int32_t i = 0; i < mgmt; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  }
+
+  // Write set
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].category = THREAD_CAT_WRITE;
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].count = writeCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  for (int32_t i = 0; i < writeCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  }
+
+  // Read set
+  gCpuAllocStatus.sets[THREAD_CAT_READ].category = THREAD_CAT_READ;
+  gCpuAllocStatus.sets[THREAD_CAT_READ].count = readCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  for (int32_t i = 0; i < readCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  }
+
+  gCpuAllocStatus.enabled = true;
+
+  // Startup logging
+  char mgmtIds[512] = {0}, writeIds[512] = {0}, readIds[512] = {0};
+  int  off;
+
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count; i++) {
+    off += snprintf(mgmtIds + off, sizeof(mgmtIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_WRITE].count; i++) {
+    off += snprintf(writeIds + off, sizeof(writeIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_READ].count; i++) {
+    off += snprintf(readIds + off, sizeof(readIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i]);
+  }
+
+  uInfo("CPU affinity enabled: management=%d cores [%s], write=%d cores [%s], read=%d cores [%s]", mgmt, mgmtIds,
+        writeCount, writeIds, readCount, readIds);
+
+  return 0;
+}
+
+void taosSetCpuAffinity(EThreadCategory category) {
+  if (!gCpuAllocStatus.enabled) {
+    return;
+  }
+
+  if (category < 0 || category >= THREAD_CAT_COUNT) {
+    uError("failed to set CPU affinity for category:%d", category);
+    return;
+  }
+
+#ifdef __linux__
+  int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &gCpuAllocStatus.sets[category].mask);
+  if (rc != 0) {
+    uError("failed to set CPU affinity for category %d: %s", category, strerror(rc));
+    return;
+  }
+#else
+  static bool logged = false;
+  if (!logged) {
+    uInfo("CPU affinity not supported on this platform");
+    logged = true;
+  }
+#endif
+
+  return;
+}
+
+const SCpuAllocStatus *taosGetCpuAllocStatus(void) { return &gCpuAllocStatus; }

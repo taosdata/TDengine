@@ -48,7 +48,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | countAlwaysReturnValue | both | Whether count/hyperloglog functions return a value when input data is empty or NULL |
 | tagFilterCache | taosd | Whether to cache tag filter results |
 | stableTagFilterCache | taosd | Whether to cache tag equal condition filter results.  It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
-| queryBufferSize | taosd | Query available cache size |
 | queryRspPolicy | taosd | Query response strategy |
 | queryUseMemoryPool | taosd | Whether query will use memory pool to manage memory |
 | minReservedMemorySize | taosd | The minimum reserved system available memory size |
@@ -74,6 +73,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | minSlidingTime | taosc | Minimum allowable value for sliding |
 | minIntervalTime | taosc | Minimum allowable value for interval |
 | compareAsStrInGreatest | taosc | Comparison type conversion rules for greatest and least functions |
+| ignoreNullInGreatest | taosc | Whether greatest and least functions skip NULL arguments |
 | showFullCreateTableColumn | taosc | Whether show create table returns column compression information |
 | rpcRecvLogThreshold| taosd| The threshold for warning logs in the RPC module |
 | **Region Related** | | |
@@ -92,7 +92,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | ssAccessString | taosd | A string which contains various options for accessing the shared storage |
 | ssPageCacheSize | taosd | Number of shared storage page cache pages |
 | ssUploadDelaySec | taosd | How long a data file remains unchanged before being uploaded to shared storage |
-| cacheLazyLoadThreshold | taosd | Cache loading strategy |
 | **Cluster Related** | | |
 | supportVnodes | taosd | Maximum number of vnodes supported by a dnode |
 | numOfCommitThreads | taosd | Maximum number of commit threads |
@@ -202,6 +201,11 @@ This document compares the configuration parameters of taosd (server-side) and t
 | enableAuditDelete | taosd | Internal parameter, used for testing audit functions |
 | slowLogThresholdTest | taosd | Internal parameter, used for testing slow logs |
 | bypassFlag | both | Internal parameter, used for short-circuit testing |
+| **CPU Affinity** | | |
+| enableCpuAffinity | taosd | Master switch for CPU affinity binding, 0: disabled (default), 1: enabled |
+| managementCpuCores | taosd | Number of CPU cores dedicated to management threads, default 1 |
+| readCpuCores | taosd | Number of CPU cores dedicated to read threads (1-256), default dynamically computed |
+| otherCpuCores | taosd | Number of CPU cores dedicated to write threads (1-256), default dynamically computed |
 | **Compression Parameters** | | |
 | fPrecision | taosd | Sets the compression precision for float type floating numbers |
 | dPrecision | taosd | Sets the compression precision for double type floating numbers |

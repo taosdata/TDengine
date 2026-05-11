@@ -226,6 +226,8 @@ bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 
 bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
 
+bool fmIsWindowIndefRowsFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
+
 bool fmIsStreamWindowClauseFunc(int32_t funcId) { return fmIsWindowClauseFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
 
 bool fmIsStreamVectorFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
@@ -390,6 +392,10 @@ bool fmIsDBUsageFunc(int32_t funcId) {
 }
 
 bool fmIsProcessByRowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PROCESS_BY_ROW); }
+
+bool fmIsVolatileFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_VOLATILE_FUNC); }
+
+bool fmIsNoPushdownFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_NO_PUSHDOWN_FUNC); }
 
 bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
 
@@ -883,6 +889,9 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
 }
 
 bool fmIsStreamPesudoColVal(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
   return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN
          || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME;
 }

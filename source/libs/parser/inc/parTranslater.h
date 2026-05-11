@@ -46,6 +46,7 @@ typedef struct STranslateContext {
   bool             isCorrelatedSubQ;
   bool             hasNonLocalSubQ;
   bool             hasLocalSubQ;
+  bool             hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
   bool             stableQuery;
   bool             showRewrite;
   bool             withOpt;
@@ -55,6 +56,7 @@ typedef struct STranslateContext {
   bool             skipCheck;
   bool             refTable;
   bool             isCurrOpIn;
+  ENodeType        origStmtType;
   SParseStreamInfo streamInfo;
   // When a correlated EXISTS/NOT EXISTS is allowed because both outer and inner
   // FROM tables are from the same external source, this flag is set so that
@@ -69,6 +71,11 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SNodeList* pTags, S
 int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput);
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView);
+
+#ifdef TD_ENTERPRISE
+int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect);
+int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect);
+#endif
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,12 @@
+use test_ext_fill_edge;
+
+select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(value, 555) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(null) order by t1, ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from src_late external_window((select ts, endtime, mark from win) w) fill(value, 0) order by ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, sum(v) as sv from src_late external_window((select ts, endtime, mark from win) w) fill(prev) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from src_first external_window((select ts, endtime, mark from win) w) fill(next) order by ws;
+select cast(_wstart as bigint) as ws, sum(v) as sv from src_late external_window((select ts, endtime, mark from win) w) fill(prev) order by ws;
+
+use test_ext_fill_varlen;
+
+select tag_name, w.note, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by tag_name external_window((select ts, endtime, note from win) w) fill(value, 555) order by tag_name, ws;

@@ -16,9 +16,9 @@
 #ifndef _TD_UTIL_WORKER_H_
 #define _TD_UTIL_WORKER_H_
 
+#include "tarray.h"
 #include "tlist.h"
 #include "tqueue.h"
-#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +41,7 @@ typedef struct SQWorkerPool {
   const char   *name;
   SQueueWorker *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 } SQWorkerPool;
 
 typedef struct SAutoQWorkerPool {
@@ -49,6 +50,7 @@ typedef struct SAutoQWorkerPool {
   const char   *name;
   SArray       *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 } SAutoQWorkerPool;
 
 typedef struct SWWorker {
@@ -67,6 +69,7 @@ struct SWWorkerPool {
   const char   *name;
   SWWorker     *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 };
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
@@ -97,6 +100,7 @@ typedef struct {
   void            *param;
   SQWorkerPoolType poolType;
   bool             stopNoWaitQueue;
+  int32_t          threadCategory;  // EThreadCategory or -1 for no affinity
 } SSingleWorkerCfg;
 
 typedef struct {
@@ -112,6 +116,7 @@ typedef struct {
   int32_t     max;
   FItems      fp;
   void       *param;
+  int32_t     threadCategory;  // EThreadCategory or -1 for no affinity
 } SMultiWorkerCfg;
 
 typedef struct {
@@ -167,6 +172,7 @@ typedef struct SQueryAutoQWorkerPool {
   struct SQueryAutoQWorkerPoolCB *pCb;
   bool                            stopNoWaitQueue;
   volatile bool                   exit;
+  int32_t                         threadCategory;  // EThreadCategory or -1 for no affinity
 } SQueryAutoQWorkerPool;
 
 int32_t     tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pPool);
@@ -203,6 +209,7 @@ typedef struct SDispatchWorkerPool {
   DispatchFp       dispatchFp;
   TdThreadMutex    poolLock;
   bool             exit;
+  int32_t          threadCategory;  // EThreadCategory or -1 for no affinity
 } SDispatchWorkerPool;
 
 int32_t tDispatchWorkerInit(SDispatchWorkerPool *pPool);

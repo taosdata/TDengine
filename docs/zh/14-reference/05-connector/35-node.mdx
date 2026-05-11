@@ -23,6 +23,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.4.0       | 1. 支持 BLOB 数据类型 <br/> 2. 参数绑定支持 DECIMAL 数据类型 <br/> 3. 支持上报用户 APP 名称和 IP 地址 | - |
 |        3.3.0       | 支持负载均衡和故障转移 | - |
 |        3.2.3       | 1. 支持令牌身份认证 <br/> 2. 支持上报连接器版本信息 | - |
 |        3.2.2       | 修复 Windows 系统上的时区处理问题 | - |
@@ -41,7 +42,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ## 处理异常
 
-在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。  
+调用连接器 API 报错后，可通过 `try...catch` 获取错误信息和错误码。  
 错误码信息请参考 [错误码](../../../reference/error-code)
 
 ## 数据类型映射
@@ -65,8 +66,10 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 | BINARY            | string      |
 | NCHAR             | string      |
 | JSON              | string      |
+| DECIMAL           | string      |
 | VARBINARY         | ArrayBuffer |
 | GEOMETRY          | ArrayBuffer |
+| BLOB              | ArrayBuffer |
 
 **注意**：JSON 类型仅在 tag 中支持。
 
@@ -74,7 +77,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | 示例程序                                                                                                                                    | 示例程序描述                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                           | 基本的使用如如建立连接，执行 SQL 等操作。                       |
+| [sql_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/sql_example.js)                           | 基本使用示例，如建立连接、执行 SQL 等操作。                     |
 | [stmt_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/stmt_example.js)                         | 绑定参数插入的示例。               |
 | [line_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/line_example.js)                         | 行协议写入示例。               |
 | [tmq_example](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/tmq_example.js)                           | 订阅的使用示例。                       |
@@ -86,7 +89,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 - Node.js 连接器（`@tdengine/websocket`）支持 Node.js 14 以上版本，低于 14 的版本可能存在包兼容性的问题。
 - 目前只支持 WebSocket 连接，需要提前启动 taosAdapter。
 - 使用连接器结束后，需要调用 taos.connectorDestroy(); 释放连接器资源。
-- 如果要设置 SQL 字符串中时间字符串的时区，需要设置 taosadapter 所在机器的 taosc 时区配置。
+- 如果要设置 SQL 字符串中时间字符串的时区，需要设置 taosAdapter 所在机器的 taosc 时区配置。
 - 在解析结果集时，JavaScript 不支持 int64 类型，因此无法直接进行时区转换。若用户有需求，可引入第三方库以提供支持。
 
 ## 常见问题
@@ -97,7 +100,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 ## API 参考
 
-Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 WebSocket 接口连接 TDengine TSDB 实例。
+Node.js 连接器（`@tdengine/websocket`）通过 taosAdapter 提供的 WebSocket 接口连接 TDengine TSDB 实例。
 
 ### URL 规范
 
@@ -162,6 +165,8 @@ WSConfig 中的配置如下：
 - setTimeOut(ms : number) 设置连接超时，单位毫秒。
 - setToken(token: string) 设置云服务认证 token。
 - setBearerToken(token: string) 设置 TDengine TSDB 认证 token，认证优先级高于用户名密码。
+- setUserApp(userApp: string) 设置用户上报的 APP 名称。
+- setUserIp(userIp: string) 设置用户上报的 IP 地址。
 
 ### 连接功能
 
@@ -279,23 +284,25 @@ WSConfig 中的配置如下：
     - `params`：布尔类型列表。
   - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 - 下面接口除了要设置的值类型不同外，其余同 setBoolean：
-  - `setTinyInt(params :any[])`
-  - `setUTinyInt(params :any[])`
-  - `setSmallInt(params :any[])`
-  - `setUSmallInt(params :any[])`
-  - `setInt(params :any[])`
-  - `setUInt(params :any[])`
-  - `setBigint(params :any[])`
-  - `setUBigint(params :any[])`
-  - `setFloat(params :any[])`
-  - `setDouble(params :any[])`
-  - `setVarchar(params :any[])`
-  - `setBinary(params :any[])`
-  - `setNchar(params :any[])`
-  - `setJson(params :any[])`
-  - `setVarBinary(params :any[])`
-  - `setGeometry(params :any[])`
-  - `setTimestamp(params :any[])`
+  - `setTinyInt(params: any[])`
+  - `setUTinyInt(params: any[])`
+  - `setSmallInt(params: any[])`
+  - `setUSmallInt(params: any[])`
+  - `setInt(params: any[])`
+  - `setUInt(params: any[])`
+  - `setBigint(params: any[])`
+  - `setUBigint(params: any[])`
+  - `setFloat(params: any[])`
+  - `setDouble(params: any[])`
+  - `setVarchar(params: any[])`
+  - `setBinary(params: any[])`
+  - `setNchar(params: any[])`
+  - `setJson(params: any[])`
+  - `setVarBinary(params: any[])`
+  - `setGeometry(params: any[])`
+  - `setBlob(params: any[])`
+  - `setDecimal(params: any[])`
+  - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **接口说明** 设置表 Tags 数据，用于自动建表。
   - **参数说明**：

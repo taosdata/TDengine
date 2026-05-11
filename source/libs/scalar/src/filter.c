@@ -5547,6 +5547,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
   return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
+void filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled isTaskKilledFn) {
+  if (info == NULL) return;
+  info->pTaskInfo    = pTaskInfo;
+  info->isTaskKilled = isTaskKilledFn;
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5626,8 +5632,10 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
 
-    gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
+    gTaskScalarExtra.pStreamInfo  = (void*)info->pStreamRtInfo;
     gTaskScalarExtra.pStreamRange = NULL;
+    gTaskScalarExtra.pTaskInfo    = info->pTaskInfo    ? info->pTaskInfo    : gTaskScalarExtra.pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = info->isTaskKilled ? info->isTaskKilled : gTaskScalarExtra.isTaskKilled;
     code =
         scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
     taosArrayDestroy(pList);
@@ -5705,6 +5713,13 @@ static EDealRes classifyConditionImpl(SNode *pNode, void *pContext) {
     } else {
       pCxt->hasOtherCol = true;
     }
+  } else if (QUERY_NODE_CASE_WHEN == nodeType(pNode)) {
+    // CASE WHEN expressions are computed values, not direct primary key comparisons.
+    // Traversing into them could incorrectly classify the expression as COND_TYPE_PRIMARY_KEY
+    // when the CASE body references ts, causing filterGetTimeRange to receive an unextractable
+    // condition and fall back to TSWINDOW_INITIALIZER (full scan).
+    pCxt->hasOtherCol = true;
+    return DEAL_RES_IGNORE_CHILD;
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode *pFunc = (SFunctionNode *)pNode;
     if (fmIsPseudoColumnFunc(pFunc->funcId)) {

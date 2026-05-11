@@ -1215,6 +1215,10 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   bool                    ignoreNull = getIgoreNullRes(pSup);
   int32_t                 order = TSDB_ORDER_ASC;
 
+  if (pSup->pFilterInfo != NULL) {
+    filterSetExecContext(pSup->pFilterInfo, pTaskInfo, isTaskKilled);
+  }
+
   if (checkWindowBoundReached(pSliceInfo)) {
     code = setDownstreamOpGetParam(pOperator, pSliceInfo->win.ekey + 1);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1228,7 +1232,7 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     SExprSupp* pExprSup = &pSliceInfo->scalarSup;
     code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock,
                                  pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                 GET_STM_RTINFO(pOperator->pTaskInfo));
+                                 GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

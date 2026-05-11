@@ -1,0 +1,68 @@
+
+taos> use test_ext_fill_multi;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 111, 222) order by ws;
+          ws           |           c           |          sv           |
+========================================================================
+         1701000000000 |                     2 |                    22 |
+         1701000600000 |                   111 |                   222 |
+         1701001200000 |                     1 |                    30 |
+         1701001800000 |                   111 |                   222 |
+         1701002400000 |                   111 |                   222 |
+         1701003000000 |                     1 |                    50 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(prev) order by ws;
+          ws           |          sv           |
+================================================
+         1701000000000 |                    22 |
+         1701000600000 |                    22 |
+         1701001200000 |                    30 |
+         1701001800000 |                    30 |
+         1701002400000 |                    30 |
+         1701003000000 |                    50 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(next) order by ws;
+          ws           |          sv           |
+================================================
+         1701000000000 |                    22 |
+         1701000600000 |                    30 |
+         1701001200000 |                    30 |
+         1701001800000 |                    50 |
+         1701002400000 |                    50 |
+         1701003000000 |                    50 |
+
+taos> select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(next) order by t1, ws;
+     t1      |          ws           |          sv           |
+==============================================================
+           1 |         1701000000000 |                    22 |
+           1 |         1701000600000 |                    30 |
+           1 |         1701001200000 |                    30 |
+           1 |         1701001800000 |                    50 |
+           1 |         1701002400000 |                    50 |
+           1 |         1701003000000 |                    50 |
+           2 |         1701000000000 |                    21 |
+           2 |         1701000600000 |                    21 |
+           2 |         1701001200000 | NULL                  |
+           2 |         1701001800000 | NULL                  |
+           2 |         1701002400000 | NULL                  |
+           2 |         1701003000000 | NULL                  |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(null) order by ws;
+          ws           |          sv           |
+================================================
+         1701000000000 |                    22 |
+         1701000600000 | NULL                  |
+         1701001200000 |                    30 |
+         1701001800000 | NULL                  |
+         1701002400000 | NULL                  |
+         1701003000000 |                    50 |
+
+taos> select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(none) order by t1, ws;
+     t1      |          ws           |          sv           |
+==============================================================
+           1 |         1701000000000 |                    22 |
+           1 |         1701001200000 |                    30 |
+           1 |         1701003000000 |                    50 |
+           2 |         1701000600000 |                    21 |
+

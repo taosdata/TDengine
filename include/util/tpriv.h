@@ -25,6 +25,24 @@
 extern "C" {
 #endif
 
+/* * Separation of Duties (SoD) Mandatory Activation Phases
+ */
+
+/* Phase 0: Stable. Fully satisfied, no transition is in progress. */
+#define TSDB_SOD_PHASE_STABLE 0
+
+/* Phase 1: Initial: Bootstrapped by CLI 'taosd --SoD=mandatory', but SoD requirements are not yet met.
+ * Awaiting initial role assignment.
+ * Operations restricted to whitelist: CREATE/DROP/ALTER USER, GRANT/REVOKE ROLE, SHOW USERS, SHOW SECURITY_POLICIES.
+ */
+#define TSDB_SOD_PHASE_INITIAL 1
+
+/* Phase 2: Enforcing. Triggered by SQL command: ALTER CLUSTER 'SoD' 'MANDATORY' or ALTER CLUSTER 'Separation_Of_Duties' 'MANDATORY'.
+ * Awaiting transition completion.
+ * Destructive operations are blocked: DISABLE USER, DROP USER, REVOKE ROLE.
+ */
+#define TSDB_SOD_PHASE_ENFORCE 2
+
 #define T_ROLE_SYSDBA       0x01
 #define T_ROLE_SYSSEC       0x02
 #define T_ROLE_SYSAUDIT     0x04
@@ -48,6 +66,8 @@ extern "C" {
 #define TSDB_WORD_BASIC       "basic"
 #define TSDB_WORD_DEBUG       "debug"
 #define TSDB_WORD_PASS        "pass"
+#define TSDB_WORD_POLICY      "policy"
+#define TSDB_WORD_POLICIES    "policies"
 #define TSDB_WORD_PRIVILEGED  "privileged"
 #define TSDB_WORD_SECURITY    "security"
 #define TSDB_WORD_SELF        "self"
@@ -56,7 +76,7 @@ extern "C" {
 #define TSDB_WORD_VARIABLES   "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 5  // N.B. increase this version for any update of privInfoTable
+#define PRIV_INFO_TABLE_VERSION 6  // N.B. increase this version for any update of privInfoTable
 
 #define IS_WILDCARD_OBJ(objName) ((objName)[0] == '*' && (objName)[1] == '\0')
 #define IS_SPECIFIC_OBJ(objName) ((objName)[0] != '\0' && !IS_WILDCARD_OBJ(objName))
@@ -189,7 +209,7 @@ typedef enum {
   PRIV_NODE_CREATE = 190,  // CREATE NODE
   PRIV_NODE_DROP,          // DROP NODE
   PRIV_NODES_SHOW,         // SHOW NODES
-  PRIV_NODE_ALTER,          // ALTER NODE
+  PRIV_NODE_ALTER,         // ALTER NODE
 
   // system variables
   PRIV_VAR_SECURITY_ALTER = 200,  // ALTER SECURITY VARIABLE
@@ -230,6 +250,10 @@ typedef enum {
 
   // xnode task
   PRIV_XNODE_TASK_CREATE = 250,  // CREATE XNODE TASK
+
+  // security policy management
+  PRIV_SECURITY_POLICY_ALTER = 252,   // ALTER SECURITY POLICY(SoD/MAC/Object Security Levels)
+  PRIV_SECURITY_POLICIES_SHOW = 253,  // SHOW SECURITY POLICIES
 
   // extended privileges can be defined here (255 bits reserved in total)
   // ==================== Maximum Privilege Bit ====================
