@@ -37,7 +37,7 @@ scripts/
 [local]
 # 服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
 listen = "0.0.0.0"
-# 开启的 http api 服务端口
+# 开启 HTTP API 服务端口
 http_port = 6072
 # 与 ELS 服务通信端口
 rpc_port = 6073
@@ -46,7 +46,7 @@ rpc_port = 6073
 # ELS 服务的地址
 host = "localhost"
 # ELS 服务的端口
-port = 8094                                  
+port = 8094
 # 是否开启与 ELS 的通信
 enable = true
 
@@ -85,7 +85,7 @@ file = "/var/log/taoscls/taoscls.log"
 
 ### 2. 导入许可证
 
-在 CLS 的**许可证**页面，点击右上角**离线导入**，选择  `offline-license.token`，然后点击**导入**。导入成功后，许可证会出现在 CLS 的**许可证**页面列表中。
+在 CLS 的**许可证**页面，点击右上角**离线导入**，选择 `offline-license.token`，然后点击**导入**。导入成功后，许可证会出现在 CLS 的**许可证**页面列表中。
 
 ### 3. 查看配额
 
@@ -111,13 +111,13 @@ TSDB 连接 CLS 服务可使用 taosExplorer 页面进行配置，也可以使�
 
 ![image-20260510112236023](assets/explorer-active-license.png)
 
-配置字段含义和 SQL 配置一致。点击确定后，许可证页面即可看到 CLS 配置信息：
+配置字段的含义与下文中的 SQL 配置参数一致。点击确定后，许可证页面即可看到 CLS 配置信息：
 
 ![image-20260510112827832](assets/explorer-cls.png)
 
 #### SQL
 
-TSDB 配置可以使用如下 SQL 指令配置 CLS 服务相关信息，示例如下：
+TSDB 可以使用如下 SQL 指令配置 CLS 服务相关信息，示例如下：
 
 ```sql
 ALTER ALL DNODES 'clsEnabled' '1';
