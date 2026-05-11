@@ -408,12 +408,12 @@ export default {
               name: 'custom_tags',
               display: '自定义标签',
               description:
-                '可以配置多个自定义标签，使用逗号分隔。支持静态值和从 OPC 点位属性提取的动态值。例如：`location=building1,floor={BrowseName}`，其中 `{BrowseName}` 将替换为该点位的实际 BrowseName 属性。\n\n支持 `{Attr#XY}` 语法对属性值进行字符替换，X 为源字符，Y 为目标字符（替换后修剪首尾的目标字符）。例如 `{DisplayName#_.}` 将 DisplayName 中的 `_` 替换为 `.`，`zs_p1_unit1_float` 变为 `zs.p1.unit1.float`。\n',
+                '可以配置多个自定义标签，使用逗号分隔。支持静态值和从 OPC 点位属性提取的动态值。例如：`location=building1,floor={BrowseName}`，其中 `{BrowseName}` 将替换为该点位的实际 BrowseName 属性。\n\n支持 `{Attr#XY}` 语法对属性值进行字符替换，X 为源字符，Y 为目标字符（替换后修剪首尾的目标字符）。例如 `{DisplayName#_.}` 将 DisplayName 中的 `_` 替换为 `.`，`zs_p1_unit1_float` 变为 `zs.p1.unit1.float`。\n\n注意：OPC UA 点位的 Property（如 EURange、EngineeringUnits 等）会自动按 BrowseName 注入为超级表的 Tag（VARCHAR(1024)）。如自定义标签名与某个 Property 的 BrowseName 重名，任务将报错；请改名以避免冲突。\n',
               required: false,
               label: '自定义标签',
               field: 'custom_tags',
               defaultValue:
-                'VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}.Value',
+                'VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}',
               multiple: false,
               type: 'input'
             }
