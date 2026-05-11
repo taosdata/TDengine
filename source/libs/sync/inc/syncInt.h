@@ -248,6 +248,10 @@ struct SSyncNode {
   int64_t wal_write_bytes;
   int64_t wal_write_time;
 
+  // catchup diagnostics
+  int64_t catchupLastLogMs;
+  int64_t catchupLastLag;
+
   int32_t snapSeq;
 };
 

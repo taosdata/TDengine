@@ -3707,7 +3707,7 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
 
 static int32_t vnodeCheckState(SVnode *pVnode) {
   SSyncState syncState = syncGetState(pVnode->sync);
-  if (syncState.state != TAOS_SYNC_STATE_LEADER) {
+  if (syncState.state != TAOS_SYNC_STATE_LEADER && syncState.state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     return terrno = TSDB_CODE_SYN_NOT_LEADER;
   }
   return 0;

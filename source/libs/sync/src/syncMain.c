@@ -763,6 +763,78 @@ int32_t syncGetArbToken(int64_t rid, char* outToken) {
   TAOS_RETURN(code);
 }
 
+static int32_t syncNodeGetLagThreshold(void) { return (tsSyncLogLagThreshold > 0) ? tsSyncLogLagThreshold : 1000; }
+
+static int32_t syncNodeGetCatchupLogIntervalMs(void) {
+  return (tsSyncCatchupLogIntervalMs > 0) ? tsSyncCatchupLogIntervalMs : 30000;
+}
+
+static int64_t syncNodeGetMaxFollowerLag(SSyncNode* pSyncNode, SyncIndex* pMinMatchIndex) {
+  int64_t   maxLag = 0;
+  SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
+
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
+    if (matchIndex <= 0) {
+      if (pSyncNode->commitIndex > maxLag) {
+        maxLag = pSyncNode->commitIndex;
+      }
+      continue;
+    }
+
+    int64_t lag = pSyncNode->commitIndex - matchIndex;
+    if (lag < 0) lag = 0;
+    if (lag > maxLag) {
+      maxLag = lag;
+    }
+
+    if (minMatchIndex == SYNC_INDEX_INVALID || matchIndex < minMatchIndex) {
+      minMatchIndex = matchIndex;
+    }
+  }
+
+  if (pMinMatchIndex != NULL) {
+    *pMinMatchIndex = minMatchIndex;
+  }
+  return maxLag;
+}
+
+static void syncNodeLogCatchupProgress(SSyncNode* pSyncNode, bool isSync, int64_t maxLag, SyncIndex minMatchIndex,
+                                       bool snapshotSending) {
+  int64_t nowMs = taosGetTimestampMs();
+  int32_t intervalMs = syncNodeGetCatchupLogIntervalMs();
+  bool    shouldLog = false;
+
+  if (pSyncNode->catchupLastLogMs == 0 || nowMs - pSyncNode->catchupLastLogMs >= intervalMs) {
+    shouldLog = true;
+  }
+  if (pSyncNode->catchupLastLag != maxLag) {
+    shouldLog = true;
+  }
+  if (isSync && pSyncNode->catchupLastLag > syncNodeGetLagThreshold()) {
+    shouldLog = true;
+  }
+
+  if (!shouldLog) {
+    return;
+  }
+
+  if (isSync) {
+    sInfo("vgId:%d, catchup done, state:%d, assignedCommitIndex:%" PRId64 ", commitIndex:%" PRId64
+          ", minMatchIndex:%" PRId64 ", lag:%" PRId64 ", threshold:%d, snapshotSending:%d",
+          pSyncNode->vgId, pSyncNode->state, pSyncNode->assignedCommitIndex, pSyncNode->commitIndex, minMatchIndex,
+          maxLag, syncNodeGetLagThreshold(), snapshotSending);
+  } else {
+    sInfo("vgId:%d, still catching up, state:%d, assignedCommitIndex:%" PRId64 ", commitIndex:%" PRId64
+          ", minMatchIndex:%" PRId64 ", lag:%" PRId64 ", threshold:%d, snapshotSending:%d",
+          pSyncNode->vgId, pSyncNode->state, pSyncNode->assignedCommitIndex, pSyncNode->commitIndex, minMatchIndex,
+          maxLag, syncNodeGetLagThreshold(), snapshotSending);
+  }
+
+  pSyncNode->catchupLastLag = maxLag;
+  pSyncNode->catchupLastLogMs = nowMs;
+}
+
 int32_t syncCheckSynced(int64_t rid) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
@@ -772,18 +844,33 @@ int32_t syncCheckSynced(int64_t rid) {
     TAOS_RETURN(code);
   }
 
-  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER && pSyncNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     code = TSDB_CODE_SYN_NOT_LEADER;
     syncNodeRelease(pSyncNode);
     TAOS_RETURN(code);
   }
 
-  bool isSync = pSyncNode->commitIndex >= pSyncNode->assignedCommitIndex;
-  code = (isSync ? TSDB_CODE_SUCCESS : TSDB_CODE_VND_ARB_NOT_SYNCED);
-  if (!isSync) {
-    sInfo("vgId:%d, not synced, assignedCommitIndex:%" PRId64 ", commitIndex:%" PRId64, pSyncNode->vgId,
-          pSyncNode->assignedCommitIndex, pSyncNode->commitIndex);
+  bool      isSync = false;
+  int64_t   maxLag = 0;
+  SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
+  bool      snapshotSending = syncNodeSnapshotSending(pSyncNode);
+
+  bool leaderBaseReady = pSyncNode->commitIndex >= pSyncNode->assignedCommitIndex;
+  if (leaderBaseReady) {
+    if (pSyncNode->peersNum <= 0) {
+      isSync = true;
+    } else {
+      maxLag = syncNodeGetMaxFollowerLag(pSyncNode, &minMatchIndex);
+      isSync = (maxLag <= syncNodeGetLagThreshold());
+      if (snapshotSending && maxLag > syncNodeGetLagThreshold()) {
+        isSync = false;
+      }
+    }
   }
+
+  syncNodeLogCatchupProgress(pSyncNode, isSync, maxLag, minMatchIndex, snapshotSending);
+
+  code = (isSync ? TSDB_CODE_SUCCESS : TSDB_CODE_VND_ARB_NOT_SYNCED);
 
   syncNodeRelease(pSyncNode);
   TAOS_RETURN(code);
@@ -2549,6 +2636,10 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
 
 int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
   if (pSyncNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) return TSDB_CODE_SYN_INTERNAL_ERROR;
+
+  SyncIndex minMatchIndex = pSyncNode->commitIndex;
+  int64_t   maxLag = syncNodeGetMaxFollowerLag(pSyncNode, &minMatchIndex);
+
   syncNodeBecomeLeader(pSyncNode, "assigned leader to leader");
 
   sNTrace(pSyncNode, "assigned leader to leader");
@@ -2559,10 +2650,10 @@ int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode) {
   }
 
   SyncIndex lastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-  sInfo("vgId:%d, become leader from assigned leader. term:%" PRId64 ", commit index:%" PRId64
-        "assigned commit index:%" PRId64 ", last index:%" PRId64,
+  sInfo("vgId:%d, state transition ASSIGNED_LEADER->LEADER. term:%" PRId64 ", commit index:%" PRId64
+        ", assigned commit index:%" PRId64 ", min match index:%" PRId64 ", lag:%" PRId64 ", last index:%" PRId64,
         pSyncNode->vgId, raftStoreGetTerm(pSyncNode), pSyncNode->commitIndex, pSyncNode->assignedCommitIndex,
-        lastIndex);
+        minMatchIndex, maxLag, lastIndex);
   return 0;
 }
 

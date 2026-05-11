@@ -1104,15 +1104,16 @@ bool mndArbIsNeedUpdateTokenByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRs
   tstrncpy(pNewGroup->members[index].state.token, pRspMember->memberToken, TSDB_ARB_TOKEN_SIZE);
   pNewGroup->isSync = false;
 
-  bool resetAssigned = false;
+  bool keepAssigned = false;
   if (pMember->info.dnodeId == pGroup->assignedLeader.assignedDnodeId) {
-    mndArbGroupResetAssignedLeader(pNewGroup);
-    resetAssigned = true;
+    tstrncpy(pNewGroup->assignedLeader.token, pRspMember->memberToken, TSDB_ARB_TOKEN_SIZE);
+    pNewGroup->assignedLeader.assignAcked = true;
+    keepAssigned = true;
   }
 
   updateToken = true;
-  mInfo("arbgroup:%d, need to update token, by heartbeat from dnodeId:%d, resetAssigned:%d", pRspMember->vgId, dnodeId,
-        resetAssigned);
+  mInfo("arbgroup:%d, need to update token, by heartbeat from dnodeId:%d, keepAssigned:%d", pRspMember->vgId, dnodeId,
+        keepAssigned);
 
 _OVER:
   (void)taosThreadMutexUnlock(&pGroup->mutex);
