@@ -832,7 +832,6 @@ _exit:
 
 static int32_t mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
-  if (!mndIsLeader(pMnode)) return code;
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_ROLE, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SEpSet  epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
