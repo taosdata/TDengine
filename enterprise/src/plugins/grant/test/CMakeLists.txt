@@ -1,6 +1,7 @@
 PROJECT(TDengine)
 
 ADD_EXECUTABLE(grantTest "grantTest.cpp")
+ADD_EXECUTABLE(clsTest "clsTest.cpp")
 
 IF(TD_ENTERPRISE)
   SET(TAOS_GRANT_STUB "")
@@ -34,6 +35,28 @@ TARGET_INCLUDE_DIRECTORIES(
 IF(TD_ENTERPRISE)
   TARGET_INCLUDE_DIRECTORIES(
     grantTest
+    PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/grant/inc"
+  )
+ENDIF()
+
+TARGET_LINK_LIBRARIES(
+  clsTest
+  PRIVATE ${TAOS_GRANT_STUB} grant ${TAOS_LIB}
+)
+if(NOT TD_WINDOWS)
+  DEP_ext_ssl(clsTest)
+endif()
+TARGET_COMPILE_DEFINITIONS(clsTest PRIVATE GRANT_TEST_HELPER)
+
+TARGET_INCLUDE_DIRECTORIES(
+  clsTest
+  PUBLIC "${TD_COMMUNITY_DIR}/src/util/inc"
+  PRIVATE "${TD_COMMUNITY_DIR}/include/common"
+)
+
+IF(TD_ENTERPRISE)
+  TARGET_INCLUDE_DIRECTORIES(
+    clsTest
     PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/grant/inc"
   )
 ENDIF()
