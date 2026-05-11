@@ -19,7 +19,7 @@ pub async fn split_job(task: SplitJobTask) -> anyhow::Result<SplitJobResult> {
         parse_multiple_value::<String>(&from, "topics")?.context("kafka topics not found")?;
 
     let config = KafkaTaskConfig::from_dsn(&from)?;
-    let client_config = build_client_config(config.connect)?;
+    let client_config = build_client_config(config.connect).await?;
     let consumer: BaseConsumer = client_config
         .create()
         .context("kafka build consumer error")?;

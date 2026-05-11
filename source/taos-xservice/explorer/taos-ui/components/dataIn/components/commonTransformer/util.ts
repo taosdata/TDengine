@@ -184,7 +184,8 @@ export function configureSupportFlags(data: string) {
     data == 'mqtt' ||
     data == 'mongodb' ||
     data == 'sparkplugb';
-  supportTransform.supportTopicBody = data == 'mqtt' || data == 'sparkplugb' || data == 'kafka' || data == 'pulsar' || data == 'pulsarTuya';
+  supportTransform.supportTopicBody =
+    data == 'mqtt' || data == 'sparkplugb' || data == 'kafka' || data == 'pulsar' || data == 'pulsarTuya';
   supportTransform.is_sparkplugb = data == 'sparkplugb';
 }
 
@@ -232,6 +233,66 @@ export const resetTransformerPreviewState = () => {
   transformerState.resultTbTitle = '';
   transformerState.activeColumns = [];
   transformerState.resultCurrentPage = 1;
+};
+
+/**
+ * Show an empty preview table (title row visible, no data rows). Used when the
+ * parser returns an empty or otherwise unrenderable preview result, but the
+ * user still expects a visible "preview" panel after clicking the preview
+ * button.
+ */
+export const showEmptyTransformerPreview = (resultTbTitle: string, transResultName: string) => {
+  transformerState.transformResultTable = [];
+  transformerState.transResultName = transResultName;
+  transformerState.showResultTb = true;
+  transformerState.resultTbTitle = resultTbTitle;
+  transformerState.activeColumns = [];
+  transformerState.resultCurrentPage = 1;
+};
+
+export interface ParserResultEntry {
+  fields?: Array<{ name: string; type?: string }>;
+  columns?: any[];
+}
+
+export const PREVIEW_ROW_LIMIT = 100;
+
+export const limitPreviewRows = <T>(rows: T[]): T[] => {
+  return rows.slice(0, PREVIEW_ROW_LIMIT);
+};
+
+export const mapPreviewRows = <TRow, TEntry extends { columns?: TRow[] }, TResult>(
+  entries: TEntry[],
+  mapper: (row: TRow, entry: TEntry, rowIndex: number) => TResult
+): TResult[] => {
+  const rows: TResult[] = [];
+  for (const entry of entries) {
+    if (!Array.isArray(entry.columns)) {
+      continue;
+    }
+    for (let index = 0; index < entry.columns.length && rows.length < PREVIEW_ROW_LIMIT; index++) {
+      rows.push(mapper(entry.columns[index], entry, index));
+    }
+    if (rows.length >= PREVIEW_ROW_LIMIT) {
+      break;
+    }
+  }
+  return rows;
+};
+
+/**
+ * Returns true when a transformer parser response cannot be rendered as a
+ * preview table: not an array, an empty array, or its first entry lacks
+ * renderable `fields` / `columns` arrays. Callers should reset preview state
+ * and skip the mapping/columns rendering in that case to avoid crashing on
+ * malformed parser responses.
+ */
+export const isEmptyParserResult = (result: unknown): boolean => {
+  if (!Array.isArray(result) || result.length === 0) {
+    return true;
+  }
+  const first = (result as ParserResultEntry[])[0];
+  return !first || !Array.isArray(first.fields) || !Array.isArray(first.columns);
 };
 
 export const defaultColsMap: Record<string, string[]> = {

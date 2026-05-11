@@ -30,6 +30,7 @@ use crate::context::CustomContext;
 use crate::poll::poll_message;
 use crate::sub_task::SubTask;
 
+mod blocking;
 mod config;
 mod context;
 mod message_sender;
@@ -59,13 +60,123 @@ const METRIC_RECEIVED_ACKS: FastStr = FastStr::from_static_str("kafka_received_a
 
 // consts
 const PENDING_ACK_TIMEOUT: Duration = Duration::from_secs(30);
-const FETCH_METADATA_TIMEOUT: Duration = Duration::from_secs(30);
+const MIN_REBUILD_BACKOFF: Duration = Duration::from_secs(1);
+const MAX_REBUILD_BACKOFF: Duration = Duration::from_secs(60);
+const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(300);
+const DEFAULT_MAX_TOTAL_REBUILDS: usize = 50;
 
 static BATCH_ID: LazyLock<AtomicU64> = LazyLock::new(AtomicU64::default);
 
 type KafkaJoinSet = JoinSet<anyhow::Result<ExitStatus>>;
 type PendingBatches =
     Arc<scc::HashMap<u64, (oneshot::Sender<Vec<PendingState>>, OwnedSemaphorePermit)>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct WritePressureSnapshot {
+    pub write_blocked: bool,
+    pub last_permit_wait: Duration,
+    pub last_ack_wait: Duration,
+}
+
+#[derive(Debug)]
+pub(crate) struct WritePressureState {
+    hold_window: Duration,
+    permit_blocked_until: Option<Instant>,
+    ack_blocked_until: Option<Instant>,
+    last_permit_wait: Duration,
+    last_ack_wait: Duration,
+}
+
+impl WritePressureState {
+    pub(crate) fn new(hold_window: Duration) -> Self {
+        Self {
+            hold_window,
+            permit_blocked_until: None,
+            ack_blocked_until: None,
+            last_permit_wait: Duration::ZERO,
+            last_ack_wait: Duration::ZERO,
+        }
+    }
+
+    pub(crate) fn record_permit_wait(&mut self, elapsed: Duration) {
+        self.last_permit_wait = elapsed;
+        self.permit_blocked_until =
+            (elapsed >= self.hold_window).then_some(Instant::now() + self.hold_window);
+    }
+
+    pub(crate) fn record_ack_wait(&mut self, elapsed: Duration) {
+        self.last_ack_wait = elapsed;
+        self.ack_blocked_until =
+            (elapsed >= self.hold_window).then_some(Instant::now() + self.hold_window);
+    }
+
+    pub(crate) fn snapshot(&self) -> WritePressureSnapshot {
+        let now = Instant::now();
+        WritePressureSnapshot {
+            write_blocked: self
+                .permit_blocked_until
+                .is_some_and(|deadline| deadline > now)
+                || self
+                    .ack_blocked_until
+                    .is_some_and(|deadline| deadline > now),
+            last_permit_wait: self.last_permit_wait,
+            last_ack_wait: self.last_ack_wait,
+        }
+    }
+}
+
+#[cfg(test)]
+impl WritePressureState {
+    fn clear(&mut self) {
+        self.permit_blocked_until = None;
+        self.ack_blocked_until = None;
+        self.last_permit_wait = Duration::ZERO;
+        self.last_ack_wait = Duration::ZERO;
+    }
+}
+
+fn resolve_max_total_rebuilds(configured: Option<String>) -> usize {
+    configured
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(DEFAULT_MAX_TOTAL_REBUILDS)
+}
+
+fn max_total_rebuilds() -> usize {
+    resolve_max_total_rebuilds(std::env::var("TAOSX_KAFKA_MAX_REBUILDS").ok())
+}
+
+fn compute_rebuild_backoff(errors: usize) -> Duration {
+    let shift = errors.saturating_sub(1).min(16) as u32;
+    MIN_REBUILD_BACKOFF
+        .checked_mul(1u32 << shift)
+        .unwrap_or(MAX_REBUILD_BACKOFF)
+        .min(MAX_REBUILD_BACKOFF)
+}
+
+fn next_rebuild_backoff(
+    errors: &mut usize,
+    total_rebuilds: &mut usize,
+    last_errors: &mut Instant,
+    rebuild_cap: usize,
+) -> Option<Duration> {
+    // If the consumer ran cleanly for at least MAX_RETRY_INTERVAL, treat the
+    // previous incident as fully recovered for backoff purposes by resetting
+    // only the consecutive-error counter. The lifetime rebuild cap remains
+    // monotonic so spaced failures still hit the global safety limit.
+    if last_errors.elapsed() >= MAX_RETRY_INTERVAL {
+        *errors = 0;
+    }
+
+    *total_rebuilds += 1;
+    if *total_rebuilds > rebuild_cap {
+        return None;
+    }
+
+    *errors += 1;
+    *last_errors = Instant::now();
+    Some(compute_rebuild_backoff(*errors))
+}
 
 pub enum ExitStatus {
     /// Nothing to consume
@@ -308,7 +419,7 @@ async fn execute(
 
         let ack_span = tracing::info_span!("kafka_ack_reader", kafka.consumer.id = idx);
 
-        if unsafe { taosx_core::global::DRY_RUN } {
+        if taosx_core::global::dry_run() {
             let pending_batches = pending_batches.clone();
             let cancel = aborted.clone();
             consumers.spawn(
@@ -426,9 +537,9 @@ async fn execute(
                     timeout,
                 } = task;
                 let mut errors = 0;
+                let mut total_rebuilds = 0usize;
                 let mut last_errors = std::time::Instant::now();
-                const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(300);
-                const MAX_RETRY_TIMES: usize = 3;
+                let rebuild_cap = max_total_rebuilds();
                 loop {
                     match poll_message(
                         idx,
@@ -453,67 +564,67 @@ async fn execute(
                             if aborted.is_cancelled() {
                                 return Ok(ExitStatus::Aborted);
                             }
-                            if last_errors.elapsed() >= MAX_RETRY_INTERVAL {
-                                errors = 0;
+                            let Some(rebuild_backoff) = next_rebuild_backoff(
+                                &mut errors,
+                                &mut total_rebuilds,
+                                &mut last_errors,
+                                rebuild_cap,
+                            ) else {
+                                anyhow::bail!(
+                                    "consumer {idx} exceeded max rebuild count {rebuild_cap}: {err:#}"
+                                );
+                            };
+                            tokio::select! {
+                                _ = aborted.cancelled() => return Ok(ExitStatus::Aborted),
+                                _ = tokio::time::sleep(rebuild_backoff) => {}
                             }
-                            errors += 1;
+
                             let error = format!("{err:#}");
-                            if errors <= MAX_RETRY_TIMES {
-                                let context = consumer.context().clone();
-                                drop(consumer);
-                                context.metrics().sub_extra_metric(&METRIC_CONSUMERS, 1);
-                                let joins = context.current_joins();
+                            let context = consumer.context().clone();
+                            drop(consumer);
+                            context.metrics().sub_extra_metric(&METRIC_CONSUMERS, 1);
+                            let joins = context.current_joins();
 
-                                if instance.is_some() && error.contains("FencedInstanceId") {
-                                    instance = Some(format!("{idx}-{}", uuid::Uuid::new_v4()));
-                                }
-                                warn!(error, instance, "Try to rebuild consumer {idx}");
-
-                                consumer = match Arc::into_inner(context) {
-                                    Some(context) => config
-                                        .build_consumer_with_context(
-                                            instance.as_deref(),
-                                            &topics
-                                                .iter()
-                                                .map(|s| s.as_str())
-                                                .collect::<Vec<&str>>(),
-                                            context,
-                                        )
-                                        .await
-                                        .with_context(|| {
-                                            format!("{joins} loop to rebuild consumer {idx} error")
-                                        })?,
-                                    None => config
-                                        .build_consumer(
-                                            instance.as_deref(),
-                                            &topics
-                                                .iter()
-                                                .map(|s| s.as_str())
-                                                .collect::<Vec<&str>>(),
-                                            &metrics,
-                                        )
-                                        .await
-                                        .with_context(|| {
-                                            format!("{joins} loop to rebuild consumer {idx} error")
-                                        })?,
-                                };
-
-                                notify
-                                    .send_async(TaskNotify::info(instance.as_deref().map_or_else(
-                                        || format!("Rebuild consumer {idx}"),
-                                        |instance| {
-                                            format!(
-                                                "Rebuild consumer {idx} with instance id {instance}"
-                                            )
-                                        },
-                                    )))
-                                    .await
-                                    .context("Task logging listener seems closed")?;
-                                continue;
+                            if instance.is_some() && error.contains("FencedInstanceId") {
+                                instance = Some(format!("{idx}-{}", uuid::Uuid::new_v4()));
                             }
-                            last_errors = std::time::Instant::now();
-                            warn!(error, "Kafka consuming error");
-                            Err(err)?;
+                            warn!(error, instance, "Try to rebuild consumer {idx}");
+
+                            consumer = match Arc::into_inner(context) {
+                                Some(context) => config
+                                    .build_consumer_with_context(
+                                        instance.as_deref(),
+                                        &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+                                        context,
+                                    )
+                                    .await
+                                    .with_context(|| {
+                                        format!("{joins} loop to rebuild consumer {idx} error")
+                                    })?,
+                                None => config
+                                    .build_consumer(
+                                        instance.as_deref(),
+                                        &topics.iter().map(|s| s.as_str()).collect::<Vec<&str>>(),
+                                        &metrics,
+                                    )
+                                    .await
+                                    .with_context(|| {
+                                        format!("{joins} loop to rebuild consumer {idx} error")
+                                    })?,
+                            };
+
+                            notify
+                                .send_async(TaskNotify::info(instance.as_deref().map_or_else(
+                                    || format!("Rebuild consumer {idx}"),
+                                    |instance| {
+                                        format!(
+                                            "Rebuild consumer {idx} with instance id {instance}"
+                                        )
+                                    },
+                                )))
+                                .await
+                                .context("Task logging listener seems closed")?;
+                            continue;
                         }
                     }
                 }
@@ -557,12 +668,35 @@ mod tests {
     use std::str::FromStr;
     use taos::IntoDsn;
 
+    use crate::blocking::fetch_metadata;
     use crate::config::connect::KafkaConnectConfig;
     use crate::config::task::build_client_config;
     use crate::topic_offset::get_topics_offset;
     use crate::valid::is_valid;
 
     use super::*;
+
+    #[tokio::test]
+    async fn run_blocking_returns_closure_result() {
+        let value = crate::blocking::run_blocking("unit test", || Ok::<_, anyhow::Error>(7))
+            .await
+            .expect("blocking helper should return closure result");
+        assert_eq!(7, value);
+    }
+
+    #[test]
+    fn write_pressure_state_reports_blocked_while_pressure_is_recent() {
+        let mut state = WritePressureState::new(Duration::from_secs(5));
+        assert!(!state.snapshot().write_blocked);
+
+        state.record_permit_wait(Duration::from_secs(6));
+        let snapshot = state.snapshot();
+        assert!(snapshot.write_blocked);
+        assert_eq!(Duration::from_secs(6), snapshot.last_permit_wait);
+
+        state.clear();
+        assert!(!state.snapshot().write_blocked);
+    }
 
     /// Example:
     /// ```shell
@@ -606,16 +740,19 @@ mod tests {
         .expect("SSL DSN should be valid");
 
         let config = KafkaConnectConfig::from_dsn(&dsn).expect("Config should success in test");
-        let client_config: ClientConfig =
-            build_client_config(config.clone()).expect("Client config should success in test");
+        let client_config: ClientConfig = build_client_config(config.clone())
+            .await
+            .expect("Client config should success in test");
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
             .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
             .expect("Consumer should created successfully in test");
         // fetch metadata
-        let metadata = consumer
-            .fetch_metadata(None, Duration::from_secs(5))
+        let (_, metadata_result) = fetch_metadata(consumer, None, Duration::from_secs(5))
+            .await
+            .expect("Metadata fetch helper should succeed in test");
+        let metadata = metadata_result
             .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
             .expect("Metadata should be fetched successfully in test");
 
@@ -633,16 +770,19 @@ mod tests {
         .expect("DSN should be valid");
 
         let config = KafkaConnectConfig::from_dsn(&dsn).expect("Config should success in test");
-        let client_config: ClientConfig =
-            build_client_config(config.clone()).expect("Client config should success in test");
+        let client_config: ClientConfig = build_client_config(config.clone())
+            .await
+            .expect("Client config should success in test");
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
             .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
             .expect("Consumer should created successfully in test");
         // fetch metadata
-        let metadata = consumer
-            .fetch_metadata(None, Duration::from_secs(5))
+        let (_, metadata_result) = fetch_metadata(consumer, None, Duration::from_secs(5))
+            .await
+            .expect("Metadata fetch helper should succeed in test");
+        let metadata = metadata_result
             .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
             .expect("Metadata should be fetched successfully in test");
 
@@ -660,4 +800,122 @@ mod tests {
             .collect::<Vec<_>>();
         dbg!(topics_readable.len());
     }
+}
+
+#[cfg(test)]
+#[test]
+fn rebuild_backoff_grows_exponentially_until_cap() {
+    assert_eq!(compute_rebuild_backoff(1), Duration::from_secs(1));
+    assert_eq!(compute_rebuild_backoff(2), Duration::from_secs(2));
+    assert_eq!(compute_rebuild_backoff(3), Duration::from_secs(4));
+    assert_eq!(compute_rebuild_backoff(10), Duration::from_secs(60));
+}
+
+#[cfg(test)]
+static ENV_VAR_LOCK: LazyLock<std::sync::Mutex<()>> = LazyLock::new(|| std::sync::Mutex::new(()));
+
+#[cfg(test)]
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<String>,
+    _lock: std::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl EnvVarGuard {
+    fn unset(key: &'static str) -> Self {
+        let lock = ENV_VAR_LOCK.lock().expect("env var test lock poisoned");
+        let previous = std::env::var(key).ok();
+        unsafe { std::env::remove_var(key) };
+        Self {
+            key,
+            previous,
+            _lock: lock,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        match self.previous.as_deref() {
+            Some(value) => unsafe { std::env::set_var(self.key, value) },
+            None => unsafe { std::env::remove_var(self.key) },
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn rebuild_cap_uses_default_when_env_missing() {
+    let _guard = EnvVarGuard::unset("TAOSX_KAFKA_MAX_REBUILDS");
+    assert_eq!(max_total_rebuilds(), DEFAULT_MAX_TOTAL_REBUILDS);
+}
+
+#[cfg(test)]
+#[test]
+fn rebuild_stops_after_max_rebuilds() {
+    let mut errors = 0;
+    let mut total_rebuilds = 0;
+    let mut last_errors = Instant::now();
+
+    for _ in 0..DEFAULT_MAX_TOTAL_REBUILDS {
+        assert!(
+            next_rebuild_backoff(
+                &mut errors,
+                &mut total_rebuilds,
+                &mut last_errors,
+                DEFAULT_MAX_TOTAL_REBUILDS,
+            )
+            .is_some()
+        );
+    }
+
+    assert!(
+        next_rebuild_backoff(
+            &mut errors,
+            &mut total_rebuilds,
+            &mut last_errors,
+            DEFAULT_MAX_TOTAL_REBUILDS,
+        )
+        .is_none()
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn rebuild_cap_stays_monotonic_after_stable_period() {
+    let mut errors = 0;
+    let mut total_rebuilds = 0;
+    let mut last_errors = Instant::now();
+
+    for _ in 0..DEFAULT_MAX_TOTAL_REBUILDS {
+        assert!(
+            next_rebuild_backoff(
+                &mut errors,
+                &mut total_rebuilds,
+                &mut last_errors,
+                DEFAULT_MAX_TOTAL_REBUILDS,
+            )
+            .is_some()
+        );
+    }
+
+    // Simulate the consumer running cleanly for longer than MAX_RETRY_INTERVAL.
+    last_errors = Instant::now()
+        .checked_sub(MAX_RETRY_INTERVAL + Duration::from_secs(1))
+        .expect("Instant subtraction must succeed");
+
+    // After a stable period, the lifetime rebuild cap should still apply.
+    assert!(
+        next_rebuild_backoff(
+            &mut errors,
+            &mut total_rebuilds,
+            &mut last_errors,
+            DEFAULT_MAX_TOTAL_REBUILDS,
+        )
+        .is_none()
+    );
+    assert_eq!(total_rebuilds, DEFAULT_MAX_TOTAL_REBUILDS + 1);
+    assert_eq!(errors, 0);
 }

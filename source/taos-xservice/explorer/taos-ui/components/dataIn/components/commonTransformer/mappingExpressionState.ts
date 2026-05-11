@@ -34,3 +34,24 @@ export function hasConfiguredExpression(expression: TableRow['Expression']) {
 
   return expression.length > 0;
 }
+
+type MappingColumnLabel = {
+  label: string;
+};
+
+export function syncMappingColumns(mappingColumns: MappingColumnLabel[], rows: TableRow[]) {
+  const labels = mappingColumns.map(item => item.label);
+  if (labels.length === 0) {
+    return labels;
+  }
+
+  rows.forEach(item => {
+    if (item.exprname === 'mapping' && item.Type !== 'Tablename' && typeof item.Expression === 'string') {
+      if (!labels.includes(item.Expression)) {
+        item.Expression = '';
+      }
+    }
+  });
+
+  return labels;
+}

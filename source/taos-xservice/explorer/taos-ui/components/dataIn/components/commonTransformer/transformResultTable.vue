@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { transformerState } from './util';
+import { transformerState, limitPreviewRows } from './util';
 import { t } from 'locales';
 
 interface PreviewTable {
@@ -118,7 +118,6 @@ interface PreviewTable {
   enableHeaderTooltip: boolean;
 }
 
-const PREVIEW_ROW_LIMIT = 100;
 const DEFAULT_COLUMN_PAGE_SIZE = 10;
 const MIN_COLUMN_PAGE_SIZE = 8;
 const MAX_COLUMN_PAGE_SIZE = 20;
@@ -153,12 +152,7 @@ const title = computed(() => transformerState.resultTbTitle);
 watch(
   () => [transformerState.transformResultTable, transformerState.transResultName, transformerState.resultTbTitle],
   ([newVal]) => {
-    if (newVal && newVal.length > 0 && transformerState.transResultName) {
-      handleScroll();
-      getResultData(newVal);
-    } else {
-      previewTables.value = [];
-    }
+    refreshPreviewTables(newVal);
   }
 );
 
@@ -172,10 +166,7 @@ watch(
 );
 
 onMounted(() => {
-  if (transformerState.transformResultTable.length > 0 && !props.isEditable && transformerState.transResultName) {
-    getResultData(transformerState.transformResultTable);
-    handleScroll();
-  }
+  refreshPreviewTables(transformerState.transformResultTable);
   mainDom = document.querySelector('.main-content') as HTMLElement;
   const parserDom = document.querySelector('#parser') as HTMLElement;
   nextTick(() => {
@@ -250,6 +241,13 @@ function observeResize() {
 
 function syncColumnPageSize() {
   const columnPageSize = getColumnPageSize();
+  if (previewTables.value.length === 0) {
+    return;
+  }
+  const currentSize = previewTables.value[0].columnPageSize;
+  if (currentSize === columnPageSize) {
+    return;
+  }
   previewTables.value = previewTables.value.map(table => {
     const maxPage = Math.max(1, Math.ceil(table.allColumns.length / columnPageSize));
     return {
@@ -293,7 +291,7 @@ function shouldUseLiteTable(rows: Recordable[], columns: string[]) {
 }
 
 function buildPreviewTable(rows: Recordable[], columns: string[], index: number): PreviewTable {
-  const previewRows = rows.slice(0, PREVIEW_ROW_LIMIT);
+  const previewRows = limitPreviewRows(rows);
   const lite = shouldUseLiteTable(previewRows, columns);
 
   return {
@@ -307,6 +305,22 @@ function buildPreviewTable(rows: Recordable[], columns: string[], index: number)
     enableOverflowTooltip: !lite,
     enableHeaderTooltip: !lite
   };
+}
+
+function refreshPreviewTables(data: any[]) {
+  if (!transformerState.transResultName || !transformerState.resultTbTitle) {
+    previewTables.value = [];
+    return;
+  }
+
+  if (data && data.length > 0) {
+    handleScroll();
+    getResultData(data);
+    return;
+  }
+
+  handleScroll();
+  previewTables.value = [buildPreviewTable([], [], 0)];
 }
 
 function getResultData(data: any[]) {
@@ -328,7 +342,9 @@ function getResultData(data: any[]) {
     hiddenCols = state.MongoDBDefaultCols;
   }
   const columns = data2D.map(item => {
-    return Object.keys(item[0] || {}).filter(field => !hiddenCols.includes(field));
+    const allKeys = new Set<string>();
+    item.forEach((row: any) => Object.keys(row || {}).forEach((k: string) => allKeys.add(k)));
+    return [...allKeys].filter(field => !hiddenCols.includes(field));
   });
 
   if (transformerState.resultTbTitle === 'mappingResTb') {

@@ -4,27 +4,33 @@ use std::{
 };
 
 use pin_project_lite::pin_project;
-use tokio::sync::oneshot::Receiver;
+use tokio::{sync::oneshot::Receiver, time::Sleep};
 
 use crate::PendingState;
 
 pub enum PendingAckResult {
     State((Duration, Vec<PendingState>)),
     Closed,
+    TimedOut { batch_id: u64, elapsed: Duration },
 }
 
 pin_project! {
     pub struct PendingAckFuture {
+        batch_id: u64,
         #[pin]
         rx: Receiver<Vec<PendingState>>,
+        #[pin]
+        timeout: Sleep,
         inst: Instant
     }
 }
 
 impl PendingAckFuture {
-    pub fn new(rx: Receiver<Vec<PendingState>>) -> Self {
+    pub fn new(batch_id: u64, rx: Receiver<Vec<PendingState>>, timeout: Duration) -> Self {
         Self {
+            batch_id,
             rx,
+            timeout: tokio::time::sleep(timeout),
             inst: Instant::now(),
         }
     }
@@ -34,12 +40,21 @@ impl Future for PendingAckFuture {
     type Output = PendingAckResult;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        let mut this = self.project();
 
-        match ready!(this.rx.poll(cx)) {
-            Ok(state) => Poll::Ready(PendingAckResult::State((this.inst.elapsed(), state))),
-            Err(_) => Poll::Ready(PendingAckResult::Closed),
+        match this.rx.as_mut().poll(cx) {
+            Poll::Ready(Ok(state)) => {
+                return Poll::Ready(PendingAckResult::State((this.inst.elapsed(), state)));
+            }
+            Poll::Ready(Err(_)) => return Poll::Ready(PendingAckResult::Closed),
+            Poll::Pending => {}
         }
+
+        ready!(this.timeout.as_mut().poll(cx));
+        Poll::Ready(PendingAckResult::TimedOut {
+            batch_id: *this.batch_id,
+            elapsed: this.inst.elapsed(),
+        })
     }
 }
 
@@ -48,10 +63,10 @@ mod tests {
     use super::*;
     use tokio::sync::oneshot;
 
-    #[test]
-    fn test_pending_ack_future_new() {
+    #[tokio::test]
+    async fn test_pending_ack_future_new() {
         let (_tx, rx) = oneshot::channel::<Vec<PendingState>>();
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(0, rx, Duration::from_secs(30));
 
         // Test that the future was created successfully
         // We can't easily inspect internal fields due to pin_project,
@@ -62,7 +77,7 @@ mod tests {
     #[tokio::test]
     async fn test_pending_ack_result_state() {
         let (tx, rx) = oneshot::channel::<Vec<PendingState>>();
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(0, rx, Duration::from_secs(30));
 
         // Send some data
         let states = vec![];
@@ -78,13 +93,14 @@ mod tests {
                 assert_eq!(states.len(), 0);
             }
             PendingAckResult::Closed => panic!("Expected State, got Closed"),
+            PendingAckResult::TimedOut { .. } => panic!("Expected State, got TimedOut"),
         }
     }
 
     #[tokio::test]
     async fn test_pending_ack_result_closed() {
         let (_tx, rx) = oneshot::channel::<Vec<PendingState>>();
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(1, rx, Duration::from_secs(30));
 
         // Drop the sender to close the channel
         drop(_tx);
@@ -98,13 +114,31 @@ mod tests {
                 // Expected
             }
             PendingAckResult::State(_) => panic!("Expected Closed, got State"),
+            PendingAckResult::TimedOut { .. } => panic!("Expected Closed, got TimedOut"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pending_ack_result_timed_out() {
+        let (_tx, rx) = oneshot::channel::<Vec<PendingState>>();
+        let future = PendingAckFuture::new(7, rx, Duration::from_millis(1));
+
+        tokio::time::sleep(Duration::from_millis(5)).await;
+
+        match future.await {
+            PendingAckResult::TimedOut { batch_id, elapsed } => {
+                assert_eq!(batch_id, 7);
+                assert!(elapsed >= Duration::from_millis(1));
+            }
+            PendingAckResult::State(_) => panic!("Expected TimedOut, got State"),
+            PendingAckResult::Closed => panic!("Expected TimedOut, got Closed"),
         }
     }
 
     #[tokio::test]
     async fn test_pending_ack_duration_tracking() {
         let (tx, rx) = oneshot::channel::<Vec<PendingState>>();
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(0, rx, Duration::from_secs(30));
 
         // Add a small delay before sending
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -124,13 +158,14 @@ mod tests {
                 );
             }
             PendingAckResult::Closed => panic!("Expected State, got Closed"),
+            PendingAckResult::TimedOut { .. } => panic!("Expected State, got TimedOut"),
         }
     }
 
     #[tokio::test]
     async fn test_pending_ack_with_multiple_states() {
         let (tx, rx) = oneshot::channel::<Vec<PendingState>>();
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(0, rx, Duration::from_secs(30));
 
         // Create multiple pending states
         let states = vec![
@@ -160,6 +195,7 @@ mod tests {
                 assert_eq!(returned_states.len(), 3);
             }
             PendingAckResult::Closed => panic!("Expected State, got Closed"),
+            PendingAckResult::TimedOut { .. } => panic!("Expected State, got TimedOut"),
         }
     }
 
@@ -202,7 +238,7 @@ mod tests {
         }];
         tx.send(states).unwrap();
 
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(0, rx, Duration::from_secs(30));
         let result = future.await;
 
         match result {
@@ -210,13 +246,14 @@ mod tests {
                 assert_eq!(states.len(), 1);
             }
             PendingAckResult::Closed => panic!("Expected State, got Closed"),
+            PendingAckResult::TimedOut { .. } => panic!("Expected State, got TimedOut"),
         }
     }
 
     #[tokio::test]
     async fn test_pending_ack_empty_states() {
         let (tx, rx) = oneshot::channel::<Vec<PendingState>>();
-        let future = PendingAckFuture::new(rx);
+        let future = PendingAckFuture::new(0, rx, Duration::from_secs(30));
 
         // Send empty vector
         tx.send(vec![]).unwrap();
@@ -228,6 +265,7 @@ mod tests {
                 assert_eq!(states.len(), 0);
             }
             PendingAckResult::Closed => panic!("Expected State, got Closed"),
+            PendingAckResult::TimedOut { .. } => panic!("Expected State, got TimedOut"),
         }
     }
 }
