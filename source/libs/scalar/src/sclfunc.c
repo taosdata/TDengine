@@ -4948,10 +4948,21 @@ int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
   /*
-   * MySQL WEEK() mode only supports Sun-start (mode 2) and Mon-start (mode 3).
-   * fdow=2..6 are not representable; they fall back to Sun-start (mode 2).
+   * MySQL WEEK() supports only Sun-start (mode 2) and Mon-start (mode 3).
+   * firstDayOfWeek 0 (Sun) → mode 2; 1 (Mon) → mode 3.
+   * Values 2-6 (Tue-Sat) have no MySQL equivalent — warn and fall back to
+   * Sun-start (mode 2) so the result is at least defined.
    */
-  int32_t mode = (pInput->firstDayOfWeek == 1) ? 3 : 2;
+  int32_t mode;
+  switch (pInput->firstDayOfWeek) {
+    case 0:   mode = 2; break;
+    case 1:   mode = 3; break;
+    default:
+      sclWarn("WEEKOFYEAR: firstDayOfWeek=%d has no MySQL WEEK-mode equivalent, falling back to Sun-start (mode 2)",
+              (int32_t)pInput->firstDayOfWeek);
+      mode = 2;
+      break;
+  }
   return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, mode);
 }
 

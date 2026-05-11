@@ -863,10 +863,10 @@ SELECT TIMEZONE(1);
 - [x] P3：TO_ISO8601 支持 IANA
 - [x] P3：TO_CHAR 支持第三参数
 - [x] P3：TIMETRUNCATE 第三参数支持字符串时区
-- [ ] P4：TIMETRUNCATE 支持 n/q/y
-- [ ] P4：TIMETRUNCATE 1w 对齐修正
-- [ ] P4：INTERVAL(w) 尊重 firstDayOfWeek
-- [ ] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
+- [x] P4：TIMETRUNCATE 支持 n/q/y
+- [x] P4：TIMETRUNCATE 1w 对齐修正
+- [x] P4：INTERVAL(w) 尊重 firstDayOfWeek
+- [x] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
 - [x] P5：季度 PR rebase 完成
 - [ ] P5：INTERVAL(1q) 集成验证
 - [ ] P6：TIMEZONE(0) planner 不路由到服务端执行确认

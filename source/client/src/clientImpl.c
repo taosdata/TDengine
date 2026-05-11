@@ -706,6 +706,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                       .macMode = pAppInfo->serverCfg.macActive};
 
+  tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
+
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
@@ -1582,7 +1584,9 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .userId = pRequest->pTscObj->userId,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
+                        .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
+    tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }

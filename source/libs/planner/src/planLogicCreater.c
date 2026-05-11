@@ -2493,6 +2493,8 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->firstDayOfWeek = (int8_t)pCxt->pPlanCxt->firstDayOfWeek;
+  pWindow->timezone = pCxt->pPlanCxt->timezone;
+  tstrncpy(pWindow->timezoneName, pCxt->pPlanCxt->timezoneName, sizeof(pWindow->timezoneName));
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
   pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_NONE);

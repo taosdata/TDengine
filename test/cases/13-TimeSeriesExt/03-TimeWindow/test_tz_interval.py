@@ -121,6 +121,35 @@ class TestIntervalNatural:
             tdSql.execute(f"alter all dnodes 'timezone {original_server}'")
             tdSql.connect()
 
+    def test_interval_1d_uses_fixed_offset_session_timezone(self):
+        """INTERVAL should preserve fixed-offset session timezones through plan transport."""
+        self.prepare_data()
+        tdSql.execute(f"insert into {self.ctbname} values (1738341000000, 1001.0)")
+
+        tdSql.query("show local variables like 'timezone'")
+        original_local = _config_timezone_name(tdSql.queryResult[0][1])
+        tdSql.query("show variables like 'timezone'")
+        original_server = _config_timezone_name(tdSql.queryResult[0][1])
+
+        try:
+            tdSql.execute("alter local 'timezone UTC'")
+            tdSql.execute("alter all dnodes 'timezone UTC'")
+            tdSql.connect()
+            tdSql.execute("SET TIMEZONE '+08:00'")
+            tdSql.query(
+                f"select _wstart, count(*) from {self.ctbname} "
+                f"where ts >= '2025-01-31 00:00:00' and ts < '2025-02-02 00:00:00' interval(1d)"
+            )
+            counts = _wstart_count_map(tdSql.queryResult)
+            expected = {'2025-01-31': 1, '2025-02-01': 2}
+            assert counts == expected, (
+                f"INTERVAL(1d) should honor fixed-offset session timezone: counts={counts}, expected={expected}"
+            )
+        finally:
+            tdSql.execute(f"alter local 'timezone {original_local}'")
+            tdSql.execute(f"alter all dnodes 'timezone {original_server}'")
+            tdSql.connect()
+
     def test_interval_1n_dst_no_drift(self):
         """INTERVAL(1n) with DST timezone should still produce 12 months.
 
@@ -254,22 +283,24 @@ class TestIntervalWeek:
         assert tdSql.queryRows > 0
 
     def test_interval_1w_server_config_without_session_override(self):
-        """Server firstDayOfWeek should affect INTERVAL(1w) after reconnect."""
+        """ALTER LOCAL firstDayOfWeek should affect INTERVAL(1w) after reconnect."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
 
-        tdSql.execute("ALTER ALL DNODES 'firstDayOfWeek' '0'")
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
         tdSql.connect()
+        tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query(f"select _wstart, count(*) from {self.ctbname} interval(1w)")
         starts_0 = [row[0] for row in tdSql.queryResult]
 
-        tdSql.execute("ALTER ALL DNODES 'firstDayOfWeek' '1'")
+        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
         tdSql.connect()
+        tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query(f"select _wstart, count(*) from {self.ctbname} interval(1w)")
         starts_1 = [row[0] for row in tdSql.queryResult]
 
         assert starts_0 != starts_1, (
-            f"Server firstDayOfWeek should change interval starts: {starts_0} vs {starts_1}"
+            f"ALTER LOCAL firstDayOfWeek should change interval starts: {starts_0} vs {starts_1}"
         )
 
 

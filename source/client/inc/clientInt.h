@@ -195,6 +195,7 @@ typedef struct {
 
 typedef struct {
   timezone_t    timezone;
+  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA name from SET TIMEZONE */
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
   char          cInfo[CONNECTOR_INFO_LEN];

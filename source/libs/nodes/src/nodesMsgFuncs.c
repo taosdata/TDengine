@@ -16,6 +16,7 @@
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "tdatablock.h"
+#include "ttime.h"
 
 #ifndef htonll
 
@@ -2703,6 +2704,7 @@ enum {
   PHY_TABLE_SCAN_CODE_EXT_SCAN_RANGE,
   PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR,
   PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR,
+  PHY_TABLE_SCAN_CODE_TIMEZONE_NAME,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2769,6 +2771,9 @@ static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEnc
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->smallDataTsSort);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->firstDayOfWeek);
+  }
   return code;
 }
 
@@ -2802,6 +2807,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR, nodeToMsg, pNode->pPrimaryCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_TABLE_SCAN_CODE_TIMEZONE_NAME, pNode->timezoneName);
   }
 
   return code;
@@ -2871,11 +2879,17 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->smallDataTsSort);
   }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->firstDayOfWeek);
+  } else {
+    pNode->firstDayOfWeek = 4;
+  }
   return code;
 }
 
 static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
+  pNode->firstDayOfWeek = 4;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -2915,6 +2929,16 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pPrimaryCond);
+        break;
+      case PHY_TABLE_SCAN_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
+        if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+          char tzBuf[TD_TIMEZONE_LEN] = {0};
+          tstrncpy(tzBuf, pNode->timezoneName, sizeof(tzBuf));
+          pNode->timezoneName[0] = '\0';
+          code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                         &pNode->ownsTimezone);
+        }
         break;
       default:
         break;
@@ -3799,7 +3823,7 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS, PHY_INTERVAL_CODE_TIME_RANGE };
+enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS, PHY_INTERVAL_CODE_TIME_RANGE, PHY_INTERVAL_CODE_TIMEZONE_NAME };
 
 static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
@@ -3817,6 +3841,9 @@ static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEnco
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI8(pEncoder, pNode->slidingUnit);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->firstDayOfWeek);
+  }
 
   return code;
 }
@@ -3830,6 +3857,9 @@ static int32_t physiIntervalNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_INTERVAL_CODE_TIMEZONE_NAME, pNode->timezoneName);
   }
 
   return code;
@@ -3851,12 +3881,18 @@ static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI8(pDecoder, &pNode->slidingUnit);
   }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->firstDayOfWeek);
+  } else {
+    pNode->firstDayOfWeek = 4;
+  }
 
   return code;
 }
 
 static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
   SIntervalPhysiNode* pNode = (SIntervalPhysiNode*)pObj;
+  pNode->firstDayOfWeek = 4;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -3870,6 +3906,17 @@ static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INTERVAL_CODE_TIME_RANGE:
         code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->timeRange);
+        break;
+      case PHY_INTERVAL_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
+        if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+          char tzBuf[TD_TIMEZONE_LEN] = {0};
+          tstrncpy(tzBuf, pNode->timezoneName, sizeof(tzBuf));
+          pNode->timezoneName[0] = '\0';
+          code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                         &pNode->ownsTimezone);
+        }
+        break;
       default:
         break;
     }

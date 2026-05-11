@@ -1187,8 +1187,9 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         start = prev;
       }
     } else {
-      if (pInterval->intervalUnit == 'w' && pInterval->firstDayOfWeek != 4) {
-        /* Week interval with non-epoch firstDayOfWeek: align to local week boundary */
+      if (pInterval->intervalUnit == 'w') {
+        /* Week interval: align to local week boundary using firstDayOfWeek (0-6).
+         * fdow=4 (Thursday, the Unix epoch start) is handled here too for DST safety. */
         time_t    t = (time_t)(ts / (int64_t)TSDB_TICK_PER_SECOND(precision));
         struct tm tm;
         if (taosLocalTime(&t, &tm, NULL, 0, pInterval->timezone) != NULL) {
@@ -1204,31 +1205,31 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           }
         }
       } else {
-      int64_t delta = ts - pInterval->interval;
-      start = (delta / pInterval->sliding) * pInterval->sliding;
+        int64_t delta = ts - pInterval->interval;
+        start = (delta / pInterval->sliding) * pInterval->sliding;
 
-      if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-        start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
-      }
-
-      int64_t end = 0;
-
-      // not enough time range
-      if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-        while (end < ts) {  // move forward to the correct time window
-          start += pInterval->sliding;
-
-          if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-            end = start + pInterval->interval - 1;
-          } else {
-            end = INT64_MAX;
-            break;
-          }
+        if (pInterval->intervalUnit == 'd') {
+          start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
         }
-      } else {
-        end = INT64_MAX;
-      }
+
+        int64_t end = 0;
+
+        // not enough time range
+        if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+          end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+          while (end < ts) {  // move forward to the correct time window
+            start += pInterval->sliding;
+
+            if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+              end = start + pInterval->interval - 1;
+            } else {
+              end = INT64_MAX;
+              break;
+            }
+          }
+        } else {
+          end = INT64_MAX;
+        }
       }
     }
   }

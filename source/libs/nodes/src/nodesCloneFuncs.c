@@ -838,6 +838,9 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(orgTableUid);
   COPY_SCALAR_FIELD(orgTableVgId);
   CLONE_NODE_FIELD(pSubquery);
+  COPY_SCALAR_FIELD(firstDayOfWeek);
+  COPY_SCALAR_FIELD(timezone);
+  COPY_CHAR_ARRAY_FIELD(timezoneName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1019,6 +1022,17 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(needCountEmptyTable);
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
+  COPY_SCALAR_FIELD(firstDayOfWeek);
+  pDst->timezone = NULL;
+  pDst->ownsTimezone = false;
+  pDst->timezoneName[0] = '\0';
+  if (pSrc->timezoneName[0] != '\0') {
+    int32_t code = nodesDecodeTimezoneName(pSrc->timezoneName, pDst->timezoneName, sizeof(pDst->timezoneName),
+                                           &pDst->timezone, &pDst->ownsTimezone);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1050,6 +1064,17 @@ static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiN
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(firstDayOfWeek);
+  pDst->timezone = NULL;
+  pDst->ownsTimezone = false;
+  pDst->timezoneName[0] = '\0';
+  if (pSrc->timezoneName[0] != '\0') {
+    int32_t code = nodesDecodeTimezoneName(pSrc->timezoneName, pDst->timezoneName, sizeof(pDst->timezoneName),
+                                           &pDst->timezone, &pDst->ownsTimezone);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   return TSDB_CODE_SUCCESS;
 }

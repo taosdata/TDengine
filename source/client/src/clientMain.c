@@ -348,8 +348,10 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
         goto END;
       }
       pObj->optionInfo.timezone = tz;
+      tstrncpy(pObj->optionInfo.timezoneName, val, sizeof(pObj->optionInfo.timezoneName));
     } else {
       pObj->optionInfo.timezone = NULL;
+      pObj->optionInfo.timezoneName[0] = '\0';
     }
 #endif
   }

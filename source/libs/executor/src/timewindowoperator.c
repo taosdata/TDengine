@@ -2403,7 +2403,8 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
                         .offset = pPhyNode->offset,
                         .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision,
                         .timeRange = pPhyNode->timeRange,
-                        .firstDayOfWeek = pPhyNode->firstDayOfWeek};
+                        .firstDayOfWeek = pPhyNode->firstDayOfWeek,
+                        .timezone = pPhyNode->timezone};
   calcIntervalAutoOffset(&interval);
 
   STimeWindowAggSupp as = {
@@ -3293,7 +3294,8 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
                         .offset = pNode->offset,
                         .precision = ((SColumnNode*)pNode->window.pTspk)->node.resType.precision,
                         .timeRange = pNode->timeRange,
-                        .firstDayOfWeek = pNode->firstDayOfWeek};
+                        .firstDayOfWeek = pNode->firstDayOfWeek,
+                        .timezone = pNode->timezone};
   calcIntervalAutoOffset(&interval);
 
   SIntervalAggOperatorInfo* iaInfo = miaInfo->intervalAggOperatorInfo;
@@ -3660,7 +3662,8 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
                         .offset = pIntervalPhyNode->offset,
                         .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
                         .timeRange = pIntervalPhyNode->timeRange,
-                        .firstDayOfWeek = pIntervalPhyNode->firstDayOfWeek};
+                        .firstDayOfWeek = pIntervalPhyNode->firstDayOfWeek,
+                        .timezone = pIntervalPhyNode->timezone};
   calcIntervalAutoOffset(&interval);
 
   pMergeIntervalInfo->groupIntervals = tdListNew(sizeof(SGroupTimeWindow));

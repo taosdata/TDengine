@@ -21,6 +21,7 @@
 #include "querynodes.h"
 #include "taoserror.h"
 #include "tdatablock.h"
+#include "ttime.h"
 #include "tjson.h"
 #include "tmsg.h"
 
@@ -2475,6 +2476,7 @@ static const char* jkTableScanPhysiPlanNeedCountEmptyTable = "NeedCountEmptyTabl
 static const char* jkTableScanPhysiPlanParaTablesSort = "ParaTablesSort";
 static const char* jkTableScanPhysiPlanSmallDataTsSort = "SmallDataTsSort";
 static const char* jkTableScanPhysiPlanFirstDayOfWeek = "FirstDayOfWeek";
+static const char* jkTableScanPhysiPlanTimezoneName = "TimezoneName";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -2572,6 +2574,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanTimezoneName, pNode->timezoneName);
   }
   return code;
 }
@@ -2686,6 +2691,14 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     pNode->firstDayOfWeek = 4;
     (void)tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    char tzBuf[TD_TIMEZONE_LEN] = {0};
+    (void)tjsonGetStringValue(pJson, jkTableScanPhysiPlanTimezoneName, tzBuf);
+    if (tzBuf[0] != '\0') {
+      code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                    &pNode->ownsTimezone);
+    }
   }
   return code;
 }
@@ -3545,6 +3558,7 @@ static const char* jkIntervalPhysiPlanSliding = "Sliding";
 static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit = "slidingUnit";
 static const char* jkIntervalPhysiPlanFirstDayOfWeek = "firstDayOfWeek";
+static const char* jkIntervalPhysiPlanTimezoneName = "timezoneName";
 static const char* jkIntervalPhysiPlanStartTime = "StartTime";
 static const char* jkIntervalPhysiPlanEndTime = "EndTime";
 
@@ -3569,6 +3583,9 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkIntervalPhysiPlanTimezoneName, pNode->timezoneName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanStartTime, pNode->timeRange.skey);
@@ -3603,6 +3620,14 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
     /* field added in this branch; no old plans exist — default to 4 (epoch-aligned) */
     pNode->firstDayOfWeek = 4;
     (void)tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    char tzBuf[TD_TIMEZONE_LEN] = {0};
+    (void)tjsonGetStringValue(pJson, jkIntervalPhysiPlanTimezoneName, tzBuf);
+    if (tzBuf[0] != '\0') {
+      code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                    &pNode->ownsTimezone);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkIntervalPhysiPlanStartTime, &pNode->timeRange.skey);

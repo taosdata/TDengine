@@ -865,6 +865,7 @@ static int32_t checkTimeUnitOrCalendar(SNode* pNode, int32_t precision, bool* is
   }
   return code;
 }
+
 static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* paramList = pFunc->pParameterList;

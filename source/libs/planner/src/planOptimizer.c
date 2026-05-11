@@ -464,6 +464,8 @@ static void scanPathOptSetScanWin(SOsdInfo* pInfo) {
     pScan->intervalUnit = ((SWindowLogicNode*)pParent)->intervalUnit;
     pScan->slidingUnit = ((SWindowLogicNode*)pParent)->slidingUnit;
     pScan->firstDayOfWeek = ((SWindowLogicNode*)pParent)->firstDayOfWeek;
+    pScan->timezone = ((SWindowLogicNode*)pParent)->timezone;
+    tstrncpy(pScan->timezoneName, ((SWindowLogicNode*)pParent)->timezoneName, sizeof(pScan->timezoneName));
   }
 }
 

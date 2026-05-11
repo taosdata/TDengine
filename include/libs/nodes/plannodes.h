@@ -106,6 +106,8 @@ typedef struct SScanLogicNode {
   int8_t             intervalUnit;
   int8_t             slidingUnit;
   int8_t             firstDayOfWeek;  /* 0-6, propagated from window logic node */
+  void*              timezone;        /* timezone_t handle for interval alignment */
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
   SNode*             pTagCond;
   SNode*             pTagIndexCond;
   int8_t             triggerType;
@@ -370,6 +372,8 @@ typedef struct SWindowLogicNode {
   int8_t                intervalUnit;
   int8_t                slidingUnit;
   int8_t                firstDayOfWeek;  /* 0-6, from connection; default 4 (Thu) */
+  void*                 timezone;        /* timezone_t handle for calendar alignment */
+  char                  timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
   // for session window
   int64_t               sessionGap;
   SNode*                pTsEnd;
@@ -598,6 +602,9 @@ typedef struct STableScanPhysiNode {
   int8_t         intervalUnit;
   int8_t         slidingUnit;
   int8_t         firstDayOfWeek;  /* 0-6, propagated from interval logic node */
+  void*          timezone;        /* timezone_t handle for interval alignment */
+  char           timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
+  bool           ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   int8_t         triggerType;
   int64_t        watermark;
   int8_t         igExpired;
@@ -811,6 +818,9 @@ typedef struct SIntervalPhysiNode {
   int8_t           intervalUnit;
   int8_t           slidingUnit;
   int8_t           firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
+  void*            timezone;        /* timezone_t handle; NULL → server default */
+  char             timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
+  bool             ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   STimeWindow      timeRange;
 } SIntervalPhysiNode;
 

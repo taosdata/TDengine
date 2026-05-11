@@ -977,6 +977,8 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->intervalUnit = pScanLogicNode->intervalUnit;
   pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
   pTableScan->firstDayOfWeek = pScanLogicNode->firstDayOfWeek;
+  pTableScan->timezone = pScanLogicNode->timezone;
+  tstrncpy(pTableScan->timezoneName, pScanLogicNode->timezoneName, sizeof(pTableScan->timezoneName));
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
   pTableScan->igExpired = pScanLogicNode->igExpired;
@@ -2832,6 +2834,8 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
   pInterval->timeRange = pWindowLogicNode->timeRange;
   pInterval->firstDayOfWeek = pWindowLogicNode->firstDayOfWeek;
+  pInterval->timezone = pWindowLogicNode->timezone;
+  tstrncpy(pInterval->timezoneName, pWindowLogicNode->timezoneName, sizeof(pInterval->timezoneName));
 
   int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
