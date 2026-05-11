@@ -238,7 +238,8 @@ Each column includes:
   - min (float): Minimum value (integer/float only), generated value ≥ min.
   - max (float): Maximum value (integer/float only), generated value < max.
   - values (list): Range of values to randomly select from.
-  - random_length (bool): Only applicable to variable-length string types (nchar, varchar or binary). Indicates whether to enable random-length generation. Default: false, meaning generated strings have a fixed length equal to the type's maximum capacity. When set to true, the length of each generated string varies randomly between 1 and the maximum capacity.
+  - min_length (int): Only applicable to variable-length string types (nchar, varchar or binary). Specifies the minimum length of generated strings. Defaults to the type's defined capacity (i.e., fixed length). Valid range: 0 ≤ min_length ≤ max_length ≤ capacity. When set, each generated string length varies randomly between min_length and max_length.
+  - max_length (int): Only applicable to variable-length string types (nchar, varchar or binary). Specifies the maximum length of generated strings. Defaults to the type's defined capacity. Valid range: min_length ≤ max_length ≤ capacity.
 
 - order: Sequential natural number growth (integer only), wraps to min after reaching max
   - min (int): Minimum value, generated value ≥ min.
