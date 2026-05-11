@@ -35,34 +35,22 @@ scripts/
 
 ```toml
 [local]
-listen = "0.0.0.0"
-http_port = 6072
-rpc_port = 6073
+listen = "0.0.0.0"                           # 服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
+http_port = 6072                             # 开启的 http api 服务端口
+rpc_port = 6073                              # 与 ELS 服务通信端口
 
 [els]
-host = "localhost"
-port = 8094
-enable = true
+host = "localhost"                           # ELS 服务的地址
+port = 8094                                  # ELS 服务的端口
+enable = true                                # 是否开启与 ELS 的通信
 
 [database]
-path = "/var/lib/taoscls"
+path = "/var/lib/taoscls"                    # 数据存放路径
 
 [log]
-level = "info"
-file = "/var/log/taoscls/taoscls.log"
+level = "info"                               # 日志级别
+file = "/var/log/taoscls/taoscls.log"        # 日志路径
 ```
-
-参数说明：
-
-- `local.listen`: 表示服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
-- `local.http_port`: 表示开启的 http api 服务端口
-- `local.rpc_port`: 表示与 ELS 服务通信端口
-- `els.host`: 表示 ELS 服务的地址
-- `els.port`: 表示 ELS 服务的端口
-- `els.enable`: 表示是否开启与 ELS 的通信
-- `database.path`: 表示数据存放路径
-- `log.level`: 表示日志级别
-- `log.file`: 表示日志路径
 
 ### 服务信息
 
@@ -77,8 +65,6 @@ file = "/var/log/taoscls/taoscls.log"
 
 1. 启动完成后，在浏览器中打开 CLS 管理端并登录。
 
-![image-20260510102830706](assets/cls-login.png)
-
 2. 登录后，可在 **本机信息**页面查看到**公钥令牌**等信息，如下图所示：
 
 ![image-20260510103339138](assets/cls-local.png)
@@ -91,11 +77,7 @@ file = "/var/log/taoscls/taoscls.log"
 
 ### 2. 在 CLS 中导入许可证
 
-在 CLS 的 **许可证** 页面，点击右上角 **离线导入**，选择  `offline-license.token`，然后点击 **导入**。
-
-![image-20260510111250324](assets/cls-license-import.png)
-
-导入成功后，许可证会出现在 CLS 的**许可证**页面列表中。
+在 CLS 的 **许可证** 页面，点击右上角 **离线导入**，选择  `offline-license.token`，然后点击 **导入**。导入成功后，许可证会出现在 CLS 的**许可证**页面列表中。
 
 ### 3. 在 CLS 中查看配额管理
 
@@ -105,13 +87,23 @@ file = "/var/log/taoscls/taoscls.log"
 
 ## 在线授权流程
 
-在线授权方式与离线授权方式整体流程几乎一致，区别在于：离线授权流程中，授权 Token 导入是通过离线方式导入，如果 CLS 已经连接上了 ELS，那么在 ELS 侧为 CLS 授权许可证后，CLS 侧会自动收到许可证。
+在线授权与离线授权的整体流程基本一致，区别在于授权Token的获取方式。在线模式下，若CLS已连接ELS，ELS侧授权后许可证将自动同步至CLS；离线模式则需通过文件等离线方式手动导入Token。
 
 ## 集群连接 CLS
 
 当前 TSDB/IDMP 集群均可通过相关配置与 CLS 通信，且在 CLS 集群管理的相关页面可看到具体信息。
 
 ### TSDB 集群配置
+
+#### taos-explorer
+
+在 taos-explorer 组件的**系统管理/许可证**页面，点击**激活许可证**按钮后，可以看到如下配置页面：
+
+![image-20260510112236023](assets/explorer-active-license.png)
+
+配置字段含义和 SQL 配置一致。点击确定后，许可证页面即可看到 CLS 配置信息：
+
+![image-20260510112827832](assets/explorer-cls.png)
 
 #### SQL
 
@@ -136,16 +128,6 @@ ALTER ALL DNODES 'clsQuotaSlotId' 'tsdb-1';
 `clsLicenseId`: 表示要获取的许可证 ID
 
 `clsQuotaSlotId`: 表示要获取的配额 ID
-
-#### taos-explorer
-
-在 taos-explorer 组件的**系统管理/许可证**页面，点击**激活许可证**按钮后，可以看到如下配置页面：
-
-![image-20260510112236023](assets/explorer-active-license.png)
-
-配置字段含义和 SQL 配置一致。点击确定后，许可证页面即可看到 CLS 配置信息：
-
-![image-20260510112827832](assets/explorer-cls.png)
 
 ### IDMP 授权配置
 
