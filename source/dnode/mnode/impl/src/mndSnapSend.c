@@ -136,6 +136,8 @@ void mndSnapSendPullup(SMnode *pMnode) {
   SSdb  *pSdb = pMnode->pSdb;
   void  *pIter = NULL;
 
+  mDebug("snap-send-progress pullup started");
+
   // Build a set of vgIds that are still snapRestoring
   SHashObj *pActiveVgIds =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -156,6 +158,8 @@ void mndSnapSendPullup(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     if (pVgroup->snapRestoring) {
+      mDebug("snap-send-progress pullup: found snapRestoring vgroup vgId:%d", pVgroup->vgId);
+
       (void)taosHashPut(pActiveVgIds, &pVgroup->vgId, sizeof(int32_t),
                         &pVgroup->vgId, sizeof(int32_t));
 
@@ -173,19 +177,31 @@ void mndSnapSendPullup(SMnode *pMnode) {
     sdbRelease(pSdb, pVgroup);
   }
 
-  // Remove stale hash entries (vgIds that are no longer snapRestoring)
+  // Remove stale hash entries (vgIds that are no longer snapRestoring).
+  // Collect keys first — modifying the hash during taosHashIterate corrupts the walk.
+  SArray *pStaleVgIds = taosArrayInit(8, sizeof(int32_t));
+
   (void)taosThreadMutexLock(&gSnapSendMgmt.mutex);
-  void  *pHashIter = taosHashIterate(gSnapSendMgmt.pHash, NULL);
-  while (pHashIter != NULL) {
-    SSnapSendVnodeInfo *pInfo = (SSnapSendVnodeInfo *)pHashIter;
-    if (taosHashGet(pActiveVgIds, &pInfo->vgId, sizeof(int32_t)) == NULL) {
-      snapSendFreeVnodeInfo(pInfo);
-      taosHashRemove(gSnapSendMgmt.pHash, &pInfo->vgId, sizeof(int32_t));
-      pHashIter = taosHashIterate(gSnapSendMgmt.pHash, NULL);
-    } else {
+
+  if (pStaleVgIds != NULL) {
+    void *pHashIter = taosHashIterate(gSnapSendMgmt.pHash, NULL);
+    while (pHashIter != NULL) {
+      SSnapSendVnodeInfo *pInfo = (SSnapSendVnodeInfo *)pHashIter;
+      if (taosHashGet(pActiveVgIds, &pInfo->vgId, sizeof(int32_t)) == NULL) {
+        (void)taosArrayPush(pStaleVgIds, &pInfo->vgId);
+      }
       pHashIter = taosHashIterate(gSnapSendMgmt.pHash, pHashIter);
     }
+
+    for (int32_t k = 0; k < (int32_t)taosArrayGetSize(pStaleVgIds); k++) {
+      int32_t            *pVgId = taosArrayGet(pStaleVgIds, k);
+      SSnapSendVnodeInfo *pOld  = taosHashGet(gSnapSendMgmt.pHash, pVgId, sizeof(int32_t));
+      if (pOld != NULL) snapSendFreeVnodeInfo(pOld);
+      taosHashRemove(gSnapSendMgmt.pHash, pVgId, sizeof(int32_t));
+    }
+    taosArrayDestroy(pStaleVgIds);
   }
+
   (void)taosThreadMutexUnlock(&gSnapSendMgmt.mutex);
 
   taosHashCleanup(pActiveVgIds);

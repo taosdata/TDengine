@@ -1014,12 +1014,12 @@ _OVER:
 }
 
 int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t                        code = 0;
-  void                          *pRsp = NULL;
-  SVnodeObj                    **ppVnodes = NULL;
-  int32_t                        numOfVnodes = 0;
+  int32_t     code = 0;
+  void       *pRsp = NULL;
+  SVnodeObj **ppVnodes = NULL;
+  int32_t     numOfVnodes = 0;
+  SArray     *pInfoArray = taosArrayInit(16, sizeof(SSnapSendVnodeInfo));
 
-  SArray *pInfoArray = taosArrayInit(16, sizeof(SSnapSendVnodeInfo));
   if (pInfoArray == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -1029,7 +1029,6 @@ int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg)
   if (code != 0) {
     dError("dnode:%d, failed to get vnode list for snap-send-progress, code:%s",
            pMgmt->pData->dnodeId, tstrerror(code));
-    taosArrayDestroy(pInfoArray);
     goto _exit;
   }
 
@@ -1052,7 +1051,10 @@ int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg)
     vmReleaseVnode(pMgmt, pVnode);
   }
   taosMemoryFree(ppVnodes);
+  ppVnodes = NULL;
 
+  // Build response. NOTE: rsp.pVnodeInfos aliases pInfoArray's internal buffer —
+  // it must NOT be freed via tFreeSDnodeQuerySnapSendProgressRsp; cleanup is in _exit.
   SDnodeQuerySnapSendProgressRsp rsp = {0};
   rsp.dnodeId     = pMgmt->pData->dnodeId;
   rsp.numOfVnodes = (int32_t)taosArrayGetSize(pInfoArray);
@@ -1066,16 +1068,12 @@ int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg)
   int32_t rspLen = tSerializeSDnodeQuerySnapSendProgressRsp(NULL, 0, &rsp);
   if (rspLen < 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
-    taosArrayDestroy(pInfoArray);
     goto _exit;
   }
 
   pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
-    taosArrayDestroy(pInfoArray);
     goto _exit;
   }
 
@@ -1083,17 +1081,24 @@ int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg)
     code = TSDB_CODE_INVALID_MSG;
     rpcFreeCont(pRsp);
     pRsp = NULL;
-    tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
-    taosArrayDestroy(pInfoArray);
     goto _exit;
   }
 
-  tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
-  taosArrayDestroy(pInfoArray);
   pMsg->info.rsp    = pRsp;
   pMsg->info.rspLen = rspLen;
 
 _exit:
+  // pInfoArray owns both the SSnapSendVnodeInfo structs and the pFileSetInfos blocks.
+  // Free pFileSetInfos manually; do NOT call tFreeSDnodeQuerySnapSendProgressRsp
+  // (it would free the alias rsp.pVnodeInfos which is pInfoArray's internal buffer).
+  if (pInfoArray != NULL) {
+    for (int32_t k = 0; k < (int32_t)taosArrayGetSize(pInfoArray); k++) {
+      SSnapSendVnodeInfo *p = taosArrayGet(pInfoArray, k);
+      taosMemoryFree(p->pFileSetInfos);
+    }
+    taosArrayDestroy(pInfoArray);
+  }
+  taosMemoryFree(ppVnodes);
   return code;
 }
 
