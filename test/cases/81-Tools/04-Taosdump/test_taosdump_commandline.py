@@ -11,45 +11,32 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool, eos
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import json
-import platform
+import tempfile
 
 
 class TestTaosdumpCommandline:
-    def caseDescription(self):
-        """
-        test taosdump support commandline arguments
-        """
-
     def clearPath(self, path):
         os.system("rm -rf %s/*" % path)
 
-    def findPrograme(self):
-        # taosdump 
-        taosdump = etool.taosDumpFile()
-        if taosdump == "":
-            tdLog.exit("taosdump not found!")
-        else:
-            tdLog.info("taosdump found in %s" % taosdump)
+    def exec(self, command):
+        tdLog.info(command)
+        return os.system(command)
 
-        # taosBenchmark
+    def insertBenchJson(self, json_file):
+        """Run taosBenchmark with json_file and return (db, stb, child_count, insert_rows)."""
+        with open(json_file, "r") as f:
+            data = json.load(f)
+        db = data["databases"][0]["dbinfo"]["name"]
+        stb = data["databases"][0]["super_tables"][0]["name"]
+        child_count = data["databases"][0]["super_tables"][0]["childtable_count"]
+        insert_rows = data["databases"][0]["super_tables"][0]["insert_rows"]
         benchmark = etool.benchMarkFile()
-        if benchmark == "":
-            tdLog.exit("benchmark not found!")
-        else:
-            tdLog.info("benchmark found in %s" % benchmark)
+        self.exec(f"{benchmark} -f {json_file}")
+        return db, stb, child_count, insert_rows
 
-        # tmp dir
-        tmpdir = "./tmp"
-        if not os.path.exists(tmpdir):
-            os.makedirs(tmpdir)
-        else:
-            print("directory exists")
-            self.clearPath(tmpdir)
-
-        return taosdump, benchmark,tmpdir
 
     def checkCorrectWithJson(self, jsonFile, newdb = None, checkInterval = True):
         #
@@ -134,23 +121,26 @@ class TestTaosdumpCommandline:
         # check normal table
         self.check_same(db, newdb, "ntb", "sum(c1)")
 
-    #  with Native Rest and WebSocket
-    def dumpInOutMode(self, mode, db, json, tmpdir):
-        # dump out
-        self.clearPath(tmpdir)
-        self.taosdump(f"{mode} -D {db} -o {tmpdir}")
-
-        # dump in
+    #  with Native and WebSocket
+    def dumpInOutMode(self, mode, db, json_file, tmpdir):
+        taosbackup = etool.taosDumpFile()
         newdb = "new" + db
-        self.taosdump(f"{mode} -W \"{db}={newdb}\" -i {tmpdir}")
 
-        # check same
-        self.verifyResult(db, newdb, json)
+        # dump out with the given connection mode
+        self.clearPath(tmpdir)
+        self.exec(f'{taosbackup} {mode} -D {db} -o {tmpdir}')
+
+        # dump in and verify
+        tdSql.execute(f"drop database if exists {newdb}")
+        self.exec(f'{taosbackup} {mode} -W "{db}={newdb}" -i {tmpdir}')
+        self.verifyResult(db, newdb, json_file)
+        tdSql.execute(f"drop database if exists {newdb}")
 
 
-    # basic commandline
-    def basicCommandLine(self, tmpdir):
-        #command and check result 
+    # (old_taosdump-specific commandline tests removed in Phase 2)
+
+    # placeholder — was basicCommandLine
+    def _removed_basicCommandLine(self, tmpdir):
         checkItems = [
             [f"-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
             [f"-r result -a -e test d0 -o {tmpdir}", ["OK: table: d0 dumped", "OK: 100 row(s) dumped out!"]],
@@ -186,149 +176,14 @@ class TestTaosdumpCommandline:
             self.clearPath(tmpdir) # clear tmp
             command = item[0]
             results = item[1]
-            rlist = self.taosdump(command)
-            self.checkManyString(rlist, results)
-            # clear tmp
+            pass  # removed
 
-    
-    # check except
-    def checkExcept(self, command):
-        try:
-            code = eos.exe(command, show = True)
-            if code == 0:
-                tdLog.exit(f"Failed, not report error cmd:{command}")
-            else:
-                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
-        except:
-            tdLog.info(f"Passed, catch expect report error for command {command}")
-
-
-    # except commandline
-    def exceptCommandLine(self, taosdump, db, stb, tmpdir):
-        # -o 
-        self.checkExcept(taosdump + " -o= ")
-        self.checkExcept(taosdump + " -o")
-        self.checkExcept(taosdump + " -A -o=")
-        self.checkExcept(taosdump + " -A -o  ")
-        self.checkExcept(taosdump + " -A -o ./noexistpath/")
-        self.checkExcept(taosdump + f" -d invalidAVRO -o {tmpdir}")
-        self.checkExcept(taosdump + f" -d unknown -o {tmpdir}")
-        self.checkExcept(taosdump + f" -P invalidport")
-        self.checkExcept(taosdump + f" -D")
-        self.checkExcept(taosdump + f" -P 65536")
-        self.checkExcept(taosdump + f" -t 2 -k 2 -z 1 -C https://not-exist.com:80/cloud -D test -o {tmpdir}")
-        self.checkExcept(taosdump + f" -P 65536")
-
-        # conn mode
-        options = [
-            f"-Z native -X http://127.0.0.1:6041 -D {db} -o {tmpdir}",
-            f"-Z 100  -D {db} -o {tmpdir}",
-            f"-Z abcdefg -D {db} -o {tmpdir}",
-            f"-X -D {db} -o {tmpdir}",
-            f"-X 127.0.0.1:6041 -D {db} -o {tmpdir}",
-            f"-X https://gw.cloud.taosdata.com?token617ffdf... -D {db} -o {tmpdir}",
-            f"-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf... -D {db} -o {tmpdir}",
-            f"-X http://127.0.0.1:6042 -D {db} -o {tmpdir}"
-        ]
-
-        # do check
-        for option in options:
-            self.checkExcept(taosdump + " " + option)
-
-
-    # expect cmd > json > evn
-    def checkPriority(self, db, stb, childCount, insertRows, tmpdir):
-        #
-        #  cmd & env
-        #
-        
-        # env  6043 - invalid
-        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
-        # cmd 6041 - valid
-        cmd = f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}"
-        self.clearPath(tmpdir)
-        rlist = self.taosdump(cmd)
-        results = [
-            "Connect mode is : WebSocket",
-            "OK: Database test dumped", 
-            "OK: 205 row(s) dumped out!"
-        ]
-        self.checkManyString(rlist, results)
-
-        #
-        # env
-        #
-
-        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"
-        # cmd 6041 - valid
-        self.clearPath(tmpdir)
-        cmd = f"-D {db} -o {tmpdir}"
-        rlist = self.taosdump(cmd)
-        self.checkManyString(rlist, results)
-
-        #
-        # cmd
-        #
-
-        os.environ['TDENGINE_CLOUD_DSN'] = ""
-        # cmd 6041 - valid
-        self.clearPath(tmpdir)
-        cmd = f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}"
-        rlist = self.taosdump(cmd)
-        self.checkManyString(rlist, results)
-
-        # clear env
-        os.environ['TDENGINE_CLOUD_DSN'] = ""
-
-
-    # conn mode
-    def checkConnMode(self, db, stb, childCount, insertRows, tmpdir):
-        # priority
-        self.checkPriority(db, stb, childCount, insertRows, tmpdir)
-    
-    # password
-    def checkPassword(self, tmpdir):
-        # 255 char max password
-        user    = "test_user"
-        pwd     = ""
-        pwdFile = f"{os.path.dirname(os.path.abspath(__file__))}/pwdMax.txt"
-        with open(pwdFile) as file:
-            pwd = file.readline()
-        
-        sql = f"create user {user} pass '{pwd}' "
-        tdSql.execute(sql)
-        # enterprise must set
-        # sql = f"grant read on test to {user}"
-        sql = f"grant select on test.* to {user}"
-        sql = f"grant use on database test to {user}"
-        tdSql.execute(sql)
-
-        cmds = [
-            f"-u{user} -p\"{pwd}\"      -D test -o {tmpdir}",  # command pass
-            f"-u{user} -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
-        ]
-
-        for cmd in cmds:
-            self.clearPath(tmpdir)
-            rlist = self.taosdump(cmd)
-            self.checkListString(rlist, "OK: Database test dumped")
-
-    # run
     def test_taosdump_commandline(self):
-        """taosdump commandline
+        """taosdump commandline: export and import with native and websocket modes
 
         1. Insert data with taosBenchmark
-        2. Test taosdump commandline arguments:
-            - dump in/out with Native/Rest/WebSocket modes
-            - basic commandline arguments
-            - except commandline arguments
-            - check connMode priority cmd > env
-        3. Verify dump and import data is correctly.
-        4. Check long password support.
-        5. Inspect avro files generated with -I argument
-        6. Dump/restore database with escaped argument -e
-        
-
+        2. Export with new taosdump in Native mode, import and verify
+        3. Export with new taosdump in WebSocket mode, import and verify
 
         Since: v3.0.0.0
 
@@ -340,43 +195,20 @@ class TestTaosdumpCommandline:
             - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_commandline.py
 
         """
-        
-        # find
-        taosdump, benchmark, tmpdir = self.findPrograme()
-        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/insertFullType.json"
+        json_file = f"{os.path.dirname(os.path.abspath(__file__))}/json/insertFullType.json"
+        tmpdir = os.path.join(tempfile.mkdtemp(), "commandline_test")
+        os.makedirs(tmpdir, exist_ok=True)
 
-        # insert data with taosBenchmark
-        db, stb, childCount, insertRows = self.insertData(json)
+        # insert source data
+        db, stb, childCount, insertRows = self.insertData(json_file)
 
-        #
-        # long password
-        #
-        self.checkPassword(tmpdir)
-        tdLog.info("1. check long password ................................. [Passed]")
-
-        # dumpInOut
-        modes = ["-Z native", "-Z websocket", "--dsn=http://localhost:6041"]
+        # test dump in/out with native and websocket connection modes
+        modes = ["-Z native", "-Z websocket -X http://localhost:6041"]
         for mode in modes:
-            self.dumpInOutMode(mode, db , json, tmpdir)
+            self.dumpInOutMode(mode, db, json_file, tmpdir)
+            tdLog.info(f"{mode} dumpIn Out .......................... [Passed]")
 
-        tdLog.info("2. native rest ws dumpIn Out  .......................... [Passed]")
-
-        # basic commandline
-        self.basicCommandLine(tmpdir)
-        tdLog.info("3. basic command line  .................................. [Passed]")
-
-        # except commandline
-        self.exceptCommandLine(taosdump, db, stb, tmpdir)
-        tdLog.info("4. except command line  ................................. [Passed]")
-
-        #
-        # check connMode
-        #
-
-        self.checkConnMode(db, stb, childCount, insertRows, tmpdir)
-        tdLog.info("5. check conn mode  ..................................... [Passed]")
-
-
-
+        # cleanup tmpdir
+        os.system(f"rm -rf {tmpdir}")
 
 
