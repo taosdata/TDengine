@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "auth.h"
+#include "cls.h"
 #include "dnode.h"
 #include "grant.h"
 #include "machine.h"
@@ -465,6 +466,12 @@ int32_t mndInitGrant(SMnode *pMnode) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
+  code = initClsClient(pMnode);
+  if (code != 0) {
+    uError("failed to init cls client, code:%d", code);
+    TAOS_CHECK_EXIT(code);
+  }
+
 _exit:
   if (code < 0) {
     uError("grant data initialize failed at line %d since %s", lino, tstrerror(code));
@@ -678,6 +685,7 @@ void mndCleanupGrant() {
 #endif
 
   cleanupAuthClient();
+  cleanupClsClient();
 
   tSimpleHashCleanup(grantHandle.pMachineHash);
   taosArrayDestroy(grantHandle.pDnodeInfo);
@@ -747,7 +755,7 @@ static int64_t grantGetCurTime(int64_t curSec, bool checkUptime) {
   return result;
 }
 
-static int64_t grantGetExpireSec(int64_t expireSec) {
+int64_t grantGetExpireSec(int64_t expireSec) {
   if (gStatus.grantState == GRANT_STATE_REVOKED) {
     return gStatus.revokedExpireSec;
   }
@@ -4095,4 +4103,12 @@ int32_t grantGetBasicExpireDays(bool basic) {
   } else {
     return (int32_t)(grantGetExpireSec(gStatus.idmpBasicExpireSec) / 86400);
   }
+}
+
+int32_t tClsGetDataInType(const char *name) {
+  return tGetDataInType(name);
+}
+
+int32_t tClsGetGrantIndex(const char *name) {
+  return tGetGrantIndex(name);
 }
