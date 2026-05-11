@@ -1,6 +1,10 @@
 #include "gtest/gtest.h"
 
 #include "executil.h"
+#include "libs/new-stream/dataSink.h"
+#include "osMemory.h"
+
+extern "C" SHashObj *gStreamGrpTableHash;
 
 TEST(execUtilTest, resRowTest) {
   SDiskbasedBuf *pBuf = nullptr;
@@ -32,4 +36,25 @@ TEST(execUtilTest, resRowTest) {
   EXPECT_EQ(getResultRowByPos(pBuf, &pos, true), nullptr);
 
   destroyDiskbasedBuf(pBuf);
+}
+
+TEST(streamDataInserterTest, groupTableHashUsesFullStreamGroupKey) {
+  ASSERT_EQ(initInserterGrpInfo(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gStreamGrpTableHash, nullptr);
+
+  constexpr int32_t numOfGroups = 512;
+  constexpr int64_t streamId = 0x12345678;
+
+  for (int64_t groupId = 0; groupId < numOfGroups; ++groupId) {
+    int64_t key[2] = {streamId, groupId};
+    auto    pInfo = (SInsertTableInfo *)taosMemoryCalloc(1, sizeof(SInsertTableInfo));
+    ASSERT_NE(pInfo, nullptr);
+    ASSERT_EQ(taosHashPut(gStreamGrpTableHash, key, sizeof(key), &pInfo, sizeof(SInsertTableInfo *)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  EXPECT_LT(taosHashGetMaxOverflowLinkLength(gStreamGrpTableHash), 64);
+
+  taosHashCleanup(gStreamGrpTableHash);
+  gStreamGrpTableHash = nullptr;
 }

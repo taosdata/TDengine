@@ -42,6 +42,9 @@
 
 extern SDataSinkStat gDataSinkStat;
 SHashObj*            gStreamGrpTableHash = NULL;
+
+#define STREAM_GRP_TABLE_HASH_CAPACITY 8192
+
 typedef struct SSubmitRes {
   int64_t      affectedRows;
   int32_t      code;
@@ -161,7 +164,8 @@ static void freeCacheTbInfo(void* pp) {
 }
 
 int32_t initInserterGrpInfo() {
-  gStreamGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  gStreamGrpTableHash = taosHashInit(STREAM_GRP_TABLE_HASH_CAPACITY, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                                     false, HASH_ENTRY_LOCK);
   if (NULL == gStreamGrpTableHash) {
     qError("failed to create stream group table hash");
     return terrno;
