@@ -6154,18 +6154,24 @@ class TestInterp:
                 interp_results = cli.queryResult
                 if sql_select_all is not None:
                     cli.query(sql_select_all, queryTimes=1)
-                output_queue.put((sql, interp_results, cli.queryResult, sql_select_all, fill_values))
+                    output_queue.put((sql, interp_results, cli.queryResult, sql_select_all, fill_values))
+                else:
+                    output_queue.put((sql, interp_results, None, None, fill_values))
             cli.close()
         except Exception as e:
             self.check_failed = True
             tdLog.exit(f"query_routine error: {e}")
 
-    def interp_check_near_routine(self, select_all_results, output_queue: queue.Queue):
+    def interp_check_near_routine(self, select_all_results, output_queue: queue.Queue, num_producers=1):
         try:
+            none_count = 0
             while True:
                 item = output_queue.get()
                 if item is None:
-                    break
+                    none_count += 1
+                    if none_count >= num_producers:
+                        break
+                    continue
                 (sql, interp_results, all_results, sql_select_all, fill_values) = item
                 if all_results is not None:
                     self.check_result_for_near(interp_results, all_results, sql, sql_select_all, fill_values)
@@ -6220,7 +6226,7 @@ class TestInterp:
         sql_queue = queue.Queue()
         output_queue = queue.Queue()
         qts = self.create_qt_threads(sql_queue, output_queue, qt_threads_num)
-        ct = threading.Thread(target=self.interp_check_near_routine, args=(select_all_results, output_queue))
+        ct = threading.Thread(target=self.interp_check_near_routine, args=(select_all_results, output_queue, qt_threads_num))
         ct.start()
         for i in range(0, ROUND):
             range_start = random.randint(start, end)
@@ -6438,7 +6444,8 @@ class TestInterp:
         sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' range('2018-09-17 09:30:00', 1h) fill(near, 7, 8)"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(1)
-        assert tdSql.queryResult[0][0] is not None, f"_irowts_origin should not be None when nearest data is within surroundingTime"
+        if tdSql.queryResult[0][0] is None:
+            tdLog.exit(f"_irowts_origin should not be None when nearest data is within surroundingTime")
         tdSql.checkData(0, 4, True)
 
     def check_interval_fill_extension(self):
