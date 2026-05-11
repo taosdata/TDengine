@@ -45,6 +45,11 @@ enum RecoverableAction {
     Escalate,
 }
 
+const INITIAL_NON_MESSAGE_WARNING_INTERVAL: u64 = 30;
+const MAX_NON_MESSAGE_WARNING_INTERVAL: u64 = 480;
+const MAX_BACKOFF: u64 = 16;
+const TIMEOUT_MAX_BACKOFF: u64 = 50;
+
 fn classify(err: &KafkaError) -> KafkaErrorKind {
     let code = match err {
         KafkaError::Global(code)
@@ -97,6 +102,17 @@ fn should_escalate_idle_timeout(
     has_pending_ack: bool,
 ) -> bool {
     idle_elapsed > warning_window && !is_write_blocked(pressure, has_pending_ack)
+}
+
+fn reset_idle_tracking(
+    last_message: &mut Instant,
+    global_last_message: &RwLock<Instant>,
+    last_warning_interval: &mut u64,
+) {
+    let now = Instant::now();
+    *last_message = now;
+    *global_last_message.write() = now;
+    *last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
 }
 
 fn write_pressure_sleep(backoff: u64) -> Duration {
@@ -190,10 +206,6 @@ pub async fn poll_message(
     let mut last_message = Instant::now();
     let mut consecutive_recoverable_errors = 0usize;
 
-    const INITIAL_NON_MESSAGE_WARNING_INTERVAL: u64 = 30;
-    const MAX_NON_MESSAGE_WARNING_INTERVAL: u64 = 480;
-    const MAX_BACKOFF: u64 = 16;
-    const TIMEOUT_MAX_BACKOFF: u64 = 50;
     let mut last_warning_interval = INITIAL_NON_MESSAGE_WARNING_INTERVAL;
 
     let mut seek_to = consumer.context().seek_to;
@@ -428,6 +440,11 @@ pub async fn poll_message(
                             ExitStatus::None => {
                                 let pressure = write_pressure.read().snapshot();
                                 if is_write_blocked(pressure, !pending_futs.is_empty()) {
+                                    reset_idle_tracking(
+                                        &mut last_message,
+                                        global_last_message,
+                                        &mut last_warning_interval,
+                                    );
                                     if backoff < TIMEOUT_MAX_BACKOFF {
                                         backoff = (backoff * 2).min(TIMEOUT_MAX_BACKOFF);
                                     }
@@ -465,6 +482,11 @@ pub async fn poll_message(
                             ExitStatus::Timeout => {
                                 let pressure = write_pressure.read().snapshot();
                                 if is_write_blocked(pressure, !pending_futs.is_empty()) {
+                                    reset_idle_tracking(
+                                        &mut last_message,
+                                        global_last_message,
+                                        &mut last_warning_interval,
+                                    );
                                     if backoff < TIMEOUT_MAX_BACKOFF {
                                         backoff = (backoff * 2).min(TIMEOUT_MAX_BACKOFF);
                                     }
@@ -576,6 +598,24 @@ mod tests {
             pressure,
             false,
         ));
+    }
+
+    #[test]
+    fn reset_idle_tracking_refreshes_local_and_global_timers() {
+        let mut last_message = Instant::now() - Duration::from_secs(600);
+        let global_last_message = Arc::new(RwLock::new(Instant::now() - Duration::from_secs(600)));
+        let mut last_warning_interval = MAX_NON_MESSAGE_WARNING_INTERVAL;
+
+        reset_idle_tracking(
+            &mut last_message,
+            &global_last_message,
+            &mut last_warning_interval,
+        );
+
+        assert!(last_message.elapsed() < Duration::from_secs(1));
+        assert!(global_last_message.read().elapsed() < Duration::from_secs(1));
+        assert_eq!(last_message, *global_last_message.read());
+        assert_eq!(last_warning_interval, INITIAL_NON_MESSAGE_WARNING_INTERVAL);
     }
 
     #[test]
