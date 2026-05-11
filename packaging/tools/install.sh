@@ -438,11 +438,11 @@ function setup_env() {
 
 function get_config_file() {
     case "$1" in
-      "${serverName}") echo "${PREFIX}.cfg" ;;
+      "${serverName}") echo "${configFile}" ;;
       "${adapterName}") echo "${adapterName}.toml" ;;
       "${xname}") echo "${xname}.toml" ;;
       "${keeperName}") echo "${keeperName}.toml" ;;
-      "${explorerName}"|*-explorer) echo "explorer.toml" ;;
+      "${explorerName}") echo "explorer.toml" ;;
       *) echo "" ;;
     esac
 }
