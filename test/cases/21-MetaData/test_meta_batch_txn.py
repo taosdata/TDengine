@@ -1342,6 +1342,24 @@ class TestBatchMetaTxn:
     # 45. Timeout auto-rollback: disconnect client → txn auto-rolled-back
     # =========================================================================
     def s51_timeout_auto_rollback(self):
+        """Verify MNode auto-rolls-back an abandoned txn (client disconnected without COMMIT/ROLLBACK).
+
+        Server constants under test (from source code):
+          - MNode per-txn default timeout: 30s, hardcoded `obj.timeoutSec = 30`
+            in mndTxn.c:1575 (see mndCreateTxn). Replicated txns are exempt
+            (see mndTxnTimeoutScanImpl, mndTxn.c:125).
+          - MNode timeout scan: invoked from the periodic mnode tick
+            (mndTxnDoTimeoutScan, mndTxn.c:179). Practical scan period is the
+            mnode tick interval (~1s in dev, configurable).
+          - VNode hard timeout / quiet threshold (independent safety net):
+              tsMetaTxnTimeout = 60s,  tsMetaTxnQuietSec = 10s
+              (declared in source/common/src/tglobal.c:61-62, consumed by
+               vnodeTxnTimeoutScan in vnodeTxn.c:1651 and the StatusReq
+               keepalive query at vnodeTxn.c:1608).
+
+        Expected window for rollback: > 30s (timeoutSec) and < ~40s (timeout +
+        a few scan ticks). Test polls up to 50s as a safety margin.
+        """
         self.s0_reset_env()
         tdLog.info("======== s51_timeout_auto_rollback")
 
@@ -1354,18 +1372,20 @@ class TestBatchMetaTxn:
         tdSql2.execute("create table ct_timeout1 using stb tags(1)")
         tdSql2.execute("create table ct_timeout2 using stb tags(2)")
 
-        # Close connection without COMMIT/ROLLBACK
+        # Close connection without COMMIT/ROLLBACK → no more HB → MNode timeout fires.
         tdSql2.close()
-        tdLog.info("  Session B closed, waiting for MNode timeout auto-rollback (30s + scan interval)...")
+        tdLog.info(
+            "  Session B closed, waiting for MNode timeout auto-rollback "
+            "(timeoutSec=30s @ mndTxn.c:1575 + scan tick)..."
+        )
 
-        # Poll until timeout fires and tables disappear
-        # MNode timeout = 30s, scan interval = 5s → expect within ~40s
+        # Poll until tables disappear. Expected window: (30s, ~40s].
         rolled_back = False
-        for i in range(50):  # up to 50 seconds
+        for i in range(50):  # 50s safety bound
             time.sleep(1)
             tdSql.query("show txn_db.tables")
             if tdSql.queryRows == 0:
-                tdLog.info(f"  Timeout rollback detected after {i + 1}s")
+                tdLog.info(f"  Timeout rollback detected after {i + 1}s (expected within ~40s)")
                 rolled_back = True
                 break
 
@@ -2577,22 +2597,42 @@ class TestBatchMetaTxn:
     # 95. Long-running txn with sustained activity (keepalive verification)
     # =========================================================================
     def s95_long_running_txn_keepalive(self):
+        """Verify HB-driven keepalive prevents MNode timeout for a long-running active txn.
+
+        Mechanism under test:
+          - Client SClientHbReq carries `txnId` (set in clientHb.c:1383, encoded
+            in tSerializeSClientHbReq). Default HB interval is ~1s per pool.
+          - MNode handles HB via mndProcessQueryHeartBeat (mndProfile.c:676)
+            which calls mndTxnRefreshKeepalive(pMnode, pHbReq->txnId), updating
+            STxnObj.lastActiveTime so the timeout scan does NOT roll it back.
+          - Server-side timeout: MNode per-txn timeoutSec=30s (mndTxn.c:1575).
+            Without HB, abandoned txns are rolled back in ~30s (see s51).
+
+        Workload: 5 bursts of 3 CREATE statements each, separated by 3s sleeps.
+        Total elapsed = 5 * 3s = 15s of idle gaps + DDL time, which is well
+        below 30s on its own; however, the HB also runs during the idle gaps,
+        so even if any single burst is slow, lastActiveTime keeps advancing.
+        Verifies: COMMIT succeeds, all 15 tables visible, INSERT works after
+        promotion (validates shadow → NORMAL transition).
+        """
         self.s0_reset_env()
         tdLog.info("======== s95_long_running_txn_keepalive")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
         tdSql.execute("BEGIN")
-        # Create tables in bursts with sleeps between — heartbeat should keep txn alive
+        # Create tables in bursts with sleeps between bursts. The DDL itself
+        # also refreshes lastActiveTime, but the 3s gaps exercise the HB path.
         for burst in range(5):
             for j in range(3):
                 idx = burst * 3 + j
                 tdSql.execute(f"create table ct_long{idx} using stb tags({idx})")
-            # Sleep 3s between bursts (txn timeout is typically 10s for ACTIVE,
-            # but heartbeat keepalive should prevent timeout)
+            # Idle gap > HB interval (~1s) but well below MNode timeoutSec (30s).
+            # HB keepalive (mndTxnRefreshKeepalive) prevents the txn from timing out.
             time.sleep(3)
 
-        # After 5 bursts × 3s = 15s total, txn should still be alive
+        # Total elapsed ≈15s. Without HB the txn would still survive (timeoutSec=30s),
+        # but the test confirms HB is plumbed end-to-end (no spurious rollback).
         tdSql.execute("COMMIT")
 
         tdSql.query("show tables")

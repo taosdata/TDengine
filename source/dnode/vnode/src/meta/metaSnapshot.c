@@ -24,6 +24,14 @@ struct SMetaSnapReader {
   int64_t ever;
   TBC*    pTbc;
   int32_t iLoop;
+  // batch meta txn: PRE_ALTER prev-version rescue map.
+  // Key = uid, Value = txnPrevVer. Populated at open time by scanning txn.idx for
+  // entries with status==META_TXN_PRE_ALTER && 0 <= txnPrevVer < sver. When the
+  // walker is about to emit such a uid's row in iLoop 0/1, we first emit the
+  // (txnPrevVer, uid) row from pTbDb so the destination keeps the prev-version
+  // entry — required for vnodeTxnRollbackShadowEntries to correctly restore the
+  // pre-ALTER schema on ROLLBACK after an incremental snapshot transfer.
+  SHashObj* pPrevVerNeeded;
 };
 
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader) {
@@ -48,6 +56,35 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
   code = tdbTbcMoveTo(pReader->pTbc, &(STbDbKey){.version = sver, .uid = INT64_MIN}, sizeof(STbDbKey), &c);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // batch meta txn: build PRE_ALTER prev-version rescue map (best-effort; failure
+  // here only degrades to the legacy ROLLBACK fallback path — never blocks snapshot).
+  {
+    SArray* pTxnArr = NULL;
+    if (metaScanTxnEntries(pMeta, &pTxnArr) == 0 && pTxnArr != NULL) {
+      int32_t nTxn = (int32_t)taosArrayGetSize(pTxnArr);
+      if (nTxn > 0) {
+        pReader->pPrevVerNeeded =
+            taosHashInit(nTxn, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+        if (pReader->pPrevVerNeeded != NULL) {
+          for (int32_t i = 0; i < nTxn; i++) {
+            SMetaTxnScanEntry* e = (SMetaTxnScanEntry*)taosArrayGet(pTxnArr, i);
+            if (e->txnStatus == META_TXN_PRE_ALTER && e->txnPrevVer >= 0 && e->txnPrevVer < sver) {
+              (void)taosHashPut(pReader->pPrevVerNeeded, &e->uid, sizeof(e->uid), &e->txnPrevVer, sizeof(int64_t));
+            }
+          }
+          if (taosHashGetSize(pReader->pPrevVerNeeded) == 0) {
+            taosHashCleanup(pReader->pPrevVerNeeded);
+            pReader->pPrevVerNeeded = NULL;
+          } else {
+            metaInfo("vgId:%d, snap: PRE_ALTER prev-ver rescue map built, size:%d sver:%" PRId64, TD_VID(pMeta->pVnode),
+                     taosHashGetSize(pReader->pPrevVerNeeded), sver);
+          }
+        }
+      }
+      taosArrayDestroy(pTxnArr);
+    }
+  }
+
 _exit:
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code));
@@ -63,6 +100,10 @@ _exit:
 void metaSnapReaderClose(SMetaSnapReader** ppReader) {
   if (ppReader && *ppReader) {
     tdbTbcClose((*ppReader)->pTbc);
+    if ((*ppReader)->pPrevVerNeeded != NULL) {
+      taosHashCleanup((*ppReader)->pPrevVerNeeded);
+      (*ppReader)->pPrevVerNeeded = NULL;
+    }
     taosMemoryFree(*ppReader);
     *ppReader = NULL;
   }
@@ -141,6 +182,51 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     if (!pData || !nData) {
       metaError("meta/snap: invalide nData: %" PRId32 " meta snap read failed.", nData);
       goto _exit;
+    }
+
+    // batch meta txn: PRE_ALTER prev-version rescue.
+    // If this uid is in pPrevVerNeeded, emit the (txnPrevVer, uid) row from pTbDb FIRST,
+    // WITHOUT advancing the cursor. The next call will re-read this same row and (since the
+    // hash entry is removed) fall through to the normal send path.
+    // Order matters: prev row must arrive before the PRE_ALTER row so that on the destination
+    // side metaHandleEntry2 first creates the entry with the OLD schema and then updates to
+    // the new schema, leaving BOTH versions resident in pTbDb (required for ROLLBACK).
+    if (pReader->pPrevVerNeeded != NULL) {
+      int64_t* pPrev = (int64_t*)taosHashGet(pReader->pPrevVerNeeded, &key.uid, sizeof(key.uid));
+      if (pPrev != NULL) {
+        int64_t prevVer = *pPrev;
+        // remove first to guarantee single-emission (avoid infinite loop on cursor re-read).
+        (void)taosHashRemove(pReader->pPrevVerNeeded, &key.uid, sizeof(key.uid));
+
+        void*    pPrevData = NULL;
+        int      nPrevData = 0;
+        STbDbKey prevKey = {.version = prevVer, .uid = key.uid};
+        if (tdbTbGet(pReader->pMeta->pTbDb, &prevKey, sizeof(prevKey), &pPrevData, &nPrevData) == 0 &&
+            pPrevData != NULL && nPrevData > 0) {
+          *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nPrevData);
+          if (*ppData == NULL) {
+            tdbFree(pPrevData);
+            code = terrno;
+            goto _exit;
+          }
+          SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
+          pHdr->type = SNAP_DATA_META;
+          pHdr->size = nPrevData;
+          memcpy(pHdr->data, pPrevData, nPrevData);
+          tdbFree(pPrevData);
+
+          metaInfo("vgId:%d, snap: emit PRE_ALTER prev-ver row uid:%" PRId64 " prevVer:%" PRId64 " (sver:%" PRId64
+                   ") for ROLLBACK safety",
+                   TD_VID(pReader->pMeta->pVnode), key.uid, prevVer, pReader->sver);
+          // Do NOT advance cursor — the current PRE_ALTER row will be re-emitted on next call.
+          break;
+        }
+        if (pPrevData) tdbFree(pPrevData);
+        metaWarn("vgId:%d, snap: failed to fetch PRE_ALTER prev-ver row uid:%" PRId64 " prevVer:%" PRId64
+                 ", falling back to legacy ROLLBACK behavior",
+                 TD_VID(pReader->pMeta->pVnode), key.uid, prevVer);
+        // fall through to normal send of the current PRE_ALTER row
+      }
     }
 
     *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + nData);

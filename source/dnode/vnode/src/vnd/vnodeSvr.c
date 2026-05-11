@@ -2945,7 +2945,13 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
     if (metaHasPendingTxnEntries(pVnode->pMeta)) {
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
-      if (tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen) == 0) {
+      // Serialize with async vacuum thread which holds metaWLock while writing
+      // pTxnIdx / pTbDb pages — without metaRLock here, a concurrent tdb page split
+      // or rebalance from vacuum could leave us reading torn pager state (s106 race).
+      metaRLock(pVnode->pMeta);
+      int32_t getRc = tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen);
+      metaULock(pVnode->pMeta);
+      if (getRc == 0) {
         STxnIdxVal txnVal       = *(const STxnIdxVal *)pTxnVal;
         int8_t     idxTxnStatus = txnVal.txnStatus;
         int64_t    idxTxnId     = txnVal.txnId;
