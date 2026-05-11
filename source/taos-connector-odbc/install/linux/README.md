@@ -101,14 +101,20 @@ gcc -o example/test_odbc example/test_odbc.c -lodbc -Wall -Wextra
 ### 第五步：运行测试
 
 ```bash
-# 使用默认 DSN（TAOS_ODBC_DSN，Native 连接）
+# 使用默认 DSN（TAOS_ODBC_DSN，Native 连接），默认用户名 root / 密码 taosdata
 ./example/test_odbc
 
-# 使用 WebSocket DSN
-./example/test_odbc TAOS_ODBC_WS_DSN
+# 指定用户名和密码
+./example/test_odbc -u root -p taosdata
+
+# 使用 WebSocket DSN，并指定用户名和密码
+./example/test_odbc -u myuser -p mypassword TAOS_ODBC_WS_DSN
 
 # 使用连接字符串直连
 ODBC_CONN_STR="Driver=TAOS_ODBC_DRIVER;SERVER=localhost:6030;UID=root;PWD=taosdata" ./example/test_odbc
+
+# 查看帮助
+./example/test_odbc -h
 ```
 
 ## 测试覆盖的 ODBC 功能
@@ -157,6 +163,7 @@ ODBC_CONN_STR="Driver=TAOS_ODBC_DRIVER;SERVER=localhost:6030;UID=root;PWD=taosda
   TDengine ODBC Connector - Comprehensive Test Suite
 ============================================================
   DSN: TAOS_ODBC_DSN
+  UID: root
 ============================================================
 
 ========== Phase: 1 - Environment & Connection Management ==========
