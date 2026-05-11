@@ -6441,11 +6441,21 @@ class TestInterp:
         tdSql.checkData(0, 4, True)
 
         ## near: WHERE narrows data to [10:00, 10:23], point at 09:30 (<1h from nearest data) → NOT NULL
+        ## query the nearest data point in the WHERE range to verify interp results
+        nearest_sql = f"select ts, c1, c2 from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' order by ts asc limit 1"
+        tdSql.query(nearest_sql, queryTimes=1)
+        tdSql.checkRows(1)
+        nearest_ts = tdSql.queryResult[0][0]
+        nearest_c1 = tdSql.queryResult[0][1]
+        nearest_c2 = tdSql.queryResult[0][2]
+
         sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' range('2018-09-17 09:30:00', 1h) fill(near, 7, 8)"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(1)
-        if tdSql.queryResult[0][0] is None:
-            tdLog.exit(f"_irowts_origin should not be None when nearest data is within surroundingTime")
+        tdSql.checkData(0, 0, nearest_ts)
+        tdSql.checkData(0, 1, '2018-09-17 09:30:00.000')
+        tdSql.checkData(0, 2, nearest_c1)
+        tdSql.checkData(0, 3, nearest_c2)
         tdSql.checkData(0, 4, True)
 
     def check_interval_fill_extension(self):
