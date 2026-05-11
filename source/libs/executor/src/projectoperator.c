@@ -1359,7 +1359,7 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   int32_t code = TSDB_CODE_SUCCESS;
 
   SExecTaskInfo* savedTaskInfo = gTaskScalarExtra.pTaskInfo;
-  __typeof__(gTaskScalarExtra.isTaskKilled) savedIsTaskKilled = gTaskScalarExtra.isTaskKilled;
+  sclIsTaskKilled savedIsTaskKilled = gTaskScalarExtra.isTaskKilled;
 
   if (pTaskInfo != NULL) {
     gTaskScalarExtra.pTaskInfo    = pTaskInfo;
