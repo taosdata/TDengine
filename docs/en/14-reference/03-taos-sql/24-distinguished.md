@@ -70,6 +70,7 @@ The following rules apply to the five window types SESSION, STATE_WINDOW, INTERV
   - Aggregate functions (including selection functions, time-series specific functions whose output row count is determined by parameters, and window calculation / time-weighted statistics functions among the time-series specific functions).
   - Expressions containing the above expressions.
   - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
+  - Column expressions and indefinite-row functions (supported from version 3.4.2.0). In this case, the query enters [window projection mode](#window-projection-mode), where each window outputs all its original rows instead of one aggregated row.
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
@@ -560,6 +561,58 @@ The SQL above defines three one-minute external windows. If a window contains no
 - The window rows returned by the subquery must remain ordered: in the ungrouped case, they must be sorted by window start time, that is, the first column, in ascending order; in the grouped case, they must be sorted by window start time in ascending order within each group. If this requirement is not met, execution fails with an error.
 - If the external window, meaning the inner subquery, uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error is raised.
 - Variable-row functions such as DIFF and INTERP are not supported within window scope.
+
+### Window Projection Mode
+
+Starting from version 3.4.2.0, window queries support projection mode. In traditional window aggregation mode, each window outputs one aggregated row. In window projection mode, each window outputs all its original rows, along with window pseudocolumns (such as `_wstart` and `_wend`).
+
+#### Mode Detection
+
+The system automatically detects the query mode based on the SELECT list:
+
+- **Aggregation mode**: The SELECT list contains aggregate functions; each window outputs one row.
+- **Projection mode**: The SELECT list contains column expressions or indefinite-row functions (such as DIFF, CSUM, etc.); each window outputs all original rows.
+- **Ambiguous case**: When the SELECT list contains only pseudocolumns (`_wstart`, `_wend`, etc.), tag columns, tbname, constants, group keys, and/or state keys, the system defaults to aggregation mode.
+
+#### SCALAR / AGG Keywords
+
+In ambiguous cases, the `SCALAR` or `AGG` keyword can be used to explicitly specify the mode:
+
+- `SCALAR`: Forces projection mode.
+- `AGG`: Explicitly declares aggregation mode (consistent with the default behavior).
+
+These keywords are placed between `SELECT` and the select list, after `TAGS`. The syntax is:
+
+```sql
+SELECT [SCALAR | AGG] select_list FROM ... INTERVAL(...) ...
+```
+
+Examples:
+
+```sql
+-- Ambiguous case: only pseudocolumns + tags + constants, defaults to aggregation mode (1 row per window)
+SELECT _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+
+-- Use SCALAR to force projection mode (N rows per window)
+SELECT SCALAR _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+
+-- Non-ambiguous case: contains column expressions, automatically enters projection mode (all three are equivalent)
+SELECT _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT SCALAR _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT AGG _wstart, ts, current FROM d1001 INTERVAL(3s);
+```
+
+#### FILL Support
+
+Window projection mode supports the FILL clause, but only the following modes: `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`. The modes `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported.
+
+```sql
+SELECT _wstart, ts, current FROM meters
+  WHERE ts >= '2024-01-01' AND ts < '2024-01-02'
+  PARTITION BY tbname
+  INTERVAL(10m)
+  FILL(NULL);
+```
 
 ### Timestamp Pseudo Columns
 
