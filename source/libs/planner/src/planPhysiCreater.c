@@ -1570,9 +1570,6 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   pScan->metaVersion = pExtNode->metaVersion;
   // Propagate two-pass mode: set when the parent AGG has PERCENTILE or other REPEAT_SCAN_FUNC.
   pScan->twoPassMode = (pScanLogicNode->scanSeq[0] > 1);
-  taosPrintLog("FQ-DIAG2 ", DEBUG_ERROR, 255,
-               "createFederatedScanPhysiNode scanSeq[0]=%d twoPassMode=%d",
-               (int)pScanLogicNode->scanSeq[0], (int)pScan->twoPassMode);
 
   // Add output data block slots.
   {
@@ -4116,9 +4113,6 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
         STargetNode* pTgt = (STargetNode*)node;
         if (nodeType(pTgt->pExpr) == QUERY_NODE_COLUMN) {
           SColumnNode* pCol = (SColumnNode*)pTgt->pExpr;
-          planError("FQ-DIAG-PARTPHYSI: target colName=%s colId=%d tableId=%" PRIu64 " slotId=%d (seeking pkTsColTbId=%" PRIu64 " pkTsColId=%d)",
-                    pCol->colName, pCol->colId, pCol->tableId, pTgt->slotId,
-                    pPartLogicNode->pkTsColTbId, pPartLogicNode->pkTsColId);
           if (pCol->tableId == pPartLogicNode->pkTsColTbId && pCol->colId == pPartLogicNode->pkTsColId) {
             pPart->tsSlotId = pTgt->slotId;
             found = true;
@@ -4127,7 +4121,6 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
         }
       }
     }
-    planError("FQ-DIAG-PARTPHYSI: found=%d tsSlotId=%d", found, pPart->tsSlotId);
     if (!found) code = TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 

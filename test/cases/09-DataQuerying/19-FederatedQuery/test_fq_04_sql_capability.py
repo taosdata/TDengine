@@ -908,20 +908,24 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, "2024-01-15")
 
-                # ts_str is NCHAR on InfluxDB → to_timestamp parses UCS-4 bytes, result is wrong
+                # ts_str is NCHAR on InfluxDB → to_timestamp now correctly parses it
                 tdSql.query(
                     f"select to_timestamp(ts_str, 'YYYY-MM-DD HH24:mi:ss') "
                     f"from {src}.times where id = 1")
                 tdSql.checkRows(1)
-                tdSql.checkData(0, 0, "0002-01-01 00:00:00.000")
+                result = str(tdSql.getData(0, 0))
+                assert result.startswith("2024-01-15 12:30:00"), \
+                    f"to_timestamp(NCHAR ts_str) should return 2024-01-15 12:30:00, got: {result!r}"
 
-                # CAST(NCHAR→VARCHAR) gives correct result
+                # CAST(NCHAR→VARCHAR) also gives correct result
                 tdSql.query(
                     f"select to_timestamp(CAST(ts_str AS VARCHAR(30)), "
                     f"'YYYY-MM-DD HH24:mi:ss') "
                     f"from {src}.times where id = 1")
                 tdSql.checkRows(1)
-                tdSql.checkData(0, 0, "2024-01-15 12:30:00.000")
+                result2 = str(tdSql.getData(0, 0))
+                assert result2.startswith("2024-01-15 12:30:00"), \
+                    f"to_timestamp(CAST NCHAR→VARCHAR) should return 2024-01-15 12:30:00, got: {result2!r}"
 
                 # ts is TIMESTAMP on InfluxDB → to_unixtimestamp type mismatch error
                 tdSql.error(

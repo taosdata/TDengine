@@ -2614,6 +2614,8 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     char   *output = outputBuf + VARSTR_HEADER_SIZE;
     char   *orgStr = varDataVal(colDataGetData(pInputData[0], colIdx1));
     int32_t orgLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    // Convert byte length to character count (maskLen > 1 only for NCHAR where each char = 4 bytes)
+    int32_t orgLenChars = (maskLen > 1) ? (orgLen / maskLen) : orgLen;
     char   *fromStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
     int32_t fromLen = maskLen;
     bool    needFreeFrom = false;
@@ -2632,13 +2634,13 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       needFreeFrom = true;
     }
 
-    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < outLen; ++initialIdx) {
+    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < orgLenChars; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
-    for (int initialIdx = initialLen; initialIdx < orgLen - finalLen && initialIdx < outLen; ++initialIdx) {
+    for (int initialIdx = initialLen; initialIdx < orgLenChars - finalLen && initialIdx < orgLenChars; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, orgStr + initialIdx * maskLen, maskLen);
     }
-    for (int initialIdx = orgLen - finalLen; initialIdx < orgLen && initialIdx < outLen; ++initialIdx) {
+    for (int initialIdx = orgLenChars - finalLen; initialIdx < orgLenChars; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
 
