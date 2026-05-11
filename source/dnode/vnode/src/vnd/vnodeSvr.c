@@ -1626,6 +1626,10 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
           }
         }
         vnodeUpdateMetaRsp(pVnode, cRsp.pMeta);
+        // Track created UID for TMQ notification at COMMIT (skip snapshot entries)
+        if (effectiveTxnStatus == META_TXN_PRE_CREATE) {
+          vnodeTxnTrackCreate(pVnode, pCreateReq->txnId, pCreateReq->uid);
+        }
       }
       if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1772,10 +1776,15 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       }
     }
 
-    // Save old version for rollback tracking
+    // Save old version for rollback tracking.
+    // metaRLock around the tdb lookup: the async vacuum thread can hold metaWLock
+    // and concurrently mutate pNameIdx/pTbDb, which corrupts unlocked readers.
     {
       SMetaEntry *pOldEntry = NULL;
-      if (metaFetchEntryByName(pVnode->pMeta, req.name, &pOldEntry) == 0 && pOldEntry != NULL) {
+      metaRLock(pVnode->pMeta);
+      int32_t fetchCode = metaFetchEntryByName(pVnode->pMeta, req.name, &pOldEntry);
+      metaULock(pVnode->pMeta);
+      if (fetchCode == 0 && pOldEntry != NULL) {
         int32_t trackCode = vnodeTxnTrackAlter(pVnode, req.txnId, pOldEntry->uid, pOldEntry->version);
         metaFetchEntryFree(&pOldEntry);
         if (trackCode != 0) {
@@ -1874,13 +1883,59 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       }
     }
 
+    // Enumerate child table UIDs BEFORE metaDropSuperTable (same-txn undo may delete them)
+    SArray *stbChildUids = taosArrayInit(8, sizeof(int64_t));
+    if (stbChildUids != NULL) {
+      (void)vnodeGetCtbIdList(pVnode, req.suid, stbChildUids);
+    }
+
     // metaDropSuperTable handles txn internally (PRE_DROP + txn.idx, or same-txn undo)
     if (metaDropSuperTable(pVnode->pMeta, ver, &req) < 0) {
       rcode = terrno;
     } else {
       vInfo("vgId:%d, stb:%s uid:%" PRId64 " DROP tracked in txn %" PRIu64, TD_VID(pVnode), req.name, req.suid,
             req.txnId);
+      // Track STB uid and all child UIDs for TMQ notification at COMMIT.
+      vnodeTxnTrackDrop(pVnode, req.txnId, req.suid);
+      if (stbChildUids) {
+        int32_t nChildren = taosArrayGetSize(stbChildUids);
+        for (int32_t i = 0; i < nChildren; i++) {
+          tb_uid_t childUid = *(tb_uid_t *)taosArrayGet(stbChildUids, i);
+          vnodeTxnTrackDrop(pVnode, req.txnId, childUid);
+
+          // Cascade PRE_DROP marking on each child so COMMIT physically drops them.
+          // Otherwise children survive the STB drop and remain visible after COMMIT.
+          // For same-txn PRE_CREATE/PRE_ALTER children, metaDropSuperTable's
+          // metaCheckDropSuperTableReq already rejects mixed states; here we only
+          // need to handle pre-existing NORMAL children (the common case).
+          // metaRLock guards the tdb read against concurrent vacuum mutations.
+          SMetaEntry *pChild = NULL;
+          metaRLock(pVnode->pMeta);
+          int32_t childFetchCode = metaFetchEntryByUid(pVnode->pMeta, childUid, &pChild);
+          metaULock(pVnode->pMeta);
+          if (childFetchCode == 0 && pChild != NULL) {
+            int8_t  childStatus = pChild->txnStatus;
+            int64_t childTxnId = pChild->txnId;
+            metaFetchEntryFree(&pChild);
+            // Only cascade for NORMAL pre-existing children (txnId==0).
+            // Same-txn PRE_CREATE children should be physically deleted instead.
+            if (childTxnId == 0 && childStatus == META_TXN_NORMAL) {
+              int32_t markCode = metaMarkTableTxnStatus(pVnode->pMeta, childUid, req.txnId, META_TXN_PRE_DROP, -1);
+              if (markCode == 0) {
+                (void)metaTxnIdxUpsert(pVnode->pMeta, childUid, req.txnId, META_TXN_PRE_DROP, -1);
+                (void)vnodeTxnTrackTable(pVnode, req.txnId, childUid);
+                vInfo("vgId:%d, stb:%s child uid:%" PRId64 " cascade PRE_DROP under txn %" PRIu64, TD_VID(pVnode),
+                      req.name, childUid, req.txnId);
+              } else {
+                vError("vgId:%d, stb:%s child uid:%" PRId64 " cascade PRE_DROP failed code:0x%x", TD_VID(pVnode),
+                       req.name, childUid, markCode);
+              }
+            }
+          }
+        }
+      }
     }
+    taosArrayDestroy(stbChildUids);
     goto _exit;
   }
 
@@ -2025,12 +2080,16 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       }
     }
 
-    // Save old version for rollback tracking via public API
+    // Save old version for rollback tracking via public API.
+    // metaRLock around the lookup: async vacuum may concurrently mutate pNameIdx/pTbDb.
     tb_uid_t alterUid = 0;
     int64_t  alterPrevVer = -1;
     {
       SMetaEntry *pOldEntry = NULL;
-      if (metaFetchEntryByName(pVnode->pMeta, vAlterTbReq.tbName, &pOldEntry) == 0 && pOldEntry != NULL) {
+      metaRLock(pVnode->pMeta);
+      int32_t fetchCode = metaFetchEntryByName(pVnode->pMeta, vAlterTbReq.tbName, &pOldEntry);
+      metaULock(pVnode->pMeta);
+      if (fetchCode == 0 && pOldEntry != NULL) {
         alterUid = pOldEntry->uid;
         alterPrevVer = pOldEntry->version;
         int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
@@ -2210,6 +2269,9 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
               pDropTbReq->txnId, terrno);
       } else {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
+        // Track dropped UID for TMQ notification at COMMIT.
+        // vnodeTxnTrackDrop reconciles same-txn CREATE→DROP (removes from created list).
+        vnodeTxnTrackDrop(pVnode, pDropTbReq->txnId, pDropTbReq->uid);
       }
       if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;

@@ -1092,6 +1092,13 @@ static void taosTxnMarkCompleted(txn_id_t txnId) {
     if (taosHashPut(pMnodeTxnCompletedHash, &txnId, sizeof(txnId), &val, sizeof(val)) != 0) {
       uWarn("taosTxnMarkCompleted: failed to record completed txnId:%" PRIu64 ", tracking lost", txnId);
     }
+    // When all in-flight txns are done, no more post-commit DDL entries can arrive,
+    // so the completed hash is safe to clear.  If a stale entry does arrive later,
+    // taosTxnEnsureMnodeBegin will send one extra (idempotent) BEGIN to MNode, which
+    // returns TSDB_CODE_TXN_NOT_EXIST and re-populates the completed cache.
+    if (pMnodeTxnBegunHash != NULL && taosHashGetSize(pMnodeTxnBegunHash) == 0) {
+      taosHashClear(pMnodeTxnCompletedHash);
+    }
   }
 }
 
@@ -1565,6 +1572,13 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
     if (pCreateReq->txnId > 0 && !TXN_IS_REPLICATED(pCreateReq->txnId)) {
       pCreateReq->txnId = TXN_SET_REPLICATED(pCreateReq->txnId);
     }
+    // §35: if this txnId was already committed/rolled-back, strip txnId
+    if (pCreateReq->txnId != 0 && TXN_IS_REPLICATED(pCreateReq->txnId) &&
+        taosTxnIsAlreadyCompleted(pCreateReq->txnId)) {
+      uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing CREATE TABLE non-transactionally", LOG_ID_VALUE,
+            pCreateReq->txnId);
+      pCreateReq->txnId = 0;
+    }
     // §35: thread replicated txnId into catalog lookups so VNode returns
     // PRE_CREATE STB entries for child table creation in same txn
     if (pCreateReq->txnId != 0) {
@@ -1792,6 +1806,12 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     if (pDropReq->txnId > 0 && !TXN_IS_REPLICATED(pDropReq->txnId)) {
       pDropReq->txnId = TXN_SET_REPLICATED(pDropReq->txnId);
     }
+    // §35: if this txnId was already committed/rolled-back, strip txnId
+    if (pDropReq->txnId != 0 && TXN_IS_REPLICATED(pDropReq->txnId) && taosTxnIsAlreadyCompleted(pDropReq->txnId)) {
+      uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing DROP TABLE non-transactionally", LOG_ID_VALUE,
+            pDropReq->txnId);
+      pDropReq->txnId = 0;
+    }
     // §35: thread replicated txnId into catalog lookups so VNode returns
     // PRE_CREATE entries for same-txn DROP (otherwise catalogGetTableMeta
     // returns TABLE_NOT_EXIST and the DROP is silently skipped)
@@ -1943,6 +1963,12 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   // §35 taosX replication: mark transaction IDs from source cluster as replicated
   if (req.txnId > 0 && !TXN_IS_REPLICATED(req.txnId)) {
     req.txnId = TXN_SET_REPLICATED(req.txnId);
+  }
+  // §35: if this txnId was already committed/rolled-back, strip txnId
+  if (req.txnId != 0 && TXN_IS_REPLICATED(req.txnId) && taosTxnIsAlreadyCompleted(req.txnId)) {
+    uInfo(LOG_ID_TAG " txnId:%" PRIu64 " already committed, executing ALTER TABLE non-transactionally", LOG_ID_VALUE,
+          req.txnId);
+    req.txnId = 0;
   }
   // §35: ensure mnode txn exists for all DDL (not just STB)
   if (req.txnId != 0) {
@@ -3285,22 +3311,35 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
     SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
     int          tlen = tSerializeSVTxnCommitReq(NULL, 0, &req);
     if (tlen < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      goto end;
+      uError("taosTxnCommit: serialize failed for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = TSDB_CODE_INVALID_MSG;
+      continue;
     }
     tlen += sizeof(SMsgHead);
     void* pMsg = taosMemoryMalloc(tlen);
-    RAW_NULL_CHECK(pMsg);
+    if (pMsg == NULL) {
+      uError("taosTxnCommit: OOM for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = terrno;
+      continue;
+    }
     ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
     ((SMsgHead*)pMsg)->contLen = htonl(tlen);
     if (tSerializeSVTxnCommitReq(POINTER_SHIFT(pMsg, sizeof(SMsgHead)), tlen - sizeof(SMsgHead), &req) < 0) {
       taosMemoryFree(pMsg);
-      code = TSDB_CODE_INVALID_MSG;
-      goto end;
+      uError("taosTxnCommit: serialize body failed for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = TSDB_CODE_INVALID_MSG;
+      continue;
     }
 
     SRequestObj* pVgReq = NULL;
-    RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0));
+    int32_t      buildCode = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0);
+    if (buildCode != 0) {
+      taosMemoryFree(pMsg);
+      uError("taosTxnCommit: buildRequest failed for vgId:%d, txnId:%" PRIu64 ", code:0x%x", pInfo->vgId, req.txnId,
+             buildCode);
+      if (code == 0) code = buildCode;
+      continue;
+    }
     pVgReq->syncQuery = true;
     pVgReq->type = TDMT_VND_TXN_COMMIT;
     pVgReq->body.requestMsg = (SDataBuf){.pData = pMsg, .len = tlen, .handle = NULL};
@@ -3309,8 +3348,9 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
     SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pVgReq);
     if (pSendMsg == NULL) {
       destroyRequest(pVgReq);
-      code = terrno;
-      goto end;
+      uError("taosTxnCommit: buildMsgInfoImpl failed for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = terrno;
+      continue;
     }
     pSendMsg->target.type = TARGET_TYPE_VNODE;
     pSendMsg->target.vgId = pInfo->vgId;
@@ -3318,8 +3358,9 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
     int32_t sendCode = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pInfo->epSet, NULL, pSendMsg);
     if (sendCode != 0) {
       destroyRequest(pVgReq);
-      code = sendCode;
-      goto end;
+      uError("taosTxnCommit: send failed for vgId:%d, txnId:%" PRIu64 ", code:0x%x", pInfo->vgId, req.txnId, sendCode);
+      if (code == 0) code = sendCode;
+      continue;
     }
     (void)tsem_wait(&pVgReq->body.rspSem);
     if (pVgReq->code != 0 && code == 0) {
@@ -3398,22 +3439,35 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
     SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(pVgList, i);
     int          tlen = tSerializeSVTxnRollbackReq(NULL, 0, &req);
     if (tlen < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      goto end;
+      uError("taosTxnRollback: serialize failed for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = TSDB_CODE_INVALID_MSG;
+      continue;
     }
     tlen += sizeof(SMsgHead);
     void* pMsg = taosMemoryMalloc(tlen);
-    RAW_NULL_CHECK(pMsg);
+    if (pMsg == NULL) {
+      uError("taosTxnRollback: OOM for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = terrno;
+      continue;
+    }
     ((SMsgHead*)pMsg)->vgId = htonl(pInfo->vgId);
     ((SMsgHead*)pMsg)->contLen = htonl(tlen);
     if (tSerializeSVTxnRollbackReq(POINTER_SHIFT(pMsg, sizeof(SMsgHead)), tlen - sizeof(SMsgHead), &req) < 0) {
       taosMemoryFree(pMsg);
-      code = TSDB_CODE_INVALID_MSG;
-      goto end;
+      uError("taosTxnRollback: serialize body failed for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = TSDB_CODE_INVALID_MSG;
+      continue;
     }
 
     SRequestObj* pVgReq = NULL;
-    RAW_RETURN_CHECK(buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0));
+    int32_t      buildCode = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pVgReq, 0);
+    if (buildCode != 0) {
+      taosMemoryFree(pMsg);
+      uError("taosTxnRollback: buildRequest failed for vgId:%d, txnId:%" PRIu64 ", code:0x%x", pInfo->vgId, req.txnId,
+             buildCode);
+      if (code == 0) code = buildCode;
+      continue;
+    }
     pVgReq->syncQuery = true;
     pVgReq->type = TDMT_VND_TXN_ROLLBACK;
     pVgReq->body.requestMsg = (SDataBuf){.pData = pMsg, .len = tlen, .handle = NULL};
@@ -3422,8 +3476,9 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
     SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pVgReq);
     if (pSendMsg == NULL) {
       destroyRequest(pVgReq);
-      code = terrno;
-      goto end;
+      uError("taosTxnRollback: buildMsgInfoImpl failed for vgId:%d, txnId:%" PRIu64, pInfo->vgId, req.txnId);
+      if (code == 0) code = terrno;
+      continue;
     }
     pSendMsg->target.type = TARGET_TYPE_VNODE;
     pSendMsg->target.vgId = pInfo->vgId;
@@ -3431,8 +3486,10 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
     int32_t sendCode = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pInfo->epSet, NULL, pSendMsg);
     if (sendCode != 0) {
       destroyRequest(pVgReq);
-      code = sendCode;
-      goto end;
+      uError("taosTxnRollback: send failed for vgId:%d, txnId:%" PRIu64 ", code:0x%x", pInfo->vgId, req.txnId,
+             sendCode);
+      if (code == 0) code = sendCode;
+      continue;
     }
     (void)tsem_wait(&pVgReq->body.rspSem);
     if (pVgReq->code != 0 && code == 0) {

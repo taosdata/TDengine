@@ -700,6 +700,10 @@ int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);
 int32_t vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
 int32_t vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
 
+// TMQ notification: track created/dropped UIDs for post-COMMIT batch notification
+void vnodeTxnTrackCreate(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+void vnodeTxnTrackDrop(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+
 // Conflict detection: incomingOp values for vnodeTxnCheckConflict
 #define TXN_CONFLICT_OP_CREATE 1
 #define TXN_CONFLICT_OP_ALTER  2
@@ -719,6 +723,8 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
 int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
 // metaTable2.c — rollback ALTER: delete new version entry, restore pUidIdx to old version
 int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
+// metaEntry2.c — rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
+int32_t metaRollbackChildTableTags(SMeta* pMeta, int64_t uid, int64_t prevVersion, int64_t newVersion);
 
 // metaEntry2.c — scan all entries with txnId != 0 (for VNode startup rebuild)
 typedef struct SMetaTxnScanEntry {

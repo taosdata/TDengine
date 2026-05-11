@@ -1478,7 +1478,10 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
   }
 
   SMetaEntry* pEntry = NULL;
-  if (metaFetchEntryByUid(pMeta, uid, &pEntry) == TSDB_CODE_SUCCESS) {
+  metaRLock(pMeta);
+  int32_t fetchCode = metaFetchEntryByUid(pMeta, uid, &pEntry);
+  metaULock(pMeta);
+  if (fetchCode == TSDB_CODE_SUCCESS) {
     int64_t keep = -1;
     if (pEntry->type == TSDB_SUPER_TABLE) {
       keep = pEntry->stbEntry.keep;
@@ -1486,7 +1489,7 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
     metaFetchEntryFree(&pEntry);
     return keep;
   }
-  
+
   return -1;
 }
 

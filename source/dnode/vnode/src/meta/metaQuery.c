@@ -562,6 +562,21 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
         continue;
       }
     }
+    // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+    // Same-txn readers see the new (altered) version directly
+    if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER && pTbCur->mr.me.txnId != 0) {
+      int8_t finalStatus = metaGetTxnFinalStatus(pTbCur->mr.pMeta, pTbCur->mr.me.txnId);
+      if (finalStatus == TXN_FINAL_COMMITTED) {
+        // Committed PRE_ALTER: visible with new schema
+      } else if (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId) {
+        if (pTbCur->mr.me.txnPrevVer > 0) {
+          tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
+          tDecoderClear(&pTbCur->mr.coder);
+          ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnPrevVer, uid);
+          if (ret != 0) return ret;
+        }
+      }
+    }
 
     break;
   }
@@ -606,6 +621,21 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
       int8_t finalStatus = metaGetTxnFinalStatus(pTbCur->mr.pMeta, pTbCur->mr.me.txnId);
       if (finalStatus == TXN_FINAL_COMMITTED) {
         continue;
+      }
+    }
+    // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+    // Same-txn readers see the new (altered) version directly
+    if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER && pTbCur->mr.me.txnId != 0) {
+      int8_t finalStatus = metaGetTxnFinalStatus(pTbCur->mr.pMeta, pTbCur->mr.me.txnId);
+      if (finalStatus == TXN_FINAL_COMMITTED) {
+        // Committed PRE_ALTER: visible with new schema
+      } else if (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId) {
+        if (pTbCur->mr.me.txnPrevVer > 0) {
+          tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
+          tDecoderClear(&pTbCur->mr.coder);
+          ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnPrevVer, uid);
+          if (ret != 0) return ret;
+        }
       }
     }
 

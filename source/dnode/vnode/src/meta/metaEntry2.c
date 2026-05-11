@@ -58,6 +58,9 @@ typedef struct {
   const SMetaEntry *pOldEntry;
 } SMetaHandleParam;
 
+// Forward declaration for metaRollbackChildTableTags
+static int32_t metaTagIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam);
+
 typedef struct {
   EMetaTable   table;
   EMetaTableOp op;
@@ -147,7 +150,13 @@ void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
 int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
   STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnPrevVer = txnPrevVer};
-  int32_t    code = tdbTbUpsert(pMeta->pTxnIdx, &uid, sizeof(uid), &val, sizeof(val), pMeta->txn);
+  // Serialize with concurrent vacuum-thread upsert/delete on pTxnIdx; without
+  // this lock, btree corruption (e.g. invalid idx N, nCells N-1) can occur
+  // when foreground CREATE and async vacuum-commit promote the same B+tree
+  // pages concurrently via the shared pMeta->txn handle.
+  metaWLock(pMeta);
+  int32_t code = tdbTbUpsert(pMeta->pTxnIdx, &uid, sizeof(uid), &val, sizeof(val), pMeta->txn);
+  metaULock(pMeta);
   if (code != 0) {
     metaError("vgId:%d, metaTxnIdxUpsert failed, uid:%" PRId64 " txnId:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode),
               uid, txnId, code);
@@ -156,7 +165,9 @@ int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnSt
 }
 
 int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
+  metaWLock(pMeta);
   int32_t code = tdbTbDelete(pMeta->pTxnIdx, &uid, sizeof(uid), pMeta->txn);
+  metaULock(pMeta);
   if (code == TSDB_CODE_NOT_FOUND) {
     return TSDB_CODE_SUCCESS;
   }
@@ -167,6 +178,93 @@ int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Rollback tag index (pTagIdx) and child index (pCtbIdx) changes for a child table ALTER.
+ * Called from metaRollbackAlterTable when the altered entry is a CHILD_TABLE.
+ *
+ * Strategy: swap old/new entries and call metaTagIdxUpdate (which deletes old, inserts new).
+ * With swapped params, it deletes the NEW (uncommitted) tag keys and restores the OLD ones.
+ * Then upsert pCtbIdx with the old tag blob.
+ */
+int32_t metaRollbackChildTableTags(SMeta *pMeta, int64_t uid, int64_t prevVersion, int64_t newVersion) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaReader mrOld = {0};
+  SMetaReader mrNew = {0};
+  SMetaEntry *pSuperEntry = NULL;
+
+  // Read old (prevVersion) and new (newVersion) child table entries
+  metaReaderDoInit(&mrOld, pMeta, META_READER_NOLOCK);
+  code = metaGetTableEntryByVersion(&mrOld, prevVersion, uid);
+  if (code != 0) {
+    metaWarn("vgId:%d, rollback child tags: old entry not found for uid %" PRId64 " ver %" PRId64,
+             TD_VID(pMeta->pVnode), uid, prevVersion);
+    metaReaderClear(&mrOld);
+    return code;
+  }
+
+  metaReaderDoInit(&mrNew, pMeta, META_READER_NOLOCK);
+  code = metaGetTableEntryByVersion(&mrNew, newVersion, uid);
+  if (code != 0) {
+    metaWarn("vgId:%d, rollback child tags: new entry not found for uid %" PRId64 " ver %" PRId64,
+             TD_VID(pMeta->pVnode), uid, newVersion);
+    metaReaderClear(&mrOld);
+    metaReaderClear(&mrNew);
+    return code;
+  }
+
+  if (mrOld.me.type != TSDB_CHILD_TABLE && mrOld.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    // Not a child table — no tag/ctb index to rollback
+    metaReaderClear(&mrOld);
+    metaReaderClear(&mrNew);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Fetch super table entry for tag schema
+  metaRLock(pMeta);
+  code = metaFetchEntryByUid(pMeta, mrOld.me.ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
+  if (code != 0 || pSuperEntry == NULL) {
+    metaWarn("vgId:%d, rollback child tags: super table uid %" PRId64 " not found, skip tag/ctb rollback",
+             TD_VID(pMeta->pVnode), mrOld.me.ctbEntry.suid);
+    metaReaderClear(&mrOld);
+    metaReaderClear(&mrNew);
+    return TSDB_CODE_SUCCESS;  // STB may have been dropped — skip tag rollback
+  }
+
+  // Reverse tag index: swap pEntry/pOldEntry so metaTagIdxUpdate
+  // deletes NEW tag keys and inserts OLD tag keys
+  SMetaHandleParam param = {
+      .pEntry = &mrOld.me,     // "new" from metaTagIdxUpdate's perspective → old (restore target)
+      .pOldEntry = &mrNew.me,  // "old" from metaTagIdxUpdate's perspective → new (to be undone)
+      .pSuperEntry = pSuperEntry,
+  };
+  code = metaTagIdxUpdate(pMeta, &param);
+  if (code != 0) {
+    metaWarn("vgId:%d, rollback child tags: metaTagIdxUpdate failed for uid %" PRId64 ", code:0x%x",
+             TD_VID(pMeta->pVnode), uid, code);
+  }
+
+  // Restore pCtbIdx with old tag blob
+  SCtbIdxKey ctbKey = {
+      .suid = mrOld.me.ctbEntry.suid,
+      .uid = uid,
+  };
+  const STag *pOldTags = (const STag *)mrOld.me.ctbEntry.pTags;
+  int32_t     ctbCode = tdbTbUpsert(pMeta->pCtbIdx, &ctbKey, sizeof(ctbKey), pOldTags, pOldTags->len, pMeta->txn);
+  if (ctbCode != 0) {
+    metaWarn("vgId:%d, rollback child tags: pCtbIdx upsert failed for uid %" PRId64 ", code:0x%x",
+             TD_VID(pMeta->pVnode), uid, ctbCode);
+    if (code == 0) code = ctbCode;
+  } else {
+    metaInfo("vgId:%d, rollback child tags: restored pTagIdx + pCtbIdx for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
+  }
+
+  metaFetchEntryFree(&pSuperEntry);
+  metaReaderClear(&mrOld);
+  metaReaderClear(&mrNew);
+  return code;
 }
 
 /**
@@ -1567,7 +1665,9 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   SMetaEntry *pSuperEntry = NULL;
 
   // get the super table entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1712,7 +1812,9 @@ static int32_t metaHandleVirtualChildTableCreate(SMeta *pMeta, const SMetaEntry 
   SMetaEntry *pSuperEntry = NULL;
 
   // get the super table entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1764,7 +1866,9 @@ static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry)
   SMetaEntry *pOldEntry = NULL;
 
   // fetch the entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1866,14 +1970,18 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   SMetaEntry *pSuper = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pChild);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
   // fetch super entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pChild);
@@ -1959,7 +2067,9 @@ static int32_t metaHandleVirtualNormalTableDrop(SMeta *pMeta, const SMetaEntry *
   SMetaEntry *pOldEntry = NULL;
 
   // fetch the entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2065,14 +2175,18 @@ static int32_t metaHandleVirtualChildTableDrop(SMeta *pMeta, const SMetaEntry *p
   SMetaEntry *pSuper = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pChild);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
   // fetch super entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pChild);
@@ -2387,7 +2501,9 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
 
   SMetaEntry *pOldEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2483,13 +2599,17 @@ static int32_t metaHandleChildTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   SMetaEntry *pOldEntry = NULL;
   SMetaEntry *pSuperEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);
@@ -2522,7 +2642,9 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
   SMetaEntry *pOldEntry = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2585,7 +2707,9 @@ static int32_t metaHandleVirtualNormalTableUpdate(SMeta *pMeta, const SMetaEntry
   SMetaEntry *pOldEntry = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2616,13 +2740,17 @@ static int32_t metaHandleVirtualChildTableUpdate(SMeta *pMeta, const SMetaEntry 
   SMetaEntry *pOldEntry = NULL;
   SMetaEntry *pSuperEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);
@@ -2655,7 +2783,9 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   SArray     *childList = NULL;
   SMetaEntry *pOldEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;

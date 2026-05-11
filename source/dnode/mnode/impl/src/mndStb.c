@@ -2540,6 +2540,8 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_ALTER_STB;
+    // See mndSetDropStbRedoActions: same per-VGroup serialization vs TXN_COMMIT.
+    action.groupId = pVgroup->vgId;
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -3335,6 +3337,13 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    // groupId=vgId so when this action is appended to the batch-txn commit STrans
+    // alongside TDMT_VND_TXN_COMMIT (also groupId=vgId), STrans queues both in the
+    // same per-VGroup group and dispatches them sequentially. Without this, the
+    // TXN_COMMIT msg can race ahead of the DROP_STB on the destination VNode and
+    // be observed as a no-op ("txn entry not found on commit"), leaving the STB
+    // and cascade child markers stuck in PRE_DROP forever.
+    action.groupId = pVgroup->vgId;
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);

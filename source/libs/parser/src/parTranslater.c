@@ -815,7 +815,8 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
     SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                              .requestId = pParCxt->requestId,
                              .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet};
+                             .mgmtEps = pParCxt->mgmtEpSet,
+                             .txnId = pParCxt->txnId};
     code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
   }
 

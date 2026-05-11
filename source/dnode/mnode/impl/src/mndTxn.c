@@ -1414,16 +1414,22 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
     }
   }
 
+  // Collect participant VGroups BEFORE mndTxnApplyShadowOps destroys pShadowOps.
+  // Otherwise CREATE_STB-only VGroups (those that received only the STB and no child tables)
+  // would be missed, leaving the STB stuck in PRE_CREATE on those vnodes after COMMIT.
+  SHashObj *pVgSet = mndCollectTxnVgroupIds(pMnode, pTxn);
+  if (pVgSet == NULL) {
+    TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+  }
+
   // Apply ALTER_STB / DROP_STB shadow ops: embed SDB logs + VNode actions into this commit STrans
-  TAOS_CHECK_EXIT(mndTxnApplyShadowOps(pMnode, pTrans, pTxn));
+  if ((code = mndTxnApplyShadowOps(pMnode, pTrans, pTxn)) != 0) {
+    taosHashCleanup(pVgSet);
+    TAOS_CHECK_EXIT(code);
+  }
 
   // Add redo actions: send COMMIT to each participant VGroup (pVgList + CREATE_STB DB VGroups)
   {
-    SHashObj *pVgSet = mndCollectTxnVgroupIds(pMnode, pTxn);
-    if (pVgSet == NULL) {
-      TAOS_CHECK_EXIT(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
-    }
-
     void *pIter = taosHashIterate(pVgSet, NULL);
     while (pIter != NULL) {
       int32_t vgId = *(int32_t *)taosHashGetKey(pIter, NULL);
@@ -1722,7 +1728,6 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     mInfo("txn:%" PRIi64 ", already exists, return success", txnReq.txnId);
     mndReleaseTxn(pMnode, pTxn);
     pTxn = NULL;
-    tFreeSMTransReq(&txnReq);
     goto _exit;
   }
   terrno = 0;  // 清除 sdbAcquire 设置的 terrno
@@ -1743,6 +1748,7 @@ _exit:
   }
   if (pTxn) mndReleaseTxn(pMnode, pTxn);
   mndReleaseUser(pMnode, pOperUser);
+  tFreeSMTransReq(&txnReq);
 
   TAOS_RETURN(code);
 }

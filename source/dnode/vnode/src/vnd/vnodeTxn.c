@@ -57,6 +57,9 @@ typedef struct SVnodeTxnEntry {
   SSHashObj *pTouchedUids;    // SSHashObj: key=tb_uid_t, value=int8_t(dummy) — O(1) dedup
   SSHashObj *pAlterPrevVers;  // SSHashObj: key=tb_uid_t, value=int64_t(prevVersion) — O(1) lookup
   SArray    *pLockedTables;   // Array of char* (table names locked by this txn)
+  // TMQ notification: UIDs tracked at DDL time, sent to TMQ at COMMIT
+  SArray *pCreatedUids;  // Array of tb_uid_t — tables created in this txn (reconciled on same-txn DROP)
+  SArray *pDroppedUids;  // Array of tb_uid_t — tables dropped in this txn (pre-existing tables only)
   // Lazy vacuum fields (populated at finalization, consumed by vacuum)
   int8_t    finalStatus;    // ETxnFinalStatus: TXN_FINAL_COMMITTED / TXN_FINAL_ROLLEDBACK
   tb_uid_t *pVacuumUids;    // Array of UIDs to vacuum (converted from pTouchedUids)
@@ -421,6 +424,8 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
     vnodeReleaseTxnTableLocks(pVnode, pEntry);
     tSimpleHashCleanup(pEntry->pTouchedUids);
     tSimpleHashCleanup(pEntry->pAlterPrevVers);
+    taosArrayDestroy(pEntry->pCreatedUids);
+    taosArrayDestroy(pEntry->pDroppedUids);
     taosMemoryFreeClear(pEntry->pVacuumUids);
     (void)taosHashRemove(pVnode->pTxnHash, &txnId, sizeof(int64_t));
   }
@@ -531,6 +536,72 @@ int32_t vnodeTxnTrackAlter(SVnode *pVnode, int64_t txnId, tb_uid_t uid, int64_t 
   }
   (void)taosThreadMutexUnlock(&pVnode->txnMutex);
   return code;
+}
+
+// ============================================================================
+// TMQ notification tracking: record created/dropped UIDs for post-COMMIT notify
+// ============================================================================
+
+void vnodeTxnTrackCreate(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) return;
+
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry) {
+    if (pEntry->pCreatedUids == NULL) {
+      pEntry->pCreatedUids = taosArrayInit(8, sizeof(int64_t));
+    }
+    if (pEntry->pCreatedUids) {
+      (void)taosArrayPush(pEntry->pCreatedUids, &uid);
+    }
+  }
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+}
+
+void vnodeTxnTrackDrop(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
+  if (pVnode->pTxnHash == NULL || txnId == 0) return;
+
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
+  SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
+  if (pEntry) {
+    // Same-txn undo: if this UID was created in the same txn, remove from created list
+    // (net zero change — TMQ never knew about it). Otherwise add to dropped list.
+    bool sameUndone = false;
+    if (pEntry->pCreatedUids) {
+      int32_t sz = taosArrayGetSize(pEntry->pCreatedUids);
+      for (int32_t i = 0; i < sz; i++) {
+        if (*(tb_uid_t *)taosArrayGet(pEntry->pCreatedUids, i) == uid) {
+          (void)taosArrayRemove(pEntry->pCreatedUids, i);
+          sameUndone = true;
+          break;
+        }
+      }
+    }
+    if (!sameUndone) {
+      if (pEntry->pDroppedUids == NULL) {
+        pEntry->pDroppedUids = taosArrayInit(8, sizeof(int64_t));
+      }
+      if (pEntry->pDroppedUids) {
+        (void)taosArrayPush(pEntry->pDroppedUids, &uid);
+      }
+    }
+  }
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+}
+
+// Notify TMQ about tables created/dropped by a committed txn.
+// Called once after COMMIT (both inline and lazy paths).
+static void vnodeTxnNotifyTmq(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
+  if (pEntry->pCreatedUids && taosArrayGetSize(pEntry->pCreatedUids) > 0) {
+    vInfo("vgId:%d, txn %" PRId64 ": notifying TMQ about %d created tables", TD_VID(pVnode), pEntry->txnId,
+          (int)taosArrayGetSize(pEntry->pCreatedUids));
+    (void)tqAddTbUidList(pVnode->pTq, pEntry->pCreatedUids);
+  }
+  if (pEntry->pDroppedUids && taosArrayGetSize(pEntry->pDroppedUids) > 0) {
+    vInfo("vgId:%d, txn %" PRId64 ": notifying TMQ about %d dropped tables", TD_VID(pVnode), pEntry->txnId,
+          (int)taosArrayGetSize(pEntry->pDroppedUids));
+    (void)tqDeleteTbUidList(pVnode->pTq, pEntry->pDroppedUids);
+  }
 }
 
 // ============================================================================
@@ -912,7 +983,15 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
     tb_uid_t uid = pEntry->pVacuumUids[pEntry->vacuumIdx];
 
     SMetaEntry *pME = NULL;
-    int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
+    // Vacuum runs on the async-scan thread pool concurrently with the vnode-write thread,
+    // which mutates pTbDb/pUidIdx under metaWLock. Without an rlock here, our tdb btree
+    // traversal can observe a half-modified page (pgno=0) and trip an internal assert.
+    // The mutating helpers below (metaMarkTableTxnStatus / metaDropTable2 / metaDropSuperTable /
+    // metaRollbackAlterTable / metaTxnIdxDelete) take their own wlocks, so we drop the rlock
+    // before calling them.
+    metaRLock(pVnode->pMeta);
+    int32_t code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
+    metaULock(pVnode->pMeta);
     if (code != 0 || pME == NULL) {
       vWarn("vgId:%d, vacuum: uid %" PRId64 " not found in B+ tree, skip", TD_VID(pVnode), uid);
       pEntry->vacuumIdx++;
@@ -1273,6 +1352,9 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
             req.txnId, code);
     }
 
+    // Notify TMQ about tables created/dropped in this txn (before entry removal)
+    vnodeTxnNotifyTmq(pVnode, pEntry);
+
     (void)taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, req.txnId);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -1289,6 +1371,10 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
     }
 
     vInfo("vgId:%d, txn commit finalized (lazy), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
+
+    // Notify TMQ now — commit decision is final, even though vacuum hasn't run yet.
+    // TMQ needs UIDs ASAP so consumers can discover the new/dropped tables.
+    vnodeTxnNotifyTmq(pVnode, pEntry);
 
     // Submit vacuum to vnode-scan thread pool (non-blocking)
     vnodeTxnSubmitVacuumAsync(pVnode);
@@ -1545,7 +1631,13 @@ int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
   void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
   while (pIter) {
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-    if (pEntry->stage == VTXN_STAGE_ACTIVE && (now - pEntry->startTime > hardTimeout)) {
+    // Hard timeout only applies to REPLICATED (taosX) txns: their lifecycle is driven by source-WAL,
+    // so a stalled txn here means the upstream session died with no MNode authority to clean up.
+    // Non-replicated (regular client) txns are governed by MNode keepalive (refreshed via client HB)
+    // — long-running operations like compaction may legitimately keep them silent on the VNode for
+    // many minutes, but MNode will always either keep them alive or issue a Raft-safe ROLLBACK.
+    if (pEntry->stage == VTXN_STAGE_ACTIVE && TXN_IS_REPLICATED(pEntry->txnId) &&
+        (now - pEntry->startTime > hardTimeout)) {
       vWarn("vgId:%d, txn %" PRId64 " exceeded hard timeout (%" PRId64 "ms), scheduling rollback", TD_VID(pVnode),
             pEntry->txnId, now - pEntry->startTime);
       if (taosArrayPush(toRollback, &pEntry->txnId) == NULL) {
