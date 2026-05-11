@@ -114,10 +114,14 @@ const char *sdbTableName(ESdbType type) {
       return "xnode_job";
     case SDB_XNODE_USER_PASS:
       return "xnode_user_pass";
+    case SDB_SECURITY_POLICY:
+      return "security_policy";
+    case SDB_GRANT_CLS:
+      return "grant_cls";
     case SDB_TXN:
       return "txn";
     case SDB_TXN_SEQ:
-      return "txn_seq";
+      return "txn_seq";gst  
     default:
       return "undefine";
   }
