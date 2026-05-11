@@ -543,6 +543,26 @@ static void resetRequest(STscStmt2* pStmt) {
   pStmt->asyncResultAvailable = false;
 }
 
+// Soft-reset for retry: keep the same SRequestObj (and therefore its tableList/dbList/pDb,
+// which refreshMeta needs) and only clear the per-execution state set by the previous launch.
+// Mirrors restartAsyncQuery + destroyCtxInRequest in clientMain.c.
+static void stmtSoftResetRequestForRetry(STscStmt2* pStmt) {
+  SRequestObj* pReq = pStmt->exec.pRequest;
+  if (pReq == NULL) {
+    return;
+  }
+
+  destroyCtxInRequest(pReq);
+
+  pReq->code = 0;
+  pReq->body.resInfo.numOfRows = 0;
+  if (pReq->msgBuf != NULL) {
+    pReq->msgBuf[0] = '\0';
+  }
+
+  pStmt->asyncResultAvailable = false;
+}
+
 static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
   pStmt->bInfo.tbUid = 0;
   pStmt->bInfo.tbVgId = -1;
@@ -1203,6 +1223,10 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
       if (nc != TSDB_CODE_SUCCESS) {
         break;
       }
+      // Force-evict the stale catalog entry first: stb-interlace child tables are not in pRequest->tableList,
+      // so refreshMeta does not refresh them. Without this, catalogGetTableMeta below would return the stale
+      // cached uid and the retry would patch the submit with the same wrong uid.
+      (void)catalogRemoveTableMeta(pStmt->pCatalog, &nm);
       STableMeta* pMeta = NULL;
       nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pMeta);
       if (nc == TSDB_CODE_SUCCESS && pMeta != NULL) {
@@ -1254,6 +1278,10 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
         const char* dbname = (pRequest->pDb != NULL) ? pRequest->pDb : pStmt->taos->db;
         int32_t     nc = qCreateSName2(&nm, tnBuf, pStmt->taos->acctId, (char*)dbname, NULL, 0);
         if (nc != TSDB_CODE_SUCCESS) break;
+        // Force-evict the stale catalog entry: refreshMeta only refreshes pRequest->tableList which may
+        // not cover every table touched by a multi-VG submit. Removing the cache entry guarantees the
+        // fetch below goes to mnode and brings back the freshly created table's uid.
+        (void)catalogRemoveTableMeta(pStmt->pCatalog, &nm);
         STableMeta* pFresh = NULL;
         nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pFresh);
         if (nc == TSDB_CODE_SUCCESS && pFresh != NULL && !stmtRetryTbMetaIsSuperTable(pFresh)) {
@@ -3242,7 +3270,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   // NEED_CLIENT_HANDLE_ERROR: retry internally without notifying user; retry completion uses this same cb + fp once.
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pStmt->pVgDataBlocksForRetry != NULL) {
     int32_t origExecCode = code;
-    STMT2_ELOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
+    STMT2_WLOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
 
     // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
     int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
@@ -3256,8 +3284,11 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     }
     if (retryCode == TSDB_CODE_SUCCESS) {
       (void)stmtRestoreVgDataBlocksForRetry(pStmt);
-      resetRequest(pStmt);
-      pStmt->asyncResultAvailable = false;
+      // Reuse the same pRequest so its tableList/dbList (set during initial parse) survive for
+      // any subsequent refreshMeta calls. Building a fresh request here would leave those arrays
+      // empty and break all future internal retries (refreshMeta returns TSDB_CODE_APP_ERROR
+      // when both lists are empty).
+      stmtSoftResetRequestForRetry(pStmt);
       retryCode = stmtCreateRequest(pStmt);
       if (retryCode == TSDB_CODE_SUCCESS) {
         SRequestObj*         pNewReq = pStmt->exec.pRequest;
@@ -3282,6 +3313,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
           // Do not taosMemoryFree(pWrapper): destroyRequest frees it via destorySqlCallbackWrapper.
           resetRequest(pStmt);
         }
+      }
+      if (retryCode != TSDB_CODE_SUCCESS) {
+        STMT2_ELOG("retry failed, code:%d, will notify user with original error code:%d", retryCode, origExecCode);
       }
     }
     // Retry setup failed (did not return above): notify user once with the original error, then cleanup + post sem.
@@ -3390,7 +3424,9 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
         // Restore saved serialized data blocks and re-execute with refreshed meta.
         STMT_ERR_JRET(stmtRestoreVgDataBlocksForRetry(pStmt));
-        resetRequest(pStmt);
+        // Reuse the same pRequest so its tableList/dbList survive for any subsequent
+        // refreshMeta calls; building a fresh request would leave them empty.
+        stmtSoftResetRequestForRetry(pStmt);
         STMT_ERR_JRET(stmtCreateRequest(pStmt));
         launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
         code = pStmt->exec.pRequest->code;
@@ -3398,6 +3434,8 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
         code = pStmt->exec.pRequest->code;
       } else {
         pStmt->exec.pRequest->code = code;
+        STMT2_ELOG("refresh meta and retry internally failed, code:%d, will notify user with original error code:%d",
+                   code, origExecCode);
       }
     }
 
