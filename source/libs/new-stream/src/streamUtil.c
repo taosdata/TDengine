@@ -490,8 +490,8 @@ _end:
 static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId);
 
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t parentWindowStart,
-                                      char** ppContent) {
+                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
+                                      int64_t parentWindowStart, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   const SNode* pNode = NULL;
@@ -519,6 +519,9 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  char triggerId[32];
+  streamBuildNotifyTriggerId(groupId, windowStart, winIdx, triggerId);
+  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateString(triggerId));
   JSON_CHECK_ADD_ITEM(obj, "triggerCondition", cond);
   JSON_CHECK_ADD_ITEM(obj, "windowIndex", cJSON_CreateNumber(winIdx));
   if (winIdx >= 0) {
@@ -705,26 +708,6 @@ static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int
   (void)u64toaFastLut(hash, triggerId);
 }
 
-static int32_t streamGetNotifyWindowIndex(const char* content) {
-  int32_t winIdx = -1;
-  cJSON*  obj = NULL;
-
-  if (content == NULL) {
-    return winIdx;
-  }
-
-  obj = cJSON_Parse(content);
-  if (obj != NULL) {
-    cJSON* item = cJSON_GetObjectItem(obj, "windowIndex");
-    if (cJSON_IsNumber(item)) {
-      winIdx = item->valueint;
-    }
-    cJSON_Delete(obj);
-  }
-
-  return winIdx;
-}
-
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
                                          SStringBuilder* pBuilder, const char* tableName) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -746,8 +729,13 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   }
 
   char triggerId[32];
-  int32_t winIdx = (triggerType == STREAM_TRIGGER_EVENT) ? streamGetNotifyWindowIndex(pParam->extraNotifyContent) : -1;
-  streamBuildNotifyTriggerId(groupId, pParam->wstart, winIdx, triggerId);
+  bool hasEventTriggerId =
+      triggerType == STREAM_TRIGGER_EVENT &&
+      (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN || pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) &&
+      pParam->extraNotifyContent != NULL;
+  if (!hasEventTriggerId) {
+    streamBuildNotifyTriggerId(groupId, pParam->wstart, -1, triggerId);
+  }
 
   const char* triggerTypeStr = NULL;
   switch (triggerType) {
@@ -778,7 +766,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
-  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  if (!hasEventTriggerId) {
+    JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  }
   JSON_CHECK_ADD_ITEM(obj, "triggerType", cJSON_CreateStringReference(triggerTypeStr));
 
   if (tableName != NULL) {
