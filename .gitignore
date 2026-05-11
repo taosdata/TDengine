@@ -38,6 +38,8 @@ node_modules/
 .claude
 .github/skills/
 .github/skills
+.agents
+.agents/
 mcp.json
 
 # Java
