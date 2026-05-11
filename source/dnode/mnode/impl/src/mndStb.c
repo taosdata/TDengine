@@ -556,6 +556,12 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     memcpy(pOld->pExtSchemas, pNew->pExtSchemas, pNew->numOfColumns * sizeof(SExtSchema));
   }
 
+  // VST inheritance fields
+  pOld->numParents = pNew->numParents;
+  memcpy(pOld->parentSuids, pNew->parentSuids, sizeof(pNew->parentSuids));
+  pOld->ownColStart = pNew->ownColStart;
+  pOld->ownTagStart = pNew->ownTagStart;
+
 END:
   taosWUnLockLatch(&pOld->lock);
   return terrno;
@@ -1179,6 +1185,94 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   TAOS_CHECK_GOTO(mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb), NULL, _OVER);
   memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
   stbObj.ownerId = pOperUser->uid;
+
+  // Merge parent columns/tags into child schema during CREATE with BASE ON
+  if (stbObj.numParents > 0) {
+    int32_t addCols = 0, addTags = 0;
+    SStbObj *pParents[TSDB_MAX_VST_PARENTS] = {0};
+    for (int8_t i = 0; i < stbObj.numParents; ++i) {
+      pParents[i] = mndAcquireStb(pMnode, pCreate->parentStbFNames[i]);
+      if (!pParents[i]) { code = TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL; goto _OVER; }
+      addCols += (pParents[i]->numOfColumns > 1) ? (pParents[i]->numOfColumns - 1) : 0;
+      addTags += pParents[i]->numOfTags;
+    }
+
+    int32_t ownNumCols = stbObj.numOfColumns;
+    int32_t ownNumTags = stbObj.numOfTags;
+    int32_t mergedNumCols = 1 + addCols + (ownNumCols - 1);  // ts + parent_cols + own_cols(no ts)
+    int32_t mergedNumTags = addTags + ownNumTags;
+
+    SSchema *mergedCols = taosMemoryCalloc(mergedNumCols, sizeof(SSchema));
+    SSchema *mergedTags = taosMemoryCalloc(mergedNumTags, sizeof(SSchema));
+    SColCmpr *mergedCmpr = taosMemoryCalloc(mergedNumCols, sizeof(SColCmpr));
+    if (!mergedCols || !mergedTags || !mergedCmpr) {
+      taosMemoryFree(mergedCols); taosMemoryFree(mergedTags); taosMemoryFree(mergedCmpr);
+      for (int8_t i = 0; i < stbObj.numParents; ++i) mndReleaseStb(pMnode, pParents[i]);
+      code = terrno; goto _OVER;
+    }
+
+    // [0] = ts from child
+    int32_t dst = 0;
+    mergedCols[0] = stbObj.pColumns[0];
+    mergedCmpr[0] = stbObj.pCmpr[0];
+    dst = 1;
+
+    col_id_t nextId = stbObj.nextColId;
+    // Append parent columns (skip ts at index 0)
+    for (int8_t p = 0; p < stbObj.numParents; ++p) {
+      for (int32_t c = 1; c < pParents[p]->numOfColumns; ++c) {
+        mergedCols[dst] = pParents[p]->pColumns[c];
+        mergedCols[dst].colId = nextId++;
+        SColCmpr cmpr = {.id = mergedCols[dst].colId,
+                         .alg = createDefaultColCmprByType(mergedCols[dst].type)};
+        mergedCmpr[dst] = cmpr;
+        dst++;
+      }
+    }
+    int16_t newOwnColStart = (int16_t)dst;
+    // Append own columns (skip ts at index 0)
+    for (int32_t i = 1; i < ownNumCols; ++i) {
+      mergedCols[dst] = stbObj.pColumns[i];
+      mergedCols[dst].colId = nextId++;
+      mergedCmpr[dst] = stbObj.pCmpr[i];
+      mergedCmpr[dst].id = mergedCols[dst].colId;
+      dst++;
+    }
+
+    // Tags: [parent_tags][own_tags]
+    dst = 0;
+    for (int8_t p = 0; p < stbObj.numParents; ++p) {
+      for (int32_t t = 0; t < pParents[p]->numOfTags; ++t) {
+        mergedTags[dst] = pParents[p]->pTags[t];
+        mergedTags[dst].colId = nextId++;
+        dst++;
+      }
+    }
+    int16_t newOwnTagStart = (int16_t)dst;
+    for (int32_t i = 0; i < ownNumTags; ++i) {
+      mergedTags[dst] = stbObj.pTags[i];
+      mergedTags[dst].colId = nextId++;
+      dst++;
+    }
+
+    for (int8_t i = 0; i < stbObj.numParents; ++i) mndReleaseStb(pMnode, pParents[i]);
+
+    taosMemoryFree(stbObj.pColumns);
+    taosMemoryFree(stbObj.pTags);
+    taosMemoryFree(stbObj.pCmpr);
+    stbObj.pColumns = mergedCols;
+    stbObj.pTags = mergedTags;
+    stbObj.pCmpr = mergedCmpr;
+    stbObj.numOfColumns = mergedNumCols;
+    stbObj.numOfTags = mergedNumTags;
+    stbObj.ownColStart = newOwnColStart;
+    stbObj.ownTagStart = newOwnTagStart;
+    stbObj.nextColId = nextId;
+
+    mInfo("stb:%s, merged %d parent(s) during create, cols %d->%d, tags %d->%d, ownColStart=%d, ownTagStart=%d",
+          pCreate->name, stbObj.numParents, ownNumCols, mergedNumCols, ownNumTags, mergedNumTags,
+          newOwnColStart, newOwnTagStart);
+  }
 
 #ifdef TD_ENTERPRISE
   // MAC: reject CREATE STABLE if user.maxSecLevel < db.securityLevel (NRU: low-priv user
@@ -3219,8 +3313,8 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
       goto _ADD_OVER;
     }
 
-    // Check column name conflicts with existing child schema
-    for (int32_t c = 0; c < pAddParents[i]->numOfColumns; ++c) {
+    // Check column name conflicts with existing child schema (skip ts at index 0)
+    for (int32_t c = 1; c < pAddParents[i]->numOfColumns; ++c) {
       if (mndFindSuperTableColumnIndex(pOld, pAddParents[i]->pColumns[c].name) >= 0 ||
           mndFindSuperTableTagIndex(pOld, pAddParents[i]->pColumns[c].name) >= 0) {
         mError("stb:%s, column conflict: %s from parent %s", pOld->name, pAddParents[i]->pColumns[c].name,
@@ -3277,10 +3371,19 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
       }
     }
 
-    // Layout: [old inherited cols][new parent cols][own cols]
-    // Copy old inherited columns [0, ownColStart)
+    // Layout: [ts][old inherited cols][new parent cols][own cols (no ts)]
+    // For standalone VST (ownColStart=0, numParents=0), ts is at index 0 and own cols start at 1.
+    int16_t effectiveOwnColStart = (oldOwnColStart <= 1) ? 1 : oldOwnColStart;
+
+    // Position 0: always ts column (never moves)
     int32_t dst = 0;
-    for (int32_t i = 0; i < oldOwnColStart; ++i) {
+    pNew->pColumns[0] = pOld->pColumns[0];
+    pNew->pCmpr[0] = pOld->pCmpr[0];
+    if (pOld->pExtSchemas) pNew->pExtSchemas[0] = pOld->pExtSchemas[0];
+    dst = 1;
+
+    // Copy old inherited columns [1, effectiveOwnColStart)
+    for (int32_t i = 1; i < effectiveOwnColStart; ++i) {
       pNew->pColumns[dst] = pOld->pColumns[i];
       pNew->pCmpr[dst] = pOld->pCmpr[i];
       if (pOld->pExtSchemas) pNew->pExtSchemas[dst] = pOld->pExtSchemas[i];
@@ -3305,8 +3408,8 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
         dst++;
       }
     }
-    // Copy own columns [ownColStart, numOfColumns)
-    for (int32_t i = oldOwnColStart; i < pOld->numOfColumns; ++i) {
+    // Copy own columns [effectiveOwnColStart, numOfColumns) — own non-ts columns
+    for (int32_t i = effectiveOwnColStart; i < pOld->numOfColumns; ++i) {
       pNew->pColumns[dst] = pOld->pColumns[i];
       pNew->pCmpr[dst] = pOld->pCmpr[i];
       if (pOld->pExtSchemas) pNew->pExtSchemas[dst] = pOld->pExtSchemas[i];
@@ -3329,7 +3432,7 @@ static int32_t mndAlterStbAddBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew
       pNew->pTags[dst++] = pOld->pTags[i];
     }
 
-    pNew->ownColStart = oldOwnColStart + (int16_t)addCols;
+    pNew->ownColStart = effectiveOwnColStart + (int16_t)addCols;
     pNew->ownTagStart = oldOwnTagStart + (int16_t)addTags;
     pNew->colVer++;
     pNew->tagVer++;
@@ -3419,12 +3522,14 @@ static int32_t mndAlterStbDropBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNe
     TAOS_RETURN(terrno);
   }
 
+  // ts column (index 0) is always kept
+  keepCol[0] = true;
   // Own columns/tags are always kept
   for (int32_t i = oldOwnColStart; i < pOld->numOfColumns; ++i) keepCol[i] = true;
   for (int32_t i = oldOwnTagStart; i < pOld->numOfTags; ++i) keepTag[i] = true;
 
-  // Inherited columns: keep unless from a dropped parent
-  for (int32_t i = 0; i < oldOwnColStart; ++i) {
+  // Inherited columns [1, ownColStart): keep unless from a dropped parent
+  for (int32_t i = 1; i < oldOwnColStart; ++i) {
     bool fromDropped = false;
     for (int8_t d = 0; d < numDrop; ++d) {
       if (mndIsColFromParent(pDropParents[d], pOld->pColumns[i].name)) {
