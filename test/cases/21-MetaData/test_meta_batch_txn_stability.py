@@ -94,16 +94,16 @@ class TestBatchMetaTxnStability:
 
             # Periodic verification
             if cycle % 50 == 0:
-                tdSql.query("select count(*) from stb_cycle")
-                actual = tdSql.queryResult[0][0]
+                tdSql.query("show txn_stab_db.tables")
+                actual = tdSql.queryRows
                 assert actual == committed_count, \
                     f"Cycle {cycle}: expected {committed_count} tables, got {actual}"
                 tdLog.info(f"  cycle {cycle}: {committed_count} tables, OK")
 
         # Final verification
         time.sleep(2)  # Allow final vacuum to complete
-        tdSql.query("select count(*) from stb_cycle")
-        actual = tdSql.queryResult[0][0]
+        tdSql.query("show txn_stab_db.tables")
+        actual = tdSql.queryRows
         assert actual == committed_count, \
             f"Final: expected {committed_count} tables, got {actual}"
         tdLog.info(f"test_repeated_txn_cycles PASS: {cycle} cycles, {committed_count} tables")
@@ -163,8 +163,8 @@ class TestBatchMetaTxnStability:
 
         expected = len(committed_tables) * tables_per_thread
         time.sleep(2)  # Allow vacuum to complete
-        tdSql.query("select count(*) from stb_conc")
-        actual = tdSql.queryResult[0][0]
+        tdSql.query("show txn_stab_db.tables")
+        actual = tdSql.queryRows
         assert actual == expected, \
             f"Expected {expected} tables from {len(committed_tables)} threads, got {actual}"
         tdLog.info(f"test_concurrent_transactions PASS: {len(committed_tables)} threads committed")
@@ -189,9 +189,9 @@ class TestBatchMetaTxnStability:
         tdSql.execute("commit")
 
         time.sleep(3)  # Allow vacuum
-        tdSql.query("select count(*) from stb_mem")
-        assert tdSql.queryResult[0][0] == num_tables, \
-            f"Expected {num_tables} tables, got {tdSql.queryResult[0][0]}"
+        tdSql.query("show txn_stab_db.tables")
+        assert tdSql.queryRows == num_tables, \
+            f"Expected {num_tables} tables, got {tdSql.queryRows}"
         tdLog.info(f"test_large_transaction_memory_pressure PASS: {num_tables} tables committed")
 
     # =========================================================================
@@ -217,9 +217,9 @@ class TestBatchMetaTxnStability:
             tdSql.execute("commit")
 
         time.sleep(5)  # Allow all vacuum operations to complete
-        tdSql.query("select count(*) from stb_rapid")
-        assert tdSql.queryResult[0][0] == total_expected, \
-            f"Expected {total_expected} tables, got {tdSql.queryResult[0][0]}"
+        tdSql.query("show txn_stab_db.tables")
+        assert tdSql.queryRows == total_expected, \
+            f"Expected {total_expected} tables, got {tdSql.queryRows}"
         tdLog.info(f"test_rapid_commit_vacuum_backlog PASS: {total_expected} tables from {num_txns} transactions")
 
     def teardown_class(cls):
