@@ -2054,6 +2054,74 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
   return code;
 }
 
+static int32_t createWindowLogicNodeHandleHaving(SSelectStmt* pSelect, SWindowLogicNode* pWindow) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNode*     pClone = NULL;
+  SNodeList* pCondCols = NULL;
+
+  PLAN_ERR_JRET(nodesCollectColumnsFromNode(pSelect->pHaving, NULL, COLLECT_COL_TYPE_ALL, &pCondCols));
+  if (pCondCols != NULL) {
+    SNode* pCondCol = NULL;
+    FOREACH(pCondCol, pCondCols) {
+      bool found = false;
+      SNode* pProjNode = NULL;
+      if (pWindow->pProjs != NULL) {
+        FOREACH(pProjNode, pWindow->pProjs) {
+          if (nodesEqualNode(pProjNode, pCondCol)) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        PLAN_ERR_JRET(nodesCloneNode(pCondCol, &pClone));
+        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+        pClone = NULL;
+      }
+    }
+    NODES_DESTORY_LIST(pCondCols);
+  }
+  return code;
+
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode(pClone);
+  nodesDestroyList(pCondCols);
+  return code;
+}
+
+static int32_t createWindowLogicNodeHandleSubquery(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    hasNamedExpr = false;
+  SNode*  pClone = NULL;
+  SNode*  pProj = NULL;
+  FOREACH(pProj, pSelect->pProjectionList) {
+    if (nodeType(pProj) == QUERY_NODE_COLUMN || ((SExprNode*)pProj)->aliasName[0] != '\0') {
+      hasNamedExpr = true;
+      break;
+    }
+  }
+
+  if (hasNamedExpr || !pSelect->isSubquery) {
+    PLAN_ERR_JRET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+  } else {
+    // pProjectionList is degenerate (pruned by outer query) — use child's first target
+    // as minimal projection to ensure window produces output rows
+    SNode* pFirstTarget = nodesListGetNode(pCxt->pCurrRoot->pTargets, 0);
+    if (pFirstTarget != NULL) {
+      PLAN_ERR_JRET(nodesCloneNode(pFirstTarget, &pClone));
+      PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+      pClone = NULL;
+    }
+  }
+  return code;
+
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode(pClone);
+  return code;
+}
+
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2069,15 +2137,40 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
 
   pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
-  pWindow->indefRowsFunc = (int8_t)pSelect->hasIndefiniteRowsFunc;
+  pWindow->indefRowsFunc = (int8_t)(pSelect->hasIndefiniteRowsFunc || pSelect->hasScalarExpr);
 
-  PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL,
-                                   pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
-                                   &pWindow->pFuncs));
+  bool projectionMode = true;
+  if (pSelect->hasScalarExpr) {
+    projectionMode = true;
+  } else {
+    projectionMode = false;
+    PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL,
+                                    pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
+                                    &pWindow->pFuncs));
+  }
 
-  PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+  if (projectionMode) {
+    // When used as subquery, the outer query may prune pProjectionList to contain only
+    // unnamed VALUE placeholders (e.g., SELECT count(*) FROM (subquery)). In that case,
+    // use the child node's first target (primary key) as a minimal projection to ensure
+    // the window operator still produces output rows.
+    PLAN_ERR_JRET(createWindowLogicNodeHandleSubquery(pCxt, pSelect, pWindow));
 
-  PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+    // Ensure columns referenced in HAVING are in pProjs BEFORE rewrite/targets
+    // creation so they go through rewriteExprsForSelect and appear in pTargets.
+    // Without this, tag columns only in HAVING (not in SELECT) cause
+    // "slot key not found" during setConditionsSlotId.
+    if (NULL != pSelect->pHaving && !havingHandledByFill) {
+      PLAN_ERR_JRET(createWindowLogicNodeHandleHaving(pSelect, pWindow));
+    }
+
+    PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+  } else {
+    // Existing function-collection path
+    PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+  }
 
   if (NULL != pSelect->pHaving && !havingHandledByFill) {
     PLAN_ERR_JRET(nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions));
