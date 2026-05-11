@@ -1259,10 +1259,14 @@ class TestBatchMetaTxn:
         # Session B: INSERT should still work (PRE_DROP allows writes)
         tdSql2.execute("insert into ct_drop values(now + 1s, 20)")
 
+        # Session B: DELETE on PRE_DROP table → should be blocked (RESOURCE_BUSY).
+        # Implementation: vnodeProcessDeleteReq → vnodeTxnCheckDeleteConflict (vnodeSvr.c:4112)
+        tdSql2.error("delete from ct_drop where v > 5")
+
         # Session A: ROLLBACK → table fully restored
         tdSql.execute("ROLLBACK")
 
-        # Verify table restored with both rows
+        # Verify table restored with both rows (DELETE was blocked, no rows removed)
         tdSql.query("select count(*) from ct_drop")
         tdSql.checkData(0, 0, 2)
 

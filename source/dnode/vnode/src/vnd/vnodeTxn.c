@@ -602,16 +602,27 @@ void vnodeTxnTrackDrop(SVnode *pVnode, int64_t txnId, tb_uid_t uid) {
 
 // Notify TMQ about tables created/dropped by a committed txn.
 // Called once after COMMIT (both inline and lazy paths).
+// Failure is best-effort: COMMIT has already succeeded and the WAL is durable, so we
+// log a warning instead of propagating. Consumers will catch up on the next refresh
+// (project convention: vnodeSvr.c paths log on tqAddTbUidList/tqDeleteTbUidList failure).
 static void vnodeTxnNotifyTmq(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   if (pEntry->pCreatedUids && taosArrayGetSize(pEntry->pCreatedUids) > 0) {
-    vInfo("vgId:%d, txn %" PRId64 ": notifying TMQ about %d created tables", TD_VID(pVnode), pEntry->txnId,
-          (int)taosArrayGetSize(pEntry->pCreatedUids));
-    (void)tqAddTbUidList(pVnode->pTq, pEntry->pCreatedUids);
+    int32_t numCreated = (int32_t)taosArrayGetSize(pEntry->pCreatedUids);
+    vInfo("vgId:%d, txn %" PRId64 ": notifying TMQ about %d created tables", TD_VID(pVnode), pEntry->txnId, numCreated);
+    int32_t code = tqAddTbUidList(pVnode->pTq, pEntry->pCreatedUids);
+    if (code != 0) {
+      vWarn("vgId:%d, txn %" PRId64 ": tqAddTbUidList failed for %d uids, code:0x%x (TMQ may miss create events)",
+            TD_VID(pVnode), pEntry->txnId, numCreated, code);
+    }
   }
   if (pEntry->pDroppedUids && taosArrayGetSize(pEntry->pDroppedUids) > 0) {
-    vInfo("vgId:%d, txn %" PRId64 ": notifying TMQ about %d dropped tables", TD_VID(pVnode), pEntry->txnId,
-          (int)taosArrayGetSize(pEntry->pDroppedUids));
-    (void)tqDeleteTbUidList(pVnode->pTq, pEntry->pDroppedUids);
+    int32_t numDropped = (int32_t)taosArrayGetSize(pEntry->pDroppedUids);
+    vInfo("vgId:%d, txn %" PRId64 ": notifying TMQ about %d dropped tables", TD_VID(pVnode), pEntry->txnId, numDropped);
+    int32_t code = tqDeleteTbUidList(pVnode->pTq, pEntry->pDroppedUids);
+    if (code != 0) {
+      vWarn("vgId:%d, txn %" PRId64 ": tqDeleteTbUidList failed for %d uids, code:0x%x (TMQ may miss drop events)",
+            TD_VID(pVnode), pEntry->txnId, numDropped, code);
+    }
   }
 }
 
