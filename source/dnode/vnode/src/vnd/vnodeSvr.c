@@ -1606,6 +1606,12 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
         // otherwise default to PRE_CREATE for normal WAL/DDL path.
         int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
+        // NOTE: txnPrevVer is intentionally set to -1 here. For snapshot-replicated PRE_ALTER
+        // entries, the old-version pTbDb entry is NOT available on the target (TMQ snapshot only
+        // sends the latest version). Passing -1 ensures ROLLBACK hits the safe fallback path
+        // (clears txnStatus, keeps current schema) rather than attempting metaRollbackAlterTable
+        // which would corrupt pUidIdx by pointing to a non-existent old version.
+        // Phase 2 fix: extend SVCreateTbReq with txnPrevVer + send old-version entry via snapshot.
         int32_t idxCode = metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
         if (idxCode != 0) {
           vError("vgId:%d, txn create table %s: metaTxnIdxUpsert failed, code:0x%x", TD_VID(pVnode), tbName, idxCode);
@@ -2940,9 +2946,9 @@ static int32_t vnodeHandleDataWrite(SVnode *pVnode, int64_t version, SSubmitReq2
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
       if (tdbTbGet(pVnode->pMeta->pTxnIdx, &pTbData->uid, sizeof(pTbData->uid), &pTxnVal, &txnValLen) == 0) {
-        STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
-        int8_t      idxTxnStatus = pIdx->txnStatus;
-        int64_t     idxTxnId = pIdx->txnId;
+        STxnIdxVal txnVal       = *(const STxnIdxVal *)pTxnVal;
+        int8_t     idxTxnStatus = txnVal.txnStatus;
+        int64_t    idxTxnId     = txnVal.txnId;
         tdbFree(pTxnVal);
         if (idxTxnStatus == META_TXN_PRE_CREATE) {
           code = TSDB_CODE_TDB_TABLE_NOT_EXIST;

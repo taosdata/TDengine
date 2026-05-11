@@ -166,7 +166,6 @@ typedef struct {
   int64_t txnPrevVer;
 } STxnIdxVal;
 #pragma pack(pop)
-
 typedef struct {
   int64_t  btime;
   tb_uid_t uid;

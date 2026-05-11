@@ -301,13 +301,14 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
     if (tdbTbcGet(pCursor, &pKey, &kLen, &pVal, &vLen) < 0) break;
 
     tb_uid_t          uid = *(tb_uid_t *)pKey;
-    const STxnIdxVal *pTxnVal = (const STxnIdxVal *)pVal;
+    const STxnIdxVal *pTxnV = (const STxnIdxVal *)pVal;
+    STxnIdxVal        txnVal = *pTxnV;
 
     SMetaTxnScanEntry scanEntry = {
         .uid = uid,
-        .txnId = pTxnVal->txnId,
-        .txnStatus = pTxnVal->txnStatus,
-        .txnPrevVer = pTxnVal->txnPrevVer,
+        .txnId = txnVal.txnId,
+        .txnStatus = txnVal.txnStatus,
+        .txnPrevVer = txnVal.txnPrevVer,
     };
     if (taosArrayPush(pResult, &scanEntry) == NULL) {
       tdbTbcClose(pCursor);
@@ -2262,7 +2263,8 @@ int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **child
       void    *pTxnVal = NULL;
       int32_t  txnValLen = 0;
       if (tdbTbGet(pMeta->pTxnIdx, &childUid, sizeof(childUid), &pTxnVal, &txnValLen) == 0) {
-        int8_t st = ((STxnIdxVal *)pTxnVal)->txnStatus;
+        STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
+        int8_t     st = txnVal.txnStatus;
         tdbFree(pTxnVal);
         if (st == META_TXN_PRE_CREATE) {
           continue;

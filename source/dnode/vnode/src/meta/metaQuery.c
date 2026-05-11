@@ -85,10 +85,10 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
     void   *pTxnVal = NULL;
     int32_t txnValLen = 0;
     if (tdbTbGet(pVnodeObj->pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) == 0) {
-      STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
-      if (pIdx->txnStatus == META_TXN_PRE_CREATE) {
+      STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
+      if (txnVal.txnStatus == META_TXN_PRE_CREATE) {
         // Check if txn is committed → table exists
-        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, pIdx->txnId);
+        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, txnVal.txnId);
         if (finalStatus != TXN_FINAL_COMMITTED) {
           tdbFree(pTxnVal);
           metaULock(pVnodeObj->pMeta);
@@ -96,8 +96,8 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
         }
       }
       // Check if txn is committed + PRE_DROP → table doesn't exist
-      if (pIdx->txnStatus == META_TXN_PRE_DROP) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, pIdx->txnId);
+      if (txnVal.txnStatus == META_TXN_PRE_DROP) {
+        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, txnVal.txnId);
         if (finalStatus == TXN_FINAL_COMMITTED) {
           tdbFree(pTxnVal);
           metaULock(pVnodeObj->pMeta);
@@ -936,9 +936,9 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
       void   *pTxnVal = NULL;
       int32_t txnValLen = 0;
       if (tdbTbGet(pCtbCur->pMeta->pTxnIdx, &pCtbIdxKey->uid, sizeof(pCtbIdxKey->uid), &pTxnVal, &txnValLen) == 0) {
-        STxnIdxVal *pIdx = (STxnIdxVal *)pTxnVal;
-        int8_t      st = pIdx->txnStatus;
-        int64_t     entryTxnId = pIdx->txnId;
+        STxnIdxVal txnVal      = *(const STxnIdxVal *)pTxnVal;
+        int8_t     st          = txnVal.txnStatus;
+        int64_t    entryTxnId  = txnVal.txnId;
         tdbFree(pTxnVal);
         if (st == META_TXN_PRE_CREATE) {
           int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);

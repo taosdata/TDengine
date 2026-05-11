@@ -857,13 +857,18 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
                    uid, code);
           }
         } else {
-          // Fallback: just clear txnStatus on the current entry
+          // Fallback: old version not available (common for TMQ snapshot targets where
+          // only the latest pTbDb entry is replicated). Clear txnStatus to restore normal
+          // accessibility. The table retains the post-ALTER schema — acceptable degraded
+          // behavior for the extremely rare PRE_ALTER + Snapshot + ROLLBACK sequence.
+          // Phase 2 fix: extend TMQ snapshot to also send old-version pTbDb entry.
           code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           if (code != 0) {
             vError("vgId:%d, rollback: failed to clear ALTER status for uid %" PRId64 ", code:0x%x", TD_VID(pVnode),
                    uid, code);
           }
-          vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status", TD_VID(pVnode), uid);
+          vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status (snapshot degraded)",
+                TD_VID(pVnode), uid);
         }
         break;
       }

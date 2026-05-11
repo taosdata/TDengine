@@ -19,7 +19,15 @@ correctly handle STB DDL on the target MNode, including:
   - CREATE STB + child tables → COMMIT → target has all objects
   - CREATE STB + child tables → ROLLBACK → target has nothing
   - CREATE STB → ALTER STB → COMMIT → target has altered schema
-  - CREATE STB → DROP STB → COMMIT → target has no STB
+    - CREATE STB → DROP STB → COMMIT → target has no STB
+    - low-watermark replay / duplicate consume remains idempotent
+    - first-MNode-DDL ALTER/DROP STB paths trigger auto-BEGIN correctly
+    - replicated txns are exempt from target-side timeout scan
+
+Terminal-RPC fault injection for the target-side completed-cache decision is
+covered separately by client unit tests in txnStateTest.cpp.  End-to-end taosX
+tests here stay focused on successful replay, idempotent replay, and timeout /
+ordering semantics that require a real TMQ raw-data path.
 
 The C binary tmq_taosx_txn is used to perform actual TMQ replication since
 the Python connector does not expose tmq_get_raw/tmq_write_raw.

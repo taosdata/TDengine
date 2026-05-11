@@ -3386,7 +3386,9 @@ static int32_t taosTxnCommit(TAOS* taos, void* meta, uint32_t metaLen) {
         uError("taosTxnCommit: MNode COMMIT for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
         code = mnodeCode;
       }
-      taosTxnMarkCompleted(req.txnId);
+      if (mnodeCode == 0) {
+        taosTxnMarkCompleted(req.txnId);
+      }
     } else {
       uWarn("taosTxnCommit: skipping MNode COMMIT for txnId:%" PRIu64 " due to vnode failures: %s", req.txnId,
             tstrerror(code));
@@ -3522,7 +3524,9 @@ static int32_t taosTxnRollback(TAOS* taos, void* meta, uint32_t metaLen) {
       uError("taosTxnRollback: MNode ROLLBACK for txnId:%" PRIu64 " failed: %s", req.txnId, tstrerror(mnodeCode));
       if (code == 0) code = mnodeCode;
     }
-    taosTxnMarkCompleted(req.txnId);
+    if (mnodeCode == 0) {
+      taosTxnMarkCompleted(req.txnId);
+    }
   }
 
 end:

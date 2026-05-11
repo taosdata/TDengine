@@ -22,7 +22,7 @@ namespace {
 
 struct MockMetaEntrySpec {
   tb_uid_t    uid;
-  utxn_id_t   txnId;
+  txn_id_t    txnId;
   uint8_t     txnStatus;
   int64_t     txnPrevVer;
   int8_t      type;

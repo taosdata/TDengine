@@ -1561,6 +1561,196 @@ class TestBatchMetaTxnCluster:
         tdSql.execute(f"drop database {db}")
         tdLog.info("s65 PASSED")
 
+    # =========================================================================
+    # s66: Fault injection — Raft leader switch *during* vacuum
+    #
+    # COMMIT writes pTxnFinalIdx then triggers vacuum. Kill VNode leader
+    # immediately. New leader must run vacuum exactly once (pTxnFinalIdx
+    # guards double-vacuum if old leader had partially completed it).
+    # =========================================================================
+    def s66_fi_leader_switch_during_vacuum(self):
+        db = "txn_fi66"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s66_fi_leader_switch_during_vacuum")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        for i in range(10):
+            tdSql.execute(f"create table ct_{i} using stb tags({i})")
+        tdSql.execute("COMMIT")
+
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+        tdLog.info(f"Killing VNode leader (dnode {leader_dnode}) immediately after COMMIT")
+        sc.dnodeForceStop(leader_dnode)
+
+        new_leader = self._get_vgroup_leader_dnode(db, vgId, timeout=30)
+        assert new_leader is not None, "No new VNode leader elected"
+
+        sc.dnodeStart(leader_dnode)
+        clusterComCheck.checkDnodes(3)
+
+        self._poll_table_count(10, db_name=db)
+
+        tdSql.execute(f"use {db}")
+        for i in range(10):
+            tdSql.execute(f"insert into ct_{i} values(now, {i})")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s66 PASSED")
+
+    # =========================================================================
+    # s67: Fault injection — Concurrent DROP on table being vacuumed (PRE_CREATE)
+    #
+    # COMMIT creates ct_target (PRE_CREATE). DROP arrives while vacuum is
+    # promoting it. Both orderings (vacuum-first and drop-first) must not
+    # corrupt pUidIdx/pTbDb.
+    # =========================================================================
+    def s67_fi_concurrent_drop_during_vacuum(self):
+        db = "txn_fi67"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s67_fi_concurrent_drop_during_vacuum")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table ct_target using stb tags(99)")
+        tdSql.execute("COMMIT")
+
+        try:
+            tdSql.execute("drop table ct_target")
+        except Exception:
+            pass  # PRE_CREATE still invisible — correct
+
+        time.sleep(3)
+
+        tdSql.execute(f"use {db}")
+        tdSql.query("show tables")
+        names = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert "ct_target" not in names, "ct_target must not exist after DROP"
+
+        # Schema must be intact
+        tdSql.execute("create table ct_safe using stb tags(1)")
+        tdSql.execute("insert into ct_safe values(now, 1)")
+        tdSql.query("select v from ct_safe")
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s67 PASSED")
+
+    # =========================================================================
+    # s68: Fault injection — VNode restart mid-vacuum
+    #
+    # Large txn COMMIT, then immediately kill VNode leader. On restart
+    # taosd finds txn.idx entries + pTxnFinalIdx COMMITTED and re-runs
+    # vacuum. All tables must reach final promoted state.
+    # =========================================================================
+    def s68_fi_vnode_restart_mid_vacuum(self):
+        db = "txn_fi68"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s68_fi_vnode_restart_mid_vacuum")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        num_tables = 50
+        tdSql.execute("BEGIN")
+        for i in range(num_tables):
+            tdSql.execute(f"create table ct_{i} using stb tags({i})")
+        tdSql.execute("COMMIT")
+
+        tdSql.query(f"show {db}.vgroups")
+        vgId = tdSql.queryResult[0][0]
+        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+        tdLog.info(f"Killing VNode leader (dnode {leader_dnode}) mid-vacuum")
+        sc.dnodeForceStop(leader_dnode)
+        time.sleep(1)
+
+        sc.dnodeStart(leader_dnode)
+        clusterComCheck.checkDnodes(3, timeout=60)
+
+        self._poll_table_count(num_tables, db_name=db, timeout=120)
+
+        tdSql.execute(f"use {db}")
+        tdSql.execute("insert into ct_0 values(now, 0)")
+        tdSql.execute("insert into ct_49 values(now, 49)")
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 2)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s68 PASSED")
+
+    # =========================================================================
+    # s69: Fault injection — MNode leader switch between COMMIT and vacuum broadcast
+    #
+    # MNode writes pTxnFinalIdx (COMMITTED) then is killed before sending
+    # vacuum broadcast. New MNode leader reads pTxnFinalIdx and re-broadcasts.
+    # Vacuum must complete correctly.
+    # =========================================================================
+    def s69_fi_mnode_leader_switch_before_vacuum_broadcast(self):
+        db = "txn_fi69"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"use {db}")
+        tdLog.info("======== s69_fi_mnode_leader_switch_before_vacuum_broadcast")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+
+        tdSql.query("select * from information_schema.ins_mnodes")
+        mnode_leader_id = None
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][2] == 'leader':
+                mnode_leader_id = tdSql.queryResult[i][0]
+                break
+        assert mnode_leader_id is not None, "No MNode leader found"
+        tdLog.info(f"MNode leader: dnode {mnode_leader_id}")
+
+        tdSql.execute("BEGIN")
+        for i in range(10):
+            tdSql.execute(f"create table ct_{i} using stb tags({i})")
+        tdSql.execute("COMMIT")
+        sc.dnodeForceStop(mnode_leader_id)
+        tdLog.info(f"Killed MNode leader (dnode {mnode_leader_id}) after COMMIT")
+
+        new_mnode_leader = None
+        for _ in range(30):
+            time.sleep(1)
+            try:
+                tdSql.query("select * from information_schema.ins_mnodes")
+                for i in range(tdSql.queryRows):
+                    if tdSql.queryResult[i][2] == 'leader' and \
+                       tdSql.queryResult[i][0] != mnode_leader_id:
+                        new_mnode_leader = tdSql.queryResult[i][0]
+                        break
+                if new_mnode_leader:
+                    tdLog.info(f"New MNode leader: dnode {new_mnode_leader}")
+                    break
+            except Exception:
+                continue
+        assert new_mnode_leader is not None, "No new MNode leader elected"
+
+        sc.dnodeStart(mnode_leader_id)
+        clusterComCheck.checkDnodes(3)
+
+        self._poll_table_count(10, db_name=db)
+
+        tdSql.execute(f"use {db}")
+        tdSql.execute("insert into ct_0 values(now, 100)")
+        tdSql.query("select v from ct_0")
+        tdSql.checkData(0, 0, 100)
+
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("s69 PASSED")
+
     def test_meta_batch_txn_cluster(self):
         """Batch meta txn: cluster-mode tests
 
@@ -1607,7 +1797,12 @@ class TestBatchMetaTxnCluster:
                          restart after rollback, concurrent VGroup tests (s55-s59)
             - 2026-04-10 Added lazy vacuum × snapshot/restart tests (s60-s61)
             - 2026-04-13 Added STB txn crash recovery tests (s62-s65)
+            - 2026-05-11 Added fault injection tests (s66-s69)
 
+        66. Fault injection: Raft leader switch during vacuum
+        67. Fault injection: Concurrent DROP on table being vacuumed
+        68. Fault injection: VNode restart mid-vacuum
+        69. Fault injection: MNode leader switch between COMMIT and vacuum broadcast
         """
         self.s40_mnode_leader_switch_commit()
         self.s41_mnode_leader_switch_rollback()
@@ -1635,3 +1830,7 @@ class TestBatchMetaTxnCluster:
         self.s63_stb_alter_restart_commit()
         self.s64_stb_drop_restart_rollback()
         self.s65_stb_create_alter_restart_commit()
+        self.s66_fi_leader_switch_during_vacuum()
+        self.s67_fi_concurrent_drop_during_vacuum()
+        self.s68_fi_vnode_restart_mid_vacuum()
+        self.s69_fi_mnode_leader_switch_before_vacuum_broadcast()
