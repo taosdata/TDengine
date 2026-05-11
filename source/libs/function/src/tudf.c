@@ -54,7 +54,17 @@ SUdfdData udfdGlobal = {0};
 int32_t udfStartUdfd(int32_t startDnodeId);
 void    udfStopUdfd();
 
-extern char **environ;
+/* Note: udfd spawning now uses libuv's portable ``uv_os_environ`` instead
+ * of the POSIX ``extern char **environ`` symbol so the same code works on
+ * Windows. */
+
+#ifdef WINDOWS
+#define UDF_LIB_PATH_ENV "PATH"
+#define UDF_LIB_PATH_SEP ';'
+#else
+#define UDF_LIB_PATH_ENV "LD_LIBRARY_PATH"
+#define UDF_LIB_PATH_SEP ':'
+#endif
 
 static int32_t udfSpawnUdfd(SUdfdData *pData);
 void           udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
@@ -121,10 +131,17 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   options.exit_cb = udfUdfdExit;
 
-  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1));
+  // ipc=0: this is a one-way control pipe used only to detect parent
+  // death via read EOF. No handle-passing is needed. ipc=1 forces a
+  // libuv pid-handshake on Windows that fails for child-stdio pipes.
+  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0));
 
   uv_stdio_container_t child_stdio[3];
-  child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
+  // UV_OVERLAPPED_PIPE is required on Windows: without it libuv uses
+  // CreatePipe() which yields a non-overlapped anonymous pipe, and the
+  // child's uv_pipe_open(fd 0) fails because libuv's IOCP machinery
+  // requires FILE_FLAG_OVERLAPPED. The flag is a no-op on POSIX.
+  child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE | UV_OVERLAPPED_PIPE;
   child_stdio[0].data.stream = (uv_stream_t *)&pData->ctrlPipe;
   child_stdio[1].flags = UV_IGNORE;
   child_stdio[2].flags = UV_INHERIT_FD;
@@ -148,7 +165,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char    pathTaosdLdLib[512] = {0};
   size_t  taosdLdLibPathLen = sizeof(pathTaosdLdLib);
-  int32_t ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  int32_t ret = uv_os_getenv(UDF_LIB_PATH_ENV, pathTaosdLdLib, &taosdLdLibPathLen);
   if (ret != UV_ENOBUFS) {
     taosdLdLibPathLen = strlen(pathTaosdLdLib);
   }
@@ -157,15 +174,15 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
   tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, sizeof(udfdPathLdLib));
 
-  udfdPathLdLib[udfdLdLibPathLen] = ':';
+  udfdPathLdLib[udfdLdLibPathLen] = UDF_LIB_PATH_SEP;
   tstrncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
+    fnInfo("udfd %s: %s", UDF_LIB_PATH_ENV, udfdPathLdLib);
   } else {
-    fnError("can not set correct udfd LD_LIBRARY_PATH");
+    fnError("can not set correct udfd %s", UDF_LIB_PATH_ENV);
   }
   char ldLibPathEnvItem[1024 + 32] = {0};
-  snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
+  snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", UDF_LIB_PATH_ENV, udfdPathLdLib);
 
   char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
@@ -185,47 +202,59 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem, taosFqdnEnvItem, NULL};
 
-  char **envUdfdWithPEnv = NULL;
-  if (environ != NULL) {
+  // Inherit the parent process's environment so spawned udfd sees the same
+  // PATH / locale / config-related variables.  Using libuv's portable
+  // ``uv_os_environ`` instead of POSIX ``extern char **environ`` lets this
+  // path work on Windows as well as Linux/macOS.
+  char         **envUdfdWithPEnv = NULL;
+  uv_env_item_t *uvEnvItems = NULL;
+  int            uvEnvItemCount = 0;
+  int32_t        uvEnvErr = uv_os_environ(&uvEnvItems, &uvEnvItemCount);
+  if (uvEnvErr == 0 && uvEnvItems != NULL && uvEnvItemCount > 0) {
     int32_t lenEnvUdfd = ARRAY_SIZE(envUdfd);
-    int32_t numEnviron = 0;
-    while (environ[numEnviron] != NULL) {
-      numEnviron++;
-    }
-
-    envUdfdWithPEnv = (char **)taosMemoryCalloc(numEnviron + lenEnvUdfd, sizeof(char *));
+    envUdfdWithPEnv = (char **)taosMemoryCalloc(uvEnvItemCount + lenEnvUdfd, sizeof(char *));
     if (envUdfdWithPEnv == NULL) {
       err = TSDB_CODE_OUT_OF_MEMORY;
+      uv_os_free_environ(uvEnvItems, uvEnvItemCount);
       goto _OVER;
     }
 
-    for (int32_t i = 0; i < numEnviron; i++) {
-      int32_t len = strlen(environ[i]) + 1;
-      envUdfdWithPEnv[i] = (char *)taosMemoryCalloc(len, 1);
-      if (envUdfdWithPEnv[i] == NULL) {
+    int32_t outIdx = 0;
+    for (int i = 0; i < uvEnvItemCount; i++) {
+      int32_t nameLen = strlen(uvEnvItems[i].name);
+      int32_t valueLen = strlen(uvEnvItems[i].value);
+      int32_t len = nameLen + 1 /* '=' */ + valueLen + 1 /* '\0' */;
+      envUdfdWithPEnv[outIdx] = (char *)taosMemoryCalloc(len, 1);
+      if (envUdfdWithPEnv[outIdx] == NULL) {
         err = TSDB_CODE_OUT_OF_MEMORY;
+        uv_os_free_environ(uvEnvItems, uvEnvItemCount);
         goto _OVER;
       }
-
-      tstrncpy(envUdfdWithPEnv[i], environ[i], len);
+      snprintf(envUdfdWithPEnv[outIdx], len, "%s=%s", uvEnvItems[i].name, uvEnvItems[i].value);
+      outIdx++;
     }
+    uv_os_free_environ(uvEnvItems, uvEnvItemCount);
+    uvEnvItems = NULL;
 
     for (int32_t i = 0; i < lenEnvUdfd; i++) {
       if (envUdfd[i] != NULL) {
         int32_t len = strlen(envUdfd[i]) + 1;
-        envUdfdWithPEnv[numEnviron + i] = (char *)taosMemoryCalloc(len, 1);
-        if (envUdfdWithPEnv[numEnviron + i] == NULL) {
+        envUdfdWithPEnv[outIdx] = (char *)taosMemoryCalloc(len, 1);
+        if (envUdfdWithPEnv[outIdx] == NULL) {
           err = TSDB_CODE_OUT_OF_MEMORY;
           goto _OVER;
         }
-
-        tstrncpy(envUdfdWithPEnv[numEnviron + i], envUdfd[i], len);
+        tstrncpy(envUdfdWithPEnv[outIdx], envUdfd[i], len);
+        outIdx++;
       }
     }
-    envUdfdWithPEnv[numEnviron + lenEnvUdfd - 1] = NULL;
+    envUdfdWithPEnv[outIdx] = NULL;
 
     options.env = envUdfdWithPEnv;
   } else {
+    if (uvEnvItems != NULL) {
+      uv_os_free_environ(uvEnvItems, uvEnvItemCount);
+    }
     options.env = envUdfd;
   }
 

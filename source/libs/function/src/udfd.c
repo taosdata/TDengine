@@ -401,8 +401,13 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
   TAOS_UDF_CHECK_PTR_RCODE(plugin);
   plugin->scriptType = TSDB_FUNC_SCRIPT_PYTHON;
-  // todo: windows support
+#ifdef WINDOWS
+  snprintf(plugin->libPath, PATH_MAX, "%s", "taospyudf.dll");
+#elif defined(_TD_DARWIN_64)
+  snprintf(plugin->libPath, PATH_MAX, "%s", "libtaospyudf.dylib");
+#else
   snprintf(plugin->libPath, PATH_MAX, "%s", "libtaospyudf.so");
+#endif
   plugin->libLoaded = false;
   const char *funcName[UDFD_MAX_PLUGIN_FUNCS] = {"pyOpen",         "pyClose",         "pyUdfInit",
                                                  "pyUdfDestroy",   "pyUdfScalarProc", "pyUdfAggStart",
@@ -1058,23 +1063,15 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
   TAOS_UDF_CHECK_PTR_RVOID(udf, path);
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
 #ifdef WINDOWS
-    snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64 ".dll", global.udfDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64 ".dll", global.udfDataDir, udf->name, udf->version, udf->createdTime);
 #else
     snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", global.udfDataDir, udf->name, udf->version,
              udf->createdTime);
 #endif
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
-#ifdef WINDOWS
-    snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64 ".py", global.udfDataDir, udf->name, udf->version, udf->createdTime);
-#else
     snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", global.udfDataDir, udf->name, udf->version, udf->createdTime);
-#endif
   } else {
-#ifdef WINDOWS
-    snprintf(path, PATH_MAX, "%s%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version, udf->createdTime);
-#else
     snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version, udf->createdTime);
-#endif
   }
 }
 
@@ -1633,7 +1630,9 @@ static int32_t udfdUvInit() {
   TAOS_CHECK_RETURN(uv_loop_init(global.loop));
 
   if (tsStartUdfd) {  // udfd is started by taosd, which shall exit when taosd exit
-    TAOS_CHECK_RETURN(uv_pipe_init(global.loop, &global.ctrlPipe, 1));
+    // ipc=0 — see tudf.c counterpart. Control pipe is used only for
+    // parent-death EOF; ipc=1 fails uv_pipe_open on Windows.
+    TAOS_CHECK_RETURN(uv_pipe_init(global.loop, &global.ctrlPipe, 0));
     TAOS_CHECK_RETURN(uv_pipe_open(&global.ctrlPipe, 0));
     TAOS_CHECK_RETURN(uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb));
   }
@@ -1765,7 +1764,12 @@ void udfdDeinitResidentFuncs() {
 }
 
 int32_t udfdCreateUdfSourceDir() {
+#ifdef WINDOWS
+  snprintf(global.udfDataDir, PATH_MAX, "%s.udf", tsDataDir);
+#else
   snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsDataDir);
+#endif
+  //snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsDataDir);
   int32_t code = taosMkDir(global.udfDataDir);
   if (code != TSDB_CODE_SUCCESS) {
     snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsTempDir);
