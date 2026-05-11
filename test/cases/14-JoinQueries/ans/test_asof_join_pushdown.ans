@@ -1629,3 +1629,15 @@ QUERY_PLAN:                Output: columns=2 width=12
 *************************** 17.row ***************************
 QUERY_PLAN:                Time Range: [-9223372036854775808, 1767196801004]
 
+taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003;
+
+taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003\G;
+
+taos> select a.ts ats, b.ts bts from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801002 and a.ts >= 1767196801003;
+
+taos> explain verbose true select a.ts ats, b.ts bts from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801002 and a.ts >= 1767196801003\G;
+
+taos> select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003 and b.ts <= 1767196801004;
+
+taos> explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003 and b.ts <= 1767196801004\G;
+

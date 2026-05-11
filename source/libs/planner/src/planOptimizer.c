@@ -1001,10 +1001,13 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
     }
     if (COND_ACTION_PUSH_JOIN == condAction && NULL != pOnCond) {
       code = nodesListMakeAppend(&pOnConds, pNew);
+      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     } else if (COND_ACTION_PUSH_LEFT_CHILD == condAction) {
       code = nodesListMakeAppend(&pLeftChildConds, pNew);
+      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     } else if (COND_ACTION_PUSH_RIGHT_CHILD == condAction) {
       code = nodesListMakeAppend(&pRightChildConds, pNew);
+      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     } else if (COND_ACTION_COPY_RIGHT_CHILD == condAction || COND_ACTION_COPY_LEFT_CHILD == condAction) {
       // Clone condition into the child scan for scan-range optimization, while
       // keeping the original in the WHERE clause for correct join semantics.
@@ -1028,6 +1031,7 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
       }
     } else {
       code = nodesListMakeAppend(&pRemainConds, pNew);
+      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -3857,6 +3861,11 @@ static bool asofJoinDeriveMatchedScanRange(SJoinLogicNode* pJoin, SScanLogicNode
   if (asofJoinCanDeriveMatchedLowerBound(pJoin) && pProbeRange->skey != TSKEY_MIN &&
       pProbeRange->skey > pMatchedRange->skey) {
     pMatchedRange->skey = pProbeRange->skey;
+    updated = true;
+  }
+
+  if (pMatchedRange->skey > pMatchedRange->ekey) {
+    *pMatchedRange = TSWINDOW_DESC_INITIALIZER;
     updated = true;
   }
 

@@ -73,3 +73,9 @@ select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.t
 explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and (a.ts >= 1767196801002 or b.v >= 12)\G;
 select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and ((a.ts >= 1767196801003 and b.ts >= 1767196801002) or (a.v >= 3 and b.v >= 13));
 explain verbose true select a.ts ats, a.v av, b.ts bts, b.v bv from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801004 and ((a.ts >= 1767196801003 and b.ts >= 1767196801002) or (a.v >= 3 and b.v >= 13))\G;
+select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003;
+explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts >= b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003\G;
+select a.ts ats, b.ts bts from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801002 and a.ts >= 1767196801003;
+explain verbose true select a.ts ats, b.ts bts from sa1 a right asof join sb1 b on b.ts >= a.ts where b.ts >= 1767196801000 and b.ts <= 1767196801002 and a.ts >= 1767196801003\G;
+select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003 and b.ts <= 1767196801004;
+explain verbose true select a.ts ats, b.ts bts from sa1 a left asof join sb1 b on a.ts = b.ts where a.ts >= 1767196801000 and a.ts <= 1767196801002 and b.ts >= 1767196801003 and b.ts <= 1767196801004\G;
