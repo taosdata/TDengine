@@ -175,16 +175,16 @@ export default {
             },
             {
               name: 'table_primary_key',
-              display: 'Primary Key',
+              display: 'Timestamp',
               hint: {
                 type: 'str',
                 choices: ['original_ts', 'request_ts', 'received_ts']
               },
               description:
-                'The selected value will be the primary key of target table. original_ts represents the time when the data point is reported to the OPC server. request_ts is the time when each polling request is initiated in the observe collection mode. received_ts indicates the time when the data is received from the OPC server. \n',
+                'The selected value will be the timestamp in the target table. original_ts represents the time when the data point is reported to the OPC server. request_ts is the time when each polling request is initiated in the observe collection mode. received_ts indicates the time when the data is received from the OPC server.\n',
               required: false,
               value: 'original_ts',
-              label: 'Primary Key',
+              label: 'Timestamp',
               field: 'table_primary_key',
               defaultValue: 'original_ts',
               multiple: false,
@@ -206,14 +206,14 @@ export default {
             },
             {
               name: 'table_primary_key_alias',
-              display: 'Primary Key Name',
+              display: 'Timestamp Name',
               hint: {
                 type: 'str'
               },
-              description: 'The primary key column name in the target table.\n',
+              description: 'The timestamp column name in the target table. For example, `ts` means setting the timestamp column name to `ts`.\n',
               required: false,
               value: 'ts',
-              label: 'Primary Key Name',
+              label: 'Timestamp Name',
               field: 'table_primary_key_alias',
               defaultValue: 'ts',
               multiple: false,

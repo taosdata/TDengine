@@ -396,7 +396,7 @@ export default {
             {
               name: 'table_primary_key_alias',
               display: 'Timestamp Name',
-              description: 'The timestamp column name in the target table.\n',
+              description: 'The timestamp column name in the target table. For example, `ts` means setting the timestamp column name to `ts`.\n',
               required: false,
               value: 'ts',
               label: 'Timestamp Name',
