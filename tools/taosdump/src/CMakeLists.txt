@@ -228,12 +228,12 @@ if(NOT ${TD_WINDOWS})
         set(_strip_flag --strip-debug)
     endif()
     set(_stripped_arrow_libs "")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow")
     foreach(_arrow_lib ${ext_arrow_libs})
         get_filename_component(_arrow_name "${_arrow_lib}" NAME)
         set(_stripped_lib "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow/${_arrow_name}")
         add_custom_command(
             OUTPUT  "${_stripped_lib}"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow"
             COMMAND ${CMAKE_COMMAND} -E copy "${_arrow_lib}" "${_stripped_lib}"
             COMMAND ${CMAKE_STRIP} ${_strip_flag} "${_stripped_lib}"
             DEPENDS "${_arrow_lib}"
@@ -242,6 +242,7 @@ if(NOT ${TD_WINDOWS})
         list(APPEND _stripped_arrow_libs "${_stripped_lib}")
     endforeach()
     add_custom_target(strip_arrow_libs ALL DEPENDS ${_stripped_arrow_libs})
+    add_dependencies(strip_arrow_libs ext_arrow)
     add_dependencies(taosdump strip_arrow_libs)
 
     foreach(_stripped_lib ${_stripped_arrow_libs})
