@@ -35,21 +35,30 @@ scripts/
 
 ```toml
 [local]
-listen = "0.0.0.0"                           # 服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
-http_port = 6072                             # 开启的 http api 服务端口
-rpc_port = 6073                              # 与 ELS 服务通信端口
+# 服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
+listen = "0.0.0.0"
+# 开启的 http api 服务端口
+http_port = 6072
+# 与 ELS 服务通信端口
+rpc_port = 6073
 
 [els]
-host = "localhost"                           # ELS 服务的地址
-port = 8094                                  # ELS 服务的端口
-enable = true                                # 是否开启与 ELS 的通信
+# ELS 服务的地址
+host = "localhost"
+# ELS 服务的端口
+port = 8094                                  
+# 是否开启与 ELS 的通信
+enable = true
 
 [database]
-path = "/var/lib/taoscls"                    # 数据存放路径
+# 数据存放路径
+path = "/var/lib/taoscls"
 
 [log]
-level = "info"                               # 日志级别
-file = "/var/log/taoscls/taoscls.log"        # 日志路径
+# 日志级别
+level = "info"
+# 日志路径
+file = "/var/log/taoscls/taoscls.log"
 ```
 
 ### 服务信息
@@ -94,6 +103,8 @@ file = "/var/log/taoscls/taoscls.log"        # 日志路径
 当前 TSDB/IDMP 集群均可通过相关配置与 CLS 通信，且在 CLS 集群管理的相关页面可看到具体信息。
 
 ### TSDB 配置
+
+TSDB 连接 CLS 服务可使用 taos-explorer 页面进行配置，也可以使用 TSDB 的 SQL 指令进行配置。
 
 #### taos-explorer
 
