@@ -398,10 +398,11 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
 
 // Create Child Table
 static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  void     *value = NULL;
-  int32_t   valueSize = 0;
-  SMetaInfo info;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  void       *value = NULL;
+  int32_t     valueSize = 0;
+  SMetaInfo   info;
+  SMetaEntry *pStbEntry = NULL;
 
   if (NULL == pReq->name || strlen(pReq->name) == 0 || NULL == pReq->ctb.stbName || strlen(pReq->ctb.stbName) == 0 ||
       pReq->ctb.suid == 0) {
@@ -471,7 +472,6 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
 
 _check_stb:
   // check super table existence
-  SMetaEntry *pStbEntry = NULL;
   metaRLock(pMeta);
   code = metaFetchEntryByName(pMeta, pReq->ctb.stbName, &pStbEntry);
   metaULock(pMeta);

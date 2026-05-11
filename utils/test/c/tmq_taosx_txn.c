@@ -33,7 +33,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#define sleep(s) Sleep((s) * 1000)
+#endif
 #include "taos.h"
 
 #define SRC_DB "src_txn_db"
