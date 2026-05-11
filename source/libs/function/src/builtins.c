@@ -73,6 +73,36 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Extended time-unit validator for TIMETRUNCATE only.
+ * Identical to validateTimeUnitParam but also accepts 1n/1q/1y
+ * (natural calendar units: month, quarter, year).
+ * All units still require a multiplier of exactly 1; Nx (N>1) is invalid.
+ */
+static int32_t validateTimeUnitParamEx(uint8_t dbPrec, const SValueNode* pVal) {
+  if (!IS_DURATION_VAL(pVal->flag)) {
+    return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
+  }
+
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec &&
+      (0 == strcasecmp(pVal->literal, "1u") || 0 == strcasecmp(pVal->literal, "1b"))) {
+    return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
+  }
+
+  if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == strcasecmp(pVal->literal, "1b")) {
+    return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
+  }
+
+  if (pVal->literal[0] != '1' ||
+      (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' && pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
+       pVal->literal[1] != 'h' && pVal->literal[1] != 'd' && pVal->literal[1] != 'w' && pVal->literal[1] != 'b' &&
+       pVal->literal[1] != 'n' && pVal->literal[1] != 'q' && pVal->literal[1] != 'y')) {
+    return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Following are valid ISO-8601 timezone format:
  * 1 z/Z
  * 2 ±hh:mm
@@ -817,6 +847,24 @@ static int32_t checkTimeUnit(SNode* pNode, int32_t precision, bool* isMatch) {
   }
   return code;
 }
+
+static int32_t checkTimeUnitOrCalendar(SNode* pNode, int32_t precision, bool* isMatch) {
+  if (nodeType(pNode) != QUERY_NODE_VALUE || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
+    *isMatch = false;
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type)) {
+    *isMatch = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = validateTimeUnitParamEx(precision, (SValueNode*)pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    *isMatch = false;
+  }
+  return code;
+}
 static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* paramList = pFunc->pParameterList;
@@ -904,6 +952,9 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
             break;
           case FUNC_PARAM_MUST_BE_TIME_UNIT:
             code = checkTimeUnit(pNode, pFunc->node.resType.precision, &isMatch);
+            break;
+          case FUNC_PARAM_MUST_BE_TIME_UNIT_OR_CALENDAR:
+            code = checkTimeUnitOrCalendar(pNode, pFunc->node.resType.precision, &isMatch);
             break;
           default:
             break;
@@ -2116,6 +2167,22 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
   if (!hasStringTz) {
     /* add connection timezone name (IANA-preserving) as param for DST-aware truncation */
     code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  /* inject firstDayOfWeek (0-6) so sclfunc.c can align 1w correctly */
+  code = addUint8Param(&pFunc->pParameterList, (uint8_t)pFunc->firstDayOfWeek);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  /* inject unit char so sclfunc.c can identify calendar units (n/q/y) */
+  {
+    SValueNode* pUnitNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    uint8_t unitCh = (uint8_t)(pUnitNode != NULL ? (uint8_t)pUnitNode->unit : 0);
+    code = addUint8Param(&pFunc->pParameterList, unitCh);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -4662,7 +4729,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT,
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT_OR_CALENDAR,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,

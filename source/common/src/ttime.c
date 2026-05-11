@@ -1187,6 +1187,23 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         start = prev;
       }
     } else {
+      if (pInterval->intervalUnit == 'w' && pInterval->firstDayOfWeek != 4) {
+        /* Week interval with non-epoch firstDayOfWeek: align to local week boundary */
+        time_t    t = (time_t)(ts / (int64_t)TSDB_TICK_PER_SECOND(precision));
+        struct tm tm;
+        if (taosLocalTime(&t, &tm, NULL, 0, pInterval->timezone) != NULL) {
+          int32_t daysBack = (tm.tm_wday - pInterval->firstDayOfWeek + 7) % 7;
+          tm.tm_mday -= daysBack;
+          tm.tm_hour = 0;
+          tm.tm_min = 0;
+          tm.tm_sec = 0;
+          tm.tm_isdst = -1;
+          time_t truncated = taosMktime(&tm, pInterval->timezone);
+          if (truncated != (time_t)-1) {
+            start = (int64_t)truncated * (int64_t)TSDB_TICK_PER_SECOND(precision);
+          }
+        }
+      } else {
       int64_t delta = ts - pInterval->interval;
       start = (delta / pInterval->sliding) * pInterval->sliding;
 
@@ -1211,6 +1228,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         }
       } else {
         end = INT64_MAX;
+      }
       }
     }
   }

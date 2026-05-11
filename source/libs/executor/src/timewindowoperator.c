@@ -2402,8 +2402,8 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
                         .slidingUnit = pPhyNode->slidingUnit,
                         .offset = pPhyNode->offset,
                         .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision,
-                        .timeRange = pPhyNode->timeRange};
-  /* TODO(P4): read pPhyNode->firstDayOfWeek (0-6) into interval.firstDayOfWeek */
+                        .timeRange = pPhyNode->timeRange,
+                        .firstDayOfWeek = pPhyNode->firstDayOfWeek};
   calcIntervalAutoOffset(&interval);
 
   STimeWindowAggSupp as = {
@@ -3292,8 +3292,8 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
                         .slidingUnit = pNode->slidingUnit,
                         .offset = pNode->offset,
                         .precision = ((SColumnNode*)pNode->window.pTspk)->node.resType.precision,
-                        .timeRange = pNode->timeRange};
-  /* TODO(P4): read pNode->firstDayOfWeek (0-6) into interval.firstDayOfWeek */
+                        .timeRange = pNode->timeRange,
+                        .firstDayOfWeek = pNode->firstDayOfWeek};
   calcIntervalAutoOffset(&interval);
 
   SIntervalAggOperatorInfo* iaInfo = miaInfo->intervalAggOperatorInfo;
@@ -3659,8 +3659,8 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
                         .slidingUnit = pIntervalPhyNode->slidingUnit,
                         .offset = pIntervalPhyNode->offset,
                         .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
-                        .timeRange = pIntervalPhyNode->timeRange};
-  /* TODO(P4): read pIntervalPhyNode->firstDayOfWeek (0-6) into interval.firstDayOfWeek */
+                        .timeRange = pIntervalPhyNode->timeRange,
+                        .firstDayOfWeek = pIntervalPhyNode->firstDayOfWeek};
   calcIntervalAutoOffset(&interval);
 
   pMergeIntervalInfo->groupIntervals = tdListNew(sizeof(SGroupTimeWindow));

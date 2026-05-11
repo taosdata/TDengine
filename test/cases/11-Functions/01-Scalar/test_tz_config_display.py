@@ -163,27 +163,6 @@ class TestSetFirstDayOfWeek:
                 expectedErrno=ERR_INVALID_FIRST_DAY_OF_WEEK,
             )
 
-    @pytest.mark.skip(reason="P4: TIMETRUNCATE(1w) does not yet use firstDayOfWeek")
-    def test_fdow_affects_timetruncate_week(self):
-        """Different firstDayOfWeek should change TIMETRUNCATE(1w) results.
-
-        2026-04-30 is Thursday:
-        - fdow=1 (Mon) -> 2026-04-27 (Mon)
-        - fdow=0 (Sun) -> 2026-04-26 (Sun)
-        """
-        self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'UTC'")
-
-        tdSql.execute("SET FIRST_DAY_OF_WEEK 1")
-        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
-        r1 = tdSql.queryResult[0][0]
-
-        tdSql.execute("SET FIRST_DAY_OF_WEEK 0")
-        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
-        r0 = tdSql.queryResult[0][0]
-
-        assert r1 != r0, f"fdow=1 and fdow=0 should differ: {r1} vs {r0}"
-
     def test_fdow_alter_local_accepted(self):
         """ALTER LOCAL 'firstDayOfWeek' should be accepted (client config)."""
         tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
@@ -300,25 +279,6 @@ class TestSetFirstDayOfWeek:
             conn1.close()
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '4'")
             tdSql.connect()
-
-    @pytest.mark.skip(reason="P4: TIMETRUNCATE(1w) does not yet use client firstDayOfWeek")
-    def test_fdow_client_config_applies_without_session_override(self):
-        """Client config should apply after ALTER LOCAL when L2 override is absent."""
-        self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'UTC'")
-
-        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
-        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
-        from_client_0 = tdSql.queryResult[0][0]
-
-        tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
-        tdSql.query("SELECT TIMETRUNCATE('2026-04-30 10:00:00', 1w)")
-        from_client_1 = tdSql.queryResult[0][0]
-
-        assert from_client_0 != from_client_1, (
-            f"Client firstDayOfWeek should affect week truncation: "
-            f"fdow=0 {from_client_0}, fdow=1 {from_client_1}"
-        )
 
 
 class TestTimezoneFunc:

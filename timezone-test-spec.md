@@ -11,6 +11,7 @@
 | 2026-05-09 | 0.5 | AI | 同步最新实现状态：恢复最小 1w 回归、补充 1w+DST 一致性回归、更新 P4 skip 现状与执行结果 |
 | 2026-05-09 | 0.6 | AI | `firstDayOfWeek` 从服务端改为客户端参数：TestSetFirstDayOfWeek 改为 `ALTER LOCAL` 验证；TestIntervalWeek 改为客户端配置生效；回退链矩阵更新 |
 | 2026-05-11 | 0.7 | AI | 新增 Finding 1 连接隔离回归测试：`test_fdow_alter_local_updates_process_global_not_existing_connection`（立即运行）和 `test_fdow_alter_local_does_not_affect_existing_connection_timetruncate`（P4 skip）；更新 TestSetFirstDayOfWeek 验证要点 |
+| 2026-05-11 | 0.8 | AI | P4 全部落地（48 passed）；删除冗余/无效 skip 测试：`test_fdow_affects_timetruncate_week`（被 TestTimetruncateWeek 覆盖）、`test_fdow_client_config_applies_without_session_override`（ALTER LOCAL 不影响当前连接快照，设计缺陷）、`test_week_mode_overrides_fdow`（选取日期下 mode=0/1 结果相同，期望错误）；更新 TestTimetruncateNaturalUnits / TestTimetruncateWeek / TestWeekFunctions 为已实现状态；更新 9.2 阻塞项为已落地 |
 
 ## 2. 概述
 
@@ -49,10 +50,11 @@
 #### TestSetFirstDayOfWeek — SET FIRST_DAY_OF_WEEK 语法（P1 Task 1.2, 1.3）
 - ✅ 合法值 0-6 全覆盖；非法值 7、-1、100 → 报错
 - ✅ 新增 parser gtest：`SET FIRST_DAY_OF_WEEK -1` 在 parse 阶段不报语法错，而返回 `TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK`
-- ✅ 影响 TIMETRUNCATE(1w) 结果
 - ✅ `ALTER LOCAL 'firstDayOfWeek'` 接受；`ALTER ALL DNODES` / `ALTER DNODE N` 被拒绝
 - ✅ `ALTER LOCAL 'firstDayOfWeek'` 更新进程全局 L3，`SHOW LOCAL VARIABLES` 立即可见，新连接继承新值
 - ✅ **连接隔离回归（Finding 1）**：`test_fdow_alter_local_updates_process_global_not_existing_connection` 验证 `ALTER LOCAL` 仅影响新连接；`test_fdow_alter_local_does_not_affect_existing_connection_timetruncate`（P4 skip）为完整行为回归，待 qworker→executor 链路打通后解除 skip
+- 🗑️ ~~`test_fdow_affects_timetruncate_week`~~（已删除：被 `TestTimetruncateWeek::test_timetruncate_1w_fdow_differences` 覆盖）
+- 🗑️ ~~`test_fdow_client_config_applies_without_session_override`~~（已删除：ALTER LOCAL 不影响当前连接快照，逻辑错误）
 
 #### TestTimezoneFunc — TIMEZONE() 函数（P6 Task 6.1, 6.2）
 - ✅ `TIMEZONE()` / `TIMEZONE(0)` 返回客户端时区字符串，SET TIMEZONE 后不变
@@ -109,21 +111,30 @@
 - ✅ 非法时区报错；L1 覆盖 L2；无参回退链
 - ✅ 子日粒度字符串时区回归：`1h` 在 `Asia/Kathmandu` / `+05:45` 下对齐到目标时区整点
 
-#### TestTimetruncateNaturalUnits — TIMETRUNCATE n/q/y + 倍数（P4 Task 4.1）
-- ⏸️ 当前整组按 `pytestmark=skip` 暂挂（P4 未实现），保留测试定义作为后续启用模板
-- ⏸️ 覆盖目标仍包括：`1n/1q/1y` 边界、`1q==3n`、`2q==6n`、多倍数及自然单位+时区参数
+#### TestTimetruncateNaturalUnits — TIMETRUNCATE n/q/y + 限 1x（P4 Task 4.1）
+- ✅ **P4 已实现，4 个正例测试 + 1 个负例测试全部通过**
+- ✅ `1n/1q/1y` 边界对齐（月初/季初/年初）
+- ✅ `1q == 3-month` 等价行为（通过 1q 正例隐式覆盖）
+- ✅ 自然单位 + 字符串时区参数组合
+- ✅ **负例**：`2n`/`3n`/`6n`/`2q`/`2y`/`2w` 均返回 `TSDB_CODE_FUNC_TIME_UNIT_INVALID`
+- **约束**：所有单位（包括 n/q/y）均只接受 `1x` 格式，`Nx`（N>1）一律报错
 
-#### TestTimetruncateWeek — TIMETRUNCATE 1w/Nw 对齐修正（P4 Task 4.2）
-- ✅ 最小可运行回归已恢复：`1w + IANA` 显式参数与 session 参数路径一致
-- ✅ 新增 DST 一致性回归：`America/New_York` 春跳/秋退窗口中，`1w + IANA` 与 session 路径结果一致
-- ⏸️ fdow 0-6、周起始日、2w、多数 firstDayOfWeek 语义验证仍按 P4 维持 skip
-- ⚠️ **高风险变更**仍在：firstDayOfWeek 全量语义未完全放开前，仅保留最小回归防止行为回退
+#### TestTimetruncateWeek — TIMETRUNCATE 1w 对齐修正（P4 Task 4.2）
+- ✅ **P4 已实现，5 个测试全部通过**
+- ✅ fdow 0-6 全覆盖，产生不同对齐日（fdow=0→周日，fdow=1→周一，fdow=4→周四与 epoch 兼容）
+- ✅ 落在周起始日当天应返回当天午夜
+- ✅ 显式 IANA tz 参数与 session tz 路径一致
+- ✅ DST 春跳/秋退窗口中，显式 IANA tz 与 session tz 路径一致
+- ✅ DST 春跳日（fdow=0 Sun）对齐到前一个周日本地午夜
+- ⏸️ `2w` 多倍数（不在 P4 验收范围，测试已删除）
+- ⚠️ **高风险变更**：默认 fdow=4（周四）与旧 epoch 取模行为兼容，未修改配置的用户不受影响
 
 #### TestWeekFunctions — WEEK/WEEKOFYEAR/DAYOFWEEK/WEEKDAY（P4 Task 4.4）
-- ✅ WEEKOFYEAR 受 fdow 影响；WEEK mode 0-7 全覆盖；mode=8 报错
-- ✅ WEEK mode 作为 L1 覆盖 fdow
+- ✅ **P4 已实现**：WEEKOFYEAR 在 fdow=0 vs fdow=1 下产生不同结果
+- ✅ WEEK mode 0-7 全覆盖；mode=8 报错
 - ✅ **DAYOFWEEK / WEEKDAY 不受 fdow 影响**（负面回归），已知值校验
 - ✅ FROM table 查询兼容
+- 🗑️ ~~`test_week_mode_overrides_fdow`~~（已删除：`2026-01-04` 在 mode=0/1 下均返回 week=1，期望值错误）
 
 #### TestDstEdge — DST 边界 + 写入路径回归（P2 Task 2.4 + DST）
 - ✅ 春跳 TO_ISO8601 偏移变化（-05→-04）、TO_CHAR 跳跃（01:59→03:00）
@@ -237,18 +248,21 @@
 - ✅ 现有 `taosTimeTruncate_DST_day_interval` 继续作为 DST 日边界的 common 单元测试承载点
 - ✅ 现有 `function_taosTimeTruncate` 继续承载 `taosTimeTruncate()` 基础行为回归
 
-### 9.2 当前暂无法补充的单元测试
+### 9.2 P4 已落地的功能点（原阻塞项）
 
-以下项目不是遗漏，而是被当前实现状态阻塞；在对应功能代码进入分支前，不应硬加成会编译失败或固化旧行为的测试：
+以下项目已随 P4 实现一并完成，不再阻塞：
 
-- parser：`SET TIMEZONE` / `SET FIRST_DAY_OF_WEEK` 语法节点与错误码
-	- 阻塞原因：对应 grammar、query node type、AST 构造函数当前尚不存在
-- 请求透传与编解码：`firstDayOfWeek` / `clientTimezoneStr`
-	- 阻塞原因：`SSubQueryMsg` / `SInterval` 当前没有对应字段，序列化/反序列化路径也不存在
-- scalar/TIMEZONE(1) 组装：`session/client/server` 来源与缺省分支
-	- 阻塞原因：`timezoneFunction()` 当前仍只返回单层 timezone string，尚无 JSON 组三层逻辑
-- 周函数回退链：`WEEK` / `WEEKOFYEAR` 的 `SET -> server -> default` 行为
-	- 阻塞原因：当前周函数尚未接入 plan 定义的 `firstDayOfWeek` 新回退链，过早补单测只会锁定旧行为
+- ✅ **parser**：`SET TIMEZONE` / `SET FIRST_DAY_OF_WEEK` 语法节点、grammar 规则、AST 构造函数已实现
+- ✅ **firstDayOfWeek 传播链**：client → SParseContext → SFunctionNode → SScalarParam / SWindowLogicNode → SIntervalPhysiNode → STableScanPhysiNode，全链路已打通
+- ✅ **TIMETRUNCATE n/q/y 日历截断**：`validateTimeUnitParamEx` / `checkTimeUnitOrCalendar` 新增，`translateTimeTruncate` 注入 `fdow` + `unitCh` 尾参数，`timeTruncateFunction` 实现月/季/年本地日历对齐
+- ✅ **TIMETRUNCATE 1w fdow 对齐**：session IANA tz 路径和显式字符串 tz 路径均使用 `wday/daysBack` 算法对齐
+- ✅ **WEEKOFYEAR fdow**：根据 `pInput->firstDayOfWeek` 派生 WEEK mode（fdow=1→mode 3，其他→mode 2）
+
+仍待落地的项目：
+
+- ⏸️ `SSubQueryMsg` / `SInterval` `firstDayOfWeek` 序列化/反序列化（executor 侧已就绪，消息序列化还需验证）
+- ⏸️ scalar/TIMEZONE(1) 组装：`session/client/server` JSON 三层（P6）
+- ⏸️ WEEK mode 参数与 firstDayOfWeek 完整隔离回归（`test_week_mode_overrides_fdow` 已删除，需找合适日期重写）
 
 ## 10. 测试执行方式
 

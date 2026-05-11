@@ -2166,7 +2166,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   (*pCxt)->minSecLevel = pTscObj->minSecLevel;

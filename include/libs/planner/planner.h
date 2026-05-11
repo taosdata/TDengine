@@ -80,6 +80,7 @@ typedef struct SPlanContext {
   int64_t            allocatorId;
   int64_t            userId;
   void*              timezone;
+  int8_t             firstDayOfWeek;  /* resolved: 0-6 */
   SPlanStreamContext streamCxt;
 } SPlanContext;
 

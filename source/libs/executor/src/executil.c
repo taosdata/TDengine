@@ -3153,8 +3153,8 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
       .offset = pTableScanNode->offset,
       .precision = pTableScanNode->scan.node.pOutputDataBlockDesc->precision,
       .timeRange = pTableScanNode->scanRange,
+      .firstDayOfWeek = pTableScanNode->firstDayOfWeek,
   };
-  /* TODO(P4): propagate firstDayOfWeek from scan node to interval */
   calcIntervalAutoOffset(&interval);
 
   return interval;

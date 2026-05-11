@@ -701,6 +701,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .sysInfo = pRequest->pTscObj->sysInfo,
+                      .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                       .minSecLevel = pRequest->pTscObj->minSecLevel,
                       .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                       .macMode = pAppInfo->serverCfg.macActive};

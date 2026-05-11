@@ -113,6 +113,9 @@ extern "C" {
 #define FUNC_PARAM_MUST_HAVE_COLUMN                    3
 #define FUNC_PARAM_MUST_BE_TIME_UNIT                   4
 #define FUNC_PARAM_VALUE_NODE_NOT_NULL                 5
+/* Like FUNC_PARAM_MUST_BE_TIME_UNIT but also accepts calendar units
+ * n/q/y with multiplier strictly 1 (i.e. 1n/1q/1y).  Nx (N>1) is invalid. */
+#define FUNC_PARAM_MUST_BE_TIME_UNIT_OR_CALENDAR       6
 
 #define FUNC_PARAM_NO_SPECIFIC_VALUE                  0
 #define FUNC_PARAM_HAS_RANGE                          1

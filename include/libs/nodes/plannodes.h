@@ -105,6 +105,7 @@ typedef struct SScanLogicNode {
   int64_t            sliding;
   int8_t             intervalUnit;
   int8_t             slidingUnit;
+  int8_t             firstDayOfWeek;  /* 0-6, propagated from window logic node */
   SNode*             pTagCond;
   SNode*             pTagIndexCond;
   int8_t             triggerType;
@@ -368,6 +369,7 @@ typedef struct SWindowLogicNode {
   int64_t               sliding;
   int8_t                intervalUnit;
   int8_t                slidingUnit;
+  int8_t                firstDayOfWeek;  /* 0-6, from connection; default 4 (Thu) */
   // for session window
   int64_t               sessionGap;
   SNode*                pTsEnd;
@@ -595,6 +597,7 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         firstDayOfWeek;  /* 0-6, propagated from interval logic node */
   int8_t         triggerType;
   int64_t        watermark;
   int8_t         igExpired;

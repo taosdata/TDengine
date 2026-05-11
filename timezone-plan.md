@@ -445,7 +445,7 @@ SELECT TIMETRUNCATE('2026-03-15 10:30:00', 1d, 1) FROM t;
 
 ### 6.1 Task 4.1：`TIMETRUNCATE` 支持 `n`/`q`/`y` 单位
 
-**目标**：新增月、季度、年截断单位。
+**目标**：新增月、季度、年截断单位，仅支持 `1n`/`1q`/`1y`；`Nx`（N>1）一律报 `TSDB_CODE_FUNC_TIME_UNIT_INVALID`。
 
 **涉及文件**：
 
@@ -453,19 +453,16 @@ SELECT TIMETRUNCATE('2026-03-15 10:30:00', 1d, 1) FROM t;
 | --- | --- |
 | `source/libs/function/src/builtins.c` | 单位校验扩展 |
 | `source/libs/scalar/src/sclfunc.c` | 截断计算逻辑 |
-| parser 中 `validateTimeUnitParam` | 允许 `n`/`q`/`y` 及多倍数 |
+| parser 中 `validateTimeUnitParam` | 仅允许 `1n`/`1q`/`1y`，Nx 拒绝 |
 
 **实现步骤**：
 
-1. 单位校验：仅对 `TIMETRUNCATE` 的调用路径，将 `validateTimeUnitParam` 从固定 `1x` 改为可解析 `Nx` 多倍数格式（`N` 为正整数，`x` 为单位字母）。其他调用者（如 `ELAPSED`、`STATE_DURATION` 等）仍保持 `1x` 限制，避免引入意外行为变更。如果 `validateTimeUnitParam` 是共享函数，则需新增一个允许多倍数的变体（如 `validateTimeUnitParamEx`）供 TIMETRUNCATE 单独使用
-2. 新增自然单位映射：`n`=月, `q`=季度, `y`=年
+1. 单位校验：新增 `validateTimeUnitParamEx`，对 `TIMETRUNCATE` 专用，逻辑与原 `validateTimeUnitParam` 相同，但在 `literal[1]` 的合法字符集中追加 `n`/`q`/`y`；所有单位（包括 n/q/y）仍要求 `literal[0]=='1'`，不支持 `2n`/`3n`/`2q` 等多倍数
+2. 新增自然单位映射：`n`=月, `q`=季度（parser 内部转为 `3n`）, `y`=年
 3. 截断算法（在本地时区坐标系中）：
    - `1n`：对齐到当月 1 日 00:00:00
-   - `Nn`（N>1）：按 epoch 起月份计数整除对齐
-   - `1q`：对齐到当季首月 1 日 00:00:00（Q1=1月, Q2=4月, Q3=7月, Q4=10月）
-   - `Nq`（N>1）：按 epoch 起季度计数整除对齐
+   - `1q`（parser 转换为 datum=3, unit='n'）：对齐到当季首月 1 日 00:00:00（Q1=1月, Q2=4月, Q3=7月, Q4=10月）
    - `1y`：对齐到当年 1 月 1 日 00:00:00
-   - `Ny`（N>1）：按 epoch 起年计数整除对齐
 
 **验收标准**：
 
@@ -474,8 +471,9 @@ SET TIMEZONE 'Asia/Shanghai';
 SELECT TIMETRUNCATE('2026-03-15 10:30:00', 1n);   -- 2026-03-01 00:00:00
 SELECT TIMETRUNCATE('2026-05-15 10:30:00', 1q);   -- 2026-04-01 00:00:00
 SELECT TIMETRUNCATE('2026-08-15 10:30:00', 1y);   -- 2026-01-01 00:00:00
-SELECT TIMETRUNCATE('2026-05-15 10:30:00', 3n);   -- 2026-04-01 00:00:00
-SELECT TIMETRUNCATE('2026-05-15 10:30:00', 2q);   -- 2026-01-01 00:00:00
+SELECT TIMETRUNCATE('2026-05-15 10:30:00', 2n);   -- ERROR: invalid parameter
+SELECT TIMETRUNCATE('2026-05-15 10:30:00', 3n);   -- ERROR: invalid parameter
+SELECT TIMETRUNCATE('2026-04-30 10:30:00', 2w);   -- ERROR: invalid parameter
 ```
 
 ---

@@ -4419,15 +4419,18 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
   int32_t timePrecIdx, timeZoneIdx = -1;
+  /* unitCh and fdow are the last two injected params */
+  int32_t unitChIdx = inputNum - 1;
+  int32_t fdowIdx   = inputNum - 2;
 
-  if (inputNum == 5) {
-    /* user provided integer 0/1 as third param: [ts, unit, use_current_timezone, precision, tz_name] */
+  if (inputNum == 7) {
+    /* user provided integer 0/1: [ts, unit, use_current_timezone, precision, tz_name, fdow, unitCh] */
     timePrecIdx = 3;
     timeZoneIdx = 4;
     GET_TYPED_DATA(useCurrentTz, bool, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
-  } else if (inputNum == 4 && IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[2]))) {
-    /* user provided string timezone: [ts, unit, user_tz, precision] */
+  } else if (inputNum == 6 && IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[2]))) {
+    /* user provided string timezone: [ts, unit, user_tz, precision, fdow, unitCh] */
     hasStringTz = true;
     timePrecIdx = 3;
     code = resolveTimezoneParam(pInput, 2, timezoneStr, sizeof(timezoneStr), &explicitTz);
@@ -4435,9 +4438,24 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       return code;
     }
   } else {
-    /* no user third param: [ts, unit, precision, tz_offset] */
+    /* no user third param: [ts, unit, precision, tz_name, fdow, unitCh] */
     timePrecIdx = 2;
     timeZoneIdx = 3;
+  }
+
+  /* extract unit char (last param) */
+  int64_t unitChRaw = 0;
+  GET_TYPED_DATA(unitChRaw, int64_t, GET_PARAM_TYPE(&pInput[unitChIdx]), pInput[unitChIdx].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[unitChIdx].columnData->info));
+  char unitCh = (char)(unitChRaw & 0xFF);
+
+  /* extract firstDayOfWeek (second-to-last param) */
+  int8_t fdow = 4;  /* default: Thursday (epoch day) */
+  {
+    int64_t fdowRaw = 4;
+    GET_TYPED_DATA(fdowRaw, int64_t, GET_PARAM_TYPE(&pInput[fdowIdx]), pInput[fdowIdx].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[fdowIdx].columnData->info));
+    fdow = (int8_t)(fdowRaw & 0x07);
   }
 
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData,
@@ -4454,7 +4472,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
      * Fixed-offset strings (+0800 etc.) fall through to offsetFromTz().
      *
      * Skip IANA detection when user explicitly set use_current_timezone=0
-     * (inputNum==5 && !useCurrentTz), which means truncate by UTC epoch.
+     * (inputNum==7 && !useCurrentTz), which means truncate by UTC epoch.
      */
     if (useCurrentTz && (strchr(timezoneStr, '/') != NULL || strcmp(timezoneStr, "UTC") == 0)) {
       int32_t tzCode = taosValidateTimezone(timezoneStr, &explicitTz);
@@ -4462,6 +4480,21 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
         hasStringTz = true;
       }
       /* on failure keep hasStringTz=false; fall back to fixed-offset path */
+    }
+  }
+
+  /* Determine effective timezone for calendar unit computation */
+  timezone_t activeTz = hasStringTz ? explicitTz : pInput->tz;
+
+  /* Calendar units: n=month, y=year ('q' is converted to 'n' by parseNatualDuration) */
+  bool isCalendarUnit = (unitCh == 'n' || unitCh == 'y' ||
+                         unitCh == 'N' || unitCh == 'Y');
+
+  /* Calendar units require a valid timezone; fall back to server tz if no session tz */
+  timezone_t fallbackTz = NULL;
+  if (isCalendarUnit && activeTz == NULL && timezoneStr[0] != '\0') {
+    if (taosValidateTimezone(timezoneStr, &fallbackTz) == TSDB_CODE_SUCCESS) {
+      activeTz = fallbackTz;
     }
   }
 
@@ -4485,14 +4518,89 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     }
 
-    int64_t seconds = timeUnit / TSDB_TICK_PER_SECOND(timePrec);
+    int64_t seconds = (isCalendarUnit ? 0 : timeUnit / TSDB_TICK_PER_SECOND(timePrec));
+    bool    tzReady = (activeTz != NULL);
 
-    if (hasStringTz && seconds == 86400) {
-      /* Keep P3 scoped to natural day truncation in the target timezone.
-       * Week alignment remains on the legacy epoch-based path until P4 wires
-       * firstDayOfWeek end-to-end.
+    if (isCalendarUnit && tzReady) {
+      /* Calendar unit truncation: align to month/quarter/year boundary */
+      time_t    t = (time_t)(timeVal / TSDB_TICK_PER_SECOND(timePrec));
+      if (timeVal < 0 && timeVal % TSDB_TICK_PER_SECOND(timePrec) != 0) {
+        t--;  /* floor division for negative timestamps */
+      }
+      struct tm tmInfo;
+      if (taosLocalTime(&t, &tmInfo, NULL, 0, activeTz) == NULL) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      tmInfo.tm_sec = 0;
+      tmInfo.tm_min = 0;
+      tmInfo.tm_hour = 0;
+      tmInfo.tm_mday = 1;
+
+      /*
+       * timeUnit is the raw count from parseNatualDuration:
+       *  - unitCh='n': timeUnit = number of months (1n→1, 3n→3)
+       *  - unitCh='y': timeUnit = number of years (1y→1, 2y→2)
+       * Note: 'q' is already converted to 'n' (3n) by parseNatualDuration.
+       * Convert years to months for alignment.
        */
-      time_t t = timeVal / TSDB_TICK_PER_SECOND(timePrec);
+      int32_t totalMonths = (unitCh == 'y' || unitCh == 'Y')
+                            ? (int32_t)timeUnit * 12
+                            : (int32_t)timeUnit;
+      int32_t absMonth = tmInfo.tm_year * 12 + tmInfo.tm_mon;
+      /* epoch month in terms of tm_year/tm_mon: 1970-01 → tm_year=70, tm_mon=0 */
+      int32_t epochMonth = 70 * 12 + 0;
+      int32_t relMonth = absMonth - epochMonth;
+      int32_t alignedRel = (relMonth / totalMonths) * totalMonths;
+      if (relMonth < 0 && relMonth % totalMonths != 0) {
+        alignedRel -= totalMonths;
+      }
+      int32_t alignedAbs = epochMonth + alignedRel;
+      tmInfo.tm_year = alignedAbs / 12;
+      tmInfo.tm_mon  = alignedAbs % 12;
+      if (tmInfo.tm_mon < 0) {
+        tmInfo.tm_mon += 12;
+        tmInfo.tm_year--;
+      }
+
+      tmInfo.tm_isdst = -1;
+      time_t truncated = taosMktime(&tmInfo, activeTz);
+      if (truncated == (time_t)-1) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      timeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
+    } else if (hasStringTz && seconds == 604800) {
+      /* 1w truncation with explicit timezone and firstDayOfWeek */
+      time_t    t = (time_t)(timeVal / TSDB_TICK_PER_SECOND(timePrec));
+      if (timeVal < 0 && timeVal % TSDB_TICK_PER_SECOND(timePrec) != 0) {
+        t--;
+      }
+      struct tm tmInfo;
+      if (taosLocalTime(&t, &tmInfo, NULL, 0, explicitTz) == NULL) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      /* wday: 0=Sun, 1=Mon ... 6=Sat; fdow: 0=Sun, 1=Mon ... */
+      int32_t wday = tmInfo.tm_wday;
+      int32_t daysBack = (wday - (int32_t)fdow + 7) % 7;
+      tmInfo.tm_mday -= daysBack;
+      tmInfo.tm_hour = 0;
+      tmInfo.tm_min  = 0;
+      tmInfo.tm_sec  = 0;
+      tmInfo.tm_isdst = -1;
+      time_t truncated = taosMktime(&tmInfo, explicitTz);
+      if (truncated == (time_t)-1) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      timeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
+    } else if (hasStringTz && seconds == 86400) {
+      /* 1d truncation in explicit timezone: align to local midnight */
+      time_t t = (time_t)(timeVal / TSDB_TICK_PER_SECOND(timePrec));
+      if (timeVal < 0 && timeVal % TSDB_TICK_PER_SECOND(timePrec) != 0) {
+        t--;
+      }
       struct tm tmInfo;
       if (taosLocalTime(&t, &tmInfo, NULL, 0, explicitTz) == NULL) {
         colDataSetNULL(pOutput->columnData, i);
@@ -4501,8 +4609,8 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       tmInfo.tm_hour = 0;
       tmInfo.tm_min = 0;
       tmInfo.tm_sec = 0;
-      tmInfo.tm_isdst = -1;  /* let mktime_z determine DST for truncated local time */
-      int64_t truncated = taosMktime(&tmInfo, explicitTz);
+      tmInfo.tm_isdst = -1;
+      time_t truncated = taosMktime(&tmInfo, explicitTz);
       if (truncated == (time_t)-1) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
@@ -4510,12 +4618,41 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       timeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
     } else if (hasStringTz) {
       int64_t tzOffset = 0;
-      if (offsetFromTimezoneHandle(explicitTz, timeVal, timePrec, &tzOffset) != TSDB_CODE_SUCCESS) {
+      if (offsetFromTimezoneHandle(explicitTz, timeVal, (int32_t)timePrec, &tzOffset) != TSDB_CODE_SUCCESS) {
         colDataSetNULL(pOutput->columnData, i);
         continue;
       }
       timeVal = timeVal - (timeVal + tzOffset) % timeUnit;
-    } else if (useCurrentTz && (seconds == 604800 || seconds == 86400)) {
+    } else if (useCurrentTz && seconds == 604800) {
+      /* week truncation using firstDayOfWeek from connection-level timezone */
+      if (pInput->tz != NULL) {
+        time_t t = (time_t)(timeVal / TSDB_TICK_PER_SECOND(timePrec));
+        if (timeVal < 0 && timeVal % TSDB_TICK_PER_SECOND(timePrec) != 0) t--;
+        struct tm tmInfo;
+        if (taosLocalTime(&t, &tmInfo, NULL, 0, pInput->tz) != NULL) {
+          int32_t wday = tmInfo.tm_wday;
+          int32_t daysBack = (wday - (int32_t)fdow + 7) % 7;
+          tmInfo.tm_mday -= daysBack;
+          tmInfo.tm_hour = 0;
+          tmInfo.tm_min  = 0;
+          tmInfo.tm_sec  = 0;
+          tmInfo.tm_isdst = -1;
+          time_t truncated = taosMktime(&tmInfo, pInput->tz);
+          if (truncated != (time_t)-1) {
+            timeVal = truncated * TSDB_TICK_PER_SECOND(timePrec);
+          } else {
+            colDataSetNULL(pOutput->columnData, i);
+            continue;
+          }
+        } else {
+          colDataSetNULL(pOutput->columnData, i);
+          continue;
+        }
+      } else {
+        /* fallback to epoch-based offset */
+        timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+      }
+    } else if (useCurrentTz && seconds == 86400) {
       timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
     } else {
       timeVal = timeVal / timeUnit * timeUnit;
@@ -4530,6 +4667,9 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   pOutput->numOfRows = pInput->numOfRows;
 
 _return:
+  if (fallbackTz != NULL) {
+    tzfree(fallbackTz);
+  }
   if (explicitTz != NULL) {
     tzfree(explicitTz);
   }
@@ -4807,7 +4947,12 @@ int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   int64_t timePrec;
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-  return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, 3);
+  /*
+   * MySQL WEEK() mode only supports Sun-start (mode 2) and Mon-start (mode 3).
+   * fdow=2..6 are not representable; they fall back to Sun-start (mode 2).
+   */
+  int32_t mode = (pInput->firstDayOfWeek == 1) ? 3 : 2;
+  return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, mode);
 }
 
 int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

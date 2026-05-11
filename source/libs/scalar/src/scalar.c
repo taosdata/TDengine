@@ -1351,6 +1351,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, node->funcId));
   setTzCharset(params, node->tz, node->charsetCxt);
+  if (params != NULL) {
+    params[0].firstDayOfWeek = node->firstDayOfWeek;
+  }
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     code = callUdfScalarFunc(node->functionName, params, paramNum, output);

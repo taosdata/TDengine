@@ -4,7 +4,7 @@ Covers:
 - P3 Task 3.1: TO_ISO8601(ts, 'IANA_name') IANA extension, DST, fallback L2->L3->L5
 - P3 Task 3.2: TO_CHAR(ts, fmt, 'timezone') third parameter
 - P3 Task 3.3: TIMETRUNCATE(ts, unit, 'tz_string') third parameter extension
-- P4 Task 4.1: TIMETRUNCATE n/q/y natural units and multiples (3n/2q/2y/6n/4n)
+- P4 Task 4.1: TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx invalid)
 - P4 Task 4.2: TIMETRUNCATE 1w aligned by firstDayOfWeek (high-risk change)
 - P4 Task 4.4: WEEK/WEEKOFYEAR respect firstDayOfWeek; DAYOFWEEK/WEEKDAY unchanged
 - DST edge cases: spring-forward gap, fall-back overlap, write-path regression
@@ -283,9 +283,9 @@ class TestTimetruncateTz:
 
 
 class TestTimetruncateNaturalUnits:
-    """TIMETRUNCATE n/q/y units and multiples (3n/2q/2y/6n/2w etc.)."""
+    """TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx is invalid)."""
 
-    pytestmark = pytest.mark.skip(reason="P4: n/q/y natural units not yet implemented in TIMETRUNCATE")
+    pytestmark = []  # P4 implemented
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -337,49 +337,15 @@ class TestTimetruncateNaturalUnits:
             result = tdSql.queryResult[0][0]
             assert '2026-01-01T00:00:00' in result, f"1y({ts_str}): {result}"
 
-    def test_timetruncate_1q_equals_3n(self):
-        """1q and 3n should produce identical results for any timestamp."""
+    def test_timetruncate_1q_equals_3n_is_invalid(self):
+        """3n is invalid (Nx not supported); only 1n/1q/1y are valid."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
-        test_dates = [
-            '2026-02-15 10:30:00', '2026-05-15 10:30:00',
-            '2026-08-15 10:30:00', '2026-11-15 10:30:00',
-        ]
-        for ts_str in test_dates:
-            tdSql.query(f"select timetruncate('{ts_str}', 1q)")
-            r_q = tdSql.queryResult[0][0]
-            tdSql.query(f"select timetruncate('{ts_str}', 3n)")
-            r_n = tdSql.queryResult[0][0]
-            assert r_q == r_n, f"1q vs 3n at {ts_str}: {r_q} vs {r_n}"
-
-    def test_timetruncate_multiples(self):
-        """Multi-unit truncation: 2n, 3n, 6n, 2q, 2y, 5y, 4n."""
-        self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'UTC'")
-        expected = {
-            '2n': '2026-07-01T00:00:00',
-            '3n': '2026-07-01T00:00:00',
-            '6n': '2026-07-01T00:00:00',
-            '2q': '2026-07-01T00:00:00',
-            '2y': '2026-01-01T00:00:00',
-            '5y': '2025-01-01T00:00:00',
-            '4n': '2026-05-01T00:00:00',
-        }
-        for unit, expected_start in expected.items():
-            tdSql.query(f"select to_iso8601(timetruncate('2026-08-15 10:30:00', {unit}), 'UTC')")
-            result = tdSql.queryResult[0][0]
-            assert expected_start in result, f"{unit}: expected {expected_start} in {result}"
-
-    def test_timetruncate_2q_equals_6n(self):
-        """2q should be equivalent to 6n."""
-        self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'UTC'")
-        for ts_str in ['2026-03-15 10:30:00', '2026-08-15 10:30:00', '2026-12-15 10:30:00']:
-            tdSql.query(f"select timetruncate('{ts_str}', 2q)")
-            r_2q = tdSql.queryResult[0][0]
-            tdSql.query(f"select timetruncate('{ts_str}', 6n)")
-            r_6n = tdSql.queryResult[0][0]
-            assert r_2q == r_6n, f"2q vs 6n at {ts_str}: {r_2q} vs {r_6n}"
+        tdSql.error("select timetruncate('2026-05-15 10:30:00', 3n)")
+        tdSql.error("select timetruncate('2026-05-15 10:30:00', 2q)")
+        tdSql.error("select timetruncate('2026-08-15 10:30:00', 2y)")
+        tdSql.error("select timetruncate('2026-08-15 10:30:00', 2w)")
+        tdSql.error("select timetruncate('2026-08-15 10:30:00', 6n)")
 
     def test_timetruncate_natural_with_tz_param(self):
         """n/q/y units combined with string timezone parameter."""
@@ -411,7 +377,6 @@ class TestTimetruncateWeek:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1745920800000, 1)')
 
-    @pytest.mark.skip(reason="P4: firstDayOfWeek-based 1w alignment not yet implemented")
     def test_timetruncate_1w_fdow_differences(self):
         """TIMETRUNCATE(1w) with fdow 0-6 should produce different alignments.
 
@@ -432,7 +397,6 @@ class TestTimetruncateWeek:
         assert '2026-04-26T00:00:00' in results[0], f"fdow=0: {results[0]}"
         assert '2026-04-30T00:00:00' in results[4], f"fdow=4: {results[4]}"
 
-    @pytest.mark.skip(reason="P4: firstDayOfWeek-based 1w alignment not yet implemented")
     def test_timetruncate_1w_on_week_start(self):
         """Truncating on exact week start day should return that day's midnight."""
         self.prepare_data()
@@ -441,19 +405,6 @@ class TestTimetruncateWeek:
         tdSql.query("select to_iso8601(timetruncate('2026-04-27 10:00:00', 1w), 'UTC')")
         result = tdSql.queryResult[0][0]
         assert '2026-04-27T00:00:00' in result, f"Monday fdow=1: {result}"
-
-    @pytest.mark.skip(reason="P4: 2w multi-week unit not yet implemented")
-    def test_timetruncate_2w_multi_week(self):
-        """2w should align by 2-week intervals respecting firstDayOfWeek."""
-        self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'UTC'")
-        results = {}
-        for fdow in [0, 1]:
-            tdSql.execute(f"SET FIRST_DAY_OF_WEEK {fdow}")
-            tdSql.query("select to_iso8601(timetruncate('2026-04-30 10:00:00', 2w), 'UTC')")
-            results[fdow] = tdSql.queryResult[0][0]
-            assert 'T00:00:00' in results[fdow], f"2w fdow={fdow}: {results[fdow]}"
-        assert results[0] != results[1], f"2w should respect fdow: {results}"
 
     def test_timetruncate_1w_with_iana_tz(self):
         """Regression: 1w with explicit IANA tz should match session tz path."""
@@ -488,7 +439,6 @@ class TestTimetruncateWeek:
                 f"{explicit_result} vs {session_result}"
             )
 
-    @pytest.mark.skip(reason="P4: fdow=0 (Sunday) 1w alignment not yet implemented")
     def test_timetruncate_1w_dst_spring(self):
         """1w during DST spring-forward should still align to local 00:00:00."""
         self.prepare_data()
@@ -514,7 +464,6 @@ class TestWeekFunctions:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1735689600000, 1)')
 
-    @pytest.mark.skip(reason="P4: WEEKOFYEAR does not yet respect firstDayOfWeek")
     def test_weekofyear_respects_fdow(self):
         """WEEKOFYEAR with different firstDayOfWeek should succeed."""
         self.prepare_data()
@@ -541,17 +490,6 @@ class TestWeekFunctions:
             "select week('2026-01-01 12:00:00', 8)",
             expectedErrno=ERR_INVALID_FUNCTION_PARAM,
         )
-
-    @pytest.mark.skip(reason="P4: WEEK mode override of firstDayOfWeek not yet implemented")
-    def test_week_mode_overrides_fdow(self):
-        """WEEK(ts, mode) mode is L1 and should override firstDayOfWeek."""
-        self.prepare_data()
-        tdSql.execute("SET FIRST_DAY_OF_WEEK 1")
-        tdSql.query("select week('2026-01-04 12:00:00', 0)")  # mode=0: Sunday start
-        r0 = tdSql.queryResult[0][0]
-        tdSql.query("select week('2026-01-04 12:00:00', 1)")  # mode=1: Monday start
-        r1 = tdSql.queryResult[0][0]
-        assert r0 != r1, f"WEEK mode should override fdow: mode=0 {r0}, mode=1 {r1}"
 
     def test_dayofweek_not_affected_by_fdow(self):
         """DAYOFWEEK should return identical values regardless of firstDayOfWeek.

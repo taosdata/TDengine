@@ -463,6 +463,7 @@ static void scanPathOptSetScanWin(SOsdInfo* pInfo) {
     pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
     pScan->intervalUnit = ((SWindowLogicNode*)pParent)->intervalUnit;
     pScan->slidingUnit = ((SWindowLogicNode*)pParent)->slidingUnit;
+    pScan->firstDayOfWeek = ((SWindowLogicNode*)pParent)->firstDayOfWeek;
   }
 }
 

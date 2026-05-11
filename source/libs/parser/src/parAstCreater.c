@@ -737,6 +737,7 @@ SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   CHECK_PARSER_STATUS(pCxt);
   pFunc->tz = pCxt->pQueryCxt->timezone;
   pFunc->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  pFunc->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)pFunc;
 _err:
   return NULL;
@@ -1504,6 +1505,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1519,6 +1521,7 @@ SNode* createPHTbnameFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncNa
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1541,6 +1544,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_PARSER_STATUS(pCxt);
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
 
   return (SNode*)func;
 _err:
