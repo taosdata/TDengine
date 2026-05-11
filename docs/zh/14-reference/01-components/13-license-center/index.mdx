@@ -1,6 +1,6 @@
 ---
-title: License-Center 参考手册
-sidebar_label: License-Center
+title: LicenseCenter 参考手册
+sidebar_label: LicenseCenter
 toc_max_heading_level: 4
 ---
 
@@ -61,16 +61,15 @@ level = "info"
 file = "/var/log/taoscls/taoscls.log"
 ```
 
-### 服务信息
+### 本地访问
 
-- 已在本地启动 CLS 服务，默认情况下会在**本机信息**页面显示 `CLS ID` 和公钥令牌。
-- 浏览器可正常访问：
+- 在本地启动 CLS 服务，浏览器访问：
   - CLS: `http://localhost:6072`
 - 本文示例中的本地体验账号均为：
   - 用户名：`root`
   - 密码：`taosdata`
 
-## 本地体验部署与访问
+## 服务信息
 
 1. 启动完成后，在浏览器中打开 CLS 管理端并登录。
 
@@ -78,7 +77,7 @@ file = "/var/log/taoscls/taoscls.log"
 
 ![image-20260510103339138](assets/cls-local.png)
 
-## 离线授权流程
+## 离线授权
 
 ### 1. 获取许可证
 
@@ -94,7 +93,7 @@ file = "/var/log/taoscls/taoscls.log"
 
 ![image-20260510111607835](assets/cls-quota.png)
 
-## 在线授权流程
+## 在线授权
 
 在线授权与离线授权的整体流程基本一致，区别在于授权许可证的获取方式。在线模式下，若 CLS 已连接 ELS，ELS 侧授权后许可证将自动同步至 CLS；离线模式则需通过文件等离线方式手动导入许可证。
 
@@ -104,11 +103,11 @@ file = "/var/log/taoscls/taoscls.log"
 
 ### TSDB 配置
 
-TSDB 连接 CLS 服务可使用 taos-explorer 页面进行配置，也可以使用 TSDB 的 SQL 指令进行配置。
+TSDB 连接 CLS 服务可使用 taosExplorer 页面进行配置，也可以使用 TSDB 的 SQL 指令进行配置。
 
-#### taos-explorer
+#### taosExplorer
 
-在 taos-explorer 组件的**系统管理/许可证**页面，点击**激活许可证**按钮后，可以看到如下配置页面：
+在 taosExplorer 组件的**系统管理/许可证**页面，点击**激活许可证**按钮后，可以看到如下配置页面：
 
 ![image-20260510112236023](assets/explorer-active-license.png)
 
