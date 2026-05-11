@@ -22,6 +22,8 @@ extern taos_counter_t *tsInsertCounter;
 // Implemented in enterprise/src/plugins/vnode/src/vnodeCompact.c
 extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
 #endif
+// Implemented in community/source/dnode/vnode/src/vnd/vnodeSnapshot.c
+extern int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -1011,6 +1013,90 @@ _OVER:
   return terrno;
 }
 
+int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                        code = 0;
+  void                          *pRsp = NULL;
+  SVnodeObj                    **ppVnodes = NULL;
+  int32_t                        numOfVnodes = 0;
+
+  SArray *pInfoArray = taosArrayInit(16, sizeof(SSnapSendVnodeInfo));
+  if (pInfoArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("dnode:%d, failed to get vnode list for snap-send-progress, code:%s",
+           pMgmt->pData->dnodeId, tstrerror(code));
+    taosArrayDestroy(pInfoArray);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; i++) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL || pVnode->failed || pVnode->pImpl == NULL) {
+      if (pVnode) vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+
+    SSnapSendVnodeInfo info = {0};
+    if (vnodeGetSnapSendProgress(pVnode->pImpl, pMgmt->pData->dnodeId, &info) == 0) {
+      if (taosArrayPush(pInfoArray, &info) == NULL) {
+        taosMemoryFree(info.pFileSetInfos);
+        dError("dnode:%d, vgId:%d, failed to push snap-send-progress info",
+               pMgmt->pData->dnodeId, pVnode->vgId);
+      }
+    }
+
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+  taosMemoryFree(ppVnodes);
+
+  SDnodeQuerySnapSendProgressRsp rsp = {0};
+  rsp.dnodeId     = pMgmt->pData->dnodeId;
+  rsp.numOfVnodes = (int32_t)taosArrayGetSize(pInfoArray);
+  rsp.pVnodeInfos = (rsp.numOfVnodes > 0)
+                        ? (SSnapSendVnodeInfo *)taosArrayGet(pInfoArray, 0)
+                        : NULL;
+
+  dInfo("dnode:%d, send snap-send-progress rsp, numOfVnodes:%d",
+        rsp.dnodeId, rsp.numOfVnodes);
+
+  int32_t rspLen = tSerializeSDnodeQuerySnapSendProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
+    taosArrayDestroy(pInfoArray);
+    goto _exit;
+  }
+
+  pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
+    taosArrayDestroy(pInfoArray);
+    goto _exit;
+  }
+
+  if (tSerializeSDnodeQuerySnapSendProgressRsp(pRsp, rspLen, &rsp) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
+    taosArrayDestroy(pInfoArray);
+    goto _exit;
+  }
+
+  tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
+  taosArrayDestroy(pInfoArray);
+  pMsg->info.rsp    = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+_exit:
+  return code;
+}
+
 int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t                       code = 0;
   SDnodeQueryCompactProgressReq req = {0};
@@ -1227,6 +1313,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_ARB_CHECK_SYNC, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_ASSIGNED_LEADER, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_SNAP_SEND_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 
