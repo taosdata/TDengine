@@ -1086,6 +1086,52 @@ static SHashObj *tsdbFSetRangeArrayToHash(TFileSetRangeArray *pRanges) {
   return pHash;
 }
 
+int32_t tsdbFSCreateRefSnapshotWithRanges(STFileSystem *fs, TFileSetRangeArray *pRanges, TFileSetArray **fsetArr) {
+  int32_t    code = 0;
+  STFileSet *fset, *fset1;
+  SHashObj  *pHash = NULL;
+
+  fsetArr[0] = taosMemoryCalloc(1, sizeof(*fsetArr[0]));
+  if (fsetArr[0] == NULL) return terrno;
+
+  pHash = tsdbFSetRangeArrayToHash(pRanges);
+  if (pHash == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    int32_t fid = fset->fid;
+    if (taosHashGet(pHash, &fid, sizeof(fid)) == NULL) {
+      tsdbDebug("skip fid:%d, not in ranges", fid);
+      continue;
+    }
+
+    code = tsdbTFileSetInitRef(fs->tsdb, fset, &fset1);
+    if (code) break;
+
+    code = TARRAY2_APPEND(fsetArr[0], fset1);
+    if (code) {
+      tsdbTFileSetClear(&fset1);
+      break;
+    }
+  }
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
+
+  if (code) {
+    TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFree(fsetArr[0]);
+    fsetArr[0] = NULL;
+  }
+
+_out:
+  if (pHash) {
+    taosHashCleanup(pHash);
+  }
+  return code;
+}
+
 int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TFileSetRangeArray *pRanges, TFileSetArray **fsetArr,
                                        TFileOpArray *fopArr) {
   int32_t    code = 0;
