@@ -1226,7 +1226,10 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
       // Force-evict the stale catalog entry first: stb-interlace child tables are not in pRequest->tableList,
       // so refreshMeta does not refresh them. Without this, catalogGetTableMeta below would return the stale
       // cached uid and the retry would patch the submit with the same wrong uid.
-      (void)catalogRemoveTableMeta(pStmt->pCatalog, &nm);
+      nc = catalogRemoveTableMeta(pStmt->pCatalog, &nm);
+      if (nc != TSDB_CODE_SUCCESS) {
+        return nc;
+      }
       STableMeta* pMeta = NULL;
       nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pMeta);
       if (nc == TSDB_CODE_SUCCESS && pMeta != NULL) {
@@ -1281,7 +1284,10 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
         // Force-evict the stale catalog entry: refreshMeta only refreshes pRequest->tableList which may
         // not cover every table touched by a multi-VG submit. Removing the cache entry guarantees the
         // fetch below goes to mnode and brings back the freshly created table's uid.
-        (void)catalogRemoveTableMeta(pStmt->pCatalog, &nm);
+        nc = catalogRemoveTableMeta(pStmt->pCatalog, &nm);
+        if (nc != TSDB_CODE_SUCCESS) {
+          return nc;
+        }
         STableMeta* pFresh = NULL;
         nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pFresh);
         if (nc == TSDB_CODE_SUCCESS && pFresh != NULL && !stmtRetryTbMetaIsSuperTable(pFresh)) {
