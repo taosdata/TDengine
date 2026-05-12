@@ -2132,21 +2132,22 @@ static int32_t buildVirtualScanTree(SLogicPlanContext* pCxt, SSelectStmt* pSelec
     // Set TagRefSource as child of pVtableScan (not pRealTableScan)
     // This allows virtualTableSplit to process TagRefSource into independent subplans
     pRefSource->node.pParent = (SLogicNode*)pVtableScan;
-    PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)pRefSource));
+    PLAN_ERR_JRET(nodesListAppend(pVtableScan->node.pChildren, (SNode*)pRefSource));
 
     planDebug("Added TagRefSource as child of pVtableScan: %s.%s (filter=%d, proj=%d)",
               pRefSource->sourceTableName.dbname, pRefSource->sourceTableName.tname,
               pRefSource->isUsedInFilter, pRefSource->isUsedInProjection);
   }
 
-  // IMPORTANT: Move pTagRefSources to pChildren is complete
-  // We can clear pTagRefSources list to avoid double-free issues
-  // The nodes are now owned by pVtableScan->pChildren and will be destroyed there
   nodesClearList(pVtableScan->pTagRefSources);
   pVtableScan->pTagRefSources = NULL;
 
   return TSDB_CODE_SUCCESS;
 _return:
+  // Some nodes may have been appended to pChildren already.
+  // Clear source list to prevent double-free; un-transferred nodes leak on OOM.
+  nodesClearList(pVtableScan->pTagRefSources);
+  pVtableScan->pTagRefSources = NULL;
   return code;
 }
 

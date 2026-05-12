@@ -2140,6 +2140,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     if (tagData != NULL) {
       if (IS_STR_DATA_BLOB(tagType)) {
         code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+        if (tagDataFromRemote) taosMemoryFreeClear(tagData);
         goto _end;
       }
 
@@ -2148,6 +2149,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
         parseTagDatatoJson(tagData, &tagJson, NULL);
         if (tagJson == NULL) {
           code = terrno;
+          if (tagDataFromRemote) taosMemoryFreeClear(tagData);
           goto _end;
         }
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);

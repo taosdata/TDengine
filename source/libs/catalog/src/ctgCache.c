@@ -3870,6 +3870,11 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       tagRefSize = tbMeta->numOfTagRefs * sizeof(SColRef);
       tagRefNum = tbMeta->numOfTagRefs;
       tmpTagRef = taosMemoryMalloc(tagRefSize);
+      if (NULL == tmpTagRef) {
+        taosMemoryFreeClear(tmpRef);
+        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(terrno);
+      }
       TAOS_MEMCPY(tmpTagRef, tbMeta->tagRef, tagRefSize);
     }
 

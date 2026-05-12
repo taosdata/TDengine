@@ -7199,6 +7199,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
         setTableNameByColRef(pRTNode, &pMeta->colRef[i]);
         PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
+        pRTNode = NULL;  // now owned by pVTable->refTables
         PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
       }
     }
@@ -7222,6 +7223,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
 
         // Recursively fetch transitive tag-ref sources for multi-hop chains
         SRealTableNode* pCurRef = pRTNode;
+        pRTNode = NULL;  // now owned by pVTable->refTables
         for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH && pCurRef != NULL; ++depth) {
           if (!pCurRef->pMeta || !pCurRef->pMeta->tagRef || pCurRef->pMeta->numOfTagRefs <= 0) break;
           SRealTableNode* pNextRef = NULL;
@@ -7249,15 +7251,16 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   }
   pCxt->refTable = false;
   pCxt->pParseCxt->async = tmpAsync;
-  if (taosHashGetSize(pTableNameHash) == 1 && pRTNode != NULL) {
+  if (taosHashGetSize(pTableNameHash) == 1 && LIST_LENGTH(pVTable->refTables) == 1) {
+    SRealTableNode* pSingleRef = (SRealTableNode*)nodesListGetNode(pVTable->refTables, 0);
     if (pMeta->numOfColRefs > 0 && pMeta->colRef != NULL && pMeta->tableInfo.numOfColumns > 0 &&
-        pRTNode->pMeta != NULL && pRTNode->pMeta->tableInfo.numOfColumns > 0) {
+        pSingleRef->pMeta != NULL && pSingleRef->pMeta->tableInfo.numOfColumns > 0) {
       // if there is only one reference table, we can set ts column's reference to it, which will be used when virtual
       // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
-      const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
+      const SSchema* pRefTsSchema = &pSingleRef->pMeta->schema[0];
       PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name,
-                             pRTNode->table.tableName, pRTNode->table.dbName));
+                             pSingleRef->table.tableName, pSingleRef->table.dbName));
     }
   }
   nodesDestroyNode(*pTable);

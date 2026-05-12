@@ -15,11 +15,8 @@
 
 #include "executor.h"
 #include "executorInt.h"
-#include "filter.h"
-#include "function.h"
 #include "os.h"
 #include "querynodes.h"
-#include "systable.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
@@ -27,13 +24,10 @@
 
 #include "tdatablock.h"
 #include "tmsg.h"
-#include "ttime.h"
 
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
-#include "tcompare.h"
-#include "thash.h"
 #include "ttypes.h"
 
 #include "storageapi.h"
