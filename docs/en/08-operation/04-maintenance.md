@@ -75,6 +75,22 @@ restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 - This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
 - This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
 
+### Monitoring Snapshot Send Progress
+
+After running `restore dnode`, TDengine synchronizes data to the target node via snapshot replication. Use the following system tables to monitor progress in real time:
+
+```sql
+-- Vnode-level: overall progress for each vnode currently sending a snapshot
+SELECT * FROM information_schema.ins_snap_send_vnodes;
+
+-- Fileset-level: per-time-partition file transfer details for a given vgroup
+SELECT * FROM information_schema.ins_snap_send_filesets
+WHERE vgroup_id = <vgroup_id>
+ORDER BY fid;
+```
+
+For column definitions of both tables, see [Metadata](../../tdengine-reference/sql-manual/metadata).
+
 ## Splitting Virtual Groups
 
 When a vgroup is overloaded with CPU or Disk resource usage due to too many subtables, after adding a dnode, you can split the vgroup into two virtual groups using the `split vgroup` command. After the split, the newly created two vgroups will undertake the read and write services originally provided by one vgroup. This command was first released in version 3.0.6.0, and it is recommended to use the latest version whenever possible.
@@ -148,19 +164,3 @@ The main value of dual replicas lies in saving storage costs while maintaining a
 1. Upgrading from Single Replica
 
 Assuming there is an existing single replica cluster with N nodes (N>=1), and you want to upgrade it to a dual replica cluster, ensure that N>=3 after the upgrade, and configure the `supportVnodes` parameter of a newly added node to 0. After completing the cluster upgrade, use the command `alter database replica 2` to change the replica count for a specific database.
-
-## Monitoring Snapshot Send Progress
-
-When a follower node has been offline for an extended period or has fallen significantly behind and the WAL has been trimmed, TDengine automatically triggers snapshot replication. Two system tables provide real-time visibility into the transfer progress.
-
-```sql
--- Vnode-level: overall progress for each vnode currently sending a snapshot
-SELECT * FROM information_schema.ins_snap_send_vnodes;
-
--- Fileset-level: per-time-partition file transfer details for a given vgroup
-SELECT * FROM information_schema.ins_snap_send_filesets
-WHERE vgroup_id = <vgroup_id>
-ORDER BY fid;
-```
-
-For column definitions of both tables, see [Metadata](../../tdengine-reference/sql-manual/metadata).

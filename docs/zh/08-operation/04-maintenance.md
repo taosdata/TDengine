@@ -77,6 +77,22 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 - 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode 来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
 - 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该 mnode/vnode 的数据全部清空再进行恢复。
 
+### 监控 Snapshot 发送进度
+
+执行 `restore dnode` 后，TDengine 会通过 snapshot 复制将数据从其他副本同步到目标节点。可以通过以下系统表实时查看进度：
+
+```sql
+-- vnode 级：查看每个正在传输 snapshot 的 vnode 的整体进度
+SELECT * FROM information_schema.ins_snap_send_vnodes;
+
+-- fileset 级：查看指定 vgroup 中每个时间分片的文件传输详情
+SELECT * FROM information_schema.ins_snap_send_filesets
+WHERE vgroup_id = <vgroup_id>
+ORDER BY fid;
+```
+
+两张表的列定义参见[元数据](../../reference/taos-sql/meta)。
+
 ## 分裂虚拟组
 
 当一个 vgroup 因为子表数过多而导致 CPU 或 Disk 资源使用量负载过高时，增加 dnode 节点后，可通过 `split vgroup` 命令把该 vgroup 分裂为两个虚拟组。分裂完成后，新产生的两个 vgroup 承担原来由一个 vgroup 提供的读写服务。该命令在 3.0.6.0 版本第一次发布，建议尽可能使用最新版本。
@@ -148,19 +164,3 @@ assigned_token：
 2. 从单副本升级
 
 假定已经有一个单副本集群，其结点数为 N (N>=1)，欲将其升级为双副本集群，升级后需要保证 N>=3，且新加入的某个节点的 `supportVnodes` 参数配置为 0。在集群升级完成后使用  `alter database replica 2` 的命令修改某个特定数据库的副本数。
-
-## 监控 Snapshot 发送进度
-
-当某个 follower 节点长时间离线或数据严重落后，WAL 已经被裁剪后，TDengine 会自动触发 snapshot 复制流程。TDengine 提供两张系统表来实时观测发送进度。
-
-```sql
--- vnode 级：查看每个正在传输 snapshot 的 vnode 的整体进度
-SELECT * FROM information_schema.ins_snap_send_vnodes;
-
--- fileset 级：查看指定 vgroup 中每个时间分片的文件传输详情
-SELECT * FROM information_schema.ins_snap_send_filesets
-WHERE vgroup_id = <vgroup_id>
-ORDER BY fid;
-```
-
-两张表的列定义参见[元数据](../../reference/taos-sql/meta)。
