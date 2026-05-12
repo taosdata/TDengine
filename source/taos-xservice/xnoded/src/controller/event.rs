@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, LazyLock},
+    sync::{
+        Arc, LazyLock,
+        atomic::{AtomicU32, Ordering},
+    },
     time::Duration,
 };
 
@@ -12,14 +15,14 @@ use ha_core::{
         AGENT_ACTIVITIES_STABLE, DROP_CONNECTION, HEARTBEAT_REQ, HEARTBEAT_RESP,
         TASK_ACTIVITIES_STABLE, TASK_METRICS, TASK_METRICS_STABLE, XNODE_ACTIVITIES,
     },
-    types::TaskMetrics,
+    types::{MetricsType, TaskMetrics},
 };
 use parking_lot::{Mutex, RwLock};
 use snafu::ResultExt;
 use taos::Dsn;
 use taosx_utils::backoff::{BackoffDuration, RetryBackoff};
 use taosx_utils::sql::sql_value_escaped_fmt;
-use taosx_utils::taos_conn::{self, TaosConn};
+use taosx_utils::taos_conn::{self, Error as TaosConnError, TaosConn};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -37,6 +40,52 @@ use crate::controller::{
 type TaskFailedBackoff = HashMap<(i64, i64), Mutex<BackoffDuration>>;
 static TASK_FILED_BACKOFF: LazyLock<RwLock<TaskFailedBackoff>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
+
+/// Maximum VARCHAR width for the `value` column in TDengine (platform limit).
+const TASK_METRICS_VALUE_VARCHAR_MAX: u32 = 65517;
+/// Initial VARCHAR width matching the CREATE STABLE definition.
+const TASK_METRICS_VALUE_VARCHAR_INITIAL: u32 = 2048;
+/// Tracks the current VARCHAR width so ALTER STABLE is only issued when needed.
+static TASK_METRICS_VALUE_WIDTH: AtomicU32 = AtomicU32::new(TASK_METRICS_VALUE_VARCHAR_INITIAL);
+
+/// Returns the smallest power of two that is ≥ `n` (minimum 1).
+fn next_pow2_at_least(n: u32) -> u32 {
+    n.max(1).next_power_of_two()
+}
+
+/// Returns `true` when `err` represents a "value too long" class of TDengine error.
+///
+/// Only the source chain is inspected — the outer `Display` for `TaosConnError::Taos`
+/// includes the full SQL payload (`Failed to query sql {sql}`), so matching against
+/// it would cause false positives when the data itself contains trigger phrases.
+fn is_value_too_long_error(err: &TaosConnError) -> bool {
+    use std::error::Error as StdError;
+
+    let mut src: Option<&dyn StdError> = err.source();
+    while let Some(e) = src {
+        let lower = e.to_string().to_ascii_lowercase();
+        if lower.contains("value too long")
+            || lower.contains("string column length too long")
+            || lower.contains("length exceeds")
+            || lower.contains("string overflow")
+        {
+            return true;
+        }
+        src = e.source();
+    }
+    false
+}
+
+/// Issues `ALTER STABLE … MODIFY COLUMN value VARCHAR(new_size)`.
+async fn grow_task_metrics_value_column(
+    conn: &TaosConn,
+    new_size: u32,
+) -> std::result::Result<(), TaosConnError> {
+    let sql = format!(
+        "ALTER STABLE log.`{TASK_METRICS_STABLE}` MODIFY COLUMN `value` VARCHAR({new_size})"
+    );
+    conn.exec(&sql).await.map(|_| ())
+}
 
 fn task_backoff_duration(task_id: i64, job_id: i64) -> Duration {
     if let Some(backoff) = TASK_FILED_BACKOFF.read().get(&(task_id, job_id)) {
@@ -540,21 +589,89 @@ async fn insert_metrics(conn: &TaosConn, id: i32, context: &str) {
             return;
         }
     };
+    let ts = ts.timestamp_millis();
+    let sql = build_task_metrics_insert_sql(id, task_id, job_id, ts, &r#type, &metrics);
+    match conn.exec(&sql).await {
+        Ok(_) => {}
+        Err(e) if is_value_too_long_error(&e) => {
+            let metrics_len = metrics.len() as u32;
+            let current = TASK_METRICS_VALUE_WIDTH.load(Ordering::Relaxed);
+            let needed = next_pow2_at_least(metrics_len).min(TASK_METRICS_VALUE_VARCHAR_MAX);
+            if needed <= current {
+                // Race A: another writer already grew the column. The cached width is
+                // already wide enough, so skip ALTER and retry the INSERT once.
+                tracing::warn!(
+                    "Metrics value length {metrics_len} fits VARCHAR({current}) but INSERT \
+                    still failed with overflow; retrying (concurrent growth may have already \
+                    widened the column): {:#}",
+                    anyhow::Error::new(e)
+                );
+                if let Err(retry_err) = conn.exec(&sql).await {
+                    tracing::error!(
+                        "Failed to insert metrics on retry after concurrent column growth: {:#}",
+                        anyhow::Error::new(retry_err)
+                    );
+                }
+                return;
+            }
+            tracing::warn!(
+                "Metrics value length {metrics_len} exceeds VARCHAR({current}); \
+                growing log.{TASK_METRICS_STABLE}.value to VARCHAR({needed})"
+            );
+            if let Err(alter_err) = grow_task_metrics_value_column(conn, needed).await {
+                // Race B: another writer may have issued the same ALTER and succeeded.
+                // Log the failure and retry the INSERT once instead of dropping the record.
+                tracing::error!(
+                    "Failed to grow {TASK_METRICS_STABLE}.value to VARCHAR({needed}): {:#}",
+                    anyhow::Error::new(alter_err)
+                );
+                if let Err(retry_err) = conn.exec(&sql).await {
+                    tracing::error!(
+                        "Failed to insert metrics after ALTER failure: {:#}",
+                        anyhow::Error::new(retry_err)
+                    );
+                }
+                return;
+            }
+            TASK_METRICS_VALUE_WIDTH.fetch_max(needed, Ordering::Relaxed);
+            if let Err(retry_err) = conn.exec(&sql).await {
+                tracing::error!(
+                    "Failed to insert metrics after growing column: {:#}",
+                    anyhow::Error::new(retry_err)
+                );
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to insert metrics: {:#}", anyhow::Error::new(e));
+        }
+    }
+}
+
+fn build_task_metrics_insert_sql(
+    id: i32,
+    task_id: i64,
+    job_id: i64,
+    ts: i64,
+    task_type: &MetricsType,
+    metrics: &str,
+) -> String {
     let table = if job_id < 0 {
         format!("{TASK_METRICS_STABLE}_xnode_{id}_task_{task_id}")
     } else {
         format!("{TASK_METRICS_STABLE}_xnode_{id}_task_{task_id}_job_{job_id}")
     };
-    let ts = ts.timestamp_millis();
-    let sql = format!(
+    let task_type = task_type.to_string();
+    let escaped_task_type = escape_task_type_tag(&task_type);
+    let escaped_metrics = sql_value_escaped_fmt(metrics);
+    format!(
         "INSERT INTO log.`{table}` \
-        USING log.`{TASK_METRICS_STABLE}` TAGS ({id}, {task_id}, {job_id}, '{}') \
-        VALUES ({ts}, '{metrics}')",
-        r#type
-    );
-    if let Err(e) = conn.exec(&sql).await {
-        tracing::error!("Failed to insert metrics: {:#}", anyhow::Error::new(e));
-    }
+        USING log.`{TASK_METRICS_STABLE}` TAGS ({id}, {task_id}, {job_id}, {escaped_task_type}) \
+        VALUES ({ts}, {escaped_metrics})"
+    )
+}
+
+fn escape_task_type_tag(task_type: &str) -> String {
+    sql_value_escaped_fmt(task_type).to_string()
 }
 
 #[instrument(skip_all)]
@@ -627,10 +744,79 @@ async fn process_agent_status(
 }
 
 #[cfg(test)]
+mod auto_extend_tests {
+    use super::*;
+
+    #[test]
+    fn next_pow2_basic() {
+        assert_eq!(next_pow2_at_least(0), 1);
+        assert_eq!(next_pow2_at_least(1), 1);
+        assert_eq!(next_pow2_at_least(2), 2);
+        assert_eq!(next_pow2_at_least(3), 4);
+        assert_eq!(next_pow2_at_least(2048), 2048);
+        assert_eq!(next_pow2_at_least(2049), 4096);
+        assert_eq!(next_pow2_at_least(4096), 4096);
+        assert_eq!(next_pow2_at_least(65517), 65536);
+    }
+
+    #[test]
+    fn varchar_constants_match_design() {
+        assert_eq!(TASK_METRICS_VALUE_VARCHAR_INITIAL, 2048);
+        assert_eq!(TASK_METRICS_VALUE_VARCHAR_MAX, 65517);
+    }
+
+    #[test]
+    fn is_value_too_long_error_matches_known_patterns() {
+        use taosx_utils::taos_conn::Error as TaosConnError;
+
+        let patterns = [
+            "value too long for the column",
+            "string column length too long",
+            "length exceeds the limit",
+            "string overflow detected",
+        ];
+        for msg in patterns {
+            let err = TaosConnError::Taos {
+                sql: "INSERT INTO log.x".into(),
+                source: taos::RawError::new(0x2600, msg),
+            };
+            assert!(
+                is_value_too_long_error(&err),
+                "expected true for message: {msg}"
+            );
+        }
+
+        let safe_err = TaosConnError::Taos {
+            sql: "INSERT INTO log.x".into(),
+            source: taos::RawError::new(0x2603, "table does not exist"),
+        };
+        assert!(!is_value_too_long_error(&safe_err));
+    }
+
+    /// Verifies that trigger words appearing only in the SQL payload do not cause
+    /// a non-overflow error to be misclassified as a width-overflow error.
+    #[test]
+    fn is_value_too_long_error_ignores_sql_payload() {
+        use taosx_utils::taos_conn::Error as TaosConnError;
+
+        // The SQL payload contains "value too long" but the actual TDengine error
+        // is an unrelated syntax error; this must NOT be classified as overflow.
+        let err = TaosConnError::Taos {
+            sql: "INSERT INTO log.x VALUES (1, 'value too long payload text here')".into(),
+            source: taos::RawError::new(0x2600, "syntax error"),
+        };
+        assert!(
+            !is_value_too_long_error(&err),
+            "SQL payload containing 'value too long' must not trigger overflow misclassification"
+        );
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
-    use ha_core::types::HaTask;
+    use ha_core::types::{HaTask, MetricsType};
 
     fn make_task() -> HaTask {
         HaTask {
@@ -699,5 +885,25 @@ mod tests {
         );
 
         del_task_backoff(1);
+    }
+
+    #[test]
+    fn escape_task_type_tag_escapes_quotes() {
+        let escaped = escape_task_type_tag("raw'type");
+
+        assert!(
+            escaped.contains("raw''type"),
+            "task type should be SQL-escaped inside TAGS: {escaped}"
+        );
+        assert!(
+            escaped == "'raw''type'",
+            "escaped task type should remain a single SQL literal: {escaped}"
+        );
+    }
+
+    #[test]
+    fn build_task_metrics_insert_sql_accepts_metrics_type() {
+        let sql = build_task_metrics_insert_sql(7, 11, -1, 42, &MetricsType::Tmq, "'{}'");
+        assert!(sql.contains("TAGS (7, 11, -1, 'tmq')"), "{sql}");
     }
 }

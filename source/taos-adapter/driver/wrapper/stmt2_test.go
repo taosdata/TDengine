@@ -5877,8 +5877,10 @@ func TestTaosStmt2GetStbFields(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	fs := Stmt2ParseAllFields(1, fields)
 	TaosStmt2FreeFields(stmt2, fields)
 	assert.Equal(t, 2, count)
+	assert.Equal(t, 1, len(fs))
 }
 
 func TestWrongParseStmt2StbFields(t *testing.T) {

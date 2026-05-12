@@ -145,7 +145,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        go: [ '1.24.10', 'stable' ]
+        go: [ '1.25.10', 'stable' ]
         os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
     name: Build taosAdapter ${{ matrix.os }}-${{ matrix.go }}
     steps:
@@ -206,7 +206,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        go: [ '1.24.10', 'stable' ]
+        go: [ '1.25.10', 'stable' ]
         os: [ 'ubuntu-latest' , 'ubuntu-24.04-arm' ]
     name: test taosAdapter ${{ matrix.os }}-${{ matrix.go }}
     steps:

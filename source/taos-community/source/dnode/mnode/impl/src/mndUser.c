@@ -1460,7 +1460,6 @@ static int32_t mndProcessUpgradeUserRsp(SRpcMsg *pReq) { return 0;}
 static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
   if (upgradeSecurity == 0) return code;
-  if (!mndIsLeader(pMnode)) return code;
 
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SEpSet  epSet = {0};

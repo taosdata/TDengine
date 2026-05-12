@@ -49,3 +49,64 @@ impl TryFrom<Dsn> for Config {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    fn parse_config(input: &str) -> anyhow::Result<Config> {
+        Config::try_from(Dsn::from_str(input)?)
+    }
+
+    #[test]
+    fn config_parses_paths_and_defaults() {
+        let config = parse_config("orc:/data/a.orc,/data/b.orc").unwrap();
+
+        assert_eq!(config.paths, vec!["/data/a.orc", "/data/b.orc"]);
+        assert_eq!(config.batch_size, 1000);
+        assert!(config.projection.is_none());
+        assert_eq!(config.unprocessed_batches, None);
+    }
+
+    #[test]
+    fn config_ignores_empty_path_segments_and_parses_batch_size() {
+        let config = parse_config("orc:/data/a.orc, ,/data/b.orc?batch_size=64").unwrap();
+
+        assert_eq!(config.paths, vec!["/data/a.orc", "/data/b.orc"]);
+        assert_eq!(config.batch_size, 64);
+    }
+
+    #[test]
+    fn config_parses_numeric_projection_before_name_projection() {
+        let config = parse_config("orc:/data/a.orc?projection=1,3,5").unwrap();
+
+        match config.projection {
+            Some(Projection::Indices(indices)) => assert_eq!(indices, vec![1, 3, 5]),
+            _ => panic!("expected numeric projection"),
+        }
+    }
+
+    #[test]
+    fn config_falls_back_to_name_projection() {
+        let config = parse_config("orc:/data/a.orc?projection=ts,value,status").unwrap();
+
+        match config.projection {
+            Some(Projection::Names(names)) => assert_eq!(names, vec!["ts", "value", "status"]),
+            _ => panic!("expected name projection"),
+        }
+    }
+
+    #[test]
+    fn config_parses_unprocessed_batches() {
+        let config = parse_config("orc:/data/a.orc?unprocessed_batches=3").unwrap();
+
+        assert_eq!(config.unprocessed_batches, Some(3));
+    }
+
+    #[test]
+    fn config_rejects_missing_or_empty_paths() {
+        assert!(parse_config("orc:").is_err());
+        assert!(parse_config("orc:, ,").is_err());
+    }
+}

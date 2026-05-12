@@ -10316,6 +10316,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tmq-to-local",
+ "tmq-to-td",
  "tokio",
  "tokio-rustls",
  "tokio-stream",

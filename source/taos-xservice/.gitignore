@@ -85,3 +85,13 @@ CLAUDE.md
 
 llvm-cov-merged.lcov
 tests/agent-fallback-http.toml
+
+
+# mcp
+.playwright-mcp/
+
+# vscode
+plugins/*/.classpath
+plugins/*/.factorypath
+plugins/*/.project
+plugins/*/.settings/

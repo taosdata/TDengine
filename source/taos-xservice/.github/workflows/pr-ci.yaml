@@ -29,6 +29,7 @@ on:
       - "explorer/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "Makefile.toml"
       - "build.rs"
       - ".github/workflows/**"
       - "tests/e2e/**"
@@ -495,7 +496,7 @@ jobs:
           cache-dependency-path: explorer/pnpm-lock.yaml
 
       - name: setup_pnpm
-        run: npm install -g pnpm
+        run: npm install -g pnpm@10.33.4
 
       - name: test_explorer_ui
         working-directory: explorer
@@ -792,7 +793,7 @@ jobs:
           cache-dependency-path: explorer/pnpm-lock.yaml
 
       - name: install_pnpm_for_ui_tests
-        run: npm install -g pnpm
+        run: npm install -g pnpm@10.33.4
 
       - name: cache_playwright_browsers
         uses: actions/cache@v4

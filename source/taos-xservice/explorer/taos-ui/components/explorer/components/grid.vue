@@ -135,6 +135,15 @@ function loadLeft() {
     height: 0;
   }
 
+  &:deep(.el-table--small) {
+    font-size: 14px;
+  }
+
+  &:deep(.el-table--small .el-table__cell) {
+    padding: 3px 0;
+  }
+
+  &:deep(.el-table--small .el-table__header-wrapper .el-table__cell),
   &:deep(.el-table--mini .el-table__header-wrapper .el-table__cell) {
     cursor: unset;
   }

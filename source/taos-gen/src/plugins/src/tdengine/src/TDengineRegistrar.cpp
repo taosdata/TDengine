@@ -4,6 +4,7 @@
 #include "TDengineRegistrar.hpp"
 #include "SqlFormatOptions.hpp"
 #include "StmtFormatOptions.hpp"
+#include "SchemalessFormatOptions.hpp"
 #include "InsertDataAction.hpp"
 
 void register_tdengine_plugin_config_hooks() {
@@ -41,8 +42,8 @@ void register_tdengine_plugin_config_hooks() {
 
             if (node["format"]) {
                 cfg.data_format.format_type = node["format"].as<std::string>();
-                if (cfg.data_format.format_type != "sql" && cfg.data_format.format_type != "stmt") {
-                    throw std::runtime_error("Invalid format type for tdengine target: " + cfg.data_format.format_type + ". It must be 'sql' or 'stmt'.");
+                if (cfg.data_format.format_type != "sql" && cfg.data_format.format_type != "stmt" && cfg.data_format.format_type != "schemaless") {
+                    throw std::runtime_error("Invalid format type for tdengine target: " + cfg.data_format.format_type + ". It must be 'sql', 'stmt', or 'schemaless'.");
                 }
             } else {
                 cfg.data_format.format_type = "stmt";
@@ -78,6 +79,21 @@ void register_tdengine_plugin_config_hooks() {
                 }
 
                 cfg.data_format.support_tags = fmt->auto_create_table;
+            }
+
+            // schemaless
+            {
+                auto* fmt = get_format_opt_mut<SchemalessFormatOptions>(cfg.data_format, "schemaless");
+                if (!fmt) {
+                    set_format_opt(cfg.data_format, "schemaless", SchemalessFormatOptions{});
+                    fmt = get_format_opt_mut<SchemalessFormatOptions>(cfg.data_format, "schemaless");
+                    if (!fmt) return;
+                }
+
+                // Schemaless always needs tags for line protocol
+                if (cfg.data_format.format_type == "schemaless") {
+                    cfg.data_format.support_tags = true;
+                }
             }
         });
 

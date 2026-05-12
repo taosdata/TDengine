@@ -8,12 +8,14 @@ target_include_directories(plugin_base
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tdengine/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/mqtt/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kafka/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/influxdb/inc
 )
 
 # Add subdirectories for each plugin
 add_subdirectory(src/tdengine)
 add_subdirectory(src/mqtt)
 add_subdirectory(src/kafka)
+add_subdirectory(src/influxdb)
 
 # Create library target
 add_library(plugins STATIC
@@ -21,6 +23,7 @@ add_library(plugins STATIC
   $<TARGET_OBJECTS:plugin_tdengine>
   $<TARGET_OBJECTS:plugin_mqtt>
   $<TARGET_OBJECTS:plugin_kafka>
+  $<TARGET_OBJECTS:plugin_influxdb>
 )
 
 # Set include directories
@@ -41,6 +44,7 @@ target_link_libraries(plugins
     plugin_tdengine
     plugin_mqtt
     plugin_kafka
+    plugin_influxdb
     # actions_config
     # core_checkpoint
     # yaml-cpp::yaml-cpp

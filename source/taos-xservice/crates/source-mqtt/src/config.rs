@@ -427,6 +427,9 @@ mod tests {
 
         let dsn = Dsn::from_str("mqtt://?client_id=abc")?;
         assert_eq!(&parse_client_id(&dsn)?, "abc");
+
+        let dsn = Dsn::from_str("mqtt://?client_id=%20%20abc%20%20")?;
+        assert_eq!(&parse_client_id(&dsn)?, "abc");
         Ok(())
     }
 
@@ -562,6 +565,59 @@ mod tests {
             topics,
             HashMap::from_iter([("tp1".into(), 0), ("tp2".into(), 1)])
         );
+
+        let dsn = Dsn::from_str("mqtt://?topics=tp1::bad")?;
+        let err = parse_topics(&dsn).unwrap_err();
+        assert!(err.to_string().contains("invalid qos"));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_persist_data_config() -> anyhow::Result<()> {
+        let dsn = Dsn::from_str("mqtt://")?;
+        assert!(PersistDataConfig::from_dsn(&dsn)?.is_none());
+
+        let dsn = Dsn::from_str("mqtt://?persist_data_enable=false")?;
+        assert!(PersistDataConfig::from_dsn(&dsn)?.is_none());
+
+        let dsn = Dsn::from_str("mqtt://?persist_data_enable=true")?;
+        let config = PersistDataConfig::from_dsn(&dsn)?.context("persist config")?;
+        assert_eq!(config.dir, None);
+
+        let dsn = Dsn::from_str("mqtt://?persist_data_enable=true&persist_data_dir=/tmp/mqtt")?;
+        let config = PersistDataConfig::from_dsn(&dsn)?.context("persist config")?;
+        assert_eq!(config.dir, Some(PathBuf::from("/tmp/mqtt")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_mqtt_config_defaults_when_optional_sections_absent() -> anyhow::Result<()> {
+        let dsn =
+            Dsn::from_str("mqtt://localhost:1883?version=3.1.1&client_id=client&topics=tp::0")?;
+
+        let config = MqttConfig::try_from(&dsn)?;
+
+        assert_eq!(
+            config.task,
+            TaskConfig {
+                batch_size: 1000,
+                batch_timeout: 500,
+                unprocessed_messages_buffer_size: 50000,
+                maximum_processing_batch: 100,
+            }
+        );
+        assert_eq!(config.mqtt.host, "localhost");
+        assert_eq!(config.mqtt.port, 1883);
+        assert_eq!(config.mqtt.version, Version::V3);
+        assert_eq!(config.mqtt.client_id, "client");
+        assert!(config.mqtt.clean_session);
+        assert!(config.mqtt.certificates.is_none());
+        assert!(config.dump.is_none());
+        assert!(config.persist_data.is_none());
+        assert_eq!(config.codec_processor, (None, None));
+        assert_eq!(config.topic_pattern, None);
+
         Ok(())
     }
 

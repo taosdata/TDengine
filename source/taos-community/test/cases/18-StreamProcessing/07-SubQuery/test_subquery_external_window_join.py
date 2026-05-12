@@ -110,45 +110,60 @@ class TestStreamSubqueryExternalWindowJoin:
     def _check_stream_results(self):
         tdSql.checkResultsByFunc(
             sql="select ts, cnt_l, sum_l, min_r, max_r, avg_r from ewj_rdb.r_start order by ts",
-            func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(0, 1, 1)
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
             and tdSql.compareData(0, 2, 3)
-            and tdSql.compareData(0, 3, 20)
-            and tdSql.compareData(0, 4, 24)
-            and tdSql.compareData(0, 5, 22.0)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:20.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 21)
-            and tdSql.compareData(1, 3, 30)
-            and tdSql.compareData(1, 4, 30)
-            and tdSql.compareData(1, 5, 30.0),
+            and tdSql.compareData(0, 3, 10)
+            and tdSql.compareData(0, 4, 12)
+            and tdSql.compareData(0, 5, 11.0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 3)
+            and tdSql.compareData(1, 3, 20)
+            and tdSql.compareData(1, 4, 24)
+            and tdSql.compareData(1, 5, 22.0)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:20.000")
+            and tdSql.compareData(2, 1, 3)
+            and tdSql.compareData(2, 2, 21)
+            and tdSql.compareData(2, 3, 30)
+            and tdSql.compareData(2, 4, 30)
+            and tdSql.compareData(2, 5, 30.0),
         )
         tdSql.checkResultsByFunc(
             sql="select ts, cnt_l, sum_l, cnt_r from ewj_rdb.r_end order by ts",
-            func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:20.000")
-            and tdSql.compareData(0, 1, 1)
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(0, 1, 2)
             and tdSql.compareData(0, 2, 3)
             and tdSql.compareData(0, 3, 2)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:30.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 21)
-            and tdSql.compareData(1, 3, 1),
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:20.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 3)
+            and tdSql.compareData(1, 3, 2)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:30.000")
+            and tdSql.compareData(2, 1, 3)
+            and tdSql.compareData(2, 2, 21)
+            and tdSql.compareData(2, 3, 1),
         )
         tdSql.checkResultsByFunc(
             sql="select ts, cnt_l, sum_r, max_e, cnt_e from ewj_rdb.r_three order by ts",
-            func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(0, 1, 1)
-            and tdSql.compareData(0, 2, 44)
-            and tdSql.compareData(0, 3, 120)
-            and tdSql.compareData(0, 4, 2)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:20.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 30)
-            and tdSql.compareData(1, 3, 140)
-            and tdSql.compareData(1, 4, 2),
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 22)
+            and tdSql.compareData(0, 3, 100)
+            and tdSql.compareData(0, 4, 1)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 44)
+            and tdSql.compareData(1, 3, 120)
+            and tdSql.compareData(1, 4, 2)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:20.000")
+            and tdSql.compareData(2, 1, 3)
+            and tdSql.compareData(2, 2, 30)
+            and tdSql.compareData(2, 3, 140)
+            and tdSql.compareData(2, 4, 2),
         )
 
     def test_stream_subquery_external_window_join(self):
@@ -161,14 +176,14 @@ class TestStreamSubqueryExternalWindowJoin:
         Catalog:
             - Streams:SubQuery
 
-        Since: v3.4.0.0
+        Since: v3.4.1.8
 
         Labels: common, ci
 
-        Feishu: None
+        Feishu: https://project.feishu.cn/taosdata_td/sub_task1/detail/6980647586
 
         History:
-            - 2026-04-29 Codex Created
+            - 2026-04-29 Jinqing Kuang Created
         """
 
         self._ensure_snode()
