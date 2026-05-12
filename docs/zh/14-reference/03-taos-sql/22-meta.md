@@ -360,6 +360,37 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
 | 8   | should_compact | bool         | 是否需要压缩，true：需要，false：不需要 |
 
+## INS_SNAP_SEND_VNODES
+
+提供当前正在进行 snapshot 发送的 vnode 的整体进度信息。当某 vgroup 的 leader 正在向 follower 传输 snapshot 时，对应行出现；传输完成后自动消失。
+
+| #   |      **列名**       | **数据类型**  | **说明**                                                              |
+| --- | :-----------------: | ------------- | --------------------------------------------------------------------- |
+| 1   |     vgroup_id       | INT           | vnode 所属 vgroup ID                                                  |
+| 2   |     dnode_id        | INT           | leader 所在 dnode ID                                                  |
+| 3   |   total_file_sets   | INT           | 本次发送需传输的 fileset 总数                                          |
+| 4   | finished_file_sets  | INT           | 已完整传输完成的 fileset 数量                                          |
+| 5   |     start_time      | TIMESTAMP     | snapshot reader 打开时间                                              |
+| 6   |      elapsed        | VARCHAR(16)   | 持续时长，格式 `H:MM:SS`                                              |
+
+## INS_SNAP_SEND_FILESETS
+
+提供当前活跃 snapshot 发送中每个 fileset（时间分片）的文件级传输进度。随所属 vnode 的 snapshot 发送完成后自动消失。
+
+| #   |       **列名**        | **数据类型**  | **说明**                                                                                                           |
+| --- | :-------------------: | ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 1   |      vgroup_id        | INT           | vnode 所属 vgroup ID                                                                                               |
+| 2   |         fid           | INT           | fileset ID（时间分片 ID）                                                                                          |
+| 3   |      file_count       | INT           | 该 fileset 包含的物理文件总数（HEAD/DATA/SMA/STT 等累计）                                                          |
+| 4   | finished_file_count   | INT           | 已完整传输的物理文件数                                                                                             |
+| 5   |      total_size       | BIGINT        | 该 fileset 所有物理文件大小之和（bytes）                                                                           |
+| 6   |      read_size        | BIGINT        | 已读取并发送的字节数（单调递增；RAW 模式与 total_size 同单位，ROW 模式为重压缩后字节，仅供趋势参考）              |
+| 7   |      start_time       | TIMESTAMP     | 开始传输该 fileset 的时间                                                                                          |
+| 8   |       elapsed         | VARCHAR(16)   | 该 fileset 已耗时，格式 `H:MM:SS`                                                                                  |
+| 9   |     start_index       | BIGINT        | 该 fileset 的起始 version（sver）                                                                                  |
+| 10  |      end_index        | BIGINT        | 该 fileset 的结束 version（ever）                                                                                  |
+| 11  |    transfer_type      | VARCHAR(4)    | 传输方式：`raw`（RAW 全量传输）或 `row`（ROW 增量传输）                                                           |
+
 ## INS_VNODES
 
 提供系统中 vnode 的相关信息。属性为 0 的用户不能查看此表。

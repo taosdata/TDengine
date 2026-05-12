@@ -148,3 +148,44 @@ assigned_token：
 2. 从单副本升级
 
 假定已经有一个单副本集群，其结点数为 N (N>=1)，欲将其升级为双副本集群，升级后需要保证 N>=3，且新加入的某个节点的 `supportVnodes` 参数配置为 0。在集群升级完成后使用  `alter database replica 2` 的命令修改某个特定数据库的副本数。
+
+## 监控 Snapshot 发送进度
+
+当某个 follower 节点长时间离线或数据严重落后，WAL 已经被裁剪后，TDengine 会自动触发 snapshot 复制流程，将 leader 节点当前的 TSDB 数据快照整体传输给 follower。整个过程可能持续数分钟乃至更长时间。TDengine 提供两张系统表来实时观测 snapshot 发送进度。
+
+### 查看 vnode 级进度
+
+`ins_snap_send_vnodes` 表每个正在进行 snapshot 发送的 vnode 对应一行：
+
+```sql
+SELECT * FROM information_schema.ins_snap_send_vnodes;
+```
+
+### 查看 fileset 级进度
+
+`ins_snap_send_filesets` 表列出当前活跃 snapshot 发送中每个时间分片（fileset）的传输详情：
+
+```sql
+SELECT * FROM information_schema.ins_snap_send_filesets
+WHERE vgroup_id = <vgroup_id>
+ORDER BY fid;
+```
+
+### 判断传输是否卡住
+
+通过查询 `elapsed` 列可以快速定位长时间未完成的 snapshot：
+
+```sql
+-- 找出传输超过 10 分钟的 vnode
+SELECT * FROM information_schema.ins_snap_send_vnodes
+WHERE elapsed > '0:10:00';
+```
+
+若 `read_size` 长时间不增加，通常说明该 fileset 的传输已卡住，需排查 dnode 间网络连通性或磁盘 I/O 状态。
+
+### 注意
+
+- 系统表数据由 mnode 每隔约 10 秒从各 leader dnode 拉取一次，存在最多约 10 秒的滞后。
+- `elapsed` 列由查询时实时计算（`当前时间 - start_time`），不受拉取间隔影响。
+- `total_size` 与 `read_size`：RAW 全量传输模式下两者单位一致（物理字节），可直接比较；ROW 增量传输模式下 `read_size` 为重压缩后字节，仅作趋势参考。
+- snapshot 发送完成后，对应行自动从系统表中消失。
