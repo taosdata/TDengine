@@ -438,11 +438,11 @@ function setup_env() {
 
 function get_config_file() {
     case "$1" in
-      taosd) echo "taos.cfg" ;;
-      taosadapter) echo "taosadapter.toml" ;;
-      taosx) echo "taosx.toml" ;;
-      taoskeeper) echo "taoskeeper.toml" ;;
-      taos-explorer) echo "explorer.toml" ;;
+      "${serverName}") echo "${PREFIX}.cfg" ;;
+      "${adapterName}") echo "${adapterName}.toml" ;;
+      "${xname}") echo "${xname}.toml" ;;
+      "${keeperName}") echo "${keeperName}.toml" ;;
+      "${explorerName}"|*-explorer) echo "explorer.toml" ;;
       *) echo "" ;;
     esac
 }
