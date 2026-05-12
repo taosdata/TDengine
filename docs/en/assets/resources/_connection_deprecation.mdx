@@ -2,12 +2,13 @@
 
 **<font color="red">The following connection methods are deprecated and will be discontinued on 2027-01-01</font>**
 
-##### Native Connection (Java, C#, Go)
+##### Native Connection (Java, C#, Go, ODBC)
 
 Please migrate to WebSocket connection:
 
 - **Java**: Change `jdbc:TAOS://` to `jdbc:TAOS-WS://`, port from `6030` to `6041`. For other configurations, please refer to [JDBC Driver](../../14-reference/05-connector/14-java.md#jdbc-driver).
 - **C#**: Change `protocol=Native` to `protocol=WebSocket` in the connection string, port from `6030` to `6041`.
+- **ODBC**: In the ODBC data source configuration, change the connection type from `Native` to `WebSocket`, and change the server address to URL format (e.g., `http://localhost:6041`). See [ODBC Connector](../../14-reference/05-connector/50-odbc.md) for details.
 - **Go**:
 
     <details>

@@ -281,65 +281,98 @@ void stmDestroySStreamInfo(void* param) {
   p->undeployRunners = NULL;
 }
 
+/* 
+ * JSON_CHECK_ADD_ITEM      — on failure, caller must free item in _end cleanup.
+ * JSON_CHECK_ADD_ITEM_SAFE — on failure, frees and NULLs itemVar inside macro.
+ */
 #define JSON_CHECK_ADD_ITEM(obj, str, item) \
   QUERY_CHECK_CONDITION(cJSON_AddItemToObjectCS(obj, str, item), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY)
 
-static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInfo, bool isNull, const char* pData, cJSON* obj) {
+#define JSON_CHECK_ADD_ITEM_SAFE(obj, str, itemVar) \
+  do { \
+    if (!cJSON_AddItemToObjectCS((obj), (str), (itemVar))) { \
+      cJSON_Delete(itemVar); \
+      (itemVar) = NULL; \
+      code = TSDB_CODE_OUT_OF_MEMORY; \
+      lino = __LINE__; \
+      goto _end; \
+    } \
+  } while (0)
+
+#define JSON_CHECK_ADD_ARRAY_ITEM(arr, itemVar) \
+  do { \
+    if (!cJSON_AddItemToArray((arr), (itemVar))) { \
+      cJSON_Delete(itemVar); \
+      (itemVar) = NULL; \
+      code = TSDB_CODE_OUT_OF_MEMORY; \
+      lino = __LINE__; \
+      goto _end; \
+    } \
+  } while (0)
+
+static int32_t jsonCreateColumnValue(const SColumnInfo* colInfo, bool isNull, const char* pData, cJSON** ppItem) {
   int8_t  type = colInfo->type;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char*   temp = NULL;
 
-  QUERY_CHECK_NULL(colName, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  *ppItem = NULL;
   QUERY_CHECK_CONDITION(isNull || (pData != NULL), code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   if (isNull) {
-    JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNull());
+    *ppItem = cJSON_CreateNull();
+    QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     goto _end;
   }
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: {
       bool val = *(const bool*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateBool(val));
+      *ppItem = cJSON_CreateBool(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t val = *(const int8_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t val = *(const int16_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_INT: {
       int32_t val = *(const int32_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t val = *(const int64_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
       float val = *(const float*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_DOUBLE: {
       double val = *(const double*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
@@ -354,36 +387,40 @@ static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInf
       memcpy(temp, src, len);
       temp[len] = '\0';
 
-      cJSON* item = cJSON_CreateStringReference(temp);
-      JSON_CHECK_ADD_ITEM(obj, colName, item);
+      *ppItem = cJSON_CreateStringReference(temp);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
       // let the cjson object to free memory later
-      item->type &= ~cJSON_IsReference;
+      (*ppItem)->type &= ~cJSON_IsReference;
       temp = NULL;
       break;
     }
 
     case TSDB_DATA_TYPE_UTINYINT: {
       uint8_t val = *(const uint8_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t val = *(const uint16_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_UINT: {
       uint32_t val = *(const uint32_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t val = *(const uint64_t*)pData;
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateNumber(val));
+      *ppItem = cJSON_CreateNumber(val);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
 
@@ -399,17 +436,18 @@ static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInf
       QUERY_CHECK_CODE(decimalToStr(pData, colInfo->type, inputPrec, inputScale, temp, len), lino, _end);
       temp[len] = '\0';
 
-      cJSON* item = cJSON_CreateStringReference(temp);
-      JSON_CHECK_ADD_ITEM(obj, colName, item);
+      *ppItem = cJSON_CreateStringReference(temp);
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
       // let the cjson object to free memory later
-      item->type &= ~cJSON_IsReference;
+      (*ppItem)->type &= ~cJSON_IsReference;
       temp = NULL;
       break;
     }
 
     default: {
-      JSON_CHECK_ADD_ITEM(obj, colName, cJSON_CreateStringReference("<Unable to display this data type>"));
+      *ppItem = cJSON_CreateStringReference("<Unable to display this data type>");
+      QUERY_CHECK_NULL(*ppItem, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
       break;
     }
   }
@@ -424,8 +462,103 @@ _end:
   return code;
 }
 
-int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo* colInfo, const char* pFromState,
-                                      const char* pToState, char** ppContent) {
+static int32_t jsonAddColumnField(const char* colName, const SColumnInfo* colInfo,
+                                  bool isNull, const char* pData, cJSON* obj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  cJSON*  item = NULL;
+
+  QUERY_CHECK_NULL(colName, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  code = jsonCreateColumnValue(colInfo, isNull, pData, &item);
+  QUERY_CHECK_CODE(code, lino, _end);
+  JSON_CHECK_ADD_ITEM(obj, colName, item);
+  item = NULL;
+
+_end:
+  if (item != NULL) {
+    cJSON_Delete(item);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t jsonAddNullField(const char* fieldName, cJSON* obj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  cJSON*  item = NULL;
+
+  QUERY_CHECK_NULL(fieldName, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  item = cJSON_CreateNull();
+  QUERY_CHECK_NULL(item, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM(obj, fieldName, item);
+  item = NULL;
+
+_end:
+  if (item != NULL) {
+    cJSON_Delete(item);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino,
+            tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t jsonAddStateArrayField(const char* fieldName, const SArray* pStateCols,
+                                      const SArray* pStateVals, const bool* pDefined,
+                                      cJSON* obj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  cJSON*  arr = NULL;
+
+  QUERY_CHECK_NULL(fieldName, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pStateCols, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pStateVals == NULL || taosArrayGetSize((SArray*)pStateVals) == taosArrayGetSize((SArray*)pStateCols),
+                        code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  arr = cJSON_CreateArray();
+  QUERY_CHECK_NULL(arr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM_SAFE(obj, fieldName, arr);
+
+  for (int32_t i = 0; i < taosArrayGetSize((SArray*)pStateCols); ++i) {
+    cJSON*           item = NULL;
+    SColumnInfoData* pCol = *(SColumnInfoData**)taosArrayGet((SArray*)pStateCols, i);
+    QUERY_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+    if (pStateVals == NULL) {
+      code = jsonCreateColumnValue(&pCol->info, true, NULL, &item);
+    } else {
+      SValue* pVal = taosArrayGet((SArray*)pStateVals, i);
+      QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      bool isNull = (pDefined != NULL) ? !pDefined[i] : (pVal->type == TSDB_DATA_TYPE_NULL);
+      code = jsonCreateColumnValue(&pCol->info, isNull, isNull ? NULL : VALUE_GET_DATUM(pVal, pVal->type), &item);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+    JSON_CHECK_ADD_ARRAY_ITEM(arr, item);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS && arr != NULL) {
+    cJSON_DeleteItemFromObjectCaseSensitive(obj, fieldName);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/* Build JSON notify content for multi-column state transitions. */
+int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
+                                           const SArray* pFromStates, const bool* pFromDefined,
+                                           const SArray* pToStates, const bool* pToDefined,
+                                           char** ppContent) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  obj = NULL;
@@ -435,14 +568,19 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, SColumnInfo*
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    code = jsonAddColumnField("prevState", colInfo, pFromState == NULL, pFromState, obj);
+    if (pFromStates == NULL) {
+      code = jsonAddNullField("prevState", obj);
+    } else {
+      code = jsonAddStateArrayField("prevState", pStateCols, pFromStates,
+                                    pFromDefined, obj);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("curState", colInfo, false, pToState, obj);
+    code = jsonAddStateArrayField("curState", pStateCols, pToStates, pToDefined, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (eventType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    code = jsonAddColumnField("curState", colInfo, false, pFromState, obj);
+    code = jsonAddStateArrayField("curState", pStateCols, pFromStates, pFromDefined, obj);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = jsonAddColumnField("nextState", colInfo, false, pToState, obj);
+    code = jsonAddStateArrayField("nextState", pStateCols, pToStates, pToDefined, obj);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -487,8 +625,11 @@ _end:
   return code;
 }
 
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId);
+
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, char** ppContent) {
+                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
+                                      int64_t parentWindowStart, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   const SNode* pNode = NULL;
@@ -516,8 +657,16 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  char triggerId[32];
+  streamBuildNotifyTriggerId(groupId, windowStart, winIdx, triggerId);
+  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateString(triggerId));
   JSON_CHECK_ADD_ITEM(obj, "triggerCondition", cond);
   JSON_CHECK_ADD_ITEM(obj, "windowIndex", cJSON_CreateNumber(winIdx));
+  if (winIdx >= 0) {
+    char parentTriggerId[32];
+    streamBuildNotifyTriggerId(groupId, parentWindowStart, -1, parentTriggerId);
+    JSON_CHECK_ADD_ITEM(obj, "parentTriggerId", cJSON_CreateString(parentTriggerId));
+  }
   cond = NULL;
 
   *ppContent = cJSON_PrintUnformatted(obj);
@@ -553,22 +702,15 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
 
   cJSON* size = cJSON_CreateNumber(endRow - startRow + 1);
   QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (!cJSON_AddItemToObjectCS(pResult, "curSize", size)) {
-    cJSON_Delete(size);
-    goto _end;
-  }
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curSize", size);
+
   cJSON* offset = cJSON_CreateNumber(0);
   QUERY_CHECK_NULL(offset, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (!cJSON_AddItemToObjectCS(pResult, "curOffset", offset)) {
-    cJSON_Delete(offset);
-    goto _end;
-  }
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curOffset", offset);
+
   cJSON* finish = cJSON_CreateTrue();
   QUERY_CHECK_NULL(finish, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  if (!cJSON_AddItemToObjectCS(pResult, "finish", finish)) {
-    cJSON_Delete(finish);
-    goto _end;
-  }
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "finish", finish);
 
   bool hasData = false;
 
@@ -685,6 +827,18 @@ _end:
   return code;
 }
 
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId) {
+  uint64_t hash = 0;
+  if (winIdx >= 0) {
+    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart, (uint64_t)(uint32_t)winIdx};
+    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
+  } else {
+    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart};
+    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
+  }
+  (void)u64toaFastLut(hash, triggerId);
+}
+
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
                                          SStringBuilder* pBuilder, const char* tableName) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -705,10 +859,14 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
     eventType = "ON_TIME";
   }
 
-  uint64_t ar[] = {groupId, pParam->wstart};
-  uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
-  char     triggerId[32];
-  (void)u64toaFastLut(hash, triggerId);
+  char triggerId[32];
+  bool hasEventTriggerId =
+      triggerType == STREAM_TRIGGER_EVENT &&
+      (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN || pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) &&
+      pParam->extraNotifyContent != NULL;
+  if (!hasEventTriggerId) {
+    streamBuildNotifyTriggerId(groupId, pParam->wstart, -1, triggerId);
+  }
 
   const char* triggerTypeStr = NULL;
   switch (triggerType) {
@@ -739,7 +897,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
-  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  if (!hasEventTriggerId) {
+    JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  }
   JSON_CHECK_ADD_ITEM(obj, "triggerType", cJSON_CreateStringReference(triggerTypeStr));
 
   if (tableName != NULL) {

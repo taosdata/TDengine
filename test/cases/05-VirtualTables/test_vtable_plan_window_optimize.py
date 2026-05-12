@@ -46,6 +46,8 @@ class TestVTablePlanAggOptimize:
 
         """
         self.run_normal_query("test_vstable_plan_test_window_state")
+        self.run_normal_query("test_vtable_plan_test_window_state")
+        self.run_normal_query("test_vctable_plan_test_window_state")
         self.run_normal_query("test_vstable_plan_test_window_session")
         self.run_normal_query("test_vstable_plan_test_window_event")
         self.run_normal_query("test_vstable_plan_test_window_interval")

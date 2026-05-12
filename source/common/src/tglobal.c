@@ -34,6 +34,14 @@
 
 // GRANT_CFG_DECLARE;
 
+#ifdef TD_ENTERPRISE
+static bool    taosIsClsDerivedRefreshInterval(int32_t interval);
+static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype);
+static void    taosBackupClsRefreshInterval(int32_t interval);
+static int32_t taosSetClsDerivedRefreshInterval(int32_t interval);
+static int32_t taosHandleClsEnabledChange(bool enabled);
+#endif
+
 SConfig *tsCfg = NULL;
 // cluster
 char          tsFirst[TSDB_EP_LEN] = {0};
@@ -118,6 +126,15 @@ bool    tsAuthReq = 0;
 int32_t tsAuthReqInterval = 2592000;
 int32_t tsAuthReqHBInterval = 5;
 char    tsAuthReqUrl[TSDB_FQDN_LEN] = {0};
+bool    tsClsEnabled = 0;
+char    tsClsUrl[TSDB_GRANT_CLS_URL_LEN] = {0};
+char    tsClsLicenseId[TSDB_GRANT_CLS_ID_LEN] = {0};
+char    tsClsQuotaSlotId[TSDB_GRANT_CLS_ID_LEN] = {0};
+int32_t tsClsRefreshInterval = 3600;
+char    tsClsLastSucTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
+char    tsClsLastReqTime[TSDB_GRANT_CLS_TIME_LEN] = {0};
+char    tsClsLastFailReason[TSDB_GRANT_CLS_REASON_LEN] = {0};
+int32_t gGrantClsPreRefreshInterval = 3600;
 #endif
 
 int32_t tsNumOfQueryThreads = 0;
@@ -144,6 +161,12 @@ int32_t tsNumOfStreamRunnerThreads = 4;
 int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
 int32_t tsSecureEraseMode = 0;
+
+// cpu affinity
+bool    tsEnableCpuAffinity = 0;
+int32_t tsManagementCpuCores = 1;
+int32_t tsReadCpuCores = 1;
+int32_t tsOtherCpuCores = 1;
 
 // sync raft
 int32_t tsElectInterval = 4000;
@@ -215,6 +238,7 @@ int8_t   tsFlexDeploy = 0;
 #endif
 
 bool tsCompareAsStrInGreatest = true;
+bool tsIgnoreNullInGreatest = false;
 
 // monitor
 #ifdef USE_MONITOR
@@ -803,6 +827,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ignoreNullInGreatest", tsIgnoreNullInGreatest, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
@@ -1003,6 +1030,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "secureEraseMode", tsSecureEraseMode, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCpuAffinity", tsEnableCpuAffinity, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "managementCpuCores", tsManagementCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readCpuCores", tsReadCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "otherCpuCores", tsOtherCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -1143,6 +1174,14 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "authReqInterval", tsAuthReqInterval, 1, 86400 * 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "authReqUrl", tsAuthReqUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "clsEnabled", tsClsEnabled, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsUrl", tsClsUrl, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLicenseId", tsClsLicenseId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsQuotaSlotId", tsClsQuotaSlotId, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "clsRefreshInterval", tsClsRefreshInterval, 10, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastSucTime", tsClsLastSucTime, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastReqTime", tsClsLastReqTime, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "clsLastFailReason", tsClsLastFailReason, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
 #endif
   // clang-format on
 
@@ -1289,6 +1328,16 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     pItem->i64 = tsSyncApplyQueueSize;
     pItem->stype = stype;
+  }
+
+  // Compute dynamic defaults for readCpuCores and otherCpuCores
+  pItem = cfgGetItem(tsCfg, "managementCpuCores");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1676,6 +1725,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ignoreNullInGreatest");
+  tsIgnoreNullInGreatest = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "showFullCreateTableColumn");
   tsShowFullCreateTableColumn = pItem->bval;
 
@@ -1803,6 +1855,32 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secureEraseMode");
   tsSecureEraseMode = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCpuAffinity");
+  tsEnableCpuAffinity = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "managementCpuCores");
+  tsManagementCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readCpuCores");
+  bool readCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
+  tsReadCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "otherCpuCores");
+  bool otherCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
+  tsOtherCpuCores = pItem->i32;
+
+  // Recompute dynamic defaults for readCpuCores/otherCpuCores when they were
+  // not explicitly set by user but managementCpuCores was changed from default.
+  // The initial dynamic defaults in taosAddServerCfg() are computed with the
+  // default managementCpuCores=1 before the config file is loaded.
+  if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
+  }
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
 
@@ -1819,6 +1897,37 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "authReqUrl");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
   tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsRefreshInterval");
+  TAOS_CHECK_RETURN(taosCheckClsRefreshIntervalValue(pItem->i32, pItem->stype));
+  tsClsRefreshInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsUrl");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_URL_LEN));
+  tstrncpy(tsClsUrl, pItem->str, TSDB_GRANT_CLS_URL_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLicenseId");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
+  tstrncpy(tsClsLicenseId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsQuotaSlotId");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN));
+  tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastSucTime");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_TIME_LEN));
+  tstrncpy(tsClsLastSucTime, pItem->str, TSDB_GRANT_CLS_TIME_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastReqTime");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_TIME_LEN));
+  tstrncpy(tsClsLastReqTime, pItem->str, TSDB_GRANT_CLS_TIME_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsLastFailReason");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_REASON_LEN));
+  tstrncpy(tsClsLastFailReason, pItem->str, TSDB_GRANT_CLS_REASON_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "clsEnabled");
+  TAOS_CHECK_RETURN(taosHandleClsEnabledChange(pItem->bval));
 #endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retentionSpeedLimitMB");
@@ -2381,6 +2490,45 @@ static int32_t cfgInitWrapper(SConfig **pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+#ifdef TD_ENTERPRISE
+static bool taosIsClsDerivedRefreshInterval(int32_t interval) { return interval == 1 || interval == 2; }
+
+static int32_t taosCheckClsRefreshIntervalValue(int32_t interval, ECfgSrcType stype) {
+  bool isAlterSource = (stype == CFG_STYPE_ALTER_CLIENT_CMD || stype == CFG_STYPE_ALTER_SERVER_CMD);
+
+  if ((interval >= 10 && interval <= 86400) || (!isAlterSource && taosIsClsDerivedRefreshInterval(interval))) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  uError("cfg:clsRefreshInterval, value:%d out of range[10, 86400]", interval);
+  TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+}
+
+static void taosBackupClsRefreshInterval(int32_t interval) {
+  if (!taosIsClsDerivedRefreshInterval(interval)) {
+    gGrantClsPreRefreshInterval = interval;
+  }
+}
+
+static int32_t taosSetClsDerivedRefreshInterval(int32_t interval) {
+  tsClsRefreshInterval = interval;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static int32_t taosHandleClsEnabledChange(bool enabled) {
+  bool oldEnabled = tsClsEnabled;
+
+  tsClsEnabled = enabled;
+  if (oldEnabled == enabled && enabled == false) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  taosBackupClsRefreshInterval(tsClsRefreshInterval);
+  TAOS_CHECK_RETURN(taosSetClsDerivedRefreshInterval(enabled ? GRANT_CLS_OPENING : GRANT_CLS_CLOSING));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+#endif
+
 int32_t setAllConfigs(SConfig *pCfg) {
   int32_t code = 0;
   int32_t lino = -1;
@@ -2921,6 +3069,30 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     tstrncpy(tsAuthReqUrl, pItem->str, TSDB_FQDN_LEN);
     goto _exit;
   }
+  if (strcasecmp(name, "clsEnabled") == 0) {
+    TAOS_CHECK_GOTO(taosHandleClsEnabledChange(pItem->bval), &lino, _exit);
+    goto _exit;
+  }
+  if (strcasecmp(name, "clsUrl") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_URL_LEN), &lino, _exit);
+    tstrncpy(tsClsUrl, pItem->str, TSDB_GRANT_CLS_URL_LEN);
+    goto _exit;
+  }
+  if (strcasecmp(name, "clsLicenseId") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
+    tstrncpy(tsClsLicenseId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
+    goto _exit;
+  }
+  if (strcasecmp(name, "clsQuotaSlotId") == 0) {
+    TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_GRANT_CLS_ID_LEN), &lino, _exit);
+    tstrncpy(tsClsQuotaSlotId, pItem->str, TSDB_GRANT_CLS_ID_LEN);
+    goto _exit;
+  }
+  if (strcasecmp(name, "clsRefreshInterval") == 0) {
+    TAOS_CHECK_GOTO(taosCheckClsRefreshIntervalValue(pItem->i32, pItem->stype), &lino, _exit);
+    tsClsRefreshInterval = pItem->i32;
+    goto _exit;
+  }
 #endif
 
   if (strcasecmp(name, "minReservedMemorySize") == 0) {
@@ -3355,6 +3527,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"ignoreNullInGreatest", &tsIgnoreNullInGreatest},
                                          {"showFullCreateTableColumn", &tsShowFullCreateTableColumn}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {

@@ -85,6 +85,7 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
   }
 
   setThreadName(pool->name);
+  if (pool->threadCategory >= 0) taosSetCpuAffinity((EThreadCategory)pool->threadCategory);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
@@ -228,6 +229,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
   }
 
   setThreadName(pool->name);
+  if (pool->threadCategory >= 0) taosSetCpuAffinity((EThreadCategory)pool->threadCategory);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
@@ -395,6 +397,7 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
   }
 
   setThreadName(pool->name);
+  if (pool->threadCategory >= 0) taosSetCpuAffinity((EThreadCategory)pool->threadCategory);
   worker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
@@ -499,6 +502,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       pPool->name = pCfg->name;
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
+      pPool->threadCategory = pCfg->threadCategory;
       pWorker->pool = pPool;
       if ((code = tQWorkerInit(pPool))) {
         return (terrno = code);
@@ -518,6 +522,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
       pPool->stopNoWaitQueue = pCfg->stopNoWaitQueue;
+      pPool->threadCategory = pCfg->threadCategory;
       pWorker->pool = pPool;
 
       code = tQueryAutoQWorkerInit(pPool);
@@ -562,6 +567,7 @@ int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
   SWWorkerPool *pPool = &pWorker->pool;
   pPool->name = pCfg->name;
   pPool->max = pCfg->max;
+  pPool->threadCategory = pCfg->threadCategory;
 
   int32_t code = tWWorkerInit(pPool);
   if (code) return code;
@@ -673,6 +679,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
   }
 
   setThreadName(pool->name);
+  if (pool->threadCategory >= 0) taosSetCpuAffinity((EThreadCategory)pool->threadCategory);
   worker->pid = taosGetSelfPthreadId();
   uDebug("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
@@ -1138,6 +1145,7 @@ static void *tDispatchWorkerThreadFp(SDispatchWorker *pWorker) {
   }
 
   setThreadName(pPool->name);
+  if (pPool->threadCategory >= 0) taosSetCpuAffinity((EThreadCategory)pPool->threadCategory);
   pWorker->pid = taosGetSelfPthreadId();
   uInfo("worker:%s:%d is running, thread:%d", pPool->name, pWorker->id, pWorker->pid);
 
