@@ -181,6 +181,8 @@ class TestVtableAlterTagRef:
     def test_type_mismatch_rejected(self):
         """Setting tag-ref with type mismatch is rejected.
 
+        Verify that SET TAG = column_ref fails when the tag type differs from the source column type.
+
         Catalog:
             - VirtualTable
 
@@ -196,6 +198,8 @@ class TestVtableAlterTagRef:
     def test_source_table_not_exist(self):
         """Setting tag-ref to non-existent source table is rejected.
 
+        Verify that SET TAG = column_ref fails when the referenced source table does not exist.
+
         Catalog:
             - VirtualTable
 
@@ -209,6 +213,8 @@ class TestVtableAlterTagRef:
 
     def test_source_col_not_tag(self):
         """Setting tag-ref to a regular column (not tag) is rejected.
+
+        Verify that SET TAG = column_ref fails when the source column is a data column, not a tag.
 
         Catalog:
             - VirtualTable
@@ -225,6 +231,8 @@ class TestVtableAlterTagRef:
     def test_non_virtual_table_rejected(self):
         """ALTER TABLE SET TAG = column_ref on a non-virtual table is rejected.
 
+        Verify that ALTER VTABLE SET TAG with column_ref fails on physical child tables.
+
         Catalog:
             - VirtualTable
 
@@ -239,6 +247,8 @@ class TestVtableAlterTagRef:
     def test_super_table_rejected(self):
         """ALTER super table SET TAG = column_ref is rejected.
 
+        Verify that ALTER STABLE SET TAG with column_ref fails on super tables.
+
         Catalog:
             - VirtualTable
 
@@ -252,6 +262,8 @@ class TestVtableAlterTagRef:
 
     def test_nonexistent_tag_name(self):
         """Setting tag-ref on a non-existent tag name is rejected.
+
+        Verify that SET TAG = column_ref fails when the tag name does not exist on the virtual table.
 
         Catalog:
             - VirtualTable
@@ -269,6 +281,8 @@ class TestVtableAlterTagRef:
     # -------------------------------------------------------
     def test_source_tag_change_after_ref_established(self):
         """After establishing tag-ref, source tag changes are reflected.
+
+        Verify that modifying the source table's tag value is immediately visible through the tag-ref.
 
         Catalog:
             - VirtualTable
@@ -292,6 +306,8 @@ class TestVtableAlterTagRef:
 
     def test_round_trip_local_ref_local(self):
         """Full round-trip: local → ref → local preserves correct values.
+
+        Verify converting a tag from literal to ref and back to literal preserves correct query results.
 
         Catalog:
             - VirtualTable

@@ -274,6 +274,8 @@ class TestVtableTagRefMultihop:
     def test_2level_tag_ref_child_query(self):
         """2-level tag-ref: child table query resolves tags through chain.
 
+        Verify that querying a layer-2 virtual child table correctly resolves tag values through the 2-level chain.
+
         Catalog:
             - VirtualTable
 
@@ -297,6 +299,8 @@ class TestVtableTagRefMultihop:
     def test_2level_tag_ref_super_table_scan(self):
         """2-level tag-ref: super table scan with tag filter.
 
+        Verify that STB-level scan with WHERE on a 2-level chained tag correctly filters rows.
+
         Catalog:
             - VirtualTable
 
@@ -315,6 +319,8 @@ class TestVtableTagRefMultihop:
 
     def test_2level_tag_ref_cross_source_tags(self):
         """2-level tag-ref: cross-source tags resolve correctly.
+
+        Verify that a layer-2 vtable referencing tags from different source tables resolves each independently.
 
         Catalog:
             - VirtualTable
@@ -336,6 +342,8 @@ class TestVtableTagRefMultihop:
 
     def test_2level_deep_cross_source(self):
         """2-level tag-ref: chained cross-source resolves through 2 layers.
+
+        Verify that deep cross-source 2-level chains resolve tag values through intermediate virtual tables.
 
         Catalog:
             - VirtualTable
@@ -361,6 +369,8 @@ class TestVtableTagRefMultihop:
     def test_3level_tag_ref_child_query(self):
         """3-level tag-ref: child query resolves through 3 layers.
 
+        Verify that querying a layer-3 virtual child table correctly resolves tag values through all 3 chain levels.
+
         Catalog:
             - VirtualTable
 
@@ -384,6 +394,8 @@ class TestVtableTagRefMultihop:
     def test_3level_tag_ref_cross_source(self):
         """3-level tag-ref: cross-source chain resolves through 3 layers.
 
+        Verify that a 3-level chain with cross-source tag references resolves each tag to its physical origin.
+
         Catalog:
             - VirtualTable
 
@@ -403,6 +415,8 @@ class TestVtableTagRefMultihop:
 
     def test_3level_deep_cross_chain(self):
         """3-level tag-ref: deep cross-source resolves all layers correctly.
+
+        Verify that a 3-level deep cross-source chain correctly resolves tag values to the physical source.
 
         Catalog:
             - VirtualTable
@@ -424,6 +438,8 @@ class TestVtableTagRefMultihop:
     def test_3level_super_table_scan_with_tag_filter(self):
         """3-level tag-ref: super table scan filters on chained tag values.
 
+        Verify that STB-level scan with WHERE on a 3-level chained tag correctly filters matching rows.
+
         Catalog:
             - VirtualTable
 
@@ -442,6 +458,8 @@ class TestVtableTagRefMultihop:
 
     def test_3level_aggregate_with_group_by_tag(self):
         """3-level tag-ref: aggregate grouped by chained tag value.
+
+        Verify that GROUP BY on a 3-level chained tag produces correct aggregation results.
 
         Catalog:
             - VirtualTable
@@ -468,6 +486,8 @@ class TestVtableTagRefMultihop:
     def test_same_db_2level_tag_ref(self):
         """Same-DB tag-ref: 2-level chain within one database.
 
+        Verify that a 2-level tag-ref chain within a single database resolves correctly.
+
         Catalog:
             - VirtualTable
 
@@ -491,6 +511,8 @@ class TestVtableTagRefMultihop:
     def test_same_db_3level_cross_source_tags(self):
         """Same-DB tag-ref: 3-level with cross-source tags.
 
+        Verify that a 3-level tag-ref chain within one database with cross-source tags resolves correctly.
+
         Catalog:
             - VirtualTable
 
@@ -510,6 +532,8 @@ class TestVtableTagRefMultihop:
 
     def test_same_db_super_table_scan(self):
         """Same-DB tag-ref: super table scan with multi-hop tags.
+
+        Verify that STB-level scan resolves multi-hop tag values within a single database.
 
         Catalog:
             - VirtualTable
@@ -531,6 +555,8 @@ class TestVtableTagRefMultihop:
     # ------------------------------------------------------------------
     def test_mixed_colref_tagref_chains(self):
         """Mixed chains: col-ref and tag-ref both multi-hop.
+
+        Verify that virtual tables with both col-ref and tag-ref chains resolve data and tags independently.
 
         Catalog:
             - VirtualTable

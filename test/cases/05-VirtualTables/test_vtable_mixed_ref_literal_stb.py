@@ -67,7 +67,19 @@ class TestVtableMixedRefLiteralStb:
             )
 
     def test_mixed_ref_literal_stb_query(self):
-        """STB query with some children ref, some literal - core bug test."""
+        """STB query with some children ref, some literal - core bug test.
+
+        Verify that STB-level queries return correct tag values when some children
+        have tag-refs and others have literal tag values.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         self._setup_basic(num_src=3, num_vc=5)
 
         # Verify all-ref baseline
@@ -111,7 +123,19 @@ class TestVtableMixedRefLiteralStb:
             )
 
     def test_mixed_partial_ref_clear(self):
-        """Clear only ONE ref tag column, keep the other as ref."""
+        """Clear only ONE ref tag column, keep the other as ref.
+
+        Verify that clearing a single tag-ref column to literal preserves the
+        other tag-ref column's dynamic resolution.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         self._setup_basic(num_src=2, num_vc=3)
 
         # Clear only ref_city for vc_0, keep ref_code as ref
@@ -132,7 +156,19 @@ class TestVtableMixedRefLiteralStb:
         assert row1[2] == 101, f"vc_1 ref_code={row1[2]}"
 
     def test_mixed_with_data_query(self):
-        """STB query including data columns alongside mixed ref/literal tags."""
+        """STB query including data columns alongside mixed ref/literal tags.
+
+        Verify that data columns resolve correctly alongside mixed tag values
+        in STB-level queries.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         self._setup_basic(num_src=2, num_vc=4)
 
         # Clear refs for vc_2
@@ -152,7 +188,19 @@ class TestVtableMixedRefLiteralStb:
         assert row2[3] is not None, "vc_2 val should not be NULL"
 
     def test_mixed_filter_on_literal_tag(self):
-        """WHERE filter on a tag column works for literal children."""
+        """WHERE filter on a tag column works for literal children.
+
+        Verify that WHERE predicates on tag columns correctly filter children
+        with literal tag values in mixed ref/literal STB queries.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         self._setup_basic(num_src=3, num_vc=6)
 
         # Clear refs for vc_0 and vc_3
@@ -168,7 +216,19 @@ class TestVtableMixedRefLiteralStb:
         assert tdSql.queryResult[1][0] == "name_3"
 
     def test_mixed_aggregate_stb(self):
-        """Aggregate query on STB with mixed ref/literal tags."""
+        """Aggregate query on STB with mixed ref/literal tags.
+
+        Verify that GROUP BY on tag columns produces correct aggregation
+        when children have a mix of tag-ref and literal tag values.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         self._setup_basic(num_src=2, num_vc=4)
 
         # Clear refs for vc_1 and vc_3
@@ -188,7 +248,19 @@ class TestVtableMixedRefLiteralStb:
         assert results.get(500) == 2, f"code=500 count={results.get(500)}"
 
     def test_all_children_mixed_then_all_literal(self):
-        """Mixed first, then convert all to literal, verify STB query."""
+        """Mixed first, then convert all to literal, verify STB query.
+
+        Verify that converting all children from tag-ref to literal values
+        produces correct STB query results with no residual ref resolution.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
         self._setup_basic(num_src=2, num_vc=3)
 
         # Make vc_0 literal
