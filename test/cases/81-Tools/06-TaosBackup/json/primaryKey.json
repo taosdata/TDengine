@@ -1,0 +1,71 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 1000,
+    "create_table_thread_count": 2,
+    "thread_count": 10,
+    "prepared_rand": 1000,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "pridb",
+                "drop": "yes",
+                "vgroups": 2,
+                "replica": 1,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "insert_rows": 1000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "insert_interval": 0,
+                    "timestamp_step": 10,
+                    "start_timestamp":1600000000000,
+                    "primary_key":1,
+                    "repeat_ts_min": 10,
+                    "repeat_ts_max": 10,
+                    "disorder_ratio":0,
+                    "update_ratio": 0,
+                    "delete_ratio": 0,
+                    "disorder_fill_interval": 100,
+                    "update_fill_interval": 25,
+                    "generate_row_rule": 2,
+                    "columns": [
+                        { "type": "int",         "name": "pk", "max": 100000, "min": 0, "gen":"order","fillNull":"false"},
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc", "min": 1,   "gen":"order"},
+                        { "type": "double",      "name": "dc", "min":10,  "gen":"order"},
+                        { "type": "tinyint",     "name": "ti",  "gen":"order"},
+                        { "type": "smallint",    "name": "si",  "gen":"order"},
+                        { "type": "int",         "name": "ic",  "gen":"order", "fillNull":"false"},
+                        { "type": "bigint",      "name": "bi",  "gen":"order"},
+                        { "type": "utinyint",    "name": "uti", "gen":"order"},
+                        { "type": "usmallint",   "name": "usi", "gen":"order"},
+                        { "type": "uint",        "name": "ui",  "gen":"order"},
+                        { "type": "ubigint",     "name": "ubi",  "gen":"order"},
+                        { "type": "binary",      "name": "bin", "len": 32, "gen":"order"},
+                        { "type": "nchar",       "name": "nch", "len": 64, "gen":"order"}
+                    ],
+                    "tags": [
+                        {"type": "tinyint", "name": "groupid","max": 10,"min": 1},
+                        {"type": "binary",  "name": "location", "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

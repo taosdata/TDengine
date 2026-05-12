@@ -54,6 +54,8 @@ target_include_directories(
 
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
+  PRIVATE "${TD_SOURCE_DIR}/include/libs/tfs"
+  PRIVATE "${TD_SOURCE_DIR}/include/libs/monitor"
 )
 
 if(${TD_WINDOWS})
