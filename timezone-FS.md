@@ -146,7 +146,7 @@ SET TIMEZONE '<timezone_string>';
 - 仅影响当前连接，不持久化
 - 固定偏移支持 `Z`、`±HH`、`±HHMM`、`±HH:MM` 四种写法；不接受 `+8`、`-4` 这类单数字小时写法
 - 固定偏移范围为 `-14:00` 到 `+14:00`；当小时为 `14` 时，分钟必须为 `00`
-- 无效时区返回错误 `[0x2600] Invalid timezone: '<value>'`
+- 无效时区返回错误 `[0x26B2] Invalid timezone: '<value>'`
 
 ### 5.3 示例
 
@@ -254,7 +254,7 @@ ALTER LOCAL 'firstDayOfWeek' '1';
 ```
 
 **约束**：
-- 超出 0-6 范围返回 `[0x2601] Invalid firstDayOfWeek: <value>, must be 0-6`
+- 超出 0-6 范围返回 `[0x26B3] Invalid firstDayOfWeek: <value>, must be 0-6`
 
 ### 6.3 `SET FIRST_DAY_OF_WEEK` 语法
 
@@ -269,7 +269,7 @@ SET FIRST_DAY_OF_WEEK <value>;
 
 **约束**：
 - 仅影响当前连接，不持久化
-- 超出 0-6 范围返回 `[0x2601] Invalid firstDayOfWeek: <value>, must be 0-6`
+- 超出 0-6 范围返回 `[0x26B3] Invalid firstDayOfWeek: <value>, must be 0-6`
 - 优先级高于客户端 `firstDayOfWeek` 配置，仅覆盖当前连接
 
 **示例**：
@@ -666,8 +666,8 @@ SELECT _wstart, COUNT(*) FROM t INTERVAL(1w);
 
 | 错误码 | 场景 | 消息 |
 | --- | --- | --- |
-| `0x2600` | 无效时区字符串 | `Invalid timezone: '<value>'` |
-| `0x2601` | firstDayOfWeek 超出范围 | `Invalid firstDayOfWeek: <value>, must be 0-6` |
+| `0x26B2` | 无效时区字符串 | `Invalid timezone: '<value>'` |
+| `0x26B3` | firstDayOfWeek 超出范围 | `Invalid firstDayOfWeek: <value>, must be 0-6` |
 
 ## 13. 兼容性总结
 

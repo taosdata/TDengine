@@ -165,6 +165,29 @@ ALTER LOCAL local_option
 
 对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](https://docs.taosdata.com/reference/components/taosc/)
 
+## 设置连接级时区
+
+```sql
+SET TIMEZONE '<timezone_string>';
+```
+
+该语句仅影响当前连接。
+
+- 支持 IANA 时区名与固定偏移格式 `[z/Z, +/-hh, +/-hhmm, +/-hh:mm]`。
+- 有歧义的时区缩写（如 `CST`）会被拒绝。
+- 非法值返回 `TSDB_CODE_PAR_INVALID_TIMEZONE`（`0x800026B2`）。
+
+## 设置连接级周起始日
+
+```sql
+SET FIRST_DAY_OF_WEEK <0..6>;
+```
+
+该语句仅影响当前连接。
+
+- `0` 表示周日，`1` 表示周一，...，`6` 表示周六。
+- 超出 `0..6` 的值返回 `TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK`（`0x800026B3`）。
+
 ## 查看客户端配置
 
 ```sql

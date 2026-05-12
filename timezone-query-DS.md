@@ -307,13 +307,13 @@ TIMEZONE(1)
 
 ## 7. 错误码设计
 
-FS 中定义：
-- `0x2600`: Invalid timezone
-- `0x2601`: Invalid firstDayOfWeek
+FS 最终对齐实现：
+- `0x26B2`: Invalid timezone
+- `0x26B3`: Invalid firstDayOfWeek
 
-实现建议：
+实现说明：
 - 不复用当前 parser 的 `0x2600/0x2601` 编号（现语义已占用）
-- 在函数/参数错误码域新增专用错误码，文案保持 FS 语义
+- 在函数/参数错误码域使用专用错误码 `0x26B2/0x26B3`，文案保持 FS 语义
 
 ## 8. 兼容性与风险
 

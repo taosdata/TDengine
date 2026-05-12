@@ -157,6 +157,29 @@ You can use the above syntax to modify the client's configuration parameters, an
 
 To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](../01-components/02-taosc.md)
 
+## Set Session Timezone
+
+```sql
+SET TIMEZONE '<timezone_string>';
+```
+
+This statement sets the timezone for the current connection only.
+
+- Supports IANA timezone names and fixed offsets `[z/Z, +/-hh, +/-hhmm, +/-hh:mm]`.
+- Ambiguous abbreviations (for example `CST`) are rejected.
+- Invalid values return `TSDB_CODE_PAR_INVALID_TIMEZONE` (`0x800026B2`).
+
+## Set Session First Day Of Week
+
+```sql
+SET FIRST_DAY_OF_WEEK <0..6>;
+```
+
+This statement sets the first day of week for the current connection only.
+
+- `0` means Sunday, `1` means Monday, ... , `6` means Saturday.
+- Values outside `0..6` return `TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK` (`0x800026B3`).
+
 ## View Client Configuration
 
 ```sql

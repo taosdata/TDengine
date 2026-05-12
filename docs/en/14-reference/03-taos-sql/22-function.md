@@ -1766,7 +1766,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with additional timezone information. The `timezone` parameter allows users to specify any timezone information for the output. If the `timezone` parameter is omitted, the output will include the current client system's timezone information.
+**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with timezone information. The optional `timezone` parameter allows users to specify the output timezone. If omitted, timezone resolution follows connection timezone first, then client timezone, then system fallback (`L2 -> L3 -> L5`).
 
 **Return Data Type**: VARCHAR type.
 
@@ -1778,7 +1778,9 @@ TO_ISO8601(expr [, timezone])
 
 **Usage Notes**:
 
-- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00"). The valid timezone offset range is -14:00 to +14:00.
+- The `timezone` parameter accepts IANA timezone names (for example `Asia/Shanghai`, `America/New_York`) and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`. The valid offset range is `-14:00` to `+14:00`.
+- Ambiguous abbreviations (for example `CST`) are rejected.
+- For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
 #### TO_JSON
@@ -1827,10 +1829,10 @@ return_timestamp: {
 #### TO_CHAR
 
 ```sql
-TO_CHAR(ts, format_str_literal)
+TO_CHAR(ts, format_str_literal [, timezone])
 ```
 
-**Function Description**: Converts a timestamp type to a string according to the specified format
+**Function Description**: Converts a timestamp type to a string according to the specified format.
 
 **Version**: ver-3.2.2.0
 
@@ -1884,7 +1886,9 @@ Supported Formats:
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
-- It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
+- If `timezone` is provided, it accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`.
+- If `timezone` is omitted, timezone resolution follows `L2 -> L3 -> L5`.
+- Ambiguous abbreviations (for example `CST`) are rejected.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
 
 #### TO_TIMESTAMP
@@ -1991,12 +1995,7 @@ taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, use_current_timezone])
-
-use_current_timezone: {
-    0
-  | 1
-}
+TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 ```
 
 **Function Description**: Truncates the timestamp according to the specified time unit `time_unit`.
@@ -2009,25 +2008,27 @@ use_current_timezone: {
 
 **Usage Instructions**:
 
-- Supported time units are listed in [Time Units](./01-datatype.md#time-units).
+- Supported time units are listed in [Time Units](./01-datatype.md#time-units). For natural calendar truncation, `1n`, `1q`, and `1y` are supported.
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
-- When using 1d/1w as the time unit to truncate timestamps, the `use_current_timezone` parameter can be set to specify whether to truncate based on the current timezone.
-  A value of 0 means truncation using the UTC timezone, and a value of 1 means truncation using the current timezone.
-  For example, if the client's configured timezone is UTC+0800, then TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) returns the East Eight Zone time '2020-01-01 08:00:00'.
-  Using TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) returns the East Eight Zone time '2020-01-01 00:00:00'.
-  When `use_current_timezone` is not specified, the default value is 1.
-- When truncating the time value to a week (1w), the calculation of timetruncate is based on the Unix timestamp (January 1, 1970, 00:00:00 UTC). Since the Unix timestamp starts on a Thursday,
-  all truncated dates are Thursdays.
+- The third parameter supports both integer flags and timezone strings.
+  - Integer `0/1`: keeps the legacy behavior for backward compatibility.
+  - String timezone: accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`.
+- When the third parameter is omitted, timezone resolution follows `L2 -> L4 -> L5`.
+- For `1w`, week alignment uses `firstDayOfWeek` instead of fixed Thursday alignment.
+- Ambiguous abbreviations (for example `CST`) are rejected.
 
 #### TIMEZONE
 
 ```sql
-TIMEZONE()
+TIMEZONE([0 | 1])
 ```
 
-**Function Description**: Returns the current timezone information of the client.
+**Function Description**:
+
+- `TIMEZONE()` or `TIMEZONE(0)`: returns client timezone information (compatible with historical behavior).
+- `TIMEZONE(1)`: returns a JSON string with `session`, `client`, and `server` timezone information.
 
 **Return Data Type**: VARCHAR.
 
@@ -2053,6 +2054,7 @@ TODAY()
 
 - Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
+- Timezone resolution follows `L2 -> L3 -> L5`.
 
 #### WEEK
 
