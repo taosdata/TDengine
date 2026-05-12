@@ -246,8 +246,8 @@ taosgen -h 127.0.0.1 -c config.yaml
   - min（浮点数）：表示列的最小值，仅适用整数类型和浮点数类型，生成的值将大于或等于最小值。
   - max（浮点数）：表示列的最大值，仅适用整数类型和浮点数类型，生成的值将小于最大值。
   - values（列表）：指定随机数据的取值范围，生成的数据将从中随机选取。
-  - min_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最小长度，默认等于类型定义的容量（即固定长度）。取值范围：0 ≤ min_length ≤ max_length ≤ 容量。设置后每次生成的字符串长度在 min_length 到 max_length 之间随机变化。
-  - max_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最大长度，默认等于类型定义的容量。取值范围：min_length ≤ max_length ≤ 容量。
+   - min_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最小长度。这里的“容量”指类型定义的最大长度。生效规则如下：若 `min_length` 和 `max_length` 都未设置，则生成长度固定为类型定义的最大长度；若仅设置 `min_length`，则 `max_length` 默认为类型定义的最大长度；若同时设置，则需满足 `0 ≤ min_length ≤ max_length ≤ 容量`。设置后每次生成的字符串长度会在 `min_length` 到 `max_length` 之间随机变化。
+   - max_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最大长度。这里的“容量”指类型定义的最大长度。若仅设置 `max_length`，则 `min_length` 默认为 `0`；若同时设置 `min_length` 和 `max_length`，则需满足 `0 ≤ min_length ≤ max_length ≤ 容量`。
 
 - order：按自然数顺序增长，仅适用整数类型，达到最大值后会自动翻转到最小值
   - min（整数）：表示列的最小值，生成的值将大于或等于最小值。
