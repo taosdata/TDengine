@@ -1,0 +1,1063 @@
+# TDengine CI 指南
+
+> **适用对象**: 所有使用 TSDB 仓库的研发人员  
+> **CI 系统**: GitLab CI/CD（`.gitlab/.gitlab-ci.yml`）  
+> **Runner 集群**: 1 台 builder (tsdb-builder) + 14 台 test worker
+
+---
+
+## 目录
+
+1. [流水线概览](#1-流水线概览)
+2. [提交 MR 与触发 CI](#2-提交-mr-与触发-ci)
+3. [Pipeline 触发规则](#3-pipeline-触发规则)
+4. [流水线各阶段说明](#4-流水线各阶段说明)
+5. [查看 Pipeline 状态与日志](#5-查看-pipeline-状态与日志)
+6. [失败用例诊断](#6-失败用例诊断)
+7. [Core Dump 文件查找](#7-core-dump-文件查找)
+8. [本地复现与调试单个用例](#8-本地复现与调试单个用例)
+9. [cases.task 用例配置](#9-casestask-用例配置)
+10. [常见问题 FAQ](#10-常见问题-faq)
+11. [GitHub PR 迁移到 GitLab MR](#11-github-pr-迁移到-gitlab-mr)
+- [附录 A — Runner 机器列表](#a-runner-机器列表)
+- [附录 B — 关键路径速查](#b-关键路径速查)
+- [附录 C — 环境变量速查](#c-环境变量速查)
+
+---
+
+## 1. 流水线概览
+
+每次触发的 CI Pipeline 包含 6 个主要阶段，按顺序执行：
+
+```
+prepare → build → quality → verify → upload → test
+                                                  │
+                                                  ├── coordinator (调度器，运行于 builder)
+                                                  ├── test-linux-1  (u3-141)
+                                                  ├── test-linux-2  (u3-142)
+                                                  ├── test-linux-3  (u3-143)
+                                                  ├── test-linux-4  (u0-210)
+                                                  ├── test-linux-5  (u1-63, large-mem)
+                                                  ├── test-linux-6  (u1-59, large-mem)
+                                                  ├── test-linux-7  (u0-212)
+                                                  ├── test-linux-8  (u1-47, large-mem)
+                                                  ├── test-linux-9  (u3-145)
+                                                  ├── test-linux-10 (u3-146)
+                                                  ├── test-linux-11 (u3-147)
+                                                  ├── test-linux-12 (u2-205)
+                                                  ├── test-linux-13 (u2-210)
+                                                  └── test-linux-14 (u2-217)
+```
+
+| 阶段 | Job | 说明 |
+|------|-----|------|
+| prepare | prepare-workspace | 克隆源码到 builder 机器 |
+| build | build-externals | 构建第三方库 |
+| build | build-noasan + build-asan | 编译 TDengine 主体（并行） |
+| quality | check-assert + check-void | 代码质量检查（并行） |
+| verify | unit-test | CTest 单元测试 |
+| upload | upload-nexus | 打包上传产物到 Nexus |
+| test | coordinator + test-linux-1~14 | 系统集成测试（14 台 worker）|
+
+---
+
+## 2. 提交 MR 与触发 CI
+
+### 2.1 提交 MR
+
+```bash
+# 1. 基于 3.3.6 创建分支
+git checkout 3.3.6 && git pull
+git checkout -b feat/my-feature
+
+# 2. 开发 & 提交
+git add -A && git commit -m "feat: add xxx"
+
+# 3. 推送到远端
+git push origin feat/my-feature
+
+# 4. 在 GitLab Web UI 上创建 Merge Request
+#    Source: feat/my-feature → Target: 3.3.6
+```
+
+### 2.2 Pipeline 自动触发
+
+创建目标为 `3.3.6` 系列分支的 MR 后，Pipeline **自动触发**。你不需要做任何额外操作。
+
+> **注意 1**: 当前仅接受**目标分支为 `3.3.6` 系列**（如 `3.3.6`、`3.3.6.x`）的 MR 触发 CI。  
+> **注意 2**: Pipeline 触发后，build/test 阶段只有在以下文件发生变更时才会实际执行（否则 job 会被跳过）：
+> ```
+> **/*.{c,h,cpp,cmake}   CMakeLists.txt
+> source/**              scripts/**
+> .gitlab/.gitlab-ci.yml
+> ```
+> 仅修改文档或非代码文件时，build/test 阶段会跳过，流水线快速结束。
+
+### 2.3 推送新 commit
+
+向已有 MR 推送新 commit 时：
+- **旧 pipeline 自动取消**（`auto_cancel: on_new_commit: interruptible`）
+- **新 pipeline 自动启动**
+- 无需手动操作
+
+### 2.4 手动触发（Web）
+
+在 GitLab 仓库页面 → **Build → Pipelines → Run Pipeline**：
+- 选择分支（如 `3.3.6`）
+- 可选设置变量（如 `RELEASE_VERSION`）
+- 点击 "Run Pipeline"
+
+> **注意**: 3.3.6 分支的 CI 同时支持 MR 触发、Push 触发（推送到保护的 3.3.6 系列分支）、定时调度和手动触发四种方式，与 main 分支 CI 不同（main 分支 CI 仅支持 MR 触发）。
+
+---
+
+## 3. Pipeline 触发规则
+
+| 触发方式 | 条件 | 说明 |
+|----------|------|------|
+| **MR 事件** | 创建/更新 MR，**目标分支匹配 `3.3.6*`** | 最常用触发方式 |
+| **Push** | 推送到受保护的 `3.3.6` 系列分支 | 直接推送触发 |
+| **定时调度** | Schedule | daily build 使用 |
+| **手动** | Web UI | 临时测试 / 发布版本 |
+
+> **注意**: Pipeline 内各 build/test job 还有第二层过滤（`.rules-code-change`）：仅当以下文件有变更时才会执行：
+> - 代码文件：`**/*.{c,h,cpp,cmake}`、`CMakeLists.txt`
+> - 源码目录：`source/**`
+> - CI 脚本：`scripts/**`（注意：3.3.6 分支 CI 脚本在根目录 `scripts/` 下，而非 `tests/ci/scripts/`）
+> - CI 配置：`.gitlab/.gitlab-ci.yml`
+>
+> 如果你只修改了文档或测试 Python 文件，build/test 阶段会被跳过，流水线快速结束。
+
+---
+
+## 4. 流水线各阶段说明
+
+### 4.1 prepare-workspace
+
+- **作用**: 在 builder 机器上克隆两份源码（NoSan 用和 ASAN 用）
+- **输出**: `build.env` 包含 `WORKSPACE`、`TSDB_SRC`、`TSDB_SRC_SAN` 路径
+- **workspace 路径规则**（3.3.6 分支使用 `/data/ci/` 而非 main 分支的 `/data1/tdengine-ci/`）:
+  - MR: `/data/ci/mr<IID>/`
+  - 定时: `/data/ci/daily-<branch>-<date>/`
+  - 手动: `/data/ci/web-<pipeline_id>/`
+  - Push: `/data/ci/push-<branch>-<sha>/`
+
+### 4.2 build — 三步构建
+
+```
+build-externals (串行，flock 互斥)
+       ↓ needs
+build-noasan ── build-asan
+  (flock 串行，顺序不定)
+```
+
+- **build-externals**: 构建 RocksDB、libuv、curl、zlib 等第三方库。externals stamp 写入 `cache/externals-others-amd64/`（与 debug 目录无关，`--clean` 不会清除）。使用 flock 互斥锁防止多 MR 并发写入。
+- **build-noasan**: 编译 TDengine 主体（不含 ASAN），启用 `BUILD_TEST=ON`，输出到 `debug-others/`。产出全部测试二进制。
+- **build-asan**: 编译 TDengine 主体（内置 ASAN，`-DBUILD_SANITIZER=ON`），`BUILD_TEST=OFF`（测试二进制在 upload 阶段从 noasan 补充）。输出同样在 `debug-others/`。
+
+> **关键**: build-noasan 和 build-asan 虽然在 GitLab 中并行启动，但都通过 flock 独占同一把锁（`${CI_CACHE_DIR}/.externals-build.lock`），因此两者实际上串行执行，彻底消除 cmake configure 向共享 externals stamp 目录写临时文件的竞态。
+>
+> **构建镜像**: 三个 build job 统一使用 `harbor.tdengine.net/tsdb-builder/others:latest-amd64`（GCC 14 / libasan.so.8），与测试容器 `tdengine-ci:0.1` 版本对齐，消除 libasan 版本不匹配问题。
+
+### 4.3 quality — 代码质量检查
+
+- **check-assert**: 运行 `count_assert.py`，检查代码中的 assert 使用规范
+- **check-void**: 运行 `check_void.sh`，检查返回值忽略的函数调用
+
+**任意一个失败，后续所有阶段都会被终止。**
+
+### 4.4 verify — 单元测试
+
+- 在 builder 上的 Docker 容器内运行 `ctest`
+- 执行 `ctest`（排除若干已知不稳定项）、`clientTest`、`connectOptionsTest`
+- 超时限制: 单个 ctest 1200 秒，整体 job 40 分钟
+- 产出 `junit.xml` 和 `ctest.log`
+
+### 4.5 upload — 产物打包上传
+
+将 NoSan 和 ASAN 两份构建产物分别打包为 tar.gz，上传到 Nexus：
+
+```
+Nexus 路径（MR 触发）:
+  tsdb/ci/mr<IID>/linux/x64/noasan/linux-x64-noasan.tar.gz  ← build-noasan 产物
+  tsdb/ci/mr<IID>/linux/x64/asan/linux-x64-asan.tar.gz      ← build-asan 产物
+
+其他触发方式（当前已注释，备查）:
+  Push:     tsdb/ci/branch-<branch>/linux/x64/noasan | asan
+  定时:     tsdb/daily/<YYYYMMDD>/<branch>/linux/x64/noasan | asan
+  手动:     tsdb/release/<version>/linux/x64/noasan | asan
+```
+
+> **说明**: ASAN 包（`asan/`）中的测试二进制（`tmq_sim`、`tmq_taosx_ci` 等）由 `build-noasan` 补充，因为 ASAN 构建时 `BUILD_TEST=OFF`。
+
+### 4.6 test — 分布式集成测试
+
+这是耗时最长的阶段，由 **1 个 coordinator + 14 个 worker** 组成：
+
+- **coordinator** 运行在 builder 上，同时解析两个 cases.task 文件并通过 HTTP API 动态分发用例：
+  - `source/taos-community/tests/parallel_test/cases.task`（legacy 测试框架）
+  - `source/taos-community/test/ci/cases.task`（新测试框架 newfw）
+- **test-linux-1~14** 运行在各 worker 上，从 coordinator 拉取用例并执行
+- 每个 worker 内部支持多容器并发（自适应计算并发数）
+- Prometheus 监控各 worker 负载，空闲机器多分配用例
+- u1-63、u1-59、u1-47 为大内存机器，`WORKER_CAPS=large-mem`，优先分配优先级为 `100` 的大内存用例
+
+> **目录映射说明**: 当前仓库目录结构为 `tsdb/`，容器内测试框架由于历史原因依赖 `TDinternal/community` 目录结构。为了避免迁移期间过多路径冲突，实现方式是通过 Docker volume 挂载，将 tsdb 仓库目录映射到容器内的 `TDinternal/community` 路径，容器内的测试框架依然按原架构运行。待 GitHub PR 全部迁移到 GitLab 后，再统一正为 `tsdb/` 目录结构。
+
+---
+
+## 5. 查看 Pipeline 状态与日志
+
+### 5.1 进入 Pipeline 页面
+
+1. 打开 MR 页面
+2. 找到 **Pipelines** tab，点击 pipeline ID 或状态图标
+3. 或者: 仓库页面 → **Build → Pipelines**
+
+### 5.2 Pipeline 视图
+
+Pipeline 页面展示所有 Job 的状态：
+
+```
+✅ prepare-workspace
+✅ build-externals
+✅ build-noasan    ✅ build-asan
+✅ check-assert    ✅ check-void
+✅ unit-test
+✅ upload-nexus
+🔄 coordinator
+🔄 test-linux-1  ❌ test-linux-2  ✅ test-linux-3 ...
+```
+
+| 图标 | 含义 |
+|------|------|
+| ✅ | 成功 |
+| ❌ | 失败 |
+| 🔄 | 运行中 |
+| ⏸ | 等待依赖 |
+| 🚫 | 已取消 |
+
+### 5.3 查看 Job 日志
+
+1. 点击任意 Job 名称（如 `test-linux-2`）
+2. 进入 Job 详情页，展示实时日志
+3. 右侧面板显示 **Duration**（耗时）和 **Runner**（执行机器）
+
+### 5.4 查看 JUnit 测试报告
+
+在 **MR 页面 → Pipeline → Tests** tab，GitLab 自动聚合所有 JUnit XML 报告：
+- 显示 Pass / Fail / Error 数量
+- 失败用例可直接展开查看
+
+---
+
+## 6. 失败用例诊断
+
+> **快速入口**（按优先级）：
+>
+> | 优先级 | 入口 | 适用场景 |
+> |--------|------|---------|
+> | ⭐⭐⭐ | **[6.2 Tests Tab](#62-level-1--tests-tab推荐首选)** | 最快，MR 页面直接看失败用例名 |
+> | ⭐⭐⭐ | **[6.3 Coordinator 日志](#63-level-2--coordinator-日志)** | 看失败原因摘要 + Runner 链接 |
+> | ⭐⭐ | **[6.4 Worker Job 日志](#64-level-3--worker-job-日志)** | 单 worker 全部用例执行顺序 |
+> | ⭐⭐ | **[6.6 Runner HTTP 文件服务](#66-level-5--runner-http-文件服务)** | 浏览器直接访问原始日志目录 |
+> | ⭐ | **[6.5 Artifacts](#65-level-4--artifacts完整日志)** | 下载完整日志 + ASAN 报告 |
+
+### 6.1 失败信息层级（由浅入深）
+
+```
+Level 1: MR Pipeline 页面 → Tests tab     ← 最快速
+Level 2: coordinator job 日志              ← 全局视角，折叠式错误摘要
+Level 3: test-linux-N job 日志             ← 具体 worker 的执行日志
+Level 4: Job Artifacts (results/logs/)     ← 完整日志 + taosd 日志
+Level 5: Runner HTTP 文件服务              ← 失败用例目录浏览
+```
+
+### 6.2 Level 1 — Tests Tab（⭐ 推荐首选）
+
+1. 打开 MR 页面
+2. 点击 Pipeline → **Tests** tab
+3. 失败用例列表会直接展示
+4. 点击用例名可展开查看失败详情
+
+### 6.3 Level 2 — Coordinator 日志（⭐ 最全面的失败摘要）
+
+`coordinator` Job 收集所有 worker 的失败信息，统一展示：
+
+1. 点击 `coordinator` Job
+2. 在日志中搜索 **`FAIL`** 或 **`❌`**
+3. 每个失败用例有一个**折叠 section**（红色标题），点击展开：
+
+```
+▶ ❌ FAIL [1/3] test_benchmark_commandline.py  (worker: u3-141, 125.3s, exit=1)
+  ──────────────────────────────────────────────
+  Runner logs: http://192.168.3.141:8899/job-12345/81-Tools__03-Benchmark__test_benchmark_commandline/
+  
+  FAILED tests/cases/81-Tools/03-Benchmark/test_benchmark_commandline.py::TestBenchmarkCommandline::test_basic
+  AssertionError: expected 100 rows, got 0
+  ...
+  ──────────────────────────────────────────────
+```
+
+**关键信息**:
+- **worker**: 执行该用例的机器
+- **exit code**: 退出码（124 = 超时，1 = 断言失败，137 = 被 kill）
+- **Runner logs 链接**: 点击可在浏览器中查看完整日志目录
+
+### 6.4 Level 3 — Worker Job 日志
+
+点击具体的 `test-linux-N` Job，日志中包含该 worker 执行的所有用例：
+
+```
+------------------------------------------------------------
+  [seq=12] [san=y] .::./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+  => PASS (23.456s)
+------------------------------------------------------------
+  [seq=13] [san=n] .::pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
+  => FAIL (exit=1, 45.678s)
+```
+
+### 6.5 Level 4 — Artifacts（完整日志）
+
+每个 Job 在完成后会上传 artifacts：
+
+1. 在 Job 详情页右侧，找到 **Job artifacts → Browse**
+2. 目录结构：
+
+```
+results/
+  junit-N.xml                          ← JUnit 报告
+  logs/
+    <用例slug>/                        ← 按用例名分目录
+      case.txt                         ← 用例执行完整日志
+      sim/
+        psim/log/                      ← 伪 sim 日志
+        dnode1/log/taosdlog.*          ← taosd 日志（重要！）
+        dnode1/cfg/taos.cfg            ← taosd 配置
+        dnode2/log/...
+        var_taoslog/                   ← /var/log/taos/ 拷贝
+        asan/                          ← ASAN 输出（如有）
+```
+
+**重点文件**:
+- `case.txt` — 用例执行的标准输出/标准错误，最重要的诊断文件
+- `dnode*/log/taosdlog.*` — taosd 的运行日志，排查服务端问题
+- `asan/` — ASAN 内存错误报告（如果用例使用了 ASAN 二进制）
+
+### 6.6 Level 5 — Runner HTTP 文件服务（⭐ 最完整的原始日志）
+
+失败用例的完整日志会保留在 worker 机器上 7 天，通过 HTTP 可直接浏览：
+
+```
+http://<worker_ip>:8899/job-<JOB_ID>/<用例slug>/
+```
+
+- 这个 URL 会出现在 coordinator 的折叠 section 中（`Runner logs:` 行）
+- 直接在浏览器中打开即可
+- 包含比 artifacts 更完整的原始文件
+
+> **注意**: 这些日志 7 天后会被自动清理。如需长期保存，请从 GitLab artifacts 下载。
+
+---
+
+## 7. Core Dump 文件查找
+
+### 7.1 Core Dump 生成位置
+
+每个测试用例运行在独立的 Docker 容器中。core dump 文件生成在容器内部的 `/home/coredump/` 目录，映射到宿主机的：
+
+```
+<WORKDIR>/tmp/thread_volume/<thread_no>/coredump/
+```
+
+其中 `thread_no` 是测试线程编号（由 `NODE_INDEX` 和 `slot` 计算得出）。
+
+### 7.2 通过 Artifacts 查找
+
+CI 的 `after_script` 会尝试收集 coredump 相关信息到 artifacts：
+
+1. 在 Job 详情页 → **Browse artifacts**
+2. 查看 `results/logs/<用例slug>/sim/` 目录
+3. coredump 文件通常命名为 `core.<进程名>.<pid>` 或 `core.<pid>`
+
+### 7.3 通过 SSH 查找（如需要）
+
+如果 artifacts 中未收集到 core 文件（可能因为文件过大未上传），可以 SSH 到对应 worker：
+
+```bash
+# 1. 从 coordinator 日志中找到失败用例的 worker 和 JOB_ID
+#    例如: worker: u3-141, JOB_ID: 12345
+
+# 2. SSH 到 worker
+ssh u3-141
+
+# 3. 查找 core 文件
+# CI 运行期间:
+find /data1/tdengine-ci/job-<JOB_ID>/tmp/thread_volume/*/coredump/ -name 'core*' 2>/dev/null
+
+# CI 结束后（WORKDIR 已清理），在失败日志保留目录查找:
+find /data1/tdengine-ci/fail-logs/job-<JOB_ID>/ -name 'core*' 2>/dev/null
+
+# 或者在系统默认的 core dump 目录:
+find /tmp/ -name 'core.*' -newer /tmp/some_reference_time_file 2>/dev/null
+```
+
+### 7.4 core_pattern 说明
+
+CI 运行时会自动修正 `core_pattern`（避免 apport 管道导致的 exit=123 问题）：
+
+```
+# CI 设置的 core_pattern:
+/tmp/core.%e.%p
+# %e = 可执行文件名, %p = PID
+# 例如: /tmp/core.taosd.12345
+```
+
+### 7.5 实战示例：从失败日志到 Core Dump 分析
+
+以下是一个完整的实际排查流程，以 `test_udf_create.py` 用例失败为例：
+
+**1) CI 日志中看到失败信息**
+
+```
+Failed cases:
+  [u3-142] exit=1  405.658s  .::pytest cases/12-UDFs/test_udf_create.py
+    http://192.168.3.142:8899/job-3854/n2-12-UDFs_test_udf_create/
+```
+
+**2) 浏览器打开 Runner HTTP 链接**
+
+打开 `http://192.168.3.142:8899/job-3854/n2-12-UDFs_test_udf_create/` 可以看到：
+
+```
+build/
+coredump/
+run.log.txt
+sim/
+```
+
+其中 `coredump/` 目录下有 core 文件：
+
+```
+core.taosd.200
+core.taosudf.229
+```
+
+**3) SSH 到 worker 使用 GDB 分析**
+
+```bash
+# 1. 登录对应 worker
+ssh 192.168.3.142
+
+# 2. 进入失败日志的 coredump 目录
+cd /data1/tdengine-ci/fail-logs/job-3854/n2-12-UDFs_test_udf_create/coredump
+
+# 3. 使用 GDB 分析 taosd 的 core 文件
+#    二进制文件在 fail-logs 同级的 _shared_bin/ 目录下
+gdb ../../_shared_bin/taosd core.taosd.200
+
+# 4. 分析其他进程的 core 文件（同理）
+gdb ../../_shared_bin/taosudf core.taosudf.229
+```
+
+> **路径说明**:
+> - 失败日志保留目录: `/data1/tdengine-ci/fail-logs/job-<JOB_ID>/<用例slug>/`
+> - 共享二进制目录: `/data1/tdengine-ci/fail-logs/job-<JOB_ID>/_shared_bin/`
+> - core 文件命名格式: `core.<进程名>.<PID>`
+> - 日志保留 7 天，过期自动清理
+
+### 7.6 使用 GDB 分析 Core Dump
+
+```bash
+# 在 worker 上直接分析（需要对应的二进制）
+gdb /data1/tdengine-ci/job-<JOB_ID>/debugNoSan/build/bin/taosd \
+    /path/to/core.taosd.12345
+
+# 或者在 fail-logs 保留目录中分析
+gdb /data1/tdengine-ci/fail-logs/job-<JOB_ID>/_shared_bin/taosd \
+    /data1/tdengine-ci/fail-logs/job-<JOB_ID>/<用例slug>/coredump/core.taosd.<PID>
+
+# GDB 内常用命令:
+(gdb) bt        # 查看调用栈
+(gdb) bt full   # 查看完整调用栈（含局部变量）
+(gdb) info threads   # 查看所有线程
+(gdb) thread N       # 切换到线程 N
+(gdb) bt             # 查看该线程的调用栈
+```
+
+---
+
+## 8. 本地复现与调试单个用例
+
+### 8.1 直接运行 Python 测试用例
+
+大部分系统测试是 Python 用例，可以在本地直接运行：
+
+```bash
+# 1. 先编译 TDengine（Debug 模式）
+cd /path/to/tsdb/source/taos-community
+mkdir -p debug && cd debug
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TEST=ON
+make -j$(nproc)
+
+# 2. 安装 TDengine（或设置环境变量）
+export PATH=$PWD/build/bin:$PATH
+export LD_LIBRARY_PATH=$PWD/build/lib:$LD_LIBRARY_PATH
+
+# 3. 运行单个用例
+cd /path/to/tsdb/source/taos-community/test
+pytest cases/01-DataTypes/test_datatype_bigint.py -v
+
+# 多节点用例加 -N 参数：
+pytest cases/70-Cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
+```
+
+### 8.2 使用 rerun.sh 一键复现失败用例（推荐）
+
+`rerun.sh` 是最便捷的复现工具，封装了"下载构建产物 → 准备容器 → 运行"全流程，无需手动构建或知道 runner 路径。
+
+**脚本位置**: `source/taos-community/test/ci/rerun.sh`
+
+#### 运行机制
+
+```
+rerun.sh 执行流程
+  ├─ 1. 解析参数（--case / --mr / -d / -r / -s）
+  ├─ 2. 确定 COMMUNITY_DIR（case.txt 读取 → build 目录自动扫描）
+  ├─ 3. 确定 SANITIZER（case.txt → cases.task 推断 → 默认 n）
+  ├─ 4. 确定 DEBUG_DIR：
+  │      ├─ -d 手动指定（最高优先）
+  │      ├─ --mr N：从 Nexus 下载，缓存到 /tmp/tdci-mr-N-{asan,noasan}/
+  │      ├─ /data/tsdb/debug（开发机默认路径）
+  │      └─ /data1/tdengine-ci/*/debugNoSan（runner 自动扫描）
+  ├─ 5. 创建 /tmp/tdci-run-<PID>/，复制 COMMUNITY_DIR/test/* 到此目录
+  └─ 6. docker run tdengine-ci:0.1 → run_case.sh -d "." -c "$CMD" -e
+```
+
+#### fail-log case.txt 格式
+
+CI 每次用例失败时，会在 `/data1/tdengine-ci/fail-logs/job-<JOB_ID>/<slug>/case.txt` 写入：
+
+```
+COMMUNITY_DIR=/data0/gitlab-runner/builds/<hash>/0/rd-public/tsdb/source/taos-community
+DEBUG_DIR=/data1/tdengine-ci/job-<JOB_ID>/debugNoSan
+SANITIZER=y
+CMD=./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
+```
+
+`--case <slug>` 模式自动读取该文件，无需手动指定任何路径。
+
+> **注意**: 只有本分支（`test/ci-pressure-test1`）最新提交触发的 job 才会生成 `case.txt`。旧 job（如 job-7333）无该文件，需手动指定 `-r` 和 `-d`。
+
+#### slug 格式说明
+
+失败用例的 slug（`fail-logs` 子目录名）由 CI 自动生成：
+
+```
+n<NODE_INDEX>-<casePath 去掉 cases/ 前缀，/ 改为 __，去掉 .py/.sh 后缀>
+
+示例：
+  cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
+  → n1-18-StreamProcessing_20-UseCase_test_idmp_manager
+```
+
+#### 在 runner 上定位 rerun.sh
+
+runner checkout 路径含随机 hash（如 `/data0/gitlab-runner/builds/MkPwYP46l/0/...`），推荐通过 `case.txt` 里的 `COMMUNITY_DIR` 字段定位脚本：
+
+```bash
+# 方法1：从 case.txt 中定位（推荐，适用于有 case.txt 的新 job）
+slug="n1-18-StreamProcessing_20-UseCase_test_idmp_manager"
+case_txt=$(find /data1/tdengine-ci/fail-logs -name case.txt \
+    -path "*/${slug}/case.txt" 2>/dev/null | sort -rV | head -1)
+comm_dir=$(grep '^COMMUNITY_DIR=' "$case_txt" | cut -d= -f2-)
+${comm_dir}/test/ci/rerun.sh --case "$slug"
+
+# 方法2：find 搜索 rerun.sh（适用于无 case.txt 的旧 job）
+RERUN=$(find /data0/gitlab-runner/builds -name "rerun.sh" \
+    -path "*/test/ci/*" 2>/dev/null | head -1)
+# 重要：COMM_DIR 从 rerun.sh 所在位置往上走 3 级（ci/ → test/ → taos-community/）
+COMM_DIR=$(cd "$(dirname "$RERUN")/../.." && pwd)
+```
+
+#### 使用示例
+
+```bash
+# ── 场景1（最常用）：runner 上一键复现 CI 失败用例 ──────────────────────────
+slug="n1-18-StreamProcessing_20-UseCase_test_idmp_manager"
+case_txt=$(find /data1/tdengine-ci/fail-logs -name case.txt \
+    -path "*/${slug}/case.txt" 2>/dev/null | sort -rV | head -1)
+comm_dir=$(grep '^COMMUNITY_DIR=' "$case_txt" | cut -d= -f2-)
+${comm_dir}/test/ci/rerun.sh --case "$slug"
+
+# ── 场景2：用指定 MR 的构建替换原 job 产物（下载后缓存，二次运行免下载）──
+${comm_dir}/test/ci/rerun.sh --mr 147 --case "$slug"
+
+# ── 场景3：runner 上无 case.txt，手动指定路径和命令 ─────────────────────────
+RERUN=$(find /data0/gitlab-runner/builds -name "rerun.sh" -path "*/test/ci/*" 2>/dev/null | head -1)
+COMM_DIR=$(cd "$(dirname "$RERUN")/../.." && pwd)
+${RERUN} \
+  -r "${COMM_DIR}" \
+  -s \
+  --mr 147 \
+  "./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py"
+
+# ── 场景4：开发机本地运行（自动检测 /data/tsdb/debug）────────────────────────
+/data/tsdb/source/taos-community/test/ci/rerun.sh \
+  "./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py"
+```
+
+#### 选项速查
+
+| 选项 | 说明 |
+|------|------|
+| `--case <slug>` | 从 fail-logs 读 `case.txt`，自动填充所有参数 |
+| `--mr <N>` | 从 Nexus 下载 MR N 的构建产物（ASAN/noASAN 自动选择，缓存到 `/tmp/tdci-mr-N-{asan,noasan}/`） |
+| `-r <DIR>` | 手动指定 taos-community 根目录 |
+| `-d <DIR>` | 手动指定 debug 目录（最高优先，覆盖 `case.txt` 和 `--mr`）|
+| `-s` | 强制使用 ASAN 构建 |
+| `--user / --pass` | Nexus 认证凭证（也可用环境变量 `NEXUS_USERNAME` / `NEXUS_PASSWORD`）|
+
+#### 运行后查看日志
+
+```bash
+# 运行过程中实时查看 taosd 日志（另开终端，PID 见启动摘要输出的 Logs 行）
+tail -f /tmp/tdci-run-<PID>/sim/dnode1/log/taosdlog.0
+
+# 查看完整 sim 目录结构
+ls /tmp/tdci-run-<PID>/sim/
+
+# ASAN 报告（如有）
+cat /tmp/tdci-run-<PID>/sim/asan/psim.info
+```
+
+---
+
+### 8.3 使用 run_container.sh 复现 CI 环境
+
+`run_container.sh` 是 CI 实际使用的容器执行脚本，可以在 worker 上手动调用来精确复现 CI 环境：
+
+```bash
+# 前提：需要在已有 CI 产物的 worker 上执行
+# WORKDIR 需要包含 debugNoSan/ 和/或 debugSan/ 目录
+
+# 参数说明:
+#   -w  工作目录
+#   -d  执行目录（. 表示项目根目录，cases 表示 test/cases/）
+#   -c  执行命令
+#   -t  线程号（随意指定一个不冲突的数字）
+#   -n  容器名（可选）
+#   -e  企业版模式
+#   -s  sanitizer（y/n）
+
+# 示例：运行一个普通用例
+bash source/taos-community/test/ci/run_container.sh \
+  -w /data1/tdengine-ci/job-<JOB_ID> \
+  -e \
+  -d "." \
+  -c "./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py" \
+  -t 99 \
+  -n "debug-test-manual"
+
+# 示例：运行一个 ASAN 用例
+bash source/taos-community/test/ci/run_container.sh \
+  -w /data1/tdengine-ci/job-<JOB_ID> \
+  -e \
+  -d "." \
+  -c "./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py" \
+  -t 99 \
+  -s y \
+  -n "debug-test-asan"
+```
+
+### 8.4 使用 run-test-batch.sh 运行一批用例
+
+如果需要运行 `cases.task` 中的一部分用例：
+
+```bash
+# 设置环境变量
+export WORKDIR="/data1/tdengine-ci/job-<JOB_ID>"
+export CI_NODE_INDEX=1
+export CI_NODE_TOTAL=1    # 设为1表示本机运行所有用例
+export CI_PROJECT_DIR="$(pwd)"
+export TEST_CONCURRENCY=4
+
+# 运行
+bash tests/ci/scripts/run-test-batch.sh
+```
+
+### 8.5 进入 CI 容器交互式调试
+
+```bash
+# 1. 启动一个与 CI 相同的容器（交互模式）
+docker run -it --privileged \
+  -v /data1/tdengine-ci/job-<JOB_ID>/TDinternal/community:/home/TDinternal/community \
+  -v /data1/tdengine-ci/job-<JOB_ID>/debugNoSan:/home/TDinternal/debug \
+  tdengine-ci:0.1 bash
+
+# 2. 在容器内手动设置环境
+export PATH=/home/TDinternal/debug/build/bin:$PATH
+export LD_LIBRARY_PATH=/home/TDinternal/debug/build/lib:$LD_LIBRARY_PATH
+ln -sf /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so
+ldconfig
+
+# 3. 启动 taosd
+taosd &
+sleep 5
+
+# 4. 运行测试
+cd /home/TDinternal/community/test
+pytest cases/01-DataTypes/test_datatype_bigint.py -v -s
+
+# 5. 如果需要 GDB 调试 taosd
+taosd &
+gdb -p $(pidof taosd)
+```
+
+### 8.6 单元测试本地运行
+
+```bash
+# 编译
+cd source/taos-community/debug
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TEST=ON
+make -j$(nproc)
+
+# 运行全部单元测试
+ctest --output-on-failure -j8
+
+# 运行单个单元测试
+ctest -R dataformatTest --output-on-failure
+
+# 或直接运行测试二进制
+./build/bin/dataformatTest
+```
+
+---
+
+## 9. cases.task 用例配置
+
+### 9.1 文件位置
+
+```
+source/taos-community/test/ci/cases.task
+```
+
+### 9.2 格式说明
+
+```
+#priority,rerunTimes,Run with Sanitizer,casePath,caseCommand
+```
+
+每行一个用例，字段用逗号分隔：
+
+| 字段 | 位置 | 说明 | 示例 |
+|------|------|------|------|
+| priority | 第1列 | 优先级（空=普通，100=大内存 large-mem） | `100` / 空 |
+| rerunTimes | 第2列 | 重试次数（暂未使用） | 空 |
+| sanitizer | 第3列 | 是否使用 ASAN 二进制（`y`/`n`） | `y` |
+| casePath | 第4列 | 执行目录（`.`=项目根，`cases`=test/cases/） | `.` |
+| caseCommand | 第5列起 | 执行命令 | `./ci/pytest.sh pytest cases/...` |
+
+### 9.3 示例
+
+```bash
+# 普通 Python 用例（ASAN）
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
+
+# 普通 Python 用例（非 ASAN）
+,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
+
+# 多节点集群用例
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
+
+# Shell 脚本用例
+,,n,cases,bash 83-DocTest/python.sh
+
+# 大内存用例（需要 large-mem worker）
+100,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_decimal.py
+```
+
+### 9.4 添加新用例
+
+1. 在 `cases.task` 中对应分类区域添加新行
+2. 如果是长耗时用例（>5 分钟），添加到文件头部的 `long-running cases` 区域
+3. 如果需要大内存（>16GB），第一列填 `100`
+4. sanitizer 字段（第3列）：
+   - `y` — 使用 `./ci/pytest.sh` 包装器（会设置 taosd 等环境），使用 ASAN 二进制
+   - `n` — 直接 `pytest` 或 `bash`，使用普通二进制
+
+### 9.5 已注释用例说明
+
+cases.task 中有一部分被注释掉的用例（以 `#` 开头），原因包括不稳定、偏高并发负载下超时、以及 3.3.6 分支特有的兼容性问题。
+
+目前已识别问题的用例均已创建工作项跟进修复，但在并发压力较高的情况下，依然可能出现其他 fail 用例。这类问题只能递进地发现和修复。发现新的失败用例时，请参考第 6 节先进行评估，再决定是禁用还是创建工作项修复。
+
+注释格式规范：
+```
+# [disabled YYYY-MM-DD 原因摘要]
+#「原来的用例行」
+```
+
+---
+
+## 10. 常见问题 FAQ
+
+### Q1: Pipeline 没有触发？
+
+**可能原因**:
+- 你的修改只涉及文档/非代码文件（`.md` 等），不满足 `rules-code-change` 规则
+- MR 还处于 Draft 状态
+- 分支名不在保护分支列表中（`main`, `3.0`, `3.3.6`）
+
+**解决**: 去 Web UI 手动触发（Build → Pipelines → Run Pipeline）
+
+### Q2: build 阶段失败了？
+
+1. 查看 `build-noasan` 或 `build-asan` 的 job 日志
+2. 下载 artifacts 中的 `build-logs/build-nosan.log` 或 `build-asan.log`
+3. 常见原因：编译错误、链接错误
+
+### Q3: unit-test 失败了？
+
+1. 在 Job 日志中搜索红色 `❌` 标记
+2. 每个失败用例有折叠 section，展开即可看到输出
+3. 下载 `build-logs/ctest.log` 查看完整输出
+4. 下载 `build-logs/junit.xml` 查看结构化结果
+
+### Q4: test-linux-N 失败了但不确定是哪个用例？
+
+1. **先看 coordinator job 日志** — 它会汇总所有失败用例
+2. 在 coordinator 日志中搜索 `FAIL`
+3. 折叠 section 中包含用例名、worker、退出码、错误摘要
+
+### Q5: 用例超时了（exit=124）？
+
+超时原因可能是：
+- 用例本身执行慢（数据量大 / 等待超时）
+- taosd 启动失败导致用例卡住
+- 服务器负载过高
+
+**调查步骤**:
+1. 查看 coordinator 日志中的超时用例信息
+2. 查看 artifacts 中对应用例的 `dnode*/log/taosdlog.*`
+3. 如果是偶发超时，可以重跑 Pipeline（Push 一个空 commit 或在 UI 上 Retry）
+
+### Q6: 多人同时提 MR 会互相影响吗？
+
+**不会。** 每条 MR Pipeline 有完全独立的：
+- 源码目录、构建目录
+- Docker 容器命名
+- Nexus 产物路径
+- Coordinator 端口
+
+即使 10 条 MR 同时运行也互不干扰。每台 worker 的并发数会自动按 pipeline 数量等比降低。
+
+### Q7: 如何重跑失败的 Pipeline？
+
+方法一（推荐）：在 Pipeline 页面，点击右上角 **Retry** 按钮（只重跑失败的 Job）
+
+方法二：推送一个空 commit 触发新 Pipeline：
+```bash
+git commit --allow-empty -m "ci: retrigger"
+git push
+```
+
+方法三：在 GitLab Web UI → Build → Pipelines → Run Pipeline
+
+### Q8: 如何只跑测试阶段，跳过构建？
+
+目前不支持。Pipeline 按阶段顺序执行，test 阶段依赖 upload-nexus（需要构建产物）。
+
+如果你只修改了测试代码（`test/` 下），构建阶段会利用缓存快速完成（externals 缓存命中时 <1 分钟）。
+
+### Q9: ASAN 报错了怎么看？
+
+1. 在 artifacts 中找到对应用例目录：`results/logs/<slug>/sim/asan/`
+2. ASAN 输出文件中包含内存错误详情（堆溢出、use-after-free 等）
+3. 报告格式为：
+   ```
+   =================================================================
+   ==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x...
+       #0 0x... in function_name /path/to/file.c:123
+       #1 0x... in caller_function /path/to/file.c:456
+   ```
+4. 关注 `#0` 和 `#1` 的文件路径和行号
+
+### Q10: 构建镜像版本 `tdengine-ci:0.1` 是什么？
+
+这是测试容器的 Docker 镜像，包含运行测试所需的依赖（Python、pytest、taos 连接器等）。
+构建阶段使用的是 `harbor.tdengine.net/tsdb-builder/core:0.21-amd64`（当前版本 0.21）。
+两个镜像用途不同：builder 用于编译，ci 用于运行测试。
+
+---
+
+## 11. GitHub PR 迁移到 GitLab MR
+
+> **参考文档**: 飞书原文《[在 gitlab 和 github 同时开发](https://taosdata.feishu.cn/wiki/UzqlwFfqEiLVWwk5OUYc4YA7nFf)》  
+> 如遇到具体问题（权限、分支策略变更等），请优先参考原文获取最新说明。
+
+如果你在 GitHub 上有一个开发中的 PR（代码已在 GitHub 分支上），需要同时在 GitLab 上提 MR 并跑 CI，按以下步骤操作。
+
+### 11.1 背景
+
+| 平台 | 仓库 | 用途 |
+|------|------|------|
+| GitHub | `TDengine/TDengine`（或 TDinternal/community） | 公开社区仓库 |
+| GitLab | `git.tdengine.net/rd-public/tsdb` | 内部 CI 仓库（本手册的目标） |
+
+两个仓库代码同源，本地 clone 一份即可同时推送到两端。
+
+### 11.2 前置准备（一次性）
+
+**步骤 1：配置 SSH 公钥到 GitLab**
+
+1. 打开 [https://git.tdengine.net/-/profile/keys](https://git.tdengine.net/-/profile/keys)
+2. 把本机的 `~/.ssh/id_ed25519.pub`（或 `id_rsa.pub`）粘贴进去并保存
+3. 验证：`ssh -T git@git.tdengine.net` → 看到 `Welcome to GitLab` 说明 OK
+
+**步骤 2：在 GitLab 上创建开发分支**
+
+在 `git.tdengine.net/rd-public/tsdb` 的 Web UI 上，基于 `main` 创建自己的开发分支，例如 `feat/my-feature`。
+
+**步骤 3：把 GitLab 添加为本地仓库的第二个 remote**
+
+```bash
+# 进入本地已有的 GitHub clone 目录
+cd /path/to/local/TDengine   # 或 TDinternal/community
+
+# 查看当前 remote（一般只有 origin → GitHub）
+git remote -v
+
+# 添加 GitLab 为第二个 remote
+git remote add gitlab git@git.tdengine.net:rd-public/tsdb.git
+
+# 拉取两端最新分支信息
+git fetch origin
+git fetch gitlab
+```
+
+### 11.3 将 GitHub PR 的代码推送到 GitLab MR（具体示例）
+
+**场景**: 你在 GitHub 上有 `feat/stream-usecase` 分支，已提 PR，现在要在 GitLab 上同步提 MR 并跑 CI。
+
+```bash
+# 1. 切到你的 GitHub 分支，确保是最新的
+git checkout feat/stream-usecase
+git pull origin feat/stream-usecase
+
+# 2. 基于 GitLab 的 3.3.6 创建一个本地"桥接"分支
+#    命名规范：gitlab-<你的分支名>，避免与 GitHub 分支冲突
+git checkout -b gitlab-feat/stream-usecase gitlab/3.3.6
+
+# 3. 把 GitHub 分支的改动 merge 进来
+git merge feat/stream-usecase
+# 若有冲突，解决后 git add . && git merge --continue
+
+# 4. 推送到 GitLab 上对应的开发分支
+git push gitlab gitlab-feat/stream-usecase:feat/stream-usecase
+
+# 5. 在 GitLab Web UI 上创建 MR
+#    Source: feat/stream-usecase → Target: 3.3.6
+#    MR 创建后 CI Pipeline 自动触发
+```
+
+### 11.4 后续同步（GitHub 有新提交时）
+
+每当 GitHub PR 有新提交，同步到 GitLab 只需：
+
+```bash
+# 更新 GitHub 分支
+git checkout feat/stream-usecase
+git pull origin feat/stream-usecase
+
+# 切回桥接分支，重新 merge 并推送
+git checkout gitlab-feat/stream-usecase
+git merge feat/stream-usecase
+git push gitlab gitlab-feat/stream-usecase:feat/stream-usecase
+# GitLab MR 自动更新，旧 Pipeline 取消，新 Pipeline 触发
+```
+
+> **提示**: 如果改动频繁，也可以直接 `git rebase gitlab/3.3.6`（代替 merge）保持线性历史，推送时用 `--force-with-lease`。
+
+### 11.5 分支命名建议
+
+| 分支 | 存在于 | 命名示例 | 说明 |
+|------|--------|---------|------|
+| GitHub 开发分支 | GitHub remote (origin) | `feat/stream-usecase` | 正常开发分支，提 GitHub PR |
+| GitLab 开发分支 | GitLab remote (gitlab) | `feat/stream-usecase` | 同名，在 GitLab 上提 MR |
+| 本地桥接分支 | 本地 | `gitlab-feat/stream-usecase` | 只在本地使用，不推送到 GitHub |
+
+### 11.6 完整命令速查
+
+```bash
+# ── 一次性配置 ──────────────────────────────────────────────────────────────
+git remote add gitlab git@git.tdengine.net:rd-public/tsdb.git
+git fetch gitlab
+
+# ── 每次新 PR 首次同步 ───────────────────────────────────────────────────────
+BRANCH="feat/my-feature"
+git checkout ${BRANCH} && git pull origin ${BRANCH}
+git checkout -b gitlab-${BRANCH} gitlab/3.3.6
+git merge ${BRANCH}
+git push gitlab gitlab-${BRANCH}:${BRANCH}
+# → 在 GitLab 上创建 MR: Source=${BRANCH} → Target=3.3.6
+
+# ── 后续追加提交同步 ─────────────────────────────────────────────────────────
+git checkout ${BRANCH} && git pull origin ${BRANCH}
+git checkout gitlab-${BRANCH}
+git merge ${BRANCH}
+git push gitlab gitlab-${BRANCH}:${BRANCH}
+```
+
+---
+
+## 附录
+
+### A. Runner 机器列表
+
+| 机器 | IP | 角色 | Tag | 说明 |
+|------|------|------|-----|------|
+| builder (u2-207) | 192.168.2.104 | 构建 + 协调 | `tsdb-builder` | 编译、unit-test、coordinator |
+| u3-141 | 192.168.3.141 | Worker 1  | `TSDB-CI, u3-141` | |
+| u3-142 | 192.168.3.142 | Worker 2  | `TSDB-CI, u3-142` | |
+| u3-143 | 192.168.3.143 | Worker 3  | `TSDB-CI, u3-143` | |
+| u0-210 | 192.168.0.210 | Worker 4  | `TSDB-CI, u0-210` | |
+| u1-63  | 192.168.1.63  | Worker 5  | `TSDB-CI, u1-63`  | large-mem（大内存用例）|
+| u1-59  | 192.168.1.59  | Worker 6  | `TSDB-CI, u1-59`  | large-mem（大内存用例）|
+| u0-212 | 192.168.0.212 | Worker 7  | `TSDB-CI, u0-212` | |
+| u1-47  | 192.168.1.47  | Worker 8  | `TSDB-CI, u1-47`  | large-mem（大内存用例）|
+| u3-145 | 192.168.3.145 | Worker 9  | `TSDB-CI, u3-145` | |
+| u3-146 | 192.168.3.146 | Worker 10 | `TSDB-CI, u3-146` | |
+| u3-147 | 192.168.3.147 | Worker 11 | `TSDB-CI, u3-147` | |
+| u2-205 | 192.168.2.205 | Worker 12 | `TSDB-CI, u2-205` | |
+| u2-210 | 192.168.2.210 | Worker 13 | `TSDB-CI, u2-210` | |
+| u2-217 | 192.168.2.217 | Worker 14 | `TSDB-CI, u2-217` | |
+
+### B. 关键路径速查
+
+| 路径 | 位置 | 说明 |
+|------|------|------|
+| `/data/ci/` | builder | workspace 根目录（3.3.6 分支）|
+| `/data1/tdengine-ci/` | worker | Worker 工作目录（job、fail-logs）|
+| `/data/cache/tsdb-builder/externals-others-amd64/` | builder | 第三方库缓存 |
+| `/data1/tdengine-ci/fail-logs/job-<ID>/` | worker | 失败用例日志保留（7天） |
+| `source/taos-community/tests/parallel_test/cases.task` | 仓库内 | Legacy 用例配置文件 |
+| `source/taos-community/test/ci/cases.task` | 仓库内 | 新框架（newfw）用例配置文件 |
+| `source/taos-community/test/ci/run_case.sh` | 仓库内 | 容器内用例执行入口 |
+| `source/taos-community/test/ci/run_container.sh` | 仓库内 | 容器启动脚本 |
+| `scripts/coordinator.py` | 仓库内 | 测试调度协调器 |
+| `scripts/run-test-dynamic.sh` | 仓库内 | Worker 端动态执行器 |
+| `source/taos-community/test/ci/rerun.sh` | 仓库内 | 一键复现失败用例脚本 |
+
+### C. 环境变量速查
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `TEST_CONCURRENCY` | 自动 | 每台 worker 的并发容器数 |
+| `CASE_TIMEOUT` | 600s | 单用例超时 |
+| `COORDINATOR_HOST` | 192.168.2.104 | 协调器地址（builder u2-207）|
+| `WORKER_CAPS` | 空 | Worker 能力标签（`large-mem` 表示大内存机器）|
+| `CI_NO_ASAN` | 1 | 禁用 LD_PRELOAD 注入（ASAN 内置于 debugSan 二进制）|
+| `CI_BASE_DIR` | `/data1/tdengine-ci` | Worker 工作目录根 |
+
+
