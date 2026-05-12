@@ -1353,34 +1353,73 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   }
 
   // Populate field cache for columnar binding (optimized for hot path)
-  // This avoids expensive get_fields call during each bind operation
+  // This avoids expensive metadata reconstruction during each bind operation.
   if (stmt2IsInsert(pStmt) || stmt2IsSelect(pStmt)) {
     int32_t savedStatus = pStmt->sql.status;
     int32_t savedErrCode = pStmt->errCode;
 
-    int fieldCode = stmtGetStbColFields2((TAOS_STMT2*)pStmt, &pStmt->sql.cachedFieldNum, &pStmt->sql.cachedFields);
-    if (fieldCode == TSDB_CODE_SUCCESS) {
-      // Cache scenario information
-      pStmt->sql.cachedIsInsert = stmt2IsInsert((TAOS_STMT2*)pStmt);
-      pStmt->sql.cachedHasTbnameColumn = false;
-      pStmt->sql.cachedTbnameColIdx = -1;
+    if (pStmt->sql.cachedFields != NULL) {
+      taos_stmt2_free_fields((TAOS_STMT2*)pStmt, pStmt->sql.cachedFields);
+      pStmt->sql.cachedFields = NULL;
+    }
 
-      if (pStmt->sql.cachedIsInsert) {
-        for (int i = 0; i < pStmt->sql.cachedFieldNum; i++) {
-          if (pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_TBNAME) {
-            pStmt->sql.cachedHasTbnameColumn = true;
-            pStmt->sql.cachedTbnameColIdx = i;
-            break;
+    pStmt->sql.cachedFieldNum = 0;
+    pStmt->sql.cachedIsInsert = stmt2IsInsert((TAOS_STMT2*)pStmt);
+    pStmt->sql.cachedHasTbnameColumn = false;
+    pStmt->sql.cachedTbnameColIdx = -1;
+
+    int fieldCode = TSDB_CODE_SUCCESS;
+    if (pStmt->sql.cachedIsInsert) {
+      fieldCode = stmtGetStbColFields2((TAOS_STMT2*)pStmt, &pStmt->sql.cachedFieldNum, &pStmt->sql.cachedFields);
+    } else {
+      int32_t paramNum = 0;
+      if (pStmt->sql.pQuery != NULL && pStmt->sql.pQuery->pPlaceholderValues != NULL) {
+        paramNum = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+      }
+
+      pStmt->sql.cachedFieldNum = paramNum;
+      pStmt->sql.placeholderOfTags = 0;
+      pStmt->sql.placeholderOfCols = paramNum;
+
+      if (paramNum > 0) {
+        pStmt->sql.cachedFields = (TAOS_FIELD_ALL*)taosMemoryCalloc(paramNum, sizeof(TAOS_FIELD_ALL));
+        if (pStmt->sql.cachedFields == NULL) {
+          fieldCode = terrno;
+        } else {
+          for (int32_t i = 0; i < paramNum; ++i) {
+            SValueNode* pVal = (SValueNode*)taosArrayGetP(pStmt->sql.pQuery->pPlaceholderValues, i);
+            TAOS_FIELD_ALL* pField = &pStmt->sql.cachedFields[i];
+            snprintf(pField->name, sizeof(pField->name), "$%d", i + 1);
+            pField->field_type = TAOS_FIELD_QUERY;
+            if (pVal != NULL) {
+              pField->type = pVal->node.resType.type;
+              pField->precision = pVal->node.resType.precision;
+              pField->scale = pVal->node.resType.scale;
+              pField->bytes = pVal->node.resType.bytes;
+            }
           }
         }
       }
+    }
 
+    if (fieldCode == TSDB_CODE_SUCCESS && pStmt->sql.cachedIsInsert) {
+      for (int32_t i = 0; i < pStmt->sql.cachedFieldNum; ++i) {
+        if (pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_TBNAME) {
+          pStmt->sql.cachedHasTbnameColumn = true;
+          pStmt->sql.cachedTbnameColIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (fieldCode == TSDB_CODE_SUCCESS) {
       STMT2_DLOG("Cached field info in prepare: fieldNum=%d, tags=%d, cols=%d, isInsert=%d, hasTbname=%d, tbnameColIdx=%d",
                  pStmt->sql.cachedFieldNum, pStmt->sql.placeholderOfTags, pStmt->sql.placeholderOfCols,
                  pStmt->sql.cachedIsInsert, pStmt->sql.cachedHasTbnameColumn, pStmt->sql.cachedTbnameColIdx);
     } else {
-      STMT2_ELOG_E("Failed to get field info during prepare, will retry during bind");
+      STMT2_ELOG("Failed to cache field info during prepare, code:%d", fieldCode);
       pStmt->sql.cachedFieldNum = 0;
+      taos_stmt2_free_fields((TAOS_STMT2*)pStmt, pStmt->sql.cachedFields);
       pStmt->sql.cachedFields = NULL;
     }
 

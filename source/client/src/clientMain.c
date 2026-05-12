@@ -3663,7 +3663,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     return terrno;
   }
 
-  if (bindv->num_columns < 1) {
+  if (bindv->num_columns < 1 || bindv->columns == NULL) {
     tscError("No columns in bindv");
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -3675,19 +3675,40 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
   int totalRows = bindv->num_rows;
   if (totalRows == 0) {
     STMT2_ELOG_E("No rows found in columnar data");
-    terrno = TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
+    goto _return;
+  }
+
+  if (pStmt->sql.cachedFieldNum <= 0) {
+    tscError("stmt2:%p, field cache is empty. Call taos_stmt2_prepare first", pStmt);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _return;
+  }
+
+  // The number of input columns must strictly match placeholders derived at prepare.
+  if (bindv->num_columns != pStmt->sql.cachedFieldNum) {
+    STMT2_ELOG("column count mismatch, expected:%d, actual:%d",
+               pStmt->sql.cachedFieldNum, bindv->num_columns);
+    code = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
+    goto _return;
+  }
+
+  // Query keeps stmt2 row-bind semantics: each bind/exec handles exactly one parameter set.
+  if (!pStmt->sql.cachedIsInsert && bindv->num_rows != 1) {
+    STMT2_ELOG("query columnar bind only supports num_rows=1, actual:%d", bindv->num_rows);
+    code = TSDB_CODE_INVALID_PARA;
     goto _return;
   }
 
   // Check if this is a super table insert (has tbname column)
-  bool hasTbnameColumn = (pStmt->sql.cachedTbnameColIdx >= 0 &&
-                         pStmt->sql.cachedHasTbnameColumn);
+  bool hasTbnameColumn = pStmt->sql.cachedIsInsert &&
+                         pStmt->sql.cachedTbnameColIdx >= 0 &&
+                         pStmt->sql.cachedHasTbnameColumn;
 
   // Validate tbname column (only for super table inserts)
   int tbnameColIdx = -1;
   code = validateTbnameColumn(pStmt, bindv, hasTbnameColumn, &tbnameColIdx);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
     goto _return;
   }
 
@@ -3697,7 +3718,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     numTables = bindv->num_tables;
     if (numTables <= 0) {
       STMT2_ELOG("Invalid num_tables for super table insert: %d", numTables);
-      terrno = TSDB_CODE_INVALID_PARA;
+      code = TSDB_CODE_INVALID_PARA;
       goto _return;
     }
   } else {
@@ -3708,15 +3729,22 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
   // Use field information cached during prepare (unified for both query and insert)
   if (pStmt->sql.cachedFields == NULL) {
     tscError("stmt2:%p, Field information not cached. Call taos_stmt2_prepare first", pStmt);
-    terrno = TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
     goto _return;
   }
 
   // Both query and insert use cached field information
   int fieldNum = pStmt->sql.cachedFieldNum;
-  TAOS_FIELD_ALL* pFields = pStmt->sql.cachedFields;
-  int numTagCols = pStmt->sql.placeholderOfTags;      // 0 for query, may be >0 for insert
-  int numDataCols = pStmt->sql.placeholderOfCols;     // fieldNum for query, may be < fieldNum for insert
+  int numTagCols = 0;
+  int numDataCols = 0;
+  for (int i = 0; i < fieldNum; ++i) {
+    if (pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_TAG) {
+      ++numTagCols;
+    } else if (pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_COL ||
+               pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_QUERY) {
+      ++numDataCols;
+    }
+  }
 
   // Allocate row format bind structure
   rowBindv.count = numTables;
@@ -3725,14 +3753,14 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
   rowBindv.tags = (TAOS_STMT2_BIND**)taosMemoryCalloc(numTables, sizeof(TAOS_STMT2_BIND*));
 
   if (rowBindv.tbnames == NULL || rowBindv.bind_cols == NULL || rowBindv.tags == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
 
   // Initialize running offsets for variable-length columns
   colOffsets = (int32_t*)taosMemoryCalloc(bindv->num_columns, sizeof(int32_t));
   if (colOffsets == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _return;
   }
 
@@ -3749,7 +3777,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
 
       if (tbname == NULL || tbname_len == 0) {
         STMT2_ELOG("Table name at startRow %d is NULL or empty", startRow);
-        terrno = TSDB_CODE_INVALID_PARA;
+        code = TSDB_CODE_INVALID_PARA;
         goto _return;
       }
 
@@ -3761,11 +3789,9 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
         char *next_tbname = (char*)bindv->columns[tbnameColIdx].buffer + nextTbnameOffset;
         int32_t next_tbname_len = bindv->columns[tbnameColIdx].length[endRow];
 
-        if (strncmp(tbname, next_tbname, MIN(tbname_len, next_tbname_len)) != 0) break;
+        if (tbname_len != next_tbname_len || memcmp(tbname, next_tbname, tbname_len) != 0) break;
+        nextTbnameOffset += bindv->columns[tbnameColIdx].length[endRow];
         endRow++;
-        if (endRow < totalRows) {
-          nextTbnameOffset += bindv->columns[tbnameColIdx].length[endRow];
-        }
       }
 
       int numRows = endRow - startRow;
@@ -3773,7 +3799,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
       // Store tbname
       rowBindv.tbnames[tableIdx] = (char*)taosMemoryMalloc(tbname_len + 1);
       if (rowBindv.tbnames[tableIdx] == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _return;
       }
       memcpy(rowBindv.tbnames[tableIdx], tbname, tbname_len);
@@ -3783,7 +3809,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
       if (numTagCols > 0) {
         rowBindv.tags[tableIdx] = (TAOS_STMT2_BIND*)taosMemoryMalloc(numTagCols * sizeof(TAOS_STMT2_BIND));
         if (rowBindv.tags[tableIdx] == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto _return;
         }
       }
@@ -3791,7 +3817,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
       if (numDataCols > 0) {
         rowBindv.bind_cols[tableIdx] = (TAOS_STMT2_BIND*)taosMemoryMalloc(numDataCols * sizeof(TAOS_STMT2_BIND));
         if (rowBindv.bind_cols[tableIdx] == NULL) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto _return;
         }
       }
@@ -3832,6 +3858,13 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
 
       if (tableIdx >= numTables) break;
     }
+
+    if (startRow != totalRows) {
+      STMT2_ELOG("Only processed %d rows out of %d columnar rows", startRow, totalRows);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _return;
+    }
+    rowBindv.count = tableIdx;
   } else {
     // Query / Normal table / Child table insert: no tbname column
     // - Query: all fields are QUERY type, numTagCols = 0
@@ -3847,7 +3880,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     if (numTagCols > 0) {
       rowBindv.tags[0] = (TAOS_STMT2_BIND*)taosMemoryMalloc(numTagCols * sizeof(TAOS_STMT2_BIND));
       if (rowBindv.tags[0] == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _return;
       }
     }
@@ -3855,7 +3888,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     if (numDataCols > 0) {
       rowBindv.bind_cols[0] = (TAOS_STMT2_BIND*)taosMemoryMalloc(numDataCols * sizeof(TAOS_STMT2_BIND));
       if (rowBindv.bind_cols[0] == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
         goto _return;
       }
     }
@@ -3908,7 +3941,12 @@ _return:
     taosMemoryFree(rowBindv.tags);
   }
 
-  return (code != TSDB_CODE_SUCCESS) ? code : terrno;
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+  } else {
+    terrno = TSDB_CODE_SUCCESS;
+  }
+  return code;
 }
 
 int taos_stmt2_bind_param_column_a(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp, void *param) {
