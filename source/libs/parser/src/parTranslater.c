@@ -6931,17 +6931,15 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
           // The node destroy path only frees the base pMeta block, not separately-allocated tagRef.
           STableMeta* pNewMeta = tableMetaDup(pVTable->pMeta);
           taosMemoryFree(pTagRefs);
-          if (pNewMeta) {
-            taosMemoryFree(pVTable->pMeta);
-            pVTable->pMeta = pNewMeta;
-          } else {
-            pVTable->pMeta->tagRef = NULL;
-            pVTable->pMeta->numOfTagRefs = 0;
+          if (pNewMeta == NULL) {
+            code = terrno;
+            goto _return;
           }
+          taosMemoryFree(pVTable->pMeta);
+          pVTable->pMeta = pNewMeta;
         }
       }
     }
-    code = TSDB_CODE_SUCCESS;  // tag ref synthesis is best-effort
   }
   if (pRealTable->pVgroupList->numOfVgroups == 0) {
     // no vgroups, means virtual super table do not have child table, make a fake one is ok.
@@ -6989,9 +6987,19 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
         char   tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
         TSlice buf = {0};
         sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
-        (void)sliceAppend(&buf, pRef->refDbName, strlen(pRef->refDbName));
-        (void)sliceAppend(&buf, ".", 1);
-        (void)sliceAppend(&buf, pRef->refTableName, strlen(pRef->refTableName));
+        if (pRef->refDbName[0] != '\0') {
+          code = sliceAppend(&buf, pRef->refDbName, strlen(pRef->refDbName));
+          if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&buf, ".", 1);
+        }
+        if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&buf, pRef->refTableName, strlen(pRef->refTableName));
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pNextRefs);
+          taosArrayDestroy(pPendingRefs);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          taosHashCleanup(pTagRefDedup);
+          goto _return;
+        }
 
         if (taosHashGet(pTagRefDedup, tableNameKey, strlen(tableNameKey)) != NULL) continue;
 
@@ -7241,9 +7249,12 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
             char   transKey[TSDB_TABLE_FNAME_LEN] = {0};
             TSlice tbuf = {0};
             sliceInit(&tbuf, transKey, sizeof(transKey));
-            (void)sliceAppend(&tbuf, pTransRef->refDbName, strlen(pTransRef->refDbName));
-            (void)sliceAppend(&tbuf, ".", 1);
-            (void)sliceAppend(&tbuf, pTransRef->refTableName, strlen(pTransRef->refTableName));
+            if (pTransRef->refDbName[0] != '\0') {
+              code = sliceAppend(&tbuf, pTransRef->refDbName, strlen(pTransRef->refDbName));
+              if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&tbuf, ".", 1);
+            }
+            if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&tbuf, pTransRef->refTableName, strlen(pTransRef->refTableName));
+            PAR_ERR_JRET(code);
             if (taosHashGet(pTableNameHash, transKey, strlen(transKey)) != NULL) continue;
             PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNextRef));
             setTableNameByColRef(pNextRef, pTransRef);

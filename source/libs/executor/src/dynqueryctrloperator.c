@@ -2136,8 +2136,11 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
     if (code != TSDB_CODE_SUCCESS) {
       pAPI->metaReaderFn.readerReleaseLock(&mr);
       pAPI->metaReaderFn.clearReader(&mr);
-      qDebug("fetchRemoteTableCfg: local table %s not found on vgId %d", tbName, vgId);
-      return TSDB_CODE_SUCCESS;
+      qDebug("fetchRemoteTableCfg: local table %s not found on vgId %d, code=%s", tbName, vgId, tstrerror(code));
+      if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+        return TSDB_CODE_SUCCESS;
+      }
+      return code;
     }
     pAPI->metaReaderFn.readerReleaseLock(&mr);
 
@@ -2146,9 +2149,11 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
       if (pTag) {
         pCfgRsp->tagsLen = pTag->len;
         pCfgRsp->pTags = taosMemoryMalloc(pTag->len);
-        if (pCfgRsp->pTags) {
-          memcpy(pCfgRsp->pTags, pTag, pTag->len);
+        if (pCfgRsp->pTags == NULL) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          return terrno;
         }
+        memcpy(pCfgRsp->pTags, pTag, pTag->len);
       }
 
       SMetaReader mr2 = {0};
@@ -2160,13 +2165,16 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
         pCfgRsp->numOfTags = schemaTag.nCols;
         int32_t totalCols = schemaRow.nCols + schemaTag.nCols;
         pCfgRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
-        if (pCfgRsp->pSchemas) {
-          for (int32_t i = 0; i < schemaRow.nCols; i++) {
-            pCfgRsp->pSchemas[i] = schemaRow.pSchema[i];
-          }
-          for (int32_t i = 0; i < schemaTag.nCols; i++) {
-            pCfgRsp->pSchemas[schemaRow.nCols + i] = schemaTag.pSchema[i];
-          }
+        if (pCfgRsp->pSchemas == NULL) {
+          pAPI->metaReaderFn.clearReader(&mr2);
+          pAPI->metaReaderFn.clearReader(&mr);
+          return terrno;
+        }
+        for (int32_t i = 0; i < schemaRow.nCols; i++) {
+          pCfgRsp->pSchemas[i] = schemaRow.pSchema[i];
+        }
+        for (int32_t i = 0; i < schemaTag.nCols; i++) {
+          pCfgRsp->pSchemas[schemaRow.nCols + i] = schemaTag.pSchema[i];
         }
       }
       pAPI->metaReaderFn.clearReader(&mr2);
@@ -2176,9 +2184,11 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
       if (pColRef->nTagRefs > 0 && pColRef->pTagRef) {
         pCfgRsp->numOfTagRefs = pColRef->nTagRefs;
         pCfgRsp->pTagRefs = taosMemoryMalloc(sizeof(SColRef) * pColRef->nTagRefs);
-        if (pCfgRsp->pTagRefs) {
-          memcpy(pCfgRsp->pTagRefs, pColRef->pTagRef, sizeof(SColRef) * pColRef->nTagRefs);
+        if (pCfgRsp->pTagRefs == NULL) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          return terrno;
         }
+        memcpy(pCfgRsp->pTagRefs, pColRef->pTagRef, sizeof(SColRef) * pColRef->nTagRefs);
       }
     }
 
@@ -2218,21 +2228,21 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("fetchRemoteTableCfg: rpcSendRecv failed for %s.%s on vgId %d, code=%s",
            dbFName, tbName, vgId, tstrerror(code));
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   if (rpcRsp.code != TSDB_CODE_SUCCESS || rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
     qDebug("fetchRemoteTableCfg: table %s.%s on vgId %d returned %s",
            dbFName, tbName, vgId, tstrerror(rpcRsp.code));
     rpcFreeCont(rpcRsp.pCont);
-    return TSDB_CODE_SUCCESS;
+    return rpcRsp.code;
   }
 
   code = tDeserializeSTableCfgRsp(rpcRsp.pCont, rpcRsp.contLen, pCfgRsp);
   rpcFreeCont(rpcRsp.pCont);
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("fetchRemoteTableCfg: deserialize failed for %s.%s on vgId %d", dbFName, tbName, vgId);
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   qDebug("fetchRemoteTableCfg: got tags for %s.%s from vgId %d", dbFName, tbName, vgId);
@@ -5181,7 +5191,7 @@ static int32_t initTagRefFilterContext(SVtbScanDynCtrlInfo* pVtbScan, SDynQueryC
   SNode* pCloned = NULL;
   int32_t code = nodesCloneNode(pOrigCond, &pCloned);
   if (code != TSDB_CODE_SUCCESS || !pCloned) {
-    return TSDB_CODE_SUCCESS;  // non-fatal: skip optimization
+    return (code != TSDB_CODE_SUCCESS) ? code : terrno;
   }
 
   // Rewrite column slotIds and collect column info
@@ -5193,7 +5203,7 @@ static int32_t initTagRefFilterContext(SVtbScanDynCtrlInfo* pVtbScan, SDynQueryC
     nodesDestroyNode(pCloned);
     taosHashCleanup(ctx.colIdHash);
     taosArrayDestroy(ctx.pColInfos);
-    return TSDB_CODE_SUCCESS;
+    return terrno;
   }
 
   nodesRewriteExpr(&pCloned, tagRefFilterRewriteColumn, &ctx);
@@ -5433,10 +5443,14 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
 
   int32_t code = pAPI->metaFilter.metaFilterTableIds(pVtbScan->pVnode, &param, pMatchUids);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pMatchUids);
+    if (code == TSDB_CODE_NOT_FOUND || code == TSDB_CODE_INVALID_PARA) {
+      // No tag index or mismatched params — optimization not applicable
+      return TSDB_CODE_SUCCESS;
+    }
     qError("tag-ref filter: metaFilterTableIds FAILED suid:%" PRIu64 " cid:%d, code:0x%x %s",
            sourceSuid, sourceColId, code, tstrerror(code));
-    taosArrayDestroy(pMatchUids);
-    return TSDB_CODE_SUCCESS;  // Non-fatal: fall back to unfiltered path
+    return code;
   }
 
   // Build table-NAME hash set from matched UIDs
@@ -5478,11 +5492,15 @@ static int32_t initTagRefFilterOptimization(SVtbScanDynCtrlInfo* pVtbScan, SDynQ
 
   code = pAPI->metaFn.getChildTableList(pVtbScan->pVnode, sourceSuid, pAllLocalUids);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("tag-ref filter: getChildTableList failed for suid:%" PRIu64 ", code:0x%x",
-           sourceSuid, code);
     taosArrayDestroy(pAllLocalUids);
     taosHashCleanup(pMatchingNames);
-    return TSDB_CODE_SUCCESS;  // Non-fatal: skip optimization
+    if (code == TSDB_CODE_NOT_FOUND) {
+      // Source STB has no children on this vnode — optimization not applicable
+      return TSDB_CODE_SUCCESS;
+    }
+    qError("tag-ref filter: getChildTableList failed for suid:%" PRIu64 ", code:0x%x",
+           sourceSuid, code);
+    return code;
   }
 
   int32_t numLocal = (int32_t)taosArrayGetSize(pAllLocalUids);
@@ -5621,11 +5639,11 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   pInfo->vtbScan.pTagRefFilterCond = NULL;
   pInfo->vtbScan.pTagRefFilterColInfos = NULL;
 
-  // Compute tag-ref filter optimization (non-fatal if it fails)
-  (void)initTagRefFilterOptimization(&pInfo->vtbScan, pPhyciNode, pTaskInfo);
+  code = initTagRefFilterOptimization(&pInfo->vtbScan, pPhyciNode, pTaskInfo);
+  QUERY_CHECK_CODE(code, line, _return);
 
-  // Initialize general tag-ref filter context for per-child pushdown (Layer 2)
-  (void)initTagRefFilterContext(&pInfo->vtbScan, pPhyciNode);
+  code = initTagRefFilterContext(&pInfo->vtbScan, pPhyciNode);
+  QUERY_CHECK_CODE(code, line, _return);
 
   return code;
 _return:
