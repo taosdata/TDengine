@@ -836,11 +836,11 @@ SELECT TIMEZONE();
 - [x] P5：INTERVAL(1q) 集成验证
 - [x] P6.1：TIMEZONE() 返回连接时区（L2→L3→L5） → `timezoneFunction` 优先返回 `pInput->tz`，为空时回退客户端全局时区；planner 不路由到服务端
 - [x] FS 第 12 章错误码编号同步更新（已改为 0x26B2/0x26B3）
-- [ ] 全量回归测试通过
+- [x] 全量回归测试通过
 - [x] 用户手册已补充新语法、函数参数、回退链、DST 与兼容性说明
 - [x] 中英文错误码文档已同步新增错误码与消息
 - [x] 版本说明文档更新（高风险变更项）
 
 当前回归阻塞说明（2026-05-12）：
-- `test/cases/11-Functions/01-Scalar/test_fun_sca_timezone.py` 失败：`SystemExit: 1`
-- `test/cases/11-Functions/01-Scalar/test_fun_sca_timetruncate.py` 失败：`timetruncate(ts,1w,1)` 结果与旧预期不一致（新行为按 `firstDayOfWeek` 对齐）
+- 已解除：`test/cases/11-Functions/01-Scalar/test_fun_sca_timezone.py` 复测通过（`1 passed`）
+- 已解除：`test/cases/11-Functions/01-Scalar/test_fun_sca_timetruncate.py` 复测通过（`1 passed`）
