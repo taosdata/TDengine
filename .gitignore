@@ -37,6 +37,9 @@ node_modules/
 .claude/
 .claude
 .github/skills/
+.github/skills
+.agents
+.agents/
 mcp.json
 
 # Java
@@ -57,3 +60,4 @@ vendor/
 
 sim/
 taos-/
+.history/*

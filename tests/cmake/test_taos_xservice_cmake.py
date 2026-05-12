@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 
@@ -38,7 +39,8 @@ def test_build_taosx_binary_also_builds_and_deploys_xnoded():
     assert '_taosx_deploy_command(xnoded' in block
     assert '"${_taosx_artifact_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}"' in block
     assert '"${CARGO_EXECUTABLE}" build -p xnoded ${_taosx_cargo_profile_args}' in block
-    assert 'list(APPEND _taosx_binary_outputs "${_taosx_xnoded_binary_output}")' in block
+    assert 'add_custom_target(taosx_binary' in block
+    assert 'DEPENDS "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"' in block
     assert 'COMMAND "${CMAKE_COMMAND}" -E copy_if_different' in block
     assert '"${_taosx_xnoded_binary_output}"' in block
 
@@ -130,3 +132,74 @@ def test_explorer_oem_assets_use_custom_title_and_neutral_labels():
     assert "TSDB ${tr('userName', 'Username')}" not in user_vue
     assert "dbUserName: 'Database User Name'" in lang_en
     assert "dbUserName: '数据库用户'" in lang_zh
+
+
+def test_explorer_package_json_allows_native_image_tools_to_build_under_pnpm():
+    package_json = (
+        Path(__file__).resolve().parents[2]
+        / "source"
+        / "taos-xservice"
+        / "explorer"
+        / "package.json"
+    )
+
+    data = json.loads(package_json.read_text(encoding="utf-8"))
+    built_dependencies = data.get("pnpm", {}).get("onlyBuiltDependencies", [])
+
+    assert "mozjpeg" in built_dependencies
+    assert "pngquant-bin" in built_dependencies
+    assert "cwebp-bin" in built_dependencies
+
+
+def test_windows_make_install_script_avoids_pdb_archive_batch_loop():
+    make_install = (
+        Path(__file__).resolve().parents[2]
+        / "source"
+        / "taos-community"
+        / "packaging"
+        / "tools"
+        / "make_install.bat"
+    )
+
+    text = make_install.read_text(encoding="utf-8")
+
+    assert "set pdb_archive=%binary_dir%\\\\symbols\\\\%verNumber%" in text
+    assert 'if exist "%binary_dir%\\\\build\\\\bin\\\\*.pdb" (' in text
+    assert 'copy "%binary_dir%\\\\build\\\\bin\\\\*.pdb" "%pdb_archive%\\\\" > nul' in text
+    assert "for %%f in (%binary_dir%\\\\build\\\\bin\\\\*.pdb) do (" not in text
+
+
+def test_linux_install_script_maps_oem_explorer_services_to_explorer_toml():
+    install_sh = (
+        Path(__file__).resolve().parents[2]
+        / "source"
+        / "taos-community"
+        / "packaging"
+        / "tools"
+        / "install.sh"
+    )
+
+    text = install_sh.read_text(encoding="utf-8")
+
+    assert '*-explorer) echo "explorer.toml" ;;' in text
+
+
+def test_linux_install_script_uses_computed_service_names_for_config_mapping():
+    install_sh = (
+        Path(__file__).resolve().parents[2]
+        / "source"
+        / "taos-community"
+        / "packaging"
+        / "tools"
+        / "install.sh"
+    )
+
+    text = install_sh.read_text(encoding="utf-8")
+    start = text.index("function get_config_file() {")
+    end = text.index("\n}\n", start)
+    block = text[start:end]
+
+    assert '"${serverName}") echo "${PREFIX}.cfg" ;;' in block
+    assert '"${adapterName}") echo "${adapterName}.toml" ;;' in block
+    assert '"${xname}") echo "${xname}.toml" ;;' in block
+    assert '"${keeperName}") echo "${keeperName}.toml" ;;' in block

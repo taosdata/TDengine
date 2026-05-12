@@ -604,6 +604,7 @@ __attribute__((unused)) static const char *s_api_dsn_filter = NULL;
 
 __attribute__((unused)) static int do_sql_driver_conns(SQLHANDLE connh)
 {
+  (void)connh;
 #ifdef HAVE_NATIVE
   if (!s_api_dsn_filter || strcmp(s_api_dsn_filter, "TAOS_ODBC_DSN") == 0) {
   CHK4(test_sql_conn, connh, "TAOS_ODBC_DSN", NULL, NULL, 0);

@@ -2987,7 +2987,8 @@ class TDCom:
         ignore_patterns = [
             "Query OK",
             "Copyright",
-            "Welcome to the TDengine TSDB Command"
+            "Welcome to the TDengine TSDB Command",
+            "Welcome to the TDengine Command Line Interface"
         ]
         filtered = [line for line in output if not any(pat in line for pat in ignore_patterns)]
 
@@ -3053,7 +3054,7 @@ class TDCom:
                 # Filter taos> lines
                 os.system(
                     f"taos -c {cfgPath} -f {inputfile} "
-                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -Ev 'Welcome to the TDengine (TSDB )?Command' "
                     "| grep -v 'Exec cost:' "
                     "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
                     "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
@@ -3100,8 +3101,8 @@ class TDCom:
             else:
                 os.system(
                     f"taos -c {cfgPath} -f {inputfile} "
-                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
-                    "| grep -v 'Exec cost:' " 
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -Ev 'Welcome to the TDengine (TSDB )?Command' "
+                    "| grep -v 'Exec cost:' "
                     "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
                     # cost=0.000..1.111
                     "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
@@ -3127,6 +3128,7 @@ class TDCom:
                     "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
                     "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
                     "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| tr -d '\\r' "
                     f"> {self.query_result_file}"
                 )
             return self.query_result_file

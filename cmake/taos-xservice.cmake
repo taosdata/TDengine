@@ -290,10 +290,7 @@ if(_taosx_need_binaries)
     list(APPEND _taosx_binary_extra_deps "${_taosx_upx_binary}")
   endif()
 
-  # Collect cargo build commands and output list based on enabled components
-  set(_taosx_cargo_commands)
-  set(_taosx_binary_outputs)
-  set(_taosx_deploy_commands)
+  set(_taosx_component_targets)
 
   set(_taosx_cargo_env
     "CARGO_TARGET_DIR=${_taosx_target_dir}"
@@ -310,17 +307,17 @@ if(_taosx_need_binaries)
     _taosx_deploy_command(xnoded
       "${_taosx_artifact_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}"
       "${_taosx_deploy_dir}/xnoded")
-    list(APPEND _taosx_cargo_commands
+    add_custom_command(
+      OUTPUT "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_deploy_dir}"
       COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
               "${CARGO_EXECUTABLE}" build -p taosx ${_taosx_cargo_profile_args}
                                     --target-dir "${_taosx_target_dir}"
       COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
               "${CARGO_EXECUTABLE}" build -p xnoded ${_taosx_cargo_profile_args}
                                     --target-dir "${_taosx_target_dir}"
-    )
-    list(APPEND _taosx_binary_outputs "${_taosx_binary_output}")
-    list(APPEND _taosx_binary_outputs "${_taosx_xnoded_binary_output}")
-    list(APPEND _taosx_deploy_commands
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}"
               "${_taosx_binary_output}"
@@ -332,20 +329,29 @@ if(_taosx_need_binaries)
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/${BUILD_CUS_PROMPT}x.service"
               "${_taosx_deploy_dir}/taosx.service"
+      WORKING_DIRECTORY "${TD_TAOSX_DIR}"
+      DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}
+      VERBATIM
+      COMMENT "Building taosx+xnoded binaries (${_taosx_cargo_profile}) → ${_taosx_bin_output_dir}"
     )
+    add_custom_target(taosx_binary
+      DEPENDS "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"
+    )
+    list(APPEND _taosx_component_targets taosx_binary)
   endif()
 
   if(BUILD_TAOSX_AGENT)
     _taosx_deploy_command(agent
       "${_taosx_artifact_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}"
       "${_taosx_deploy_dir}/taosx-agent")
-    list(APPEND _taosx_cargo_commands
+    add_custom_command(
+      OUTPUT "${_taosx_agent_binary_output}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_deploy_dir}"
       COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
               "${CARGO_EXECUTABLE}" build -p taosx-agent ${_taosx_cargo_profile_args}
                                     --target-dir "${_taosx_target_dir}"
-    )
-    list(APPEND _taosx_binary_outputs "${_taosx_agent_binary_output}")
-    list(APPEND _taosx_deploy_commands
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}"
               "${_taosx_agent_binary_output}"
@@ -353,20 +359,29 @@ if(_taosx_need_binaries)
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/${BUILD_CUS_PROMPT}x-agent.service"
               "${_taosx_deploy_dir}/taosx-agent.service"
+      WORKING_DIRECTORY "${TD_TAOSX_DIR}"
+      DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}
+      VERBATIM
+      COMMENT "Building taosx-agent binary (${_taosx_cargo_profile}) → ${_taosx_agent_binary_output}"
     )
+    add_custom_target(taosx_agent_binary
+      DEPENDS "${_taosx_agent_binary_output}"
+    )
+    list(APPEND _taosx_component_targets taosx_agent_binary)
   endif()
 
   if(BUILD_EXPLORER)
     _taosx_deploy_command(explorer
       "${_taosx_artifact_dir}/taos-explorer${CMAKE_EXECUTABLE_SUFFIX}"
       "${_taosx_deploy_dir}/taos-explorer")
-    list(APPEND _taosx_cargo_commands
+    add_custom_command(
+      OUTPUT "${_taosx_explorer_binary_output}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_deploy_dir}"
       COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
               "${CARGO_EXECUTABLE}" build -p taos-explorer ${_taosx_cargo_profile_args}
                                     --target-dir "${_taosx_target_dir}"
-    )
-    list(APPEND _taosx_binary_outputs "${_taosx_explorer_binary_output}")
-    list(APPEND _taosx_deploy_commands
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/taos-explorer${CMAKE_EXECUTABLE_SUFFIX}"
               "${_taosx_explorer_binary_output}"
@@ -377,28 +392,27 @@ if(_taosx_need_binaries)
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${TD_TAOSX_DIR}/explorer/server/examples/explorer.toml"
               "${_taosx_deploy_dir}/explorer.toml"
+      WORKING_DIRECTORY "${TD_TAOSX_DIR}"
+      DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps} "${_explorer_dist_dir}/index.html"
+      VERBATIM
+      COMMENT "Building taos-explorer binary (${_taosx_cargo_profile}) → ${_taosx_explorer_binary_output}"
     )
+    add_custom_target(taos_explorer_binary
+      DEPENDS "${_taosx_explorer_binary_output}"
+    )
+    add_dependencies(taos_explorer_binary explorer_ui)
+    list(APPEND _taosx_component_targets taos_explorer_binary)
   endif()
 
-  add_custom_command(
-    OUTPUT ${_taosx_binary_outputs}
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_deploy_dir}"
-    ${_taosx_cargo_commands}
-    ${_taosx_deploy_commands}
-    WORKING_DIRECTORY "${TD_TAOSX_DIR}"
-    DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}
-    VERBATIM
-    COMMENT "Building taosx family (${_taosx_cargo_profile}) → ${_taosx_bin_output_dir}"
-  )
-
   add_custom_target(taosx ALL
-    DEPENDS ${_taosx_binary_outputs}
+    DEPENDS ${_taosx_component_targets}
   )
-  add_dependencies(taosx explorer_ui)
 else()
   # No binaries — just ensure explorer UI is built if requested
-  add_custom_target(taosx ALL)
-  add_dependencies(taosx explorer_ui)
+  add_custom_target(taosx_ui
+    DEPENDS explorer_ui
+  )
+  add_custom_target(taosx ALL
+    DEPENDS taosx_ui
+  )
 endif()
