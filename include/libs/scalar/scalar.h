@@ -35,7 +35,6 @@ typedef struct SScalarExtraInfo {
   sclFetchFromRemote fp;
   void*              pTaskInfo;    // opaque task handle for kill check
   sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
-  char*              clientTimezoneStr;  /* Client timezone string from request (Task 6.2) */
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);

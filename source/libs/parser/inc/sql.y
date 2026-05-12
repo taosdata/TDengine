@@ -2297,17 +2297,11 @@ function_expression(A) ::=
   substr_func(B) NK_LP expr_or_subquery(C) FROM expr_or_subquery(D) FOR expr_or_subquery(E) NK_RP(F). { A = createRawExprNodeExt(pCxt, &B, &F, createSubstrFunctionNodeExt(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D), releaseRawExprNode(pCxt, E))); }
 function_expression(A) ::= REPLACE(B) NK_LP expression_list(C) NK_RP(D).                              { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= literal_func(B).                                                           { A = B; }
-function_expression(A) ::= timezone_func(B).                                                         { A = B; }
 function_expression(A) ::= rand_func(B).                                                              { A = B; }
 
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= TODAY(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-
-%type timezone_func                                                                { SNode* }
-%destructor timezone_func                                                         { releaseRawExprNode(pCxt, $$); }
-timezone_func(A) ::= TIMEZONE(B) NK_LP NK_RP(C).                                  { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
-timezone_func(A) ::= TIMEZONE(B) NK_LP common_expression(C) NK_RP(D).             { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, createNodeList(pCxt, releaseRawExprNode(pCxt, C)))); }
 
 rand_func(A) ::= RAND(B) NK_LP NK_RP(C).                                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 rand_func(A) ::= RAND(B) NK_LP expression_list(C) NK_RP(D).                       { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -2327,6 +2321,7 @@ trim_specification_type(A) ::= LEADING.                                         
 %destructor noarg_func                                                            { }
 noarg_func(A) ::= NOW(B).                                                         { A = B; }
 noarg_func(A) ::= TODAY(B).                                                       { A = B; }
+noarg_func(A) ::= TIMEZONE(B).                                                    { A = B; }
 noarg_func(A) ::= DATABASE(B).                                                    { A = B; }
 noarg_func(A) ::= CLIENT_VERSION(B).                                              { A = B; }
 noarg_func(A) ::= SERVER_VERSION(B).                                              { A = B; }

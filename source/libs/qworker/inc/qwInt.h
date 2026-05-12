@@ -222,7 +222,6 @@ typedef struct SQWTaskCtx {
   void      *memPoolSession;
   SQWJobInfo *pJobInfo;
   SQWSubQRes  subQRes;
-  char        *clientTimezoneStr;  /* Client timezone from request (Task 6.2) */
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {

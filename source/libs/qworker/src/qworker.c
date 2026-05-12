@@ -916,7 +916,6 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->ctrlConnInfo = qwMsg->connInfo;
   ctx->sId = sId;
   ctx->phase = -1;
-  ctx->clientTimezoneStr = qwMsg->clientTimezoneStr;  /* Store client timezone for scalar function execution */
 
   if (NULL != gMemPoolHandle) {
     QW_ERR_JRET(qwInitSession(QW_FPARAMS(), ctx, &ctx->memPoolSession));

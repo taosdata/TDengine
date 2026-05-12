@@ -857,7 +857,7 @@ SELECT TIMEZONE(1);
 - [x] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
 - [x] P1：请求上下文携带 firstDayOfWeek（客户端填充已完成，qworker→planner→executor 透传待 P4 打通）
 - [x] P2：普通列展示使用连接时区
-- [x] P2：SHOW/EXPLAIN 使用连接时区 → EXPLAIN 验证可执行；SHOW 格式化仍需壳层支持
+- [ ] P2：SHOW/EXPLAIN 使用连接时区
 - [x] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
 - [x] P2：写入路径 DST 行为回归加固
 - [x] P3：TO_ISO8601 支持 IANA

@@ -2840,7 +2840,6 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
 
   void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
   sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
-  char*           savedClientTimezoneStr = gTaskScalarExtra.clientTimezoneStr;
   if (NULL != pExtra) {
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
@@ -2848,7 +2847,6 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
     ctx.fetchFp = pExtra->fp;
     gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
     gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
-    gTaskScalarExtra.clientTimezoneStr = pExtra->clientTimezoneStr;  /* Task 6.2: pass client timezone */
   }
   
   // TODO: OPT performance
@@ -2892,7 +2890,6 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
 _return:
   gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
   gTaskScalarExtra.isTaskKilled = savedIsKilled;
-  gTaskScalarExtra.clientTimezoneStr = savedClientTimezoneStr;
   sclFreeRes(ctx.pRes);
   return code;
 }

@@ -2384,29 +2384,14 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_TIMEZONE: {
-      /* TIMEZONE(0) or TIMEZONE() returns timezone name string */
-      /* TIMEZONE(1) returns JSON with session/client/server fields, size is larger */
-      int32_t paramNum = LIST_LENGTH(pFunc->pParameterList);
-      int32_t tzLen = 0;
-      
       if (pFunc->tz == NULL) {
-        tzLen = strlen(tsTimezoneStr);
+        bytes = VARSTR_HEADER_SIZE + strlen(tsTimezoneStr);
       } else {
         char* tzName = (char*)taosHashGet(pTimezoneNameMap, &pFunc->tz, sizeof(timezone_t));
         if (tzName == NULL) {
           tzName = TZ_UNKNOWN;
         }
-        tzLen = strlen(tzName);
-      }
-      
-      if (paramNum == 1) {
-        /* TIMEZONE(1): return JSON string
-         * Estimate: {"session":"<tz>","client":"<tz>","server":"<tz>"}
-         * Roughly 3*tzLen + 60 bytes for JSON structure */
-        bytes = VARSTR_HEADER_SIZE + TMAX(3 * tzLen + 60, 256);
-      } else {
-        /* TIMEZONE() or TIMEZONE(0): return simple timezone string */
-        bytes = VARSTR_HEADER_SIZE + tzLen;
+        bytes = strlen(tzName) + VARSTR_HEADER_SIZE;
       }
       break;
     }
@@ -4822,15 +4807,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_TIMEZONE,
     .classification = FUNC_MGT_SCALAR_FUNC,
     .parameters = {.minParamNum = 0,
-                   .maxParamNum = 1,
-                   .paramInfoPattern = 1,
-                   .inputParaInfo[0][0] = {.isLastParam = true,
-                                           .startParam = 1,
-                                           .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
-                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
-                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
-                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE},
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = NULL,

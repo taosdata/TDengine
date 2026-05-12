@@ -4761,87 +4761,23 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 }
 
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  /* Validate output parameter */
-  if (pOutput == NULL || pOutput->columnData == NULL) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
+  char  output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
+  char *tmp = NULL;
+  if (pInput->tz == NULL) {
+    (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+  } else {
+    char *tzName = (char *)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
+    if (tzName == NULL) {
+      tzName = TZ_UNKNOWN;
+    }
+    tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
   }
 
-  char  output[4096] = {0};  /* Enlarged buffer for JSON response */
-  int32_t param = 0;  /* 0: default, 1: verbose JSON */
-
-  /* Parse optional parameter (must be 0 or 1) */
-  if (inputNum > 0 && pInput != NULL) {
-    if (pInput[0].columnData != NULL && pInput[0].columnData->pData != NULL) {
-      int32_t paramType = GET_PARAM_TYPE(&pInput[0]);
-      if (IS_VAR_DATA_TYPE(paramType)) {
-        return TSDB_CODE_INVALID_PARA;
-      }
-      param = 0;
-      GET_TYPED_DATA(param, int32_t, paramType, pInput[0].columnData->pData,
-                     typeGetTypeModFromColInfo(&pInput[0].columnData->info));
-      if (param < 0 || param > 1) {
-        return TSDB_CODE_INVALID_PARA;
-      }
-    }
-  }
-
-  if (param == 0) {
-    /* Return timezone string (no parameter or parameter 0) */
-    const char *tzStr = tsTimezoneStr;  /* Default to server timezone */
-    if (pInput != NULL && pInput->tz != NULL) {
-      char *tzName = (char *)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
-      if (tzName != NULL) {
-        tzStr = tzName;
-      }
-    }
-    int32_t tzLen = strlen(tzStr);
-    int32_t copyLen = TMIN(tzLen, (int32_t)(sizeof(output) - VARSTR_HEADER_SIZE - 1));
-    memcpy(varDataVal(output), tzStr, copyLen);
-    varDataSetLen(output, copyLen);
-  } else if (param == 1) {
-    /* Return JSON with session/client/server */
-    char sessionTz[TD_TIMEZONE_LEN] = {0};
-    char clientTz[TD_TIMEZONE_LEN] = {0};
-    char serverTz[TD_TIMEZONE_LEN] = {0};
-
-    /* Get session timezone from pInput->tz (connection/L2) if available */
-    if (pInput != NULL && pInput->tz != NULL) {
-      char *tzName = (char *)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
-      if (tzName != NULL) {
-        memcpy(sessionTz, tzName, TMIN(strlen(tzName), TD_TIMEZONE_LEN - 1));
-      } else {
-        memcpy(sessionTz, tsTimezoneStr, TMIN(strlen(tsTimezoneStr), TD_TIMEZONE_LEN - 1));
-      }
-    } else {
-      memcpy(sessionTz, tsTimezoneStr, TMIN(strlen(tsTimezoneStr), TD_TIMEZONE_LEN - 1));
-    }
-
-    /* Client timezone (L3): use clientTimezoneStr from request, fallback to server */
-    if (gTaskScalarExtra.clientTimezoneStr != NULL && strlen(gTaskScalarExtra.clientTimezoneStr) > 0) {
-      memcpy(clientTz, gTaskScalarExtra.clientTimezoneStr, TMIN(strlen(gTaskScalarExtra.clientTimezoneStr), TD_TIMEZONE_LEN - 1));
-    } else {
-      memcpy(clientTz, tsTimezoneStr, TMIN(strlen(tsTimezoneStr), TD_TIMEZONE_LEN - 1));
-    }
-
-    /* Server timezone (L4) */
-    memcpy(serverTz, tsTimezoneStr, TMIN(strlen(tsTimezoneStr), TD_TIMEZONE_LEN - 1));
-
-    /* Construct JSON response */
-    int32_t n = snprintf(varDataVal(output), sizeof(output),
-                         "{\"session\":\"%s\",\"client\":\"%s\",\"server\":\"%s\"}",
-                         sessionTz, clientTz, serverTz);
-    if (n < 0 || n >= (int32_t)sizeof(output)) {
-      n = sizeof(output) - 1;
-    }
-    varDataSetLen(output, n);
-  }
-
-  /* Set output rows: use input rows if available, else 1 */
-  int32_t rows = (pInput != NULL && pInput->numOfRows > 0) ? pInput->numOfRows : 1;
-  for (int32_t i = 0; i < rows; ++i) {
+  varDataSetLen(output, strlen(varDataVal(output)));
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, output, false));
   }
-  pOutput->numOfRows = rows;
+  pOutput->numOfRows = pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
 
