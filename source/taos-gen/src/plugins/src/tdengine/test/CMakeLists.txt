@@ -37,3 +37,13 @@ target_link_libraries(TestTDengineSinkPlugin
     plugin_tdengine
 )
 add_test(NAME TestTDengineSinkPlugin COMMAND TestTDengineSinkPlugin)
+
+# Test SchemalessInsertDataFormatter
+add_executable(TestSchemalessInsertDataFormatter
+  TestSchemalessInsertDataFormatter.cpp
+)
+target_link_libraries(TestSchemalessInsertDataFormatter
+  PRIVATE
+    plugin_tdengine
+)
+add_test(NAME TestSchemalessInsertDataFormatter COMMAND TestSchemalessInsertDataFormatter)

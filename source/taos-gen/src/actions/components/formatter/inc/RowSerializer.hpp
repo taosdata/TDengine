@@ -4,6 +4,11 @@
 #include "MemoryPool.hpp"
 #include <nlohmann/json.hpp>
 
+enum class IntSuffixMode {
+    STANDARD,   // InfluxDB/Kafka: i, u
+    TDENGINE    // TDengine schemaless: i8, u8, i16, u16, i32, u32, i64, u64
+};
+
 class RowSerializer {
 public:
     static nlohmann::ordered_json to_json(
@@ -28,5 +33,8 @@ public:
         const ColumnConfigInstanceVector& tag_instances,
         const MemoryPool::TableBlock& table,
         size_t row_index,
-        fmt::memory_buffer& out);
+        const std::string& measurement,
+        const std::string& id_tag_key,
+        fmt::memory_buffer& out,
+        IntSuffixMode suffix_mode = IntSuffixMode::STANDARD);
 };

@@ -146,6 +146,7 @@ void test_kafka_format_json_multiple_records() {
 
 void test_kafka_format_influx_single_record() {
     auto config = create_base_kafka_config();
+    config.schema.name = "weather";
 
     auto* kf = get_kafka_format_options(config);
     assert(kf != nullptr);
@@ -201,6 +202,7 @@ void test_kafka_format_influx_single_record() {
 
 void test_kafka_format_influx_multiple_records() {
     auto config = create_base_kafka_config();
+    config.schema.name = "weather";
 
     auto* kf = get_kafka_format_options(config);
     assert(kf != nullptr);
@@ -324,6 +326,7 @@ void test_kafka_format_factory_creation() {
 
 void test_kafka_format_with_tags() {
     auto config = create_base_kafka_config();
+    config.schema.name = "sensor";
 
     auto* kf = get_kafka_format_options(config);
     assert(kf != nullptr);
@@ -397,7 +400,7 @@ void test_kafka_format_with_tags() {
         assert(payload->size() == 1);
         assert((*payload)[0].first == "us-west-table1");
 
-        std::string expected_payload = "table1,region=us-west,sensor_id=1001 f1=3.14 1500000000000";
+        std::string expected_payload = "sensor,region=us-west,sensor_id=1001 f1=3.14 1500000000000";
         assert((*payload)[0].second == expected_payload);
         (void)payload;
         (void)expected_payload;

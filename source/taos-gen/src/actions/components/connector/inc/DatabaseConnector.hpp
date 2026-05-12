@@ -4,6 +4,7 @@
 #include "FormatResult.hpp"
 #include "SqlInsertData.hpp"
 #include "StmtV2InsertData.hpp"
+#include "SchemalessInsertData.hpp"
 #include <memory>
 #include <string>
 
@@ -21,6 +22,7 @@ public:
     virtual bool execute(const std::string& sql) = 0;
     virtual bool execute(const SqlInsertData& data) = 0;
     virtual bool execute(const StmtV2InsertData& data) = 0;
+    virtual bool execute(const SchemalessInsertData& data) = 0;
 
     // State management
     virtual bool is_connected() const = 0;

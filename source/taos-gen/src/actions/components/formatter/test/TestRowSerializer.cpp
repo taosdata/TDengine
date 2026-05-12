@@ -44,7 +44,8 @@ void test_basic_serialization() {
 
     // --- Test to_influx inplace ---
     fmt::memory_buffer buf;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0, buf);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "weather", "", buf);
     auto ilp = fmt::to_string(buf);
     assert(ilp == "weather temp=25.5,humidity=60i,location=\"factory-1\" 1609459200000");
     (void)ilp;
@@ -84,7 +85,8 @@ void test_without_tbname_key() {
 
     // --- Test to_influx inplace ---
     fmt::memory_buffer buf;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0, buf);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "t1", "", buf);
     auto ilp = fmt::to_string(buf);
     assert(ilp == "t1 value=123.456 1609459201000");
     (void)ilp;
@@ -127,10 +129,12 @@ void test_boolean_type() {
 
     // --- Test to_influx inplace ---
     fmt::memory_buffer buf0;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0, buf0);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "t1", "", buf0);
     assert(fmt::to_string(buf0) == "t1 status=true 1");
     fmt::memory_buffer buf1;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 1, buf1);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 1,
+                                     "t1", "", buf1);
     assert(fmt::to_string(buf1) == "t1 status=false 2");
     (void)buf0;
     (void)buf1;
@@ -182,7 +186,8 @@ void test_out_of_range_exception() {
     exception_thrown = false;
     try {
         fmt::memory_buffer buf;
-        RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 1, buf);
+        RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 1,
+                                         "t1", "", buf);
         assert(false && "Should have thrown an exception for to_influx_inplace");
     } catch (const std::out_of_range& e) {
         std::string msg = e.what();
@@ -242,7 +247,8 @@ void test_serialization_with_tags() {
 
     // Test to_influx_inplace
     fmt::memory_buffer buf;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0, buf);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "weather_sensor", "", buf);
     auto ilp = fmt::to_string(buf);
     assert(ilp == "weather_sensor,region=us-west,sensor_id=1001 temp=25.5 1609459200000");
     (void)ilp;
@@ -314,7 +320,8 @@ void test_influx_inplace_multiple_types_and_bool() {
     const auto& tb = block->tables[0];
 
     fmt::memory_buffer buf;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0, buf);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "m", "", buf);
     auto s = fmt::to_string(buf);
     // Expect: integers have i suffix; bool true/false; string quoted with escaping
     assert(s == "m f_float=1.5,f_double=2.75,f_int=42i,f_bool=true,f_str=\"a\\\"b\\\\c\" 123456789");
@@ -348,13 +355,153 @@ void test_influx_inplace_escaping() {
     const auto& tb = block->tables[0];
 
     fmt::memory_buffer buf;
-    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0, buf);
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "weather station", "", buf);
     auto s = fmt::to_string(buf);
 
     // Expect measurement and tag key/value escaped for space/comma/equals; field normal
     assert(s == "weather\\ station,region\\ name=north\\ east,k\\=a\\,b=a\\=b\\,c f=1 999");
 
     std::cout << "test_influx_inplace_escaping passed." << std::endl;
+}
+
+void test_influx_inplace_unsigned_types() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"v_tinyint", "TINYINT"});
+    col_instances.emplace_back(ColumnConfig{"v_tinyint_u", "TINYINT UNSIGNED"});
+    col_instances.emplace_back(ColumnConfig{"v_smallint", "SMALLINT"});
+    col_instances.emplace_back(ColumnConfig{"v_smallint_u", "SMALLINT UNSIGNED"});
+    col_instances.emplace_back(ColumnConfig{"v_int", "INT"});
+    col_instances.emplace_back(ColumnConfig{"v_int_u", "INT UNSIGNED"});
+    col_instances.emplace_back(ColumnConfig{"v_bigint", "BIGINT"});
+    col_instances.emplace_back(ColumnConfig{"v_bigint_u", "BIGINT UNSIGNED"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({1000, {
+        int8_t(-10),
+        uint8_t(200),
+        int16_t(-300),
+        uint16_t(40000),
+        int32_t(-50000),
+        uint32_t(3000000000u),
+        int64_t(-100000000000LL),
+        uint64_t(18000000000000000000ULL)
+    }});
+    batch.table_batches.emplace_back("types_test", std::move(rows));
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    const auto& tb = block->tables[0];
+
+    fmt::memory_buffer buf;
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "types_test", "", buf);
+    auto s = fmt::to_string(buf);
+    std::string expected = "types_test "
+        "v_tinyint=-10i,"
+        "v_tinyint_u=200u,"
+        "v_smallint=-300i,"
+        "v_smallint_u=40000u,"
+        "v_int=-50000i,"
+        "v_int_u=3000000000u,"
+        "v_bigint=-100000000000i,"
+        "v_bigint_u=18000000000000000000u"
+        " 1000";
+    assert(s == expected);
+    (void)s;
+
+    std::cout << "test_influx_inplace_unsigned_types passed." << std::endl;
+}
+
+void test_influx_inplace_unsigned_with_measurement_overload() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"signed_val", "INT"});
+    col_instances.emplace_back(ColumnConfig{"unsigned_val", "INT UNSIGNED"});
+    tag_instances.emplace_back(ColumnConfig{"host", "VARCHAR(10)"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({2000, {int32_t(-42), uint32_t(42)}});
+    batch.table_batches.emplace_back("dev_001", std::move(rows));
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    std::vector<ColumnType> tag_values = {std::string("srv1")};
+    block->tables[0].tags_ptr = pool.register_table_tags("dev_001", tag_values);
+    const auto& tb = block->tables[0];
+
+    fmt::memory_buffer buf;
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "cpu_metric", "device_id", buf);
+    auto s = fmt::to_string(buf);
+    assert(s == "cpu_metric,device_id=dev_001,host=srv1 signed_val=-42i,unsigned_val=42u 2000");
+    (void)s;
+
+    std::cout << "test_influx_inplace_unsigned_with_measurement_overload passed." << std::endl;
+}
+
+void test_influx_inplace_tdengine_suffix_mode() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"v_tinyint", "TINYINT"});
+    col_instances.emplace_back(ColumnConfig{"v_tinyint_u", "TINYINT UNSIGNED"});
+    col_instances.emplace_back(ColumnConfig{"v_smallint", "SMALLINT"});
+    col_instances.emplace_back(ColumnConfig{"v_smallint_u", "SMALLINT UNSIGNED"});
+    col_instances.emplace_back(ColumnConfig{"v_int", "INT"});
+    col_instances.emplace_back(ColumnConfig{"v_int_u", "INT UNSIGNED"});
+    col_instances.emplace_back(ColumnConfig{"v_bigint", "BIGINT"});
+    col_instances.emplace_back(ColumnConfig{"v_bigint_u", "BIGINT UNSIGNED"});
+    tag_instances.emplace_back(ColumnConfig{"host", "VARCHAR(10)"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({5000, {
+        int8_t(-1), uint8_t(2),
+        int16_t(-3), uint16_t(4),
+        int32_t(-5), uint32_t(6),
+        int64_t(-7), uint64_t(8)
+    }});
+    batch.table_batches.emplace_back("dev_001", std::move(rows));
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    std::vector<ColumnType> tag_values = {std::string("srv1")};
+    block->tables[0].tags_ptr = pool.register_table_tags("dev_001", tag_values);
+    const auto& tb = block->tables[0];
+
+    // Test TDENGINE mode — precise suffixes
+    fmt::memory_buffer buf_td;
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "all_types", "id", buf_td, IntSuffixMode::TDENGINE);
+    auto td = fmt::to_string(buf_td);
+    std::string expected_td = "all_types,id=dev_001,host=srv1 "
+        "v_tinyint=-1i8,v_tinyint_u=2u8,"
+        "v_smallint=-3i16,v_smallint_u=4u16,"
+        "v_int=-5i32,v_int_u=6u32,"
+        "v_bigint=-7i64,v_bigint_u=8u64"
+        " 5000";
+    assert(td == expected_td);
+
+    // Test STANDARD mode (default) — same data
+    fmt::memory_buffer buf_std;
+    RowSerializer::to_influx_inplace(col_instances, tag_instances, tb, 0,
+                                     "all_types", "id", buf_std);
+    auto std_s = fmt::to_string(buf_std);
+    std::string expected_std = "all_types,id=dev_001,host=srv1 "
+        "v_tinyint=-1i,v_tinyint_u=2u,"
+        "v_smallint=-3i,v_smallint_u=4u,"
+        "v_int=-5i,v_int_u=6u,"
+        "v_bigint=-7i,v_bigint_u=8u"
+        " 5000";
+    assert(std_s == expected_std);
+
+    std::cout << "test_influx_inplace_tdengine_suffix_mode passed." << std::endl;
 }
 
 int main() {
@@ -366,6 +513,9 @@ int main() {
     test_json_serialization_with_null_values();
     test_influx_inplace_multiple_types_and_bool();
     test_influx_inplace_escaping();
+    test_influx_inplace_unsigned_types();
+    test_influx_inplace_unsigned_with_measurement_overload();
+    test_influx_inplace_tdengine_suffix_mode();
 
     std::cout << "All RowSerializer tests passed." << std::endl;
     return 0;

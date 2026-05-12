@@ -16,6 +16,8 @@ TDengineSinkPlugin::TDengineSinkPlugin(const InsertDataConfig& config,
         formatter_ = std::make_unique<SqlInsertDataFormatter>(config_.data_format);
     } else if (config_.data_format.format_type == "stmt") {
         formatter_ = std::make_unique<StmtInsertDataFormatter>(config_.data_format);
+    } else if (config_.data_format.format_type == "schemaless") {
+        formatter_ = std::make_unique<SchemalessInsertDataFormatter>(config_.data_format);
     } else {
         throw std::invalid_argument("Unsupported format type: " + config_.data_format.format_type);
     }
@@ -123,6 +125,10 @@ bool TDengineSinkPlugin::write(const BaseInsertData& data) {
             success = execute_with_retry([&] {
                 return handle_insert<StmtV2InsertData>(data);
             }, "stmt v2 insert");
+        } else if (data.type == SCHEMALESS_TYPE_ID) {
+            success = execute_with_retry([&] {
+                return handle_insert<SchemalessInsertData>(data);
+            }, "schemaless insert");
         } else {
             throw std::runtime_error(
                 "Unsupported data type for TDengineSinkPlugin: " +
