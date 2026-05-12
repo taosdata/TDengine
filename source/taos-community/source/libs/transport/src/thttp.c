@@ -252,6 +252,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
 static void* httpThread(void* arg) {
   SHttpModule* http = (SHttpModule*)arg;
   setThreadName("http-cli-send-thread");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   TAOS_UNUSED(uv_run(http->loop, UV_RUN_DEFAULT));
   return NULL;
 }

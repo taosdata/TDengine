@@ -18,7 +18,7 @@ import sys
 import subprocess
 import importlib.util
 from pathlib import Path
-from new_test_framework.utils import tdLog, tdSql, tdStream, cluster, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdStream, tdCb, cluster, tdCom
 
 # Import enterprise package downloader
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -178,26 +178,11 @@ class TestStreamCompatibility:
             tdLog.printNoPrefix(f"Stream compatibility test with base version {base_version} completed successfully")
                 
             # Cleanup between version tests
-            self.killAllDnodes()
+            tdCb.stopTaosdCompletely()
             
             tdLog.info(f"Completed testing version {base_version}, moving to next version...")
         
         tdLog.printNoPrefix(f"========== All stream compatibility tests completed for {len(BASE_VERSIONS)} versions ==========")
-
-    def checkProcessPid(self, processName):
-        """Check if process is stopped"""
-        tdLog.info(f"checkProcessPid {processName}")
-        i = 0
-        while i < 60:
-            tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
-            tdLog.info(f"times:{i},{processName}-pid:{processPid}")
-            if processPid == "":
-                break
-            i += 1
-            time.sleep(1)
-        else:
-            tdLog.info(f'this processName is not stopped in 60s')
 
     def installTaosd(self, bPath, cPath, base_version):
         """Install specific version of TDengine using enterprise package"""
@@ -209,22 +194,11 @@ class TestStreamCompatibility:
         package_path = downloader.download_and_install(base_version, "enterprise", "-e no")
         tdLog.info(f"Successfully installed enterprise package from {package_path}")
         
-        os.system(f"pkill -9 taosd")
-        self.checkProcessPid("taosd")
+        tdCb.stopTaosdCompletely()
 
         print(f"rm -rf {dataPath}* && nohup /usr/bin/taosd -c {cPath} &")
         os.system(f"rm -rf {dataPath}* && nohup /usr/bin/taosd -c {cPath} &")
         time.sleep(5)
-
-    def killAllDnodes(self):
-        """Kill all TDengine processes"""
-        tdLog.info("kill all dnodes")
-        tdLog.info("kill taosd")
-        os.system(f"pkill -9 taosd")
-        tdLog.info("kill taos")
-        os.system(f"pkill -9 taos") 
-        tdLog.info("check taosd")
-        self.checkProcessPid("taosd")
 
     def createStreamOnOldVersion(self, base_version):
         """Create snode and streams on old version"""
@@ -288,7 +262,7 @@ class TestStreamCompatibility:
         tdLog.printNoPrefix("==========Attempting to start with new version (should fail)==========")
         
         # Kill old taosd
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         
         cPath = bPath + "/../sim/dnode1/cfg/"
@@ -313,7 +287,7 @@ class TestStreamCompatibility:
 
     def restartTaosd(self, cPath):
         """Restart taosd"""
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         os.system(f"nohup /usr/bin/taosd -c {cPath} &")
         time.sleep(5)
@@ -364,7 +338,7 @@ class TestStreamCompatibility:
         os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show databases;'")
         
         # Stop taosd before filesystem cleanup
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         
         # Remove snode directories from filesystem
@@ -391,7 +365,7 @@ class TestStreamCompatibility:
         tdLog.printNoPrefix("==========Creating new streams on new version==========")
         
         # Kill old version
-        self.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         time.sleep(2)
         
         # Start new version

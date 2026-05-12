@@ -1696,6 +1696,129 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
   return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, 1, false);
 }
 
+static int32_t dmBuildCpuAllocationBlock(SSDataBlock **ppBlock) {
+  int32_t      code = 0;
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) return terrno;
+
+  size_t               size = 0;
+  const SSysTableMeta *pMeta = NULL;
+  getInfosDbMeta(&pMeta, &size);
+
+  int32_t index = -1;
+  for (int32_t i = 0; i < (int32_t)size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) {
+    taosMemoryFree(pBlock);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    code = terrno;
+    goto _exit_cpu;
+  }
+
+  for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
+    SColumnInfoData colInfoData = {0};
+    colInfoData.info.colId = i + 1;
+    colInfoData.info.type = pMeta[index].schema[i].type;
+    colInfoData.info.bytes = pMeta[index].schema[i].bytes;
+    if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
+      code = terrno;
+      goto _exit_cpu;
+    }
+  }
+
+  pBlock->info.hasVarCol = true;
+_exit_cpu:
+  if (code != 0) {
+    blockDataDestroy(pBlock);
+  } else {
+    *ppBlock = pBlock;
+  }
+  return code;
+}
+
+static int32_t dmAppendCpuAllocationRow(SSDataBlock *pBlock, int32_t dnodeId, const char *category, int32_t cores,
+                                        const char *coreIds, bool enabled) {
+  int32_t code = 0;
+  int32_t row = pBlock->info.rows;
+
+  // column 0: dnode_id (INT)
+  SColumnInfoData *pCol0 = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pCol0 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol0, row, (const char *)&dnodeId, false);
+  if (code) return code;
+
+  // column 1: thread_category (VARCHAR)
+  SColumnInfoData *pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
+  if (pCol1 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char catBuf[16 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(catBuf, category);
+  code = colDataSetVal(pCol1, row, catBuf, false);
+  if (code) return code;
+
+  // column 2: cores (INT)
+  SColumnInfoData *pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
+  if (pCol2 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol2, row, (const char *)&cores, false);
+  if (code) return code;
+
+  // column 3: core_ids (VARCHAR)
+  SColumnInfoData *pCol3 = taosArrayGet(pBlock->pDataBlock, 3);
+  if (pCol3 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char idsBuf[256 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(idsBuf, coreIds);
+  code = colDataSetVal(pCol3, row, idsBuf, false);
+  if (code) return code;
+
+  // column 4: enabled (BOOL)
+  SColumnInfoData *pCol4 = taosArrayGet(pBlock->pDataBlock, 4);
+  if (pCol4 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  int8_t boolVal = enabled ? 1 : 0;
+  code = colDataSetVal(pCol4, row, (const char *)&boolVal, false);
+  if (code) return code;
+
+  pBlock->info.rows++;
+  return 0;
+}
+
+static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock, int32_t dnodeId) {
+  int32_t                code = 0;
+  const SCpuAllocStatus *status = taosGetCpuAllocStatus();
+  const char            *catNames[] = {"management", "write", "read"};
+
+  code = blockDataEnsureCapacity(pBlock, THREAD_CAT_COUNT);
+  if (code) return code;
+
+  for (int32_t c = 0; c < THREAD_CAT_COUNT; c++) {
+    char    coreIdsBuf[256] = {0};
+    int32_t cores = 0;
+    bool    enabled = false;
+
+    if (status->enabled) {
+      cores = status->sets[c].count;
+      enabled = true;
+      int off = 0;
+      for (int32_t i = 0; i < status->sets[c].count && off < (int)sizeof(coreIdsBuf) - 8; i++) {
+        off +=
+            snprintf(coreIdsBuf + off, sizeof(coreIdsBuf) - off, "%s%d", i > 0 ? "," : "", status->sets[c].coreIds[i]);
+      }
+    } else {
+      tstrncpy(coreIdsBuf, "-", sizeof(coreIdsBuf));
+    }
+
+    code = dmAppendCpuAllocationRow(pBlock, dnodeId, catNames[c], cores, coreIdsBuf, enabled);
+    if (code) return code;
+  }
+  return 0;
+}
+
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t           size = 0;
   int32_t           rowsRead = 0;
@@ -1711,19 +1834,32 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 #endif
-  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES) != 0 &&
+      strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
 
   SSDataBlock *pBlock = NULL;
-  if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
-    return code;
-  }
 
-  code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
-  if (code != 0) {
-    blockDataDestroy(pBlock);
-    return code;
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+    if ((code = dmBuildCpuAllocationBlock(&pBlock)) != 0) {
+      return code;
+    }
+    code = dmFillCpuAllocationBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  } else {
+    if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
+      return code;
+    }
+
+    code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);

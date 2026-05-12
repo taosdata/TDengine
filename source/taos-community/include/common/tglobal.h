@@ -144,6 +144,12 @@ extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
 extern int32_t tsSecureEraseMode;
 
+// cpu affinity
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
+
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
@@ -381,6 +387,7 @@ extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
@@ -413,6 +420,19 @@ extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
 extern bool    tsSessionControl;
+
+// cls
+extern bool    tsClsEnabled;
+extern char    tsClsUrl[];
+extern char    tsClsLicenseId[];
+extern char    tsClsQuotaSlotId[];
+extern int32_t tsClsRefreshInterval;
+extern char    tsClsLastSucTime[];
+extern char    tsClsLastReqTime[];
+extern char    tsClsLastFailReason[];
+extern int32_t gGrantClsPreRefreshInterval;
+#define GRANT_CLS_CLOSING 1
+#define GRANT_CLS_OPENING 2
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

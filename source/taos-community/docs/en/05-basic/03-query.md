@@ -147,7 +147,7 @@ The window clause allows you to partition the queried data set by windows and ag
 ![Windowing logic](../assets/data-querying-01-window.png)
 
 - Time Window: Data is divided based on time intervals, supporting sliding and tumbling time windows, suitable for data aggregation over fixed time periods.
-- State Window: Windows are divided based on changes in device status values, with data of the same status value grouped into one window, which closes when the status value changes.
+- State Window: Windows are divided based on changes in one or more state keys. Rows remain in the same window while all state keys stay the same, and the window closes when any state key changes.
 - Session Window: Sessions are divided based on the differences in record timestamps, with records having a timestamp interval less than the predefined value belonging to the same session.
 - Event Window: Windows are dynamically divided based on the start and end conditions of events, opening when the start condition is met and closing when the end condition is met.
 - Count Window: Windows are divided based on the number of data rows, with each window consisting of a specified number of rows for aggregation calculations.
@@ -158,7 +158,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val])
@@ -358,7 +358,42 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### State Window
 
-Use integers (boolean values) or strings to identify the state of the device when the record is generated. Records with the same state value belong to the same state window, and the window closes when the value changes. TDengine also supports using CASE expressions on state values, which can express that the start of a state is triggered by meeting a certain condition, and the end of the state is triggered by meeting another condition. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine if the circuit is normal.
+State windows are divided according to the continuity of one or more state keys. State keys support integers, booleans, and strings, and can also be `CASE WHEN` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. TDengine also supports using `CASE` expressions to derive state keys from business rules. For example, with smart meters, if the voltage is within the normal range of 225V to 235V, you can monitor the voltage to determine whether the circuit is normal.
+
+```sql
+STATE_WINDOW(state_expr [, state_expr ...])
+    [EXTEND(extend_val)]
+    [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
+    [TRUE_FOR(true_for_expr)]
+```
+
+Where:
+
+- `state_expr` can be a column reference, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE), TIMESTAMP, and tag columns are not supported. Arithmetic expressions (e.g., `col1 + col2`), comparison/boolean expressions (e.g., `col1 > 0`), and constants are not supported.
+- `EXTEND(0|1|2)` specifies the window boundary extension strategy.
+- `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` can be used to skip a position.
+- `TRUE_FOR(...)` filters windows by duration, row count, or both.
+
+`NULL` values in state keys are handled as follows:
+
+- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows.
+- If only some state-key columns are `NULL`, those `NULL` positions do not participate in key-by-key comparison. Consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
+- If a consecutive run of partial-`NULL` rows contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with the surrounding partial-`NULL` run.
+
+The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
+
+| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
+| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
+| `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
+
+If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
+
+`ZEROTH_STATE(...)` also works position by position. A window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
 
 In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
 
@@ -403,6 +438,62 @@ The above SQL queries data from the supertable `meters`, where the timestamp is 
  d26    | 2022-01-01 00:04:00.000 | 2022-01-01 00:04:50.000 |         50000 |             0 |
 Query OK, 22 row(s) in set (0.153403s)
 ```
+
+Multi-key example:
+
+```sql
+SELECT _wstart, _wend, count(*),
+        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
+        CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
+FROM meters
+WHERE ts >= "2022-01-01T00:00:00+08:00"
+    AND ts <  "2022-01-01T00:05:00+08:00"
+PARTITION BY tbname
+STATE_WINDOW(
+        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
+        CASE WHEN current > 12 THEN 1 ELSE 0 END
+)
+SLIMIT 2;
+```
+
+The query above uses both the voltage status (whether it remains in the normal range of 225V to 235V) and the current status (whether it exceeds 12A) as state keys. The current window closes and a new one starts whenever either status changes. The query result is as follows:
+
+```text
+                 _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
+============================================================================================================================
+ 2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
+ 2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:00:30.000 | 2022-01-01 00:00:50.000 |                     3 |                     0 |                     0 |
+ 2022-01-01 00:01:00.000 | 2022-01-01 00:01:10.000 |                     2 |                     0 |                     1 |
+ 2022-01-01 00:01:20.000 | 2022-01-01 00:01:20.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |                     1 |                     1 |                     0 |
+ 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |                     1 |                     0 |                     1 |
+ 2022-01-01 00:02:00.000 | 2022-01-01 00:02:00.000 |                     1 |                     0 |                     0 |
+ 2022-01-01 00:02:10.000 | 2022-01-01 00:02:10.000 |                     1 |                     1 |                     0 |
+...
+Query OK, 42 row(s) in set (2.012420s)
+```
+
+If you need boundary extension or zero-state filtering, you can continue appending clauses after `STATE_WINDOW(...)`, for example:
+
+```sql
+SELECT _wstart, _wduration, _wend, count(*)
+FROM state_window_example
+STATE_WINDOW(status)
+EXTEND(1);
+```
+
+```sql
+SELECT _wstart, _wend, count(*), c1, c2
+FROM ntb_null
+STATE_WINDOW(c1, c2)
+EXTEND(0)
+ZEROTH_STATE(1, NO_ZEROTH)
+TRUE_FOR(COUNT 2);
+```
+
+The SQL above applies zero-state filtering only to `c1 = 1`; `c2` does not participate in zero-state matching.
 
 ### Session Window
 

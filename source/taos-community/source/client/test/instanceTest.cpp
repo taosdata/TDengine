@@ -318,4 +318,24 @@ TEST(instanceCase, secondEp) {
   taos_free_instances(&list, count);
 }
 
+TEST(instanceCase, instance_api_rate_limit) {
+  initEnv();
+  taosMsleep(1000);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t t0 = taosGetTimestampMs();
+  for (int i = 0; i < 100; i++) {
+    code = taos_register_instance("id-1", "taosadapter", "desc:test_instance", 100);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+  int64_t t1 = taosGetTimestampMs();
+
+  code = taos_register_instance("id-1", "taosadapter", "desc:test_instance", 100);
+  if (t1 - t0 >= 1000) {
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  } else {
+    ASSERT_EQ(code, TSDB_CODE_TSC_INSTANCE_API_RATE_LIMIT);
+  }
+}
+
 #pragma GCC diagnostic pop

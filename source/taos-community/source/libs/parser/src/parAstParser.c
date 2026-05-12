@@ -200,7 +200,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   if (TSDB_CODE_SUCCESS == code && needGetTableIndex(pCxt->pStmt)) {
     code = reserveTableIndexInCache(pCxt->pParseCxt->acctId, pDb, pTable, pCxt->pMetaCache);
   }
-  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES))) {
+  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES) ||
+                                     0 == strcmp(pTable, TSDB_INS_TABLE_CPU_ALLOCATION))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code &&
@@ -1092,6 +1093,15 @@ static int32_t collectMetaKeyFromShowVirtualTablesReferencing(SCollectMetaKeyCxt
   return code;
 }
 
+static int32_t collectMetaKeyFromShowCpuAllocation(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                         TSDB_INS_TABLE_CPU_ALLOCATION, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowArbGroups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ARBGROUPS,
                                          pCxt->pMetaCache);
@@ -1977,7 +1987,7 @@ EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* p
         pOptions->hasFailedLoginAttempts || pOptions->hasPasswordLifeTime || pOptions->hasPasswordReuseTime ||
         pOptions->hasPasswordReuseMax || pOptions->hasPasswordLockTime || pOptions->hasPasswordGraceTime ||
         pOptions->hasInactiveAccountTime || pOptions->hasAllowTokenNum || pOptions->pSecurityLevels)) {
-    if (pCurrentUser && strcmp(pCurrentUser, pStmt->userName) == 0) {
+    if (pCurrentUser && strncmp(pCurrentUser, pStmt->userName, TSDB_USER_LEN) == 0) {
       privType = PRIV_PASS_ALTER_SELF;
     } else {
       privType = PRIV_PASS_ALTER;
@@ -2305,6 +2315,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       code = collectMetaKeyFromShowValidateVtable(pCxt, (SShowValidateVirtualTable*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_CPU_ALLOCATION_STMT:
+      code = collectMetaKeyFromShowCpuAllocation(pCxt, (SShowStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       code = collectMetaKeyFromShowSubscriptions(pCxt, (SShowStmt*)pStmt);

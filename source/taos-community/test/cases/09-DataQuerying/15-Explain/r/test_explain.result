@@ -3280,7 +3280,7 @@ taos> select _wstart, _wend, count(*) from meters session(ts, 1h) order by _wend
 
 taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2)\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN: -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=32
 *************************** 3.row ***************************
@@ -3320,7 +3320,7 @@ QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=4 width=32)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=32
 *************************** 3.row ***************************
-QUERY_PLAN:    -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN:    -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=4 width=32
 *************************** 5.row ***************************
@@ -3356,7 +3356,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 
 taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN: -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=32
 *************************** 3.row ***************************
@@ -3396,7 +3396,7 @@ QUERY_PLAN: -> Sort input_order=asc output_order=desc  (columns=4 width=32)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=32
 *************************** 3.row ***************************
-QUERY_PLAN:    -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN:    -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=4 width=32
 *************************** 5.row ***************************
@@ -3432,7 +3432,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 
 taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN: -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=32
 *************************** 3.row ***************************
@@ -3487,7 +3487,7 @@ QUERY_PLAN: -> Sort input_order=asc output_order=asc  (columns=4 width=32)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=4 width=32
 *************************** 3.row ***************************
-QUERY_PLAN:    -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN:    -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=4 width=32
 *************************** 5.row ***************************
@@ -3545,7 +3545,7 @@ QUERY_PLAN:       -> Sort input_order=asc output_order=desc  (columns=3 width=24
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:          -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN:          -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 13.row ***************************
 QUERY_PLAN:                Output: columns=4 width=32
 *************************** 14.row ***************************
@@ -3599,7 +3599,7 @@ QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:       -> StateWindow on Column c2 (functions=4 width=32)
+QUERY_PLAN:       -> StateWindow on Columns c2 (functions=4 width=32)
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: columns=4 width=32
 *************************** 12.row ***************************

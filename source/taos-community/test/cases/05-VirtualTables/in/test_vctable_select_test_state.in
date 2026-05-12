@@ -8,3 +8,14 @@ select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tbname
 select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tbname STATE_WINDOW(tbname);
 select count(*) from test_vtable_select.vtb_virtual_ctb_full STATE_WINDOW(CASE WHEN tbname = 'vtb_virtual_ctb_full' THEN 1 ELSE 0 END);
 select count(*) from test_vtable_select.vtb_virtual_ctb_full STATE_WINDOW(tbname);
+
+select _wstart, _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, bool_col, u_tinyint_col, count(bool_col), avg(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, bool_col, u_tinyint_col, count(bool_col), avg(u_smallint_col), sum(int_col) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, _wduration, bool_col, u_tinyint_col, count(*), avg(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, bool_col, u_tinyint_col, count(bool_col), avg(u_smallint_col), sum(u_int_col), max(int_col), min(smallint_col) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, first(bool_col), first(u_tinyint_col), last(bool_col), last(u_tinyint_col), count(*) from test_vtable_select.vtb_virtual_ctb_full state_window(bool_col, u_tinyint_col) limit 100;
+select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_ctb_full state_window(u_tinyint_col, u_smallint_col) limit 100;
+select _wstart, _wend, u_tinyint_col, u_smallint_col, count(*), avg(int_col) from test_vtable_select.vtb_virtual_ctb_full state_window(u_tinyint_col, u_smallint_col) limit 100;
+select _wstart, _wend, u_tinyint_col, u_smallint_col, u_int_col, count(*), avg(int_col) from test_vtable_select.vtb_virtual_ctb_full state_window(u_tinyint_col, u_smallint_col, u_int_col) limit 100;

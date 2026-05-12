@@ -372,7 +372,7 @@ typedef struct SWindowLogicNode {
   int64_t               sessionGap;
   SNode*                pTsEnd;
   // for state window
-  SNode*                pStateExpr;
+  SNodeList*            pStateExprs;
   EStateWinExtendOption extendOption;
   // for event window
   SNode*                pStartCond;
@@ -840,7 +840,7 @@ typedef struct SSessionWinodwPhysiNode {
 
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pStateKey;
+  SNodeList*       pStateKeys;
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
