@@ -52,6 +52,21 @@ typedef struct SColRefNameView {
   size_t      colNameLen; // column-name bytes, excluding terminator
 } SColRefNameView;
 
+// Column indices for ins_virtual_child_columns (userVctbColsSchema in systable.c)
+enum {
+  VC_COL_TABLE_NAME  = 0,
+  VC_COL_STABLE_NAME = 1,
+  VC_COL_DB_NAME     = 2,
+  VC_COL_COL_NAME    = 3,
+  VC_COL_UID         = 4,
+  VC_COL_COL_ID      = 5,
+  VC_COL_COL_SOURCE  = 6,
+  VC_COL_VGROUP_ID   = 7,
+  VC_COL_REF_VERSION = 8,
+  VC_COL_COL_TYPE    = 9,
+  VC_COL_COUNT       = 10
+};
+
 /*
  * Resolve vgroup id and optional vnode epSet for a table.
  *
@@ -65,6 +80,7 @@ typedef struct SColRefNameView {
  */
 static int32_t getVgIdAndEpSet(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char* tbName, SEpSet* pEpSet);
 static int32_t getDbVgInfo(SOperatorInfo* pOperator, SName* name, SDBVgInfo** dbVgInfo);
+static int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char* tbName);
 static int32_t parseColRefNameView(const char* colRef, SColRefNameView* pView);
 static int32_t getVgIdFromColref(SOperatorInfo* pOperator, const char* colRef, int32_t* vgId);
 
@@ -2116,9 +2132,6 @@ _return:
   }
   return code;
 }
-int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **dbVgInfo);
-int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char *tbName);
-
 static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo, const char* dbFName,
                                    const char* tbName, int32_t vgId, STableCfgRsp* pCfgRsp) {
   int32_t                    code = TSDB_CODE_SUCCESS;
@@ -2414,6 +2427,11 @@ static int32_t resolveOneTagRefChain(SOperatorInfo* pOperator, SVtbScanDynCtrlIn
             refDbName = taosStrdup(pChainRef->refDbName);
             refTbName = taosStrdup(pChainRef->refTableName);
             refColName = taosStrdup(pChainRef->refColName);
+            if (!refDbName || !refTbName || !refColName) {
+              tFreeSTableCfgRsp(&cfgRsp);
+              code = terrno;
+              goto _cleanup;
+            }
             chainContinues = true;
             break;
           }
@@ -2505,12 +2523,18 @@ static int32_t resolveTagValsForVtbChild(SOperatorInfo* pOperator, SArray* pColR
       continue;
     }
     code = resolveOneTagRefChain(pOperator, pVtbScan, pKV, pColRefInfo, ppResolvedTags);
-    if (code != TSDB_CODE_SUCCESS) goto _error;
+    if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(*ppResolvedTags);
+      *ppResolvedTags = NULL;
+      goto _error;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
 
 _error:
+  taosArrayDestroy(*ppResolvedTags);
+  *ppResolvedTags = NULL;
   qError("%s failed for %s since %s", __func__, vtbName, tstrerror(code));
   return code;
 }
@@ -2651,7 +2675,7 @@ int32_t dynHashValueComp(void const* lp, void const* rp) {
   return 0;
 }
 
-int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char *tbName) {
+static int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char *tbName) {
   return getVgIdAndEpSet(dbInfo, dbFName, vgId, tbName, NULL);
 }
 
@@ -3248,10 +3272,10 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
   pParam = NULL;
 
   while (pBlock != NULL) {
-    SColumnInfoData* pTableNameCol = taosArrayGet(pBlock->pDataBlock, 0);
-    SColumnInfoData* pDbNameCol = taosArrayGet(pBlock->pDataBlock, 2);
-    SColumnInfoData* pColNameCol = taosArrayGet(pBlock->pDataBlock, 3);
-    SColumnInfoData* pRefCol = taosArrayGet(pBlock->pDataBlock, 6);
+    SColumnInfoData* pTableNameCol = taosArrayGet(pBlock->pDataBlock, VC_COL_TABLE_NAME);
+    SColumnInfoData* pDbNameCol = taosArrayGet(pBlock->pDataBlock, VC_COL_DB_NAME);
+    SColumnInfoData* pColNameCol = taosArrayGet(pBlock->pDataBlock, VC_COL_COL_NAME);
+    SColumnInfoData* pRefCol = taosArrayGet(pBlock->pDataBlock, VC_COL_COL_SOURCE);
 
     QUERY_CHECK_NULL(pTableNameCol, code, line, _return, terrno);
     QUERY_CHECK_NULL(pDbNameCol, code, line, _return, terrno);
@@ -3733,13 +3757,13 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          line = 0;
 
-  SColumnInfoData *pColNameCol = taosArrayGet(pDataBlock, 3);
-  SColumnInfoData *pUidCol = taosArrayGet(pDataBlock, 4);
-  SColumnInfoData *pColIdCol = taosArrayGet(pDataBlock, 5);
-  SColumnInfoData *pRefCol = taosArrayGet(pDataBlock, 6);
-  SColumnInfoData *pVgIdCol = taosArrayGet(pDataBlock, 7);
-  SColumnInfoData *pRefVerCol = taosArrayGet(pDataBlock, 8);
-  SColumnInfoData *pRefTypeCol = taosArrayGetSize(pDataBlock) > 9 ? taosArrayGet(pDataBlock, 9) : NULL;
+  SColumnInfoData *pColNameCol = taosArrayGet(pDataBlock, VC_COL_COL_NAME);
+  SColumnInfoData *pUidCol = taosArrayGet(pDataBlock, VC_COL_UID);
+  SColumnInfoData *pColIdCol = taosArrayGet(pDataBlock, VC_COL_COL_ID);
+  SColumnInfoData *pRefCol = taosArrayGet(pDataBlock, VC_COL_COL_SOURCE);
+  SColumnInfoData *pVgIdCol = taosArrayGet(pDataBlock, VC_COL_VGROUP_ID);
+  SColumnInfoData *pRefVerCol = taosArrayGet(pDataBlock, VC_COL_REF_VERSION);
+  SColumnInfoData *pRefTypeCol = taosArrayGetSize(pDataBlock) > VC_COL_COL_TYPE ? taosArrayGet(pDataBlock, VC_COL_COL_TYPE) : NULL;
 
   QUERY_CHECK_NULL(pColNameCol, code, line, _return, terrno)
   QUERY_CHECK_NULL(pUidCol, code, line, _return, terrno)

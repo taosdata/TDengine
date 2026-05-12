@@ -718,6 +718,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     }
     (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
     (*ppEntry)->stbEntry.ownerId = pEntry->stbEntry.ownerId;
+    (*ppEntry)->stbEntry.securityLevel = pEntry->stbEntry.securityLevel;
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;

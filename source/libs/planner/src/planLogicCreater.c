@@ -2004,7 +2004,7 @@ static void freeTagClassifyResult(STagClassifyResult* pResult) {
       }
     }
   }
-  nodesDestroyList(pResult->pLocalTags);
+  nodesClearList(pResult->pLocalTags);
   nodesDestroyList(pResult->pRefTagCols);
   if (pResult->pRefSourceMap) {
     taosHashCleanup(pResult->pRefSourceMap);

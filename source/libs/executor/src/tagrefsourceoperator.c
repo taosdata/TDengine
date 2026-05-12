@@ -98,8 +98,7 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
   // Get table entry from vnode
   code = pAPI->metaReaderFn.getTableEntryByUid(mr, pItem->uid);
   if (code != TSDB_CODE_SUCCESS) {
-    qDebug("%s: failed to get table meta for uid:0x%" PRIx64 ", code:%s", __func__, pItem->uid, tstrerror(code));
-    // Continue to next table instead of failing completely
+    qError("%s: failed to get table meta for uid:0x%" PRIx64 ", code:%s", __func__, pItem->uid, tstrerror(code));
     goto _end;
   }
   // Iterate through each referenced column and extract tag value
