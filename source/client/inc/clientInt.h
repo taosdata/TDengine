@@ -425,6 +425,10 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 int32_t  createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo,
                       STscObj** p);
 void     destroyTscObj(void* pObj);
+/* Snapshot the current client timezone (L3 = tsTimezoneStr) into the session
+ * timezone (L2 = pObj->optionInfo.timezone) at connection creation time.
+ * After this call, ALTER LOCAL timezone changes L3 only; L2 is independent. */
+int32_t  tscInitSessionTimezone(STscObj *pObj);
 STscObj* acquireTscObj(int64_t rid);
 void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);

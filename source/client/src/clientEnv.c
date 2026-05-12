@@ -552,6 +552,11 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
+  /* Snapshot the current client timezone (L3) into the session timezone (L2)
+   * so that ALTER LOCAL timezone only affects L3 going forward; this session's
+   * L2 remains the value captured at connection creation. */
+  (void)tscInitSessionTimezone(*pObj);
+
   updateConnAccessInfo(&(*pObj)->sessInfo);
   tscInfo("conn:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
   return code;

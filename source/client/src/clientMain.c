@@ -271,6 +271,42 @@ END:
 }
 #endif
 
+/* Snapshot the current client timezone (L3 = tsTimezoneStr) into the session
+ * timezone (L2 = pObj->optionInfo.timezone) at the time the connection is
+ * established.  Subsequent ALTER LOCAL timezone calls change L3 only; the
+ * session's L2 stays at this connection-time snapshot and is independent. */
+int32_t tscInitSessionTimezone(STscObj *pObj) {
+#if defined(WINDOWS) || defined(TD_ASTRA)
+  (void)pObj;
+  return TSDB_CODE_SUCCESS;
+#else
+  if (pTimezoneMap == NULL) {
+    /* tzInit() not yet called; skip silently */
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Extract the IANA name from tsTimezoneStr.
+   * The string has the form "Name (Abbrev, +HHMM)". */
+  char        tzName[TD_TIMEZONE_LEN] = {0};
+  const char *pSpace = strchr(tsTimezoneStr, ' ');
+  int32_t     nameLen = pSpace ? (int32_t)(pSpace - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
+  if (nameLen <= 0 || nameLen >= TD_TIMEZONE_LEN) {
+    return TSDB_CODE_SUCCESS;  /* malformed; leave session tz unset */
+  }
+  tstrncpy(tzName, tsTimezoneStr, nameLen + 1);
+
+  timezone_t tz = setConnectionTz(tzName);
+  if (tz == NULL) {
+    /* Non-fatal: session tz stays NULL and falls back to tsTimezoneStr */
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pObj->optionInfo.timezone = tz;
+  tstrncpy(pObj->optionInfo.timezoneName, tzName, sizeof(pObj->optionInfo.timezoneName));
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
 // Get connection's session timezone (opaque handle for C API bindings).
 // Returns an opaque pointer to internal timezone_t.
 // WARNING: The returned pointer is valid only for the current session timezone state.
