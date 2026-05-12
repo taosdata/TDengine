@@ -69,13 +69,16 @@ ENDIF (GIT_FOUND)
 #
 
 MESSAGE("collect --version show info:")
-# version
-IF (DEFINED TD_VER_NUMBER)
+# version: the project-wide cmake variable is BUILD_VER_NUMBER, not TD_VER_NUMBER
+IF (DEFINED BUILD_VER_NUMBER)
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${BUILD_VER_NUMBER}")
+    MESSAGE(STATUS "version:${BUILD_VER_NUMBER}")
+ELSEIF (DEFINED TD_VER_NUMBER)
     ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
     MESSAGE(STATUS "version:${TD_VER_NUMBER}")
-ELSE ()    
+ELSE ()
     # abort build
-    MESSAGE(FATAL_ERROR "build taosdump not found TD_VER_NUMBER define.")
+    MESSAGE(FATAL_ERROR "build taosdump not found BUILD_VER_NUMBER define.")
 ENDIF ()
 
 #
