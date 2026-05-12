@@ -122,10 +122,11 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                # use ASAN options abort_on_error=1 to generate core dump when error occurs
+                # do NOT set abort_on_error=1: it causes taosd to crash immediately on any ASAN
+                # error, making tmq_sim / polling loops hang forever waiting for a dead taosd.
+                # ASAN errors are still written to error_output and caught by checkAsan.sh.
                 asan_options = [
                     "detect_odr_violation=0",
-                    "abort_on_error=1",
                 ]
                 cmds = [
                     'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
@@ -164,7 +165,30 @@ class TaosD:
                         if time.time() > timeout:
                             self.logger.error('wait too long for taosd start')
                             break
-                    self.logger.debug("the dnode:%d has been started." % (index))
+                self.logger.debug("the dnode:%d has been started." % (index))
+                # Probe the connection until taosd is truly ready to serve queries.
+                # "from offline to online" only means the dnode joined the cluster;
+                # the mnode Raft leader may still be restoring (0x0914) for several
+                # more seconds, especially under CI pressure load or with multi-node
+                # clusters.  Keep retrying until the connection succeeds or 60 s elapse.
+                _probe_host = cfg.get("fqdn", "localhost")
+                _probe_port = int(cfg.get("serverPort", 6030))
+                _probe_deadline = time.time() + 60
+                while time.time() < _probe_deadline:
+                    try:
+                        _conn = taos.connect(host=_probe_host, port=_probe_port)
+                        _conn.close()
+                        self.logger.debug("taosd ready (connection probe OK) dnode:%d" % index)
+                        break
+                    except Exception as _probe_err:
+                        self.logger.debug(
+                            "taosd not ready yet dnode:%d (%s), retrying in 1s ..." % (index, _probe_err)
+                        )
+                        time.sleep(1)
+                else:
+                    self.logger.error(
+                        "taosd connection probe timed out after 60s for dnode:%d" % index
+                    )
         else:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))

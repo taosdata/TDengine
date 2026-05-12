@@ -137,6 +137,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->upgradeFps[sdbType] = table.upgradeFp;
   pSdb->afterRestoredFps[sdbType] = table.afterRestoredFp;
   pSdb->validateFps[sdbType] = table.validateFp;
+  pSdb->isUpgradedFps[sdbType] = table.isUpgradedFp;
 
   int32_t hashType = 0;
   if (keyType == SDB_KEY_INT32) {

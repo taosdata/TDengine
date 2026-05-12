@@ -52,7 +52,7 @@ After downloading mcp-tdengine-tsdb, place it in any directory, then configure t
 
 1. In the upper right corner of the Trae AI chat window, click the settings icon -> MCP, which will open the MCP window
 
-   ![MCP SETTING](assets/mcp-setting.webp)
+   ![MCP SETTING](../../assets/mcp-setting.webp)
 
 2. After clicking "Add Manually", fill in the following content. Change the command to the full path where mcp-tdengine-tsdb is located. For Windows systems, note that path escaping is required. Fill in the database name you want to operate in the db parameter. After clicking confirm, you can use the MCP Server for TDengine TSDB for data querying and management operations.
 
@@ -73,11 +73,11 @@ After downloading mcp-tdengine-tsdb, place it in any directory, then configure t
    }
    ```
 
-   ![ADD MCP](assets/add-mcp.webp)
+   ![ADD MCP](../../assets/add-mcp.webp)
 
 3. Select "Builder with MCP" in the AI box, and you can see that the tdengine-tsdb mcp has been started.
 
-   ![BUILDER WITH MCP](assets/builder-with-mcp.webp)
+   ![BUILDER WITH MCP](../../assets/builder-with-mcp.webp)
 
 ### Adding MCP Using Claude Code as an Example
 
@@ -95,24 +95,24 @@ Here are some usage examples:
 
 1. Get connection information
 
-   ![mcp-info.webp](assets/mcp-info.webp)
+   ![mcp-info.webp](../../assets/mcp-info.webp)
 
 2. Get dnode list
 
-   ![mcp-list-dnodes.webp](assets/mcp-list-dnodes.webp)
+   ![mcp-list-dnodes.webp](../../assets/mcp-list-dnodes.webp)
 
 3. Get database list
 
-   ![mcp-show-databases.webp](assets/mcp-show-databases.webp)
+   ![mcp-show-databases.webp](../../assets/mcp-show-databases.webp)
 
 4. Get supertable list
 
-   ![mcp-show-stables.webp](assets/mcp-show-stables.webp)
+   ![mcp-show-stables.webp](../../assets/mcp-show-stables.webp)
 
 5. Get table structure
 
-   ![mcp-describe.webp](assets/mcp-describe.webp)
+   ![mcp-describe.webp](../../assets/mcp-describe.webp)
 
 6. Execute query statements
 
-   ![mcp-query.webp](assets/mcp-query.webp)
+   ![mcp-query.webp](../../assets/mcp-query.webp)

@@ -82,12 +82,18 @@ class TMQCom:
         tdSql.query(splitSql)
     
     def checkSplitVgroups(self):
+        cnt = 0
         while True:
             tdSql.query("select * from information_schema.ins_vnodes where db_name='dbt' and status='leader' and restored=true")
+            tdLog.info(tdSql.queryResult)
             if tdSql.getRows() == 2:
+                cnt += 1
+            else:
+                cnt = 0
+            if cnt >= 10:
                 break
             tdLog.info("wait vgroup split done...")
-            time.sleep(1)
+            time.sleep(2)
         tdLog.info("splitSql ok")
     
     def redistributeVgroups(self):
@@ -287,9 +293,15 @@ class TMQCom:
             tdLog.info("processID: %s" % processID)
         tdLog.info("%s is stopped by kill -INT" % (processorName))
 
-    def getStartConsumeNotifyFromTmqsim(self, cdbName="cdb", rows=1):
+    def getStartConsumeNotifyFromTmqsim(self, cdbName="cdb", rows=1, timeout=120):
         loopFlag = 1
+        deadline = time.time() + timeout
         while loopFlag:
+            if time.time() > deadline:
+                tdLog.exit(
+                    "getStartConsumeNotifyFromTmqsim timeout after %ds: "
+                    "taosd may have crashed (check dnode.asan). rows still 0." % timeout
+                )
             tdSql.query("select * from %s.notifyinfo where cmdid = 0" % cdbName)
             actRows = tdSql.getRows()
             tdLog.info("row: %d" % (actRows))
@@ -298,9 +310,15 @@ class TMQCom:
             time.sleep(0.5)
         return
 
-    def getStartCommitNotifyFromTmqsim(self, cdbName="cdb", rows=1):
+    def getStartCommitNotifyFromTmqsim(self, cdbName="cdb", rows=1, timeout=120):
         loopFlag = 1
+        deadline = time.time() + timeout
         while loopFlag:
+            if time.time() > deadline:
+                tdLog.exit(
+                    "getStartCommitNotifyFromTmqsim timeout after %ds: "
+                    "taosd may have crashed (check dnode.asan). rows still 0." % timeout
+                )
             tdSql.query("select * from %s.notifyinfo where cmdid = 1" % cdbName)
             actRows = tdSql.getRows()
             tdLog.info("row: %d" % (actRows))

@@ -487,8 +487,11 @@ _end:
   return code;
 }
 
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId);
+
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      int32_t condIdx, int32_t winIdx, char** ppContent) {
+                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
+                                      int64_t parentWindowStart, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   const SNode* pNode = NULL;
@@ -516,8 +519,16 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  char triggerId[32];
+  streamBuildNotifyTriggerId(groupId, windowStart, winIdx, triggerId);
+  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateString(triggerId));
   JSON_CHECK_ADD_ITEM(obj, "triggerCondition", cond);
   JSON_CHECK_ADD_ITEM(obj, "windowIndex", cJSON_CreateNumber(winIdx));
+  if (winIdx >= 0) {
+    char parentTriggerId[32];
+    streamBuildNotifyTriggerId(groupId, parentWindowStart, -1, parentTriggerId);
+    JSON_CHECK_ADD_ITEM(obj, "parentTriggerId", cJSON_CreateString(parentTriggerId));
+  }
   cond = NULL;
 
   *ppContent = cJSON_PrintUnformatted(obj);
@@ -685,6 +696,18 @@ _end:
   return code;
 }
 
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId) {
+  uint64_t hash = 0;
+  if (winIdx >= 0) {
+    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart, (uint64_t)(uint32_t)winIdx};
+    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
+  } else {
+    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart};
+    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
+  }
+  (void)u64toaFastLut(hash, triggerId);
+}
+
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
                                          SStringBuilder* pBuilder, const char* tableName) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -705,10 +728,14 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
     eventType = "ON_TIME";
   }
 
-  uint64_t ar[] = {groupId, pParam->wstart};
-  uint64_t hash = MurmurHash3_64((const char*)ar, sizeof(ar));
-  char     triggerId[32];
-  (void)u64toaFastLut(hash, triggerId);
+  char triggerId[32];
+  bool hasEventTriggerId =
+      triggerType == STREAM_TRIGGER_EVENT &&
+      (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN || pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) &&
+      pParam->extraNotifyContent != NULL;
+  if (!hasEventTriggerId) {
+    streamBuildNotifyTriggerId(groupId, pParam->wstart, -1, triggerId);
+  }
 
   const char* triggerTypeStr = NULL;
   switch (triggerType) {
@@ -739,7 +766,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
-  JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  if (!hasEventTriggerId) {
+    JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateStringReference(triggerId));
+  }
   JSON_CHECK_ADD_ITEM(obj, "triggerType", cJSON_CreateStringReference(triggerTypeStr));
 
   if (tableName != NULL) {
