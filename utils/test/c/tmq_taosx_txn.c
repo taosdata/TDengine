@@ -26,6 +26,7 @@
  *   scenario 14: Pre-existing STB → BEGIN → DROP STB → COMMIT (first MNode DDL = DROP)
  *   scenario 15: Pre-existing STB → BEGIN → ALTER STB → ROLLBACK (first MNode DDL = ALTER)
  *   scenario 16: Pre-existing STB → BEGIN → DROP STB → ROLLBACK (first MNode DDL = DROP)
+ *   scenario 17: Replicated txn timeout exemption (15s delay, TXN_IS_REPLICATED skip)
  */
 
 #include <assert.h>
@@ -45,6 +46,7 @@
 #define DST_DB "dst_txn_db"
 #define TOPIC_NAME "topic_taosx_txn"
 
+/* Execute SQL and abort on failure. */
 static void do_query(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int code = taos_errno(res);
@@ -56,6 +58,7 @@ static void do_query(TAOS *taos, const char *sql) {
   taos_free_result(res);
 }
 
+/* Execute SQL and return error code without aborting. */
 static int do_query_ok(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int code = taos_errno(res);
@@ -63,6 +66,7 @@ static int do_query_ok(TAOS *taos, const char *sql) {
   return code;
 }
 
+/* Execute SQL returning COUNT(*) as int. */
 static int query_count(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   if (taos_errno(res) != 0) {
@@ -79,6 +83,7 @@ static int query_count(TAOS *taos, const char *sql) {
   return count;
 }
 
+/* Execute SQL and return number of result rows. */
 static int query_rows(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   if (taos_errno(res) != 0) {
@@ -92,6 +97,7 @@ static int query_rows(TAOS *taos, const char *sql) {
   return rows;
 }
 
+/* Connect to TDengine and optionally select a database. */
 static TAOS *connect_db(const char *db) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (!taos) {
@@ -109,6 +115,7 @@ static TAOS *connect_db(const char *db) {
 static tmq_t *create_consumer_ex(const char *group_id);
 static void   replicate_with_delay(int delay_after_first_msg_sec);
 
+/* Set up source DB objects and execute the txn DDL for a given scenario. */
 static void setup_source(int scenario) {
   TAOS *taos = connect_db(NULL);
 
@@ -302,8 +309,10 @@ static void setup_source(int scenario) {
   printf("Source DB setup complete for scenario %d\n", scenario);
 }
 
+/* Create TMQ consumer with default group ID. */
 static tmq_t *create_consumer(void) { return create_consumer_ex("taosx_txn_test"); }
 
+/* Create TMQ consumer with a specified group ID. */
 static tmq_t *create_consumer_ex(const char *group_id) {
   tmq_conf_t *conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", group_id);
@@ -332,6 +341,7 @@ static tmq_t *create_consumer_ex(const char *group_id) {
   return consumer;
 }
 
+/* Replicate source WAL to target via TMQ get_raw/write_raw (no delay). */
 static void replicate_to_target(void) { replicate_with_delay(0); }
 
 /**
@@ -340,6 +350,7 @@ static void replicate_to_target(void) { replicate_with_delay(0); }
  * exemption — the delay allows the MNode timeout scan to run while the
  * replicated txn is still in progress on the target.
  */
+/* Replicate source to target, injecting a delay after the first message. */
 static void replicate_with_delay(int delay_after_first_msg_sec) {
   tmq_t *consumer = create_consumer();
   TAOS  *dst = connect_db(DST_DB);
@@ -387,6 +398,7 @@ static void replicate_with_delay(int delay_after_first_msg_sec) {
   taos_close(dst);
 }
 
+/* Replicate source to target using a specific consumer group (for replay). */
 static void replicate_with_group(const char *group_id) {
   tmq_t *consumer = create_consumer_ex(group_id);
   TAOS  *dst = connect_db(DST_DB);
@@ -419,6 +431,7 @@ static void replicate_with_group(const char *group_id) {
   taos_close(dst);
 }
 
+/* Verify target DB state matches expected outcome for the scenario. */
 static int verify_scenario(int scenario) {
   TAOS *dst = connect_db(DST_DB);
   int   pass = 1;
@@ -620,6 +633,7 @@ static int verify_scenario(int scenario) {
   return pass;
 }
 
+/* Drop test databases and topic for clean state. */
 static void cleanup(void) {
   TAOS *taos = connect_db(NULL);
   do_query_ok(taos, "drop topic if exists " TOPIC_NAME);
