@@ -1182,8 +1182,6 @@ static bool stmtRetryTbMetaIsSuperTable(const STableMeta* pMeta) {
   return (pMeta != NULL && pMeta->tableType == TSDB_SUPER_TABLE);
 }
 
-// For non-interlace TABLE_NOT_EXIST retry: build stale_uid -> short_tname map from exec.pBlockHash BEFORE
-// Resolve uid/suid/sver for one SSubmitTbData after catalog refresh. tbIdx is the index within this submit req.
 static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequest, SSubmitTbData* pTb, int32_t tbIdx,
                                             int32_t nSubmitTb, SStmtRetryTbPatch* pPatch) {
   if (NULL == pStmt->pCatalog) {
@@ -1616,6 +1614,7 @@ int32_t stmtGetTableMetaAndValidate(STscStmt2* pStmt, uint64_t* uid, uint64_t* s
   if (pStmt->bInfo.tbSuid != pTableMeta->suid) {
     STMT2_ELOG("table %s is in other stable, suid:0x%" PRIx64 " != 0x%" PRIx64, pStmt->bInfo.tbFName,
                pStmt->bInfo.tbSuid, pTableMeta->suid);
+    taosMemoryFree(pTableMeta);
     STMT_ERR_RET(TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
   }
 
@@ -3286,8 +3285,8 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
       } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
         retryCode = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
       }
-      stmtInvalidateStbInterlaceTableUidCache(pStmt);
     }
+    stmtInvalidateStbInterlaceTableUidCache(pStmt);
     if (retryCode == TSDB_CODE_SUCCESS) {
       (void)stmtRestoreVgDataBlocksForRetry(pStmt);
       // Reuse the same pRequest so its tableList/dbList (set during initial parse) survive for
