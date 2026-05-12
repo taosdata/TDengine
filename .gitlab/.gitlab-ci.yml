@@ -25,12 +25,14 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible   # 新 commit 推送时自动取消标记了 interruptible 的旧 pipeline
   rules:
-    # 只接受目标为 main 分支的 MR 触发
+    # MR 流水线：目标分支为 main / 3.3.6 系列 / 3.0 系列
+    # main/3.3.6/3.0 均为受保护分支，不允许直接 push，无需 push 触发规则
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
-    # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    # - if: $CI_COMMIT_BRANCH =~ /^(main|3\.0|3\.3\.6|3\.3\.6\.citest)$/ && $CI_PIPELINE_SOURCE == "push"
-    # - if: $CI_PIPELINE_SOURCE == "schedule"
-    # - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.3\.6/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.0/
+    # 定时调度 (daily build) / 手动触发 (release / web)
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 stages:
   - prepare
