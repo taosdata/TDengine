@@ -756,6 +756,27 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_commit_interval() {
+        let dsn = Dsn::from_str("kafka://?commit_interval=2s").unwrap();
+        let result = KafkaTaskConfig::parse_commit_interval(&dsn).unwrap();
+        assert_eq!(Some(Duration::from_secs(2)), result);
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let result = KafkaTaskConfig::parse_commit_interval(&dsn).unwrap();
+        assert!(result.is_none());
+
+        let dsn = Dsn::from_str("kafka://?commit_interval=invalid").unwrap();
+        let result = KafkaTaskConfig::parse_commit_interval(&dsn);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .starts_with("invalid commit_interval: invalid")
+        );
+    }
+
+    #[test]
     fn test_parse_client_id() {
         let dsn = Dsn::from_str("kafka://?client_id=client1").unwrap();
         let result = KafkaTaskConfig::parse_client_id(&dsn).unwrap();
@@ -769,6 +790,51 @@ mod tests {
         let dsn = Dsn::from_str("kafka://?client_id=").unwrap();
         let result = KafkaTaskConfig::parse_client_id(&dsn).unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_enable_group_instance_id() {
+        let dsn = Dsn::from_str("kafka://?enable_group_instance_id=true").unwrap();
+        assert!(KafkaTaskConfig::parse_enable_group_instance_id(&dsn));
+
+        let dsn = Dsn::from_str("kafka://?enable_group_instance_id=false").unwrap();
+        assert!(!KafkaTaskConfig::parse_enable_group_instance_id(&dsn));
+
+        let dsn = Dsn::from_str("kafka://?enable_group_instance_id=bad").unwrap();
+        assert!(!KafkaTaskConfig::parse_enable_group_instance_id(&dsn));
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        assert!(!KafkaTaskConfig::parse_enable_group_instance_id(&dsn));
+    }
+
+    #[test]
+    fn test_parse_codec_processor() {
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        assert_eq!(KafkaTaskConfig::parse_codec_processor(&dsn).unwrap(), None);
+
+        let dsn = Dsn::from_str("kafka://?char_encoding=UTF_8").unwrap();
+        assert_eq!(
+            KafkaTaskConfig::parse_codec_processor(&dsn).unwrap(),
+            Some(StringDecoder::Utf8)
+        );
+
+        let dsn = Dsn::from_str("kafka://?char_encoding=invalid").unwrap();
+        assert!(KafkaTaskConfig::parse_codec_processor(&dsn).is_err());
+    }
+
+    #[test]
+    fn test_parse_extras_from_lowercase_dotted_params() {
+        let dsn = Dsn::from_str(
+            "kafka://?queued.max.messages.kbytes=64&socket.keepalive.enable=true&Not.Extra=ignored&plain=ignored",
+        )
+        .unwrap();
+
+        let extras = KafkaTaskConfig::parse_extras(&dsn).unwrap().unwrap();
+
+        assert_eq!(extras.get("queued.max.messages.kbytes").unwrap(), "64");
+        assert_eq!(extras.get("socket.keepalive.enable").unwrap(), "true");
+        assert!(!extras.contains_key("Not.Extra"));
+        assert!(!extras.contains_key("plain"));
     }
 
     #[test]

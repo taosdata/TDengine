@@ -166,13 +166,15 @@ impl PointDetail {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GetPointsHeaderReq {
     task_id: i64,
-    job_id: i64,
+    #[serde(default)]
+    job_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AddPointReq {
     task_id: i64,
-    job_id: i64,
+    #[serde(default)]
+    job_id: Option<i64>,
     point: Vec<PointDetail>,
     via: Option<i64>,
 }
@@ -201,7 +203,7 @@ pub async fn get_point_header(
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
     let task_id = req.task_id;
-    let job_id = req.job_id;
+    let job_id = req.job_id.unwrap_or(-1);
     match get_point_header_impl(task_id, job_id, task_store).await {
         Ok(headers) => Ok(HttpResponse::Ok().json(headers)),
         Err(err) => Err(Failed::new(
@@ -286,7 +288,7 @@ async fn append_point_impl(
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<()> {
     let task_id = req.task_id;
-    let job_id = req.job_id;
+    let job_id = req.job_id.unwrap_or(-1);
     let point = req.point.clone();
     // find task detail
     let task = task_store

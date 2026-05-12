@@ -24,6 +24,7 @@ use taos::Dsn;
 use taosx_core::{
     core_metrics::{CoreMetrics, get_task_metrics_string},
     get_file_upload_home_dir,
+    tmq::tmq_metric::TmqMetrics,
 };
 use taosx_utils::{
     labels::{LabelFilter, build_json_labels_from_string},
@@ -38,9 +39,8 @@ use crate::{
     Args,
     oauth::{self, session::SessionManager},
     sql::{exec, query, query_one},
-    x_api::{JsonResult, JsonStatusResult, Result},
+    x_api::{Error, JsonResult, JsonStatusResult, Result},
 };
-
 pub async fn get_tasks(
     args: web::Data<Args>,
     req: HttpRequest,
@@ -508,7 +508,179 @@ pub async fn get_all_task_job_metrics(dsn: Dsn, task_id: i64) -> anyhow::Result<
     Ok(res)
 }
 
-/// Extract username from request auth headers (session or basic auth).
+/// Aggregated vgroup progress entry for one (topic, vgroup) pair.
+#[derive(Debug, serde::Serialize)]
+struct VgroupProgressEntry {
+    topic: String,
+    vgroup: i32,
+    offset: i64,
+    latest: i64,
+}
+
+/// Aggregation result from parsed TmqMetrics rows.
+struct AggregatedProgress {
+    /// Per-(topic, vgroup) max(offset, latest) pairs, ordered by key.
+    entries: std::collections::BTreeMap<(String, i32), (i64, i64)>,
+    /// Maximum row timestamp in milliseconds.
+    update_time: Option<i64>,
+}
+
+/// Aggregate progress from parsed `(TmqMetrics, row_ts_ms)` pairs.
+///
+/// - Entries with an empty topic are skipped.
+/// - For duplicate `(topic, vgroup)` keys the maximum offset and maximum latest are kept.
+/// - `update_time` is the maximum row timestamp in milliseconds.
+fn aggregate_tmq_progress(rows: impl IntoIterator<Item = (TmqMetrics, i64)>) -> AggregatedProgress {
+    let mut entries: std::collections::BTreeMap<(String, i32), (i64, i64)> =
+        std::collections::BTreeMap::new();
+    let mut update_time: Option<i64> = None;
+
+    for (metrics, ts_ms) in rows {
+        update_time = Some(match update_time {
+            Some(prev) => prev.max(ts_ms),
+            None => ts_ms,
+        });
+
+        let snapshot = metrics
+            .progress_snapshot
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        for item in snapshot.iter() {
+            if item.topic.is_empty() {
+                continue;
+            }
+            let key = (item.topic.clone(), item.vgroup);
+            let (cur_offset, cur_latest) = entries.entry(key).or_insert((item.offset, item.latest));
+            *cur_offset = (*cur_offset).max(item.offset);
+            *cur_latest = (*cur_latest).max(item.latest);
+        }
+    }
+
+    AggregatedProgress {
+        entries,
+        update_time,
+    }
+}
+
+pub async fn get_task_vgroup_progress(
+    args: Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> Result<String> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+
+    // Verify the task exists.
+    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+    let _task = query_one::<TaskRecord>(&dsn, &sql)
+        .await?
+        .ok_or_else(|| Error::not_found(format!("task {task_id} not found")))?;
+
+    // Query the latest tmq metrics rows, one per sub-table.
+    #[derive(Debug, serde::Deserialize)]
+    struct TmqMetricsRow {
+        value: String,
+        ts: chrono::DateTime<chrono::Utc>,
+    }
+
+    let metrics_sql = format!(
+        "select last_row(`value`) as `value`, last_row(`ts`) as `ts` \
+        from log.{TASK_METRICS_STABLE} where task_id = {task_id} and type = 'tmq' \
+        partition by tbname"
+    );
+    let rows = query::<TmqMetricsRow>(&dsn, &metrics_sql).await?;
+
+    if rows.is_empty() {
+        let result = serde_json::json!({
+            "update_time": serde_json::Value::Null,
+            "data": serde_json::Value::Array(vec![]),
+        });
+        return Ok(
+            serde_json::to_string(&result).context("failed to serialize empty vgroup progress")?
+        );
+    }
+
+    let total_rows = rows.len();
+    let mut parsed: Vec<(TmqMetrics, i64)> = Vec::with_capacity(total_rows);
+    let mut malformed: usize = 0;
+
+    for row in rows {
+        let ts_ms = row.ts.timestamp_millis();
+        match serde_json::from_str::<TmqMetrics>(&row.value) {
+            Ok(m) => parsed.push((m, ts_ms)),
+            Err(e) => {
+                malformed += 1;
+                tracing::warn!(
+                    task_id,
+                    error = %e,
+                    "skipping malformed tmq metrics row"
+                );
+            }
+        }
+    }
+
+    if malformed == total_rows {
+        return Err(anyhow::anyhow!(
+            "all {malformed} tmq metrics rows for task {task_id} were malformed"
+        )
+        .into());
+    }
+
+    let agg = aggregate_tmq_progress(parsed);
+    let data: Vec<VgroupProgressEntry> = agg
+        .entries
+        .into_iter()
+        .map(|((topic, vgroup), (offset, latest))| VgroupProgressEntry {
+            topic,
+            vgroup,
+            offset,
+            latest,
+        })
+        .collect();
+
+    let result = serde_json::json!({
+        "update_time": agg.update_time,
+        "data": data,
+    });
+    Ok(serde_json::to_string(&result).context("failed to serialize vgroup progress")?)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TableProgressQuery {
+    pub table: String,
+    pub start: Option<String>,
+    pub end: Option<String>,
+}
+
+pub async fn get_task_table_progress(
+    args: Data<Args>,
+    task_id: Path<i64>,
+    query: Query<TableProgressQuery>,
+    req: HttpRequest,
+) -> Result<String> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+
+    // Verify the task exists and retrieve its DSNs.
+    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+    let task = query_one::<TaskRecord>(&dsn, &sql)
+        .await?
+        .ok_or_else(|| Error::not_found(format!("task {task_id} not found")))?;
+
+    let q = query.into_inner();
+    let progress = tmq_to_td::get_table_progress(
+        &task.from,
+        &task.to,
+        &q.table,
+        q.start.as_ref(),
+        q.end.as_ref(),
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
+
+    Ok(serde_json::to_string(&progress).context("failed to serialize table progress")?)
+}
+
 async fn extract_username_from_request(req: &HttpRequest) -> Option<String> {
     match oauth::middleware::extract_auth_from_request(req).await {
         Ok(Some(auth)) => Some(auth.username),
@@ -1224,5 +1396,113 @@ mod tests {
                 .contains(&uploaded_file.display().to_string()),
             "error leaked absolute path: {error:#}"
         );
+    }
+
+    // ── aggregate_tmq_progress unit tests ────────────────────────────────────
+
+    fn make_tmq_metrics(snapshot: Vec<taosx_core::tmq::tmq_metric::TopicProgress>) -> TmqMetrics {
+        let m = TmqMetrics::default();
+        *m.progress_snapshot.lock().unwrap() = snapshot;
+        m
+    }
+
+    #[test]
+    fn aggregate_deduplicates_by_max_offset_and_latest() {
+        use taosx_core::tmq::tmq_metric::TopicProgress;
+
+        let m1 = make_tmq_metrics(vec![TopicProgress {
+            topic: "t1".into(),
+            vgroup: 1,
+            offset: 10,
+            latest: 20,
+        }]);
+        let m2 = make_tmq_metrics(vec![TopicProgress {
+            topic: "t1".into(),
+            vgroup: 1,
+            offset: 15,
+            latest: 18,
+        }]);
+
+        let agg = aggregate_tmq_progress(vec![(m1, 1000), (m2, 2000)]);
+
+        let entries: Vec<_> = agg.entries.values().copied().collect();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0], (15, 20)); // max offset = 15, max latest = 20
+        assert_eq!(agg.update_time, Some(2000));
+    }
+
+    #[test]
+    fn aggregate_skips_empty_topic_entries() {
+        use taosx_core::tmq::tmq_metric::TopicProgress;
+
+        let m = make_tmq_metrics(vec![
+            TopicProgress {
+                topic: "".into(),
+                vgroup: 1,
+                offset: 5,
+                latest: 10,
+            },
+            TopicProgress {
+                topic: "real".into(),
+                vgroup: 2,
+                offset: 3,
+                latest: 7,
+            },
+        ]);
+
+        let agg = aggregate_tmq_progress(vec![(m, 500)]);
+
+        assert_eq!(agg.entries.len(), 1);
+        assert!(agg.entries.contains_key(&("real".to_string(), 2)));
+    }
+
+    #[test]
+    fn aggregate_update_time_is_max_ts() {
+        use taosx_core::tmq::tmq_metric::TopicProgress;
+
+        let m1 = make_tmq_metrics(vec![TopicProgress {
+            topic: "t".into(),
+            vgroup: 1,
+            offset: 1,
+            latest: 2,
+        }]);
+        let m2 = make_tmq_metrics(vec![TopicProgress {
+            topic: "t".into(),
+            vgroup: 2,
+            offset: 3,
+            latest: 4,
+        }]);
+
+        let agg = aggregate_tmq_progress(vec![(m1, 100), (m2, 9999)]);
+        assert_eq!(agg.update_time, Some(9999));
+    }
+
+    #[test]
+    fn aggregate_empty_rows_gives_no_update_time() {
+        let agg = aggregate_tmq_progress(vec![]);
+        assert!(agg.update_time.is_none());
+        assert!(agg.entries.is_empty());
+    }
+
+    #[test]
+    fn table_progress_query_deserializes_all_fields() {
+        let q: TableProgressQuery = serde_json::from_value(serde_json::json!({
+            "table": "mytable",
+            "start": "2024-01-01",
+            "end": "2024-12-31"
+        }))
+        .unwrap();
+        assert_eq!(q.table, "mytable");
+        assert_eq!(q.start.as_deref(), Some("2024-01-01"));
+        assert_eq!(q.end.as_deref(), Some("2024-12-31"));
+    }
+
+    #[test]
+    fn table_progress_query_optional_fields_absent() {
+        let q: TableProgressQuery =
+            serde_json::from_value(serde_json::json!({ "table": "t" })).unwrap();
+        assert_eq!(q.table, "t");
+        assert!(q.start.is_none());
+        assert!(q.end.is_none());
     }
 }

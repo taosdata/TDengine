@@ -205,7 +205,7 @@ func (c *UaConnectConfig) validateAuthMethod() error {
 	if strings.ToLower(c.AuthMethod) == "username" && (len(c.Username) == 0 || len(c.Password) == 0) {
 		return errors.New("user name and password is required for `Username` auth method")
 	}
-	if strings.ToLower(c.AuthMethod) == "certificate" && (len(c.AuthCertificate) == 0 || len(c.AuthCertificate) == 0) {
+	if strings.ToLower(c.AuthMethod) == "certificate" && (len(c.AuthCertificate) == 0 || len(c.AuthPrivateKey) == 0) {
 		return errors.New("auth_certificate and auth_private_key is required for `Certificate` auth method")
 	}
 	return nil

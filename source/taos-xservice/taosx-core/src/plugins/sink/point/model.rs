@@ -5,7 +5,7 @@ use linked_hash_map::LinkedHashMap;
 use regex::Regex;
 use scc::HashSet;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::str::FromStr;
 use std::sync::OnceLock;
 use taos::{Dsn, Ty};
@@ -2212,6 +2212,17 @@ pub fn replace_attr_with_transform(tag_value: &str, attr_name: &str, attr_value:
 }
 
 impl PointMappingGenerator for PointMappingRule {
+    /// 生成 PointConfig + TableConfig 映射。
+    ///
+    /// OPC Property 处理（动/静识别后由 Go 侧打标）：
+    /// - `is_property=Some(true)` 节点 → 跳过（不建子表，其值已合并到父 Variable 的 properties）
+    /// - 其余动态 Variable 的 `opc_node.properties` → 收集为整个超表的 Tag union
+    ///   并写入子表 tag_values。
+    ///
+    /// 决策（用户拍板）：
+    /// - #1: Tag 名直接用 OPC Property 的 BrowseName，与 custom_tag 重名时 bail
+    /// - #2: 全部 VARCHAR(1024)，复杂值已是 JSON 字符串
+    /// - #6: 超表 schema 一次性 union 定型（generate 阶段完成）
     fn generate(
         &self,
         data: Vec<DataSet>,
@@ -2222,33 +2233,101 @@ impl PointMappingGenerator for PointMappingRule {
         let mut point_map = LinkedHashMap::new();
         let mut table_map = LinkedHashMap::new();
 
-        for (index, p) in data.into_iter().enumerate() {
-            let point_id = p.id.as_str();
+        // 第一遍：DataSet → OpcNode；过滤掉 Property 节点和 Object 节点；
+        // 同时收集所有动态 Variable 的 Property 名 → Tag union。
+        // 用 BTreeSet 保证 Tag 列顺序稳定（便于 ALTER STABLE diff 比较 / 测试断言）。
+        let mut tag_union: BTreeSet<String> = BTreeSet::new();
+        let custom_tag_names: std::collections::HashSet<&str> = self
+            .custom_tags
+            .as_ref()
+            .map(|v| v.iter().map(|t| t.name.as_str()).collect())
+            .unwrap_or_default();
 
+        let mut variable_nodes: Vec<(usize, OpcNode)> = Vec::new();
+        for (index, p) in data.into_iter().enumerate() {
+            // 仅处理 Variable（Object 不建子表）
             if let Some(node_class) = &p.r#type
                 && node_class != "Variable"
             {
                 continue;
             }
 
-            let opc_node = OpcNode::try_from(p.clone()).unwrap_or(OpcNode {
-                id: point_id.to_string(),
+            let point_id = p.id.clone();
+            let opc_node = OpcNode::try_from(p).unwrap_or_else(|_| OpcNode {
+                id: point_id.clone(),
                 is_static: Some(false),
+                is_property: None,
                 name: None,
                 description: None,
                 display_name: None,
                 node_type: None,
                 parent_id: None,
                 path: None,
+                properties: None,
             });
 
-            let mut point_config = self.gen_point_config(index, point_id.to_string(), None)?;
+            // Property 节点：作为父的 Tag 而非独立子表 → 跳过
+            if opc_node.is_property == Some(true) {
+                continue;
+            }
+
+            // 收集 Property 名 → union；与 custom_tag 重名直接 bail（决策 #1）
+            if let Some(props) = &opc_node.properties {
+                for k in props.keys() {
+                    if custom_tag_names.contains(k.as_str()) {
+                        bail!(
+                            "OPC Property name '{}' conflicts with a configured custom_tag of the same name; \
+                             rename the custom_tag or change the OPC namespace",
+                            k
+                        );
+                    }
+                    tag_union.insert(k.clone());
+                }
+            }
+
+            variable_nodes.push((index, opc_node));
+        }
+
+        // 预先构造 OPC Property 衍生的 TagConfig，全部 VARCHAR(1024)（决策 #2）
+        let opc_extra_tag_configs: Vec<TagConfig> = tag_union
+            .iter()
+            .map(|name| TagConfig {
+                name: name.clone(),
+                r#type: IpcDataType::VarChar(1024),
+            })
+            .collect();
+
+        // 第二遍：为每个动态 Variable 生成 PointConfig + TableConfig。
+        // PointConfig.tag_values：补齐 union 中所有 Tag（缺值的 Variable 写空串），
+        // 这样所有子表用同一份 tag_names 列表，TDengine 端 schema 一致。
+        for (index, opc_node) in variable_nodes {
+            let point_id = opc_node.id.clone();
+
+            let mut point_config = self.gen_point_config(index, point_id.clone(), None)?;
             self.extra_custom_tags(&mut point_config, &opc_node)?;
 
-            point_map.insert(point_id.to_string(), point_config);
+            if !tag_union.is_empty() {
+                let tv = point_config.tag_values.get_or_insert_with(HashMap::new);
+                for tag_name in &tag_union {
+                    let raw = opc_node
+                        .properties
+                        .as_ref()
+                        .and_then(|m| m.get(tag_name))
+                        .map(String::as_str)
+                        .unwrap_or("");
+                    let truncated = truncate_utf8_bytes(raw, 1024);
+                    tv.insert(tag_name.clone(), truncated.to_string());
+                }
+            }
 
-            let table_config = self.gen_table_config(None)?;
-            table_map.insert(point_id.to_string(), table_config);
+            point_map.insert(point_id.clone(), point_config);
+
+            let mut table_config = self.gen_table_config(None)?;
+            if !opc_extra_tag_configs.is_empty() {
+                let tags = table_config.tag_configs.get_or_insert_with(Vec::new);
+                tags.extend(opc_extra_tag_configs.iter().cloned());
+            }
+            table_map.insert(point_id, table_config);
         }
 
         Ok((point_map, table_map))
@@ -2264,6 +2343,19 @@ impl PointMappingGenerator for PointMappingRule {
         let table_config = self.gen_table_config(point_type)?;
         Ok((point_config, table_config))
     }
+}
+
+/// 在 UTF-8 字符边界处把字符串截断到不超过 max_bytes 字节。
+/// 用于 OPC Property 值塞入 VARCHAR(1024) Tag 时的预防性截断，避免 TDengine 端硬截断。
+fn truncate_utf8_bytes(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -3513,12 +3605,14 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         let opc_node = OpcNode {
             id: "ns=2;s=Sensor01".to_string(),
             is_static: None,
+            is_property: None,
             name: Some("Sensor-01".to_string()),
             display_name: Some("zs_p1_unit1_float".to_string()),
             description: Some("一号-车间-温度".to_string()),
             node_type: None,
             parent_id: None,
             path: Some("/Objects/Plant/Area1/".to_string()),
+            properties: None,
         };
 
         // 测试四个属性的 {Attr#XY} 替换
@@ -3560,12 +3654,14 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         let empty_node = OpcNode {
             id: "ns=2;s=Empty".to_string(),
             is_static: None,
+            is_property: None,
             name: None,
             display_name: Some("".to_string()),
             description: None,
             node_type: None,
             parent_id: None,
             path: None,
+            properties: None,
         };
         let mut pc3 = PointConfig {
             row_index: 0,
@@ -3581,5 +3677,204 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         let tags3 = pc3.tag_values.unwrap();
         assert_eq!(tags3["t1"], "tag_");
         assert_eq!(tags3["t2"], "tag_");
+    }
+
+    // ---- P4: generate / properties union / 同名冲突测试 ----
+
+    fn make_rule(custom_tags: Option<Vec<CustomTag>>) -> PointMappingRule {
+        PointMappingRule {
+            source_type: SourceType::OPCUA,
+            stable_expression: "opc_{type}".to_string(),
+            tbname_expression: "t_{ns}_{id}".to_string(),
+            value_col: "val".to_string(),
+            value_transform: None,
+            quality_col: "quality".to_string(),
+            primary_key: "original_ts".to_string(),
+            primary_key_alias: "ts".to_string(),
+            custom_tags,
+        }
+    }
+
+    fn make_opc_node(
+        id: &str,
+        is_property: Option<bool>,
+        properties: Option<Vec<(&str, &str)>>,
+    ) -> OpcNode {
+        OpcNode {
+            id: id.to_string(),
+            is_static: Some(false),
+            is_property,
+            name: Some(id.to_string()),
+            display_name: Some(id.to_string()),
+            description: None,
+            node_type: Some("Variable".to_string()),
+            parent_id: None,
+            path: Some(id.to_string()),
+            properties: properties.map(|v| {
+                v.into_iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect()
+            }),
+        }
+    }
+
+    #[test]
+    fn p4_generate_skips_property_nodes() {
+        // Variable + 一个 Property 节点 → 只生成 1 个 PointConfig
+        let var = make_opc_node("ns=2;s=Var1", None, Some(vec![("EURange", "{\"L\":0}")]));
+        let prop = make_opc_node("ns=2;s=Var1.EURange", Some(true), None);
+
+        let rule = make_rule(None);
+        let datasets: Vec<DataSet> = vec![var.try_into().unwrap(), prop.try_into().unwrap()];
+
+        let (points, tables) = rule.generate(datasets).unwrap();
+        assert_eq!(points.len(), 1, "Property 节点不应建子表");
+        assert_eq!(tables.len(), 1);
+        assert!(points.contains_key("ns=2;s=Var1"));
+        assert!(!points.contains_key("ns=2;s=Var1.EURange"));
+    }
+
+    #[test]
+    fn p4_property_value_into_tag_values() {
+        let var = make_opc_node(
+            "ns=2;s=Var1",
+            None,
+            Some(vec![
+                ("EURange", "{\"Low\":0,\"High\":100}"),
+                ("EngineeringUnits", "Cel"),
+            ]),
+        );
+        let rule = make_rule(None);
+        let (points, tables) = rule.generate(vec![var.try_into().unwrap()]).unwrap();
+        let pc = points.get("ns=2;s=Var1").unwrap();
+        let tv = pc.tag_values.as_ref().unwrap();
+        assert_eq!(tv["EURange"], "{\"Low\":0,\"High\":100}");
+        assert_eq!(tv["EngineeringUnits"], "Cel");
+
+        let tc = tables.get("ns=2;s=Var1").unwrap();
+        let tags = tc.tag_configs.as_ref().unwrap();
+        let names: Vec<&str> = tags.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"EURange"));
+        assert!(names.contains(&"EngineeringUnits"));
+        // 全部 VARCHAR(1024)
+        for t in tags
+            .iter()
+            .filter(|t| t.name == "EURange" || t.name == "EngineeringUnits")
+        {
+            assert_eq!(t.r#type, IpcDataType::VarChar(1024));
+        }
+    }
+
+    #[test]
+    fn p4_tag_union_across_variables_with_empty_for_missing() {
+        // 两个 Variable，Property 集合不同 → 超表 schema 是 union；缺失值填空串
+        let var1 = make_opc_node("ns=2;s=V1", None, Some(vec![("A", "1"), ("B", "2")]));
+        let var2 = make_opc_node("ns=2;s=V2", None, Some(vec![("B", "20"), ("C", "30")]));
+        let rule = make_rule(None);
+        let (points, tables) = rule
+            .generate(vec![var1.try_into().unwrap(), var2.try_into().unwrap()])
+            .unwrap();
+
+        // 两个子表的 tag_configs 应包含完整 union {A,B,C}
+        for id in ["ns=2;s=V1", "ns=2;s=V2"] {
+            let tc = tables.get(id).unwrap();
+            let names: BTreeSet<&str> = tc
+                .tag_configs
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|t| t.name.as_str())
+                .collect();
+            assert!(names.contains("A"), "{id} 缺 A tag");
+            assert!(names.contains("B"), "{id} 缺 B tag");
+            assert!(names.contains("C"), "{id} 缺 C tag");
+        }
+
+        // V1 缺 C → tag_values["C"] = ""
+        let pv1 = points
+            .get("ns=2;s=V1")
+            .unwrap()
+            .tag_values
+            .as_ref()
+            .unwrap();
+        assert_eq!(pv1["A"], "1");
+        assert_eq!(pv1["B"], "2");
+        assert_eq!(pv1["C"], "");
+        // V2 缺 A → tag_values["A"] = ""
+        let pv2 = points
+            .get("ns=2;s=V2")
+            .unwrap()
+            .tag_values
+            .as_ref()
+            .unwrap();
+        assert_eq!(pv2["A"], "");
+        assert_eq!(pv2["B"], "20");
+        assert_eq!(pv2["C"], "30");
+    }
+
+    #[test]
+    fn p4_custom_tag_name_conflict_bails() {
+        // custom_tag "EURange" 与 OPC Property "EURange" 重名 → bail
+        let custom_tags = vec![CustomTag {
+            name: "EURange".to_string(),
+            data_type: IpcDataType::VarChar(64),
+            pattern: "literal".to_string(),
+        }];
+        let rule = make_rule(Some(custom_tags));
+        let var = make_opc_node("ns=2;s=V1", None, Some(vec![("EURange", "{\"L\":0}")]));
+
+        let err = rule.generate(vec![var.try_into().unwrap()]).unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("EURange"),
+            "err should mention conflict tag: {msg}"
+        );
+        assert!(
+            msg.contains("custom_tag"),
+            "err should mention custom_tag: {msg}"
+        );
+    }
+
+    #[test]
+    fn p4_no_properties_keeps_existing_behavior() {
+        // 无 properties 的 Variable → 不应该出现额外 OPC tag
+        let var = make_opc_node("ns=2;s=V1", None, None);
+        let rule = make_rule(None);
+        let (points, tables) = rule.generate(vec![var.try_into().unwrap()]).unwrap();
+        assert_eq!(points.len(), 1);
+        let tc = tables.get("ns=2;s=V1").unwrap();
+        // tag_configs 可能是 None / Some(空) / 仅含默认 BrowseName 等 — 关键是没有 EURange 之类的 OPC tag
+        if let Some(tags) = &tc.tag_configs {
+            for t in tags {
+                assert_ne!(t.name, "EURange");
+            }
+        }
+    }
+
+    #[test]
+    fn p4_truncate_utf8_bytes() {
+        // ASCII
+        assert_eq!(truncate_utf8_bytes("abcdef", 3), "abc");
+        assert_eq!(truncate_utf8_bytes("abcdef", 10), "abcdef");
+        // UTF-8 字符边界（中文每个 3 字节）
+        let s = "中文测试"; // 12 字节
+        assert_eq!(truncate_utf8_bytes(s, 6), "中文");
+        // 落在字符中间 → 回退到边界
+        assert_eq!(truncate_utf8_bytes(s, 7), "中文");
+        assert_eq!(truncate_utf8_bytes(s, 8), "中文");
+        assert_eq!(truncate_utf8_bytes(s, 9), "中文测");
+    }
+
+    #[test]
+    fn p4_object_node_skipped() {
+        // NodeClass==Object → 跳过
+        let mut ds: DataSet = make_opc_node("ns=2;s=Folder1", None, None)
+            .try_into()
+            .unwrap();
+        ds.r#type = Some("Object".to_string());
+        let rule = make_rule(None);
+        let (points, tables) = rule.generate(vec![ds]).unwrap();
+        assert_eq!(points.len(), 0);
+        assert_eq!(tables.len(), 0);
     }
 }

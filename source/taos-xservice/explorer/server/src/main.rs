@@ -467,6 +467,14 @@ async fn main() -> anyhow::Result<()> {
                 "/api/x/tasks/{task_id}/metrics",
                 web::get().to(get_task_metrics),
             )
+            .route(
+                "/api/x/tasks/{task_id}/vgroup_progress",
+                web::get().to(get_task_vgroup_progress),
+            )
+            .route(
+                "/api/x/tasks/{task_id}/table_progress",
+                web::get().to(get_task_table_progress),
+            )
             .route("/api/x/ds/in/validate", web::post().to(validate))
             .route("/api/x/ds/in/sample", web::post().to(get_sample))
             // websockets

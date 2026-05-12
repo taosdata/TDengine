@@ -123,4 +123,41 @@ mod tests {
         let res = alloc_jobs("test".into(), task_empty_topics, &xnodes, None);
         assert!(matches!(res, Err(Error::TopicEmpty)));
     }
+
+    #[test]
+    fn update_dsn_sets_topic_concurrency_and_suffixes_client_id_for_split_jobs() {
+        let dsn: Dsn = "mqtt://localhost:1883?client_id=base&version=5&topics=old::0"
+            .parse()
+            .unwrap();
+
+        let updated = update_dsn(dsn, "new-topic::1", 3, 2);
+        let updated: Dsn = updated.parse().unwrap();
+
+        assert_eq!(
+            updated.get("topics").map(String::as_str),
+            Some("new-topic::1")
+        );
+        assert_eq!(
+            updated.get("read_concurrency").map(String::as_str),
+            Some("3")
+        );
+        assert_eq!(updated.get("client_id").map(String::as_str), Some("base_2"));
+    }
+
+    #[test]
+    fn update_dsn_keeps_first_job_client_id_unsuffixed() {
+        let dsn: Dsn = "mqtt://localhost:1883?client_id=base&version=5"
+            .parse()
+            .unwrap();
+
+        let updated = update_dsn(dsn, "topic::0", 1, 0);
+        let updated: Dsn = updated.parse().unwrap();
+
+        assert_eq!(updated.get("topics").map(String::as_str), Some("topic::0"));
+        assert_eq!(
+            updated.get("read_concurrency").map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(updated.get("client_id").map(String::as_str), Some("base"));
+    }
 }

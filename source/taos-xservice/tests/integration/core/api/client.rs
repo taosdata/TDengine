@@ -233,6 +233,27 @@ impl ApiClient {
             .await
     }
 
+    pub async fn get_task_vgroup_progress(&self, task_id: u32) -> Result<serde_json::Value> {
+        self.get_json(
+            &format!("tasks/{task_id}/vgroup_progress"),
+            "get task vgroup progress",
+        )
+        .await
+    }
+
+    pub async fn get_task_table_progress(
+        &self,
+        task_id: u32,
+        table: &str,
+    ) -> Result<serde_json::Value> {
+        let endpoint = self.build_endpoint_with_query(
+            &format!("tasks/{task_id}/table_progress"),
+            [("table", table)],
+        )?;
+        self.get_json_from_endpoint(endpoint, "get task table progress")
+            .await
+    }
+
     /// 从 task metrics 的 JSON 中解析 `current.written_rows`，返回 `Option<u64>`。
     fn written_rows(metrics: &serde_json::Value) -> Option<u64> {
         metrics
@@ -1231,65 +1252,97 @@ pub(crate) fn rewrite_json_file_refs(value: &mut serde_json::Value, replacements
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::sync::mpsc;
-    use std::thread;
     use std::time::Duration;
 
-    fn spawn_single_response_server(content_type: &str, body: &'static str) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::sync::mpsc;
+
+    struct RequestReceiver(mpsc::UnboundedReceiver<String>);
+
+    impl RequestReceiver {
+        async fn recv(&mut self) -> String {
+            tokio::time::timeout(Duration::from_secs(2), self.0.recv())
+                .await
+                .expect("request should arrive before timeout")
+                .expect("request channel should remain open")
+        }
+    }
+
+    async fn spawn_single_response_server(content_type: &str, body: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let content_type = content_type.to_string();
 
-        thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
             let mut buf = [0u8; 2048];
-            let _ = stream.read(&mut buf);
+            let _ = stream.read(&mut buf).await;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             );
-            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(response.as_bytes()).await.unwrap();
         });
 
         format!("http://{addr}/")
     }
 
-    fn spawn_recording_server(
+    async fn spawn_recording_server(
         content_type: &str,
         body: &'static str,
-    ) -> (String, mpsc::Receiver<String>) {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    ) -> (String, RequestReceiver) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let content_type = content_type.to_string();
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::unbounded_channel();
 
-        thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let raw = read_http_request(&mut stream);
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let raw = read_http_request(&mut stream).await;
             tx.send(String::from_utf8_lossy(&raw).to_string()).unwrap();
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             );
-            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(response.as_bytes()).await.unwrap();
         });
 
-        (format!("http://{addr}/"), rx)
+        (format!("http://{addr}/"), RequestReceiver(rx))
+    }
+
+    async fn spawn_sequence_recording_server(
+        responses: Vec<&'static str>,
+    ) -> (String, RequestReceiver) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        tokio::spawn(async move {
+            for response_body in responses {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let request = read_http_request(&mut stream).await;
+                tx.send(String::from_utf8_lossy(&request).into_owned())
+                    .unwrap();
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n{response_body}",
+                    len = response_body.len()
+                );
+                stream.write_all(resp.as_bytes()).await.unwrap();
+            }
+        });
+
+        (format!("http://{addr}/"), RequestReceiver(rx))
     }
 
     /// Read a complete HTTP/1.1 request from `stream`, returning all bytes.
-    ///
-    /// Reads until the `\r\n\r\n` header boundary, parses `Content-Length`,
-    /// then drains the remaining body bytes with [`Read::read_exact`].
-    fn read_http_request(stream: &mut impl Read) -> Vec<u8> {
+    async fn read_http_request(stream: &mut TcpStream) -> Vec<u8> {
         let mut buf = Vec::new();
         let mut tmp = vec![0u8; 8192];
         let mut header_end: Option<usize> = None;
 
         while header_end.is_none() {
-            let n = stream.read(&mut tmp).unwrap_or(0);
+            let n = stream.read(&mut tmp).await.unwrap_or(0);
             if n == 0 {
                 return buf;
             }
@@ -1317,7 +1370,7 @@ mod tests {
         if remaining > 0 {
             let old_len = buf.len();
             buf.resize(old_len + remaining, 0);
-            stream.read_exact(&mut buf[old_len..]).unwrap();
+            stream.read_exact(&mut buf[old_len..]).await.unwrap();
         }
 
         buf
@@ -1325,7 +1378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_accepts_plain_text_response() {
-        let server = spawn_single_response_server("text/plain", "ok");
+        let server = spawn_single_response_server("text/plain", "ok").await;
         let client = ApiClient::builder(server.as_str()).build().unwrap();
 
         let health = client.health().await.unwrap();
@@ -1335,7 +1388,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_swagger_returns_raw_json_text() {
-        let server = spawn_single_response_server("application/json", "{\"openapi\":\"3.1.0\"}");
+        let server =
+            spawn_single_response_server("application/json", "{\"openapi\":\"3.1.0\"}").await;
         let client = ApiClient::builder(server.as_str()).build().unwrap();
 
         let swagger = client.swagger().await.unwrap();
@@ -1344,12 +1398,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_task_vgroup_progress_uses_task_progress_endpoint() {
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
+        let client = ApiClient::builder(server.as_str()).build().unwrap();
+
+        let progress = client.get_task_vgroup_progress(42).await.unwrap();
+        let request = request_rx.recv().await;
+
+        assert_eq!(progress, serde_json::json!({}));
+        assert!(
+            request.starts_with("GET /tasks/42/vgroup_progress HTTP/1.1"),
+            "unexpected request line: {request}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_task_table_progress_encodes_table_query() {
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
+        let client = ApiClient::builder(server.as_str()).build().unwrap();
+
+        let progress = client
+            .get_task_table_progress(42, "source.table with space")
+            .await
+            .unwrap();
+        let request = request_rx.recv().await;
+
+        assert_eq!(progress, serde_json::json!({}));
+        assert!(
+            request
+                .starts_with("GET /tasks/42/table_progress?table=source.table+with+space HTTP/1.1"),
+            "unexpected request line: {request}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_download_file_encodes_query_parameter() {
-        let (server, request_rx) = spawn_recording_server("application/octet-stream", "payload");
+        let (server, mut request_rx) =
+            spawn_recording_server("application/octet-stream", "payload").await;
         let client = ApiClient::builder(server.as_str()).build().unwrap();
 
         let payload = client.download_file("dir/a&b?.txt").await.unwrap();
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
 
         assert_eq!(payload, b"payload");
         assert!(
@@ -1372,11 +1461,11 @@ mod tests {
     /// Verifies import_tasks sends a POST to /api/x/tasks/import with the JSON body.
     #[tokio::test]
     async fn test_import_tasks_posts_to_correct_path() {
-        let (server, request_rx) = spawn_recording_server("application/json", "{}");
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         let payload = serde_json::json!({"tasks_num": 0, "export_time": "t", "tasks": []});
         client.import_tasks(&payload).await.unwrap();
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("POST /api/x/tasks/import HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1386,12 +1475,12 @@ mod tests {
     /// Verifies export_tasks sends a GET to /api/x/tasks/export with ids query param.
     #[tokio::test]
     async fn test_export_tasks_sends_ids_query() {
-        let (server, request_rx) = spawn_recording_server("application/json", "{}");
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         // The response will fail to parse as ExportResponse since the server
         // returns "{}"; the important thing is the request URL is correct.
         let _ = client.export_tasks(&[1, 2, 3]).await;
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("GET /api/x/tasks/export?ids=1%2C2%2C3 HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1401,11 +1490,11 @@ mod tests {
     /// Verifies import_tasks_from_json_path reads a JSON file and posts it.
     #[tokio::test]
     async fn test_import_tasks_from_json_path_reads_file() {
-        let (server, request_rx) = spawn_recording_server("application/json", "{}");
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         let fixture = crate::common::fixtures::import_export_fixture_path("mqtt-legacy.json");
         client.import_tasks_from_json_path(&fixture).await.unwrap();
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("POST /api/x/tasks/import HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1415,7 +1504,7 @@ mod tests {
     /// Verifies export_tasks returns the response body bytes.
     #[tokio::test]
     async fn test_export_tasks_returns_bytes() {
-        let server = spawn_single_response_server("application/json", "{\"ok\":true}");
+        let server = spawn_single_response_server("application/json", "{\"ok\":true}").await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         let resp = client.export_tasks(&[42]).await.unwrap();
         assert_eq!(resp.bytes, b"{\"ok\":true}");
@@ -1426,10 +1515,10 @@ mod tests {
     #[tokio::test]
     async fn test_explorer_list_tasks_uses_tasks_endpoint() {
         let body = r#"[{"id":42,"name":"demo"}]"#;
-        let (server, request_rx) = spawn_recording_server("application/json", body);
+        let (server, mut request_rx) = spawn_recording_server("application/json", body).await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         let tasks = client.list_tasks().await.unwrap();
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("GET /api/x/tasks HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1442,10 +1531,10 @@ mod tests {
     /// Verifies delete_task sends a DELETE to `/api/x/tasks/{id}`.
     #[tokio::test]
     async fn test_explorer_delete_task_uses_task_endpoint() {
-        let (server, request_rx) = spawn_recording_server("application/json", "{}");
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         client.delete_task(42).await.unwrap();
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("DELETE /api/x/tasks/42 HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1455,8 +1544,8 @@ mod tests {
     /// Verifies multipart uploads are not sent with the client's default JSON content-type.
     #[tokio::test]
     async fn test_explorer_upload_files_uses_multipart_content_type() {
-        let (server, request_rx) =
-            spawn_recording_server("application/json", r#"["/tmp/demo.pem"]"#);
+        let (server, mut request_rx) =
+            spawn_recording_server("application/json", r#"["/tmp/demo.pem"]"#).await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
 
         client
@@ -1464,7 +1553,7 @@ mod tests {
             .await
             .unwrap();
 
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         let request_lower = request.to_ascii_lowercase();
         assert!(
             request.starts_with("POST /api/x/upload HTTP/1.1"),
@@ -1495,49 +1584,15 @@ mod tests {
     /// file path returned by the upload endpoint.
     #[tokio::test]
     async fn test_import_tasks_from_zip_uploads_bundled_files_then_imports() {
-        // Build a tiny server that handles two sequential requests:
-        //   1. POST /api/x/upload    → returns a JSON array (upload result)
-        //   2. POST /api/x/tasks/import → returns {}
-        // The OPCUA fixture ZIP contains a bundled CSV (~78 KB), so the upload
-        // step must drain the full multipart body before responding.
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
-
-        std::thread::spawn(move || {
-            // First request: file upload (multipart) — drain entire body then respond.
-            {
-                let (mut stream, _) = listener.accept().unwrap();
-                let _upload_req = read_http_request(&mut stream);
-                let upload_body = r#"["files/new_bucket/test.csv"]"#;
-                let resp = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n{upload_body}",
-                    len = upload_body.len()
-                );
-                stream.write_all(resp.as_bytes()).unwrap();
-            }
-            // Second request: task import — capture full request and respond {}.
-            {
-                let (mut stream, _) = listener.accept().unwrap();
-                let import_req = read_http_request(&mut stream);
-                tx.send(String::from_utf8_lossy(&import_req).into_owned())
-                    .unwrap();
-                let import_body = "{}";
-                let resp = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n{import_body}",
-                    len = import_body.len()
-                );
-                stream.write_all(resp.as_bytes()).unwrap();
-            }
-        });
-
-        let server_url = format!("http://{addr}/");
+        let (server_url, mut request_rx) =
+            spawn_sequence_recording_server(vec![r#"["files/new_bucket/test.csv"]"#, "{}"]).await;
         let client = ExplorerApiClient::builder(&server_url).build().unwrap();
         let fixture = crate::common::fixtures::import_export_fixture_path("opcua-with-files.zip");
 
         client.import_tasks_from_zip_path(&fixture).await.unwrap();
 
-        let request = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let _upload_request = request_rx.recv().await;
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("POST /api/x/tasks/import HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1552,29 +1607,12 @@ mod tests {
     async fn test_import_tasks_from_zip_uploads_duplicate_basenames_separately() {
         use std::io::Write;
 
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
-
-        std::thread::spawn(move || {
-            let responses = [
-                r#"["files/bucket-a/config.csv"]"#,
-                r#"["files/bucket-b/config.csv"]"#,
-                "{}",
-            ];
-
-            for response_body in responses {
-                let (mut stream, _) = listener.accept().unwrap();
-                let request = read_http_request(&mut stream);
-                tx.send(String::from_utf8_lossy(&request).into_owned())
-                    .unwrap();
-                let resp = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n{response_body}",
-                    len = response_body.len()
-                );
-                stream.write_all(resp.as_bytes()).unwrap();
-            }
-        });
+        let (server_url, mut request_rx) = spawn_sequence_recording_server(vec![
+            r#"["files/bucket-a/config.csv"]"#,
+            r#"["files/bucket-b/config.csv"]"#,
+            "{}",
+        ])
+        .await;
 
         let temp_dir = tempfile::tempdir().unwrap();
         let zip_path = temp_dir.path().join("duplicate-basenames.zip");
@@ -1594,13 +1632,12 @@ mod tests {
             zip.finish().unwrap();
         }
 
-        let server_url = format!("http://{addr}/");
         let client = ExplorerApiClient::builder(&server_url).build().unwrap();
         client.import_tasks_from_zip_path(&zip_path).await.unwrap();
 
-        let first_upload = rx.recv_timeout(Duration::from_secs(2)).unwrap();
-        let second_upload = rx.recv_timeout(Duration::from_secs(2)).unwrap();
-        let import_request = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let first_upload = request_rx.recv().await;
+        let second_upload = request_rx.recv().await;
+        let import_request = request_rx.recv().await;
 
         assert!(
             first_upload.starts_with("POST /api/x/upload HTTP/1.1"),
@@ -1627,17 +1664,18 @@ mod tests {
     /// Verifies get_task sends a GET to /api/x/tasks/{id}.
     #[tokio::test]
     async fn test_explorer_get_task_uses_task_endpoint() {
-        let (server, request_rx) = spawn_recording_server(
+        let (server, mut request_rx) = spawn_recording_server(
             "application/json",
             r#"{"id":42,"name":"test-task","status":"running"}"#,
-        );
+        )
+        .await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         let task = client.get_task(42).await.unwrap();
         assert_eq!(task.id, 42);
         assert_eq!(task.name, "test-task");
         assert_eq!(task.status, TaskStatus::Running);
 
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("GET /api/x/tasks/42 HTTP/1.1"),
             "unexpected request line: {request}"
@@ -1647,11 +1685,11 @@ mod tests {
     /// Verifies start_task sends a POST to /api/x/tasks/{id}/start.
     #[tokio::test]
     async fn test_explorer_start_task_uses_task_start_endpoint() {
-        let (server, request_rx) = spawn_recording_server("application/json", "{}");
+        let (server, mut request_rx) = spawn_recording_server("application/json", "{}").await;
         let client = ExplorerApiClient::builder(server.as_str()).build().unwrap();
         client.start_task(99).await.unwrap();
 
-        let request = request_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let request = request_rx.recv().await;
         assert!(
             request.starts_with("POST /api/x/tasks/99/start HTTP/1.1"),
             "unexpected request line: {request}"
