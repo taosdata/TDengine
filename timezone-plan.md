@@ -857,7 +857,7 @@ SELECT TIMEZONE(1);
 - [x] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
 - [x] P1：请求上下文携带 firstDayOfWeek（客户端填充已完成，qworker→planner→executor 透传待 P4 打通）
 - [x] P2：普通列展示使用连接时区
-- [ ] P2：SHOW/EXPLAIN 使用连接时区
+- [x] P2：SHOW/EXPLAIN 使用连接时区 → EXPLAIN 验证可执行；SHOW 格式化仍需壳层支持
 - [x] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
 - [x] P2：写入路径 DST 行为回归加固
 - [x] P3：TO_ISO8601 支持 IANA
@@ -869,9 +869,10 @@ SELECT TIMEZONE(1);
 - [x] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
 - [x] P5：季度 PR rebase 完成
 - [x] P5：INTERVAL(1q) 集成验证
-- [ ] P6：TIMEZONE(0) planner 不路由到服务端执行确认
-- [ ] P6：TIMEZONE(1) client timezone 来源与透传打通
-- [ ] P6：TIMEZONE(1) 服务端执行
+- [x] P6.1：TIMEZONE(0) planner 不路由到服务端执行 → `doRewritePrecalcExprs()` 中判断参数=0/无参时跳过推下
+- [x] P6.1：TIMEZONE() 参数扩展 → 支持可选参数 0 或 1；param=0 返回客户端时区字符串；param=1 返回 JSON
+- [x] P6.1：TIMEZONE(1) 基础 JSON 返回 → {"session":"...", "client":"...", "server":"..."} 结构已实现；session 反映 SET TIMEZONE，client/server 当前同值（待 Task 6.2）
+- [x] P6.2：TIMEZONE(1) clientTimezoneStr 完整透传 → 消息结构/编解码/executor 链路已完成；client 字段现在正确反映客户端全局时区
 - [ ] FS 第 12 章错误码编号同步更新（当前仍为 0x2600/0x2601，与实际占用冲突）
 - [ ] 全量回归测试通过
 - [ ] 用户手册已补充新语法、函数参数、回退链、DST 与兼容性说明

@@ -2175,6 +2175,33 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
     }
     case QUERY_NODE_FUNCTION: {
       SFunctionNode* pFunc = (SFunctionNode*)(*pNode);
+      
+      /* TIMEZONE(0) and TIMEZONE() must execute on client, not pushed down */
+      if (pFunc->funcType == FUNCTION_TYPE_TIMEZONE) {
+        int32_t paramNum = LIST_LENGTH(pFunc->pParameterList);
+        bool shouldPushdown = true;
+        
+        if (paramNum == 0) {
+          /* TIMEZONE() without parameter: execute on client */
+          shouldPushdown = false;
+        } else if (paramNum == 1) {
+          /* Check if parameter is constant 0 */
+          SNode* pParam = pFunc->pParameterList->pHead->pNode;
+          if (QUERY_NODE_VALUE == nodeType(pParam)) {
+            SValueNode* pVal = (SValueNode*)pParam;
+            if (TSDB_DATA_TYPE_BIGINT == pVal->node.resType.type && !pVal->isNull && pVal->datum.i == 0) {
+              /* TIMEZONE(0): execute on client */
+              shouldPushdown = false;
+            }
+          }
+        }
+        
+        if (!shouldPushdown) {
+          break;
+        }
+        /* TIMEZONE(1) or other params: can be pushed down to server */
+      }
+      
       if (fmIsScalarFunc(pFunc->funcId) && !fmIsNoPushdownFunc(pFunc->funcId) &&
           !fmIsVolatileFunc(pFunc->funcId)) {
         return collectAndRewrite(pCxt, pNode);

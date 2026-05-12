@@ -1296,6 +1296,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
 
       qMsg.firstDayOfWeek = pJob->firstDayOfWeek;
+      qMsg.clientTimezoneStr = (char*)tsTimezoneStr;
 
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {

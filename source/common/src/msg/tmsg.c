@@ -13419,6 +13419,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->firstDayOfWeek));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->clientTimezoneStr));
 
   tEndEncode(&encoder);
 
@@ -13520,6 +13521,13 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
     pReq->firstDayOfWeek = 4;
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pReq->clientTimezoneStr));
+  } else {
+    /* field added in this branch; old messages don't have clientTimezoneStr — default to NULL */
+    pReq->clientTimezoneStr = NULL;
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -13534,6 +13542,7 @@ void tFreeSSubQueryMsg(SSubQueryMsg *pReq) {
 
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->msg);
+  taosMemoryFreeClear(pReq->clientTimezoneStr);
   taosArrayDestroyP(pReq->subEndPoints, NULL);
 }
 

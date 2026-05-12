@@ -77,6 +77,7 @@ typedef struct SQWMsg {
   SRpcHandleInfo connInfo;
   SArray       **subEndPoints;
   void          *pWorkerCb;
+  char          *clientTimezoneStr;  // Client timezone from scheduler
 } SQWMsg;
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb);

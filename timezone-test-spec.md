@@ -291,7 +291,7 @@
 仍待落地的项目：
 
 - ⏸️ `SSubQueryMsg` / `SInterval` `firstDayOfWeek` 序列化/反序列化（executor 侧已就绪，消息序列化还需验证）
-- ⏸️ scalar/TIMEZONE(1) 组装：`session/client/server` JSON 三层（P6）
+- ⏳ scalar/TIMEZONE(1) 组装：基础 JSON 返回已实现（param=1 返回 {"session":"...","client":"...","server":"..."}），clientTimezoneStr 完整透传待 Task 6.2（P6 第二阶段）
 - ⏸️ WEEK mode 参数与 firstDayOfWeek 完整隔离回归（`test_week_mode_overrides_fdow` 已删除，需找合适日期重写）
 
 ## 10. 测试执行方式

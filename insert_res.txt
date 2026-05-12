@@ -1,0 +1,17 @@
+[05/12 15:10:22.558707] SUCC: host:127.0.0.1 port:0 dbname:(null) connect successfully.
+[05/12 15:10:23.231032] SUCC: created database (dmeters)
+[05/12 15:10:23.231905] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.237477] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.255326] INFO: start creating 3 table(s) with 8 thread(s)
+[05/12 15:10:23.256095] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.257219] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.258188] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.262288] SUCC: Spent 0.0070 seconds to create 3 table(s) with 8 thread(s) speed: 429 tables/s, already exist 0 table(s), actual 3 table(s) pre created, 0 table(s) will be auto created
+[05/12 15:10:23.263183] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.263245] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:23.263481] SUCC: host:127.0.0.1 port:0 dbname:dmeters connect successfully.
+[05/12 15:10:35.425596] SUCC: thread[2] interlace mode, completed total inserted rows: 1, 811.69 records/second
+[05/12 15:10:35.425596] SUCC: thread[1] interlace mode, completed total inserted rows: 1, 800.00 records/second
+[05/12 15:10:35.425749] SUCC: thread[0] interlace mode, completed total inserted rows: 1, 775.19 records/second
+[05/12 15:10:35.425886] SUCC: Spent 12.161201 (real 0.001257) seconds to insert rows: 3 with 3 thread(s) into dmeters 0.25 (real 2386.63) records/second
+[05/12 15:10:35.425893] SUCC: insert delay, min: 1.2320ms, avg: 1.2573ms, p90: 1.2900ms, p95: 1.2900ms, p99: 1.2900ms, max: 1.2900ms

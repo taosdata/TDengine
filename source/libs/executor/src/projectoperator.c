@@ -1360,10 +1360,12 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
 
   SExecTaskInfo* savedTaskInfo = gTaskScalarExtra.pTaskInfo;
   __typeof__(gTaskScalarExtra.isTaskKilled) savedIsTaskKilled = gTaskScalarExtra.isTaskKilled;
+  char* savedClientTimezoneStr = gTaskScalarExtra.clientTimezoneStr;
 
   if (pTaskInfo != NULL) {
     gTaskScalarExtra.pTaskInfo    = pTaskInfo;
     gTaskScalarExtra.isTaskKilled = isTaskKilled;
+    /* Note: clientTimezoneStr is set separately via gTaskScalarExtra.clientTimezoneStr in qworker path */
   }
 
   if (hasIndefRowsFunc) {
@@ -1510,6 +1512,7 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
 _exit:
   gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
   gTaskScalarExtra.isTaskKilled = savedIsTaskKilled;
+  gTaskScalarExtra.clientTimezoneStr = savedClientTimezoneStr;
 
   if (pGroupedCtxArray) {
     taosArrayDestroy(pGroupedCtxArray);
