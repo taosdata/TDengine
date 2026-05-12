@@ -383,17 +383,21 @@ static const char *tsCgroupV1CpuAcctFile = "/sys/fs/cgroup/cpuacct/cpuacct.usage
 
 // Returns: 2 for cgroup v2, 1 for cgroup v1, 0 for no cgroup
 static int32_t taosDetectCgroupVersion() {
-  static int32_t cgroupVersion = -1;
-  if (cgroupVersion >= 0) return cgroupVersion;
+  static volatile int32_t cgroupVersion = -1;
+
+  int32_t ver = atomic_load_32(&cgroupVersion);
+  if (ver >= 0) return ver;
 
   if (taosCheckExistFile("/sys/fs/cgroup/cgroup.controllers")) {
-    cgroupVersion = 2;
+    ver = 2;
   } else if (taosCheckExistFile(tsCpuQuotaFile) || taosCheckExistFile(tsCgroupV1MemLimitFile)) {
-    cgroupVersion = 1;
+    ver = 1;
   } else {
-    cgroupVersion = 0;
+    ver = 0;
   }
-  return cgroupVersion;
+
+  (void)atomic_val_compare_exchange_32(&cgroupVersion, -1, ver);
+  return ver;
 }
 
 // Read a single int64 value from a cgroup file. Returns 0 on success.
@@ -840,6 +844,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #endif
 }
 
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
 // Try cgroup v2 cpu.max: format "$MAX $PERIOD" or "max $PERIOD"
 static int32_t taosCntrGetCpuCoresV2(float *numOfCores) {
   TdFilePtr pFile = taosOpenFile(tsCgroupV2CpuMaxFile, TD_FILE_READ | TD_FILE_STREAM);
@@ -857,14 +862,14 @@ static int32_t taosCntrGetCpuCoresV2(float *numOfCores) {
     return -1;
   }
 
-  float quota = 0, period = 0;
-  if (sscanf(line, "%f %f", &quota, &period) != 2 || period <= 0 || quota <= 0) {
+  int64_t quota = 0, period = 0;
+  if (sscanf(line, "%" PRId64 " %" PRId64, &quota, &period) != 2 || period <= 0 || quota <= 0) {
     return -1;
   }
 
-  float quotaCores = quota / period;
-  float sysCores = sysconf(_SC_NPROCESSORS_ONLN);
-  *numOfCores = (quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores;
+  double quotaCores = (double)quota / (double)period;
+  double sysCores = (double)sysconf(_SC_NPROCESSORS_ONLN);
+  *numOfCores = (float)((quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores);
   return (*numOfCores > 0) ? 0 : -1;
 }
 
@@ -881,7 +886,7 @@ static int32_t taosCntrGetCpuCoresV1(float *numOfCores) {
   }
   TAOS_SKIP_ERROR(taosCloseFile(&pFile));
 
-  float quota = taosStr2Float(qline, NULL);
+  int64_t quota = taosStr2Int64(qline, NULL, 10);
   if (quota < 0) {
     return -1;
   }
@@ -896,14 +901,15 @@ static int32_t taosCntrGetCpuCoresV1(float *numOfCores) {
   }
   TAOS_SKIP_ERROR(taosCloseFile(&pFile));
 
-  float period = taosStr2Float(pline, NULL);
+  int64_t period = taosStr2Int64(pline, NULL, 10);
   if (period <= 0) return -1;
 
-  float quotaCores = quota / period;
-  float sysCores = sysconf(_SC_NPROCESSORS_ONLN);
-  *numOfCores = (quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores;
+  double quotaCores = (double)quota / (double)period;
+  double sysCores = (double)sysconf(_SC_NPROCESSORS_ONLN);
+  *numOfCores = (float)((quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores);
   return (*numOfCores > 0) ? 0 : -1;
 }
+#endif  // !WINDOWS && !_TD_DARWIN_64 && !TD_ASTRA
 
 // Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
 static int32_t taosCntrGetCpuCores(float *numOfCores) {
@@ -961,6 +967,7 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #endif
 }
 
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
 // Read cgroup CPU usage in microseconds. Returns 0 on success.
 static int32_t taosGetCgroupCpuUsageUsec(int64_t *usageUsec) {
   if (usageUsec == NULL) return -1;
@@ -994,6 +1001,7 @@ static int32_t taosGetCgroupCpuUsageUsec(int64_t *usageUsec) {
   }
   return -1;
 }
+#endif  // !WINDOWS && !_TD_DARWIN_64 && !TD_ASTRA
 
 int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t lastSysUsed = -1;
@@ -1002,16 +1010,20 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t curSysUsed = 0;
   static int64_t curSysTotal = 0;
   static int64_t curProcTotal = 0;
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
   static int64_t lastCgroupUsageUsec = -1;
   static int64_t lastWallTimeUsec = -1;
+#endif
 
   if (cpu_system != NULL) *cpu_system = 0;
   if (cpu_engine != NULL) *cpu_engine = 0;
 
+  bool    cgroupUsed = false;
+
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
   // Try container-aware CPU usage first
   int32_t cgroupVer = taosDetectCgroupVersion();
   int64_t cgroupUsageUsec = 0;
-  bool    cgroupUsed = false;
 
   if (cgroupVer > 0 && taosGetCgroupCpuUsageUsec(&cgroupUsageUsec) == 0) {
     struct timespec ts;
@@ -1037,7 +1049,8 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   }
 
 _proc_stat:
-  ;
+#endif
+
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
   if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
