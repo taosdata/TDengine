@@ -1071,7 +1071,11 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
     snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", global.udfDataDir, udf->name, udf->version, udf->createdTime);
   } else {
+#ifdef WINDOWS
+    snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version, udf->createdTime);
+#else
     snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version, udf->createdTime);
+#endif
   }
 }
 
