@@ -97,6 +97,11 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   int32_t              err = 0;
   uv_process_options_t options = {0};
+  char                *pathTaosdLdLibHeap = NULL;
+  char                *udfdPathLdLib = NULL;
+  char                *ldLibPathEnvItem = NULL;
+  char                *taosFqdnEnvItem = NULL;
+  char               **envUdfdWithPEnv = NULL;
 
   char path[PATH_MAX] = {0};
   if (tsProcPath == NULL) {
@@ -165,14 +170,14 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char    pathTaosdLdLibStack[512] = {0};
   char   *pathTaosdLdLib = pathTaosdLdLibStack;
-  char   *pathTaosdLdLibHeap = NULL;
   size_t  taosdLdLibPathLen = sizeof(pathTaosdLdLibStack);
   int32_t ret = uv_os_getenv(UDF_LIB_PATH_ENV, pathTaosdLdLib, &taosdLdLibPathLen);
   if (ret == UV_ENOBUFS) {
     // taosdLdLibPathLen now holds the required buffer size (incl. NUL).
     pathTaosdLdLibHeap = (char *)taosMemoryCalloc(taosdLdLibPathLen, 1);
     if (pathTaosdLdLibHeap == NULL) {
-      return terrno;
+      err = terrno;
+      goto _OVER;
     }
     pathTaosdLdLib = pathTaosdLdLibHeap;
     ret = uv_os_getenv(UDF_LIB_PATH_ENV, pathTaosdLdLib, &taosdLdLibPathLen);
@@ -191,10 +196,10 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
   size_t joinedLen = udfdLdLibPathLen + taosdLdLibPathLen + 2;  // sep + NUL
-  char  *udfdPathLdLib = (char *)taosMemoryCalloc(joinedLen, 1);
+  udfdPathLdLib = (char *)taosMemoryCalloc(joinedLen, 1);
   if (udfdPathLdLib == NULL) {
-    taosMemoryFreeClear(pathTaosdLdLibHeap);
-    return terrno;
+    err = terrno;
+    goto _OVER;
   }
   if (udfdLdLibPathLen > 0 && taosdLdLibPathLen > 0) {
     snprintf(udfdPathLdLib, joinedLen, "%s%c%s",
@@ -205,18 +210,15 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     tstrncpy(udfdPathLdLib, pathTaosdLdLib, joinedLen);
   }
   fnInfo("udfd %s: %s", UDF_LIB_PATH_ENV, udfdPathLdLib);
-  taosMemoryFreeClear(pathTaosdLdLibHeap);
 
   size_t ldLibEnvLen = strlen(UDF_LIB_PATH_ENV) + 1 /* '=' */ + strlen(udfdPathLdLib) + 1;
-  char  *ldLibPathEnvItem = (char *)taosMemoryCalloc(ldLibEnvLen, 1);
+  ldLibPathEnvItem = (char *)taosMemoryCalloc(ldLibEnvLen, 1);
   if (ldLibPathEnvItem == NULL) {
-    taosMemoryFree(udfdPathLdLib);
-    return terrno;
+    err = terrno;
+    goto _OVER;
   }
   snprintf(ldLibPathEnvItem, ldLibEnvLen, "%s=%s", UDF_LIB_PATH_ENV, udfdPathLdLib);
-  taosMemoryFree(udfdPathLdLib);
 
-  char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
   if (taosFqdn != NULL) {
     int32_t subLen = strlen(taosFqdn);
@@ -238,7 +240,6 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   // PATH / locale / config-related variables.  Using libuv's portable
   // ``uv_os_environ`` instead of POSIX ``extern char **environ`` lets this
   // path work on Windows as well as Linux/macOS.
-  char         **envUdfdWithPEnv = NULL;
   uv_env_item_t *uvEnvItems = NULL;
   int            uvEnvItemCount = 0;
   int32_t        uvEnvErr = uv_os_environ(&uvEnvItems, &uvEnvItemCount);
@@ -251,18 +252,42 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
       goto _OVER;
     }
 
+    // Names we'll be appending below.  Skip these when copying the inherited
+    // env so the spawned udfd sees our overrides instead of duplicate keys.
+    // On Windows env-var names are case-insensitive (notably PATH); POSIX is
+    // case-sensitive.
+#ifdef WINDOWS
+    int (*envNameCmp)(const char *, const char *, size_t) = strncasecmp;
+#else
+    int (*envNameCmp)(const char *, const char *, size_t) = strncmp;
+#endif
+    const char *overrideNames[] = {"DNODE_ID", "UV_THREADPOOL_SIZE", UDF_LIB_PATH_ENV, "TAOS_FQDN"};
+    size_t      overrideNameLens[ARRAY_SIZE(overrideNames)];
+    for (size_t i = 0; i < ARRAY_SIZE(overrideNames); i++) {
+      overrideNameLens[i] = strlen(overrideNames[i]);
+    }
+
     int32_t outIdx = 0;
     for (int i = 0; i < uvEnvItemCount; i++) {
-      int32_t nameLen = strlen(uvEnvItems[i].name);
+      const char *name = uvEnvItems[i].name;
+      size_t      nameLen = strlen(name);
+      bool        skip = false;
+      for (size_t k = 0; k < ARRAY_SIZE(overrideNames); k++) {
+        if (nameLen == overrideNameLens[k] && envNameCmp(name, overrideNames[k], nameLen) == 0) {
+          skip = true;
+          break;
+        }
+      }
+      if (skip) continue;
       int32_t valueLen = strlen(uvEnvItems[i].value);
-      int32_t len = nameLen + 1 /* '=' */ + valueLen + 1 /* '\0' */;
+      int32_t len = (int32_t)nameLen + 1 /* '=' */ + valueLen + 1 /* '\0' */;
       envUdfdWithPEnv[outIdx] = (char *)taosMemoryCalloc(len, 1);
       if (envUdfdWithPEnv[outIdx] == NULL) {
         err = TSDB_CODE_OUT_OF_MEMORY;
         uv_os_free_environ(uvEnvItems, uvEnvItemCount);
         goto _OVER;
       }
-      snprintf(envUdfdWithPEnv[outIdx], len, "%s=%s", uvEnvItems[i].name, uvEnvItems[i].value);
+      snprintf(envUdfdWithPEnv[outIdx], len, "%s=%s", name, uvEnvItems[i].value);
       outIdx++;
     }
     uv_os_free_environ(uvEnvItems, uvEnvItemCount);
@@ -319,6 +344,12 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
 
 _OVER:
+  if (pathTaosdLdLibHeap) {
+    taosMemoryFree(pathTaosdLdLibHeap);
+  }
+  if (udfdPathLdLib) {
+    taosMemoryFree(udfdPathLdLib);
+  }
   if (taosFqdnEnvItem) {
     taosMemoryFree(taosFqdnEnvItem);
   }
