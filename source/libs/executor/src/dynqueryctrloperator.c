@@ -4678,46 +4678,44 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       code = virtualTableScanBuildDownStreamOpParam(pOperator, uid, vgId);
       QUERY_CHECK_CODE(code, line, _return);
 
-      {
-        const char* vtbChildName = NULL;
-        size_t      vtbChildNameLen = 0;
-        char        vtbChildNameBuf[TSDB_TABLE_NAME_LEN] = {0};
-        if (pVtbScan->isSuperTable && pVtbScan->childTableMap) {
-          void* iter = taosHashIterate(pVtbScan->childTableMap, NULL);
-          while (iter) {
-            int32_t* pIdx = (int32_t*)iter;
-            if (*pIdx == pVtbScan->curTableIdx) {
-              vtbChildName = taosHashGetKey(iter, &vtbChildNameLen);
-              taosHashCancelIterate(pVtbScan->childTableMap, iter);
-              break;
-            }
-            iter = taosHashIterate(pVtbScan->childTableMap, iter);
+      const char* vtbChildName = NULL;
+      size_t      vtbChildNameLen = 0;
+      char        vtbChildNameBuf[TSDB_TABLE_NAME_LEN] = {0};
+      if (pVtbScan->isSuperTable && pVtbScan->childTableMap) {
+        void* iter = taosHashIterate(pVtbScan->childTableMap, NULL);
+        while (iter) {
+          int32_t* pIdx = (int32_t*)iter;
+          if (*pIdx == pVtbScan->curTableIdx) {
+            vtbChildName = taosHashGetKey(iter, &vtbChildNameLen);
+            taosHashCancelIterate(pVtbScan->childTableMap, iter);
+            break;
           }
-        } else if (!pVtbScan->isSuperTable && pVtbScan->tbName) {
-          vtbChildName = pVtbScan->tbName;
-          vtbChildNameLen = strlen(pVtbScan->tbName);
+          iter = taosHashIterate(pVtbScan->childTableMap, iter);
         }
+      } else if (!pVtbScan->isSuperTable && pVtbScan->tbName) {
+        vtbChildName = pVtbScan->tbName;
+        vtbChildNameLen = strlen(pVtbScan->tbName);
+      }
 
-        if (vtbChildName != NULL) {
-          size_t copyLen = TMIN(vtbChildNameLen, sizeof(vtbChildNameBuf) - 1);
-          if (copyLen > 0) {
-            memcpy(vtbChildNameBuf, vtbChildName, copyLen);
-          }
-          vtbChildName = vtbChildNameBuf;
+      if (vtbChildName != NULL) {
+        size_t copyLen = TMIN(vtbChildNameLen, sizeof(vtbChildNameBuf) - 1);
+        if (copyLen > 0) {
+          memcpy(vtbChildNameBuf, vtbChildName, copyLen);
         }
+        vtbChildName = vtbChildNameBuf;
+      }
 
-        SArray* pResolvedTags = NULL;
-        code = resolveTagValsForVtbChild(pOperator, pColRefInfo, vtbChildName, &pResolvedTags);
-        QUERY_CHECK_CODE(code, line, _return);
-        if (pResolvedTags && pVtbScan->vtbScanParam) {
-          ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pResolvedTags = pResolvedTags;
-        } else if (pResolvedTags) {
-          taosArrayDestroy(pResolvedTags);
-        }
-        if (vtbChildName != NULL && pVtbScan->vtbScanParam != NULL) {
-          tstrncpy(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->tbName, vtbChildName,
-                   TSDB_TABLE_NAME_LEN);
-        }
+      SArray* pResolvedTags = NULL;
+      code = resolveTagValsForVtbChild(pOperator, pColRefInfo, vtbChildName, &pResolvedTags);
+      QUERY_CHECK_CODE(code, line, _return);
+      if (pResolvedTags && pVtbScan->vtbScanParam) {
+        ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pResolvedTags = pResolvedTags;
+      } else if (pResolvedTags) {
+        taosArrayDestroy(pResolvedTags);
+      }
+      if (vtbChildName != NULL && pVtbScan->vtbScanParam != NULL) {
+        tstrncpy(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->tbName, vtbChildName,
+                 TSDB_TABLE_NAME_LEN);
       }
 
       // Layer 2: Evaluate tag-ref filter against resolved tag values before data scan

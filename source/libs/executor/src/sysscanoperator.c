@@ -1274,16 +1274,14 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       continue;
     }
 
-    {
-      int32_t nTagRefs = (colRef != NULL) ? colRef->nTagRefs : 0;
-      if ((numOfRows + schemaRow->nCols + nTagRefs) > pOperator->resultInfo.capacity) {
-        relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
-        numOfRows = 0;
+    int32_t nTagRefs = (colRef != NULL) ? colRef->nTagRefs : 0;
+    if ((numOfRows + schemaRow->nCols + nTagRefs) > pOperator->resultInfo.capacity) {
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
+      numOfRows = 0;
 
-        if (pInfo->pRes->info.rows > 0) {
-          pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
-          break;
-        }
+      if (pInfo->pRes->info.rows > 0) {
+        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+        break;
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock

@@ -1306,12 +1306,10 @@ static int32_t ensureVirtualTagScanChild(SVirtualScanLogicNode* pScan) {
 
   PLAN_ERR_JRET(nodesCloneList(pScan->pScanPseudoCols, &pTagScan->pScanPseudoCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pTagScan->pScanPseudoCols, &pTagScan->node.pTargets));
-  {
-    SScanLogicNode* pTemp = pTagScan;
-    pTagScan = NULL;  // nodesListMakeStrictAppend takes ownership and destroys on failure
-    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pScan->node.pChildren, (SNode*)pTemp));
-    pTemp->node.pParent = (SLogicNode*)pScan;
-  }
+  SScanLogicNode* pTemp = pTagScan;
+  pTagScan = NULL;  // nodesListMakeStrictAppend takes ownership and destroys on failure
+  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pScan->node.pChildren, (SNode*)pTemp));
+  pTemp->node.pParent = (SLogicNode*)pScan;
 
   return code;
 
