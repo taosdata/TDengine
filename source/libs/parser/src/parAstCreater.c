@@ -7332,8 +7332,11 @@ SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
   SDescribeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  SRealTableNode* pReal = (SRealTableNode*)pRealTable;
+  tstrncpy(pStmt->dbName, pReal->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, pReal->table.tableName, TSDB_TABLE_NAME_LEN);
+  pStmt->numPathSegments = pReal->numPathSegments;
+  (void)memcpy(pStmt->extSeg, pReal->extSeg, sizeof(pStmt->extSeg));
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:

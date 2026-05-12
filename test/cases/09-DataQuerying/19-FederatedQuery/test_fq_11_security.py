@@ -846,8 +846,8 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
         # 1b. Quoted source name with injection (using backticks)
         tdSql.execute("drop external source if exists `sec009_quoted`")
-        # This should either be accepted with the literal name or rejected
-        self._assert_error_not_syntax(
+        # Quoted injection name is treated as a literal identifier and accepted
+        tdSql.execute(
             f"create external source `sec009_drop_test` type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='db'"
         )
@@ -936,15 +936,15 @@ class TestFq11Security(FederatedQueryVersionedMixin):
             tdSql.execute(f"drop external source if exists {n}")
 
         # Port edge values
-        # Port 0
-        self._assert_error_not_syntax(
+        # Port 0 — rejected by TDengine (0x2600)
+        tdSql.error(
             f"create external source sec010_port0 type='mysql' "
-            f"host='{cfg_mysql.host}' port=0 user='u' password='p' database='db'"
+            f"host='{cfg_mysql.host}' port=0 user='u' password='p' database='db'",
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
-        tdSql.execute("drop external source if exists sec010_port0")
 
         # Port 65535 (max valid)
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source sec010_port65535 type='mysql' "
             f"host='{cfg_mysql.host}' port=65535 user='u' password='p' database='db'"
         )
@@ -966,7 +966,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
         # Very long host (255 chars)
         long_host = "a" * 255
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source sec010_longhost type='mysql' "
             f"host='{long_host}' port=3306 user='u' password='p' database='db'"
         )
@@ -974,7 +974,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
         # Very long database name
         long_db = "d" * 255
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source sec010_longdb type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='p' database='{long_db}'"
         )
@@ -982,7 +982,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
         # Very long password (1000 chars)
         long_pwd = "x" * 1000
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source sec010_longpwd type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='u' password='{long_pwd}' database='db'"
         )
@@ -990,7 +990,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
         # Very long user (255 chars)
         long_user = "u" * 255
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source sec010_longuser type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='{long_user}' password='p' database='db'"
         )

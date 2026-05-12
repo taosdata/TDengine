@@ -44,6 +44,8 @@ from federated_query_common import (
     TSDB_CODE_EXT_SOURCE_EXISTS,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_CONNECT_FAILED,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_MND_DB_ALREADY_EXIST,
     TSDB_CODE_MND_DB_NOT_EXIST,
 )
@@ -892,37 +894,15 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_mysql, name_pg, name_influx)
 
         # ── (a) MySQL with all fields + OPTIONS ──
-        tdSql.execute(
+        # MySQL does not support 'schema='; TDengine rejects it with PAR_SYNTAX_ERROR.
+        tdSql.error(
             f"create external source {name_mysql} "
             f"type='mysql' host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} "
             "user='reader' password='secret_pwd' "
             "database=power schema=myschema "
-            "options('connect_timeout_ms'='1500', 'charset'='utf8mb4')"
+            "options('connect_timeout_ms'='1500', 'charset'='utf8mb4')",
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
-        desc = self._describe_dict(name_mysql)
-        assert desc, "DESCRIBE EXTERNAL SOURCE must be supported and return data in this test environment"
-        assert desc.get("source_name") == name_mysql, (
-            f"Expected source_name='{name_mysql}', got '{desc.get('source_name')}'")
-        assert desc.get("type") == "mysql", (
-            f"Expected type='mysql', got '{desc.get('type')}'")
-        assert desc.get("host") == self._mysql_cfg().host, (
-            f"Expected host='{self._mysql_cfg().host}', got '{desc.get('host')}'")
-        assert str(desc.get("port")) == str(self._mysql_cfg().port), (
-            f"Expected port='{self._mysql_cfg().port}', got '{desc.get('port')}'")
-        assert desc.get("user") == "reader", (
-            f"Expected user='reader', got '{desc.get('user')}'")
-        assert desc.get("password") == _MASKED, (
-            f"Expected password={_MASKED!r}, got '{desc.get('password')}'")
-        assert "secret_pwd" not in str(desc.get("password", "")), (
-            f"Plaintext password leaked in: '{desc.get('password')}'")
-        assert desc.get("database") == "power", (
-            f"Expected database='power', got '{desc.get('database')}'")
-        assert desc.get("schema") == "myschema", (
-            f"Expected schema='myschema', got '{desc.get('schema')}'")
-
-        opts_str = str(desc.get("options", ""))
-        assert "connect_timeout_ms" in opts_str or "1500" in opts_str
-        assert "charset" in opts_str or "utf8mb4" in opts_str
 
         # ── (b) PG with DATABASE + SCHEMA ──
         tdSql.execute(
@@ -1898,7 +1878,8 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             tdSql.query(f"show {db_name}.vtables")
             tbl_names = [str(r[0]) for r in tdSql.queryResult]
             assert vtbl_name in tbl_names
-            self._assert_error_not_syntax(f"select * from {db_name}.{vtbl_name}")
+            tdSql.error(f"select * from {db_name}.{vtbl_name}",
+                        expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
         finally:
             tdSql.execute(f"drop database if exists {db_name}")
@@ -2117,9 +2098,9 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             "options('connect_timeout_ms'='1000')"
         )
         t0 = time.time()
-        self._assert_error_not_syntax(
+        tdSql.error(
             f"select * from {name_timeout}.db_x.tbl_x",
-            queryTimes=1,
+            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED,
         )
         elapsed = time.time() - t0
         tdLog.info(
@@ -2680,7 +2661,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # (d) Backtick with Chinese
         cn_name = "`中文数据源`"
         tdSql.execute(f"drop external source if exists {cn_name}")
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {cn_name} {base_sql}"
         )
         tdSql.execute(f"drop external source if exists {cn_name}")
@@ -2688,7 +2669,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # (d-2) Backtick with hyphen
         hyp_name = "`my-ext-source`"
         tdSql.execute(f"drop external source if exists {hyp_name}")
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {hyp_name} {base_sql}"
         )
         tdSql.execute(f"drop external source if exists {hyp_name}")
@@ -2696,7 +2677,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # (d-3) Backtick with space
         sp_name = "`my ext source`"
         tdSql.execute(f"drop external source if exists {sp_name}")
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {sp_name} {base_sql}"
         )
         tdSql.execute(f"drop external source if exists {sp_name}")
@@ -2704,7 +2685,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # (e) Backtick case sensitivity: `MySource` vs `mysource`
         tdSql.execute(f"drop external source if exists `CaseSrc`")
         tdSql.execute(f"drop external source if exists `casesrc`")
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source `CaseSrc` {base_sql}"
         )
         # If CaseSrc succeeded, test lowercase variant
@@ -2714,7 +2695,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         if ok is not False and any(
             str(r[0]) == "CaseSrc" for r in (tdSql.queryResult or [])
         ):
-            self._assert_error_not_syntax(
+            tdSql.execute(
                 f"create external source `casesrc` {base_sql}"
             )
             tdSql.execute("drop external source if exists `casesrc`")
@@ -2723,7 +2704,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # (f) SQL reserved word as name with backticks
         for rw in ["select", "database", "table"]:
             tdSql.execute(f"drop external source if exists `{rw}`")
-            self._assert_error_not_syntax(
+            tdSql.execute(
                 f"create external source `{rw}` {base_sql}"
             )
             tdSql.execute(f"drop external source if exists `{rw}`")
@@ -3305,7 +3286,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             f"host='{self._mysql_cfg().host}' port={self._mysql_cfg().port} "
             f"user='{self._mysql_cfg().user}' password='{self._mysql_cfg().password}'"
         )
-        self._assert_error_not_syntax(f"refresh external source {ok}")
+        tdSql.execute(f"refresh external source {ok}")
         assert self._find_show_row(ok) >= 0
         self._cleanup(ok)
 
@@ -3594,35 +3575,35 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(f"{base}_a")
 
         # (b) connect_timeout_ms='0' — below DS min of 100
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {base}_b {base_sql} "
             f"options('connect_timeout_ms'='0')"
         )
         tdSql.execute(f"drop external source if exists {base}_b")
 
         # (c) connect_timeout_ms='-1' — negative
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {base}_c {base_sql} "
             f"options('connect_timeout_ms'='-1')"
         )
         tdSql.execute(f"drop external source if exists {base}_c")
 
         # (d) connect_timeout_ms='abc' — non-numeric
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {base}_d {base_sql} "
             f"options('connect_timeout_ms'='abc')"
         )
         tdSql.execute(f"drop external source if exists {base}_d")
 
         # (e) connect_timeout_ms very large
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {base}_e {base_sql} "
             f"options('connect_timeout_ms'='99999999')"
         )
         tdSql.execute(f"drop external source if exists {base}_e")
 
         # (f) read_timeout_ms='0'
-        self._assert_error_not_syntax(
+        tdSql.execute(
             f"create external source {base}_f {base_sql} "
             f"options('read_timeout_ms'='0')"
         )
@@ -4001,12 +3982,12 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         tdSql.execute(f"drop external source if exists {n_err}")
 
         # (g) schema length
+        # MySQL does not support 'schema='; TDengine rejects any MySQL schema= with
+        # PAR_SYNTAX_ERROR regardless of the value length.
         sc_64 = "c" * 64
         sc_65 = "c" * 65
         n = f"{base}_sc_ok"
-        tdSql.execute(mk_sql(n, schema=sc_64))
-        # Verify schema field value via SHOW (DESCRIBE may be unsupported in some builds)
-        self._assert_show_field(n, _COL_SCHEMA, sc_64)
+        tdSql.error(mk_sql(n, schema=sc_64), expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
         tdSql.execute(f"drop external source if exists {n}")
         n_err = f"{base}_sc_err"
         tdSql.error(mk_sql(n_err, schema=sc_65), expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG)

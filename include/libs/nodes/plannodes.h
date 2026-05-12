@@ -1080,6 +1080,7 @@ typedef struct SQueryPlan {
   SExplainInfo  explainInfo;
   void*         pPostPlan;
   bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
+  bool          hasScan;           // true when plan contains at least one local (vnode) scan
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

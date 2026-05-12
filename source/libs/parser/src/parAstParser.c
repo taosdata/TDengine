@@ -1040,11 +1040,26 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
     (void)tNameGetFullDbName(&name, dbFName);
     code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->tableName, 0);
   }
+  // For external source paths, reserve ext source + ext table meta so that
+  // translateDescribe can resolve the schema via translateExternalTableImpl.
+  // 2-seg is speculative (dbName may be an ext source or a local db); 3+-seg is always ext.
+  if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->numPathSegments >= 2) {
+    const char* srcName = (pStmt->numPathSegments == 2) ? pStmt->dbName : pStmt->extSeg[0];
+    if (srcName && srcName[0] != '\0') {
+      code = reserveExtSourceInCache(srcName, pCxt->pMetaCache);
+      if (TSDB_CODE_SUCCESS == code) {
+        const char* mid0 = (pStmt->numPathSegments >= 3) ? pStmt->extSeg[1] : "";
+        const char* mid1 = (pStmt->numPathSegments >= 4) ? pStmt->dbName    : "";
+        code = reserveExtTableMetaInCache(srcName, mid0, mid1, pStmt->tableName, pCxt->pMetaCache);
+      }
+    }
+  }
 #endif
-  if (TSDB_CODE_SUCCESS == code) {
+  // For 3+-seg paths the target is always external; skip the local catalog reservation.
+  if (TSDB_CODE_SUCCESS == code && pStmt->numPathSegments < 3) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pStmt->numPathSegments < 3) {
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
   return code;

@@ -17540,6 +17540,38 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 }
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  // For external source paths, resolve via translateExternalTableImpl — the same
+  // path resolution used for SELECT statement table references.
+  // 3+-seg is always external; 2-seg is external when dbName matches a registered source.
+  if (tsFederatedQueryEnable && pStmt->numPathSegments >= 2) {
+    bool isExternal = (pStmt->numPathSegments >= 3);
+    if (!isExternal) {
+      // 2-seg: check whether dbName is a known external source in the meta cache
+      SExtSourceInfo* pSrcInfo = NULL;
+      int32_t         chkCode = getExtSourceInfoFromCache(pCxt->pMetaCache, pStmt->dbName, &pSrcInfo);
+      isExternal = (TSDB_CODE_SUCCESS == chkCode && pSrcInfo != NULL);
+    }
+    if (isExternal) {
+      // Build a lightweight SRealTableNode on the stack to reuse translateExternalTableImpl.
+      SRealTableNode fakeTable;
+      (void)memset(&fakeTable, 0, sizeof(fakeTable));
+      fakeTable.numPathSegments = pStmt->numPathSegments;
+      tstrncpy(fakeTable.table.dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(fakeTable.table.tableName, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+      (void)memcpy(fakeTable.extSeg, pStmt->extSeg, sizeof(fakeTable.extSeg));
+      int32_t extCode = translateExternalTableImpl(pCxt, &fakeTable);
+      if (TSDB_CODE_SUCCESS == extCode) {
+        // Steal the synthesised STableMeta; destroy the planner-only SExtTableNode.
+        pStmt->pMeta = fakeTable.pMeta;
+        fakeTable.pMeta = NULL;
+        nodesDestroyNode(fakeTable.pExtTableNode);
+        fakeTable.pExtTableNode = NULL;
+      }
+      return extCode;
+    }
+  }
+#endif
   int32_t code = refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
 #ifdef TD_ENTERPRISE
   // MAC: object-level NRU check for DESCRIBE (stable/table)
@@ -23069,6 +23101,11 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pStmt->schemaName[0] != '\0' && strlen(pStmt->schemaName) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
                                    "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+  }
+  // MySQL does not use a schema namespace; reject SCHEMA= to avoid silent misuse.
+  if (pStmt->schemaName[0] != '\0' && pStmt->sourceType == EXT_SOURCE_MYSQL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "SCHEMA is not supported for MySQL sources");
   }
   // Name length check: external source names follow database name rules (max 64 chars).
   if (strlen(pStmt->sourceName) >= TSDB_EXT_SOURCE_NAME_LEN) {

@@ -4955,8 +4955,9 @@ static int32_t doCreatePhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogi
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    // ★ Propagate hasFederatedScan flag to the plan output
+    // ★ Propagate hasFederatedScan / hasScan flags to the plan output
     pPlan->hasFederatedScan = pCxt->hasFederatedScan;
+    pPlan->hasScan          = pCxt->pPlanCxt->hasScan;
     *pPhysiPlan = pPlan;
   } else {
     nodesDestroyNode((SNode*)pPlan);

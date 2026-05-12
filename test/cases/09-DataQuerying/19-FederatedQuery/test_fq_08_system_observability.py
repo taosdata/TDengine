@@ -28,6 +28,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
     TSDB_CODE_EXT_FEATURE_DISABLED,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
 )
 
 
@@ -662,10 +663,10 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 2, cfg.host)
             tdSql.checkData(0, 3, cfg.port)
             # Query via real external source: table 'some_table' doesn't exist →
-            # NOT a syntax error (parser/planner accepted; connector returns table-not-found
-            # or connection error). Proves the request was routed through the full chain.
-            self._assert_not_syntax_error(
-                f"select * from {src}.testdb.some_table limit 1")
+            # connector returns table-not-found. Proves the request was routed through the full chain.
+            tdSql.error(
+                f"select * from {src}.testdb.some_table limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src)
 
@@ -724,11 +725,13 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 2)
 
             # MySQL source → external path (parser+planner+executor+connector chain)
-            self._assert_not_syntax_error(
-                f"select * from {src_m}.testdb.t1 limit 1")
+            tdSql.error(
+                f"select * from {src_m}.testdb.t1 limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # PostgreSQL source → external path (independent routing, no interference)
-            self._assert_not_syntax_error(
-                f"select * from {src_p}.pgdb.t1 limit 1")
+            tdSql.error(
+                f"select * from {src_p}.pgdb.t1 limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p)
 
@@ -844,9 +847,10 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 3, cfg.port)
 
             # Step 2: full chain via external path
-            # parser→planner→executor→connector (connector attempt may fail on missing table)
-            self._assert_not_syntax_error(
-                f"select * from {src}.testdb.some_table limit 1")
+            # parser→planner→executor→connector (connector fails on missing table)
+            tdSql.error(
+                f"select * from {src}.testdb.some_table limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             # Step 3: catalog write (DROP)
             self._cleanup_src(src)
@@ -885,10 +889,11 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             self._mk_mysql_real(src)
             cfg = self._mysql_cfg()
 
-            # Trigger an external query attempt (table likely does not exist →
-            # connector returns table-not-found or connection error; not SYNTAX_ERROR)
-            self._assert_not_syntax_error(
-                f"select * from {src}.testdb.t limit 1")
+            # Trigger an external query attempt (table does not exist →
+            # connector returns table-not-found)
+            tdSql.error(
+                f"select * from {src}.testdb.t limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
             # Source still visible after the failed query attempt
             tdSql.query(

@@ -208,6 +208,8 @@ TSDB_CODE_EXT_REMOTE_INTERNAL                  = _code('TSDB_CODE_EXT_REMOTE_INT
 TSDB_CODE_PAR_NOT_SUPPORT_JOIN                 = _code('TSDB_CODE_PAR_NOT_SUPPORT_JOIN')
 TSDB_CODE_PAR_INVALID_COL_JSON                 = _code('TSDB_CODE_PAR_INVALID_COL_JSON')
 TSDB_CODE_OPS_NOT_SUPPORT                      = _code('TSDB_CODE_OPS_NOT_SUPPORT')
+TSDB_CODE_TSC_NO_EXEC_NODE                     = _code('TSDB_CODE_TSC_NO_EXEC_NODE')
+TSDB_CODE_INVALID_PARA                         = _code('TSDB_CODE_INVALID_PARA')
 
 # --- VTable DDL ---
 TSDB_CODE_FOREIGN_SERVER_NOT_EXIST             = _code('TSDB_CODE_FOREIGN_SERVER_NOT_EXIST')
@@ -1479,36 +1481,6 @@ class FederatedQueryTestMixin:
         sql += (f" options('api_token'='{ver_cfg.token}',"
                 f"'protocol'='flight_sql')")
         tdSql.execute(sql)
-
-    # ------------------------------------------------------------------
-    # Assertion helpers
-    # ------------------------------------------------------------------
-
-    def _assert_error_not_syntax(self, sql, queryTimes=10):
-        """Execute *sql* expecting an error; assert it is NOT a syntax error.
-
-        Proves the parser accepted the SQL; the failure is expected at
-        catalog/connection level (source unreachable, etc.).
-
-        queryTimes: passed to tdSql.query; set to 1 when testing timeouts to
-        avoid retry overhead masking the real connection latency.
-        """
-        ok = tdSql.query(sql, exit=False, queryTimes=queryTimes)
-        if ok is not False:
-            return  # query succeeded (possible in future builds)
-        errno = getattr(tdSql, 'errno', None)
-        error_info = getattr(tdSql, 'error_info', None)
-        if (TSDB_CODE_PAR_SYNTAX_ERROR is not None
-                and errno == TSDB_CODE_PAR_SYNTAX_ERROR):
-            raise AssertionError(
-                f"Expected non-syntax error for SQL, but got PAR_SYNTAX_ERROR\n"
-                f"  sql:        {sql}\n"
-                f"  errno:      {errno:#010x}\n"
-                f"  error_info: {error_info}"
-            )
-
-    # Alias used by some files
-    _assert_not_syntax_error = _assert_error_not_syntax
 
     def _assert_external_context(self, table_name="meters"):
         """Assert current context is external after USE external_source.

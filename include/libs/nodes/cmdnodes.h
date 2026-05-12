@@ -1078,6 +1078,10 @@ typedef struct SDescribeStmt {
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pMeta;
+  // External source path fields — mirrors SRealTableNode.numPathSegments / extSeg.
+  // Set when the DESCRIBE target uses a multi-segment external path (src.tbl or src.db.tbl).
+  int8_t      numPathSegments;                      // 0/1 = local; 2 = src.tbl; 3 = src.db.tbl; 4 = src.db.schema.tbl
+  char        extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];  // [0]=source name; [1]=mid segment (db or schema)
 } SDescribeStmt;
 
 typedef struct SKillStmt {

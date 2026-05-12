@@ -873,13 +873,15 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   FDelete fp = NULL;
   int32_t code = 0;
 
-  // FH-11: For federated queries (hasFederatedScan), override VNODE/CLIENT policy
-  // to HYBRID so that qnodes (which host the External Connector) are included.
+  // FH-11: For *pure* federated queries (hasFederatedScan && !hasScan), override VNODE/CLIENT
+  // policy to HYBRID so that qnodes (External Connector hosts) are included in nodeList.
+  // Mixed local+federated queries (hasScan=true) keep the original VNODE policy: both the
+  // local TableScan and the FederatedScan sub-plan are routed to the same vnode.
   int32_t effectivePolicy = tsQueryPolicy;
-  if (pDag != NULL && pDag->hasFederatedScan &&
+  if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
       (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
     effectivePolicy = QUERY_POLICY_HYBRID;
-    tscDebug("req:0x%" PRIx64 " federated query detected, override async policy %d → HYBRID, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d → HYBRID, QID:0x%" PRIx64,
              pRequest->requestId, tsQueryPolicy, pRequest->requestId);
   }
 
@@ -992,13 +994,15 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
   SArray* pQnodeList = NULL;
   int32_t code = 0;
 
-  // FH-11: For federated queries (hasFederatedScan), override VNODE/CLIENT policy
-  // to HYBRID so that qnodes (which host the External Connector) are included.
+  // FH-11: For *pure* federated queries (hasFederatedScan && !hasScan), override VNODE/CLIENT
+  // policy to HYBRID so that qnodes (External Connector hosts) are included in nodeList.
+  // Mixed local+federated queries (hasScan=true) keep the original VNODE policy: both the
+  // local TableScan and the FederatedScan sub-plan are routed to the same vnode.
   int32_t effectivePolicy = tsQueryPolicy;
-  if (pDag != NULL && pDag->hasFederatedScan &&
+  if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
       (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
     effectivePolicy = QUERY_POLICY_HYBRID;
-    tscDebug("req:0x%" PRIx64 " federated query detected, override sync policy %d → HYBRID, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d → HYBRID, QID:0x%" PRIx64,
              pRequest->requestId, tsQueryPolicy, pRequest->requestId);
   }
 

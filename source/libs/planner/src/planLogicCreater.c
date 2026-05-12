@@ -610,6 +610,11 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   // Basic scan fields
   pScan->scanType            = SCAN_TYPE_EXTERNAL;
+  // Initialize scanRange to "unspecified" (widest possible window).
+  // makeScanLogicNode does this for local tables; we must do it here too.
+  // If left at zero (from nodesMakeNode's calloc), the JOIN range-merge
+  // optimiser collapses every local scan to [0,0] and returns 0 rows.
+  TAOS_SET_OBJ_ALIGNED(&pScan->scanRange, TSWINDOW_INITIALIZER);
   // Set scanSeq[0]=2 when the query uses PERCENTILE or other REPEAT_SCAN_FUNC.
   pScan->scanSeq[0]          = pSelect->hasRepeatScanFuncs ? 2 : 1;
 

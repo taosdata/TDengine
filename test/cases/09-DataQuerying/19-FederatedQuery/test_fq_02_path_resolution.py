@@ -39,6 +39,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_INVALID_PATH,
     TSDB_CODE_EXT_SOURCE_EXISTS,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_MND_DB_ALREADY_EXIST,
 )
 
@@ -723,14 +724,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             src_nodb = "fq_path_009_nodb"
             self._cleanup_src(src_nodb)
             self._mk_mysql_real(src_nodb)  # no database
-            self._assert_error_not_syntax(
+            tdSql.execute(
                 f"create vtable vt_009c ("
                 f"  v1 from {src_nodb}.vt009.val"
                 f") using vstb_009 tags(3)")
             self._cleanup_src(src_nodb)
 
             # (d) Cross-verify: parser accepts varied column names
-            self._assert_error_not_syntax(
+            tdSql.execute(
                 f"create vtable vt_009d ("
                 f"  v1 from {src}.another_tbl.some_col"
                 f") using vstb_009 tags(4)")
@@ -2066,16 +2067,24 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("create database fq_s05_local")
             tdSql.execute("use fq_s05_local")
             tdSql.execute("create table local_t (ts timestamp, dummy int)")
-            tdSql.execute("insert into local_t values (1704067201000, 0)")
+            # 1704038401000 = '2024-01-01 00:00:01' in system local time (CST, UTC+8).
+            # TDengine FederatedScan reads MySQL DATETIME values in the MySQL server's
+            # local timezone; since both MySQL and TDengine run in CST, the epoch values
+            # align when TDengine stores the same calendar string as epoch ms.
+            tdSql.execute("insert into local_t values (1704038401000, 0)")
 
-            # (a) Local table JOIN external 2-seg — not yet supported in the executor
-            # (join between local vnodes and external sources requires a multi-plan executor)
-            self._assert_error_not_syntax(
+            # (a) Local table JOIN external 2-seg — FederatedScan runs on the local vnode.
+            # hasScan=true means HYBRID override is skipped; VNODE strategy routes both the
+            # local TableScan and the FederatedScan sub-plan to the same vnode.
+            # local_t has ts=1704067201000 (2024-01-01 00:00:01), matching remote_orders id.
+            tdSql.query(
                 f"select r.amount from local_t l "
                 f"join {m}.remote_orders r on l.ts = r.id")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 500)
 
-            # (b) Two external sources JOIN — not yet supported (cross-source join)
-            self._assert_error_not_syntax(
+            # (b) Two external sources JOIN — cross-source join is now supported
+            tdSql.query(
                 f"select a.amount, b.info from {m}.remote_orders a "
                 f"join {p}.remote_details b on a.id = b.id "
                 f"order by a.id limit 2")
@@ -2103,7 +2112,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
         Dimensions:
           a) Reserved word as external table name in backticks → data verified
-          b) Chinese characters in backtick-escaped table → data verified
+          b) Chinese characters in backtick-escaped table → parser acceptance verified
+             (table does not exist in MySQL; EXT_TABLE_NOT_EXIST proves the parser
+             accepted the identifier and routed it to MySQL rather than rejecting it
+             with PAR_SYNTAX_ERROR)
           c) Path segments with digits and underscores → data verified
           d) Backtick-escaped segment containing dots → data verified
           e) Space in backtick-escaped identifier → data verified
@@ -2148,8 +2160,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
             # (b) Chinese characters — depends on MySQL character set
             #     (skip if MySQL doesn't support; use parser acceptance)
-            self._assert_error_not_syntax(
-                f"select * from {src}.`数据表` limit 1")
+            tdSql.error(
+                f"select * from {src}.`数据表` limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
             # (c) Digits and underscores in table name
             tdSql.query(f"select val from {src}.`123numeric`")
@@ -2384,13 +2397,16 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             )
 
             # (b) FROM exactly 4-seg on PG source — PG supports 4-seg (src.db.schema.table),
-            # so this is NOT a syntax error. The table schema2.tbl doesn't exist, so the
-            # result is a table-not-found error (not a parser rejection).
+            # so this is NOT a syntax error. The path src.db.schema.tbl maps db='public';
+            # PG has no database named 'public' (it's a schema name, not a database).
+            # The connector detects "database does not exist" (SQLSTATE 3D000) and
+            # returns EXT_TABLE_NOT_EXIST (the specified path/table cannot be found).
             pg = "fq_s09_pg"
             self._cleanup_src(pg)
             self._mk_pg_real(pg, database=PG_DB, schema="public")
-            self._assert_error_not_syntax(
-                f"select * from {pg}.public.schema2.tbl")
+            tdSql.error(
+                f"select * from {pg}.public.schema2.tbl",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             self._cleanup_src(pg)
 
             # (c) 1-seg FROM matching source name → local table lookup
@@ -2414,10 +2430,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             )
 
             # (f) VTable DDL 4-seg is valid (source.db.table.col)
-            self._assert_error_not_syntax(
+            tdSql.error(
                 f"create vtable vt_s09f ("
                 f"  v1 from {src}.{MYSQL_DB}.tbl.col"
-                f") using vstb_s09 tags(2)")
+                f") using vstb_s09 tags(2)",
+                expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
         finally:
             self._cleanup_src(src)
             tdSql.execute("drop database if exists fq_s09_db")
@@ -2451,6 +2468,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         src = "fq_s10_mysql"
         self._cleanup_src(src)
         try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, [
+                "DROP TABLE IF EXISTS s10_tbl",
+                "CREATE TABLE s10_tbl (id DATETIME PRIMARY KEY, val INT, info VARCHAR(50))",
+            ])
             self._mk_mysql_real(src, database=MYSQL_DB)
 
             # (a) INSERT INTO external path → error
@@ -2482,14 +2503,36 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 f"alter table {src}.ext_table add column new_col int",
                 expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
-            # (g) DESCRIBE external 2-seg table path
-            self._assert_error_not_syntax(f"describe {src}.ext_table")
+            # (g) DESCRIBE external 2-seg table path — should succeed, same as SELECT resolution
+            # MySQL: id DATETIME→TIMESTAMP(8), val INT(4), info VARCHAR(50)+utf8mb4→NCHAR(50)
+            tdSql.query(f"describe {src}.s10_tbl")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, "id")
+            tdSql.checkData(0, 1, "TIMESTAMP")
+            tdSql.checkData(0, 2, 8)
+            tdSql.checkData(1, 0, "val")
+            tdSql.checkData(1, 1, "INT")
+            tdSql.checkData(1, 2, 4)
+            tdSql.checkData(2, 0, "info")
+            tdSql.checkData(2, 1, "NCHAR")
+            tdSql.checkData(2, 2, 50)
 
-            # (h) DESCRIBE external 3-seg table path
-            self._assert_error_not_syntax(
-                f"describe {src}.{MYSQL_DB}.ext_table")
+            # (h) DESCRIBE external 3-seg table path — should succeed with explicit db segment
+            # Same schema as (g), accessed via src.db.tbl path
+            tdSql.query(f"describe {src}.{MYSQL_DB}.s10_tbl")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, "id")
+            tdSql.checkData(0, 1, "TIMESTAMP")
+            tdSql.checkData(0, 2, 8)
+            tdSql.checkData(1, 0, "val")
+            tdSql.checkData(1, 1, "INT")
+            tdSql.checkData(1, 2, 4)
+            tdSql.checkData(2, 0, "info")
+            tdSql.checkData(2, 1, "NCHAR")
+            tdSql.checkData(2, 2, 50)
         finally:
             self._cleanup_src(src)
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), MYSQL_DB, ["DROP TABLE IF EXISTS s10_tbl"])
 
     def test_fq_path_s11_backtick_combinations(self):
         """FQ-PATH-S11: Backtick combination tests — permutations of backtick/no-backtick per segment
@@ -2598,16 +2641,18 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # (m) VTable DDL: `source`.db.table.col — 4-seg path, backtick on source name.
             # 3-seg external col refs (src.table.col) are not yet implemented; use 4-seg form
             # (source.db.table.col) which the parser accepts without syntax error.
-            self._assert_error_not_syntax(
+            tdSql.error(
                 f"create vtable vt_s11m ("
                 f"  v1 from `{src}`.{MYSQL_DB}.tbl_s11.val"
-                f") using vstb_s11 tags(1)")
+                f") using vstb_s11 tags(1)",
+                expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
 
             # (n) VTable DDL: source.`db`.`table`.`col` — 4-seg path, backtick on db/table/col.
-            self._assert_error_not_syntax(
+            tdSql.error(
                 f"create vtable vt_s11n ("
                 f"  v1 from {src}.`{MYSQL_DB}`.`tbl_s11`.`val`"
-                f") using vstb_s11 tags(2)")
+                f") using vstb_s11 tags(2)",
+                expectedErrno=TSDB_CODE_MND_DB_NOT_EXIST)
         finally:
             self._cleanup_src(src)
             tdSql.execute("drop database if exists fq_s11_db")
@@ -2826,9 +2871,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             # USE succeeds for PG even without a configured namespace
             # (PG defers namespace resolution to query time, unlike MySQL/InfluxDB)
             tdSql.execute(f"use {src}")
-            # 3-seg explicit schema → works
-            self._assert_error_not_syntax(
-                f"select * from {src}.public.t_s14 limit 1")
+            # 3-seg explicit schema → fails (PG without database has no connection basis)
+            tdSql.error(
+                f"select * from {src}.public.t_s14 limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
             # (b) PG with DATABASE only, no SCHEMA → may use 'public'
             self._cleanup_src(src)
@@ -2845,11 +2891,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             self._mk_pg_real(src, schema="public")  # schema but no database
             # Behavior depends on implementation: schema might implicitly set DB
-            self._assert_error_not_syntax(
-                f"select * from {src}.t_s14 limit 1")
+            tdSql.error(
+                f"select * from {src}.t_s14 limit 1",
+                expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
             # 3-seg override schema
-            self._assert_error_not_syntax(
-                f"select * from {src}.analytics.t_s14 limit 1")
+            tdSql.error(
+                f"select * from {src}.analytics.t_s14 limit 1",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
             # (d) ALTER to clear SCHEMA → 2-seg fails
             self._cleanup_src(src)

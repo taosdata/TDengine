@@ -912,6 +912,41 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         print("FQ-EXPLAIN-030 [passed]")
 
     # ==================================================================
+    # FQ-EXPLAIN-031: Cross-source JOIN (MySQL + PG) — HYBRID strategy
+    # ==================================================================
+
+    def do_explain_031(self):
+        """Cross-source JOIN across two external sources — two FederatedScan operators.
+
+        When both sides of a JOIN are external sources (hasScan=false), the
+        scheduler uses HYBRID strategy: qnode preferred, mnode fallback when no
+        qnode is configured.  No local TableScan is present in the plan.
+
+        Verifications:
+        - EXPLAIN succeeds (TSC_NO_EXEC_NODE must NOT occur) — HYBRID nodeList
+          is non-empty (at least mnode).
+        - Plan contains >=2 "Federated Scan" occurrences (one per source).
+        - Plan contains no "Table Scan" — confirms hasScan=false, meaning the
+          planner did NOT flag any local vnode scan, so HYBRID (not VNODE) is
+          the execution strategy.
+        """
+        sql = (f"select m.ts, m.voltage, p.current "
+               f"from {_MYSQL_SRC}.sensor m "
+               f"join {_PG_SRC}.sensor p on m.ts = p.ts and m.region = p.region")
+        results = self._run_all_modes(sql)
+        for mode, lines in results.items():
+            scan_count = sum(1 for l in lines if "Federated Scan" in l)
+            assert scan_count >= 2, (
+                f"[{mode}] expected >=2 'Federated Scan' operators for cross-source JOIN, "
+                f"got {scan_count}\n  Full plan:\n    " +
+                "\n    ".join(f"[{i:02d}] {l}" for i, l in enumerate(lines))
+            )
+        # No local vnode scan — confirms hasScan=false → HYBRID (qnode/mnode) strategy
+        self._assert_all_not_contain(results, "Table Scan")
+        self._check_analyze_metrics(results)
+        print("FQ-EXPLAIN-031 [passed]")
+
+    # ==================================================================
     # test_* entry points
     # ==================================================================
 
@@ -1189,3 +1224,26 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         """
         self.do_explain_030()
+
+    def test_fq_explain_cross_source_join(self):
+        """FQ-EXPLAIN-031: Cross-source JOIN (MySQL + PG) — HYBRID strategy, two FederatedScans
+
+        A JOIN across two different external sources must:
+        1. Produce two separate FederatedScan operators in the plan (one per source)
+        2. Execute via HYBRID strategy (qnode preferred; mnode fallback if no qnode)
+        3. Contain no local Table Scan (hasScan=false, no vnode dependency)
+
+        Catalog:
+            - Query:FederatedExplain
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-12 wpan New: cross-source JOIN EXPLAIN for HYBRID strategy verification
+
+        """
+        self.do_explain_031()

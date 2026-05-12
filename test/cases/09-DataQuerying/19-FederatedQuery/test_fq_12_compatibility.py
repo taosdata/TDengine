@@ -24,6 +24,7 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryTestMixin,
     ExtSrcEnv,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
 )
 
 
@@ -249,8 +250,8 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     "meas,region=east  val=3.5,score=30i 1704067320000",
                 ])
                 self._mk_influx_real_ver(src, ver_cfg, bucket)
-                # Verify the Flight SQL path is stable: no syntax error
-                self._assert_error_not_syntax(
+                # Verify the Flight SQL path is stable: data was written, query should succeed
+                tdSql.query(
                     f"select val from {src}.{bucket}.meas order by ts")
                 tdLog.debug(
                     f"COMP-003 InfluxDB {ver_cfg.version}: Flight SQL path OK")
@@ -490,8 +491,8 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         ]
 
         for sql in test_sqls:
-            # These should NOT return syntax error (connection error is OK)
-            self._assert_error_not_syntax(sql)
+            # Queries on non-existent external tables must return table-not-found
+            tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
         self._cleanup(src_mysql, src_pg)
 

@@ -32,6 +32,7 @@ from federated_query_common import (
     TSDB_CODE_FOREIGN_TYPE_MISMATCH,
     TSDB_CODE_FOREIGN_NO_TS_KEY,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_MND_DB_NOT_EXIST,
 )
 
@@ -1135,8 +1136,7 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
                 "  val from fq_vtbl_db.src_t1.val"
                 ") using fq_vtbl_db.stb_plan tags(1)")
             # EXPLAIN to verify plan structure
-            self._assert_not_syntax_error(
-                "explain select val from fq_vtbl_db.vt_plan")
+            tdSql.execute("explain select val from fq_vtbl_db.vt_plan")
             # Internal vtable data verification
             tdSql.query("select count(*) from fq_vtbl_db.vt_plan")
             tdSql.checkRows(1)
@@ -1706,9 +1706,10 @@ class TestFq07VirtualTableReference(FederatedQueryVersionedMixin):
                 f"  val from fq_vtbl_db.src_t1.val,"
                 f"  ext_v from {src}.t.id"
                 f") using fq_vtbl_db.stb_s04_ext tags(1)")
-            self._assert_not_syntax_error(
+            tdSql.error(
                 "select count(*), sum(val) from fq_vtbl_db.vt_s04_ext "
-                "where val > 0 order by ts limit 10")
+                "where val > 0 order by ts limit 10",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src)
             try:

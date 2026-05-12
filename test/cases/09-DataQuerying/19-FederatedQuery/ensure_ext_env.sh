@@ -1190,22 +1190,36 @@ _influx_reset_env() {
             return ;;
     esac
 
-    # InfluxDB 3.x: use the v3 configure API
-    local dbs_json db_list db
-    dbs_json=$(curl -sf "http://127.0.0.1:${port}/api/v3/configure/database?format=json" 2>/dev/null) || true
-    if [[ -n "$dbs_json" ]]; then
-        # Parse JSON array: [{"iox::database":"name"}, ...]
-        db_list=$(echo "$dbs_json" | sed 's/},{/}\n{/g' | grep -oP '"iox::database":"\K[^"]+' || true)
+    # InfluxDB 3.x hard reset:
+    # The IOx catalog is append-only: every create/delete writes a new entry.
+    # "drop database" only soft-deletes entries; the global table count never
+    # decreases.  After 2000 accumulated table entries new writes fail with
+    # "exceed number of tables limit".  The only reliable reset is:
+    #   kill → wipe data directory → restart.
+    local pidfile="${base}/run/influxd.pid"
+    info "InfluxDB ${ver} @ ${port}: hard reset (kill → wipe data → restart) ..."
+
+    # 1. Kill all influxdb3 processes bound to this port
+    if [[ -f "$pidfile" ]]; then
+        kill "$(cat "$pidfile")" 2>/dev/null || true
+        rm -f "$pidfile"
     fi
-    local dropped=()
-    for db in $db_list; do
-        [[ "$db" == "_internal" ]] && continue
-        curl -sf -X DELETE \
-            "http://127.0.0.1:${port}/api/v3/configure/database?db=${db}" \
-            -o /dev/null 2>/dev/null || true
-        dropped+=("$db")
-    done
-    info "InfluxDB ${ver} @ ${port}: reset complete (dropped: ${dropped[*]})."
+    # Also kill any stale instances that may have been started by earlier sessions
+    pkill -f "influxdb3 serve.*${port}" 2>/dev/null || true
+    sleep 1
+
+    # 2. Wipe the data directory (removes catalog + all test data)
+    rm -rf "${base}/data"
+    mkdir -p "${base}/data"
+
+    # 3. Restart InfluxDB
+    _influx_start "$ver" "$port" "$base"
+    if ! wait_port "$port" 30; then
+        err "InfluxDB ${ver}: failed to restart after hard reset."
+        OVERALL_OK=1; return 1
+    fi
+
+    info "InfluxDB ${ver} @ ${port}: reset complete (data wiped, restarted)."
 }
 
 # ──────────────────────────────────────────────────────────────────────────────

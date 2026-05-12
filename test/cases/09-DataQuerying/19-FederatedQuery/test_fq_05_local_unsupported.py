@@ -1627,16 +1627,19 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             # MySQL: same source, cross-database JOIN
             self._mk_mysql_real(src_m, database="db1")
-            self._assert_not_syntax_error(
-                f"select * from {src_m}.db1.t1 a join {src_m}.db2.t2 b on a.id = b.id limit 5")
+            tdSql.error(
+                f"select * from {src_m}.db1.t1 a join {src_m}.db2.t2 b on a.id = b.id limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # PG: same source, cross-schema JOIN within one database
             self._mk_pg_real(src_p)
-            self._assert_not_syntax_error(
-                f"select * from {src_p}.t1 a join {src_p}.t2 b on a.id = b.id limit 5")
+            tdSql.error(
+                f"select * from {src_p}.t1 a join {src_p}.t2 b on a.id = b.id limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # InfluxDB: same source, cross-measurement JOIN
             self._mk_influx_real(src_i)
-            self._assert_not_syntax_error(
-                f"select * from {src_i}.cpu a join {src_i}.disk b on cpu.ts = disk.ts limit 5")
+            tdSql.error(
+                f"select * from {src_i}.cpu a join {src_i}.disk b on cpu.ts = disk.ts limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p, src_i)
 
@@ -1666,16 +1669,19 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             # (a) MySQL cross-database JOIN → parser accepts (local execution)
             self._mk_mysql_real(m)
-            self._assert_not_syntax_error(
-                f"select * from {m}.t1 a join {m}.t2 b on a.id = b.id limit 5")
+            tdSql.error(
+                f"select * from {m}.t1 a join {m}.t2 b on a.id = b.id limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # (b) PG cross-database JOIN → parser accepts (local execution)
             self._mk_pg_real(p)
-            self._assert_not_syntax_error(
-                f"select * from {p}.t1 a join {p}.t2 b on a.id = b.id limit 5")
+            tdSql.error(
+                f"select * from {p}.t1 a join {p}.t2 b on a.id = b.id limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # (c) InfluxDB cross-source query → parser accepts (local execution)
             self._mk_influx_real(i)
-            self._assert_not_syntax_error(
-                f"select * from {i}.cpu limit 5")
+            tdSql.error(
+                f"select * from {i}.cpu limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(m, p, i)
 
@@ -2019,12 +2025,15 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             self._mk_pg_real(p)
             self._mk_influx_real(i)
             # Cross-source queries are read-only, no transaction guarantee
-            self._assert_not_syntax_error(
-                f"select * from {m}.t1 union all select * from {p}.t1 limit 5")
-            self._assert_not_syntax_error(
-                f"select * from {m}.t1 union all select * from {i}.cpu limit 5")
-            self._assert_not_syntax_error(
-                f"select * from {p}.t1 union all select * from {i}.cpu limit 5")
+            tdSql.error(
+                f"select * from {m}.t1 union all select * from {p}.t1 limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            tdSql.error(
+                f"select * from {m}.t1 union all select * from {i}.cpu limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            tdSql.error(
+                f"select * from {p}.t1 union all select * from {i}.cpu limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(m, p, i)
 
@@ -2376,14 +2385,17 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         self._cleanup_src(src_m, src_p, src_i)
         try:
             self._mk_mysql_real(src_m)
-            self._assert_not_syntax_error(
-                f"select /*+ para_tables_sort() */ * from {src_m}.t1 limit 5")
+            tdSql.error(
+                f"select /*+ para_tables_sort() */ * from {src_m}.t1 limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             self._mk_pg_real(src_p)
-            self._assert_not_syntax_error(
-                f"select /*+ para_tables_sort() */ * from {src_p}.t1 limit 5")
+            tdSql.error(
+                f"select /*+ para_tables_sort() */ * from {src_p}.t1 limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             self._mk_influx_real(src_i)
-            self._assert_not_syntax_error(
-                f"select /*+ para_tables_sort() */ * from {src_i}.cpu limit 5")
+            tdSql.error(
+                f"select /*+ para_tables_sort() */ * from {src_i}.cpu limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p, src_i)
 
@@ -2412,11 +2424,11 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src_m)
             # Basic query without pseudo-columns → OK
-            self._assert_not_syntax_error(f"select * from {src_m}.users limit 5")
+            tdSql.error(f"select * from {src_m}.users limit 5", expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             self._mk_pg_real(src_p)
-            self._assert_not_syntax_error(f"select * from {src_p}.users limit 5")
+            tdSql.error(f"select * from {src_p}.users limit 5", expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             self._mk_influx_real(src_i)
-            self._assert_not_syntax_error(f"select * from {src_i}.cpu limit 5")
+            tdSql.error(f"select * from {src_i}.cpu limit 5", expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p, src_i)
 
@@ -2455,8 +2467,8 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
                 expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
             # InfluxDB: TAGS accepted (has native tag concept)
             self._mk_influx_real(src_i)
-            self._assert_not_syntax_error(f"select distinct host from {src_i}.cpu")
-            self._assert_not_syntax_error(f"select tags from {src_i}.cpu")
+            tdSql.error(f"select distinct host from {src_i}.cpu", expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            tdSql.error(f"select tags from {src_i}.cpu", expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
         finally:
             self._cleanup_src(src_m, src_p, src_i)
 
@@ -2489,17 +2501,20 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             # MySQL: FULL OUTER JOIN not natively supported → rewrite or local fallback
             self._mk_mysql_real(src_m)
-            self._assert_not_syntax_error(
-                f"select * from {src_m}.t1 full outer join {src_m}.t2 on t1.id = t2.id limit 5")
+            tdSql.error(
+                f"select * from {src_m}.t1 full outer join {src_m}.t2 on t1.id = t2.id limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # PG: supports FULL OUTER JOIN natively
             self._mk_pg_real(src_p)
-            self._assert_not_syntax_error(
-                f"select * from {src_p}.t1 full outer join {src_p}.t2 on t1.id = t2.id limit 5")
+            tdSql.error(
+                f"select * from {src_p}.t1 full outer join {src_p}.t2 on t1.id = t2.id limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # InfluxDB: FULL OUTER JOIN always executed locally by TDengine
             self._mk_influx_real(src_i)
-            self._assert_not_syntax_error(
+            tdSql.error(
                 f"select * from {src_i}.cpu full outer join {src_i}.disk "
-                f"on cpu.ts = disk.ts limit 5")
+                f"on cpu.ts = disk.ts limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p, src_i)
 
@@ -3006,11 +3021,13 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             self._mk_influx_real(src)
             # Exception: InfluxDB PARTITION BY TBNAME → GROUP BY all tags, accepted
-            self._assert_not_syntax_error(
-                f"select count(*) from {src}.cpu partition by tbname")
+            tdSql.error(
+                f"select count(*) from {src}.cpu partition by tbname",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             # SELECT TBNAME on InfluxDB (tag-set identity) → accepted
-            self._assert_not_syntax_error(
-                f"select tbname from {src}.cpu limit 5")
+            tdSql.error(
+                f"select tbname from {src}.cpu limit 5",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src)
 
@@ -3066,8 +3083,9 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             self._mk_influx_real(src_i)
             # (c) InfluxDB exception: TAGS accepted (has native tag concept)
-            self._assert_not_syntax_error(
-                f"select tags from {src_i}.cpu")
+            tdSql.error(
+                f"select tags from {src_i}.cpu",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
         finally:
             self._cleanup_src(src_i)
 
@@ -3656,11 +3674,12 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
         try:
             self._mk_mysql_real(src_m)
             self._mk_pg_real(src_p)
-            self._assert_not_syntax_error(
+            tdSql.error(
                 f"select id, val from {src_m}.orders "
                 "union all "
                 f"select id, val from {src_p}.orders "
-                "limit 10")
+                "limit 10",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
         finally:
             self._cleanup_src(src_m, src_p)
 
