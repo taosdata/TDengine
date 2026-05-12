@@ -855,7 +855,7 @@ SELECT TIMEZONE(1);
 - [x] P1：`SET FIRST_DAY_OF_WEEK` 语法可用
 - [x] P1：服务端 `firstDayOfWeek` 配置项可用 → 已改为客户端配置项（配置所有权迁移完成，下游执行链消费待 P4）
 - [x] P1：分配新错误码（替代已占用的 0x2600/0x2601）并注册
-- [ ] P1：请求上下文携带 firstDayOfWeek（客户端填充已完成，qworker→planner→executor 透传待 P4 打通）
+- [x] P1：请求上下文携带 firstDayOfWeek（客户端填充已完成，qworker→planner→executor 透传待 P4 打通）
 - [x] P2：普通列展示使用连接时区
 - [ ] P2：SHOW/EXPLAIN 使用连接时区
 - [x] P2：WHERE/CAST/JOIN 时间字面量口径与回退链对齐
@@ -868,7 +868,7 @@ SELECT TIMEZONE(1);
 - [x] P4：INTERVAL(w) 尊重 firstDayOfWeek
 - [x] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
 - [x] P5：季度 PR rebase 完成
-- [ ] P5：INTERVAL(1q) 集成验证
+- [x] P5：INTERVAL(1q) 集成验证
 - [ ] P6：TIMEZONE(0) planner 不路由到服务端执行确认
 - [ ] P6：TIMEZONE(1) client timezone 来源与透传打通
 - [ ] P6：TIMEZONE(1) 服务端执行

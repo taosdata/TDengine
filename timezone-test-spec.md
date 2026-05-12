@@ -119,6 +119,36 @@
 - ✅ **负例**：`2n`/`3n`/`6n`/`2q`/`2y`/`2w` 均返回 `TSDB_CODE_FUNC_TIME_UNIT_INVALID`
 - **约束**：所有单位（包括 n/q/y）均只接受 `1x` 格式，`Nx`（N>1）一律报错
 
+#### TestTimetruncateUnitMultiplierValidation — 时间单位倍数约束回归（P4 Task 4.1 补充）
+全量覆盖所有时间单位在倍数 N > 1 时的报错验证，确保错误信息为 `Invalid time unit : timetruncate`。
+
+**测试覆盖矩阵**
+
+| 单位类型 | 正例（N=1） | 反例（N>1） | 报错信息 | 备注 |
+|---------|-----------|-----------|--------|------|
+| 自然月 | `timetruncate(ts, 1n)` ✅ | `timetruncate(ts, 2n)` / `3n` / `6n` / `12n` | Invalid time unit : timetruncate | 月初对齐 |
+| 自然季 | `timetruncate(ts, 1q)` ✅ | `timetruncate(ts, 2q)` / `3q` / `4q` | Invalid time unit : timetruncate | 季初对齐（Jan/Apr/Jul/Oct） |
+| 自然年 | `timetruncate(ts, 1y)` ✅ | `timetruncate(ts, 2y)` / `3y` / `5y` | Invalid time unit : timetruncate | 年初（Jan 1）对齐 |
+| 周 | `timetruncate(ts, 1w)` ✅ | `timetruncate(ts, 2w)` / `3w` / `4w` / `10w` | Invalid time unit : timetruncate | fdow 对齐 |
+| 日 | `timetruncate(ts, 1d)` ✅ | `timetruncate(ts, 2d)` / `3d)` / `7d` | Invalid time unit : timetruncate | 午夜对齐 |
+| 小时 | `timetruncate(ts, 1h)` ✅ | `timetruncate(ts, 2h)` / `3h` / `6h` / `24h` | Invalid time unit : timetruncate | 整点对齐 |
+| 分钟 | `timetruncate(ts, 1m)` ✅ | `timetruncate(ts, 2m)` / `5m` / `15m` / `60m` | Invalid time unit : timetruncate | 整分对齐 |
+| 秒 | `timetruncate(ts, 1s)` ✅ | `timetruncate(ts, 2s)` / `5s` / `10s` / `60s` | Invalid time unit : timetruncate | 整秒对齐 |
+| 毫秒 | `timetruncate(ts, 1ms)` ✅ | `timetruncate(ts, 2ms)` / `100ms)` / `1000ms` | Invalid time unit : timetruncate | 整毫秒对齐 |
+| 微秒 | `timetruncate(ts, 1u)` ✅ | `timetruncate(ts, 2u)` / `1000u` | Invalid time unit : timetruncate | 整微秒对齐 |
+| 纳秒 | `timetruncate(ts, 1b)` ✅ | `timetruncate(ts, 2b)` / `1000b` | Invalid time unit : timetruncate | 整纳秒对齐 |
+
+**验证要点**
+
+- ✅ 所有单位（自然单位 n/q/y 及固定单位 w/d/h/m/s/ms/u/b）均只接受倍数 1
+- ✅ 倍数 > 1 时统一返回错误码 `TSDB_CODE_FUNC_TIME_UNIT_INVALID`（0x8000280A）
+- ✅ 错误消息始终为 `Invalid time unit : timetruncate`（已在 P4 task fix-2026-05-12 修复，从原错误的"Invalid timezone format"）
+- ✅ 测试需覆盖小倍数（2/3）、中等倍数（5/6/7）、大倍数（10/12/24/60/1000）的代表样本
+- ✅ 字符串时区参数存在时也返回相同错误（例如 `timetruncate(ts, 2d, 'UTC')` 同样报错）
+- ⚠️ 此约束为功能设计限制，不涉及时区语义差异，可快速执行
+
+**测试文件位置**：`test/cases/11-Functions/01-Scalar/test_tz_scalar_functions.py::TestTimetruncateUnitMultiplierValidation`
+
 #### TestTimetruncateWeek — TIMETRUNCATE 1w 对齐修正（P4 Task 4.2）
 - ✅ **P4 已实现，5 个测试全部通过**
 - ✅ fdow 0-6 全覆盖，产生不同对齐日（fdow=0→周日，fdow=1→周一，fdow=4→周四与 epoch 兼容）

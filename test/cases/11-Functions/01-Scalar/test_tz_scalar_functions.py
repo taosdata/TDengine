@@ -362,6 +362,124 @@ class TestTimetruncateNaturalUnits:
             )
 
 
+class TestTimetruncateUnitMultiplierValidation:
+    """TIMETRUNCATE unit multiplier constraint: only N=1 allowed, Nx (N>1) returns "Invalid time unit"."""
+
+    pytestmark = []  # P4 regression
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+        cls.dbname = 'db_tz_tt_mult'
+        cls.ntbname = f'{cls.dbname}.ntb'
+
+    def prepare_data(self):
+        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.ntbname}')
+        tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
+        tdSql.execute(f'insert into {self.ntbname} values (1773750600000, 1)')
+
+    def test_timetruncate_2n_invalid(self):
+        """Natural month: 2n, 3n, 6n, 12n should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 3, 6, 12]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}n)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2q_invalid(self):
+        """Natural quarter: 2q, 3q, 4q should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 3, 4]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}q)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2y_invalid(self):
+        """Natural year: 2y, 3y, 5y should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 3, 5]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}y)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2w_invalid(self):
+        """Week: 2w, 3w, 4w, 10w should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 3, 4, 10]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}w)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2d_invalid(self):
+        """Day: 2d, 3d, 7d should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 3, 7]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}d)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2h_invalid(self):
+        """Hour: 2h, 3h, 6h, 24h should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 3, 6, 24]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}h)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2m_invalid(self):
+        """Minute: 2m, 5m, 15m, 60m should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 5, 15, 60]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}m)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2s_invalid(self):
+        """Second: 2s, 5s, 10s, 60s should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 5, 10, 60]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}s)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2ms_invalid(self):
+        """Millisecond: 2ms, 100ms, 1000ms should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 100, 1000]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}a)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2u_invalid(self):
+        """Microsecond: 2u, 1000u should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 1000]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}u)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_2b_invalid(self):
+        """Nanosecond: 2b, 1000b should all be invalid."""
+        self.prepare_data()
+        for mult in [2, 1000]:
+            tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}b)",
+                        expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_multiplier_with_tz_param_invalid(self):
+        """Multiplier > 1 with string timezone parameter should also be invalid."""
+        self.prepare_data()
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        invalid_cases = [
+            "select timetruncate('2026-05-15 10:30:00', 2d, 'UTC')",
+            "select timetruncate('2026-05-15 10:30:00', 3n, 'Asia/Shanghai')",
+            "select timetruncate('2026-05-15 10:30:00', 2q, 'America/New_York')",
+            "select timetruncate('2026-05-15 10:30:00', 2w, 'Europe/London')",
+        ]
+        for sql in invalid_cases:
+            tdSql.error(sql, expectErrInfo="Invalid time unit : timetruncate")
+
+    def test_timetruncate_multiplier_from_table_invalid(self):
+        """Multiplier > 1 in FROM table queries should also be invalid."""
+        self.prepare_data()
+        tdSql.error(f"select timetruncate(ts, 2d) from {self.ntbname}",
+                    expectErrInfo="Invalid time unit : timetruncate")
+        tdSql.error(f"select timetruncate(ts, 3n) from {self.ntbname}",
+                    expectErrInfo="Invalid time unit : timetruncate")
+        tdSql.error(f"select timetruncate(ts, 2h) from {self.ntbname}",
+                    expectErrInfo="Invalid time unit : timetruncate")
+
+
 class TestTimetruncateWeek:
     """TIMETRUNCATE 1w/Nw aligned by firstDayOfWeek (high-risk behavior change)."""
 
