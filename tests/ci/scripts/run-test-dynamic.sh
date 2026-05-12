@@ -147,6 +147,7 @@ echo "========================================"
 err=0
 [[ -f "${RUN_CONTAINER}" ]]    || { echo "ERROR: run_container.sh not found: ${RUN_CONTAINER}"; err=1; }
 [[ -d "${WORKDIR}/debugNoSan/build/bin" ]] || { echo "ERROR: artifacts missing: ${WORKDIR}/debugNoSan"; err=1; }
+[[ -d "${WORKDIR}/debugSan/build/bin" ]]   || echo "WARN: debugSan artifacts missing: ${WORKDIR}/debugSan (san=y cases will fail)"
 [[ ${err} -eq 0 ]] || exit 1
 chmod +x "${RUN_CONTAINER}"
 
@@ -244,7 +245,7 @@ case_seq=0
 
 # ── 在后台子进程中执行单个 case ───────────────────────────────────────────────
 run_case_in_slot() {
-    local slot=$1 path=$2 cmd=$3 seq=$4 runner=${5:-legacy}
+    local slot=$1 path=$2 cmd=$3 seq=$4 runner=${5:-legacy} san=${6:-n}
     local thread_no=$(( (NODE_INDEX - 1) * TEST_CONCURRENCY + slot ))
     local container_name="${JOB_CONTAINER_PREFIX}-t${thread_no}"
     local log_file="${SLOT_DIR}/case-${seq}.log"
@@ -268,6 +269,7 @@ run_case_in_slot() {
         bash "${_rc_script}" \
             -w "${WORKDIR}" \
             -e \
+            -s "${san}" \
             -d "${path}" \
             -c "${cmd}" \
             -t "${thread_no}" \
@@ -290,6 +292,8 @@ run_case_in_slot() {
     # 存储协调器需要的 case_idx
     echo "${slot_idx_map[$slot]:-unknown}" > "${SLOT_DIR}/slot-${slot}.idx"
     # 记录 slot→slug 和 tnum→slug 映射，供 after_script 路由日志
+    # 同时记录 san 标志供 process_finished_slot 写 case.txt
+    echo "${san}" > "${SLOT_DIR}/slot-${slot}.san"
     local _slug_raw; _slug_raw=$(echo "${cmd}" | grep -oP 'cases/\S+' | tail -1)
     if [[ -z "${_slug_raw}" ]]; then
         # fallback: 取 cmd 中最后一个含 / 的 token（如 82-UnitTest/test.sh）
@@ -524,6 +528,16 @@ process_finished_slot() {
         mkdir -p "${_retain_dir}"
         # 复制 run.log.txt 和已收集的 sim/ coredump/
         cp -r "${CASE_LOGS_DIR}/." "${_retain_dir}/" 2>/dev/null || true
+        # case.txt：供 rerun.sh --case 使用的元数据
+        local _san_flag="n"
+        [[ -f "${SLOT_DIR}/slot-${slot}.san" ]] && _san_flag=$(cat "${SLOT_DIR}/slot-${slot}.san")
+        local _dbg_for_case; [[ "${_san_flag}" == "y" ]] && _dbg_for_case="${WORKDIR}/debugSan" || _dbg_for_case="${WORKDIR}/debugNoSan"
+        cat > "${_retain_dir}/case.txt" <<CASETXT
+COMMUNITY_DIR=${CI_PROJECT_DIR}/source/taos-community
+DEBUG_DIR=${_dbg_for_case}
+SANITIZER=${_san_flag}
+CMD=${cmd}
+CASETXT
         # 若存在 jdbc-out.log（83-DocTest/jdbc.sh 日志），一并收集
         local _jdbc_log="${TDENGINE_DIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log"
         if [[ -f "${_jdbc_log}" ]]; then
@@ -683,15 +697,15 @@ while [[ ${_all_done} -eq 0 ]]; do
 
         # 解析 cases 数组，逐一启动
         cases_json=$(echo "${resp}" | python3 -c \
-            "import sys,json; [print(c['idx'], c['path'], c['cmd'], c.get('runner','legacy'), sep='\t') for c in json.load(sys.stdin).get('cases',[])]" \
+            "import sys,json; [print(c['idx'], c['path'], c['cmd'], c.get('runner','legacy'), c.get('san','n'), sep='\t') for c in json.load(sys.stdin).get('cases',[])]" \
             2>/dev/null || true)
 
         if [[ -n "${cases_json}" ]]; then
             last_case_time=$(date +%s)
-            while IFS=$'\t' read -r c_idx c_path c_cmd c_runner; do
+            while IFS=$'\t' read -r c_idx c_path c_cmd c_runner c_san; do
                 [[ -z "${c_path}" ]] && continue
                 echo "------------------------------------------------------------"
-                echo "  [idx=${c_idx}] [${c_runner:-legacy}] ${c_path}::${c_cmd}"
+                echo "  [idx=${c_idx}] [${c_runner:-legacy}] [san=${c_san:-n}] ${c_path}::${c_cmd}"
 
                 # 找空闲 slot（若无则先收割一个）
                 slot=$(find_free_slot)
@@ -704,7 +718,7 @@ while [[ ${_all_done} -eq 0 ]]; do
 
                 # 启动 case
                 slot_idx_map[$slot]="${c_idx}"
-                ( run_case_in_slot "${slot}" "${c_path}" "${c_cmd}" "${case_seq}" "${c_runner:-legacy}" ) &
+                ( run_case_in_slot "${slot}" "${c_path}" "${c_cmd}" "${case_seq}" "${c_runner:-legacy}" "${c_san:-n}" ) &
                 SLOT_PIDS[$slot]=$!
                 in_flight=$(( in_flight + 1 ))
                 case_seq=$(( case_seq + 1 ))

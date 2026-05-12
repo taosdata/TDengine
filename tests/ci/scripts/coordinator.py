@@ -183,10 +183,10 @@ def _print_fail_sections(sec_id: str, sec_title: str, log_b64: str,
     print("\u2500" * 64)
     print(f"\x1b[0Ksection_end:{ts}:{sec_id}\r\x1b[0K")
 # 普通用例队列（无 caps 要求，任意 worker 可执行）
-_queue_normal  = []          # list of (idx, path, cmd, runner)
+_queue_normal  = []          # list of (idx, path, cmd, runner, san)
 _pos_normal    = 0
 # Large-Mem 专属队列（priority 字段为整数，须在 large-mem worker 上运行）
-_queue_largemem = []         # list of (idx, path, cmd, runner)
+_queue_largemem = []         # list of (idx, path, cmd, runner, san)
 _pos_largemem  = 0
 _in_flight     = {}          # case_idx → {worker, assigned_at}
 _results       = []          # [{idx, worker, path, cmd, rc, elapsed_ms, worker_ip, ...}]
@@ -297,7 +297,7 @@ def load_cases(cases_task_path: str, sanitizer: str, path_filter: str = "") -> l
                 continue
             # priority 字段为整数 → 需要 large-mem worker
             required_caps = "large-mem" if priority.isdigit() else ""
-            cases.append((path, cmd, required_caps))
+            cases.append((path, cmd, required_caps, san))
     return cases
 
 # ── 分配策略 ──────────────────────────────────────────────────────────────────
@@ -435,17 +435,17 @@ class Handler(BaseHTTPRequestHandler):
                 # Large-Mem worker: 优先消耗 largemem 队列
                 if is_largemem_worker:
                     while count < allocated and _pos_largemem < len(_queue_largemem):
-                        idx, case_path, case_cmd, case_runner = _queue_largemem[_pos_largemem]
+                        idx, case_path, case_cmd, case_runner, case_san = _queue_largemem[_pos_largemem]
                         _pos_largemem += 1
                         _in_flight[idx] = {"worker": worker, "assigned_at": now}
-                        assigned.append({"idx": idx, "path": case_path, "cmd": case_cmd, "runner": case_runner})
+                        assigned.append({"idx": idx, "path": case_path, "cmd": case_cmd, "runner": case_runner, "san": case_san})
                         count += 1
                 # 所有 worker: 从 normal 队列取剩余
                 while count < allocated and _pos_normal < len(_queue_normal):
-                    idx, case_path, case_cmd, case_runner = _queue_normal[_pos_normal]
+                    idx, case_path, case_cmd, case_runner, case_san = _queue_normal[_pos_normal]
                     _pos_normal += 1
                     _in_flight[idx] = {"worker": worker, "assigned_at": now}
-                    assigned.append({"idx": idx, "path": case_path, "cmd": case_cmd, "runner": case_runner})
+                    assigned.append({"idx": idx, "path": case_path, "cmd": case_cmd, "runner": case_runner, "san": case_san})
                     count += 1
 
                 score      = _worker_scores.get(worker, 50.0)
@@ -652,7 +652,7 @@ def _apply_rerun_filter(all_cases: list, rerun_mode: str, prev_results: list) ->
     """
     根据 RERUN_MODE 和上次结果过滤用例列表。
 
-    all_cases: [(path, cmd, required_caps, runner), ...]
+    all_cases: [(path, cmd, required_caps, san, runner), ...]
     rerun_mode: "failed" | "worker:HOST" | "failed:HOST"
     prev_results: [{"idx":..., "worker":..., "rc":..., "path":..., "cmd":...}, ...]
 
@@ -731,7 +731,7 @@ def main():
 
     raw = load_cases(cases_task, SANITIZER)
     # test/ci/cases.task 使用 newfw runner
-    main_cases = [(p, c, rcaps, "newfw") for p, c, rcaps in raw]
+    main_cases = [(p, c, rcaps, san, "newfw") for p, c, rcaps, san in raw]
 
     # ── Rerun 模式过滤 ────────────────────────────────────────────────────────
     effective_rerun = RERUN_MODE
@@ -756,8 +756,8 @@ def main():
     idx = 0
     norm_list = []
     lm_list   = []
-    for p, c, rcaps, runner in main_cases:
-        entry = (idx, p, c, runner)
+    for p, c, rcaps, san, runner in main_cases:
+        entry = (idx, p, c, runner, san)
         if rcaps == "large-mem":
             lm_list.append(entry)
         else:
@@ -769,8 +769,8 @@ def main():
 
     print(f"[coordinator] Loaded {_total_cases} cases total "
           f"(normal={len(norm_list)}, large-mem={len(lm_list)}, "
-          f"legacy={sum(1 for _,_,_,r in main_cases if r=='legacy')}, "
-          f"newfw={sum(1 for _,_,_,r in main_cases if r=='newfw')}, "
+          f"legacy={sum(1 for _,_,_,_,r in main_cases if r=='legacy')}, "
+          f"newfw={sum(1 for _,_,_,_,r in main_cases if r=='newfw')}, "
           f"sanitizer={SANITIZER})"
           f" from {cases_task}")
     print(f"[coordinator] Prometheus: {PROMETHEUS_URL}  refresh every {PROM_INTERVAL}s")
@@ -854,11 +854,11 @@ def main():
                       f"{len(dead_workers)} dead worker(s) (heartbeat timeout "
                       f"{WORKER_HEARTBEAT_TIMEOUT}s), reaping")
                 for idx, info in dead_reap:
-                    c_path, c_cmd, c_runner = "", "", "legacy"
+                    c_path, c_cmd, c_runner, c_san = "", "", "legacy", ""
                     _all_entries = _queue_normal + _queue_largemem
                     for entry in _all_entries:
                         if entry[0] == idx:
-                            _, c_path, c_cmd, c_runner = entry
+                            _, c_path, c_cmd, c_runner, c_san = entry
                             break
                     elapsed_s = int(now - info["assigned_at"])
                     with _lock:
@@ -880,11 +880,11 @@ def main():
                 print(f"[coordinator] WARN: {len(alive_timed_out)} in_flight case(s) exceeded "
                       f"{MAX_CASE_TIMEOUT}s on alive worker(s), marking as TIMEOUT")
                 for idx, info in alive_timed_out:
-                    c_path, c_cmd, c_runner = "", "", "legacy"
+                    c_path, c_cmd, c_runner, c_san = "", "", "legacy", ""
                     _all_entries = _queue_normal + _queue_largemem
                     for entry in _all_entries:
                         if entry[0] == idx:
-                            _, c_path, c_cmd, c_runner = entry
+                            _, c_path, c_cmd, c_runner, c_san = entry
                             break
                     with _lock:
                         _in_flight.pop(idx, None)
@@ -951,10 +951,10 @@ def main():
     if lost_cases:
         print(f"[coordinator] WARN: {len(lost_cases)} in_flight case(s) never reported, marking as LOST")
         for idx, info in lost_cases:
-            c_path, c_cmd, c_runner = "", "", "legacy"
+            c_path, c_cmd, c_runner, c_san = "", "", "legacy", ""
             for entry in (_queue_normal + _queue_largemem):
                 if entry[0] == idx:
-                    _, c_path, c_cmd, c_runner = entry
+                    _, c_path, c_cmd, c_runner, c_san = entry
                     break
             with _lock:
                 _in_flight.pop(idx, None)
