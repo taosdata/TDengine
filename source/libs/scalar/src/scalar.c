@@ -775,6 +775,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
         return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
       }
+      if (NULL == ctx->fetchFp) {
+        sclError("no fetchFp for subQIdx %d", pRemote->subQIdx);
+        return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
@@ -819,6 +823,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
         return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
       }
+      if (NULL == ctx->fetchFp) {
+        sclError("no fetchFp for subQIdx %d", pRemote->subQIdx);
+        return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
 
       if (!pRemote->valSet) {
         SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
@@ -844,6 +852,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       if (NULL == ctx->pSubJobCtx) {
         sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
+        return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
+      if (NULL == ctx->fetchFp) {
+        sclError("no fetchFp for subQIdx %d", pRemote->subQIdx);
         return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
       }
       
@@ -2488,6 +2500,11 @@ EDealRes sclRewriteRemoteValue(SNode **pNode, SScalarCtx *ctx) {
     sclError("no subJob ctx for subQIdx %d", node->subQIdx);
     return DEAL_RES_ERROR;
   }
+  if (NULL == ctx->fetchFp) {
+    sclError("no fetchFp for subQIdx %d", node->subQIdx);
+    ctx->code = TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+    return DEAL_RES_ERROR;
+  }
   
   ctx->code = (*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, *pNode);
   if (ctx->code) {
@@ -2664,6 +2681,10 @@ int32_t sclExecRemoteValue(SRemoteValueNode *node, SScalarCtx *ctx, SScalarParam
   
   if (NULL == ctx->pSubJobCtx) {
     sclError("no subJob ctx for subQIdx %d", node->subQIdx);
+    return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+  }
+  if (NULL == ctx->fetchFp) {
+    sclError("no fetchFp for subQIdx %d", node->subQIdx);
     return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
   }
   

@@ -37,6 +37,20 @@
 #   FQ_POOL_TEST_PASS      pool-exhaustion test user password default taosdata
 #   FQ_POOL_TEST_MAX_CONN  MAX_USER_CONNECTIONS for pool test user  default 1
 #
+# SERVICE-SELECTION VARIABLES (for in-test restarts; do NOT export in CI setup)
+#   FQ_SERVICES_TO_RESET   space-separated subset of "mysql pg influx"
+#                          When set, only the listed services are touched.
+#                          Default: all three services.
+#   FQ_PG_QUICK_RESTART    Set to "1" to skip data-dir wipe and re-init when
+#                          resetting PG.  Only starts an already-initialised
+#                          instance.  Used by start_pg_instance() so that PG
+#                          data survives stop/start test cycles.
+#   FQ_INFLUX_QUICK_RESTART Set to "1" to skip the IOx data-dir wipe and
+#                          restart InfluxDB in-place (preserving existing data).
+#                          Used by start_influx_instance() so that InfluxDB
+#                          data survives stop/start test cycles without the
+#                          double-restart caused by ensure_influx's hard reset.
+#
 # EXIT CODES
 #   0 = all requested engines ready
 #   1 = one or more engines failed
@@ -411,71 +425,59 @@ ensure_mysql() {
     local port; port="$(mysql_port "$ver")"
     local base="${FQ_BASE_DIR}/mysql/${ver}"
     local bin="${base}/bin"
-    local log="${base}/log"
 
     info "MySQL ${ver}: port=${port}, base=${base}"
 
-    # ── already running ───────────────────────────────────────────────────────
-    if port_open "$port"; then
-        info "MySQL ${ver}: port ${port} is open — already running, resetting test env."
-        _mysql_reset_env "$ver" "$port" "$base"
+    # ── install binary if not present ────────────────────────────────────────
+    if [[ ! -x "${bin}/mysqld" ]]; then
+        case "$OS" in
+            Darwin)
+                info "MySQL ${ver}: installing via Homebrew ..."
+                brew install "mysql@${ver}" 2>/dev/null \
+                    || brew install mysql 2>/dev/null \
+                    || { err "MySQL ${ver}: brew install failed."; OVERALL_OK=1; return 1; }
+                local brew_prefix; brew_prefix="$(brew --prefix)"
+                local brew_bin="${brew_prefix}/opt/mysql@${ver}/bin"
+                [[ -d "$brew_bin" ]] || brew_bin="${brew_prefix}/opt/mysql/bin"
+                mkdir -p "${base}/bin"
+                for f in mysqld mysql mysqladmin; do
+                    [[ -x "${brew_bin}/${f}" ]] && ln -sf "${brew_bin}/${f}" "${base}/bin/${f}"
+                done
+                ;;
+            *)
+                info "MySQL ${ver}: downloading tarball ..."
+                local url; url="$(_mysql_tarball_url "$ver")"
+                local tarball="${FQ_TARBALL_CACHE_DIR}/fq-mysql-${ver}.tar.xz"
+                [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
+                mkdir -p "$base"
+                tar -xJf "$tarball" --strip-components=1 -C "$base"
+                ;;
+        esac
+    fi
+
+    # ── quick restart mode: only (re)start MySQL, preserve existing data ─────
+    if [[ "${FQ_MYSQL_QUICK_RESTART:-0}" == "1" ]]; then
+        info "MySQL ${ver}: quick restart (existing data preserved) ..."
+        pkill -9 -f "mysqld.*port=${port}" 2>/dev/null || true
+        pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
+        rm -f "${base}/run/mysqld.sock" "${base}/run/mysqld.sock.lock"
+        rm -f /tmp/mysqlx.sock /tmp/mysqlx.sock.lock
+        local _pi=0
+        while [[ $_pi -lt 15 ]] && port_open "$port"; do
+            _pi=$((_pi + 1))
+        done
+        _mysql_start "$ver" "$port" "$base"
+        if ! wait_port "$port" 90; then
+            err "MySQL ${ver}: timed out on port ${port} after quick restart."
+            OVERALL_OK=1; return 1
+        fi
+        _mysql_setup_auth "$ver" "$port" "$base" || true
+        info "MySQL ${ver}: quick restart complete."
         return 0
     fi
 
-    # ── installed but stopped ────────────────────────────────────────────────
-    if [[ -x "${bin}/mysqld" ]]; then
-        info "MySQL ${ver}: installation found, attempting start ..."
-        _mysql_start "$ver" "$port" "$base"
-        if wait_port "$port" 30; then
-            info "MySQL ${ver}: started OK."
-            _mysql_reset_env "$ver" "$port" "$base"
-            return 0
-        fi
-        warn "MySQL ${ver}: failed to start existing installation; reinitializing data dir."
-        rm -rf "${base}/data"
-    fi
-
-    # ── fresh install ─────────────────────────────────────────────────────────
-    case "$OS" in
-        Darwin)
-            info "MySQL ${ver}: installing via Homebrew ..."
-            brew install "mysql@${ver}" 2>/dev/null \
-                || brew install mysql 2>/dev/null \
-                || { err "MySQL ${ver}: brew install failed."; OVERALL_OK=1; return 1; }
-            local brew_prefix; brew_prefix="$(brew --prefix)"
-            local brew_bin="${brew_prefix}/opt/mysql@${ver}/bin"
-            [[ -d "$brew_bin" ]] || brew_bin="${brew_prefix}/opt/mysql/bin"
-            mkdir -p "${base}/bin"
-            for f in mysqld mysql mysqladmin; do
-                [[ -x "${brew_bin}/${f}" ]] && ln -sf "${brew_bin}/${f}" "${base}/bin/${f}"
-            done
-            ;;
-        *)
-            info "MySQL ${ver}: downloading tarball ..."
-            local url; url="$(_mysql_tarball_url "$ver")"
-            local tarball="${FQ_TARBALL_CACHE_DIR}/fq-mysql-${ver}.tar.xz"
-            [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
-            mkdir -p "$base"
-            tar -xJf "$tarball" --strip-components=1 -C "$base"
-            ;;
-    esac
-
-    info "MySQL ${ver}: initializing data directory ..."
-    _mysql_init "$ver" "$base"
-
-    info "MySQL ${ver}: starting ..."
-    _mysql_start "$ver" "$port" "$base"
-
-    if ! wait_port "$port" 90; then
-        err "MySQL ${ver}: timed out waiting for port ${port}."
-        tail -20 "${log}/error.log" 2>/dev/null >&2 || true
-        OVERALL_OK=1; return 1
-    fi
-
-    _mysql_setup_auth "$ver" "$port" "$base"
-    _mysql_apply_tls  "$ver" "$port" "$base"
-    _mysql_reset_env  "$ver" "$port" "$base"
-    info "MySQL ${ver}: ready."
+    # ── hard reset: kill-9 → wipe data → reinit → start → probe ─────────────
+    _mysql_reset_env "$ver" "$port" "$base"
 }
 
 _mysql_init() {
@@ -541,6 +543,10 @@ _mysql_start() {
     fi
 
     # Launch mysqld; inject LD_LIBRARY_PATH only into the subprocess env.
+    # Fix timezone: tests assume MySQL interprets DATETIME values as CST (UTC+8).
+    # Without this, a UTC container would mis-align timestamps vs TDengine epochs.
+    local tz_arg="--default-time-zone=+08:00"
+
     if [[ -n "$_ldlp_prefix" ]]; then
         _start_daemon "$pidfile" "${log}/mysqld.log" \
             env LD_LIBRARY_PATH="$_ldlp_prefix" \
@@ -553,6 +559,7 @@ _mysql_start() {
                 --pid-file="$pidfile" \
                 --log-error="${log}/error.log" \
                 $user_opt \
+                $tz_arg \
                 "${tls_args[@]}"
     else
         _start_daemon "$pidfile" "${log}/mysqld.log" \
@@ -565,6 +572,7 @@ _mysql_start() {
                 --pid-file="$pidfile" \
                 --log-error="${log}/error.log" \
                 $user_opt \
+                $tz_arg \
                 "${tls_args[@]}"
     fi
 }
@@ -670,38 +678,75 @@ MYCNF
 
 _mysql_reset_env() {
     local ver="$1" port="$2" base="$3"
+    local pidfile="${base}/run/mysqld.pid"
+    local log="${base}/log"
     local mysql_bin="${base}/bin/mysql"
-    local mysql_cmd=("$mysql_bin" -h 127.0.0.1 -P "$port" -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
-    info "MySQL ${ver} @ ${port}: resetting test databases ..."
 
-    # Discover all non-system databases and drop them
-    local dbs
-    dbs=$("${mysql_cmd[@]}" -N -e \
-        "SELECT schema_name FROM information_schema.schemata \
-         WHERE schema_name NOT IN ('mysql','information_schema','performance_schema','sys');" \
-        2>/dev/null) || true
-    local drop_sql=""
-    local db
-    for db in $dbs; do
-        drop_sql+="DROP DATABASE IF EXISTS \`${db}\`;\n"
+    info "MySQL ${ver} @ ${port}: hard reset (kill-9 → wipe data → reinit → restart) ..."
+
+    # 1. Kill -9 all mysqld processes on this port
+    if [[ -f "$pidfile" ]]; then
+        kill -9 "$(cat "$pidfile")" 2>/dev/null || true
+        rm -f "$pidfile"
+    fi
+    pkill -9 -f "mysqld.*port=${port}" 2>/dev/null || true
+    pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
+
+    # Remove socket and lock files so mysqld does not refuse to start
+    # ("Another process with pid N is using unix socket file")
+    rm -f "${base}/run/mysqld.sock" "${base}/run/mysqld.sock.lock"
+    # mysqlx plugin default socket is /tmp/mysqlx.sock; clean it too
+    rm -f /tmp/mysqlx.sock /tmp/mysqlx.sock.lock 2>/dev/null || true
+
+    # Wait for port to be released (probe-based, no sleep)
+    local _probe_i=0
+    while [[ $_probe_i -lt 15 ]] && port_open "$port"; do
+        _probe_i=$((_probe_i + 1))
     done
-    drop_sql+="DROP USER IF EXISTS 'tls_user'@'%';\n"
-    drop_sql+="CREATE USER 'tls_user'@'%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;\n"
-    drop_sql+="GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%';\n"
-    # Pool-exhaustion test user: limited to FQ_POOL_TEST_MAX_CONN concurrent connections.
-    # Tests saturate this limit to trigger TSDB_CODE_EXT_RESOURCE_EXHAUSTED, then verify
-    # the client-side delayed retry recovers automatically.
+
+    # 2. Wipe data dir + reinit
+    rm -rf "${base}/data"
+    _mysql_init "$ver" "$base" || return 1
+
+    # 3. Start
+    _mysql_start "$ver" "$port" "$base"
+    if ! wait_port "$port" 90; then
+        err "MySQL ${ver}: timed out on port ${port} after reset."
+        tail -20 "${log}/error.log" 2>/dev/null >&2 || true
+        OVERALL_OK=1; return 1
+    fi
+
+    # 4. Auth + TLS setup
+    _mysql_setup_auth "$ver" "$port" "$base" || { OVERALL_OK=1; return 1; }
+    _mysql_apply_tls  "$ver" "$port" "$base"
+
+    # 5. Create test users (tls_user, pool test user)
     local pool_user="${FQ_POOL_TEST_USER:-fq_pool_test}"
     local pool_pass="${FQ_POOL_TEST_PASS:-taosdata}"
     local pool_max_conn="${FQ_POOL_TEST_MAX_CONN:-1}"
-    drop_sql+="DROP USER IF EXISTS '${pool_user}'@'%';\n"
-    drop_sql+="CREATE USER '${pool_user}'@'%' IDENTIFIED BY '${pool_pass}' WITH MAX_USER_CONNECTIONS ${pool_max_conn};\n"
-    drop_sql+="GRANT ALL PRIVILEGES ON *.* TO '${pool_user}'@'%';\n"
-    drop_sql+="FLUSH PRIVILEGES;"
+    local mysql_cmd=("$mysql_bin" -h 127.0.0.1 -P "$port" -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
+    printf "DROP USER IF EXISTS 'tls_user'@'%%';\n\
+CREATE USER 'tls_user'@'%%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;\n\
+GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%%';\n\
+DROP USER IF EXISTS '%s'@'%%';\n\
+CREATE USER '%s'@'%%' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %s;\n\
+GRANT ALL PRIVILEGES ON *.* TO '%s'@'%%';\n\
+FLUSH PRIVILEGES;" \
+        "$pool_user" "$pool_user" "$pool_pass" "$pool_max_conn" "$pool_user" \
+        | "${mysql_cmd[@]}" 2>/dev/null \
+        || warn "MySQL ${ver}: test user setup had warnings."
 
-    echo -e "$drop_sql" | "${mysql_cmd[@]}" 2>/dev/null \
-        && info "MySQL ${ver} @ ${port}: reset complete (dropped: ${dbs//$'\n'/ })." \
-        || warn "MySQL ${ver} @ ${port}: reset had warnings."
+    # 6. Connectivity probe (actual SQL connection)
+    local _pi=0
+    while [[ $_pi -lt 30 ]]; do
+        if "${mysql_cmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+            info "MySQL ${ver} @ ${port}: reset complete."
+            return 0
+        fi
+        _pi=$((_pi + 1))
+    done
+    err "MySQL ${ver}: connectivity probe failed after reset."
+    OVERALL_OK=1; return 1
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -712,50 +757,43 @@ ensure_pg() {
     local port; port="$(pg_port "$ver")"
     local base="${FQ_BASE_DIR}/pg/${ver}"
     local bin="${base}/bin"
-    local log="${base}/log"
 
     info "PostgreSQL ${ver}: port=${port}, base=${base}"
 
-    if port_open "$port"; then
-        info "PostgreSQL ${ver}: port ${port} open — already running, resetting test env."
-        _pg_reset_env "$ver" "$port" "$base"
+    # ── install binary if not present ────────────────────────────────────────
+    if [[ ! -x "${bin}/pg_ctl" ]]; then
+        _pg_install "$ver" "$base" || return 1
+    fi
+
+    # ── quick restart mode: only (re)start PG, preserve existing data ────────
+    if [[ "${FQ_PG_QUICK_RESTART:-0}" == "1" ]]; then
+        info "PostgreSQL ${ver}: quick restart (existing data preserved) ..."
+        # Kill any stale postgres process before starting fresh
+        pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
+        pkill -9 -f "postgres.*${base}" 2>/dev/null || true
+        # Remove socket/lock files and stale pid file (left by SIGKILL)
+        rm -f "/tmp/.s.PGSQL.${port}" "/tmp/.s.PGSQL.${port}.lock"
+        rm -f "${base}/data/postmaster.pid"
+        # Remove POSIX shared memory segments left by SIGKILL (prevents
+        # "another server might be running" error on restart)
+        rm -f /dev/shm/PostgreSQL.* 2>/dev/null || true
+        # Brief pause to let the kernel reclaim the port
+        sleep 1
+        local _pi=0
+        while [[ $_pi -lt 15 ]] && port_open "$port"; do
+            sleep 1; _pi=$((_pi + 1))
+        done
+        _pg_start "$ver" "$port" "$base"
+        if ! wait_port "$port" 90; then
+            err "PostgreSQL ${ver}: timed out on port ${port} after quick restart."
+            OVERALL_OK=1; return 1
+        fi
+        info "PostgreSQL ${ver}: quick restart complete."
         return 0
     fi
 
-    if [[ -x "${bin}/pg_ctl" ]]; then
-        info "PostgreSQL ${ver}: installation found, attempting start ..."
-        _pg_start "$ver" "$port" "$base"
-        if wait_port "$port" 30; then
-            info "PostgreSQL ${ver}: started OK."
-            return 0
-        fi
-        warn "PostgreSQL ${ver}: failed to start; reinitializing data dir."
-        # Kill any lingering postgres process (e.g. when PG_VERSION is missing,
-        # pg_ctl may have started but immediately exited; ensure no zombie holds
-        # the data dir before we wipe it)
-        if [[ -f "${base}/data/postmaster.pid" ]]; then
-            local _pg_stale_pid; _pg_stale_pid="$(head -1 "${base}/data/postmaster.pid" 2>/dev/null || true)"
-            if [[ -n "${_pg_stale_pid}" && "${_pg_stale_pid}" =~ ^[0-9]+$ ]]; then
-                kill -TERM "${_pg_stale_pid}" 2>/dev/null || true
-                sleep 1
-                kill -0 "${_pg_stale_pid}" 2>/dev/null && kill -KILL "${_pg_stale_pid}" 2>/dev/null || true
-            fi
-        fi
-        rm -rf "${base}/data"
-    fi
-
-    _pg_install "$ver" "$base"
-    _pg_init    "$ver" "$base"
-    _pg_start   "$ver" "$port" "$base"
-
-    if ! wait_port "$port" 90; then
-        err "PostgreSQL ${ver}: timed out on port ${port}."
-        tail -20 "${log}/pg.log" 2>/dev/null >&2 || true
-        OVERALL_OK=1; return 1
-    fi
-
+    # ── hard reset: kill-9 → clean locks → wipe data → reinit → start → probe
     _pg_reset_env "$ver" "$port" "$base"
-    info "PostgreSQL ${ver}: ready."
 }
 
 _pg_install() {
@@ -938,46 +976,68 @@ PGCONF
 
 _pg_reset_env() {
     local ver="$1" port="$2" base="$3"
+    local data="${base}/data" log="${base}/log"
     local psql="${base}/bin/psql"
-    local cert_dst="${base}/data/certs"
 
-    # Deploy certs on first call
-    if [[ ! -d "$cert_dst" ]]; then
-        info "PostgreSQL ${ver}: deploying TLS certificates ..."
-        mkdir -p "$cert_dst"
-        cp "${CERT_SRC}/ca.pem"              "${cert_dst}/ca.pem"
-        cp "${CERT_SRC}/pg/server.pem"       "${cert_dst}/server.pem"
-        cp "${CERT_SRC}/pg/server.key"       "${cert_dst}/server.key"
-        cp "${CERT_SRC}/pg/client.pem"       "${cert_dst}/client.pem"
-        cp "${CERT_SRC}/pg/client-key.pem"   "${cert_dst}/client-key.pem"
-        chmod 600 "${cert_dst}/server.key" "${cert_dst}/client-key.pem"
-        _pg_write_ssl_conf "${base}/data" "$cert_dst"
-        PGPASSWORD="$PG_PASS" "$psql" -h 127.0.0.1 -p "$port" -U "$PG_USER" \
-            -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
+    info "PostgreSQL ${ver} @ ${port}: hard reset (kill-9 → wipe data → reinit → restart) ..."
+
+    # 1. Kill -9 all postgres processes on this port / data dir
+    if [[ -f "${data}/postmaster.pid" ]]; then
+        local _pg_pid; _pg_pid="$(head -1 "${data}/postmaster.pid" 2>/dev/null || true)"
+        [[ -n "$_pg_pid" ]] && kill -9 "$_pg_pid" 2>/dev/null || true
     fi
+    pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
+    pkill -9 -f "postgres.*${base}" 2>/dev/null || true
 
-    info "PostgreSQL ${ver} @ ${port}: resetting test databases ..."
-    # Discover all non-system databases and drop them
-    local dbs
-    dbs=$(PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=5 "$psql" \
-        -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
-        -t -A \
-        -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname <> 'postgres';" \
-        2>/dev/null) || true
-    local drop_sql=""
-    local db
-    for db in $dbs; do
-        [[ -z "$db" ]] && continue
-        # Terminate active connections before dropping
-        drop_sql+="SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${db}' AND pid <> pg_backend_pid();\n"
-        drop_sql+="DROP DATABASE IF EXISTS \"${db}\";\n"
+    # Remove socket/lock files to prevent "lock file already exists" on restart
+    rm -f "/tmp/.s.PGSQL.${port}" "/tmp/.s.PGSQL.${port}.lock"
+
+    # Wait for port to be released (probe-based, no sleep)
+    local _probe_i=0
+    while [[ $_probe_i -lt 15 ]] && port_open "$port"; do
+        _probe_i=$((_probe_i + 1))
     done
-    if [[ -n "$drop_sql" ]]; then
-        echo -e "$drop_sql" | PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=5 "$psql" \
-            -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
-            >/dev/null 2>/dev/null
+
+    # 2. Wipe data dir + reinit
+    rm -rf "$data"
+    mkdir -p "$log"
+    _pg_init "$ver" "$base" || return 1
+
+    # 3. Start
+    _pg_start "$ver" "$port" "$base"
+    if ! wait_port "$port" 90; then
+        err "PostgreSQL ${ver}: timed out on port ${port} after reset."
+        tail -20 "${log}/pg.log" 2>/dev/null >&2 || true
+        OVERALL_OK=1; return 1
     fi
-    info "PostgreSQL ${ver} @ ${port}: reset complete (dropped: ${dbs//$'\n'/ })."
+
+    # 4. Deploy TLS certs + write ssl config + reload
+    local cert_dst="${data}/certs"
+    info "PostgreSQL ${ver}: deploying TLS certificates ..."
+    mkdir -p "$cert_dst"
+    cp "${CERT_SRC}/ca.pem"              "${cert_dst}/ca.pem"
+    cp "${CERT_SRC}/pg/server.pem"       "${cert_dst}/server.pem"
+    cp "${CERT_SRC}/pg/server.key"       "${cert_dst}/server.key"
+    cp "${CERT_SRC}/pg/client.pem"       "${cert_dst}/client.pem"
+    cp "${CERT_SRC}/pg/client-key.pem"   "${cert_dst}/client-key.pem"
+    chmod 600 "${cert_dst}/server.key" "${cert_dst}/client-key.pem"
+    _pg_write_ssl_conf "$data" "$cert_dst"
+    PGPASSWORD="$PG_PASS" "$psql" -h 127.0.0.1 -p "$port" -U "$PG_USER" \
+        -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
+
+    # 5. Connectivity probe (actual psql connection)
+    local _pi=0
+    while [[ $_pi -lt 30 ]]; do
+        if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$psql" \
+                -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
+                -c "SELECT 1;" >/dev/null 2>&1; then
+            info "PostgreSQL ${ver} @ ${port}: reset complete."
+            return 0
+        fi
+        _pi=$((_pi + 1))
+    done
+    err "PostgreSQL ${ver}: connectivity probe failed after reset."
+    OVERALL_OK=1; return 1
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1040,6 +1100,34 @@ ensure_influx() {
     local log="${base}/log"
 
     info "InfluxDB ${ver}: port=${port}, base=${base}"
+
+    # FQ_INFLUX_QUICK_RESTART=1: restart in-place without wiping the data dir.
+    # Used by start_influx_instance() for in-test stop/start cycles so that
+    # the double-restart (start → _influx_reset_env kill → wipe → restart)
+    # is avoided.  The IOx catalog may accumulate entries across many calls
+    # but a single test-suite run stays well within the 2000-entry limit.
+    if [[ "${FQ_INFLUX_QUICK_RESTART:-0}" == "1" ]]; then
+        info "InfluxDB ${ver}: quick restart (existing data preserved) ..."
+        # Kill any stale process before starting fresh
+        local pidfile="${base}/run/influxd.pid"
+        if [[ -f "$pidfile" ]]; then
+            kill -9 "$(cat "$pidfile")" 2>/dev/null || true
+            rm -f "$pidfile"
+        fi
+        pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
+        # Wait for the port to be released
+        local _qi=0
+        while [[ $_qi -lt 15 ]] && port_open "$port"; do
+            sleep 1; _qi=$((_qi + 1))
+        done
+        _influx_start "$ver" "$port" "$base"
+        if ! wait_port "$port" 90; then
+            err "InfluxDB ${ver}: timed out on port ${port} after quick restart."
+            OVERALL_OK=1; return 1
+        fi
+        info "InfluxDB ${ver}: quick restart complete."
+        return 0
+    fi
 
     if port_open "$port"; then
         info "InfluxDB ${ver}: port ${port} open — already running, resetting test env."
@@ -1199,14 +1287,21 @@ _influx_reset_env() {
     local pidfile="${base}/run/influxd.pid"
     info "InfluxDB ${ver} @ ${port}: hard reset (kill → wipe data → restart) ..."
 
-    # 1. Kill all influxdb3 processes bound to this port
+    # 1. Kill all influxdb3 processes bound to this port (SIGKILL — instant, no graceful shutdown)
     if [[ -f "$pidfile" ]]; then
-        kill "$(cat "$pidfile")" 2>/dev/null || true
+        kill -9 "$(cat "$pidfile")" 2>/dev/null || true
         rm -f "$pidfile"
     fi
     # Also kill any stale instances that may have been started by earlier sessions
-    pkill -f "influxdb3 serve.*${port}" 2>/dev/null || true
-    sleep 1
+    pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
+
+    # Wait for the port to be released — probe-based, no fixed sleep.
+    # port_open uses "nc -w 2" so each probe takes up to 2 s; SIGKILL should
+    # release the port almost immediately, so this normally exits on the first try.
+    local _probe_i=0
+    while [[ $_probe_i -lt 15 ]] && port_open "$port"; do
+        _probe_i=$((_probe_i + 1))
+    done
 
     # 2. Wipe the data directory (removes catalog + all test data)
     rm -rf "${base}/data"
@@ -1214,7 +1309,7 @@ _influx_reset_env() {
 
     # 3. Restart InfluxDB
     _influx_start "$ver" "$port" "$base"
-    if ! wait_port "$port" 30; then
+    if ! wait_port "$port" 60; then
         err "InfluxDB ${ver}: failed to restart after hard reset."
         OVERALL_OK=1; return 1
     fi
@@ -1243,9 +1338,12 @@ main() {
     mkdir -p "$FQ_BASE_DIR"
 
     local ver
-    for ver in "${MYSQL_VERSIONS[@]}";  do ensure_mysql  "$ver" || OVERALL_OK=1; done
-    for ver in "${PG_VERSIONS[@]}";     do ensure_pg     "$ver" || OVERALL_OK=1; done
-    for ver in "${INFLUX_VERSIONS[@]}"; do ensure_influx "$ver" || OVERALL_OK=1; done
+    # FQ_SERVICES_TO_RESET controls which services are processed.
+    # Default: all three.  In-test restarts set this to a single service.
+    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx}"
+    [[ "$_services" == *mysql*   ]] && for ver in "${MYSQL_VERSIONS[@]}";  do ensure_mysql  "$ver" || OVERALL_OK=1; done
+    [[ "$_services" == *pg*      ]] && for ver in "${PG_VERSIONS[@]}";     do ensure_pg     "$ver" || OVERALL_OK=1; done
+    [[ "$_services" == *influx*  ]] && for ver in "${INFLUX_VERSIONS[@]}"; do ensure_influx "$ver" || OVERALL_OK=1; done
 
     if [[ "$OVERALL_OK" -ne 0 ]]; then
         err "One or more engines failed to start. See messages above."

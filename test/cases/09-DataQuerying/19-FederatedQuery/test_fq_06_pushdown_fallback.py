@@ -1166,12 +1166,16 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
             # Dimension d) Ts-pk: MySQL.ta × InfluxDB.tb on ts = ts
             # MySQL DATETIME '2024-01-01 00:00:00' is timezone-naive; taosParseTime
-            # interprets it as taosd local time (CST → epoch 1703980800000 ms).
-            # InfluxDB _BASE_TS=1704067200000 ms (UTC midnight) differs by 8 h → 0 rows.
+            # interprets it as taosd system time.  Container timezone is UTC, so
+            # '2024-01-01 00:00:00' → 1704067200000 ms = _BASE_TS → matches InfluxDB → 2 rows.
             tdSql.query(
                 f"select a.va, b.vb from {m2}.ta a "
                 f"join {i}.tb b on a.ts = b.ts")
-            tdSql.checkRows(0)
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 10)
+            tdSql.checkData(0, 1, 100)
+            tdSql.checkData(1, 0, 20)
+            tdSql.checkData(1, 1, 200)
         finally:
             self._cleanup_src(m2, i)
             try:

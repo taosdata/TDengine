@@ -379,12 +379,17 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 1, 1)
 
             # (b) TIMESTAMP pk — ts column maps correctly, value preserved
+            # MySQL TIMESTAMP stores as UTC; server is +08:00, so
+            # '2024-06-15 12:30:00' (MySQL local) → 04:30:00 UTC stored.
+            # TDengine displays in taosd system TZ (matches test-runner TZ),
+            # so convert the MySQL-local time via explicit +08:00 tz.
             tdSql.query(f"select ts, val from {src}.tbl_ts_pk")
             tdSql.checkRows(1)
             import datetime as _dt
-            _inserted = _dt.datetime(2024, 6, 15, 12, 30, 0)
-            _utc_dt = _dt.datetime.utcfromtimestamp(_inserted.timestamp())
-            tdSql.checkData(0, 0, _utc_dt.strftime('%Y-%m-%d %H:%M:%S'))
+            _mysql_tz = _dt.timezone(_dt.timedelta(hours=8))
+            _inserted = _dt.datetime(2024, 6, 15, 12, 30, 0, tzinfo=_mysql_tz)
+            _local_dt = _inserted.astimezone()   # convert to local (taosd) TZ
+            tdSql.checkData(0, 0, _local_dt.strftime('%Y-%m-%d %H:%M:%S'))
             tdSql.checkData(0, 1, 2)
         finally:
             self._cleanup_src(src)

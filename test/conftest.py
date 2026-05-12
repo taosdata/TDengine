@@ -90,6 +90,70 @@ def pytest_configure(config):
         "markers",
         "tsim: mark test to have its name dynamically modified based on --tsim file name",
     )
+    config.pluginmanager.register(_PerFileReporter(), "_per_file_reporter")
+
+
+class _PerFileReporter:
+    """Print a one-line pass/fail/skip summary after each test file finishes.
+
+    Output format (one line per file, printed immediately after last test):
+        [FILE] PASS  test_fq_01_external_source.py  passed=47 failed=0 skipped=0  time=13.5s
+        [FILE] FAIL  test_fq_03_type_mapping.py      passed=91 failed=1 skipped=0  time=24.1s
+    """
+
+    def __init__(self):
+        # key: relative fspath (nodeid prefix, e.g. "cases/.../test_fq_01.py")
+        self._stats: dict = {}       # fspath -> {passed, failed, skipped, start}
+        self._file_items: dict = {}  # fspath -> [nodeid, ...]  (ordered)
+
+    def pytest_collection_finish(self, session):
+        for item in session.items:
+            # Use the nodeid prefix so it matches report.fspath / location[0]
+            fspath = item.nodeid.split("::")[0]
+            self._file_items.setdefault(fspath, []).append(item.nodeid)
+            self._stats.setdefault(fspath, {"passed": 0, "failed": 0, "skipped": 0, "start": None})
+
+    def pytest_runtest_logstart(self, nodeid, location):
+        fspath = location[0]
+        s = self._stats.setdefault(fspath, {"passed": 0, "failed": 0, "skipped": 0, "start": None})
+        if s["start"] is None:
+            s["start"] = time.time()
+
+    def pytest_runtest_logreport(self, report):
+        # "call" captures pass/fail; "setup" with skipped captures xfail-style skips
+        if report.when not in ("call", "setup"):
+            return
+        if report.when == "setup" and not report.skipped:
+            return
+
+        fspath = report.nodeid.split("::")[0]
+        s = self._stats.setdefault(fspath, {"passed": 0, "failed": 0, "skipped": 0, "start": None})
+        if report.passed:
+            s["passed"] += 1
+        elif report.failed:
+            s["failed"] += 1
+        elif report.skipped:
+            s["skipped"] += 1
+
+        # Print summary when the last collected item in this file is done
+        items = self._file_items.get(fspath, [])
+        if items and report.nodeid == items[-1]:
+            self._print_summary(fspath)
+
+    def _print_summary(self, fspath):
+        s = self._stats.get(fspath, {})
+        elapsed = time.time() - (s.get("start") or time.time())
+        fname = os.path.basename(fspath)
+        passed  = s.get("passed",  0)
+        failed  = s.get("failed",  0)
+        skipped = s.get("skipped", 0)
+        status  = "PASS" if failed == 0 else "FAIL"
+        print(
+            f"\n[FILE] {status}  {fname}"
+            f"  passed={passed} failed={failed} skipped={skipped}"
+            f"  time={elapsed:.1f}s",
+            flush=True,
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)

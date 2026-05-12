@@ -2067,16 +2067,15 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("create database fq_s05_local")
             tdSql.execute("use fq_s05_local")
             tdSql.execute("create table local_t (ts timestamp, dummy int)")
-            # 1704038401000 = '2024-01-01 00:00:01' in system local time (CST, UTC+8).
-            # TDengine FederatedScan reads MySQL DATETIME values in the MySQL server's
-            # local timezone; since both MySQL and TDengine run in CST, the epoch values
-            # align when TDengine stores the same calendar string as epoch ms.
-            tdSql.execute("insert into local_t values (1704038401000, 0)")
+            # 1704067201000 = '2024-01-01 00:00:01' UTC. The test container runs in UTC,
+            # so taosParseTime(..., NULL) parses MySQL DATETIME values as UTC, giving
+            # epoch 1704067201000 ms.  local_t.ts must use the same epoch to match.
+            tdSql.execute("insert into local_t values (1704067201000, 0)")
 
             # (a) Local table JOIN external 2-seg — FederatedScan runs on the local vnode.
             # hasScan=true means HYBRID override is skipped; VNODE strategy routes both the
             # local TableScan and the FederatedScan sub-plan to the same vnode.
-            # local_t has ts=1704067201000 (2024-01-01 00:00:01), matching remote_orders id.
+            # local_t has ts=1704067201000 (= 2024-01-01 00:00:01 UTC), matching remote_orders id.
             tdSql.query(
                 f"select r.amount from local_t l "
                 f"join {m}.remote_orders r on l.ts = r.id")

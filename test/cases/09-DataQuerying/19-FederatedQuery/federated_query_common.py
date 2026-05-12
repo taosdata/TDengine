@@ -372,8 +372,6 @@ class ExtSrcEnv:
     POOL_TEST_PASS     = os.getenv("FQ_POOL_TEST_PASS",     "taosdata")
     POOL_TEST_MAX_CONN = int(os.getenv("FQ_POOL_TEST_MAX_CONN", "1"))
 
-    _env_checked = False
-
     @classmethod
     def ensure_env(cls):
         """Start and verify all external test databases.
@@ -387,11 +385,10 @@ class ExtSrcEnv:
         startup failure is reported with a clear error rather than a cryptic
         connection refusal later inside a test.
 
-        Call once per process from setup_class.
+        Call once per test file from setup_class (re-runs every invocation to
+        guarantee a clean env — no caching across test files).
         Raises RuntimeError (not pytest.skip) so failures are clearly visible.
         """
-        if cls._env_checked:
-            return
 
         # ------------------------------------------------------------------
         # Step 1: run platform-appropriate setup script
@@ -492,8 +489,6 @@ class ExtSrcEnv:
                 "(Override hosts/ports via FQ_MYSQL_HOST/FQ_PG_HOST/"
                 "FQ_INFLUX_HOST env vars)\n"
                 + "\n".join(errors))
-
-        cls._env_checked = True
 
     # ---- Version iteration helpers ----
 
@@ -596,8 +591,12 @@ class ExtSrcEnv:
         import subprocess, time
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
+        env = os.environ.copy()
+        # Restart only MySQL (not PG/InfluxDB) and preserve existing data.
+        env["FQ_SERVICES_TO_RESET"] = "mysql"
+        env["FQ_MYSQL_QUICK_RESTART"] = "1"
         subprocess.run(["bash", script],
-                       check=True, capture_output=False, timeout=120)
+                       env=env, check=True, capture_output=False, timeout=120)
         # Wait for the port to become accepting connections
         cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
@@ -636,8 +635,13 @@ class ExtSrcEnv:
         import subprocess, time
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
+        env = os.environ.copy()
+        # Restart only PG (not MySQL/InfluxDB) and preserve existing data so
+        # that test databases created before the stop/start cycle survive.
+        env["FQ_SERVICES_TO_RESET"] = "pg"
+        env["FQ_PG_QUICK_RESTART"] = "1"
         subprocess.run(["bash", script],
-                       check=True, capture_output=False, timeout=120)
+                       env=env, check=True, capture_output=False, timeout=120)
         cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
         import psycopg2
@@ -714,8 +718,21 @@ class ExtSrcEnv:
         import subprocess, time, requests
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
+        env = os.environ.copy()
+        # Reset only InfluxDB (not MySQL/PG) to avoid disrupting other
+        # services and to prevent accidental signal delivery to taosd.
+        # InfluxDB 3.x still gets a full hard reset (kill → wipe → restart)
+        # because its append-only IOx catalog overflows without a data wipe.
+        env["FQ_SERVICES_TO_RESET"] = "influx"
+        # Quick restart: skip the IOx data-dir wipe so InfluxDB is started
+        # in-place.  This avoids the double-restart that ensure_influx's
+        # hard-reset path causes when InfluxDB is already stopped:
+        # (start → wait → kill → wipe → restart) was sometimes leaving
+        # the second instance in a state where it crashed shortly after
+        # startup, causing cascade failures in subsequent tests.
+        env["FQ_INFLUX_QUICK_RESTART"] = "1"
         subprocess.run(["bash", script],
-                       check=True, capture_output=False, timeout=120)
+                       env=env, check=True, capture_output=False, timeout=120)
         cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
         deadline = time.time() + wait_s
         while time.time() < deadline:
