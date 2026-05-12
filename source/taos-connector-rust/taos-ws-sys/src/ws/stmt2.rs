@@ -215,7 +215,7 @@ pub unsafe extern "C" fn taos_stmt2_bind_param(
             match field.bind_type {
                 BindType::Tag => tag_cnt += 1,
                 BindType::Column => col_cnt += 1,
-                BindType::TableName => {}
+                BindType::TableName | BindType::Unknown(_) => {}
             }
         }
     } else {
@@ -815,14 +815,16 @@ impl TAOS_STMT2_BINDV {
                 }
                 offset += 1;
 
-                if have_len && !self.check_tag_or_col_is_null(bind.is_null, bind.num as _) {
+                if have_len {
                     let cnt = bind.num as usize * 4;
-                    unsafe {
-                        ptr::copy_nonoverlapping(
-                            bind.length as *const u8,
-                            bytes.as_mut_ptr().add(offset),
-                            cnt,
-                        );
+                    if !self.check_tag_or_col_is_null(bind.is_null, bind.num as _) {
+                        unsafe {
+                            ptr::copy_nonoverlapping(
+                                bind.length as *const u8,
+                                bytes.as_mut_ptr().add(offset),
+                                cnt,
+                            );
+                        }
                     }
                     offset += cnt;
                 }
@@ -864,7 +866,7 @@ impl From<&Stmt2Field> for TAOS_FIELD_ALL {
             precision: field.precision,
             scale: field.scale,
             bytes: field.bytes,
-            field_type: field.bind_type as _,
+            field_type: field.bind_type.as_u8(),
         }
     }
 }
@@ -954,6 +956,54 @@ mod tests {
         assert_eq!(total_lens, vec![63]);
         assert_eq!(data_lens, vec![63]);
         assert_eq!(len, 63);
+    }
+
+    #[test]
+    fn test_stmt2_write_cols_all_null_varbinary_keeps_length_slot() {
+        let mut ts_buffer = vec![1739521477831i64, 1739521477832];
+        let mut ts_length = vec![8, 8];
+        let mut ts_is_null = vec![0, 0];
+        let ts = new_bind!(Ty::Timestamp, ts_buffer, ts_length, ts_is_null);
+
+        let mut c1_is_null = vec![1, 1];
+        let c1 = TAOS_STMT2_BIND {
+            buffer_type: Ty::VarBinary as _,
+            buffer: ptr::null_mut(),
+            length: ptr::null_mut(),
+            is_null: c1_is_null.as_mut_ptr(),
+            num: c1_is_null.len() as _,
+        };
+
+        let mut c2_buffer = vec![10i32, 11];
+        let mut c2_length = vec![4, 4];
+        let mut c2_is_null = vec![0, 0];
+        let c2 = new_bind!(Ty::Int, c2_buffer, c2_length, c2_is_null);
+
+        let mut col = vec![ts, c1, c2];
+        let mut cols = vec![col.as_mut_ptr()];
+        let bindv = TAOS_STMT2_BINDV {
+            count: 1,
+            tbnames: ptr::null_mut(),
+            tags: ptr::null_mut(),
+            bind_cols: cols.as_mut_ptr(),
+        };
+
+        let bytes = bindv.to_bytes(1, 1, 0, 3).unwrap();
+        let payload = &bytes[HEADER_LEN..];
+        let cols_offset = LittleEndian::read_u32(&payload[COLS_OFFSET_POS..]) as usize;
+        let cols_data = &payload[cols_offset..];
+
+        let table_len = LittleEndian::read_u32(&cols_data[0..4]) as usize;
+        let ts_total = LittleEndian::read_u32(&cols_data[4..8]) as usize;
+        let c1_pos = 4 + ts_total;
+        let c1_total = LittleEndian::read_u32(&cols_data[c1_pos..c1_pos + 4]) as usize;
+        let c2_pos = c1_pos + c1_total;
+        let c2_total = LittleEndian::read_u32(&cols_data[c2_pos..c2_pos + 4]) as usize;
+
+        assert_eq!(ts_total, 35);
+        assert_eq!(c1_total, 27);
+        assert_eq!(c2_total, 27);
+        assert_eq!(table_len, ts_total + c1_total + c2_total);
     }
 
     #[test]
@@ -1564,6 +1614,122 @@ mod tests {
             assert_eq!(code, 0);
 
             test_exec(taos, "drop database test_1754448810");
+            taos_close(taos);
+        }
+    }
+
+    #[test]
+    fn test_taos_stmt2_all_null_varbinary_not_last_column() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop database if exists test_1778045960",
+                    "create database test_1778045960",
+                    "use test_1778045960",
+                    "create table t0 (ts timestamp, c1 varbinary(32), c2 int)",
+                ],
+            );
+
+            let stmt2 = taos_stmt2_init(taos, ptr::null_mut());
+            assert!(!stmt2.is_null());
+
+            let sql = c"insert into t0 values(?, ?, ?)";
+            let code = taos_stmt2_prepare(stmt2, sql.as_ptr(), 0);
+            assert_eq!(code, 0);
+
+            let mut ts_buffer = vec![
+                1739521477831i64,
+                1739521477832,
+                1739521477833,
+                1739521477834,
+            ];
+            let mut ts_length = vec![8, 8, 8, 8];
+            let mut ts_is_null = vec![0, 0, 0, 0];
+            let ts = new_bind!(Ty::Timestamp, ts_buffer, ts_length, ts_is_null);
+
+            let mut c1_is_null = vec![1, 1, 1, 1];
+            let c1 = TAOS_STMT2_BIND {
+                buffer_type: Ty::VarBinary as _,
+                buffer: ptr::null_mut(),
+                length: ptr::null_mut(),
+                is_null: c1_is_null.as_mut_ptr(),
+                num: c1_is_null.len() as _,
+            };
+
+            let mut c2_buffer = vec![10i32, 11, 12, 13];
+            let mut c2_length = vec![4, 4, 4, 4];
+            let mut c2_is_null = vec![0, 0, 0, 0];
+            let c2 = new_bind!(Ty::Int, c2_buffer, c2_length, c2_is_null);
+
+            let mut col = vec![ts, c1, c2];
+            let mut cols = vec![col.as_mut_ptr()];
+            let mut bindv = TAOS_STMT2_BINDV {
+                count: 1,
+                tbnames: ptr::null_mut(),
+                tags: ptr::null_mut(),
+                bind_cols: cols.as_mut_ptr(),
+            };
+
+            let code = taos_stmt2_bind_param(stmt2, &mut bindv, -1);
+            assert_eq!(code, 0);
+
+            let mut affected_rows = 0;
+            let code = taos_stmt2_exec(stmt2, &mut affected_rows);
+            assert_eq!(code, 0);
+            assert_eq!(affected_rows, 4);
+
+            let sql = c"select * from t0 where c2 >= ?";
+            let code = taos_stmt2_prepare(stmt2, sql.as_ptr(), 0);
+            assert_eq!(code, 0);
+
+            let mut query_buffer = vec![0i32];
+            let mut query_length = vec![4];
+            let mut query_is_null = vec![0];
+            let c2 = new_bind!(Ty::Int, query_buffer, query_length, query_is_null);
+
+            let mut col = vec![c2];
+            let mut cols = vec![col.as_mut_ptr()];
+            let mut bindv = TAOS_STMT2_BINDV {
+                count: 1,
+                tbnames: ptr::null_mut(),
+                tags: ptr::null_mut(),
+                bind_cols: cols.as_mut_ptr(),
+            };
+
+            let code = taos_stmt2_bind_param(stmt2, &mut bindv, -1);
+            assert_eq!(code, 0);
+
+            let mut affected_rows = 0;
+            let code = taos_stmt2_exec(stmt2, &mut affected_rows);
+            assert_eq!(code, 0);
+            assert_eq!(affected_rows, 0);
+
+            let res = taos_stmt2_result(stmt2);
+            assert!(!res.is_null());
+
+            let fields = taos_fetch_fields(res);
+            assert!(!fields.is_null());
+
+            let num_fields = taos_num_fields(res);
+            assert_eq!(num_fields, 3);
+
+            for _ in 0..4 {
+                let row = taos_fetch_row(res);
+                assert!(!row.is_null());
+
+                let mut str = vec![0 as c_char; 1024];
+                let len = taos_print_row(str.as_mut_ptr(), row, fields, num_fields);
+                assert!(len > 0);
+                let row_text = CStr::from_ptr(str.as_ptr()).to_str().unwrap();
+                assert!(row_text.contains("NULL"));
+            }
+
+            taos_free_result(res);
+            assert_eq!(taos_stmt2_close(stmt2), 0);
+
+            test_exec(taos, "drop database if exists test_1778045960");
             taos_close(taos);
         }
     }
