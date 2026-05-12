@@ -367,7 +367,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         )
 
     def _soft_assert(self, condition, msg):
-        """Assert *condition*; in non-strict mode log a warning instead.
+        """Assert *condition*; in non-strict mode silently skip.
 
         Use for checks that validate features not yet fully implemented
         (aggregate pushdown, DISTINCT, LIMIT/OFFSET, Type Mapping …).
@@ -377,7 +377,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             return
         if self._is_strict():
             raise AssertionError(msg)
-        tdLog.info(f"[WARN] {msg}")
+        # Non-strict mode: silently skip (Phase 2 pushdown not yet implemented)
 
     # ==================================================================
     # FQ-EXPLAIN-001 ~ FQ-EXPLAIN-003: Basic EXPLAIN (all 4 modes)

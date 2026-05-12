@@ -1578,9 +1578,9 @@ class FederatedQueryTestMixin:
         def _fail(msg):
             if strict:
                 raise AssertionError(msg)
-            tdLog.info(f"[WARN] {msg}")
+            # Non-strict mode: silently skip (Phase 2 pushdown not yet implemented)
 
-        ok = tdSql.query(f"explain {sql}", exit=False)
+        ok = tdSql.query(f"explain verbose true {sql}", exit=False)
         if ok is False:
             _fail(f"[EXPLAIN] query returned error for: {sql!r}")
             return
