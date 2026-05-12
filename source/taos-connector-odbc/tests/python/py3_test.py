@@ -25,6 +25,7 @@
 import pyodbc
 import os
 import sys
+import platform
 
 if False:
   cnxn = pyodbc.connect('DSN=SQLSERVER_ODBC_DSN')
@@ -58,7 +59,8 @@ def test_case0():
 
   # Using a DSN, but providing a password as well
   cnxn = pyodbc.connect('DSN=TAOS_ODBC_DSN;PWD=taosdata')
-  cnxn.setencoding(encoding='utf-8')
+  if platform.system() != 'Windows':
+    cnxn.setencoding(encoding='utf-8')
 
   # Create a cursor from the connection
   cursor = cnxn.cursor()

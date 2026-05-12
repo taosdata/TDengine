@@ -38,9 +38,6 @@
 
 #include "conn_parser.h"
 
-#ifdef HAVE_TAOSWS           /* { */
-#include "taosws_helpers.h"
-#endif                       /* } */
 
 #include <string.h>
 
@@ -251,19 +248,66 @@ static void check_taos_connection(HWND hDlg, config_t *config)
   snprintf(title, sizeof(title), "%s (x86)", title);
 #endif
 
-  int r = ParseServer(hDlg, config);
-  if (r) {
-    LoadString(hInstance, IDS_TEST_CONN_SERVER_INVALID, message, sizeof(message));
-    MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
-    return;
+  const char *host = NULL;
+  const char *user = NULL;
+  const char *pass = NULL;
+  const char *db   = NULL;
+  uint16_t    port = 0;
+  url_parser_param_t url_param = {0};
+
+  if (config->url_checked && config->url[0]) {
+    // WebSocket mode: parse URL to extract connection parameters
+    char drv_err[256] = {0};
+    if (conn_init_driver_type(1, drv_err, sizeof(drv_err))) {
+      MessageBox(hDlg, drv_err, title, MB_OK | MB_ICONEXCLAMATION);
+      return;
+    }
+
+    int r = url_parser_parse(config->url, strlen(config->url), &url_param);
+    if (r) {
+      char buf[1024];
+      snprintf(buf, sizeof(buf), "Failed to parse URL `%s`:%s", config->url, url_param.ctx.err_msg);
+      MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
+      url_parser_param_release(&url_param);
+      return;
+    }
+
+    host = url_param.url.host;
+    port = url_param.url.port;
+    // URL user/pass as fallback; dialog fields take precedence
+    if (config->user[0])     user = config->user;
+    else if (url_param.url.user && url_param.url.user[0]) user = url_param.url.user;
+    if (config->password[0]) pass = config->password;
+    else if (url_param.url.pass && url_param.url.pass[0]) pass = url_param.url.pass;
+    if (config->database[0]) db = config->database;
+    else if (url_param.url.path && url_param.url.path[0]) {
+      const char *p = url_param.url.path;
+      if (p[0] == '/') p++;
+      if (p[0]) db = p;
+    }
+  } else {
+    // Native mode: parse SERVER field for host:port
+    char drv_err[256] = {0};
+    if (conn_init_driver_type(0, drv_err, sizeof(drv_err))) {
+      MessageBox(hDlg, drv_err, title, MB_OK | MB_ICONEXCLAMATION);
+      return;
+    }
+
+    int r = ParseServer(hDlg, config);
+    if (r) {
+      LoadString(hInstance, IDS_TEST_CONN_SERVER_INVALID, message, sizeof(message));
+      MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
+      return;
+    }
+    host = config->host[0] ? config->host : NULL;
+    port = config->port;
+    user = config->user[0] ? config->user : NULL;
+    pass = config->password[0] ? config->password : NULL;
+    db   = config->database[0] ? config->database : NULL;
   }
+
   TAOS *taos = NULL;
-  taos = taos_connect(
-      config->host[0] ? config->host : NULL,
-      config->user[0] ? config->user : NULL,
-      config->password[0] ? config->password : NULL,
-      config->database[0] ? config->database : NULL,
-      config->port);
+  taos = CALL_taos_connect(host, user, pass, db, port);
   if (!taos) {
     int e = taos_errno(NULL);
     char buf[1024];
@@ -271,12 +315,24 @@ static void check_taos_connection(HWND hDlg, config_t *config)
     snprintf(buf, sizeof(buf), "%s:[%d/0x%x]%s", message, e, e, taos_errstr(NULL));
     MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
   } else {
+    if (config->conn_mode) {
+      int e = CALL_taos_set_conn_mode(taos, TAOS_CONN_MODE_BI, 1);
+      if (e) {
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "taos_set_conn_mode(BI) failed:[%d/0x%x]%s", e, e, taos_errstr(NULL));
+        MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
+        CALL_taos_close(taos);
+        url_parser_param_release(&url_param);
+        return;
+      }
+    }
     LoadString(hInstance, IDS_TEST_CONN_NATIVE_MSG_SUCCESS, message, sizeof(message));
     MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
   }
   if (taos) {
-    taos_close(taos);
+    CALL_taos_close(taos);
   }
+  url_parser_param_release(&url_param);
 }
 
 static int validate_url(HWND hDlg, const char *url, url_parser_param_t *param)
@@ -300,79 +356,6 @@ static int validate_url(HWND hDlg, const char *url, url_parser_param_t *param)
   return 0;
 }
 
-#ifdef HAVE_TAOSWS                                        /* { */
-static void check_taosws_connection(HWND hDlg, config_t *config, url_parser_param_t *param)
-{
-  int r = 0;
-  HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hDlg, GWLP_HINSTANCE);
-  char title[100]; title[0] = '\0';
-  char message[256]; message[0] = '\0';
-  LoadString(hInstance, IDS_TEST_CONN_TITLE, title, sizeof(title));
-#ifdef TODBC_X86
-  snprintf(title, sizeof(title), "%s (x86)", title);
-#endif
-  
-  if (config->url[0] == '\0') {
-    LoadString(hInstance, IDS_TEST_CONN_NO_URL_FAILURE, message, sizeof(message));
-    MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
-    return;
-  }
-  r = validate_url(hDlg, config->url, param);
-  if (r) return;
-  char *out = NULL;
-  if (config->user[0]) {
-    r = url_set_user_pass(&param->url, config->user, strlen(config->user), config->password, strlen(config->password));
-    if (r) {
-      LoadString(hInstance, IDS_TEST_CONN_BIND_URL_FAILURE, message, sizeof(message));
-      MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
-      return;
-    }
-  }
-  r = url_encode_with_database(&param->url, config->database, &out);
-  if (r) {
-    
-    LoadString(hInstance, IDS_TEST_CONN_ENCODE_URL_FAILURE, message, sizeof(message));
-    MessageBox(hDlg, message, title, MB_OK | MB_ICONEXCLAMATION);
-    return;
-  }
-
-  char buf[4096]; buf[0] = '\0';
-  WS_TAOS *taosws = CALL_ws_connect(out);
-  if (!taosws) {
-    int e = ws_errno(NULL);
-    const char *errstr = ws_errstr(NULL);
-    const char *from = "UTF-8";
-    const char *to   = "GB18030";
-    iconv_t cnv = iconv_open(to, from);
-    if (cnv == (iconv_t)-1) {
-      int e = errno;
-      LoadString(hInstance, IDS_TEST_CONN_MSG_FAILURE, message, sizeof(message));
-      snprintf(buf, sizeof(buf), "%s:[%d]%s:no convertion from %s to %s", message, e, strerror(e), from, to);
-      MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
-    } else {
-      char gb18030[2048];
-      char   *inbuf        = (char*)errstr;
-      char   *outbuf       = gb18030;
-      size_t  inbytesleft  = strlen(errstr);
-      size_t  outbytesleft = sizeof(gb18030);
-      iconv(cnv, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
-      *outbuf = '\0';
-      iconv_close(cnv);
-      LoadString(hInstance, IDS_TEST_CONN_MSG_FAILURE, message, sizeof(message));
-      snprintf(buf, sizeof(buf), "%s:[%d]%s\n%s", message, e, gb18030, out);
-      MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
-    }
-  } else {
-    CALL_ws_close(taosws);
-    LoadString(hInstance, IDS_TEST_CONN_MSG_SUCCESS, message, sizeof(message));
-    snprintf(buf, sizeof(buf), "%s\n%s", message, out);
-    MessageBox(hDlg, buf, title, MB_OK | MB_ICONEXCLAMATION);
-  }
-  // snprintf(buf, sizeof(buf), "About to connect with:\n%s\n\nbut not implemented yet", out ? out : config->url);
-  // MessageBox(hDlg, buf, "Warning!", MB_OK | MB_ICONEXCLAMATION);
-  TOD_SAFE_FREE(out);
-}
-#endif                                                    /* } */
 
 static INT_PTR OnTest(HWND hDlg, WPARAM wParam, LPARAM lParam, url_parser_param_t *param)
 {
@@ -382,16 +365,8 @@ static INT_PTR OnTest(HWND hDlg, WPARAM wParam, LPARAM lParam, url_parser_param_
   //   MessageBox(hDlg, "DSN must be specified", "Warning", MB_OK | MB_ICONEXCLAMATION);
   //   return FALSE;
   // }
-  if (config.taos_checked) {
-    check_taos_connection(hDlg, &config);
-  } else {
-#ifdef HAVE_TAOSWS                                        /* { */
-    check_taosws_connection(hDlg, &config, param);
-#else                                                     /* }{ */
-    MessageBox(hDlg, "not built with `taosws-rs`", "Error", MB_OK | MB_ICONEXCLAMATION);
-    return FALSE;
-#endif                                                    /* } */
-  }
+  // Both native and websocket now use taos_connect via unified taos.dll
+  check_taos_connection(hDlg, &config);
   return TRUE;
 }
 
@@ -450,7 +425,7 @@ static void LoadComboBoxOptions(HINSTANCE hInstance, HWND hWndCombo)
 
   LoadString(hInstance, IDS_COMBO_APP_NAME_OPT_KEPWARE, message, sizeof(message));
   SendMessage(hWndCombo, CB_ADDSTRING, 0, (LPARAM)message);
-#endif 
+#endif
 }
 
 static INT_PTR OnInitDlg(HWND hDlg, WPARAM wParam, LPARAM lParam)
@@ -458,7 +433,7 @@ static INT_PTR OnInitDlg(HWND hDlg, WPARAM wParam, LPARAM lParam)
   LPCSTR lpszAttributes = gAttributes;
   CheckRadioButton(hDlg, IDC_RAD_TAOS, IDC_RAD_TAOSWS, IDC_RAD_TAOSWS);
   SwitchTaos(hDlg, FALSE);
-#ifdef FAKE_TAOS
+#ifndef HAVE_NATIVE
   ShowWindow(GetDlgItem(hDlg, IDC_RAD_TAOS), FALSE);
 #endif
 
@@ -488,13 +463,13 @@ static INT_PTR OnInitDlg(HWND hDlg, WPARAM wParam, LPARAM lParam)
             CheckRadioButton(hDlg, IDC_RAD_TAOS, IDC_RAD_TAOSWS, IDC_RAD_TAOSWS);
             SwitchTaos(hDlg, FALSE);
           }
-#ifdef FAKE_TAOS
+#ifndef HAVE_NATIVE
           ShowWindow(GetDlgItem(hDlg, IDC_RAD_TAOS), FALSE);
 #endif
 
           SQLGetPrivateProfileString(v, "URL", "", k, sizeof(k), "Odbc.ini");
           SetDlgItemText(hDlg, IDC_EDT_URL, k);
-  
+
           SQLGetPrivateProfileString(v, "DB", "", k, sizeof(k), "Odbc.ini");
           SetDlgItemText(hDlg, IDC_EDT_DB, k);
 
@@ -541,7 +516,7 @@ static INT_PTR OnInitDlg(HWND hDlg, WPARAM wParam, LPARAM lParam)
           SQLGetPrivateProfileString(v, "CUSTOMPRODUCT", "", k, sizeof(k), "Odbc.ini");
           if (k[0]) {
             int index = (int)SendMessage(hWndCombo, CB_SELECTSTRING, -1, (LPARAM)k);
-            
+
             if (index == CB_ERR) {
               SendMessage(hWndCombo, CB_SETCURSEL, 0, 0);
             }

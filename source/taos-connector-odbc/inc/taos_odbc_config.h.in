@@ -27,8 +27,7 @@
 
 #include "macros.h"
 
-#cmakedefine FAKE_TAOS
-#cmakedefine HAVE_TAOSWS
+#cmakedefine HAVE_NATIVE
 #cmakedefine TODBC_X86
 
 EXTERN_C_BEGIN
