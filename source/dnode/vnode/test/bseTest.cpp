@@ -173,7 +173,7 @@ int32_t getDataAndValid(SBse *pBse, std::string &inStr, std::vector<int64_t> *se
 int32_t testCompress(SBse *bse, int8_t compressType) {
   std::vector<int64_t> data;
   std::string          str = genRandomString(1000);
-  SBseCfg              cfg = {.compressType = compressType};
+  SBseCfg              cfg = {}; cfg.compressType = compressType;
   bseUpdateCfg(bse, &cfg);
 
   putStringData(bse, 100000, str, &data);
@@ -192,13 +192,13 @@ int32_t testAllCompress(SBse *bse) {
 int32_t benchTest() {
   SBse                *bse = NULL;
   std::vector<int64_t> data;
-  SBseCfg              cfg = {.vgId = 2};
+  SBseCfg              cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   {
     int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
     {
-      SBseCfg cfg = {.compressType = kNoCompres};
+      SBseCfg cfg = {}; cfg.compressType = kNoCompres;
       bseUpdateCfg(bse, &cfg);
     }
 
@@ -230,7 +230,7 @@ int32_t benchTest() {
 }
 int32_t funcTest() {
   SBse                *bse = NULL;
-  SBseCfg              cfg = {.vgId = 2};
+  SBseCfg              cfg = {}; cfg.vgId = 2;
   std::vector<int64_t> data;
   taosRemoveDir("/tmp/bse");
   int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
@@ -277,7 +277,7 @@ int32_t randomGet(SBse *pBse, std::vector<int64_t> *data, int32_t count, int32_t
 }
 int32_t funcTestSmallData() {
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   std::vector<int64_t> data;
@@ -308,7 +308,7 @@ int32_t funcTestSmallData() {
 
 int32_t funcTestWriteSmallData() {
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   std::vector<int64_t> data;
@@ -333,7 +333,7 @@ int32_t snapTest() {
   int32_t              code = 0;
   SBse                *bse = NULL, *bseDst = NULL;
   SBse                *pDstBse = NULL;
-  SBseCfg              cfg = {.vgId = 2};
+  SBseCfg              cfg = {}; cfg.vgId = 2;
   std::vector<int64_t> data1;
   {
     taosRemoveDir("/tmp/bseSrc");
@@ -399,7 +399,7 @@ void emptySnapTest() {
   int32_t code = 0;
   SBse   *bse = NULL, *bseDst = NULL;
   SBse   *pDstBse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   {
     taosRemoveDir("/tmp/bseSrc");
     taosRemoveDir("/tmp/bseDst");
@@ -473,7 +473,7 @@ TEST(bseCase, multiThreadReadWriteTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
@@ -494,7 +494,7 @@ TEST(bseCase, recover) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
@@ -526,7 +526,7 @@ TEST(bseCase, emptyNot) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   std::vector<int64_t> data;
@@ -560,7 +560,7 @@ TEST(bseCase, smallData) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse");
 
   int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
@@ -582,7 +582,7 @@ TEST(bseCase, basicEncryptionTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt");
 
   // Set encryption config
@@ -620,7 +620,7 @@ TEST(bseCase, encryptionWithCompressionTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt_compress");
 
   // Set encryption config
@@ -635,7 +635,7 @@ TEST(bseCase, encryptionWithCompressionTest) {
   std::string str = genRandomString(5000);
   
   for (int8_t compType = kNoCompres; compType <= kZSTDCompres; compType++) {
-    SBseCfg updateCfg = {.compressType = compType};
+    SBseCfg updateCfg = {}; updateCfg.compressType = compType;
     bseUpdateCfg(bse, &updateCfg);
     
     putStringData(bse, 100, str, &data);
@@ -653,7 +653,7 @@ TEST(bseCase, encryptionSnapshotTest) {
 #ifdef LINUX
   initLog();
   SBse   *bseSrc = NULL, *bseDst = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   
   // Set encryption config
   tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -715,7 +715,7 @@ TEST(bseCase, encryptionLargeDataTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt_large");
 
   // Set encryption config
@@ -756,7 +756,7 @@ TEST(bseCase, encryptionMultiCommitTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt_multi");
 
   // Set encryption config
@@ -791,7 +791,7 @@ TEST(bseCase, encryptionRecoverTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt_recover");
 
   // Set encryption config
@@ -834,7 +834,7 @@ TEST(bseCase, encryptionNoKeyTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_no_encrypt");
 
   // No encryption key set - should work as normal
@@ -863,7 +863,7 @@ TEST(bseCase, encryptionBoundaryTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt_boundary");
 
   // Set encryption config
@@ -909,7 +909,7 @@ TEST(bseCase, encryptionMixedDataTest) {
 #ifdef LINUX
   initLog();
   SBse   *bse = NULL;
-  SBseCfg cfg = {.vgId = 2};
+  SBseCfg cfg = {}; cfg.vgId = 2;
   taosRemoveDir("/tmp/bse_encrypt_mixed");
 
   // Set encryption config
@@ -956,7 +956,7 @@ TEST(bseCase, encryptionPerformanceComparisonTest) {
   // Test without encryption
   {
     SBse   *bse = NULL;
-    SBseCfg cfg = {.vgId = 2};
+    SBseCfg cfg = {}; cfg.vgId = 2;
     taosRemoveDir("/tmp/bse_perf_no_encrypt");
 
     int64_t startTime = taosGetTimestampMs();
@@ -978,7 +978,7 @@ TEST(bseCase, encryptionPerformanceComparisonTest) {
   // Test with encryption
   {
     SBse   *bse = NULL;
-    SBseCfg cfg = {.vgId = 2};
+    SBseCfg cfg = {}; cfg.vgId = 2;
     taosRemoveDir("/tmp/bse_perf_encrypt");
 
     tstrncpy(cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);

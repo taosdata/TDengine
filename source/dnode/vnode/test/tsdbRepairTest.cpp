@@ -128,11 +128,11 @@ namespace {
 bool              g_hasTsdbRepairTarget = false;
 int32_t           g_targetVnodeId = 0;
 int32_t           g_targetFileId = 0;
-SRepairTsdbFileOpt g_targetTsdbFileOpt = {.strategy = DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY};
+SRepairTsdbFileOpt g_targetTsdbFileOpt = []{ SRepairTsdbFileOpt o = {}; o.strategy = DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY; return o; }();
 }  // namespace
 
 extern "C" {
-SDmNotifyHandle dmNotifyHdl = {.state = 0};
+SDmNotifyHandle dmNotifyHdl = {};
 }
 
 extern "C" const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId) {
