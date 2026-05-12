@@ -47,6 +47,20 @@ add_test(
     COMMAND ttimeNaturalUnitsTest
 )
 
+# ttimeQuarterParseTest.cpp
+add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
+DEP_ext_gtest(ttimeQuarterParseTest)
+target_link_libraries(ttimeQuarterParseTest PRIVATE common)
+target_include_directories(
+    ttimeQuarterParseTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME ttimeQuarterParseTest
+    COMMAND ttimeQuarterParseTest
+)
+
 # # cosCpTest.cpp
 # add_executable(cosCpTest "cosCpTest.cpp")
 # DEP_ext_gtest(cosCpTest)
@@ -97,19 +111,5 @@ if(${TD_LINUX})
     SET(MSG_TBL_FILE ${CMAKE_CURRENT_SOURCE_DIR}/msgTypeTable.ini)
     add_custom_command(TARGET tmsgTest POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSG_TBL_FILE} $<TARGET_FILE_DIR:tmsgTest>
-    )
-
-    # streamMsg serialization test (vtable-ref-vtable OTableInfoRsp)
-    add_executable(streamMsgTest "streamMsgTest.cpp")
-    DEP_ext_gtest(streamMsgTest)
-    target_link_libraries(streamMsgTest PRIVATE os util common)
-    target_include_directories(
-        streamMsgTest
-        PUBLIC "${TD_SOURCE_DIR}/include/common"
-        PUBLIC "${TD_SOURCE_DIR}/include/util"
-    )
-    add_test(
-        NAME streamMsgTest
-        COMMAND streamMsgTest
     )
 endif()

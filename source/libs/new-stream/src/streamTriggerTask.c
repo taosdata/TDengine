@@ -3864,23 +3864,9 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
       QUERY_CHECK_NULL(pTask->readerList, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int32_t nPartReaders = TARRAY_SIZE(pTask->readerList);
-      // Deduplicate: only add readers whose nodeId is not already in readerList
       if (taosArrayGetSize(pRsp->cont.readerList) > 0) {
-        for (int32_t ri = 0; ri < (int32_t)taosArrayGetSize(pRsp->cont.readerList); ri++) {
-          SStreamTaskAddr *pNew = TARRAY_GET_ELEM(pRsp->cont.readerList, ri);
-          bool exists = false;
-          for (int32_t ei = 0; ei < TARRAY_SIZE(pTask->readerList); ei++) {
-            SStreamTaskAddr *pExist = TARRAY_GET_ELEM(pTask->readerList, ei);
-            if (pExist->nodeId == pNew->nodeId) {
-              exists = true;
-              break;
-            }
-          }
-          if (!exists) {
-            px = taosArrayPush(pTask->readerList, pNew);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          }
-        }
+        px = taosArrayAddAll(pTask->readerList, pRsp->cont.readerList);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
 
       for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
@@ -7662,7 +7648,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       SSHashObj *pOrigTableCols =
           IS_PATCHING_VITRUAL_TABLE(pContext) ? pContext->patchContext.pOrigTableCols : pTask->pOrigTableCols;
-      bool hasForwarded = false;
       int32_t iter1 = 0;
       void   *px = tSimpleHashIterate(pOrigTableCols, NULL, &iter1);
       while (px != NULL) {
@@ -7674,13 +7659,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             int32_t iter3 = 0;
             void   *px2 = tSimpleHashIterate(pTbInfo->pColumns, NULL, &iter3);
             while (px2 != NULL) {
-              if (pRsp->resolved == 0) {
-                hasForwarded = true;
-              } else {
-                pTbInfo->suid = pRsp->suid;
-                pTbInfo->uid = pRsp->uid;
-                *(col_id_t *)px2 = pRsp->cid;
-              }
+              pTbInfo->suid = pRsp->suid;
+              pTbInfo->uid = pRsp->uid;
+              *(col_id_t *)px2 = pRsp->cid;
               pRsp++;
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
@@ -7693,141 +7674,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (--pContext->curReaderIdx > 0) {
         // wait for responses from other readers
         goto _end;
-      }
-
-      // Check if any forwarded (unresolved) entries need re-routing
-      if (hasForwarded) {
-        pContext->resolveDepth++;
-        if (pContext->resolveDepth >= 32) {
-          code = TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
-          ST_TASK_ELOG("vtable ref chain too deep, resolveDepth:%d", pContext->resolveDepth);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-
-        // Update VTableInfo colRefs in-place for forwarded entries, then rebuild pOrigTableCols
-        // Re-scan the response to apply forwarding
-        OTableInfoRsp *pRspRescan = TARRAY_DATA(otableInfo.cols);
-        SArray *pVirTableInfoRsp2 =
-            IS_PATCHING_VITRUAL_TABLE(pContext) ? pContext->patchContext.pVirTableInfoRsp : pTask->pVirTableInfoRsp;
-        int32_t iterR1 = 0;
-        void *pxR = tSimpleHashIterate(pOrigTableCols, NULL, &iterR1);
-        while (pxR != NULL) {
-          char      *dbName = tSimpleHashGetKey(pxR, NULL);
-          SSHashObj *pDbInfoR = *(SSHashObj **)pxR;
-          int32_t    iterR2 = 0;
-          SSTriggerOrigColumnInfo *pTbInfoR = tSimpleHashIterate(pDbInfoR, NULL, &iterR2);
-          while (pTbInfoR != NULL) {
-            if (pTbInfoR->vgId == vgId) {
-              char *tbName = tSimpleHashGetKey(pTbInfoR, NULL);
-              int32_t iterR3 = 0;
-              void *px2R = tSimpleHashIterate(pTbInfoR->pColumns, NULL, &iterR3);
-              while (px2R != NULL) {
-                char *colName = tSimpleHashGetKey(px2R, NULL);
-                if (pRspRescan->resolved == 0) {
-                  // Update VTableInfo colRefs to point to next hop
-                  for (int32_t vi = 0; vi < (int32_t)taosArrayGetSize(pVirTableInfoRsp2); vi++) {
-                    VTableInfo *pVInfo = TARRAY_GET_ELEM(pVirTableInfoRsp2, vi);
-                    for (int32_t ci = 0; ci < pVInfo->cols.nCols; ci++) {
-                      SColRef *pCR = &pVInfo->cols.pColRef[ci];
-                      if (pCR->hasRef &&
-                          strcmp(pCR->refDbName, dbName) == 0 &&
-                          strcmp(pCR->refTableName, tbName) == 0 &&
-                          strcmp(pCR->refColName, colName) == 0) {
-                        tstrncpy(pCR->refDbName, pRspRescan->nextRefDbName, TSDB_DB_NAME_LEN);
-                        tstrncpy(pCR->refTableName, pRspRescan->nextRefTableName, TSDB_TABLE_NAME_LEN);
-                        tstrncpy(pCR->refColName, pRspRescan->nextRefColName, TSDB_COL_NAME_LEN);
-                      }
-                    }
-                  }
-                }
-                pRspRescan++;
-                px2R = tSimpleHashIterate(pTbInfoR->pColumns, px2R, &iterR3);
-              }
-            }
-            pTbInfoR = tSimpleHashIterate(pDbInfoR, pTbInfoR, &iterR2);
-          }
-          pxR = tSimpleHashIterate(pOrigTableCols, pxR, &iterR1);
-        }
-
-        // Clear and rebuild pOrigTableCols from updated VTableInfo colRefs
-        tSimpleHashClear(pOrigTableCols);
-        for (int32_t vi = 0; vi < (int32_t)taosArrayGetSize(pVirTableInfoRsp2); vi++) {
-          VTableInfo *pVInfo = TARRAY_GET_ELEM(pVirTableInfoRsp2, vi);
-          for (int32_t ci = 0; ci < pVInfo->cols.nCols; ci++) {
-            SColRef *pCR = &pVInfo->cols.pColRef[ci];
-            if (!pCR->hasRef) continue;
-            SSHashObj *pDbInfoNew = NULL;
-            size_t     dbNLen = strlen(pCR->refDbName) + 1;
-            size_t     tbNLen = strlen(pCR->refTableName) + 1;
-            size_t     colNLen = strlen(pCR->refColName) + 1;
-            void *pxN = tSimpleHashGet(pOrigTableCols, pCR->refDbName, dbNLen);
-            if (pxN == NULL) {
-              pDbInfoNew = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-              QUERY_CHECK_NULL(pDbInfoNew, code, lino, _end, terrno);
-              tSimpleHashSetFreeFp(pDbInfoNew, stTriggerTaskDestroyOrigColumnInfo);
-              code = tSimpleHashPut(pOrigTableCols, pCR->refDbName, dbNLen, &pDbInfoNew, POINTER_BYTES);
-              if (code != TSDB_CODE_SUCCESS) {
-                tSimpleHashCleanup(pDbInfoNew);
-                QUERY_CHECK_CODE(code, lino, _end);
-              }
-            } else {
-              pDbInfoNew = *(SSHashObj **)pxN;
-            }
-            SSTriggerOrigColumnInfo *pTbInfoNew = tSimpleHashGet(pDbInfoNew, pCR->refTableName, tbNLen);
-            if (pTbInfoNew == NULL) {
-              SSTriggerOrigColumnInfo newInfo2 = {0};
-              code = tSimpleHashPut(pDbInfoNew, pCR->refTableName, tbNLen, &newInfo2, sizeof(SSTriggerOrigColumnInfo));
-              QUERY_CHECK_CODE(code, lino, _end);
-              pTbInfoNew = tSimpleHashGet(pDbInfoNew, pCR->refTableName, tbNLen);
-              QUERY_CHECK_NULL(pTbInfoNew, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-            }
-            if (pTbInfoNew->pColumns == NULL) {
-              pTbInfoNew->pColumns = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-              QUERY_CHECK_NULL(pTbInfoNew->pColumns, code, lino, _end, terrno);
-            }
-            col_id_t colid = 0;
-            code = tSimpleHashPut(pTbInfoNew->pColumns, pCR->refColName, colNLen, &colid, sizeof(col_id_t));
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-        }
-
-        // Build pOrigTableNames and send to Mnode for re-routing
-        pOrigTableNames = taosArrayInit(0, sizeof(SStreamDbTableName));
-        QUERY_CHECK_NULL(pOrigTableNames, code, lino, _end, terrno);
-        int32_t iterN1 = 0;
-        void *pxN = tSimpleHashIterate(pOrigTableCols, NULL, &iterN1);
-        while (pxN != NULL) {
-          char      *dbNameN = tSimpleHashGetKey(pxN, NULL);
-          SSHashObj *pDbInfoN = *(SSHashObj **)pxN;
-          int32_t    iterN2 = 0;
-          SSTriggerOrigColumnInfo *pTbInfoN = tSimpleHashIterate(pDbInfoN, NULL, &iterN2);
-          while (pTbInfoN != NULL) {
-            char               *tbNameN = tSimpleHashGetKey(pTbInfoN, NULL);
-            SStreamDbTableName *pNameN = taosArrayReserve(pOrigTableNames, 1);
-            QUERY_CHECK_NULL(pNameN, code, lino, _end, terrno);
-            (void)snprintf(pNameN->dbFName, sizeof(pNameN->dbFName), "%d.%s", 1, dbNameN);
-            tstrncpy(pNameN->tbName, tbNameN, sizeof(pNameN->tbName));
-            pTbInfoN = tSimpleHashIterate(pDbInfoN, pTbInfoN, &iterN2);
-          }
-          pxN = tSimpleHashIterate(pOrigTableCols, pxN, &iterN1);
-        }
-
-        int64_t nOrigTables = TARRAY_SIZE(pOrigTableNames);
-        ST_TASK_DLOG("vtable ref chain forwarding round %d, nOrigTables:%" PRId64, pContext->resolveDepth, nOrigTables);
-        if (nOrigTables > 0) {
-          SStreamMgmtReq *pReq2 = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
-          QUERY_CHECK_NULL(pReq2, code, lino, _end, terrno);
-          pReq2->reqId = atomic_add_fetch_64(&pTask->mgmtReqId, 1);
-          pReq2->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
-          pReq2->cont.pReqs = pOrigTableNames;
-          pOrigTableNames = NULL;
-          if (!IS_PATCHING_VITRUAL_TABLE(pContext)) {
-            pContext->status = STRIGGER_CONTEXT_IDLE;
-          }
-          atomic_store_64(&pTask->waitingMgmtReqId, pReq2->reqId);
-          atomic_store_ptr(&pTask->task.pMgmtReq, pReq2);
-        }
-        break;
       }
 
       SArray *pVirTableInfoRsp =
@@ -7855,7 +7701,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
-      pContext->resolveDepth = 0;  // reset for next use
       for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
            pContext->curReaderIdx++) {
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_SET_TABLE);
@@ -9937,6 +9782,7 @@ static void stRealtimeGroupDestroy(void *ptr) {
     taosMemoryFreeClear(pGroup->ds.pendingColTouched);
   } else if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_EVENT) {
     stRealtimeContextDestroyWindow(&pGroup->parentWindow);
+    taosMemoryFreeClear(pGroup->pFirstSubWinOpenNotify);
   }
   taosObjListClear(&pGroup->windows);
   taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
@@ -10948,8 +10794,14 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           if (pGroup->numSubWindows == 0) {
             pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = pTsData[i], .range.ekey = INT64_MAX};
             if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-              code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, -1,
-                                                   &pGroup->parentWindow.pWinOpenNotify);
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, -1, pGroup->gid,
+                                                   pTsData[i], 0, &pGroup->parentWindow.pWinOpenNotify);
+              QUERY_CHECK_CODE(code, lino, _end);
+              // A single sub-event is still a regular event window. Keep the first sub-window open pending until a
+              // second sub-window proves that parent/child window events are needed.
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, 0, pGroup->gid,
+                                                   pTsData[i], pGroup->parentWindow.range.skey,
+                                                   &pGroup->pFirstSubWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
             }
           }
@@ -10962,13 +10814,14 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         newWin.range.ekey = INT64_MAX;
         pWin = taosArrayPush(pContext->pWindows, &newWin);
         QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
-        if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+        if ((pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) && (!checkSubEvent || pGroup->numSubWindows > 1)) {
           int32_t winIdx = -1;
           if (checkSubEvent && pGroup->numSubWindows > 1) {
             winIdx = pGroup->numSubWindows - 1;
           }
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, winIdx,
-                                               &pWin->pWinOpenNotify);
+          int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, winIdx, pGroup->gid,
+                                               pTsData[i], parentWindowStart, &pWin->pWinOpenNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -10979,10 +10832,17 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
 
       if (checkSubEvent && ps[i] && ps[i] != pGroup->conditionIdx) {
         // close previous sub-window since start condition index is changed
+        pWin->forceWinOpen = true;
+        if (pGroup->pFirstSubWinOpenNotify != NULL && pWin->pWinOpenNotify == NULL) {
+          pWin->pWinOpenNotify = pGroup->pFirstSubWinOpenNotify;
+          pGroup->pFirstSubWinOpenNotify = NULL;
+        }
         pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int32_t winIdx = pGroup->numSubWindows - 1;
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, &pWin->pWinCloseNotify);
+          code =
+              streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, pGroup->gid,
+                                            pWin->range.skey, pGroup->parentWindow.range.skey, &pWin->pWinCloseNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
@@ -10998,20 +10858,24 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         pGroup->parentWindow.range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
       }
       if (pe[i] || (checkSubEvent && !ps[i])) {
+        SSTriggerNotifyWindow *pClosedWin = pWin;
         pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int32_t winIdx = -1;
           if (checkSubEvent && pGroup->numSubWindows > 1) {
             winIdx = pGroup->numSubWindows - 1;
           }
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, &pWin->pWinCloseNotify);
+          int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, pGroup->gid,
+                                               pWin->range.skey, parentWindowStart, &pWin->pWinCloseNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
         if (checkSubEvent) {
           pGroup->parentWindow.range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
           if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-            code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, -1,
+            code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, -1, pGroup->gid,
+                                                 pGroup->parentWindow.range.skey, 0,
                                                  &pGroup->parentWindow.pWinCloseNotify);
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -11019,9 +10883,14 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             void *px = taosArrayPush(pContext->pParentWindows, &pGroup->parentWindow);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           } else {
+            if (pClosedWin->pWinOpenNotify == NULL) {
+              pClosedWin->pWinOpenNotify = pGroup->parentWindow.pWinOpenNotify;
+              pGroup->parentWindow.pWinOpenNotify = NULL;
+            }
             stRealtimeContextDestroyWindow(&pGroup->parentWindow);
           }
           pGroup->parentWindow = (SSTriggerNotifyWindow){0};
+          taosMemoryFreeClear(pGroup->pFirstSubWinOpenNotify);
           pGroup->numSubWindows = 0;
           pGroup->conditionIdx = 0;
         }
@@ -11335,11 +11204,14 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
                        isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
                                           pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
-    bool ignore = (i < nInitWins) || !meetTrueFor;
-    if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
-      SSTriggerCalcParam    param = {.triggerTime = now,
-                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                     .extraNotifyContent = pWin->pWinOpenNotify};
+    bool forceWinOpen = pWin->forceWinOpen;
+    bool ignore = ((i < nInitWins) && !forceWinOpen) || !meetTrueFor;
+    bool deferFirstSubWinOpen = (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows == 1 &&
+                                 pWin->range.skey == pGroup->parentWindow.range.skey);
+    if ((calcOpen || notifyOpen) && !ignore && !deferFirstSubWinOpen && !pContext->recovering) {
+      SSTriggerCalcParam param = {.triggerTime = now,
+                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                  .extraNotifyContent = pWin->pWinOpenNotify};
       SSTriggerNotifyWindow win = *pWin;
       if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
         win.range.ekey = win.range.skey;
@@ -11355,6 +11227,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         pWin->pWinOpenNotify = NULL;
       }
+    }
+    if (forceWinOpen) {
+      pWin->forceWinOpen = false;
     }
 
     ignore = (i >= numClosed) || !meetTrueFor || (pTask->ignoreNoDataTrigger && pWin->wrownum == 0);
@@ -12027,7 +11902,7 @@ _end:
 }
 
 static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t ts, char **ppExtraNotifyContent,
-                                        bool saveWindow, bool hasStartData, bool isParent) {
+                                        bool saveWindow, bool hasStartData, bool isParent, bool deferOpen) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
@@ -12114,7 +11989,8 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
 
   if (saveWindow) {
     // only save window when close window
-  } else if (pTrueForInfo && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0)) {
+  } else if ((needCalc || needNotify) &&
+             (deferOpen || (pTrueForInfo && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0)))) {
     pGroup->pendingWinOpen = true;
     pGroup->pendingWinParam = param;
     param.extraNotifyContent = NULL;
@@ -12713,11 +12589,11 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
         bool meetBound = (r < endIdx) || (r > 0 && pTsData[r - 1] == ts);
         if (ts == nextStart && meetBound) {
           if (IS_TRIGGER_GROUP_NONE_WINDOW(pGroup)) {
-            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], NULL, true, true, false);
+            code = stHistoryGroupOpenWindow(pGroup, pTsData[r], NULL, true, true, false, false);
             QUERY_CHECK_CODE(code, lino, _end);
             r++;
           } else {
-            code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart, false);
+            code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart, false, false);
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }
@@ -12732,7 +12608,7 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
       void *px = tSimpleHashGet(pContext->pFirstTsMap, &pGroup->gid, sizeof(int64_t));
       QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int64_t ts = *(int64_t *)px;
-      code = stHistoryGroupOpenWindow(pGroup, ts, NULL, false, false, false);
+      code = stHistoryGroupOpenWindow(pGroup, ts, NULL, false, false, false, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     allTableProcessed = true;
@@ -12756,7 +12632,7 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
         break;
       }
       if (ts == nextStart) {
-        code = stHistoryGroupOpenWindow(pGroup, ts, NULL, false, false, false);
+        code = stHistoryGroupOpenWindow(pGroup, ts, NULL, false, false, false, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       if (ts == curEnd) {
@@ -12837,7 +12713,7 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
         code = stHistoryGroupCloseWindow(pGroup, NULL, true, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      code = stHistoryGroupOpenWindow(pGroup, nextTs, NULL, true, true, false);
+      code = stHistoryGroupOpenWindow(pGroup, nextTs, NULL, true, true, false, false);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       // read all data of the current table
@@ -12864,7 +12740,7 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
             code = stHistoryGroupCloseWindow(pGroup, NULL, true, false);
             QUERY_CHECK_CODE(code, lino, _end);
           }
-          code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, true, false);
+          code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, true, false, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -12931,7 +12807,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
         continue;
       }
       if (nrowsCurWin + skipped == nrowsNextWstart) {
-        code = stHistoryGroupOpenWindow(pGroup, lastTs, NULL, false, true, false);
+        code = stHistoryGroupOpenWindow(pGroup, lastTs, NULL, false, true, false, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       QUERY_CHECK_CONDITION(IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -12965,7 +12841,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
           TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += skipped;
         }
         if (nrowsCurWin + skipped == nrowsNextWstart) {
-          code = stHistoryGroupOpenWindow(pGroup, lastTs, NULL, false, true, false);
+          code = stHistoryGroupOpenWindow(pGroup, lastTs, NULL, false, true, false, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         QUERY_CHECK_CONDITION(IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -13128,7 +13004,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (cut.splitStandalone) {
-              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
@@ -13158,12 +13034,12 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
             } else {
-              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             code = stAssignStateRowToValues(pStateCols, r, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
@@ -13236,7 +13112,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               if (cut.splitStandalone) {
-                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false, false);
                 QUERY_CHECK_CODE(code, lino, _end_block);
                 TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
                 TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
@@ -13269,12 +13145,12 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
             } else {
-              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             code = stAssignStateRowToValues(pStateCols, r, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
@@ -13347,10 +13223,12 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
         if (checkSubEvent && ps[r] && ps[r] != pGroup->conditionIdx) {
           // close previous sub-window since start condition index is changed
+          int32_t winIdx = pGroup->numSubWindows - 1;
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-            int32_t winIdx = pGroup->numSubWindows - 1;
-            code =
-                streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, &pExtraNotifyContent);
+            SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
+            code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, pGroup->gid,
+                                                 pCurWin->range.skey, pGroup->parentWindow.range.skey,
+                                                 &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
           code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
@@ -13370,8 +13248,8 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           if (pGroup->numSubWindows == 0) {
             pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = pTsData[r], .range.ekey = pTsData[r]};
             if (pTask->notifyHistory && pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-              code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, -1,
-                                                   &pGroup->parentWindow.pWinOpenNotify);
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, -1, pGroup->gid,
+                                                   pTsData[r], 0, &pGroup->parentWindow.pWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
             }
           }
@@ -13379,38 +13257,54 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           pGroup->numSubWindows++;
           pGroup->conditionIdx = ps[r];
         }
-        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-          int32_t winIdx = -1;
-          if (checkSubEvent && pGroup->numSubWindows > 1) {
+        int32_t winIdx = -1;
+        bool    deferOpen = false;
+        if (checkSubEvent) {
+          if (pGroup->numSubWindows == 1) {
+            winIdx = 0;
+            deferOpen = true;
+          } else {
             winIdx = pGroup->numSubWindows - 1;
           }
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, winIdx,
-                                               &pExtraNotifyContent);
+        }
+        if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+          int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, winIdx, pGroup->gid,
+                                               pTsData[r], parentWindowStart, &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+        code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, deferOpen);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && (pe[r] || (checkSubEvent && !ps[r]))) {
+        int32_t winIdx = -1;
+        if (checkSubEvent && pGroup->numSubWindows > 1) {
+          winIdx = pGroup->numSubWindows - 1;
+        }
+        if (checkSubEvent && pGroup->numSubWindows == 1 && pGroup->pendingWinOpen) {
+          taosMemoryFreeClear(pGroup->pendingWinParam.extraNotifyContent);
+          pGroup->pendingWinParam.extraNotifyContent = pGroup->parentWindow.pWinOpenNotify;
+          pGroup->parentWindow.pWinOpenNotify = NULL;
+        }
         if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-          int32_t winIdx = -1;
-          if (checkSubEvent && pGroup->numSubWindows > 1) {
-            winIdx = pGroup->numSubWindows - 1;
-          }
-          code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, &pExtraNotifyContent);
+          int64_t          parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, pGroup->gid,
+                                               pCurWin->range.skey, parentWindowStart, &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
         QUERY_CHECK_CODE(code, lino, _end);
         if (checkSubEvent) {
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-            code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, -1,
+            code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, -1, pGroup->gid,
+                                                 pGroup->parentWindow.range.skey, 0,
                                                  &pGroup->parentWindow.pWinCloseNotify);
             QUERY_CHECK_CODE(code, lino, _end);
           }
           if (pGroup->numSubWindows > 1) {
             code = stHistoryGroupOpenWindow(pGroup, pGroup->parentWindow.range.skey,
-                                            &pGroup->parentWindow.pWinOpenNotify, false, true, true);
+                                            &pGroup->parentWindow.pWinOpenNotify, false, true, true, false);
             QUERY_CHECK_CODE(code, lino, _end);
             TRINGBUF_HEAD(&pGroup->winBuf)->range = pGroup->parentWindow.range;
             TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->parentWindow.wrownum;
