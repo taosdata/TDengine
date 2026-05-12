@@ -66,8 +66,8 @@ prepare → build → quality → verify → upload → test
 ### 2.1 提交 MR
 
 ```bash
-# 1. 基于 3.3.6 创建分支
-git checkout 3.3.6 && git pull
+# 1. 基于目标分支创建开发分支（以 main 为例，3.3.6 / 3.0 同理）
+git checkout main && git pull
 git checkout -b feat/my-feature
 
 # 2. 开发 & 提交
@@ -77,18 +77,18 @@ git add -A && git commit -m "feat: add xxx"
 git push origin feat/my-feature
 
 # 4. 在 GitLab Web UI 上创建 Merge Request
-#    Source: feat/my-feature → Target: 3.3.6
+#    Source: feat/my-feature → Target: main（或 3.3.6 / 3.0）
 ```
 
 ### 2.2 Pipeline 自动触发
 
-创建目标为 `3.3.6` 系列分支的 MR 后，Pipeline **自动触发**。你不需要做任何额外操作。
+创建目标为 `main`、`3.3.6` 系列或 `3.0` 系列分支的 MR 后，Pipeline **自动触发**。你不需要做任何额外操作。
 
-> **注意 1**: 当前仅接受**目标分支为 `3.3.6` 系列**（如 `3.3.6`、`3.3.6.x`）的 MR 触发 CI。  
+> **注意 1**: 当前接受**目标分支为 `main`、`3.3.6`（含子版本如 `3.3.6.x`）或 `3.0`（含子版本如 `3.0.x`）** 的 MR 触发 CI。  
 > **注意 2**: Pipeline 触发后，build/test 阶段只有在以下文件发生变更时才会实际执行（否则 job 会被跳过）：
 > ```
 > **/*.{c,h,cpp,cmake}   CMakeLists.txt
-> source/**              scripts/**
+> source/**              tests/ci/scripts/**
 > .gitlab/.gitlab-ci.yml
 > ```
 > 仅修改文档或非代码文件时，build/test 阶段会跳过，流水线快速结束。
@@ -103,11 +103,11 @@ git push origin feat/my-feature
 ### 2.4 手动触发（Web）
 
 在 GitLab 仓库页面 → **Build → Pipelines → Run Pipeline**：
-- 选择分支（如 `3.3.6`）
+- 选择分支（如 `main`、`3.3.6`、`3.0`）
 - 可选设置变量（如 `RELEASE_VERSION`）
 - 点击 "Run Pipeline"
 
-> **注意**: 3.3.6 分支的 CI 同时支持 MR 触发、Push 触发（推送到保护的 3.3.6 系列分支）、定时调度和手动触发四种方式，与 main 分支 CI 不同（main 分支 CI 仅支持 MR 触发）。
+> **注意**: CI 同时支持 MR 触发、Push 触发（推送到受保护的 main / 3.3.6* / 3.0* 分支）、定时调度和手动触发四种方式。
 
 ---
 
@@ -115,15 +115,15 @@ git push origin feat/my-feature
 
 | 触发方式 | 条件 | 说明 |
 |----------|------|------|
-| **MR 事件** | 创建/更新 MR，**目标分支匹配 `3.3.6*`** | 最常用触发方式 |
-| **Push** | 推送到受保护的 `3.3.6` 系列分支 | 直接推送触发 |
+| **MR 事件** | 创建/更新 MR，**目标分支为 `main`、`3.3.6*` 或 `3.0*`** | 最常用触发方式 |
+| **Push** | 推送到受保护的 `main`、`3.3.6*` 或 `3.0*` 分支 | 直接推送触发 |
 | **定时调度** | Schedule | daily build 使用 |
 | **手动** | Web UI | 临时测试 / 发布版本 |
 
 > **注意**: Pipeline 内各 build/test job 还有第二层过滤（`.rules-code-change`）：仅当以下文件有变更时才会执行：
 > - 代码文件：`**/*.{c,h,cpp,cmake}`、`CMakeLists.txt`
 > - 源码目录：`source/**`
-> - CI 脚本：`scripts/**`（注意：3.3.6 分支 CI 脚本在根目录 `scripts/` 下，而非 `tests/ci/scripts/`）
+> - CI 脚本：`tests/ci/scripts/**`
 > - CI 配置：`.gitlab/.gitlab-ci.yml`
 >
 > 如果你只修改了文档或测试 Python 文件，build/test 阶段会被跳过，流水线快速结束。
@@ -136,11 +136,11 @@ git push origin feat/my-feature
 
 - **作用**: 在 builder 机器上克隆两份源码（NoSan 用和 ASAN 用）
 - **输出**: `build.env` 包含 `WORKSPACE`、`TSDB_SRC`、`TSDB_SRC_SAN` 路径
-- **workspace 路径规则**（3.3.6 分支使用 `/data/ci/` 而非 main 分支的 `/data1/tdengine-ci/`）:
-  - MR: `/data/ci/mr<IID>/`
-  - 定时: `/data/ci/daily-<branch>-<date>/`
-  - 手动: `/data/ci/web-<pipeline_id>/`
-  - Push: `/data/ci/push-<branch>-<sha>/`
+- **workspace 路径规则**：
+  - MR: `${CI_BASE_DIR}/mr<IID>/`
+  - 定时: `${CI_BASE_DIR}/daily-<branch>-<date>/`
+  - 手动: `${CI_BASE_DIR}/web-<pipeline_id>/`
+  - Push: `${CI_BASE_DIR}/push-<branch>-<sha>/`
 
 ### 4.2 build — 三步构建
 

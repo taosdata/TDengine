@@ -1824,13 +1824,23 @@ if(NOT ${TD_WINDOWS})
         "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
         "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
     )
-    # Debug: -Og is GCC's "optimize for debugging" level — produces accurate
-    # backtraces/watchpoints like -O0 but inlines trivial wrappers, resulting in
-    # ~50-60 % smaller code sections compared to -O0.  This is safe to use
-    # for Arrow because we only debug taosdump itself, not Arrow internals.
+    # GCC 14 changed inlining behaviour for functions carrying both
+    # __attribute__((always_inline)) and __attribute__((target("sse2"))).
+    # Under -Og the compiler emits a hard compilation error (not a warning)
+    # when it cannot inline such a function, which breaks the vendored xxhash
+    # SSE2 helpers (XXH3_scrambleAcc_sse2 / XXH3_accumulate_sse2).
+    # Switching to -O1 avoids the restriction while still producing debuggable
+    # binaries.  -O1 is strictly better than -Og here because -Og explicitly
+    # disables optimisations that would allow inlining across target boundaries.
     list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_FLAGS_DEBUG:STRING=-Og -g"
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-Og -g"
+        "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
+    )
+    # Arrow's SetupCxxFlags.cmake appends -Werror to DEBUG builds when the
+    # warning level is CHECKIN (the default).  Use PRODUCTION to keep the
+    # build clean without -Werror.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
     )
     # -Os replaces the default -O3 in Release builds, shrinking Arrow's
     # code sections by ~15-20 %.  Specified via the build-type-specific variable

@@ -25,12 +25,13 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible   # 新 commit 推送时自动取消标记了 interruptible 的旧 pipeline
   rules:
-    # 只接受目标为 main 分支的 MR 触发
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
-    # - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    # - if: $CI_COMMIT_BRANCH =~ /^(main|3\.0|3\.3\.6|3\.3\.6\.citest)$/ && $CI_PIPELINE_SOURCE == "push"
-    # - if: $CI_PIPELINE_SOURCE == "schedule"
-    # - if: $CI_PIPELINE_SOURCE == "web"
+    # 接受目标为 main、3.3.6 系列、3.0 系列分支的 MR 触发
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(main|3\.3\.6|3\.0)/
+    # 推送到受保护的目标分支（main / 3.3.6* / 3.0*）
+    - if: $CI_COMMIT_BRANCH =~ /^(main|3\.3\.6|3\.0)/ && $CI_PIPELINE_SOURCE == "push"
+    # 定时调度 (daily build) / 手动触发
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
 stages:
   - prepare
@@ -193,6 +194,25 @@ build-externals:
           done < <(find "${_ext_debug}" -name "CMakeCache.txt" \
                        -exec grep -l "devtoolset-7" {} \; 2>/dev/null)
         fi
+        # Integrity check: if an external stamp exists but the installed library
+        # is missing (partial/corrupted previous run), remove the stamp so
+        # ExternalProject rebuilds it from scratch.
+        _ext_ins="${CI_CACHE_DIR}/externals-others-amd64/install"
+        _ext_stamp_base="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
+        for _chk_file in \
+            "ext_gtest/Debug/lib/libgtest_main.a" \
+            "ext_gtest/Debug/lib/libgtest.a" \
+            "ext_arrow/Debug/lib/libarrow.a" \
+            "ext_arrow/Debug/lib/libparquet.a" ; do
+          if [ ! -f "${_ext_ins}/${_chk_file}" ]; then
+            _ext_name=$(echo "${_chk_file}" | cut -d/ -f1)
+            _stamp_dir="${_ext_stamp_base}/${_ext_name}-stamp"
+            if [ -d "${_stamp_dir}" ]; then
+              echo "[build-externals] integrity check: ${_chk_file} missing, removing stamp to force rebuild"
+              rm -rf "${_ext_stamp_base}/${_ext_name}-build" "${_stamp_dir}"
+            fi
+          fi
+        done
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
           --image others:latest \
           --src "${TSDB_SRC}" \
@@ -205,7 +225,6 @@ build-externals:
           -DBUILD_ENTERPRISE=ON \
           -DBUILD_ENGINE=ON \
           -DBUILD_ASSERT_NOT_CORE=OFF \
-          -DBUILD_TOOLS=ON \
           -DBUILD_KEEPER=ON \
           -DBUILD_ADAPTER=ON \
           -DBUILD_RUST=ON \
