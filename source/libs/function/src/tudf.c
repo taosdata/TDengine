@@ -279,8 +279,8 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
         }
       }
       if (skip) continue;
-      int32_t valueLen = strlen(uvEnvItems[i].value);
-      int32_t len = (int32_t)nameLen + 1 /* '=' */ + valueLen + 1 /* '\0' */;
+      size_t valueLen = strlen(uvEnvItems[i].value);
+      size_t len = nameLen + 1 /* '=' */ + valueLen + 1 /* '\0' */;
       envUdfdWithPEnv[outIdx] = (char *)taosMemoryCalloc(len, 1);
       if (envUdfdWithPEnv[outIdx] == NULL) {
         err = TSDB_CODE_OUT_OF_MEMORY;
@@ -295,7 +295,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
     for (int32_t i = 0; i < lenEnvUdfd; i++) {
       if (envUdfd[i] != NULL) {
-        int32_t len = strlen(envUdfd[i]) + 1;
+        size_t len = strlen(envUdfd[i]) + 1;
         envUdfdWithPEnv[outIdx] = (char *)taosMemoryCalloc(len, 1);
         if (envUdfdWithPEnv[outIdx] == NULL) {
           err = TSDB_CODE_OUT_OF_MEMORY;
