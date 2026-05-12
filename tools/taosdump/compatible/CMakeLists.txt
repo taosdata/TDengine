@@ -26,13 +26,11 @@ DEP_ext_avro(compatAvro)
 DEP_ext_jansson(compatAvro)
 DEP_ext_snappy(compatAvro)
 
-# libavro requires liblzma for LZMA codec support
-find_package(LibLZMA)
-if(LIBLZMA_FOUND)
-    target_link_libraries(compatAvro PUBLIC ${LIBLZMA_LIBRARIES})
-else()
-    target_link_libraries(compatAvro PUBLIC lzma)
-endif()
+# libavro requires liblzma for LZMA codec support.
+# Use the project's own ext_xz (liblzma.a built from source) instead of the
+# system library so the build works in the CI container where liblzma-devel
+# is not installed.
+DEP_ext_xz(compatAvro)
 
 # Hide symbols to avoid conflicts with Arrow's bundled snappy/zstd
 if(NOT WIN32)
