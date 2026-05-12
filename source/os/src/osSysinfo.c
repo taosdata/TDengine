@@ -973,7 +973,10 @@ static int32_t taosGetCgroupCpuUsageUsec(int64_t *usageUsec) {
     char line[256] = {0};
     while (taosGetsFile(pFile, sizeof(line), line) > 0) {
       if (strncmp(line, "usage_usec", 10) == 0) {
-        (void)sscanf(line + 10, " %" PRId64, usageUsec);
+        if (sscanf(line + 10, " %" PRId64, usageUsec) != 1) {
+          TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+          return -1;
+        }
         TAOS_SKIP_ERROR(taosCloseFile(&pFile));
         return 0;
       }
@@ -1012,7 +1015,7 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
 
   if (cgroupVer > 0 && taosGetCgroupCpuUsageUsec(&cgroupUsageUsec) == 0) {
     struct timespec ts;
-    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) goto _proc_stat;
     int64_t wallTimeUsec = (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 
     if (lastCgroupUsageUsec >= 0 && lastWallTimeUsec >= 0) {
@@ -1033,6 +1036,8 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
     lastWallTimeUsec = wallTimeUsec;
   }
 
+_proc_stat:
+  ;
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
   if (taosGetSysCpuInfo(&sysCpu) == 0 && taosGetProcCpuInfo(&procCpu) == 0) {
@@ -1126,9 +1131,9 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
   int32_t cgroupVer = taosDetectCgroupVersion();
   int64_t cgroupLimitBytes = INT64_MAX;
   if (cgroupVer == 2) {
-    taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimitBytes);
+    TAOS_SKIP_ERROR(taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimitBytes));
   } else if (cgroupVer == 1) {
-    taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimitBytes);
+    TAOS_SKIP_ERROR(taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimitBytes));
   }
   if (cgroupLimitBytes > 0 && cgroupLimitBytes < INT64_MAX) {
     int64_t cgroupLimitKB = cgroupLimitBytes / 1024;
@@ -1218,9 +1223,11 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
       return 0;
     }
   } else if (cgroupVer == 1) {
+    // v1 uses a huge sentinel (near INT64_MAX) for "no limit"; also compare against physical memory
+    int64_t physMemBytes = (int64_t)sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
     if (taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimit) == 0 &&
         taosReadCgroupInt64(tsCgroupV1MemUsageFile, &cgroupCurrent) == 0 &&
-        cgroupLimit > 0 && cgroupLimit < INT64_MAX) {
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX && cgroupLimit < physMemBytes) {
       *availSize = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) : 0;
       return 0;
     }
@@ -1289,13 +1296,11 @@ static int64_t taosGetCgroupMemCache(const char *statFile) {
   int64_t inactiveFile = 0;
   while (taosGetsFile(pFile, sizeof(line), line) > 0) {
     if (strncmp(line, "inactive_file", 13) == 0) {
-      (void)sscanf(line + 13, " %" PRId64, &inactiveFile);
-      break;
+      if (sscanf(line + 13, " %" PRId64, &inactiveFile) == 1) break;
     }
     // cgroup v1 uses "total_inactive_file"
     if (strncmp(line, "total_inactive_file", 19) == 0) {
-      (void)sscanf(line + 19, " %" PRId64, &inactiveFile);
-      break;
+      if (sscanf(line + 19, " %" PRId64, &inactiveFile) == 1) break;
     }
   }
   TAOS_SKIP_ERROR(taosCloseFile(&pFile));
@@ -1342,9 +1347,11 @@ int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferK
       return 0;
     }
   } else if (cgroupVer == 1) {
+    // v1 uses a huge sentinel (near INT64_MAX) for "no limit"; also compare against physical memory
+    int64_t physMemBytes = (int64_t)sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
     if (taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimit) == 0 &&
         taosReadCgroupInt64(tsCgroupV1MemUsageFile, &cgroupCurrent) == 0 &&
-        cgroupLimit > 0 && cgroupLimit < INT64_MAX) {
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX && cgroupLimit < physMemBytes) {
       int64_t cache = taosGetCgroupMemCache(tsCgroupV1MemStatFile);
       *cacheBufferKB = cache / 1024;
       *usedKB = (cgroupCurrent > cache) ? (cgroupCurrent - cache) / 1024 : 0;

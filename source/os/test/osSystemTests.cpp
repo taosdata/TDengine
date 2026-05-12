@@ -227,4 +227,6 @@ TEST(osSystemTest, cgroupConsistencyTest) {
   // Allow some margin for timing differences
   ASSERT_GT(totalKB, 0);
   ASSERT_GT(sum, 0);
+  // Verify total >= used+free+cache approximately (allow 10% margin for timing/source differences)
+  ASSERT_GE(totalKB + totalKB / 10, sum);
 }
