@@ -9008,6 +9008,156 @@ static bool functionHasTagParam(SFunctionNode* pFunc) {
   return false;
 }
 
+// forward declarations for helpers used by trimVirtualScanForStateCols
+static bool hasTargetInColumnList(SColumnNode* pTargetCol, SNodeList* pCols);
+static void removeUselessTargetFromNodeByColumnList(SLogicNode* pNode, SNodeList* pCols);
+
+/*
+ * Check whether all state key columns resolve to the same origin table scan.
+ *
+ * When true, sets *ppDepScan to a cloned copy of that scan node.
+ * When false, the state columns span multiple origin tables.
+ */
+static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtualScanLogicNode* pVScan,
+                                                 bool* pSameOrigin, SNode** ppDepScan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  *pSameOrigin = true;
+  *ppDepScan = NULL;
+
+  SNode* pFirstScan = NULL;
+  SNode* pOtherScan = NULL;
+
+  SNode* pFirstExpr = nodesListGetNode(pStateExprs, 0);
+  if (pFirstExpr == NULL || nodeType(pFirstExpr) != QUERY_NODE_COLUMN) {
+    planError("%s first state expr is not a column node, nodeType:%d",
+              __func__, pFirstExpr ? nodeType(pFirstExpr) : -1);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pFirstExpr, pVScan, &pFirstScan));
+  const char* firstTable = ((SScanLogicNode*)pFirstScan)->tableName.tname;
+
+  SNode* pExpr = NULL;
+  int32_t idx = 0;
+  FOREACH(pExpr, pStateExprs) {
+    if (idx++ == 0) {
+      continue;
+    }
+    if (nodeType(pExpr) != QUERY_NODE_COLUMN) {
+      planError("%s state expr at index %d is not a column node, nodeType:%d",
+                __func__, idx - 1, nodeType(pExpr));
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _return;
+    }
+    PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pExpr, pVScan, &pOtherScan));
+    if (strcmp(((SScanLogicNode*)pOtherScan)->tableName.tname, firstTable) != 0) {
+      *pSameOrigin = false;
+    }
+    NODES_DESTORY_NODE(pOtherScan);
+    if (!(*pSameOrigin)){
+      break;
+    }
+  }
+
+  if (*pSameOrigin) {
+    *ppDepScan = pFirstScan;
+    pFirstScan = NULL;
+  }
+
+_return:
+  nodesDestroyNode(pFirstScan);
+  nodesDestroyNode(pOtherScan);
+  return code;
+}
+
+// Helper: trim a single child origin scan's targets and scanCols using ref relationship
+static bool isChildColNeededByStateExprs(SColumnNode* pCol, SNodeList* pStateExprs) {
+  SListCell* pCell = (pStateExprs ? pStateExprs->pHead : NULL);
+  while (pCell) {
+    SColumnNode* pStateCol = (SColumnNode*)pCell->pNode;
+    if (pStateCol->hasRef && pCol->hasDep &&
+        strcmp(pCol->dbName, pStateCol->refDbName) == 0 &&
+        strcmp(pCol->tableAlias, pStateCol->refTableName) == 0 &&
+        strcmp(pCol->colName, pStateCol->refColName) == 0) {
+      return true;
+    }
+    pCell = pCell->pNext;
+  }
+  return false;
+}
+
+static void trimChildScanForStateCols(SScanLogicNode* pScan, SNodeList* pStateExprs) {
+  // trim child's pTargets
+  {
+    SNode* pTarget = NULL;
+    WHERE_EACH(pTarget, pScan->node.pTargets) {
+      if (nodeType(pTarget) == QUERY_NODE_COLUMN) {
+        SColumnNode* pTgtCol = (SColumnNode*)pTarget;
+        if (pTgtCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || pTgtCol->isPrimTs) {
+          WHERE_NEXT;
+          continue;
+        }
+        if (!isChildColNeededByStateExprs(pTgtCol, pStateExprs)) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(pScan->node.pTargets);
+          continue;
+        }
+      }
+      WHERE_NEXT;
+    }
+  }
+
+  // trim child's pScanCols
+  {
+    SNode* pSc = NULL;
+    WHERE_EACH(pSc, pScan->pScanCols) {
+      if (nodeType(pSc) == QUERY_NODE_COLUMN) {
+        SColumnNode* pScCol = (SColumnNode*)pSc;
+        if (pScCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || pScCol->isPrimTs) {
+          WHERE_NEXT;
+          continue;
+        }
+        if (!isChildColNeededByStateExprs(pScCol, pStateExprs)) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(pScan->pScanCols);
+          continue;
+        }
+      }
+      WHERE_NEXT;
+    }
+  }
+}
+
+static void trimVirtualScanForStateCols(SVirtualScanLogicNode* pVScan, SNodeList* pStateExprs) {
+  // trim VirtualScan's own targets
+  removeUselessTargetFromNodeByColumnList((SLogicNode*)pVScan, pStateExprs);
+
+  // trim VirtualScan's pScanCols (these have origin table aliases, so match via ref)
+  SNode* pCol = NULL;
+  WHERE_EACH(pCol, pVScan->pScanCols) {
+    if (nodeType(pCol) == QUERY_NODE_COLUMN) {
+      SColumnNode* pScanCol = (SColumnNode*)pCol;
+      if (pScanCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID || pScanCol->isPrimTs) {
+        // keep timestamp
+      } else if (isChildColNeededByStateExprs(pScanCol, pStateExprs)) {
+        // keep state column (matched via ref relationship)
+      } else {
+        REPLACE_NODE(NULL);
+        ERASE_NODE(pVScan->pScanCols);
+        continue;
+      }
+    }
+    WHERE_NEXT;
+  }
+
+  // trim each child origin scan
+  SNode* pChild = NULL;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+      trimChildScanForStateCols((SScanLogicNode*)pChild, pStateExprs);
+    }
+  }
+}
+
 static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW)) {
     return false;
@@ -9025,8 +9175,14 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (pWindow->winType != WINDOW_TYPE_STATE) {
     return false;
   }
-  if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+  if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) < 1) {
     return false;
+  }
+  SNode* pStateExpr = NULL;
+  FOREACH(pStateExpr, pWindow->pStateExprs) {
+    if (nodeType(pStateExpr) != QUERY_NODE_COLUMN) {
+      return false;
+    }
   }
 
   SNode* pFunc = NULL;
@@ -9061,6 +9217,7 @@ static int32_t rebuildPlanForVtableWindowOptimize(SColumnNode* pCol, SFunctionNo
     PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pExtWindow));
     pExtWindow->winType = WINDOW_TYPE_EXTERNAL;
     pExtWindow->isSingleTable = true;
+    pExtWindow->extFill.mode = FILL_MODE_NONE;
     PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->pFuncs, (SNode*)pAggFunc));
     PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->node.pChildren, (SNode*)pDepScan));
     PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(pDepScan->pScanCols, 0), (SNode**)&pExtWindow->pTspk));
@@ -9235,21 +9392,39 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   SHashObj*               pExtWinMap = NULL;
   SDynQueryCtrlLogicNode* pDynWindowNode = NULL;
   SNode*                  pFunc = NULL;
+  SVirtualScanLogicNode*  pTrimmedVScan = NULL;
+  bool                    sameOrigin = true;
 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pWindow, (SNode**)&pNewWindow));
   pVirtualScan = (SVirtualScanLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScan, code, lino, _return, terrno)
 
-  PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pNewWindow->pStateExpr, pVirtualScan, &pStateColScan));
+  PLAN_ERR_JRET(checkAllStateExprsSameOriginTable(pNewWindow->pStateExprs, pVirtualScan,
+                                                  &sameOrigin, &pStateColScan));
   pNewWindow->node.pChildren = NULL;
-  pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
-  QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
-  nodesDestroyNode(pNewWindow->pTspk);
-  pNewWindow->pTspk = NULL;
-  PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
-  PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
-  ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
-  // pNewWindow --> pStateColScan
+
+  if (sameOrigin) {
+    // same origin table: attach StateWindow directly to the single origin TableScan
+    pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
+    QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    nodesDestroyNode(pNewWindow->pTspk);
+    pNewWindow->pTspk = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
+    ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
+  } else {
+    // cross origin tables: keep a trimmed VirtualScan under StateWindow
+    PLAN_ERR_JRET(nodesCloneNode((SNode*)pVirtualScan, (SNode**)&pTrimmedVScan));
+    trimVirtualScanForStateCols(pTrimmedVScan, pNewWindow->pStateExprs);
+    pMatchedTspk = findWindowTspkFromScanCols(pTrimmedVScan->pScanCols, pNewWindow->pTspk);
+    QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    nodesDestroyNode(pNewWindow->pTspk);
+    pNewWindow->pTspk = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, (SNode*)pTrimmedVScan));
+    pTrimmedVScan->node.pParent = (SLogicNode*)pNewWindow;
+    pTrimmedVScan = NULL; // ownership transferred
+  }
 
   pExtWinMap = taosHashInit(LIST_LENGTH(pNewWindow->pFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pExtWinMap, code, lino, _return, terrno)
@@ -9293,6 +9468,7 @@ _return:
   if (code) {
     planError("failed to optimize vtable window at line %d, error code: %d", lino, code);
   }
+  nodesDestroyNode((SNode*)pTrimmedVScan);
   taosHashCleanup(pExtWinMap);
   return code;
 }
@@ -9374,8 +9550,14 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       break;
     }
     case WINDOW_TYPE_STATE: {
-      if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+      if (pWindow->pStateExprs == NULL || LIST_LENGTH(pWindow->pStateExprs) < 1) {
         return false;
+      }
+      SNode* pStateExpr = NULL;
+      FOREACH(pStateExpr, pWindow->pStateExprs) {
+        if (nodeType(pStateExpr) != QUERY_NODE_COLUMN) {
+          return false;
+        }
       }
       // fall through
     }
@@ -9661,6 +9843,7 @@ static int32_t createExternalWindowFromOriginWindow(SWindowLogicNode* pSrcWindow
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pExtWindow));
   pExtWindow->winType = WINDOW_TYPE_EXTERNAL;
   pExtWindow->isSingleTable = false;
+  pExtWindow->extFill.mode = FILL_MODE_NONE;
   OPTIMIZE_FLAG_SET_MASK(pExtWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
   PLAN_ERR_JRET(nodesCloneNode(pSrcWindow->pTspk, (SNode**)&pExtWindow->pTspk));
@@ -10039,11 +10222,15 @@ static int32_t vstableWindowOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       break;
     }
     case WINDOW_TYPE_STATE: {
-      // only keep col needed by window, remove other cols from pWinScan
-      removeUselessTargetFromNode((SLogicNode*)pWinScan, (SColumnNode*)pNewWindow->pStateExpr);
+      if (pNewWindow->pStateExprs == NULL || LIST_LENGTH(pNewWindow->pStateExprs) < 1) {
+        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        goto _return;
+      }
+      // only keep state columns needed by window, remove other cols from pWinScan
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pWinScan, pNewWindow->pStateExprs);
       // also remove these targets from virtual scan node and table scan node
-      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
-      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pVirtualScanNode, pNewWindow->pStateExprs);
+      removeUselessTargetFromNodeByColumnList((SLogicNode*)pScanNode, pNewWindow->pStateExprs);
       pSysScan->node.pParent = (SLogicNode*)pWinScan;
       pVirtualScanNode->node.pParent = (SLogicNode*)pWinScan;
       pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;

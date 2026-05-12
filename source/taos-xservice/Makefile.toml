@@ -85,6 +85,7 @@ BUILD_PROFILE = { value = "release", condition = { env_not_set = [
 ] } }
 RUST_VERSION = "1.90.0"
 ZIG_VERSION = "0.14.1"
+PNPM_VERSION = "10.33.4"
 
 [tasks.build]
 command = "cargo"
@@ -294,7 +295,7 @@ fi
 [tasks.explorer-ui]
 cwd = "explorer"
 script = """
-pnpm install && pnpm run build
+npx -y pnpm@${PNPM_VERSION} install && npx -y pnpm@${PNPM_VERSION} run build
 """
 
 [tasks.build-all]
@@ -1061,8 +1062,8 @@ condition.env_not_set = ["NO_BUILD_UI"]
 cwd = "explorer"
 script_runner = "@duckscript"
 script = """
-exec pnpm install
-exec pnpm run build
+exec npx -y pnpm@${PNPM_VERSION} install
+exec npx -y pnpm@${PNPM_VERSION} run build
 cp ./static ./dist
 """
 
@@ -1070,7 +1071,7 @@ cp ./static ./dist
 cwd = "explorer"
 script_runner = "@shell"
 script = """
-pnpm install && pnpm run build && cp -r ./static ./dist
+npx -y pnpm@${PNPM_VERSION} install && npx -y pnpm@${PNPM_VERSION} run build && cp -r ./static ./dist
 """
 
 # linux 环境下使用 docker 构建

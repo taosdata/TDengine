@@ -24,12 +24,17 @@ TEST_F(PlanStateTest, basic) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, 1)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, 1, 0)");
 }
 
 TEST_F(PlanStateTest, stateExpr) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, c2)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
 }
 
 TEST_F(PlanStateTest, selectFunc) {
@@ -37,6 +42,8 @@ TEST_F(PlanStateTest, selectFunc) {
 
   // select function for STATE_WINDOW clause
   run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3)");
+  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3, 1)");
+  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3, 1, 0)");
   // select function along with the columns of select row, and with STATE_WINDOW clause
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }

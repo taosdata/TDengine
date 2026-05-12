@@ -129,6 +129,11 @@ mod tests {
     fn parse_pattern_test() -> anyhow::Result<()> {
         assert!("".parse::<TopicPattern>().is_err());
         assert!("a//b".parse::<TopicPattern>().is_err());
+        assert!("topic".parse::<TopicPattern>().is_err());
+        assert!("qos".parse::<TopicPattern>().is_err());
+        assert!("ts".parse::<TopicPattern>().is_err());
+        assert!("payload".parse::<TopicPattern>().is_err());
+        assert!("a/+/b".parse::<TopicPattern>().is_err());
         assert_eq!(
             "a/b/c".parse::<TopicPattern>()?,
             TopicPattern("a/b/c".to_string())
@@ -201,6 +206,21 @@ mod tests {
                 StringArray::from(vec!["test", "topic"])
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn parser_finish_without_values_returns_empty_arrays_for_each_key() -> anyhow::Result<()> {
+        let mut parser = TopicParser::new("site/_/point".parse()?);
+
+        assert_eq!(
+            parser.finish(),
+            vec![
+                StringArray::from(Vec::<&str>::new()),
+                StringArray::from(Vec::<&str>::new())
+            ]
+        );
+
         Ok(())
     }
 

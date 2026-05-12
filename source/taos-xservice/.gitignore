@@ -11,7 +11,6 @@ tarpaulin-report.html
 tarpaulin-report.json
 rust-toolchain
 .env
-.cargo
 taosx.code-workspace
 *.profraw
 /.idea/
@@ -76,6 +75,7 @@ docs/superpowers/
 CLAUDE.md
 .worktrees/
 .cowork/
+.github/copilot-instructions.md
 
 # Allow King Historian CSV template to be committed
 !crates/source-kinghistorian/example/*.csv
@@ -85,3 +85,13 @@ CLAUDE.md
 
 llvm-cov-merged.lcov
 tests/agent-fallback-http.toml
+
+
+# mcp
+.playwright-mcp/
+
+# vscode
+plugins/*/.classpath
+plugins/*/.factorypath
+plugins/*/.project
+plugins/*/.settings/

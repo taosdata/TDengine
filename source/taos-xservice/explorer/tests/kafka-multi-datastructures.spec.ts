@@ -13,6 +13,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs/promises';
 import { fileURLToPath } from 'url';
+import type { TestInfo } from 'playwright/test';
 import { test, expect } from './_utils/test';
 import {
   gotoDataInTask,
@@ -21,7 +22,7 @@ import {
   findTaskRow,
   viewTaskReadonlyFromRow
 } from './_utils/datain';
-import { stopTaskBestEffort, deleteTaskBestEffort } from './_utils/cleanup';
+import { stopTaskBestEffort, deleteTaskBestEffort, uniqueE2eName } from './_utils/cleanup';
 import { runSqlBatch } from './_utils/explorerSql';
 import { rewriteKafkaImportContent } from './_utils/importTaskFile';
 
@@ -55,10 +56,10 @@ const SAMPLE_PAYLOAD = [SAMPLE_ROBOT_MSG, SAMPLE_CONDITIONER_MSG].join('\n');
 // ---------------------------------------------------------------------------
 
 /** Upload the multi-data-structures JSON export and wait for the import dialog. */
-async function openImportDialog(page: import('playwright/test').Page) {
-  const importFile = await getImportFileForCurrentEnv();
+async function openImportDialog(page: import('playwright/test').Page, importFile?: string) {
+  const nextImportFile = importFile || (await getImportFileForCurrentEnv());
   const fileInput = page.locator('.inline-upload input[type="file"]');
-  await fileInput.setInputFiles(importFile);
+  await fileInput.setInputFiles(nextImportFile);
 
   const dialog = page.locator('.el-dialog:visible').filter({ hasText: /import task/i });
   await expect(dialog).toBeVisible({ timeout: 15_000 });
@@ -81,6 +82,42 @@ async function getImportFileForCurrentEnv() {
   })();
 
   return preparedImportFilePromise;
+}
+
+async function createKafkaImportFileWithStructuredFilter(expr: string, taskName: string, testInfo: TestInfo) {
+  const importFile = await getImportFileForCurrentEnv();
+  const parsed = JSON.parse(await fs.readFile(importFile, 'utf8')) as {
+    tasks?: Array<{
+      name?: string;
+      parser?: {
+        parser?: {
+          rules?: Array<{
+            mutate?: Array<Record<string, unknown>>;
+          }>;
+        };
+      };
+    }>;
+  };
+
+  const task = parsed.tasks?.[0];
+  if (!task) {
+    throw new Error('expected Kafka task in import fixture');
+  }
+
+  task.name = taskName;
+
+  const firstRule = task.parser?.parser?.rules?.[0];
+  if (!firstRule?.mutate) {
+    throw new Error('expected first Kafka rule in import fixture');
+  }
+
+  firstRule.mutate.splice(1, 0, { filter: { expr } });
+
+  const structuredFilterFile = testInfo.outputPath(
+    `kafka-import-filter-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(importFile)}`
+  );
+  await fs.writeFile(structuredFilterFile, JSON.stringify(parsed), 'utf8');
+  return structuredFilterFile;
 }
 
 /** Navigate to DataIn > add, choose Kafka, fill the sample-data textarea and wait for rule blocks. */
@@ -470,6 +507,49 @@ test.describe('DataIn Kafka - Import multi-data-structures task', () => {
     } finally {
       await stopTaskBestEffort(page, IMPORTED_TASK_NAME);
       await deleteTaskBestEffort(page, IMPORTED_TASK_NAME);
+    }
+  });
+
+  test('imported task view page shows structured rule filter expression as plain text', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+
+    const taskName = uniqueE2eName('kafka_structured_filter');
+    await runSqlBatch(page, [`CREATE DATABASE IF NOT EXISTS \`${IMPORT_FILE_DB}\`;`]);
+
+    const structuredFilterImportFile = await createKafkaImportFileWithStructuredFilter(
+      'DeviceNo > 1',
+      taskName,
+      testInfo
+    );
+
+    await gotoDataInTask(page);
+    const dialog = await openImportDialog(page, structuredFilterImportFile);
+
+    const headerCheckbox = dialog.locator('thead .el-checkbox').first();
+    await headerCheckbox.click();
+
+    const confirmBtn = dialog.locator('.dialog-footer').getByRole('button', { name: /confirm/i });
+    await confirmBtn.click();
+    await expect(dialog).not.toBeVisible({ timeout: 15_000 });
+
+    try {
+      await gotoDataInTask(page);
+      const row = await findTaskRow(page, taskName);
+      await viewTaskReadonlyFromRow(page, row);
+
+      const transformer = page.locator('.common-transformer');
+      await transformer.scrollIntoViewIfNeeded();
+      await expect(transformer).toBeVisible({ timeout: 30_000 });
+
+      const ruleBlocksSection = transformer.locator('.rule-blocks');
+      await ruleBlocksSection.scrollIntoViewIfNeeded();
+      await expect(ruleBlocksSection).toBeVisible({ timeout: 15_000 });
+
+      const filterInput = ruleBlocksSection.locator('.rule-block-card--active .filter-expression input').first();
+      await expect(filterInput).toHaveValue('DeviceNo > 1', { timeout: 5_000 });
+    } finally {
+      await stopTaskBestEffort(page, taskName);
+      await deleteTaskBestEffort(page, taskName);
     }
   });
 });

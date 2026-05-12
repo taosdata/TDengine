@@ -55,13 +55,13 @@ if(${BUILD_JEMALLOC})
     endif()
 endif()
 
-# Taos-tools dependencies
+# taosBenchmark dependencies
 if(TD_TAOS_TOOLS)
     find_package(jansson QUIET)
     find_package(Snappy QUIET)
     find_package(avro-c QUIET)
     if(NOT jansson_FOUND OR NOT Snappy_FOUND OR NOT avro-c_FOUND)
-        message(STATUS "taos-tools dependencies not found in Conan packages, will use ExternalProject")
+        message(STATUS "taosBenchmark dependencies not found in Conan packages, will use ExternalProject")
     endif()
 endif()
 

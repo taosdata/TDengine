@@ -17,6 +17,7 @@ from vtable_util import VtableQueryUtil
 class TestVtableQueryCrossDBNtb:
     updatecfgDict = {
         "supportVnodes":"1000",
+        "minReservedMemorySize": "1024",
     }
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()

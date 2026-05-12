@@ -33,16 +33,18 @@ LIST(APPEND VS_DOTNET_REFERENCES "System")
 LIST(APPEND VS_DOTNET_REFERENCES "System.Data")
 LIST(APPEND VS_DOTNET_REFERENCES "System.Data.Odbc")
 
-if (HAVE_TAOS)
-    LIST(APPEND CS_TEST_MACROS "HAVE_TAOS")
-endif()
-if (HAVE_TAOSWS)
-    LIST(APPEND CS_TEST_MACROS "HAVE_TAOSWS")
+if (HAVE_NATIVE)
+    LIST(APPEND CS_TEST_MACROS "HAVE_NATIVE")
 endif()
 
 set_target_properties(cs_test PROPERTIES
     VS_DOTNET_REFERENCES "${VS_DOTNET_REFERENCES}"
     COMPILE_DEFINITIONS "${CS_TEST_MACROS}")
 
-add_test(NAME cs_test
-    COMMAND cs_test)
+if (HAVE_NATIVE)
+    add_test(NAME cs_test
+        COMMAND cs_test --dsn TAOS_ODBC_DSN)
+endif()
+
+add_test(NAME ws_cs_test
+    COMMAND cs_test --dsn TAOS_ODBC_WS_DSN)

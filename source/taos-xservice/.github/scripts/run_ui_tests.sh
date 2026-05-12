@@ -12,6 +12,13 @@ PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-${REPO_ROOT}/.cache/ms-pla
 export PLAYWRIGHT_WORKERS
 export PLAYWRIGHT_BROWSERS_PATH
 
+ensure_playwright_browsers() {
+  mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
+
+  echo "Ensuring Playwright browsers are installed in $PLAYWRIGHT_BROWSERS_PATH"
+  pnpm exec playwright install chromium --with-deps
+}
+
 validate_embedded_asset_paths() {
   local route="$1"
   local body_file="$2"
@@ -66,7 +73,7 @@ fi
 
 cd "$UI_WORKDIR"
 pnpm install --frozen-lockfile --prefer-offline
-pnpm exec playwright install chromium --with-deps
+ensure_playwright_browsers
 echo "Re-checking deep-link HTML route at ${PLAYWRIGHT_BASE_URL}/dataIn/Task"
 for i in $(seq 1 30); do
   http_status="$(curl -s -o /tmp/explorer-datain-task.html -w "%{http_code}" "${PLAYWRIGHT_BASE_URL}/dataIn/Task")"

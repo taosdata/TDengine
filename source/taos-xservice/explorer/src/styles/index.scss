@@ -37,6 +37,14 @@ code {
   font-weight: 500;
 }
 
+.gird .el-table--small {
+  font-size: 14px;
+}
+
+.gird .el-table--small .el-table__cell {
+  padding: 3px 0;
+}
+
 #app {
   width: 100%;
   height: 100vh;

@@ -4,135 +4,316 @@ sidebar_label: taosdump
 toc_max_heading_level: 4
 ---
 
-taosdump 是为开源用户提供的 TDengine TSDB 数据备份/恢复工具，备份数据文件采用标准 [Apache AVRO](https://avro.apache.org/) 格式，方便与外界生态交换数据。taosdump 提供多种数据备份及恢复选项来满足不同需求，可通过 --help 查看支持的全部选项。
+taosdump 是 TDengine TSDB 提供的高性能数据备份/恢复工具。备份数据采用高压缩率的列式存储，支持全量备份、按库备份、按表备份、按时间范围备份及仅元数据备份等多种场景，并提供断点续传能力。
+
+## taosdump 全新升级版本
+
+从 v3.4.1.1 开始，taosdump 进行了全新升级，升级后的版本提供了更高性能、更小备份数据大小及增加了更多实用功能。
+新版本支持老版本生成的 avro 格式数据导入，但不再支持生成 avro 格式备份数据。
+
+## 性能提升
+
+| 工具            | 备份  | 恢复  |
+| -------------  | ----  | ---- |
+| 老版本（基准）   | 1x    | 1x  |
+| 新版本          | 5x    | 3x |
+
+## 备份数据压缩率提升
+
+| 工具           |  存储格式 | 占比   |
+| ------------- | ------ | ---- |
+| 老版本（基准）  | 行存   | 100% |
+| 新版本        | 列存   | 42% |
+
+## 新增功能
+
+- 断点续传
+- 导出 Parquet 格式
+- STMT2 导入
+- 多线程元数据备份
+- 仅恢复指定数据库
+- 全新展示界面
+- 优化多表低频场景的备份/恢复性能
+
+新版本支持绝大部分老版本命令行参数（个别参数除外）。
 
 ## 工具获取
 
-taosdump 是 TDengine TSDB 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine TSDB 安装](../../../get-started/)
+taosdump 在 TDengine TSDB v3.4.1.1 及之后版本的服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../../get-started/)
 
 ## 运行
 
-taosdump 需在命令行终端中运行，运行时必须带参数，指明是备份操作或还原操作，如：
+taosdump 支持 Windows/MacOS/Linux 平台，在命令行终端中运行，运行时必须带参数，指明备份操作（`-o`）或恢复操作（`-i`）。
 
-``` bash
-taosdump -h my-server -D test -o /root/test/
+:::tip
+在运行 taosdump 之前要确保目标 TDengine TSDB 集群已经正确运行。
+:::
+
+### 备份示例
+
+```bash
+taosdump -h my-server -D test -o /root/backup/
 ```
 
-以上命令表示备份主机名为 `my-server` 机器上的 `test` 数据库到 `/root/test/` 目录下。
+以上命令表示将主机名为 `my-server` 的 TDengine 服务上的 `test` 数据库备份到 `/root/backup/` 目录下。
 
-``` bash
-taosdump -h my-server -i /root/test/
+```bash
+taosdump -h my-server -o /root/backup/
 ```
 
-以上命令表示把 `/root/test/` 目录下之前备份的数据文件恢复到主机名为 `my-server` 的主机上。
+不指定 `-D` 参数时，默认备份所有用户数据库（`information_schema` 和 `performance_schema` 系统库除外）。
+
+### 恢复示例
+
+```bash
+taosdump -h my-server -i /root/backup/
+```
+
+以上命令表示将 `/root/backup/` 目录下的备份数据恢复到主机名为 `my-server` 的 TDengine 服务中。
+
+```bash
+taosdump -h my-server -D test -i /root/backup/
+```
+
+以上命令表示将 `/root/backup/` 目录下的备份数据恢复到主机名为 `my-server` 的 TDengine 服务中，并仅恢复 `test` 数据库的数据。
 
 ## 命令行参数
 
-以下为 taosdump 详细命令行参数列表：
-
 ```bash
-Usage: taosdump [OPTION...] dbname [tbname ...]
-  or:  taosdump [OPTION...] --databases db1,db2,...
-  or:  taosdump [OPTION...] --all-databases
-  or:  taosdump [OPTION...] -i inpath
+Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
   or:  taosdump [OPTION...] -o outpath
-
-  -h, --host=HOST            Server host from which to dump data. Default is
-                             localhost.
-  -p, --password             User password to connect to server. Default is
-                             taosdata.
-  -P, --port=PORT            Port to connect.
-  -u, --user=USER            User name used to connect to server. Default is
-                             root.
-  -c, --config-dir=CONFIG_DIR   Configure directory. Default is /etc/taos.
-  -i, --inpath=INPATH        Input file path.
-  -o, --outpath=OUTPATH      Output file path.
-  -r, --resultFile=RESULTFILE   DumpOut/In Result file path and name.
-  -a, --allow-sys            Allow to dump system database (2.0 only).
-  -A, --all-databases        Dump all databases.
-  -D, --databases=DATABASES  Dump listed databases. Use comma to separate
-                             databases names.
-  -e, --escape-character     Use escaped character for database name.
-  -N, --without-property     Dump database without its properties.
-  -s, --schemaonly           Only dump table schemas.
-  -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
-                             and lzma(Windows is not currently supported).
-  -S, --start-time=START_TIME   Start time to dump. Either epoch or
-                             ISO8601/RFC3339 format is acceptable. ISO8601
-                             format example: 2017-10-01T00:00:00.000+0800 or
-                             2017-10-0100:00:00:000+0800 or '2017-10-01
-                             00:00:00.000+0800'.
-  -E, --end-time=END_TIME    End time to dump. Either epoch or ISO8601/RFC3339
-                             format is acceptable. ISO8601 format example:
-                             2017-10-01T00:00:00.000+0800 or
-                             2017-10-0100:00:00.000+0800 or '2017-10-01
-                             00:00:00.000+0800'.
-  -B, --data-batch=DATA_BATCH   Number of data per query/insert statement when
-                             backup/restore. Default value is 16384. If you see
-                             'error actual dump .. batch ..' when backup or if
-                             you see 'WAL size exceeds limit' error when
-                             restore, please adjust the value to a smaller one
-                             and try. The workable value is related to the
-                             length of the row and type of table schema.
-  -I, --inspect              inspect avro file content and print on screen.
-  -L, --loose-mode           Use loose mode if the table name and column name
-                             use letter and number only. Default is NOT.
-  -n, --no-escape            No escape char '`'. Default is using it.
-  -Q, --dot-replace          Replace dot character with underline character in
-                             the table name.
-  -T, --thread-num=THREAD_NUM   Number of threads for dump in/out data. Default
-                             is 8.
-  -W, --rename=RENAME-LIST   Rename database name with new name during
-                             importing data.         RENAME-LIST:
-                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
-                             and rename db2 to newDB2.
-  -C, --cloud=CLOUD_DSN      Alias for the -X/--dsn option.
-  -k, --retry-count=VALUE    Set the number of retry attempts for connection or
-                             query failures.
-  -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
-  -X, --dsn=DSN              The dsn to connect the cloud service.
-  -z, --retry-sleep-ms=VALUE Sleep interval between retries, in milliseconds.
-  -Z, --driver=DRIVER        Connect driver , value can be "Native" or
-                             "WebSocket", default is Native.
-  -g, --debug                Print debug info.
-  -?, --help                 Give this help list
-      --usage                Give a short usage message
-  -V, --version              Print program version.
-
-Mandatory or optional arguments to long options are also mandatory or optional
-for any corresponding short options.
-
-Report bugs to <support@taosdata.com>.
+  or:  taosdump [OPTION...] -i inpath
+  or:  taosdump [OPTION...] --databases db1,db2,...
 ```
+
+| 命令行参数 | 功能说明 |
+| --------- | ------- |
+| `-h, --host=HOST` | 要连接的 TDengine 服务端 FQDN 或 IP，默认值为 localhost |
+| `-P, --port=PORT` | 要连接的 TDengine 服务端端口号，默认值为 6030 |
+| `-c, --config-dir=CONFIG_DIR` | 指定 taos.cfg 配置文件所在目录，不指定使用默认路径 |
+| `-u, --user=USER` | 连接用户名，默认值为 root |
+| `-p, --password=PASSWORD` | 连接密码，默认值为 taosdata |
+| `-o, --outpath=OUTPATH` | 备份输出目录路径，默认值为 ./output |
+| `-i, --inpath=INPATH` | 恢复操作时指定备份文件所在的输入路径 |
+| `-D, --databases=DATABASES` | 指定要备份/恢复的数据库，多个库以逗号分隔；不指定则默认操作所有用户数据库 |
+| `-F, --format=FORMAT` | 备份文件存储格式，可选值为 `binary`（默认）或 `parquet` |
+| `-s, --schemaonly` | 开关参数，仅备份表结构（Schema）和标签（Tag）数据，不备份时序数据 |
+| `-S, --start-time=START_TIME` | 备份数据的起始时间，支持毫秒时间戳或 ISO8601 格式，如 `2017-10-01T00:00:00.000+0800`。仅备份操作生效 |
+| `-E, --end-time=END_TIME` | 备份数据的结束时间，支持毫秒时间戳或 ISO8601 格式。仅备份操作生效 |
+| `-T, --thread-num=THREAD_NUM` | 数据备份/恢复的并行线程数，默认值为 8 |
+| `-m, --tag-thread-num=THREAD_NUM` | 标签数据备份的并行线程数，默认值为 2 |
+| `-B, --data-batch=DATA_BATCH` | 恢复时每次 STMT 批量写入的行数。STMT2（默认）有效范围 [1, 16384]，默认 10000；STMT1 有效范围 [1, 100000]，默认 60000。仅恢复操作生效 |
+| `-v, --stmt-version=VER` | 恢复时使用的 STMT API 版本：`2`（默认，TAOS_STMT2，速度更快，需 TDengine v3.3+）或 `1`（兼容旧版 TAOS_STMT API）。仅恢复操作生效 |
+| `-W, --rename=RENAME-LIST` | 恢复时对数据库进行重命名，格式为 `"db1->newdb1\|db2->newdb2"`，表示将 `db1` 重命名为 `newdb1`，`db2` 重命名为 `newdb2`，仅恢复操作生效 |
+| `-C, --checkpoint` | 开关参数，开启断点续传模式。taosdump 始终会写入检查点文件；开启此参数后，再次运行时会跳过已完成的项目 |
+| `-k, --retry-count=VALUE` | 连接或查询失败后的重试次数，默认值为 3 |
+| `-z, --retry-sleep-ms=VALUE` | 每次重试之间的等待时间，单位为毫秒，默认值为 1000 |
+| `-X, --dsn=DSN` | 连接云服务的 DSN，格式如 `https://host?token=<TOKEN>`。也可通过环境变量 `TDENGINE_CLOUD_DSN` 设置，命令行参数优先级更高 |
+| `-Z, --driver=DRIVER` | 指定连接驱动，可选值为 `Native`（原生连接）或 `WebSocket`。默认为 Native；当设置了 DSN 时，默认切换为 WebSocket |
+| `-g, --debug` | 开关参数，开启调试信息输出，默认关闭 |
+| `-V, --version` | 显示版本信息并退出 |
+| `--help` | 显示帮助信息并退出 |
 
 ## 常用使用场景
 
 ### 备份数据
 
-1. 备份所有数据库：指定 `-A` 或 `--all-databases` 参数。
-2. 备份多个指定数据库：使用 `-D db1,db2,...` 参数。
-3. 备份指定数据库中某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔。
-4. 备份系统 log 库：TDengine TSDB 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine TSDB 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。
-5. “宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考 [官方文档](../../taos-sql/escape)
-6. `-o` 参数指定的目录下如果已存在备份文件，为防止数据被覆盖，taosdump 会报错并退出，请更换其它空目录或清空原来数据后再备份。
-7. 目前 taosdump 不支持数据断点继备功能，一旦数据备份中断，需要从头开始。如果备份需要很长时间，建议使用（-S -E 选项）指定开始/结束时间进行分段备份的方法。
+#### 备份所有数据库
+
+```bash
+taosdump -h my-server -o /root/backup/
+```
+
+备份所有用户数据库（`information_schema` 和 `performance_schema` 自动排除）到 `/root/backup/` 目录。
+
+#### 备份指定数据库
+
+```bash
+taosdump -h my-server -D db1,db2 -o /root/backup/
+```
+
+仅备份 `db1` 和 `db2` 两个数据库。
+
+#### 备份指定数据库中的指定超级表或普通表
+
+```bash
+taosdump -h my-server -o /root/backup/ mydb meters d1 d2
+```
+
+备份 `mydb` 库中的超级表 `meters` 以及普通表 `d1`、`d2`。其中第一个位置参数为数据库名，后续参数为该库中的表名或超级表名，以空格分隔。
+
+#### 按时间范围备份
+
+```bash
+taosdump -h my-server -D test -S "2024-01-01T00:00:00.000+0800" -E "2024-12-31T23:59:59.999+0800" -o /root/backup/
+```
+
+仅备份 `test` 数据库中 2024 年全年的数据。
+
+#### 仅备份元数据（Schema）
+
+```bash
+taosdump -h my-server -D test -s -o /root/backup/
+```
+
+仅备份 `test` 数据库的表结构和标签信息，不备份时序数据，适用于快速迁移表结构。
+
+#### 备份为 Parquet 格式
+
+```bash
+taosdump -h my-server -D test -F parquet -o /root/backup/
+```
+
+将 `test` 数据库以 Parquet 格式导出，便于与大数据生态（如 Spark、Hive、DuckDB）对接。
+
+#### 断点续传备份
+
+断点续传功能默认不开启，需要通过 `-C` 参数显式指定。当备份过程中因故中断时，再次运行相同命令并加上 `-C` 参数，taosdump 会自动跳过已成功完成的数据库/超级表/子表，继续备份未完成的部分。
+说明：断点续传只针对数据备份有效，元数据备份因速度快，不提供断点续传功能。
+
+```bash
+# 第一次备份（因故中断）
+taosdump -h my-server -D test -o /root/backup/
+
+# 再次运行，开启断点续传，跳过已完成的超级表/子表
+taosdump -h my-server -D test -o /root/backup/ -C
+```
+
+taosdump 每次运行都会在输出目录中自动写入检查点文件。使用 `-C` 参数重新运行时，会读取检查点文件并跳过已成功完成的项目，从中断位置继续执行。
 
 :::tip
 
-- taosdump 1.4.1 之后的版本提供 `-I` 参数，用于解析 avro 文件 schema 和数据，如果指定 `-s` 参数将只解析 schema。
-- taosdump 1.4.2 之后的备份使用 `-B` 参数指定的批次数，默认值为 16384，如果在某些环境下由于网络速度或磁盘性能不足导致 "Error actual dump .. batch .." 可以通过 `-B` 参数调整为更小的值进行尝试。
-- taosdump 的导出不支持中断恢复，所以当进程意外终止后，正确的处理方式是删除当前已导出或生成的所有相关文件。
-- taosdump 的导入支持中断恢复，但是当进程重新启动时，会收到一些“表已经存在”的提示，可以忽视。
+- `-o` 参数指定的目录下如果已存在备份文件，taosdump 在未开启断点续传模式时会直接覆盖同名文件，建议使用空目录进行全量备份。
+- 如果备份数据量很大，建议配合 `-S`/`-E` 参数分段备份，或使用 `-C` 断点续传。
 
 :::
 
 ### 恢复数据
 
-- 恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。
-- taosdump 支持数据恢复至新数据库名下，参数是 -W, 详细见命令行参数说明。
-- 支持超级表及普通表 TAG/COLUMN 列有变动时仍可导入未变动列的数据（3.3.6.0 及以上版本及使用新版本导出数据才能支持）。
+#### 恢复到原库
+
+```bash
+taosdump -h my-server -i /root/backup/
+```
+
+将 `/root/backup/` 目录下的备份数据恢复到 `my-server`。恢复时会自动创建对应数据库、超级表及子表（若已存在则跳过建表）。
+
+#### 恢复时重命名数据库
+
+```bash
+taosdump -h my-server -i /root/backup/ -W "db1=db1_restored|db2=db2_restored"
+```
+
+将备份中的 `db1` 恢复为 `db1_restored`，`db2` 恢复为 `db2_restored`，适用于测试验证或平行运行场景。
+
+#### 断点续传恢复
+
+```bash
+taosdump -h my-server -i /root/backup/ -C
+```
+
+恢复同样支持断点续传模式，再次运行时自动跳过已成功恢复的数据文件。
+
+#### Schema 变更场景下的恢复
+
+taosdump 在恢复时会自动检测备份时的表结构与目标服务端现有表结构的差异。当目标端超级表的列集合与备份相比有变化（如新增或删除了列）时，taosdump 会自动计算公共列并执行部分列写入，保证数据安全写入，无需人工干预。
+
+#### 调整写入批量以避免 WAL 溢出
+
+```bash
+taosdump -h my-server -i /root/backup/ -B 2000
+```
+
+恢复时如遇到 `WAL size exceeds limit` 错误，可通过 `-B` 参数减小每次批量写入的行数。
+
+#### 连接 TDengine Cloud
+
+```bash
+taosdump -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
+```
+
+通过 DSN 连接 TDengine Cloud 服务进行数据恢复，驱动类型自动切换为 WebSocket。
+
+## 备份文件结构
+
+备份输出目录下，每个数据库对应一个子目录，目录内包含以下内容：
+
+```bash
+{outpath}/
+└── {dbname}/
+    ├── db.sql             # 建库 SQL
+    ├── tags/
+    │   ├── {stbname}.sql  # 建超级表 SQL
+    │   └── {stbname}_data{N}.{ext}  # 标签数据（CSV 格式）
+    ├── data/
+    │   └── {stbname}/
+    │       └── {stbname}_data{N}.{ext}  # 时序数据文件（binary 或 parquet 格式）
+    └── _ntb/
+        ├── {tbname}.sql   # 建普通表 SQL
+        └── {tbname}/
+            └── {tbname}_data{N}.{ext}  # 普通表时序数据文件
+```
+
+其中 `.ext` 在 binary 格式下为 `.bin`，Parquet 格式下为 `.par`。
+
+## 输出指标
+
+### 启动汇总
+
+备份/恢复开始时，taosdump 会打印当前运行参数摘要，示例如下：
+
+```bash
+===========================================================================
+  taosdump - BACKUP
+===========================================================================
+  Connect Mode : Native
+  Server       : my-server:6030
+  User         : root
+  Output Path  : /root/backup/
+  Databases    : test
+  Data Threads : 8
+  Tag Threads  : 2
+  Format       : binary
+  Schema Only  : no
+  Time Range   : ALL
+  Check Point  : no
+===========================================================================
+```
+
+### 实时进度
+
+运行过程中，taosdump 会持续输出进度信息，显示当前处理的数据库、超级表、已完成子表数及预计剩余时间：
+
+```bash
+[DB 1/2: test] [STB 3/10: meters] [CTB 1500/5000 (30.0%)] elapsed: 12s, eta: 28s
+```
+
+### 结束汇总
+
+备份/恢复完成后，打印最终统计摘要：
+
+```bash
+===========================================================================
+  Result       : SUCCESS
+---------------------------------------------------------------------------
+  Databases    : total=1, success=1, failed=0
+  Super Tables : 10
+  Child Tables : 5000 (data exported)
+  Normal Tables: 2
+  Total Rows   : 50000000
+  Elapsed      : 45.23 s
+===========================================================================
+```
+
+各字段含义：
+
+- **Databases**：处理的数据库总数及成功/失败数量。
+- **Super Tables**：处理的超级表数量。
+- **Child Tables**：已导出/恢复数据的子表数量。
+- **Normal Tables**：处理的普通表数量。
+- **Total Rows**：备份/恢复的数据总行数。
+- **Elapsed**：操作总耗时，单位为秒。
 
 :::tip
-taosdump 内部使用 TDengine TSDB stmt binding API 进行恢复数据的写入，为提高数据恢复性能，目前使用 16384 为一次写入批次。如果备份数据中有较多列数据，可能会导致产生 "WAL size exceeds limit" 错误，此时可以通过使用 `-B` 参数调整为一个更小的值进行尝试。
-
+若发现失败数量不为零，可添加 `-g` 参数开启调试输出，查看详细错误信息，或检查 TDengine 服务端日志进行排查。
 :::

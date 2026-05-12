@@ -50,8 +50,8 @@ use taosx_core::{
     runners::{get_logs_home_dir, get_plugins_home_dir},
 };
 use taosx_core::{
-    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
-    set_env_plugins_home_dir,
+    get_log_dir, get_log_keep_days, set_env_backup_auto_create_dir, set_env_data_dir,
+    set_env_log_home_dir, set_env_log_keep_days, set_env_plugins_home_dir,
 };
 
 #[cfg(all(feature = "mimalloc", feature = "jemallocator"))]
@@ -174,6 +174,9 @@ struct Global {
     #[clap(flatten)]
     log: Option<LogOpts>,
 
+    #[clap(flatten)]
+    backup: Option<BackupOpts>,
+
     /// Enable debug will set the mod path as `file:line`.
     #[clap(short, long, global = true)]
     debug: bool,
@@ -293,6 +296,24 @@ struct LogOpts {
     /// Loggers.
     #[clap(skip)]
     loggers: Option<HashMap<String, String>>,
+}
+
+/// Options for the `[backup]` section.
+#[derive(Parser, Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct BackupOpts {
+    /// Auto-create the user-specified backup directory if it does not exist.
+    /// Default false to preserve existing strict-path-check behavior.
+    #[clap(
+        id = "backup.autoCreateDir",
+        long = "backup.autoCreateDir",
+        env = "TAOSX_BACKUP_AUTO_CREATE_DIR",
+        global = true,
+        num_args = 0..=1,
+        default_missing_value = "true",
+    )]
+    #[serde(rename = "autoCreateDir", alias = "auto_create_dir")]
+    auto_create_dir: Option<bool>,
 }
 
 fn compress_arg_parser(value: &str) -> Result<bool, clap::Error> {
@@ -494,6 +515,19 @@ impl Args {
             .global
             .telemetry
             .or(configurable_opts.global.telemetry.clone());
+        // Merge [backup] section from TOML/env if CLI did not provide it.
+        match (
+            args.global.backup.as_mut(),
+            configurable_opts.global.backup.clone(),
+        ) {
+            (None, Some(opts)) => args.global.backup = Some(opts),
+            (Some(cli_opts), Some(cfg_opts)) => {
+                if cli_opts.auto_create_dir.is_none() {
+                    cli_opts.auto_create_dir = cfg_opts.auto_create_dir;
+                }
+            }
+            _ => {}
+        }
         args.global.merge_from(configurable_opts.global, matches);
         args.global.instance_id = Some(
             *INSTANCE_ID
@@ -573,6 +607,13 @@ impl Args {
                 .as_ref()
                 .and_then(|opts| opts.keep_days.map(|days| days as i64))
                 .or(args.global.log_keep_days),
+        );
+        set_env_backup_auto_create_dir(
+            args.global
+                .backup
+                .as_ref()
+                .and_then(|opts| opts.auto_create_dir)
+                .unwrap_or(false),
         );
         Ok(args)
     }

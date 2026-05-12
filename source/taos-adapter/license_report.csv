@@ -81,11 +81,11 @@ github.com/ugorji/go/codec,https://github.com/ugorji/go/blob/codec/v1.2.12/codec
 go.uber.org/automaxprocs,https://github.com/uber-go/automaxprocs/blob/v1.6.0/LICENSE,MIT
 go.uber.org/multierr,https://github.com/uber-go/multierr/blob/v1.11.0/LICENSE.txt,MIT
 golang.org/x/arch/x86/x86asm,https://cs.opensource.google/go/x/arch/+/v0.16.0:LICENSE,BSD-3-Clause
-golang.org/x/crypto/sha3,https://cs.opensource.google/go/x/crypto/+/v0.47.0:LICENSE,BSD-3-Clause
-golang.org/x/net,https://cs.opensource.google/go/x/net/+/v0.48.0:LICENSE,BSD-3-Clause
-golang.org/x/sync/singleflight,https://cs.opensource.google/go/x/sync/+/v0.19.0:LICENSE,BSD-3-Clause
-golang.org/x/sys,https://cs.opensource.google/go/x/sys/+/v0.40.0:LICENSE,BSD-3-Clause
-golang.org/x/text,https://cs.opensource.google/go/x/text/+/v0.33.0:LICENSE,BSD-3-Clause
-golang.org/x/tools/go,https://cs.opensource.google/go/x/tools/+/v0.40.0:LICENSE,BSD-3-Clause
+golang.org/x/crypto/sha3,https://cs.opensource.google/go/x/crypto/+/v0.50.0:LICENSE,BSD-3-Clause
+golang.org/x/net,https://cs.opensource.google/go/x/net/+/v0.53.0:LICENSE,BSD-3-Clause
+golang.org/x/sync/singleflight,https://cs.opensource.google/go/x/sync/+/v0.20.0:LICENSE,BSD-3-Clause
+golang.org/x/sys,https://cs.opensource.google/go/x/sys/+/v0.43.0:LICENSE,BSD-3-Clause
+golang.org/x/text,https://cs.opensource.google/go/x/text/+/v0.36.0:LICENSE,BSD-3-Clause
+golang.org/x/tools/go,https://cs.opensource.google/go/x/tools/+/v0.43.0:LICENSE,BSD-3-Clause
 google.golang.org/protobuf,https://github.com/protocolbuffers/protobuf-go/blob/v1.36.6/LICENSE,BSD-3-Clause
 gopkg.in/yaml.v3,https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE,MIT

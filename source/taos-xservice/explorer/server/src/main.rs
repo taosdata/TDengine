@@ -467,6 +467,14 @@ async fn main() -> anyhow::Result<()> {
                 "/api/x/tasks/{task_id}/metrics",
                 web::get().to(get_task_metrics),
             )
+            .route(
+                "/api/x/tasks/{task_id}/vgroup_progress",
+                web::get().to(get_task_vgroup_progress),
+            )
+            .route(
+                "/api/x/tasks/{task_id}/table_progress",
+                web::get().to(get_task_table_progress),
+            )
             .route("/api/x/ds/in/validate", web::post().to(validate))
             .route("/api/x/ds/in/sample", web::post().to(get_sample))
             // websockets
@@ -1135,6 +1143,11 @@ async fn report_taosd_info(
 struct RenewLicense {
     active_code: Option<String>,
     c_active_code: Option<String>,
+    cls_enabled: Option<String>,
+    cls_refresh_interval: Option<String>,
+    cls_url: Option<String>,
+    cls_license_id: Option<String>,
+    cls_quota_slot_id: Option<String>,
 }
 
 impl PartialEq for RenewLicense {
@@ -1146,11 +1159,121 @@ impl PartialEq for RenewLicense {
         if !l {
             return false;
         }
-        match (&self.c_active_code, &other.c_active_code) {
+        let r = match (&self.c_active_code, &other.c_active_code) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        if !r {
+            return false;
+        }
+        let cls_enabled = match (&self.cls_enabled, &other.cls_enabled) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        if !cls_enabled {
+            return false;
+        }
+        let cls_refresh_interval = match (&self.cls_refresh_interval, &other.cls_refresh_interval) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        if !cls_refresh_interval {
+            return false;
+        }
+        let cls_url = match (&self.cls_url, &other.cls_url) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        if !cls_url {
+            return false;
+        }
+        let cls_license_id = match (&self.cls_license_id, &other.cls_license_id) {
+            (Some(l), Some(r)) => l == r,
+            _ => true,
+        };
+        if !cls_license_id {
+            return false;
+        }
+        match (&self.cls_quota_slot_id, &other.cls_quota_slot_id) {
             (Some(l), Some(r)) => l == r,
             _ => true,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RenewLicenseMode {
+    Classic,
+    Cls,
+}
+
+impl RenewLicense {
+    fn mode(&self) -> RenewLicenseMode {
+        if self.cls_enabled.is_some()
+            || self.cls_refresh_interval.is_some()
+            || self.cls_url.is_some()
+            || self.cls_license_id.is_some()
+            || self.cls_quota_slot_id.is_some()
+        {
+            RenewLicenseMode::Cls
+        } else {
+            RenewLicenseMode::Classic
+        }
+    }
+}
+
+fn normalize_license_field(value: &Option<String>) -> Option<String> {
+    value
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn escape_sql_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\'', "''")
+}
+
+const DEFAULT_CLS_QUOTA_SLOT_ID: &str = "tsdb-1";
+
+fn build_cls_license_sqls(license: &RenewLicense) -> Result<Vec<String>, RestErrResponse> {
+    let cls_enabled = normalize_license_field(&license.cls_enabled).ok_or(RestErrResponse {
+        code: Code::FAILED,
+        desc: "cls_enabled is required for CLS activation".into(),
+    })?;
+    let normalize_optional = |value: &Option<String>| {
+        value
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default()
+    };
+    let cls_refresh_interval = normalize_optional(&license.cls_refresh_interval);
+    let cls_url = normalize_optional(&license.cls_url);
+    let cls_license_id = normalize_optional(&license.cls_license_id);
+    let cls_quota_slot_id = normalize_license_field(&license.cls_quota_slot_id)
+        .unwrap_or_else(|| DEFAULT_CLS_QUOTA_SLOT_ID.to_string());
+
+    Ok(vec![
+        format!(
+            "alter all dnodes 'clsRefreshInterval' '{}'",
+            escape_sql_string(&cls_refresh_interval)
+        ),
+        format!(
+            "alter all dnodes 'clsUrl' '{}'",
+            escape_sql_string(&cls_url)
+        ),
+        format!(
+            "alter all dnodes 'clsLicenseId' '{}'",
+            escape_sql_string(&cls_license_id)
+        ),
+        format!(
+            "alter all dnodes 'clsQuotaSlotId' '{}'",
+            escape_sql_string(&cls_quota_slot_id)
+        ),
+        format!(
+            "alter all dnodes 'clsEnabled' '{}'",
+            escape_sql_string(&cls_enabled)
+        ),
+    ])
 }
 
 #[instrument(skip_all)]
@@ -2732,6 +2855,20 @@ impl Args {
     ) -> Result<RestOkResponse, RestErrResponse> {
         let dsn = self.build_dsn(auth)?;
         let conn = get_connection(&dsn).await.map_err(RestErrResponse::new)?;
+        let mut qid: Qid = Span.get_qid().unwrap_or(Qid::init());
+        if license.mode() == RenewLicenseMode::Cls {
+            for sql in build_cls_license_sqls(license)? {
+                qid.add_sequence_id();
+                conn.exec_with_req_id(&sql, qid.get())
+                    .await
+                    .map_err(RestErrResponse::new)?;
+            }
+            return Ok(RestOkResponse {
+                code: Code::SUCCESS,
+                rows: 0,
+                ..Default::default()
+            });
+        }
         // server version
         let server_version = conn.server_version().await;
         let server_version = match server_version {
@@ -2743,7 +2880,6 @@ impl Args {
         };
         let (a, b, c) = get_main_version_from_server_version(&server_version.to_string()).unwrap();
         // check version and use different function
-        let mut qid: Qid = Span.get_qid().unwrap_or(Qid::init());
         if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
             if let Some(active_code) = license.active_code.as_ref() {
                 if !active_code.is_empty() {
@@ -3026,6 +3162,65 @@ mod tests {
         assert!(
             value.get("timing").is_some(),
             "rest/sql response should include timing field"
+        );
+    }
+
+    #[test]
+    fn renew_license_should_detect_cls_mode_when_cls_fields_exist() {
+        let license = RenewLicense {
+            active_code: Some("cluster-code".into()),
+            c_active_code: None,
+            cls_enabled: Some("1".into()),
+            cls_refresh_interval: Some("15".into()),
+            cls_url: Some("http://192.168.2.158:6072".into()),
+            cls_license_id: Some("lic-1".into()),
+            cls_quota_slot_id: None,
+        };
+
+        assert_eq!(license.mode(), RenewLicenseMode::Cls);
+    }
+
+    #[test]
+    fn build_cls_license_sqls_should_emit_all_five_alter_statements() {
+        let statements = build_cls_license_sqls(&RenewLicense {
+            active_code: None,
+            c_active_code: None,
+            cls_enabled: Some("1".into()),
+            cls_refresh_interval: Some("15".into()),
+            cls_url: Some("http://192.168.2.158:6072".into()),
+            cls_license_id: Some("lic-1".into()),
+            cls_quota_slot_id: Some("tsdb-9".into()),
+        })
+        .expect("cls statements");
+
+        assert_eq!(
+            statements,
+            vec![
+                "alter all dnodes 'clsRefreshInterval' '15'",
+                "alter all dnodes 'clsUrl' 'http://192.168.2.158:6072'",
+                "alter all dnodes 'clsLicenseId' 'lic-1'",
+                "alter all dnodes 'clsQuotaSlotId' 'tsdb-9'",
+                "alter all dnodes 'clsEnabled' '1'",
+            ]
+        );
+    }
+
+    #[test]
+    fn build_cls_license_sqls_should_default_quota_slot_id_when_omitted() {
+        let statements = build_cls_license_sqls(&RenewLicense {
+            active_code: None,
+            c_active_code: None,
+            cls_enabled: Some("1".into()),
+            cls_refresh_interval: Some("15".into()),
+            cls_url: Some("http://192.168.2.158:6072".into()),
+            cls_license_id: Some("lic-1".into()),
+            cls_quota_slot_id: None,
+        })
+        .expect("cls statements");
+
+        assert!(
+            statements.contains(&"alter all dnodes 'clsQuotaSlotId' 'tsdb-1'".to_string()),
+            "missing default clsQuotaSlotId statement: {statements:?}"
         );
     }
 

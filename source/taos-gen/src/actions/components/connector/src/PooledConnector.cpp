@@ -47,6 +47,10 @@ bool PooledConnector::execute(const StmtV2InsertData& data) {
     return real_conn_->execute(data);
 }
 
+bool PooledConnector::execute(const SchemalessInsertData& data) {
+    return real_conn_->execute(data);
+}
+
 bool PooledConnector::is_connected() const {
     return real_conn_->is_connected();
 }

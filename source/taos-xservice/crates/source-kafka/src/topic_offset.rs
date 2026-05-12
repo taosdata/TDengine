@@ -1,14 +1,17 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
-use rdkafka::consumer::Consumer;
 use taos::Dsn;
 use taosx_core::{
     core_metrics::{CoreMetrics, find_metrics_arc},
     sink::ipc_metric::IpcMetrics,
 };
 
-use crate::{LoggingConsumer, config::task::KafkaTaskConfig};
+use crate::{
+    LoggingConsumer,
+    blocking::{fetch_metadata, fetch_watermarks},
+    config::task::KafkaTaskConfig,
+};
 
 #[derive(Debug, serde::Serialize)]
 pub struct TopicOffsetInfo {
@@ -31,14 +34,14 @@ pub async fn get_topics_offset(
     let topics = config
         .topics
         .iter()
-        .map(|s| s.as_str())
+        .map(String::as_str)
         .collect::<Vec<&str>>();
 
-    let consumer: LoggingConsumer = config.build_consumer(None, &topics, &metrics_arc).await?;
-
-    let metadata = consumer
-        .fetch_metadata(None, Duration::from_secs(1))
-        .context("failed to load meta data")?;
+    let mut consumer: LoggingConsumer = config.build_consumer(None, &topics, &metrics_arc).await?;
+    let (next_consumer, metadata_result) =
+        fetch_metadata(consumer, None, Duration::from_secs(1)).await?;
+    consumer = next_consumer;
+    let metadata = metadata_result.context("failed to load meta data")?;
 
     let mut topic_offset_ranges = Vec::new();
     for tp in metadata.topics() {
@@ -47,9 +50,15 @@ pub async fn get_topics_offset(
         }
 
         for partition in tp.partitions() {
-            let (low, high) = consumer
-                .fetch_watermarks(tp.name(), partition.id(), Duration::from_secs(1))
-                .expect("failed to fetch watermarks");
+            let (next_consumer, watermarks_result) = fetch_watermarks(
+                consumer,
+                tp.name().to_string(),
+                partition.id(),
+                Duration::from_secs(1),
+            )
+            .await?;
+            consumer = next_consumer;
+            let (low, high) = watermarks_result.context("failed to fetch watermarks")?;
             let offset = TopicOffsetInfo {
                 topic: tp.name().to_string(),
                 partition: partition.id(),

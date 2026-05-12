@@ -22,6 +22,7 @@ test-postgres = []
 test-mongodb = []
 test-mssql = []
 test-mqtt = ["fake-data", "rumqttc-next", "dotenv"]
+test-tmq = ["dotenv"]
 test-opcua = ["dotenv"]
 test-opcda = []
 test-pi = []
@@ -35,7 +36,7 @@ test-relational-db = [
     "test-mssql",
 ]
 test-nosql-db = ["test-mongodb"]
-test-message-queue = ["test-kafka", "test-mqtt"]
+test-message-queue = ["test-kafka", "test-mqtt", "test-tmq"]
 test-industrial-protocol = [
     "test-opcua",
     "test-opcda",

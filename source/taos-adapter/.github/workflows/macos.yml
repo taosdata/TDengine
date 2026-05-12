@@ -146,7 +146,7 @@ jobs:
     strategy:
       matrix:
         os: [ 'macos-latest' ]
-        go: [ '1.24.10', 'stable' ]
+        go: [ '1.25.10', 'stable' ]
     name: Build taosAdapter ${{ matrix.go }}
     steps:
       - name: get cache server by pr

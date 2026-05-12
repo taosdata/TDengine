@@ -296,6 +296,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_exact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_funtion_null.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_null.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_quarter.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_operator.py
@@ -455,7 +456,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_iso8601.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_regexp_extract.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_today.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_ignorenull.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_perf.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
 ## 02-Aggregate
@@ -552,6 +557,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_block.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_extend.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_zeroth.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_multi_col.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_regression.py
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
@@ -757,6 +765,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable2.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
@@ -787,6 +796,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
 ## 05-Notify
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify.py
+,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
 ## 06-ResultSaved
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
@@ -801,6 +811,7 @@
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_usage_restrict.py
 ,,y,.,./ci/pytest.sh pytest  cases/18-StreamProcessing/07-SubQuery/test_subquery_vtable_change.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_state_join_empty_result.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py
 ## 08-Recalc
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
@@ -989,6 +1000,13 @@
 # 32-Grants
 ,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
 
+# 34-CpuAffinity
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_switch.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_management_cores.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_read_write_ratio.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_show_allocation.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_edge_cases.py
+
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
@@ -1123,16 +1141,16 @@
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_with_csv.py
+
 ## 04-Taosdump
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_commandline.py -B # PRIV_TODO
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_commandline.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_except.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py -B
 
 ## 05-Valgrind
@@ -1149,6 +1167,27 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_checkerror7.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_udf.py
+
+## 06-Backup
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_allnull.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_basic.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_bugs.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_checkpoint.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_chinese.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_commandline.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_avro_compat.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_coverage.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_datatypes.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_edge.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_errors.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_except.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_format.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_integrity.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_precision.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_primarykey.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_progress.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_schema_change.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_vtable.py -B
 
 # 82-UnitTest
 
@@ -1185,3 +1224,6 @@
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
 #,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+
+## 02-Repair
+,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py

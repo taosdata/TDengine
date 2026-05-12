@@ -31,3 +31,45 @@ describe('resetTransformerPreviewState', () => {
     expect(transformerState.resultCurrentPage).toBe(1);
   });
 });
+
+describe('limitPreviewRows', () => {
+  it('keeps at most the shared preview row limit', async () => {
+    const { limitPreviewRows, PREVIEW_ROW_LIMIT } = await import('./util');
+    const rows = Array.from({ length: PREVIEW_ROW_LIMIT + 5 }, (_, index) => ({ index }));
+
+    const limitedRows = limitPreviewRows(rows);
+
+    expect(limitedRows).toHaveLength(PREVIEW_ROW_LIMIT);
+    expect(limitedRows[0]).toEqual({ index: 0 });
+    expect(limitedRows[PREVIEW_ROW_LIMIT - 1]).toEqual({ index: PREVIEW_ROW_LIMIT - 1 });
+  });
+
+  it('returns a new array even when row count is already within the limit', async () => {
+    const { limitPreviewRows } = await import('./util');
+    const rows = [{ index: 1 }];
+
+    const limitedRows = limitPreviewRows(rows);
+
+    expect(limitedRows).toEqual(rows);
+    expect(limitedRows).not.toBe(rows);
+  });
+});
+
+describe('mapPreviewRows', () => {
+  it('stops mapping rows once the shared preview row limit is reached', async () => {
+    const { mapPreviewRows, PREVIEW_ROW_LIMIT } = await import('./util');
+    const entries = [
+      { columns: Array.from({ length: PREVIEW_ROW_LIMIT + 5 }, (_, index) => [index]) }
+    ];
+    const mappedIndexes: number[] = [];
+
+    const rows = mapPreviewRows(entries, (row: number[]) => {
+      mappedIndexes.push(row[0]);
+      return { index: row[0] };
+    });
+
+    expect(rows).toHaveLength(PREVIEW_ROW_LIMIT);
+    expect(mappedIndexes).toHaveLength(PREVIEW_ROW_LIMIT);
+    expect(mappedIndexes).toEqual(Array.from({ length: PREVIEW_ROW_LIMIT }, (_, index) => index));
+  });
+});

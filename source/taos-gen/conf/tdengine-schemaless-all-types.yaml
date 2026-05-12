@@ -1,0 +1,89 @@
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/test_all_types
+  drop_if_exists: true
+  props: precision 'ns' vgroups 2
+
+schema:
+  name: all_types
+  tbname:
+    prefix: dev_
+    count: 5
+    from: 0
+  columns:
+    - name: ts
+      type: timestamp
+      start: now
+      precision: ns
+      step: 1s
+    - name: v_tinyint
+      type: tinyint
+      min: -128
+      max: 127
+    - name: v_tinyint_unsigned
+      type: tinyint unsigned
+      min: 0
+      max: 255
+    - name: v_smallint
+      type: smallint
+      min: -32768
+      max: 32767
+    - name: v_smallint_unsigned
+      type: smallint unsigned
+      min: 0
+      max: 65535
+    - name: v_int
+      type: int
+      min: -100000
+      max: 100000
+    - name: v_int_unsigned
+      type: int unsigned
+      min: 0
+      max: 200000
+    - name: v_bigint
+      type: bigint
+      min: -1000000
+      max: 1000000
+    - name: v_bigint_unsigned
+      type: bigint unsigned
+      min: 0
+      max: 2000000
+    - name: v_float
+      type: float
+      min: -100.0
+      max: 100.0
+    - name: v_double
+      type: double
+      min: -1000.0
+      max: 1000.0
+    - name: v_bool
+      type: bool
+    - name: v_binary
+      type: binary(64)
+      values: [hello, world, foo, bar, test]
+    - name: v_nchar
+      type: nchar(64)
+      values: [你好, 世界, 测试, 数据, 验证]
+    - name: v_varchar
+      type: varchar(64)
+      values: [alpha, beta, gamma, delta, epsilon]
+  tags:
+    - name: region
+      type: binary(32)
+      values: [east, west, north, south, central]
+    - name: device_id
+      type: int
+      min: 1
+      max: 5
+  generation:
+    interlace: 1
+    rows_per_table: 20
+    rows_per_batch: 100
+
+jobs:
+  insert-data:
+    steps:
+      - uses: tdengine/create-database
+      - uses: tdengine/insert
+        with:
+          format: schemaless
+          concurrency: 2

@@ -42,6 +42,7 @@ public:
     bool execute(const std::string& sql) override;
     bool execute(const SqlInsertData& data) override;
     bool execute(const StmtV2InsertData& data) override;
+    bool execute(const SchemalessInsertData& data) override;
 
     bool is_connected() const override;
     bool is_valid() const override;
@@ -81,6 +82,10 @@ private:
     using taos_stmt2_close_func = int (*)(TAOS_STMT2*);
     using taos_stmt2_error_func = char* (*)(TAOS_STMT2*);
 
+    // Schemaless API
+    using taos_schemaless_insert_raw_ttl_with_reqid_func = TAOS_RES* (*)(
+        TAOS*, char*, int, int32_t*, int, int, int32_t, int64_t);
+
     // Member function pointer
     taos_options_func taos_options_{nullptr};
     taos_errstr_func taos_errstr_{nullptr};
@@ -97,6 +102,9 @@ private:
     taos_stmt2_exec_func taos_stmt2_exec_{nullptr};
     taos_stmt2_close_func taos_stmt2_close_{nullptr};
     taos_stmt2_error_func taos_stmt2_error_{nullptr};
+
+    // Schemaless API
+    taos_schemaless_insert_raw_ttl_with_reqid_func taos_schemaless_insert_raw_ttl_with_reqid_{nullptr};
 
     static std::mutex driver_init_mutex_;
     static std::map<std::string, std::once_flag> driver_init_flags;

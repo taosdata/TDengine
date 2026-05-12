@@ -59,6 +59,9 @@ type UAClient struct {
 	autoReconnect bool
 
 	getPointsCache sync.Map
+	// propertyMu 保护 getPointsCache 内 Point.Properties map 的并发写入。
+	// 收集 Property 阶段，多个 goroutine 可能向同一父 Point 回填 Property → 必须加锁。
+	propertyMu sync.Mutex
 }
 
 type subscription struct {
@@ -836,13 +839,16 @@ func (t *TokenBucket) Put() {
 }
 
 type bfsListElement struct {
-	node        *opcua.Node
-	id          string
-	browseName  string
-	displayName string
-	parentID    string
-	path        string
-	nodeClass   ua.NodeClass
+	node            *opcua.Node
+	id              string
+	browseName      string
+	displayName     string
+	parentID        string
+	path            string
+	nodeClass       ua.NodeClass
+	parentNodeClass ua.NodeClass
+	referenceTypeID *ua.NodeID
+	typeDefinition  *ua.NodeID
 }
 
 func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]*common.Point, error) {
@@ -1129,6 +1135,7 @@ func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, n
 		return nil
 	}
 	var result []*common.Point
+	var propertyTasks []propertyReadTask
 	for i := 0; i < len(nodes); i++ {
 		index := i * len(attributes)
 		parent := nodes[i].parentID
@@ -1174,8 +1181,33 @@ func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, n
 		if nodeType != ua.NodeClassVariable {
 			continue
 		}
+		// 对 Variable 应用 4 级分类规则
+		cls, hit := Classify(nodes[i].parentNodeClass, nodes[i].referenceTypeID, nodes[i].typeDefinition)
+		if cls == ClassifyProperty {
+			// Property 节点：不进 result（→ 不下发到 collect 订阅），
+			// 只标记 IsProperty 并加入待 Read Value 队列，由 readAndAttachProperties
+			// 把值回填到父 Variable 的 Properties map。
+			point.IsProperty = true
+			propertyTasks = append(propertyTasks, propertyReadTask{
+				nodeID:     nodes[i].node.ID,
+				parentID:   parent,
+				browseName: browseName,
+			})
+			continue
+		}
+		if hit == "rule4-fallback" {
+			c.logger.WithFields(logrus.Fields{
+				"nodeID":          nodeID,
+				"parentNodeClass": nodes[i].parentNodeClass,
+				"referenceTypeID": referenceTypeIDString(nodes[i].referenceTypeID),
+				"typeDefinition":  typeDefinitionString(nodes[i].typeDefinition),
+			}).Warn("classify fell through to fallback rule, treating as dynamic Variable")
+		}
 		point.IsStatic = false
 		result = append(result, point)
+	}
+	if len(propertyTasks) > 0 {
+		c.readAndAttachProperties(ctx, conn, propertyTasks)
 	}
 	if len(result) > 0 {
 		if c.isKepServer {
@@ -1184,6 +1216,104 @@ func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, n
 		}
 	}
 	return result
+}
+
+// propertyReadTask 描述一个待 Read Value 的 Property 节点。
+type propertyReadTask struct {
+	nodeID     *ua.NodeID
+	parentID   string
+	browseName string
+}
+
+// readAndAttachProperties 批量 Read 所有 Property 节点的 Value，
+// 序列化后回填到父 Variable Point 的 Properties map。
+//
+// 调用频次：每批 BFS 调用一次。失败不影响其他 Property，仅 WARN 日志。
+func (c *UAClient) readAndAttachProperties(ctx context.Context, conn *opcua.Client, tasks []propertyReadTask) {
+	if len(tasks) == 0 {
+		return
+	}
+	valueIDs := make([]*ua.ReadValueID, len(tasks))
+	for i, t := range tasks {
+		valueIDs[i] = &ua.ReadValueID{
+			NodeID:      t.nodeID,
+			AttributeID: ua.AttributeIDValue,
+		}
+	}
+	req := &ua.ReadRequest{NodesToRead: valueIDs}
+	res, err := conn.Read(ctx, req)
+	if err != nil {
+		c.logger.WithError(err).Warn("read property values error, properties will be empty")
+		return
+	}
+	if len(res.Results) != len(tasks) {
+		c.logger.WithFields(logrus.Fields{
+			"want": len(tasks),
+			"got":  len(res.Results),
+		}).Warn("read property values response length mismatch")
+		return
+	}
+	for i, dv := range res.Results {
+		t := tasks[i]
+		if dv == nil {
+			continue
+		}
+		if !errors.Is(dv.Status, ua.StatusOK) {
+			c.logger.WithFields(logrus.Fields{
+				"nodeID": t.nodeID.String(),
+				"status": dv.Status,
+			}).Warn("read property value failed, skipping")
+			continue
+		}
+		if dv.Value == nil {
+			continue
+		}
+		serialized, serr := serializePropertyValue(dv.Value.Value())
+		if serr != nil {
+			c.logger.WithFields(logrus.Fields{
+				"nodeID": t.nodeID.String(),
+				"err":    serr,
+			}).Warn("serialize property value failed, skipping")
+			continue
+		}
+		// 找到父 Variable Point，回填 Properties map。
+		parentVal, ok := c.getPointsCache.Load(t.parentID)
+		if !ok {
+			continue
+		}
+		parent, ok := parentVal.(*common.Point)
+		if !ok {
+			continue
+		}
+		// 只回填到 Variable 父；Object 父的 Properties 无意义（opc_object stable 无 Tag 列）。
+		if parent.NodeType != "Variable" {
+			continue
+		}
+		c.propertyMu.Lock()
+		if parent.Properties == nil {
+			parent.Properties = make(map[string]string)
+		}
+		// 同名冲突直接覆盖；调用方（Rust 侧 generate）会在合并 Tag union 时再做冲突检测。
+		// 这里覆盖是因为 OPC UA 规范保证同一父下 Property 的 BrowseName 唯一。
+		parent.Properties[t.browseName] = serialized
+		c.propertyMu.Unlock()
+	}
+}
+
+// referenceTypeIDString 返回 NodeID 字符串，nil → "<nil>"。仅用于日志。
+func referenceTypeIDString(n *ua.NodeID) string {
+	if n == nil {
+		return "<nil>"
+	}
+	return n.String()
+}
+
+// typeDefinitionString 返回 NodeID 字符串，nil → "<nil>"。仅用于日志。
+func typeDefinitionString(n *ua.NodeID) string {
+	if n == nil {
+		return "<nil>"
+	}
+	return n.String()
 }
 
 func (c *UAClient) getKepServerDescription(ctx context.Context, conn *opcua.Client, result []*common.Point) {
@@ -1297,14 +1427,22 @@ func (c *UAClient) getChildrenByList(ctx context.Context, nodes []*bfsListElemen
 					parentID := browseNode.id
 					path := browseNode.path + "." + escapePathName(displayName)
 
+					var typeDef *ua.NodeID
+					if refItem.TypeDefinition != nil {
+						typeDef = refItem.TypeDefinition.NodeID
+					}
+
 					children = append(children, &bfsListElement{
-						node:        nodeId,
-						id:          nodeId.String(),
-						browseName:  browseName,
-						displayName: displayName,
-						nodeClass:   refItem.NodeClass,
-						parentID:    parentID,
-						path:        path,
+						node:            nodeId,
+						id:              nodeId.String(),
+						browseName:      browseName,
+						displayName:     displayName,
+						nodeClass:       refItem.NodeClass,
+						parentID:        parentID,
+						path:            path,
+						parentNodeClass: browseNode.nodeClass,
+						referenceTypeID: refItem.ReferenceTypeID,
+						typeDefinition:  typeDef,
 					})
 				}
 			}

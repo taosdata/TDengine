@@ -7,11 +7,40 @@
 prefix="taos"
 versionType="enterprise"
 mode="full"
+SCRIPT_PATH="$0"
+RESOLVED_SCRIPT_PATH=""
+if command -v realpath >/dev/null 2>&1; then
+    RESOLVED_SCRIPT_PATH="$(realpath "${SCRIPT_PATH}" 2>/dev/null || true)"
+elif command -v readlink >/dev/null 2>&1; then
+    RESOLVED_SCRIPT_PATH="$(readlink -f "${SCRIPT_PATH}" 2>/dev/null || true)"
+fi
+if [ -n "${RESOLVED_SCRIPT_PATH}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${RESOLVED_SCRIPT_PATH}")" && pwd)"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+fi
+INSTALL_ROOT="$(cd "${SCRIPT_DIR}/.." 2>/dev/null && pwd)"
 version="3.3.7.0"
 cfg_dir="/etc/taos"
 MAX_RETRY=15
 OS_TYPE=$(uname)
-TDENGINE_CLI="taos -c ${cfg_dir}"
+TDENGINE_CLI_CMD=("taos" "-c" "${cfg_dir}")
+TDENGINE_LD_LIBRARY_PATH=""
+
+if [ "$(id -u)" -ne 0 ]; then
+    cfg_dir="${HOME}/taos/cfg"
+    if [ -d "${INSTALL_ROOT}/cfg" ]; then
+        cfg_dir="${INSTALL_ROOT}/cfg"
+    fi
+    TDENGINE_LD_LIBRARY_PATH="${HOME}/.local/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    if [ -x "${SCRIPT_DIR}/taos" ]; then
+        TDENGINE_CLI_CMD=("${SCRIPT_DIR}/taos" "-c" "${cfg_dir}")
+    elif [ -x "${HOME}/.local/bin/taos" ]; then
+        TDENGINE_CLI_CMD=("${HOME}/.local/bin/taos" "-c" "${cfg_dir}")
+    else
+        TDENGINE_CLI_CMD=("taos" "-c" "${cfg_dir}")
+    fi
+fi
 
 # Define service list
 if [ "${versionType}" = "enterprise" ] && [ "${mode}" = "full" ]; then
@@ -71,9 +100,18 @@ start_service() {
     return ${status:-1}
 }
 
+# Run TDengine CLI with the configured cfg directory.
+run_tdengine_cli() {
+    if [ -n "${TDENGINE_LD_LIBRARY_PATH}" ]; then
+        LD_LIBRARY_PATH="${TDENGINE_LD_LIBRARY_PATH}" "${TDENGINE_CLI_CMD[@]}" "$@"
+    else
+        "${TDENGINE_CLI_CMD[@]}" "$@"
+    fi
+}
+
 # Check TDengine connectivity
 check_connectivity() {
-    ${TDENGINE_CLI} -s "select server_status();" >/dev/null 2>&1
+    run_tdengine_cli -s "select server_status();" >/dev/null 2>&1
 }
 
 # Create snode if needed
@@ -89,7 +127,7 @@ create_snode_if_needed() {
     fi
     
     # Check existing snodes
-    if ! ${TDENGINE_CLI} -s "show snodes;" > "${snode_tmp}" 2>/dev/null; then
+    if ! run_tdengine_cli -s "show snodes;" > "${snode_tmp}" 2>/dev/null; then
         echo "Error: Failed to query snodes."
         return 1
     fi
@@ -97,7 +135,7 @@ create_snode_if_needed() {
     # Create snode if none exists
     if grep -q "0 row" "${snode_tmp}"; then
         echo "Creating snode"
-        if ! ${TDENGINE_CLI} -s "create snode on dnode 1;" >/dev/null 2>&1; then
+        if ! run_tdengine_cli -s "create snode on dnode 1;" >/dev/null 2>&1; then
             echo " Error: Failed to create snode on dnode 1."
             return 2
         fi
@@ -142,7 +180,7 @@ create_xnode_if_needed() {
     fi
     
     # Check existing xnodes
-    if ! ${TDENGINE_CLI} -s "show xnodes;" > "${xnode_tmp}" 2>/dev/null; then
+    if ! run_tdengine_cli -s "show xnodes;" > "${xnode_tmp}" 2>/dev/null; then
         echo "Error: Failed to query xnodes."
         return 3
     fi
@@ -158,12 +196,12 @@ create_xnode_if_needed() {
         local create_sql="CREATE XNODE '${safe_server_fqdn}:${taosx_server_port}' USER ${xnode_user} PASS '${safe_xnode_pass}';"
         local redacted_sql="CREATE XNODE '${safe_server_fqdn}:${taosx_server_port}' USER ${xnode_user} PASS '******';"
         
-        if ! ${TDENGINE_CLI} -s "${create_sql}" >/dev/null 2>&1; then
+        if ! run_tdengine_cli -s "${create_sql}" >/dev/null 2>&1; then
             echo "Error: Failed to create xnode: ${redacted_sql}"
             return 4
         fi
         local show_xnodes_sql="SHOW XNODES;"
-        echo "Show xnodes result:" && ${TDENGINE_CLI} -s "${show_xnodes_sql}" | grep -i -e online -e offline -e error
+        echo "Show xnodes result:" && run_tdengine_cli -s "${show_xnodes_sql}" | grep -i -e online -e offline -e error
         
         echo "✓ xnode created successfully"
     fi

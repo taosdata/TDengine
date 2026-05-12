@@ -47,7 +47,7 @@ TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
@@ -57,7 +57,7 @@ window_clause: {
 
 其中，interval_val 和 sliding_val 都表示时间段，interval_offset 表示窗口偏移量，interval_offset 必须小于 interval_val，语法上支持三种方式，举例说明如下：
 
-- `INTERVAL(1s, 500a) SLIDING(1s)` 自带时间单位的形式，其中的时间单位是单字符表示，分别为：a (毫秒)、b (纳秒)、d (天)、h (小时)、m (分钟)、n (月)、s (秒)、u (微秒)、w (周)、y (年)。
+- `INTERVAL(1s, 500a) SLIDING(1s)` 自带时间单位的形式，其中时间单位参见[时间单位](./01-datatype.md#时间单位)。
 - `INTERVAL(1000, 500) SLIDING(1000)` 不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库。
 - `INTERVAL('1s', '500a') SLIDING('1s')` 自带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
 
@@ -122,26 +122,83 @@ INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充�
 
 ### 状态窗口
 
-使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭，NULL 不会触发窗口关闭。如下图所示，根据状态量确定的状态窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12] 两个。
+状态窗口根据一个或多个状态键的连续性划分窗口（从 3.4.2.0 版本开始支持多个状态键）。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 或 `IF` 表达式。相邻记录的状态键会按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。如下图展示的是单状态键场景，对应的两个窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12]。
 
 ![TDengine TSDB Database 状态窗口示意图](./pic/state_window.png)
 
-使用 STATE_WINDOW 来确定状态窗口划分的列。例如
+状态窗口语法如下：
+
+```sql
+STATE_WINDOW(state_expr [, state_expr ...])
+  [EXTEND(extend_val)]
+  [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
+  [TRUE_FOR(true_for_expr)]
+```
+
+参数说明如下：
+
+- `state_expr`：一个或多个状态键。可以是列引用，也可以是 `CASE WHEN`、`IF`、`CAST` 等表达式；返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列。
+- `EXTEND(extend_val)`：可选，指定窗口边界扩展策略。`0` 为默认行为，窗口开始、结束时间取当前状态的第一条和最后一条记录，窗口间的全 `NULL` 行会被丢弃；`1` 保持窗口开始时间不变，并将窗口结束时间向后扩展到下一个窗口开始前；`2` 保持窗口结束时间不变，并将窗口开始时间向前扩展到上一个窗口结束后。
+- `ZEROTH_STATE(...)`：可选，指定"零状态"。通过 `ZEROTH_STATE` 指定这些不关心的状态值后，匹配的窗口会被自动过滤，不参与计算也不输出，从而简化结果。参数个数必须与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，且可以转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断。只有所有已配置零状态的位置都等于对应值时，该窗口才会被过滤。
+- `TRUE_FOR(true_for_expr)`：可选，指定窗口过滤条件。支持 `TRUE_FOR(duration_time)`、`TRUE_FOR(COUNT n)`、`TRUE_FOR(duration_time AND COUNT n)`、`TRUE_FOR(duration_time OR COUNT n)` 四种形式。
+
+状态键中的 `NULL` 按下面的规则处理：
+
+- 连续相同状态键（`NULL` 位置相同，且非 `NULL` 状态键也完全相同）的行会作为一个整体决定是并入前一个窗口、并入后一个窗口，还是独立成窗，其归属和扩展与 `EXTEND` 参数相关；
+- 两个状态窗口互相兼容指：除 `NULL` 列外，这两个窗口其他状态键完全相同；兼容的窗口在 `EXTEND` 影响下可以合并；
+- 被相同状态键包裹的全 `NULL` 行归入这个整体考虑；
+- 当所有状态键列都是 `NULL` 时，该行不会触发状态变化，其归属受前后数据及 `EXTEND` 参数的影响；
+- 当只有部分状态键列为 `NULL` 时（仅多列场景），这些 `NULL` 列不参与逐列比较，通过其他非 `NULL` 列决定窗口划分。
+
+下表给出几种最常见的合并结果。表中“并入前窗 / 并入后窗 / 独立成窗”都指中间那段连续的部分 `NULL` 行：
+
+| 输入序列（状态键） | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
+| --- | --- | --- | --- |
+| `(1, 10) -> (1, NULL) -> (1, 20)` | 并入前窗 | 并入前窗 | 并入后窗 |
+| `(1, 'a') -> (1, NULL) -> (2, 'a')` | 并入前窗 | 并入前窗 | 独立成窗 |
+| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | 并入后窗 | 独立成窗 | 并入后窗 |
+| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | 独立成窗 | 独立成窗 | 独立成窗 |
+| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | 并入后窗 | 独立成窗 | 并入后窗 |
+| `(1, 'a') -> (1, 'a') -> (1, NULL)` | 并入前窗 | 并入前窗 | 独立成窗 |
+
+如果连续多行都属于同一段部分 `NULL` 行，规则不变。例如 `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')` 中间三行会一起处理：`EXTEND(0)` 和 `EXTEND(1)` 并入前窗，`EXTEND(2)` 独立成窗。
+
+#### 示例
+
+##### 状态键示例
+
+单列状态窗口示例：
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
-仅关心 status 为 2 时的状态窗口的信息。例如
+仅关心 `status = 2` 的窗口时，可以继续在外层过滤：
 
 ```sql
 SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
-TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常。
+多列状态窗口示例：
+
+```sql
+SELECT _wstart, _wend, count(*), c_int, c_bool
+FROM ntb1
+STATE_WINDOW(c_int, c_bool);
+```
+
+上面的 SQL 使用 `c_int` 和 `c_bool` 共同定义状态键。只要 `c_int` 或 `c_bool` 任一值发生变化，就会关闭当前窗口并开启新窗口。
+
+TDengine TSDB 还支持将 `CASE` 或 `IF` 表达式作为状态键。例如，智能电表的电压正常范围是 205V 到 235V，那么可以通过监控电压来判断电路是否正常；也可以把多个离散状态联合起来定义窗口边界。
 
 ```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
+```
+
+同样的逻辑也可以用 `IF` 表达式更简洁地表达：
+
+```sql
+SELECT tbname, _wstart, IF(voltage >= 205 AND voltage <= 235, 1, 0) AS status FROM meters PARTITION BY tbname STATE_WINDOW(IF(voltage >= 205 AND voltage <= 235, 1, 0));
 ```
 
 在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用当前查询上下文中可见的 tag 列，只要最终表达式结果类型仍为整型、布尔型或字符串类型。例如，可以根据 tag `groupId` 动态调整阈值：
@@ -156,13 +213,9 @@ STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
 
 需要注意，`STATE_WINDOW(groupId)` 这种直接将 tag 列作为状态表达式的写法仍然不支持；如果要使用 tag 列，需要让它参与到状态表达式中。
 
-Extend 参数可以设置窗口开始结束时的扩展策略，可选值为 0（默认值）、1、2。
+##### EXTEND 参数
 
-- 默认情况下，窗口开始、结束时间为该状态的第一条和最后一条数据对应的时间戳；
-- extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；
-- extend 值为 2 值窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
-
-全部查询数据起始位置状态值为 NULL 的数据将被包含在第一个窗口中，同样全部查询数据尾部状态值为 NULL 的数据将被包含在最后一个窗口中。以如下数据为例
+以如下数据为例，展示 `EXTEND` 参数对窗口划分及 `NULL` 行归属的影响
 
 ```sql
 taos> select * from state_window_example;
@@ -179,51 +232,66 @@ taos> select * from state_window_example;
  2025-01-01 00:00:08.000 | NULL        |
 ```
 
-当 `extend` 值为 0 时
+Extend 参数可以设置窗口开始结束时的扩展策略，可选值为 0（默认值）、1、2。
+
+当 `extend` 值为 0 时，窗口的开始和结束时间取当前状态的第一条和最后一条非 `NULL` 记录。首部和尾部的 `NULL` 行以及不同状态之间的 `NULL` 行均被丢弃，仅被同一状态值夹在中间的 `NULL` 行归入当前窗口。
 
 ```sql
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
- 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:01.000 |                  2000 | 2025-01-01 00:00:03.000 |                     3 |
  2025-01-01 00:00:05.000 |                  1000 | 2025-01-01 00:00:06.000 |                     2 |
- 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+ 2025-01-01 00:00:07.000 |                     0 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
-当 `extend` 值为 1 时
+当 `extend` 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展到下一个窗口开始前。不同状态之间的 `NULL` 行和尾部 `NULL` 行归入前一个窗口，首部 `NULL` 行被丢弃。
 
 ```sql
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 1);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(1);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
- 2025-01-01 00:00:00.000 |                  4999 | 2025-01-01 00:00:04.999 |                     5 |
+ 2025-01-01 00:00:01.000 |                  3999 | 2025-01-01 00:00:04.999 |                     4 |
  2025-01-01 00:00:05.000 |                  1999 | 2025-01-01 00:00:06.999 |                     2 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-当 `extend` 值为 2 时
+当 `extend` 值为 2 时，窗口结束时间不变，窗口开始时间向前扩展到上一个窗口结束后。不同状态之间的 `NULL` 行和首部 `NULL` 行归入后一个窗口，尾部 `NULL` 行被丢弃。
 
 ```sql
-select _wstart, _wduration, _wend, count(*) from state_window_test state_window(status, 2);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
- 2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+ 2025-01-01 00:00:06.001 |                   999 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
-Zeroth_state 指定“零状态”，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 `zeroth_state` 时，`extend` 值为强制输入项，不允许留空或省略。
-仍以相同数据为例
+##### ZEROTH_STATE 参数
 
-当 `zeroth_state` 值为 `2` 时
+Zeroth_state 指定“零状态”，所谓"零状态"是指用户不关心的基线状态值——状态窗口查询往往会产生大量处于默认 / 空闲 / 正常状态的窗口，而用户通常只关注异常或特定状态。状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。多列场景下，只有所有参与判断的位置都等于各自的零状态值时，该窗口才会被过滤；如果某个位置写成 `NO_ZEROTH`，该位置不参与零状态判断。
+
+单列 `ZEROTH_STATE` 仍以相同数据为例。当 `zeroth_state` 值为 `2` 时：
 
 ```sql
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0) zeroth_state(2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
+
+多列 `ZEROTH_STATE` 示例：
+
+```sql
+SELECT _wstart, _wend, count(*), c1, c2
+FROM ntb_null
+STATE_WINDOW(c1, c2) EXTEND(0) ZEROTH_STATE(1, 10);
+```
+
+上面的 SQL 会过滤掉状态键同时满足 `(1, 10)` 的窗口，但会保留 `(1, 20)`、`(2, 20)` 等窗口。如果只想约束其中某个位置，可以使用 `NO_ZEROTH` 占位，例如 `ZEROTH_STATE(1, NO_ZEROTH)`。
+
+##### TRUE_FOR 参数
 
 状态窗口支持使用 TRUE_FOR 参数来设定窗口的过滤条件。只有满足条件的窗口才会返回计算结果。支持以下四种模式：
 

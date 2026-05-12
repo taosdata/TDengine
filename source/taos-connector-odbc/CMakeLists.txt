@@ -33,9 +33,7 @@ option(ENABLE_SQLITE3_TEST "whether to test with sqlite3 or not" OFF)
 option(ENABLE_SQLSERVER_TEST "whether to test with sqlserver or not" OFF)
 option(ENABLE_VALGRIND_TEST "whether to test with valgrind or not" OFF)
 option(ENABLE_COVERAGE "whether to enable code coverage" OFF)
-option(FAKE_TAOS "whether to fake `taos` or not" OFF)
-option(FAKE_TAOSWS "whether to fake `taosws` or not" OFF)
-option(WITH_TAOSWS "whether to build with taosws" ON)
+option(HAVE_NATIVE "whether native (non-websocket) connection mode is supported" ON)
 
 # experimental
 option(BUILD_TAOSWSD_EXPERIMENTAL "whether to build `taoswsd` or not" OFF)
@@ -57,7 +55,7 @@ endif()
 
 
 # judging platform architecture
-message(STATUS "FAKE_TAOS: ${FAKE_TAOS}")
+message(STATUS "HAVE_NATIVE: ${HAVE_NATIVE}")
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(STATUS "Building for 64-bit platform")
   set(TODBC_BUILD_TARGET_CPUTYPE "x64")
@@ -65,9 +63,9 @@ else()
   message(STATUS "Building for 32-bit platform")
   set(TODBC_BUILD_TARGET_CPUTYPE "x86")
   set(TODBC_X86 TRUE)
-  if (NOT FAKE_TAOS)
-    set(FAKE_TAOS TRUE)
-    message(STATUS "Set FAKE_TAOS: ${FAKE_TAOS}")
+  if (HAVE_NATIVE)
+    set(HAVE_NATIVE FALSE)
+    message(STATUS "Set HAVE_NATIVE: ${HAVE_NATIVE} (32-bit does not support native mode)")
   endif()
 endif()
 

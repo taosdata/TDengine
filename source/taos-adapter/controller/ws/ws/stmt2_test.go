@@ -394,7 +394,7 @@ func TestStmt2Prepare(t *testing.T) {
 	assert.Equal(t, uint64(4), prepareResp.ReqID)
 	assert.Equal(t, 0, prepareResp.Code, prepareResp.Message)
 	assert.Equal(t, false, prepareResp.IsInsert)
-	assert.Nil(t, prepareResp.Fields)
+	assert.Equal(t, 1, len(prepareResp.Fields))
 	assert.Equal(t, 2, prepareResp.FieldsCount)
 }
 
@@ -478,6 +478,7 @@ func Stmt2Query(t *testing.T, db string, prepareDataSql []string) {
 	assert.Equal(t, 0, prepareResp.Code, prepareResp.Message)
 	assert.False(t, prepareResp.IsInsert)
 	assert.Equal(t, 2, prepareResp.FieldsCount)
+	assert.Equal(t, 1, len(prepareResp.Fields))
 
 	// bind
 	var block bytes.Buffer

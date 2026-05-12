@@ -16,8 +16,10 @@ use runners::opc::opc_datasets;
 use taosx_utils::dsn::json_to_dsn;
 
 pub use runners::{
-    get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
-    set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days, set_env_plugins_home_dir,
+    ENV_TAOSX_BACKUP_AUTO_CREATE_DIR, get_backup_auto_create_dir, get_data_dir,
+    get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
+    set_env_backup_auto_create_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
+    set_env_plugins_home_dir,
 };
 pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;

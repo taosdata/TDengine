@@ -111,3 +111,16 @@ interval = 10
 [log.loggers]
 #"actix_server::accept" = "warn"
 #"taos::query" = "warn"
+
+# ----------------------------------------------------------------------------
+# Backup configuration.
+# ----------------------------------------------------------------------------
+#[backup]
+
+# Auto-create the user-specified backup directory if it does not exist.
+# When false (default), taosx requires the directory to exist and reports
+# "invalid path: ..." otherwise. Set to true if an upstream service (e.g. cloud
+# orchestrator) only generates the path and expects taosx to mkdir -p it.
+# Equivalent env var: TAOSX_BACKUP_AUTO_CREATE_DIR; CLI: --backup.autoCreateDir.
+#
+#autoCreateDir = false

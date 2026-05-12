@@ -355,9 +355,21 @@ pub struct Stmt2Field {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BindType {
-    Column = 1,
-    Tag = 2,
-    TableName = 4,
+    Column,
+    Tag,
+    TableName,
+    Unknown(u8),
+}
+
+impl BindType {
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            BindType::Column => 1,
+            BindType::Tag => 2,
+            BindType::TableName => 4,
+            BindType::Unknown(v) => *v,
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for BindType {
@@ -382,7 +394,10 @@ impl<'de> Deserialize<'de> for BindType {
                     1 => BindType::Column,
                     2 => BindType::Tag,
                     4 => BindType::TableName,
-                    _ => return Err(E::custom(format!("Invalid bind type: {v}"))),
+                    _ => {
+                        tracing::warn!("Unknown bind type: {v}, treating as Unknown");
+                        BindType::Unknown(v)
+                    }
                 })
             }
 
@@ -542,17 +557,26 @@ mod tests {
             assert_eq!(res, expected);
         }
 
-        let invalid_cases = vec![0, 3, 255];
-        for val in invalid_cases {
-            let res: Result<BindType, _> = serde_json::from_value(serde_json::json!(val as i64));
-            assert!(res.is_err());
+        let unknown_cases: Vec<u8> = vec![0, 3, 5, 255];
+        for val in unknown_cases {
+            let res: BindType = serde_json::from_value(serde_json::json!(val as i64)).unwrap();
+            assert_eq!(res, BindType::Unknown(val));
 
-            let res: Result<BindType, _> = serde_json::from_value(serde_json::json!(val as u64));
-            assert!(res.is_err());
+            let res: BindType = serde_json::from_value(serde_json::json!(val as u64)).unwrap();
+            assert_eq!(res, BindType::Unknown(val));
         }
 
         let res: Result<BindType, _> = serde_json::from_value(serde_json::json!("invalid"));
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_bind_type_as_u8() {
+        assert_eq!(BindType::Column.as_u8(), 1);
+        assert_eq!(BindType::Tag.as_u8(), 2);
+        assert_eq!(BindType::TableName.as_u8(), 4);
+        assert_eq!(BindType::Unknown(5).as_u8(), 5);
+        assert_eq!(BindType::Unknown(0).as_u8(), 0);
     }
 
     #[test]

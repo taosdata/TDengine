@@ -1017,7 +1017,9 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     pSubplan->execNode.nodeId = MNODE_HANDLE;
     pSubplan->execNode.epSet = pCxt->pPlanCxt->mgmtEpSet;
   }
-  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES) && pScanLogicNode->pVgroupList) {
+  if ((0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES) ||
+       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_CPU_ALLOCATION)) &&
+      pScanLogicNode->pVgroupList) {
     pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
   } else {
     pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
@@ -2869,8 +2871,8 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   }
 
   SNodeList* pPrecalcExprs = NULL;
-  SNode*     pStateKey = NULL;
-  int32_t    code = rewritePrecalcExpr(pCxt, pWindowLogicNode->pStateExpr, &pPrecalcExprs, &pStateKey);
+  SNodeList* pStateKeys = NULL;
+  int32_t    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pStateExprs, &pPrecalcExprs, &pStateKeys);
 
   SDataBlockDescNode* pChildTupe = NULL;
   if (TSDB_CODE_SUCCESS == code) {
@@ -2885,10 +2887,7 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pStateKey, &pState->pStateKey);
-    // if (TSDB_CODE_SUCCESS == code) {
-    //   code = addDataBlockSlot(pCxt, &pState->pStateKey, pState->window.node.pOutputDataBlockDesc);
-    // }
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pStateKeys, &pState->pStateKeys);
   }
 
   pState->extendOption = pWindowLogicNode->extendOption;
@@ -2907,7 +2906,7 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   }
 
   nodesDestroyList(pPrecalcExprs);
-  nodesDestroyNode(pStateKey);
+  nodesDestroyList(pStateKeys);
 
   return code;
 }
@@ -3171,7 +3170,7 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
   pExternal->extFill.mode = pWindowLogicNode->extFill.mode;
   pExternal->orgTableUid = pWindowLogicNode->orgTableUid;
   pExternal->orgTableVgId = pWindowLogicNode->orgTableVgId;
-  pExternal->pSubquery = pWindowLogicNode->pSubquery;
+  PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pSubquery, &pExternal->pSubquery));
   PLAN_ERR_JRET(nodesCloneNode(pWindowLogicNode->pTimeRange, &pExternal->pTimeRange));
 
   PLAN_ERR_JRET(createWindowPhysiNodeFinalize(pCxt, pChildren, &pExternal->window, pWindowLogicNode));
