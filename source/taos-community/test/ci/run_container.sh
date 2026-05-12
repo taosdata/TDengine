@@ -145,9 +145,12 @@ fi
 name_param=""
 [ -n "$container_name" ] && name_param="--name ${container_name}"
 
-# 非 sanitizer 构建时禁用 LD_PRELOAD（避免 Ubuntu 24.04 kernel 6.8 ASan fork deadlock）
-asan_env=""
-[[ "${buildSan}" != "y" ]] && asan_env="-e CI_NO_ASAN=1"
+# san=y: 注入 CI_ASAN_BUILD=1，pytest.sh 会 LD_PRELOAD libasan.so.8 启用 ASAN 检测。
+# san=n: 完全不做 ASAN，设 CI_NO_ASAN=1
+asan_env="-e CI_NO_ASAN=1"
+if [[ "${buildSan}" == "y" ]]; then
+  asan_env="-e CI_NO_ASAN=1 -e CI_ASAN_BUILD=1"
+fi
 
 echo "docker run \
     ${name_param:+$name_param }--privileged=true \

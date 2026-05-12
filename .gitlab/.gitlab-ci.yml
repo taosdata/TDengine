@@ -3,12 +3,12 @@
 # =============================================================================
 # 改动说明（相比 .gitlab-ci.yml）：
 #   1. 三步构建（build stage）：
-#        build-externals (串行)  → 构建全部第三方库，stamps → externals-core-amd64/
+#        build-externals (串行)  → 构建全部第三方库，stamps → externals-others-amd64/
 #            ↓ needs
-#        build-noasan (NoSan)  → TSDB_SRC/debug/       → externals-core-amd64（读 stamps 跳过）
-#        build-asan  (ASAN)   → TSDB_SRC_SAN/debug/   → externals-core-amd64（读 stamps 跳过）
-#      build-noasan / build-asan 在 build-externals 完成后并行运行，各自独立源码目录，
-#      externals stamps 位于 TD_EXTERNALS_BASE_DIR（cache/externals-core-amd64/ 挂载为
+#        build-noasan (NoSan)  → TSDB_SRC/debug-others/     → externals-others-amd64（读 stamps 跳过）
+#        build-asan  (ASAN)   → TSDB_SRC_SAN/debug-others/ → externals-others-amd64（读 stamps 跳过）
+#      三个 build job 统一使用 --image others:latest，externals stamps 写入同一目录，
+#      externals stamps 位于 TD_EXTERNALS_BASE_DIR（cache/externals-others-amd64/ 挂载为
 #      /mnt/.externals），与 debug/ 无关，--clean 不会清除，并行安全。
 #   2. upload-nexus（verify 通过后）打包两份产物上传 Nexus：
 #        ${NEXUS_PATH}/nosan/linux-x64-nosan.tar.gz   ← 来自 build-noasan
@@ -47,8 +47,8 @@ variables:
   # ── 基础路径配置（按部署环境修改这两个变量即可）──────────────────────────
   CI_BASE_DIR: "/data1/tdengine-ci"        # CI 工作根目录（workspace、platform、fail-logs 均在此）
   CI_CACHE_DIR: "/data/cache/tsdb-builder" # 构建缓存目录（externals stamps、Docker layer 等）
-  BUILDER_IMAGE_TAG: "0.21"                 # 构建镜像版本（修改此处即可同步 build.sh --image 与 docker run）
-  BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/core:${BUILDER_IMAGE_TAG}-amd64"
+  BUILDER_IMAGE_TAG: "0.21"                 # 构建镜像版本（切换回 core 镜像时使用：--image core:${BUILDER_IMAGE_TAG}）
+  BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/others:latest-amd64"
 
 .rules-code-change:
   rules:
@@ -150,15 +150,16 @@ prepare-workspace:
 # Stage: build — 串行三步：externals 预构建 → NoSan 与 San 并行
 # =============================================================================
 # 流水线设计：
-#   build-externals (串行) → 构建全部第三方库，stamps 写入 externals-core-amd64/
+#   build-externals (串行) → 构建全部第三方库，stamps 写入 externals-others-amd64/
 #       ↓ needs
 #   build-noasan (NoSan)   build-asan (ASAN)     ← 并行，各用独立源码目录
-#   TSDB_SRC/debug/      TSDB_SRC_SAN/debug/
+#   TSDB_SRC/debug-others/      TSDB_SRC_SAN/debug-others/
 #
-# 关键：ExternalProject stamp 存储在 TD_EXTERNALS_BASE_DIR（= /mnt/.externals =
-#   cache/externals-core-amd64/），而非 debug/ 内。--clean 只清 debug/，stamps
-#   始终存活。build-externals 完成后，两个并行 job 的 cmake 均发现 stamps 已存在，
-#   跳过所有 externals，仅编译 TDengine 主体代码，彻底消除并行 externals 竞态。
+# 关键：三个 build job 统一使用 --image others:latest，ExternalProject stamp 存储在
+#   TD_EXTERNALS_BASE_DIR（= /mnt/.externals = cache/externals-others-amd64/），
+#   而非 debug/ 内。--clean 只清 debug/，stamps 始终存活。build-externals 完成后，
+#   两个并行 job 的 cmake 均发现 stamps 已存在，跳过所有 externals，仅编译
+#   TDengine 主体代码，彻底消除并行 externals 竞态。
 # =============================================================================
 build-externals:
   stage: build
@@ -177,8 +178,23 @@ build-externals:
       (
         flock -x 9
         echo "[build-externals] acquired exclusive lock, starting build..."
+        # 清理 externals 缓存中残留的 devtoolset-7 CMakeCache（来自旧 core: 镜像）。
+        # others:latest 用 gcc-toolset-14，路径不同；stale cache 会导致 ext_libs3 等
+        # ExternalProject configure 步骤报 "compiler not found" 并失败。
+        # 只删除 build 子目录和对应 stamp，install/ 中已安装的库不受影响。
+        _ext_debug="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
+        if [ -d "${_ext_debug}" ]; then
+          while IFS= read -r _cache; do
+            _bdir=$(dirname "$_cache")
+            _ext=$(basename "$_bdir" | sed 's/-build$//')
+            _sdir="$(dirname "$_bdir")/${_ext}-stamp"
+            echo "[build-externals] stale devtoolset-7 cache, cleaning: ${_ext}"
+            rm -rf "${_bdir}" "${_sdir}"
+          done < <(find "${_ext_debug}" -name "CMakeCache.txt" \
+                       -exec grep -l "devtoolset-7" {} \; 2>/dev/null)
+        fi
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image core:${BUILDER_IMAGE_TAG} \
+          --image others:latest \
           --src "${TSDB_SRC}" \
           --cache ${CI_CACHE_DIR}/ \
           --clean \
@@ -198,11 +214,16 @@ build-externals:
           -DBUILD_CONTRIB=ON
       ) 9>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-externals] Externals done ==="
+      # 若切换回 --image core:${BUILDER_IMAGE_TAG}，需要将 externals-core-amd64 符号链接到 externals-others-amd64：
+      # ln -sfn "${CI_CACHE_DIR}/externals-core-amd64" \
+      #         "${CI_CACHE_DIR}/externals-others-amd64" 2>/dev/null || true
+      # echo "[build-externals] externals-others-amd64 -> externals-core-amd64 (symlink)"
 
   after_script:
     - |
       echo "=== externals cache size ==="
-      du -sh ${CI_CACHE_DIR}/externals-core-amd64/ 2>/dev/null || true
+      du -sh ${CI_CACHE_DIR}/externals-others-amd64/ 2>/dev/null || true
+      # du -sh ${CI_CACHE_DIR}/externals-core-amd64/ 2>/dev/null || true  # 切换回 core 镜像时改此行
 
 build-noasan:
   stage: build
@@ -218,7 +239,7 @@ build-noasan:
       # exclusive lock: cmake configure 会向共享的 externals stamp 目录写临时文件
       # （git-update 脚本、CMakeTmp/），多 MR 并发时会互删导致 configure_file 报错。
       # 整个 build（cmake configure + make）串行化，彻底消除竞态。
-      _EXT_INSTALL="${CI_CACHE_DIR}/externals-core-amd64/install"
+      _EXT_INSTALL="${CI_CACHE_DIR}/externals-others-amd64/install"
       (
         flock -x 9
         echo "[build-noasan] acquired exclusive lock on externals"
@@ -233,7 +254,7 @@ build-noasan:
         done
         echo "[build-noasan] externals validation passed"
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image core:${BUILDER_IMAGE_TAG} \
+          --image others:latest \
           --src "${TSDB_SRC}" \
           --cache ${CI_CACHE_DIR}/ \
           --clean \
@@ -252,7 +273,7 @@ build-noasan:
           -DROCKSDB_USE_DEPS=OFF \
           -DTD_EXTERNALS_USE_ONLY=ON
       ) 9>${CI_CACHE_DIR}/.externals-build.lock
-      echo "=== [build-noasan] NoSan done: $(ls ${TSDB_SRC}/debug/build/bin | wc -l) binaries ==="
+      echo "=== [build-noasan] NoSan done: $(ls ${TSDB_SRC}/debug-others/build/bin | wc -l) binaries ==="
 
   after_script:
     - mkdir -p "${CI_PROJECT_DIR}/build-logs"
@@ -275,9 +296,8 @@ build-asan:
   script:
     - |
       echo "=== [build-asan] Building ASAN ==="
-      # externals 与 NoSan 共用同一缓存（第三方 .a 无需 ASAN 插桩，first-party 代码由 cmake 插桩）
       # exclusive lock: 同 build-noasan，cmake configure 写共享 stamp 目录，必须串行
-      _EXT_INSTALL="${CI_CACHE_DIR}/externals-core-amd64/install"
+      _EXT_INSTALL="${CI_CACHE_DIR}/externals-others-amd64/install"
       (
         flock -x 9
         echo "[build-asan] acquired exclusive lock on externals"
@@ -292,7 +312,7 @@ build-asan:
         done
         echo "[build-asan] externals validation passed"
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image core:${BUILDER_IMAGE_TAG} \
+          --image others:latest \
           --src "${TSDB_SRC_SAN}" \
           --cache ${CI_CACHE_DIR}/ \
           --clean \
@@ -311,7 +331,7 @@ build-asan:
           -DROCKSDB_USE_DEPS=OFF \
           -DTD_EXTERNALS_USE_ONLY=ON
       ) 9>${CI_CACHE_DIR}/.externals-build.lock
-      echo "=== [build-asan] ASAN done: $(ls ${TSDB_SRC_SAN}/debug/build/bin | wc -l) binaries ==="
+      echo "=== [build-asan] ASAN done: $(ls ${TSDB_SRC_SAN}/debug-others/build/bin | wc -l) binaries ==="
 
   after_script:
     - mkdir -p "${CI_PROJECT_DIR}/build-logs"
@@ -403,9 +423,9 @@ unit-test:
       set -e
       # 提高文件描述符限制，避免 stmt2Test 等用例 "Too many open files"
       ulimit -n 1048576 2>/dev/null || ulimit -n 65536 2>/dev/null || true
-      pgrep taosd > /dev/null 2>&1 || /mnt/debug/build/bin/taosd > /dev/null 2>&1 &
+      pgrep taosd > /dev/null 2>&1 || /mnt/debug-others/build/bin/taosd > /dev/null 2>&1 &
       sleep 10
-      cd /mnt/debug/source/taos-community
+      cd /mnt/debug-others/source/taos-community
       ctest -E 'cunit_test|pcre*|example*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|decompressTest|idxFstTest|sessionTest' \
           --output-on-failure --output-junit /mnt/junit.xml --timeout 1200 -j8 2>&1 | tee /mnt/ctest.log
       ctest_ret=${PIPESTATUS[0]}
@@ -413,9 +433,9 @@ unit-test:
           echo 'ERROR: No tests were found' | tee -a /mnt/ctest.log
           exit 1
       fi
-      /mnt/debug/build/bin/clientTest 2>&1 | tee -a /mnt/ctest.log
+      /mnt/debug-others/build/bin/clientTest 2>&1 | tee -a /mnt/ctest.log
       client_ret=${PIPESTATUS[0]}
-      /mnt/debug/build/bin/connectOptionsTest 2>&1 | tee -a /mnt/ctest.log
+      /mnt/debug-others/build/bin/connectOptionsTest 2>&1 | tee -a /mnt/ctest.log
       connect_ret=${PIPESTATUS[0]}
       overall=0
       [ "${ctest_ret}" -eq 0 ]   || { overall=${ctest_ret};   echo "[FAIL] ctest exited ${ctest_ret}" | tee -a /mnt/ctest.log; }
@@ -517,10 +537,10 @@ upload-nexus:
 
   script:
     # ── Step 1: 打包两份产物 ─────────────────────────────────────────────────
-    # NoSan: ${TSDB_SRC}/debug/         (来自 build-noasan job)
-    # San:   ${TSDB_SRC_SAN}/debug/     (来自 build-asan  job，独立源码目录)
-    # 内部结构：debug/build/{bin,lib,share}/
-    # 下载端（pull-artifacts.sh）解压后 mv debug/ → debugNoSan/ 或 debugSan/
+    # NoSan: ${TSDB_SRC}/debug-others/         (来自 build-noasan job)
+    # San:   ${TSDB_SRC_SAN}/debug-others/     (来自 build-asan  job，独立源码目录)
+    # 内部结构：debug-others/build/{bin,lib,share}/
+    # 下载端（pull-artifacts.sh）解压后 mv debug-others/ → debugNoSan/ 或 debugSan/
     - |
       pack_variant() {
         local label=$1     # nosan | san
@@ -602,6 +622,31 @@ upload-nexus:
           fi
         fi
 
+        # asan 编译时 BUILD_TEST=OFF，从 noasan build 补充 ctest 测试二进制和 UDF .so
+        if [[ "${label}" == "asan" ]]; then
+          _NOSAN_BIN="${TSDB_SRC}/debug-others/build/bin"
+          _NOSAN_LIB="${TSDB_SRC}/debug-others/build/lib"
+          echo "[pack] [asan] Supplementing test-only binaries from noasan build..."
+          for _tbin in tmq_get_meta_json tmq_vtable tmq_batch_alter_tag tmq_taosx_ci tmq_sim \
+                       replay_test sml_test get_db_name_test varbinary_test write_raw_block_test; do
+            if [ -f "${_NOSAN_BIN}/${_tbin}" ]; then
+              cp "${_NOSAN_BIN}/${_tbin}" "${TAR_BIN}/"
+              echo "  [OK] ${_tbin}"
+            else
+              echo "  [WARN] ${_tbin} not found in noasan build"
+            fi
+          done
+          echo "[pack] [asan] Supplementing UDF .so from noasan lib..."
+          for _so in libudf1.so libudf2.so libudftd.so libperm_entropy.so; do
+            if [ -f "${_NOSAN_LIB}/${_so}" ]; then
+              cp "${_NOSAN_LIB}/${_so}" "${TAR_LIB}/"
+              echo "  [OK] ${_so}"
+            else
+              echo "  [WARN] ${_so} not found in noasan lib"
+            fi
+          done
+        fi
+
         echo "[pack] [${label}] $(ls "${TAR_BIN}" | wc -l) binaries, $(ls "${TAR_LIB}" | wc -l) libs, $(ls "${TAR_INC}" | wc -l) headers"
         (cd "${TAR_ROOT}" && tar czf "${out_tar}" debug/)
         rm -rf "${TAR_ROOT}"
@@ -610,8 +655,8 @@ upload-nexus:
 
       STAGING="${TSDB_SRC}/staging"
       mkdir -p "${STAGING}/noasan" "${STAGING}/asan"
-      pack_variant "noasan" "${TSDB_SRC}/debug"     "${STAGING}/noasan/linux-x64-noasan.tar.gz"
-      pack_variant "asan"   "${TSDB_SRC_SAN}/debug" "${STAGING}/asan/linux-x64-asan.tar.gz"
+      pack_variant "noasan" "${TSDB_SRC}/debug-others"     "${STAGING}/noasan/linux-x64-noasan.tar.gz"
+      pack_variant "asan"   "${TSDB_SRC_SAN}/debug-others" "${STAGING}/asan/linux-x64-asan.tar.gz"
       echo "=== Staging contents ==="
       ls -lh "${STAGING}/noasan/" "${STAGING}/asan/"
 
@@ -698,7 +743,7 @@ upload-nexus:
     # 如需手动覆盖，在具体 job 的 variables 中设置 TEST_CONCURRENCY: "N"。
     POLL_INTERVAL: "3"
     MAX_IDLE_SECONDS: "1200"
-    # 协调器地址：指向 builder u2-104（coordinator job 运行在 tsdb-builder tag 对应的 runner）
+    # 协调器地址：默认指向 builder u2-207
     COORDINATOR_HOST: "192.168.2.104"
 
   script:
@@ -865,7 +910,7 @@ coordinator:
       - "results/"
     expire_in: 14 days
 
-# test-linux-1~7 均为纯 worker
+# test-linux-1~14 均为纯 worker
 test-linux-1:
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-141]
@@ -909,6 +954,49 @@ test-linux-7:
   tags: [X64, Linux, worker, TSDB-CI, u0-212]
   variables:
     CI_NODE_INDEX: "7"
+
+test-linux-8:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u1-47]
+  variables:
+    CI_NODE_INDEX: "8"
+    WORKER_CAPS: "large-mem"    # u1-47 负责执行大内存用例
+
+test-linux-9:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-145]
+  variables:
+    CI_NODE_INDEX: "9"
+
+test-linux-10:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-146]
+  variables:
+    CI_NODE_INDEX: "10"
+
+test-linux-11:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-147]
+  variables:
+    CI_NODE_INDEX: "11"
+
+test-linux-12:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u2-205]
+  variables:
+    CI_NODE_INDEX: "12"
+
+test-linux-13:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u2-210]
+  variables:
+    CI_NODE_INDEX: "13"
+
+test-linux-14:
+  extends: .test-linux-base
+  tags: [X64, Linux, worker, TSDB-CI, u2-217]
+  variables:
+    CI_NODE_INDEX: "14"
 
 # =============================================================================
 # Stage: cleanup

@@ -83,10 +83,13 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 #/home/TDengine/source/common/src/tdataformat.c
 #/root/chr/test_taosd/lib/python3.12/site-packages/taosws/taosws.abi3.so+0x1b2fe4
 # shellcheck disable=SC2126
+# ignore gcov-instrumented noasan test binaries (sml_test/tmq_get_meta_json/replay_test etc.) running under ASAN:
+# when these noasan binaries exit, __gcov_open/__gcov_exit tries to write coverage data and SEGVs.
+# this is NOT a product bug — it's an artifact of running gcov-compiled binaries via LD_PRELOAD ASAN.
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/)" |
-  grep -E -v "venv|taosws.abi3.so" |
+  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci" |
   wc -l
 )
 
