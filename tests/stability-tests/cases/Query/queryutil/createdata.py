@@ -394,6 +394,19 @@ class TDCreateData():
             time.sleep(interval)
         self.logger.error("wait transaction count zero timeout.")
         return False
+
+    def waitRetentionZero(self, seconds=300, interval=1):
+        for i in range(seconds):
+            sql = "show retentions;"
+            self.tdSql.query(sql)
+            if self.tdSql.query_row == 0:
+                self.logger.info("wait retention count zero ok.")
+                return True
+            result = str(self.tdSql.query_result)
+            self.logger.info(f"wait {i}s, retentions not zero: {result}")
+            time.sleep(interval)
+        self.logger.error("wait retention count zero timeout.")
+        return False
     
     def alter_cachemodel(self,database):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
@@ -401,6 +414,7 @@ class TDCreateData():
         cachesize = random.randint(1,666)
         if i != 0:
             self.waitTransactionZero()
+            self.waitRetentionZero()
         if i == 0:
             self.logger.info("======this case test cachemodel none =========")
             #sql = "alter database last_60w cachemodel 'both' cachesize 600;"
