@@ -1,10 +1,10 @@
 ---
-title: License-Center 参考手册
-sidebar_label: License-Center
+title: License Center 参考手册
+sidebar_label: LicenseCenter
 toc_max_heading_level: 4
 ---
 
-License Center 是一个用于管理 TDengine TSDB / IDMP 授权的服务，包含中心侧的 ELS (Enterprise License Server) 管理端和本地侧的 CLS (Customer License Server) 管理端。ELS 主要部署在 TDengine 服务商，CLS 是在客户本地部署。本文以当前本地已部署的 CLS 为例，介绍授权的完整操作流程。
+License Center 是一个用于管理 TDengine TSDB / IDMP 授权的服务，包含中心侧的 ELS (Enterprise License Server) 管理端和本地侧的 CLS (Customer License Server) 管理端。ELS 主要部署在 TDengine 服务商，CLS 是在客户本地部署。本文以本地已部署的 CLS 为例，介绍授权的完整操作流程（注意本文档中所有涉及的 ID 以及许可证均为测试展示使用，无实际意义）。
 
 ## 前置条件
 
@@ -35,111 +35,89 @@ scripts/
 
 ```toml
 [local]
+# 服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
 listen = "0.0.0.0"
+# 开启 HTTP API 服务端口
 http_port = 6072
+# 与 ELS 服务通信端口
 rpc_port = 6073
 
 [els]
+# ELS 服务的地址
 host = "localhost"
+# ELS 服务的端口
 port = 8094
+# 是否开启与 ELS 的通信
 enable = true
 
 [database]
+# 数据存放路径
 path = "/var/lib/taoscls"
 
 [log]
+# 日志级别
 level = "info"
+# 日志路径
 file = "/var/log/taoscls/taoscls.log"
 ```
 
-参数说明：
+### 本地访问
 
-- `local.listen`: 表示服务监听的地址，默认 0.0.0.0 表示监听所有网卡地址
-- `local.http_port`: 表示开启的 http api 服务端口
-- `local.rpc_port`: 表示与 ELS 服务通信端口
-- `els.host`: 表示 ELS 服务的地址
-- `els.port`: 表示 ELS 服务的端口
-- `els.enable`: 表示是否开启与 ELS 的通信
-- `database.path`: 表示数据存放路径
-- `log.level`: 表示日志级别
-- `log.file`: 表示日志路径
-
-### 服务信息
-
-- 已在本地启动 CLS 服务，默认情况下会在**本机信息**页面显示 `CLS ID` 和公钥令牌。
-- 浏览器可正常访问：
+- 在本地启动 CLS 服务，浏览器访问：
   - CLS: `http://localhost:6072`
 - 本文示例中的本地体验账号均为：
   - 用户名：`root`
   - 密码：`taosdata`
 
-## 本地体验部署与访问
+## 服务信息
 
 1. 启动完成后，在浏览器中打开 CLS 管理端并登录。
 
-![image-20260510102830706](assets/cls-login.png)
+2. 登录后，可在**本机信息**页面查看到**公钥令牌**等信息，如下图所示：
 
-2. 登录后，可在 **本机信息**页面查看到**公钥令牌**等信息，如下图所示：
+![image-20260510103339138](assets/cls-local.png)
 
-   ![image-20260510103339138](assets/cls-local.png)
+## 离线授权
 
-## 离线授权流程
+### 1. 获取许可证
 
-### 1. 在 ELS 中创建客户
+将 CLS **本机信息**页面中的**公钥令牌**交予 TDengine 服务商，服务商将会返回许可证文件 `offline-license.token`。
 
-登录 ELS 后，进入左侧 **客户**管理页面，点击右上角 **创建客户**。填写客户名称、邮箱、公司等信息后提交。
+### 2. 导入许可证
 
-![image-20260510105513112](assets/els-customer-create.png)
+在 CLS 的**许可证**页面，点击右上角**离线导入**，选择 `offline-license.token`，然后点击**导入**。导入成功后，许可证会出现在 CLS 的**许可证**页面列表中。
 
-创建成功后，在列表中可查看客户信息。
-
-### 2. 在 ELS 中注册 CLS
-
-登录 CLS 后，可以在左侧 **本机信息** 页面查看并复制当前设备的 **公钥令牌 (Base64)**。拿到公钥令牌后，在 ELS 的 **CLS** 页面，点击 **创建 CLS**，选择刚创建的客户并粘贴公钥令牌，完成注册。
-
-![image-20260510110015674](assets/els-cls-register.png)
-
-注册成功后，可以在 **CLS** 页面列表中看到新建记录以及对应的 `CLS ID`。
-
-### 3. 在 ELS 中签发许可证
-
-在 **CLS**页面或**许可证**页面中为目标 CLS 发起签发。当前界面会要求选择许可证类型、有效期、TSDB 配额数量和 IDMP 配额数量，并自动带出授权项。
-
-![image-20260510110708909](assets/els-new-license.png)
-
-签发完成后，可在 **许可证** 页面列表中查看。
-
-### 4. 在 ELS 中导出离线令牌
-
-打开刚签发的许可证详情页，在右侧 **离线令牌** 区域点击 **下载令牌**，浏览器会下载文件 `offline-license.token`。
-
-![image-20260510110938577](assets/els-offline-token.png)
-
-### 5. 在 CLS 中导入 `offline-license.token`
-
-在 CLS 的 **许可证** 页面，点击右上角 **离线导入**，选择  `offline-license.token`，然后点击 **导入**。
-
-![image-20260510111250324](assets/cls-license-import.png)
-
-导入成功后，许可证会出现在 CLS 的**许可证**页面列表中。
-
-### 6. 在 CLS 中查看配额管理
+### 3. 查看配额
 
 进入左侧**配额**页面，可以查看该许可证拆分后的配额和授权项明细，包括许可证 ID、配额 ID、授权项、类别、类型、值和过期时间。
 
 ![image-20260510111607835](assets/cls-quota.png)
 
-## 在线授权流程
+## 在线授权
 
-在线授权方式与离线授权方式整体流程几乎一致，区别在于：离线授权流程中，授权 Token 导入是通过离线方式导入，如果 CLS 已经连接上了 ELS，那么在 ELS 侧为 CLS 授权许可证后，CLS 侧会自动收到许可证。
+在线授权与离线授权的整体流程基本一致，区别在于授权许可证的获取方式。在线模式下，若 CLS 已连接 ELS，ELS 侧授权后许可证将自动同步至 CLS；离线模式则需通过文件等离线方式手动导入许可证。
 
-## TSDB 集群连接 CLS
+## 连接 CLS
 
-### TSDB 集群配置
+当前 TSDB/IDMP 集群均可通过相关配置与 CLS 通信，且在 CLS 集群管理的相关页面可看到具体信息。
+
+### TSDB 配置
+
+TSDB 连接 CLS 服务可使用 taosExplorer 页面进行配置，也可以使用 TSDB 的 SQL 指令进行配置。
+
+#### taosExplorer
+
+在 taosExplorer 组件的**系统管理/许可证**页面，点击**激活许可证**按钮后，可以看到如下配置页面：
+
+![image-20260510112236023](assets/explorer-active-license.png)
+
+配置字段的含义与下文中的 SQL 配置参数一致。点击确定后，许可证页面即可看到 CLS 配置信息：
+
+![image-20260510112827832](assets/explorer-cls.png)
 
 #### SQL
 
-TSDB 配置可以使用如下 5 个 SQL 指令配置 CLS 服务相关信息，示例如下：
+TSDB 可以使用如下 SQL 指令配置 CLS 服务相关信息，示例如下：
 
 ```sql
 ALTER ALL DNODES 'clsEnabled' '1';
@@ -161,17 +139,7 @@ ALTER ALL DNODES 'clsQuotaSlotId' 'tsdb-1';
 
 `clsQuotaSlotId`: 表示要获取的配额 ID
 
-#### taos-explorer
-
-在 taos-explorer 组件的**系统管理/许可证**页面，点击**激活许可证**按钮后，可以看到如下配置页面：
-
-![image-20260510112236023](assets/explorer-active-license.png)
-
-配置字段含义和 SQL 配置一致。点击确定后，许可证页面即可看到 CLS 配置信息：
-
-![image-20260510112827832](assets/explorer-cls.png)
-
-### IDMP 授权配置
+### IDMP 配置
 
 当前新版本的页面配置正在开发中，敬请期待。
 
