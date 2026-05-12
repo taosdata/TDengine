@@ -124,6 +124,8 @@ void vnodeTxnCleanup(SVnode *pVnode) {
         }
         taosArrayDestroy(pEntry->pLockedTables);
       }
+      taosArrayDestroy(pEntry->pCreatedUids);
+      taosArrayDestroy(pEntry->pDroppedUids);
       taosMemoryFreeClear(pEntry->pVacuumUids);
       pIter = taosHashIterate(pVnode->pTxnHash, pIter);
     }
@@ -175,6 +177,8 @@ int32_t vnodeTxnResetForSnapshot(SVnode *pVnode) {
         }
         taosArrayDestroy(pEntry->pLockedTables);
       }
+      taosArrayDestroy(pEntry->pCreatedUids);
+      taosArrayDestroy(pEntry->pDroppedUids);
       taosMemoryFreeClear(pEntry->pVacuumUids);
       pIter = taosHashIterate(pVnode->pTxnHash, pIter);
     }

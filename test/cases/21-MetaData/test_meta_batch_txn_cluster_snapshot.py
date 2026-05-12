@@ -253,7 +253,8 @@ class TestBatchMetaTxnClusterSnapshot:
         time.sleep(2)
 
         # Write data via a SEPARATE connection (main conn has active txn which blocks INSERT)
-        tdSql2 = tdCom.newTdSql()
+        leader_port = 6030 + (leader_dnode - 1) * 100
+        tdSql2 = tdCom.newTdSql(port=leader_port)
         tdSql2.execute(f"use {db}")
         for batch in range(10):
             values = ",".join([f"(now+{batch*50+j}s, {batch*50+j})" for j in range(50)])
@@ -345,7 +346,8 @@ class TestBatchMetaTxnClusterSnapshot:
         time.sleep(2)
 
         # Write data via a SEPARATE connection (main conn has active txn which blocks INSERT)
-        tdSql2 = tdCom.newTdSql()
+        leader_port = 6030 + (leader_dnode - 1) * 100
+        tdSql2 = tdCom.newTdSql(port=leader_port)
         tdSql2.execute(f"use {db}")
         for batch in range(10):
             values = ",".join([f"(now+{batch*50+j}s, {j})" for j in range(50)])
@@ -465,7 +467,8 @@ class TestBatchMetaTxnClusterSnapshot:
         clusterComCheck.check3mnodeoff(leader_id)
 
         # Session B on the new MNode leader → BEGIN should work
-        tdSql3 = tdCom.newTdSql()
+        alive_port = 6030 + ((leader_id % 3)) * 100  # connect to a surviving dnode
+        tdSql3 = tdCom.newTdSql(port=alive_port)
         tdSql3.execute("use txn_cdb")
         tdSql3.execute("BEGIN")
         tdSql3.execute("create table ct_sessB using stb tags(2)")
@@ -718,7 +721,8 @@ class TestBatchMetaTxnClusterSnapshot:
         # Write extensive data to advance WAL far ahead of the stopped follower.
         # Combined with low wal_retention_period + compact, follower should need snapshot.
         tdLog.info("Writing extensive data to advance WAL...")
-        tdSql2 = tdCom.newTdSql()
+        leader_port = 6030 + (leader_dnode - 1) * 100
+        tdSql2 = tdCom.newTdSql(port=leader_port)
         tdSql2.execute(f"use {db}")
         for batch in range(20):
             values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
@@ -822,7 +826,8 @@ class TestBatchMetaTxnClusterSnapshot:
         time.sleep(2)
 
         # Advance WAL to trigger snapshot sync on follower restart
-        tdSql2 = tdCom.newTdSql()
+        leader_port = 6030 + (leader_dnode - 1) * 100
+        tdSql2 = tdCom.newTdSql(port=leader_port)
         tdSql2.execute(f"use {db}")
         for batch in range(20):
             values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])

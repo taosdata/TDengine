@@ -361,7 +361,8 @@ class TestBatchMetaTxnClusterFI:
         # The old version row for ntb_b and stb will have version < sver for the follower.
 
         # Phase 4: advance WAL to force snapshot sync when follower restarts
-        tdSql2 = tdCom.newTdSql()
+        leader_port = 6030 + (leader_dnode - 1) * 100
+        tdSql2 = tdCom.newTdSql(port=leader_port)
         tdSql2.execute(f"use {db}")
         for batch in range(20):
             values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
@@ -457,7 +458,8 @@ class TestBatchMetaTxnClusterFI:
         tdSql.execute("alter table stb add column v2 bigint")
 
         # Phase 4: advance WAL to force snapshot on follower restart
-        tdSql2 = tdCom.newTdSql()
+        leader_port = 6030 + (leader_dnode - 1) * 100
+        tdSql2 = tdCom.newTdSql(port=leader_port)
         tdSql2.execute(f"use {db}")
         for batch in range(20):
             values = ",".join([f"(now+{batch*100+j}s, {batch*100+j})" for j in range(100)])
