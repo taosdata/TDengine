@@ -146,6 +146,11 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
       if (code != TSDB_CODE_SUCCESS) {
         qWarn("%s: failed to set col value, slotIndex:%d, row:%d, code:%s", __func__, slotIndex, rowIndex,
                tstrerror(code));
+        if ((pColInfo->info.type != TSDB_DATA_TYPE_JSON) && (pTagVal != NULL) &&
+            IS_VAR_DATA_TYPE(((const STagVal*)pTagVal)->type) && (data != NULL)) {
+          taosMemoryFree(data);
+        }
+        goto _end;
       }
 
       // Free allocated data for var types

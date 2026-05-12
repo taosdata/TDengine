@@ -6973,13 +6973,26 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
     for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; i++) {
       SColRef* pTagRef = &pVTable->pMeta->tagRef[i];
       if (pTagRef->hasRef) {
-        taosArrayPush(pPendingRefs, pTagRef);
+        if (NULL == taosArrayPush(pPendingRefs, pTagRef)) {
+          taosArrayDestroy(pPendingRefs);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          taosHashCleanup(pTagRefDedup);
+          PAR_ERR_JRET(terrno);
+        }
       }
     }
 
     // BFS through the chain: fetch each level's source tables until physical terminal
     for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH && taosArrayGetSize(pPendingRefs) > 0; ++depth) {
       SArray* pNextRefs = taosArrayInit(4, sizeof(SColRef));
+      if (!pNextRefs) {
+        taosArrayDestroy(pPendingRefs);
+        pCxt->refTable = false;
+        pCxt->pParseCxt->async = tmpAsync;
+        taosHashCleanup(pTagRefDedup);
+        PAR_ERR_JRET(terrno);
+      }
 
       for (int32_t i = 0; i < taosArrayGetSize(pPendingRefs); i++) {
         SColRef* pRef = taosArrayGet(pPendingRefs, i);
@@ -7043,7 +7056,14 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
           for (int32_t j = 0; j < pRefNode->pMeta->numOfTagRefs; j++) {
             SColRef* pTransRef = &pRefNode->pMeta->tagRef[j];
             if (pTransRef->hasRef) {
-              taosArrayPush(pNextRefs, pTransRef);
+              if (NULL == taosArrayPush(pNextRefs, pTransRef)) {
+                taosArrayDestroy(pNextRefs);
+                taosArrayDestroy(pPendingRefs);
+                pCxt->refTable = false;
+                pCxt->pParseCxt->async = tmpAsync;
+                taosHashCleanup(pTagRefDedup);
+                PAR_ERR_JRET(terrno);
+              }
             }
           }
         }
