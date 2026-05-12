@@ -477,14 +477,6 @@ if [ "$interactive_remove" == "yes" ]; then
   echo
 fi
 
-# if [ -e "${install_main_dir}/uninstall_${xName}.sh" ]; then
-#   if [ X$remove_flag == X"true" ]; then
-#     bash "${install_main_dir}/uninstall_${xName}.sh" --clean-all true
-#   else
-#     bash "${install_main_dir}/uninstall_${xName}.sh" --clean-all false
-#   fi
-# fi
-
 if [ "$osType" = "Darwin" ]; then
   clean_service_on_launchctl
   rm -rf /Applications/TDengine.app
