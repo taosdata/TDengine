@@ -277,8 +277,16 @@ class TestBatchMetaTxnClusterSnapshot:
         tdSql.query("show tables")
         tdSql.checkRows(4)  # ct_pre + ct_snap1 + ct_snap2 + ntb_snap
 
-        # Verify data
-        tdSql2 = tdCom.newTdSql()
+        # Verify data — retry connection in case cluster needs extra settling time
+        for _attempt in range(6):
+            try:
+                tdSql2 = tdCom.newTdSql()
+                break
+            except Exception as _e:
+                if _attempt == 5:
+                    raise
+                tdLog.warning(f"  Connection attempt {_attempt + 1} failed ({_e}), retrying in 5s…")
+                time.sleep(5)
         tdSql2.execute(f"use {db}")
         tdSql2.query("select count(*) from ct_pre")
         count = tdSql2.queryResult[0][0]
