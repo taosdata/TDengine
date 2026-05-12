@@ -89,6 +89,9 @@ class TestBatchMetaTxnCApi:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
 
+    # =========================================================================
+    # s0: Reset test database
+    # =========================================================================
     def s0_reset_env(self):
         tdSql.execute("drop database if exists capi_db")
         tdSql.execute("create database capi_db vgroups 2")
@@ -380,6 +383,28 @@ class TestBatchMetaTxnCApi:
     # Run all tests
     # =========================================================================
     def test_meta_batch_txn_capi(self):
+        """C API integration tests for taos_txn_begin / commit / rollback
+
+        1. begin + commit via C API
+        2. begin + rollback via C API
+        3. double begin should fail
+        4. commit without active txn should fail
+        5. rollback without active txn should fail
+        6. C API begin + SQL commit (mixed usage)
+        7. SQL begin + C API commit (mixed usage)
+        8. sequential transactions via C API
+        9. NULL taos handle
+        10. commit cleans pTxnTableMeta (no stale catalog)
+        11. rollback cleans pTxnTableMeta (no stale catalog)
+        12. drop table via C API txn
+
+        Since: v3.3.6.0
+        Labels: common,ci
+        Jira: TD-XXXXX
+
+        History:
+            - 2026-04-01 Created — §36 C API wrapper tests
+        """
         self.s1_begin_commit()
         self.s2_begin_rollback()
         self.s3_double_begin()

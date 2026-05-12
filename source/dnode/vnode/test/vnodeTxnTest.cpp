@@ -16,7 +16,7 @@ extern "C" {
 #include "vnodeInt.h"
 }
 
-SDmNotifyHandle dmNotifyHdl = {.state = 0};
+SDmNotifyHandle dmNotifyHdl = {};  // zero-initialize: state=0, sem=zeroed
 
 namespace {
 
