@@ -1,9 +1,9 @@
 IF(TD_TAOS_TOOLS)
     ADD_SUBDIRECTORY(taosBenchmark)
+    add_subdirectory(taosdump)
 ENDIF()
 
 add_subdirectory(shell)
-add_subdirectory(taosdump)
 
 IF(${TD_LINUX})
     add_subdirectory(rocks-reader)

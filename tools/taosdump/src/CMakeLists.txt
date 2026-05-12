@@ -218,30 +218,48 @@ if(TD_WINDOWS)
     endif()
 endif()
 
-# link Arrow static libs: parquet → arrow → bundled deps (order matters for linker)
-foreach(_arrow_lib ${ext_arrow_libs})
-    target_link_libraries(taosdump PRIVATE "${_arrow_lib}")
-endforeach()
-
-# On macOS, Arrow's bundled thrift / zlib need these system frameworks
-if(APPLE)
-    target_link_libraries(taosdump PRIVATE
-        "-framework CoreFoundation"
-        "-framework Security"
-    )
-endif()
-
-# Strip DWARF debug sections after linking to shrink the installed binary.
-# GNU strip uses --strip-debug; Apple strip uses -S for the same effect.
+# Strip debug symbols from Arrow static libs before linking so the final
+# taosdump binary keeps its own DWARF info (file/line in backtraces) but
+# does not bloat with Arrow/Parquet/Thrift internals.
 if(NOT ${TD_WINDOWS})
     if(APPLE)
         set(_strip_flag -S)
     else()
         set(_strip_flag --strip-debug)
     endif()
-    add_custom_command(TARGET taosdump POST_BUILD
-        COMMAND ${CMAKE_STRIP} ${_strip_flag} $<TARGET_FILE:taosdump>
-        COMMENT "Stripping debug sections from taosdump"
+    set(_stripped_arrow_libs "")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow")
+    foreach(_arrow_lib ${ext_arrow_libs})
+        get_filename_component(_arrow_name "${_arrow_lib}" NAME)
+        set(_stripped_lib "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow/${_arrow_name}")
+        add_custom_command(
+            OUTPUT  "${_stripped_lib}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_arrow_lib}" "${_stripped_lib}"
+            COMMAND ${CMAKE_STRIP} ${_strip_flag} "${_stripped_lib}"
+            DEPENDS "${_arrow_lib}"
+            COMMENT "Stripping debug info from ${_arrow_name}"
+        )
+        list(APPEND _stripped_arrow_libs "${_stripped_lib}")
+    endforeach()
+    add_custom_target(strip_arrow_libs ALL DEPENDS ${_stripped_arrow_libs})
+    add_dependencies(strip_arrow_libs ext_arrow)
+    add_dependencies(taosdump strip_arrow_libs)
+
+    foreach(_stripped_lib ${_stripped_arrow_libs})
+        target_link_libraries(taosdump PRIVATE "${_stripped_lib}")
+    endforeach()
+else()
+    # Windows: link Arrow libs as-is (MSVC PDBs are separate files)
+    foreach(_arrow_lib ${ext_arrow_libs})
+        target_link_libraries(taosdump PRIVATE "${_arrow_lib}")
+    endforeach()
+endif()
+
+# On macOS, Arrow's bundled thrift / zlib need these system frameworks
+if(APPLE)
+    target_link_libraries(taosdump PRIVATE
+        "-framework CoreFoundation"
+        "-framework Security"
     )
 endif()
 
