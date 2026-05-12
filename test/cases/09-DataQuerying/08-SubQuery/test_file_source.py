@@ -17,6 +17,7 @@ class TestFileSource:
       file_source_widecols.csv  - 8 columns (ts + 7 INTs), used to test schema-narrower-than-CSV
       file_source_bad_types.csv - 2 columns with invalid INT and BOOL text values
       file_source_no_ts.csv     - 3 columns (id INT, name VARCHAR(16), score FLOAT), no timestamp column
+      file_source_dup_ts.csv    - 2 columns (ts TIMESTAMP, id INT), 3 rows with duplicate timestamps, unsorted
 
     Known limitations (excluded from tests to avoid crashes or wrong results):
       - Projecting a non-contiguous column subset that ends on a VARCHAR column crashes
@@ -239,19 +240,11 @@ class TestFileSource:
         finally:
             os.unlink(path)
 
-        # --- Q3: schema narrower than CSV (positional) ---
-        tdLog.info("file_source_coverage Q3: schema declares 3 cols, CSV has 8 cols")
-        # file_source_widecols.csv has ts,c1..c7 (8 cols); we declare only ts+c1+c2 (3 cols)
-        tdSql.query(
-            f"SELECT ts, c1, c2 FROM FILE('{in_dir}/file_source_widecols.csv', "
-            f"'ts TIMESTAMP, c1 INT, c2 INT') f_narrow ORDER BY ts"
-        )
-        tdSql.checkRows(3)
-        # rows: (10,20), (11,21), (12,22) — positional cols 1 and 2 from CSV
-        tdSql.checkData(0, 1, 10)
-        tdSql.checkData(0, 2, 20)
-        tdSql.checkData(2, 1, 12)
-        tdSql.checkData(2, 2, 22)
+        # --- Deterministic queries Q3, Q5, Q6 via file-based comparison ---
+        tdLog.info("file_coverage: running deterministic queries via .in/.ans")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "file_coverage.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "file_coverage.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "file_coverage")
 
         # --- Q4: header=true with column name absent from CSV header ---
         tdLog.info("file_source_coverage Q4: missing header column should be rejected")
@@ -260,31 +253,6 @@ class TestFileSource:
             f"SELECT ts FROM FILE('{in_dir}/file_source_header.csv', "
             f"'ts TIMESTAMP, c1 INT, no_such_col INT', header=true) f_badcol"
         )
-
-        # --- Q5: invalid type coercion (documents silent-zero behaviour) ---
-        tdLog.info("file_source_coverage Q5: bad cell values silently coerce to 0 / false")
-        # file_source_bad_types.csv rows: "not_an_int" and "not_a_bool"
-        tdSql.query(
-            f"SELECT c1, c2 FROM FILE('{in_dir}/file_source_bad_types.csv', "
-            f"'ts TIMESTAMP, c1 INT, c2 BOOL') f_bad ORDER BY ts"
-        )
-        tdSql.checkRows(2)
-        # non-numeric strings → INT 0; non-bool strings → BOOL false
-        tdSql.checkData(0, 0, 0)
-        tdSql.checkData(0, 1, False)
-
-        # --- Q6: wide-column FILE table ---
-        tdLog.info("file_source_coverage Q6: 8-column FILE table reads all columns correctly")
-        tdSql.query(
-            f"SELECT c1, c7 FROM FILE('{in_dir}/file_source_widecols.csv', "
-            f"'ts TIMESTAMP, c1 INT, c2 INT, c3 INT, c4 INT, c5 INT, c6 INT, c7 INT') f_wide "
-            f"ORDER BY ts"
-        )
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 10)   # c1 row 1
-        tdSql.checkData(0, 1, 70)   # c7 row 1
-        tdSql.checkData(2, 0, 12)   # c1 row 3
-        tdSql.checkData(2, 1, 72)   # c7 row 3
 
         tdLog.debug("test_file_source_coverage passed")
 
@@ -356,35 +324,11 @@ class TestFileSource:
 
         tdSql.prepare("file_nots_db", drop=True)
 
-        # Positive: SELECT all columns, ORDER BY id (check numeric cols; VARCHAR has null padding)
-        tdLog.info("file_source_no_ts: SELECT all columns ORDER BY id")
-        tdSql.query(
-            f"SELECT id, score FROM FILE('{csv}', {schema}) f ORDER BY id"
-        )
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(1, 0, 2)
-        tdSql.checkData(2, 0, 3)
-
-        # Positive: ORDER BY non-ts column DESC
-        tdLog.info("file_source_no_ts: ORDER BY score DESC")
-        tdSql.query(
-            f"SELECT id FROM FILE('{csv}', {schema}) f ORDER BY score DESC"
-        )
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 3)
-        tdSql.checkData(1, 0, 2)
-        tdSql.checkData(2, 0, 1)
-
-        # Positive: GROUP BY name — verify 3 distinct groups each with count 1
-        tdLog.info("file_source_no_ts: GROUP BY name")
-        tdSql.query(
-            f"SELECT COUNT(id) FROM FILE('{csv}', {schema}) f GROUP BY name ORDER BY name"
-        )
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(1, 0, 1)
-        tdSql.checkData(2, 0, 1)
+        # Deterministic positive queries via file-based comparison
+        tdLog.info("file_no_ts: running positive query cases")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "file_no_ts.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "file_no_ts.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "file_no_ts")
 
         # Negative: INTERVAL requires a primary timestamp column
         tdLog.info("file_source_no_ts: INTERVAL on non-ts FILE should be rejected")
@@ -394,6 +338,7 @@ class TestFileSource:
 
         # Negative: JOIN requires a primary timestamp column in TEXT/FILE source
         tdLog.info("file_source_no_ts: JOIN with non-ts FILE should be rejected")
+        tdSql.execute("USE file_nots_db")
         tdSql.execute("CREATE TABLE IF NOT EXISTS ref_for_file_join (ts TIMESTAMP, id INT)")
         tdSql.error(
             f"SELECT f.id FROM FILE('{csv}', {schema}) f "
@@ -401,9 +346,6 @@ class TestFileSource:
         )
 
         # --- D-series: first col non-TIMESTAMP, second col TIMESTAMP ---
-        # hasPrimaryTs is determined solely by the first column's type.
-        # A TIMESTAMP column in any non-first position has no primary-timestamp
-        # semantics — it is a plain typed column.
         import tempfile as _tmpfile
 
         fd, ts2_path = _tmpfile.mkstemp(suffix=".csv")
@@ -419,7 +361,7 @@ class TestFileSource:
                 f"SELECT id, ts FROM FILE('{ts2_path}', {ts2_schema}) f ORDER BY ts ASC"
             )
             tdSql.checkRows(2)
-            tdSql.checkData(0, 0, 1)   # id=1 has earlier ts
+            tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
 
             # D2: WHERE on non-first TIMESTAMP column
@@ -448,14 +390,64 @@ class TestFileSource:
 
         tdLog.debug("test_file_source_no_ts passed")
 
+    def test_file_source_dup_ts(self):
+        """FILE source with duplicate timestamps — all rows preserved, no UPSERT.
+
+        E1: duplicate-ts rows all preserved
+        E2: COUNT includes all duplicate-ts rows
+        E3: GROUP BY ts with duplicates
+        E4: FIRST/LAST with duplicate timestamps (non-deterministic FIRST)
+        E5: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
+
+        Since: v3.4.2
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-12 Added to cover duplicate timestamp behaviour
+
+        """
+
+        in_dir = os.path.join(os.path.dirname(__file__), "in")
+        csv = f"{in_dir}/file_source_dup_ts.csv"
+        schema = "'ts TIMESTAMP, id INT'"
+
+        tdSql.prepare("file_dupts_db", drop=True)
+
+        # Deterministic positive queries via file-based comparison
+        tdLog.info("file_dup_ts: running positive query cases")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "file_dup_ts.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "file_dup_ts.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "file_dup_ts")
+
+        # E4: FIRST/LAST work with duplicate timestamps (non-deterministic FIRST)
+        tdLog.info("E4: FIRST/LAST with duplicate timestamps from FILE")
+        dup_sub = f"(SELECT ts, id FROM FILE('{csv}', {schema}) f)"
+        tdSql.query(f"SELECT FIRST(id) FROM {dup_sub}")
+        assert tdSql.getData(0, 0) in (1, 2), f"FIRST(id) should be 1 or 2, got {tdSql.getData(0, 0)}"
+        tdSql.query(f"SELECT LAST(id) FROM {dup_sub}")
+        tdSql.checkData(0, 0, 3)
+
+        # E5: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
+        tdLog.info("E5: time-series functions reject duplicate timestamps from FILE")
+        tdSql.error(f"SELECT CSUM(id) FROM {dup_sub}")
+        tdSql.error(f"SELECT DIFF(id) FROM {dup_sub}")
+        tdSql.error(f"SELECT DERIVATIVE(id, 1s, 0) FROM {dup_sub}")
+        tdSql.error(f"SELECT TWA(id) FROM {dup_sub}")
+        tdSql.error(f"SELECT IRATE(id) FROM {dup_sub}")
+
+        tdLog.debug("test_file_source_dup_ts passed")
+
     def test_file_source_union(self):
         """FILE table source: UNION / UNION ALL combined with real tables and other FILE sources.
 
-        U1: UNION ALL two no-ts FILE sources returns all rows in order
-        U2: UNION (distinct) of two identical FILE sources deduplicates rows
-        U3: UNION ALL FILE source with a real super-table returns all rows
-        U4: FILE subquery UNION ALL real-table subquery returns correct combined rows
-        U5: Three-way UNION ALL across two FILE sources and one real table
+        U1: no-ts FILE UNION ALL TEXT
+        U2: TEXT UNION ALL ts FILE ORDER BY volt DESC
+        U3: FILE UNION ALL FILE (same source, doubled)
+        U4: FILE UNION FILE (dedup)
+        U5: ts FILE UNION ALL real table ORDER BY volt
 
         Since: v3.4.2
 
@@ -464,82 +456,12 @@ class TestFileSource:
         Jira: None
         """
         tdSql.prepare("file_union_db", drop=True)
-        tdSql.execute("USE file_union_db")
-        tdSql.execute(
-            "CREATE STABLE meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8))"
-        )
-        tdSql.execute("CREATE TABLE m1 USING meters TAGS('f1')")
-        tdSql.execute(
-            "INSERT INTO m1 VALUES "
-            "('2026-04-01 00:00:00',100)"
-            "('2026-04-01 00:01:00',200)"
-            "('2026-04-01 00:02:00',300)"
-        )
 
-        in_dir = os.path.join(os.path.dirname(__file__), "in")
-        csv_ts   = f"{in_dir}/file_source_basic.csv"
-        csv_nots = f"{in_dir}/file_source_no_ts.csv"
-        schema_ts   = "'ts TIMESTAMP, volt INT'"
-        schema_nots = "'id INT, name VARCHAR(16), score FLOAT'"
-
-        # U1: no-ts FILE UNION ALL TEXT — rows from both sides returned
-        tdLog.info("U1: no-ts FILE UNION ALL TEXT")
-        tdSql.query(
-            f"SELECT id FROM FILE('{csv_nots}', {schema_nots}) f "
-            "UNION ALL "
-            "SELECT id FROM TEXT(id INT) VALUES (10)(20) t"
-        )
-        tdSql.checkRows(5)
-        ids = sorted(row[0] for row in tdSql.queryResult)
-        assert ids == [1, 2, 3, 10, 20], f"U1 wrong ids: {ids}"
-
-        # U2: TEXT UNION ALL ts FILE ORDER BY volt DESC
-        tdLog.info("U2: TEXT UNION ALL ts FILE ORDER BY volt DESC")
-        tdSql.query(
-            "SELECT volt FROM TEXT(volt INT) VALUES (999)(888) t "
-            f"UNION ALL "
-            f"SELECT volt FROM FILE('{csv_ts}', {schema_ts}) f "
-            "ORDER BY volt DESC"
-        )
-        tdSql.checkRows(5)
-        volts = [row[0] for row in tdSql.queryResult]
-        assert volts == sorted(volts, reverse=True), f"U2 not descending: {volts}"
-        assert 999 in volts and 888 in volts, f"U2 TEXT rows missing: {volts}"
-
-        # U3: FILE UNION ALL FILE (same source, all rows doubled)
-        tdLog.info("U3: FILE UNION ALL FILE")
-        tdSql.query(
-            f"SELECT id FROM FILE('{csv_nots}', {schema_nots}) f1 "
-            "UNION ALL "
-            f"SELECT id FROM FILE('{csv_nots}', {schema_nots}) f2 "
-            "ORDER BY id"
-        )
-        tdSql.checkRows(6)
-        ids = [row[0] for row in tdSql.queryResult]
-        assert ids == [1, 1, 2, 2, 3, 3], f"U3 wrong ids: {ids}"
-
-        # U4: FILE UNION FILE (dedup — same source produces 3 distinct rows)
-        tdLog.info("U4: FILE UNION FILE (dedup)")
-        tdSql.query(
-            f"SELECT id FROM FILE('{csv_nots}', {schema_nots}) f1 "
-            "UNION "
-            f"SELECT id FROM FILE('{csv_nots}', {schema_nots}) f2 "
-            "ORDER BY id"
-        )
-        tdSql.checkRows(3)
-        ids = [row[0] for row in tdSql.queryResult]
-        assert ids == [1, 2, 3], f"U4 wrong ids: {ids}"
-
-        # U5: FILE UNION ALL real table
-        tdLog.info("U5: ts FILE UNION ALL real table ORDER BY volt")
-        tdSql.query(
-            f"SELECT volt FROM FILE('{csv_ts}', {schema_ts}) f "
-            "UNION ALL "
-            "SELECT volt FROM m1 "
-            "ORDER BY volt"
-        )
-        # file_source_basic.csv has 3 rows (10,20,30), real table has 100,200,300
-        tdSql.checkRows(6)
+        # Deterministic positive queries via file-based comparison
+        tdLog.info("file_union: running positive query cases")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "file_union.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "file_union.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "file_union")
 
         tdLog.debug("test_file_source_union passed")
 
@@ -616,6 +538,14 @@ class TestFileSource:
             )
         finally:
             os.unlink(path)
+
+        # --- Deterministic type coverage queries via file-based comparison ---
+        # (covers P1-P4, P7-P9, P10 using static CSV files)
+        tdLog.info("file_schema_types: running positive query cases via .in/.ans")
+        tdSql.prepare("file_src_db", drop=True)
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "file_schema_types.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "file_schema_types.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "file_schema_types")
 
         # --- P10: DECIMAL(10,2) from CSV ---
         tdLog.info("file_source_schema_types P10: DECIMAL(10,2) from CSV")

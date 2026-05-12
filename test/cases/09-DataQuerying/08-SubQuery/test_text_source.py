@@ -496,6 +496,11 @@ class TestTextSource:
         - C1: NULL value in the primary timestamp column → rejected at parse time
         - C2: NULL value in a non-timestamp column → accepted
 
+        Duplicate-timestamp (E-series):
+        - E1-E4: duplicate timestamps preserved, auto-sorted
+        - E5: FIRST/LAST with duplicate timestamps
+        - E6: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
+
         Since: v3.4.2
 
         Labels: common,ci
@@ -506,120 +511,52 @@ class TestTextSource:
             - 2026-05-xx Added for TEXT no-ts, unsorted-ts, and null-ts coverage
         """
         tdSql.prepare("text_nots_db", drop=True)
-        tdSql.execute("CREATE TABLE ref_ts (ts TIMESTAMP, id INT, label VARCHAR(32))")
-        tdSql.execute("INSERT INTO ref_ts VALUES "
-                      "('2024-01-01 00:00:00',1,'alpha')"
-                      "('2024-01-02 00:00:00',2,'beta')"
-                      "('2024-01-03 00:00:00',3,'gamma')")
 
-        # --- A1: no-ts SELECT / ORDER BY ---
-        tdLog.info("A1: no-ts TEXT SELECT ORDER BY id")
-        tdSql.query("SELECT id, score FROM TEXT(id INT, score FLOAT) VALUES (2,2.5)(1,1.5)(3,3.5) t ORDER BY id")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(1, 0, 2)
-        tdSql.checkData(2, 0, 3)
+        # Deterministic positive queries via file-based comparison
+        tdLog.info("text_no_ts: running positive query cases")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "text_no_ts.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "text_no_ts.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "text_no_ts")
 
-        # --- A2: no-ts GROUP BY ---
-        tdLog.info("A2: no-ts TEXT GROUP BY")
-        tdSql.query("SELECT grp, COUNT(id) FROM TEXT(id INT, grp VARCHAR(4)) VALUES "
-                    "(1,'a')(2,'a')(3,'b') t GROUP BY grp ORDER BY grp")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 2)   # group 'a' has 2 rows
-        tdSql.checkData(1, 1, 1)   # group 'b' has 1 row
+        # --- Error/non-deterministic cases stay inline ---
 
-        # --- A3: no-ts JOIN real table → rejected ---
+        # A3: no-ts JOIN real table → rejected
         tdLog.info("A3: no-ts TEXT JOIN real table must be rejected")
         tdSql.error("SELECT t.id, r.label FROM TEXT(id INT) VALUES (1)(2) t "
                     "JOIN ref_ts r ON t.id=r.id ORDER BY t.id")
 
-        # --- A4: no-ts TEXT JOIN no-ts TEXT → rejected (prevents executor heap overflow) ---
+        # A4: no-ts TEXT JOIN no-ts TEXT → rejected
         tdLog.info("A4: no-ts TEXT JOIN no-ts TEXT must be rejected")
         tdSql.error("SELECT a.id, b.val FROM TEXT(id INT) VALUES (1)(2) a "
                     "JOIN TEXT(id INT, val FLOAT) VALUES (1,1.0)(2,2.0) b ON a.id=b.id")
 
-        # --- A5: no-ts INTERVAL → rejected ---
+        # A5: no-ts INTERVAL → rejected
         tdLog.info("A5: no-ts TEXT INTERVAL must be rejected")
         tdSql.error("SELECT COUNT(id) FROM TEXT(id INT) VALUES (1)(2)(3) t INTERVAL(1d)")
 
-        # --- B1: unsorted ts auto-sort ---
-        tdLog.info("B1: unsorted-ts TEXT auto-sorts rows by ts")
-        tdSql.query("SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES "
-                    "('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t "
-                    "ORDER BY ts")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
-        tdSql.checkData(2, 1, 3)
-
-        # --- B2: unsorted ts JOIN real table ---
-        tdLog.info("B2: unsorted-ts TEXT JOIN real table")
-        tdSql.query("SELECT t.id, r.label FROM TEXT(ts TIMESTAMP, id INT) VALUES "
-                    "('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t "
-                    "JOIN ref_ts r ON t.ts=r.ts ORDER BY t.ts")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 1)
-
-        # --- B3: unsorted ts INTERVAL via subquery ---
-        # Rows Jan-05, Jan-01, Jan-02 → auto-sorted: Jan-01, Jan-02, Jan-05
-        # INTERVAL(3d): [Jan-01,Jan-04) = 2 rows, [Jan-04,Jan-07) = 1 row
-        tdLog.info("B3: unsorted-ts TEXT INTERVAL in subquery")
-        tdSql.query("SELECT _wstart, COUNT(*) FROM ("
-                    "SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES "
-                    "('2024-01-05 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t"
-                    ") INTERVAL(3d)")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 2)
-        tdSql.checkData(1, 1, 1)
-
-        # --- B4: unsorted ts LEFT JOIN (unmatched rows get NULL) ---
-        tdLog.info("B4: unsorted-ts TEXT LEFT JOIN real table")
-        tdSql.query("SELECT t.id, r.label FROM TEXT(ts TIMESTAMP, id INT) VALUES "
-                    "('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-04 00:00:00',4) t "
-                    "LEFT JOIN ref_ts r ON t.ts=r.ts ORDER BY t.ts")
-        tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 1)    # id=1 matched
-        tdSql.checkData(2, 0, 4)    # id=4 not in ref_ts
-
-        # --- C1: NULL primary timestamp → rejected ---
+        # C1: NULL primary timestamp → rejected
         tdLog.info("C1: NULL in primary timestamp column must be rejected")
         tdSql.error("SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES (NULL, 1) t")
         tdSql.error("SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES "
                     "('2024-01-01 00:00:00', 10)(NULL, 20) t")
 
-        # --- C2: NULL in non-ts column → accepted ---
-        tdLog.info("C2: NULL in non-ts column is accepted")
-        tdSql.query("SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES "
-                    "('2024-01-01 00:00:00', NULL) t")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
+        # E5: FIRST/LAST with duplicate timestamps (non-deterministic FIRST)
+        tdLog.info("E5: FIRST/LAST with duplicate timestamps")
+        dup_sub = ("(SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES "
+                   "('2024-01-01 00:00:00', 1)('2024-01-01 00:00:00', 2)"
+                   "('2024-01-02 00:00:00', 3) t)")
+        tdSql.query(f"SELECT FIRST(id) FROM {dup_sub}")
+        assert tdSql.getData(0, 0) in (1, 2), f"FIRST(id) should be 1 or 2, got {tdSql.getData(0, 0)}"
+        tdSql.query(f"SELECT LAST(id) FROM {dup_sub}")
+        tdSql.checkData(0, 0, 3)
 
-        # --- D-series: first col non-TIMESTAMP, second col TIMESTAMP ---
-        # hasPrimaryTs is determined solely by the first column's type.
-        # A TIMESTAMP in any non-first position is a plain typed column with no
-        # primary-timestamp semantics.
-
-        # D1: SELECT / WHERE / ORDER BY on non-first TIMESTAMP column all work
-        tdLog.info("D1: non-first TIMESTAMP col — SELECT, WHERE, ORDER BY")
-        tdSql.query("SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) "
-                    "VALUES (2, '2026-01-01 00:00:02')(1, '2026-01-01 00:00:01') t "
-                    "ORDER BY ts ASC")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, 1)   # ordered by ts ascending
-        tdSql.checkData(1, 0, 2)
-
-        tdSql.query("SELECT id FROM TEXT(id INT, ts TIMESTAMP) "
-                    "VALUES (1, '2026-01-01 00:00:01')(2, '2026-01-01 00:00:02') t "
-                    "WHERE ts > '2026-01-01 00:00:01'")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 2)
-
-        # D2: NULL in non-first TIMESTAMP column is allowed
-        tdLog.info("D2: NULL in non-first TIMESTAMP col is allowed")
-        tdSql.query("SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) "
-                    "VALUES (1, NULL)(2, '2026-01-01 00:00:02') t ORDER BY id")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, None)
+        # E6: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
+        tdLog.info("E6: time-series functions reject duplicate timestamps")
+        tdSql.error(f"SELECT CSUM(id) FROM {dup_sub}")
+        tdSql.error(f"SELECT DIFF(id) FROM {dup_sub}")
+        tdSql.error(f"SELECT DERIVATIVE(id, 1s, 0) FROM {dup_sub}")
+        tdSql.error(f"SELECT TWA(id) FROM {dup_sub}")
+        tdSql.error(f"SELECT IRATE(id) FROM {dup_sub}")
 
         # D3: JOIN rejected even when second column is TIMESTAMP
         tdLog.info("D3: JOIN with non-first TIMESTAMP must be rejected")
@@ -643,6 +580,7 @@ class TestTextSource:
         U3: UNION ALL TEXT source with a real super-table returns all rows
         U4: TEXT subquery UNION ALL real-table subquery returns correct combined rows
         U5: Three-way UNION ALL across two TEXT sources and one real table
+        U6: UNION ALL with GROUP BY aggregation on each side
 
         Since: v3.4.2
 
@@ -651,67 +589,16 @@ class TestTextSource:
         Jira: None
         """
         tdSql.prepare("text_union_db", drop=True)
-        tdSql.execute("USE text_union_db")
-        tdSql.execute(
-            "CREATE STABLE meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8))"
-        )
-        tdSql.execute("CREATE TABLE m1 USING meters TAGS('f1')")
-        tdSql.execute(
-            "INSERT INTO m1 VALUES "
-            "('2026-04-01 00:00:00',100)"
-            "('2026-04-01 00:01:00',200)"
-            "('2026-04-01 00:02:00',300)"
-        )
 
-        # U1: UNION ALL two no-ts TEXT sources — all rows returned in insertion order
-        tdLog.info("U1: UNION ALL two no-ts TEXT sources")
-        tdSql.query(
-            "SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (1,'alpha')(2,'beta') t "
-            "UNION ALL "
-            "SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (3,'gamma')(4,'delta') t2"
-        )
-        tdSql.checkRows(4)
-        # verify data from both sides is present
-        ids = [row[0] for row in tdSql.queryResult]
-        assert sorted(ids) == [1, 2, 3, 4], f"U1 wrong ids: {ids}"
+        # Deterministic positive queries via file-based comparison
+        tdLog.info("text_union: running positive query cases")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "text_union.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "text_union.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "text_union")
 
-        # U2: UNION (dedup) two no-ts TEXT sources — duplicate rows collapsed
-        tdLog.info("U2: UNION dedup two no-ts TEXT sources")
-        tdSql.query(
-            "SELECT id FROM TEXT(id INT) VALUES (1)(2)(2) t "
-            "UNION "
-            "SELECT id FROM TEXT(id INT) VALUES (2)(3) t2"
-        )
-        tdSql.checkRows(3)
-        ids = sorted(row[0] for row in tdSql.queryResult)
-        assert ids == [1, 2, 3], f"U2 wrong ids: {ids}"
-
-        # U3: no-ts TEXT UNION ALL real table
-        tdLog.info("U3: no-ts TEXT UNION ALL real table")
-        tdSql.query(
-            "SELECT volt FROM TEXT(volt INT) VALUES (400)(500) t "
-            "UNION ALL "
-            "SELECT volt FROM m1"
-        )
-        tdSql.checkRows(5)
-        volts = sorted(row[0] for row in tdSql.queryResult)
-        assert volts == [100, 200, 300, 400, 500], f"U3 wrong volts: {volts}"
-
-        # U4: subquery wrapping UNION ALL — ORDER BY on outer query
-        tdLog.info("U4: subquery wrapping UNION ALL with outer ORDER BY")
-        tdSql.query(
-            "SELECT * FROM ("
-            "  SELECT id FROM TEXT(id INT) VALUES (3)(1) t "
-            "  UNION ALL "
-            "  SELECT id FROM TEXT(id INT) VALUES (4)(2) t2"
-            ") sub ORDER BY id"
-        )
-        tdSql.checkRows(4)
-        ids = [row[0] for row in tdSql.queryResult]
-        assert ids == [1, 2, 3, 4], f"U4 wrong order: {ids}"
-
-        # U5: ts TEXT UNION ALL real table ORDER BY ts
+        # U5: ts TEXT UNION ALL real table ORDER BY ts — non-deterministic tie-break
         tdLog.info("U5: ts TEXT UNION ALL real table ORDER BY ts")
+        tdSql.execute("USE text_union_db")
         tdSql.query(
             "SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) "
             "VALUES ('2026-04-01 00:00:00', 50)('2026-04-01 00:03:00', 400) t "
@@ -725,21 +612,5 @@ class TestTextSource:
         # their relative order is non-deterministic; the rest are deterministic.
         assert sorted(volts[:2]) == [50, 100], f"U5 wrong first two volts: {volts[:2]}"
         assert volts[2:] == [200, 300, 400], f"U5 wrong tail volts: {volts[2:]}"
-
-        # U6: UNION ALL with GROUP BY aggregation on each side
-        tdLog.info("U6: UNION ALL combining two GROUP BY results")
-        tdSql.query(
-            "SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (1,10)(1,20)(2,30) t "
-            "GROUP BY id "
-            "UNION ALL "
-            "SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (3,40)(3,50) t2 "
-            "GROUP BY id "
-            "ORDER BY id"
-        )
-        tdSql.checkRows(3)
-        rows = tdSql.queryResult
-        assert rows[0][0] == 1 and rows[0][1] == 2, f"U6[0] wrong: {rows[0]}"
-        assert rows[1][0] == 2 and rows[1][1] == 1, f"U6[1] wrong: {rows[1]}"
-        assert rows[2][0] == 3 and rows[2][1] == 2, f"U6[2] wrong: {rows[2]}"
 
         tdLog.debug("test_text_source_union passed")

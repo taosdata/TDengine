@@ -8141,7 +8141,7 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
     while (lineLen > 0 && (pLine[lineLen - 1] == '\r' || pLine[lineLen - 1] == '\n')) {
       pLine[--lineLen] = '\0';
     }
-    if (lineLen == 0 || pLine[0] == '#') continue;
+    if (lineLen == 0) continue;
 
     int32_t nFields = splitCsvLine(pLine, pFile->delimiter, fields, FILE_MAX_CSV_COLS);
     if (nFields < 0) {

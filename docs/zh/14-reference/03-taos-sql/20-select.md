@@ -345,7 +345,8 @@ TEXT(column_list)
 - 支持 NULL 值，使用关键字 `NULL` 表示。
 - 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
 - `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
-- 支持 JSON、GEOMETRY、BLOB 之外的其他类型
+- 支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- 当首列为 `TIMESTAMP` 类型时，数据按该列自动升序排列。若首列非 `TIMESTAMP` 或不包含时间戳列，则不支持 JOIN、INTERVAL、SESSION、EVENT_WINDOW 等依赖时间戳列的查询能力。
 
 ### 数据量限制
 
@@ -388,6 +389,14 @@ FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
            ('2024-01-01 10:00:00', 11.5, 219)
            ('2024-01-01 14:00:00', 9.8,  218) t3
 INTERVAL(6h);
+
+-- JOIN：用内联校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
 ```
 
 ## FILE CSV 文件数据源
@@ -407,11 +416,13 @@ FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 - `file_path`：CSV 文件路径，由**执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
 - 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
 - CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
-- `header=true`：CSV 首行为列名头部，读取时跳过；默认为 `false`。
+- `header=true`：CSV 首行为列名头部，读取时跳过。启用后按列名匹配（而非按位置），Schema 可以任意顺序声明文件列的子集。默认为 `false`。
 - `delimiter`：字段分隔符，单个字符，默认为 `,`。
 - 支持 NULL 值（CSV 中的空字段解析为 NULL）。
 - 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
+- `FILE` 可用于与 `TEXT` 相同的场景：`FROM` 子句、子查询、JOIN、窗口查询、UNION、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
 - 支持的列类型：与 `TEXT` 相同。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- 当首列为 `TIMESTAMP` 类型时，数据按该列自动升序排列。若首列非 `TIMESTAMP` 或不包含时间戳列，则不支持 JOIN、INTERVAL、SESSION、EVENT_WINDOW 等依赖时间戳列的查询能力。
 
 ### 数据量限制
 
@@ -443,6 +454,19 @@ FROM (
     FROM FILE('./meter_readings.csv',
               'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
 ) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN：用 CSV 校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- 窗口聚合：按小时统计 CSV 电表数据
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
 ```
 
 ## INTERP

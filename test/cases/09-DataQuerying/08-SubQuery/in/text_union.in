@@ -1,0 +1,15 @@
+use text_union_db;
+DROP STABLE IF EXISTS meters;
+CREATE STABLE meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8));
+CREATE TABLE m1 USING meters TAGS('f1');
+INSERT INTO m1 VALUES ('2026-04-01 00:00:00',100)('2026-04-01 00:01:00',200)('2026-04-01 00:02:00',300);
+# U1: UNION ALL two no-ts TEXT sources
+SELECT * FROM (SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (1,'alpha')(2,'beta') t UNION ALL SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (3,'gamma')(4,'delta') t2) sub ORDER BY id;
+# U2: UNION dedup two no-ts TEXT sources
+SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (1)(2)(2) t UNION SELECT id FROM TEXT(id INT) VALUES (2)(3) t2) sub ORDER BY id;
+# U3: no-ts TEXT UNION ALL real table
+SELECT * FROM (SELECT volt FROM TEXT(volt INT) VALUES (400)(500) t UNION ALL SELECT volt FROM m1) sub ORDER BY volt;
+# U4: subquery wrapping UNION ALL with outer ORDER BY
+SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (3)(1) t UNION ALL SELECT id FROM TEXT(id INT) VALUES (4)(2) t2) sub ORDER BY id;
+# U6: UNION ALL combining two GROUP BY results
+SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (1,10)(1,20)(2,30) t GROUP BY id UNION ALL SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (3,40)(3,50) t2 GROUP BY id ORDER BY id;

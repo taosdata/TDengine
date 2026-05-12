@@ -1,0 +1,28 @@
+
+taos> CREATE DATABASE IF NOT EXISTS file_nots_db;
+Create OK, 0 row(s) affected 
+
+taos> USE file_nots_db;
+Database changed.
+
+taos> SELECT id, score FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f ORDER BY id;
+     id      |        score         |
+=====================================
+           1 |                 10.5 |
+           2 |                   20 |
+           3 |                 30.7 |
+
+taos> SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f ORDER BY score DESC;
+     id      |
+==============
+           3 |
+           2 |
+           1 |
+
+taos> SELECT COUNT(id) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f GROUP BY name ORDER BY name;
+       count(id)       |
+========================
+                     1 |
+                     1 |
+                     1 |
+

@@ -344,6 +344,7 @@ TEXT(column_list)
 - An optional alias assigns a table alias to the data source, useful in JOIN or subquery contexts.
 - `TEXT` can be used as a `FROM` table source, in subqueries, JOIN, window queries, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
 - All types except JSON, GEOMETRY, and BLOB are supported.
+- When the first column is of type `TIMESTAMP`, data is automatically sorted in ascending order by that column. If the first column is not `TIMESTAMP` or no timestamp column exists, time-dependent query features such as JOIN, INTERVAL, SESSION, and EVENT_WINDOW are not available.
 
 ### Volume Limits
 
@@ -386,6 +387,14 @@ FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
            ('2024-01-01 10:00:00', 11.5, 219)
            ('2024-01-01 14:00:00', 9.8,  218) t3
 INTERVAL(6h);
+
+-- JOIN: correlate inline calibration data with real meter table
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
 ```
 
 ## FILE CSV Data Source
@@ -405,11 +414,13 @@ FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 - `file_path`: Path to the CSV file. The file is read by the process that performs query planning (typically the client process such as `taos` CLI or client driver). Both relative paths (relative to that process's working directory) and absolute paths are accepted.
 - The second argument is a schema declaration string; column definitions are comma-separated and must match the CSV column order.
 - Columns in the CSV that exceed the declared schema count are ignored. You can read a subset of the file's columns by declaring only the columns you need.
-- `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. Defaults to `false`.
+- `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. When enabled, columns are matched by name rather than position, and the schema may declare a subset of the file's columns in any order. Defaults to `false`.
 - `delimiter`: Field separator character (single character). Defaults to `,`.
 - NULL values are supported; empty fields in the CSV are parsed as NULL.
 - Both the file path and schema must be string literals; runtime expressions are not supported.
+- `FILE` can be used in the same contexts as `TEXT`: `FROM` clause, subqueries, JOIN, window queries, UNION, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
 - Supported column types: same as `TEXT`. All types except JSON, GEOMETRY, and BLOB are supported.
+- When the first column is of type `TIMESTAMP`, data is automatically sorted in ascending order by that column. If the first column is not `TIMESTAMP` or no timestamp column exists, time-dependent query features such as JOIN, INTERVAL, SESSION, and EVENT_WINDOW are not available.
 
 ### Volume Limits
 
@@ -441,6 +452,19 @@ FROM (
     FROM FILE('./meter_readings.csv',
               'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
 ) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN: correlate CSV calibration data with real meter table
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- Window aggregation: per-hour statistics from CSV
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
 ```
 
 ## INTERP

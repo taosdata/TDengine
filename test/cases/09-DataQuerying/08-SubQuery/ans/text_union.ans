@@ -1,0 +1,55 @@
+
+taos> use text_union_db;
+Database changed.
+
+taos> DROP STABLE IF EXISTS meters;
+Drop OK, 0 row(s) affected 
+
+taos> CREATE STABLE meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8));
+Create OK, 0 row(s) affected 
+
+taos> CREATE TABLE m1 USING meters TAGS('f1');
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO m1 VALUES ('2026-04-01 00:00:00',100)('2026-04-01 00:01:00',200)('2026-04-01 00:02:00',300);
+Insert OK, 3 row(s) affected 
+
+taos> SELECT * FROM (SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (1,'alpha')(2,'beta') t UNION ALL SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (3,'gamma')(4,'delta') t2) sub ORDER BY id;
+     id      |    name    |
+===========================
+           1 | alpha      |
+           2 | beta       |
+           3 | gamma      |
+           4 | delta      |
+
+taos> SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (1)(2)(2) t UNION SELECT id FROM TEXT(id INT) VALUES (2)(3) t2) sub ORDER BY id;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+
+taos> SELECT * FROM (SELECT volt FROM TEXT(volt INT) VALUES (400)(500) t UNION ALL SELECT volt FROM m1) sub ORDER BY volt;
+    volt     |
+==============
+         100 |
+         200 |
+         300 |
+         400 |
+         500 |
+
+taos> SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (3)(1) t UNION ALL SELECT id FROM TEXT(id INT) VALUES (4)(2) t2) sub ORDER BY id;
+     id      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+
+taos> SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (1,10)(1,20)(2,30) t GROUP BY id UNION ALL SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (3,40)(3,50) t2 GROUP BY id ORDER BY id;
+     id      |          cnt          |
+======================================
+           1 |                     2 |
+           2 |                     1 |
+           3 |                     2 |
+
