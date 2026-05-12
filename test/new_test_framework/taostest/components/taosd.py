@@ -122,10 +122,11 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                # use ASAN options abort_on_error=1 to generate core dump when error occurs
+                # do NOT set abort_on_error=1: it causes taosd to crash immediately on any ASAN
+                # error, making tmq_sim / polling loops hang forever waiting for a dead taosd.
+                # ASAN errors are still written to error_output and caught by checkAsan.sh.
                 asan_options = [
                     "detect_odr_violation=0",
-                    "abort_on_error=1",
                 ]
                 cmds = [
                     'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
