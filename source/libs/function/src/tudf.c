@@ -313,7 +313,13 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     if (uvEnvItems != NULL) {
       uv_os_free_environ(uvEnvItems, uvEnvItemCount);
     }
-    options.env = envUdfd;
+    // uv_os_environ failure is extremely rare; if it happens, fail fast rather
+    // than spawn udfd with a minimal env that drops PATH/locale and could lead
+    // to silently wrong behavior (e.g. loading the wrong .so).
+    fnError("failed to read process environment for udfd: %s",
+            uvEnvErr != 0 ? uv_strerror(uvEnvErr) : "empty environment");
+    err = uvEnvErr != 0 ? uvEnvErr : TSDB_CODE_FAILED;
+    goto _OVER;
   }
 
   err = uv_spawn(&pData->loop, &pData->process, &options);
