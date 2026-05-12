@@ -17,9 +17,62 @@ taosd 命令行参数如下：
 - -e：指定环境变量的字符串，例如 `-e 'TAOS_FQDN=td1'`。
 - -E：指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`。
 - -o：指定日志输入方式，可选 `stdout`、`stderr`、`/dev/null`、`<directory>`、`<directory>/<filename>`、`<filename>`。
+- -r：启动修复模式。当前支持 `--mode copy`（从健康的源节点拷贝 vnode 数据）。
 - -k：获取机器码
 - -dm：启用内存调度
 - -V：打印版本信息
+
+## 拷贝模式修复
+
+拷贝模式用于从健康的源节点直接拷贝指定 vnode 的文件到当前（目标）节点。适用于损坏的数据量巨大、常规修复模式的性能无法满足要求的场景。
+
+### 语法
+
+```bash
+taosd -r --mode copy --node-type vnode --source-cfg <path> \
+  [--source-host <host>] --vnode <id>[,<id>|<id>-<id>]...
+```
+
+### 参数
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `--source-cfg` | 是 | 源节点 `taos.cfg` 配置文件的路径，也可以指定配置文件所在目录 |
+| `--source-host` | 否 | 源节点的 SSH 主机地址；省略时表示源数据在本地 |
+| `--vnode` | 是 | 要拷贝的 vnode ID 列表，多个 ID 用逗号分隔，支持用 `-` 指定范围（如 `3,5-8,10`） |
+
+### 限制
+
+- 当前只支持 `--node-type vnode`。
+- Windows 平台暂不支持拷贝模式。
+- 远程模式需要 SSH 免密登录（BatchMode）。
+
+### 示例
+
+从本地源节点拷贝单个 vnode：
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /data/source-cluster/taos.cfg \
+  --vnode 3
+```
+
+从本地源节点拷贝多个 vnode（指定配置目录）：
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/ \
+  --vnode 3,5,8
+```
+
+从远程源节点拷贝 vnode：
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/taos.cfg \
+  --source-host 192.168.1.100 \
+  --vnode 3,5
+```
 
 ## 配置参数
 

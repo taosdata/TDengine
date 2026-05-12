@@ -15,9 +15,62 @@ The command line parameters for taosd are as follows:
 - -s: Prints SDB information.
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
+- -r: Starts repair mode. Currently supports `--mode copy` (copy vnode data from a healthy source node).
 - -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
+
+## Copy Mode Repair
+
+Copy mode copies files for specified vnodes directly from a healthy source node to the current (target) node. This is intended for scenarios where the volume of corrupted data is too large for regular repair mode to handle within acceptable time.
+
+### Syntax
+
+```bash
+taosd -r --mode copy --node-type vnode --source-cfg <path> \
+  [--source-host <host>] --vnode <id>[,<id>|<id>-<id>]...
+```
+
+### Options
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source-cfg` | Yes | Path to the source node's `taos.cfg` configuration file, or the directory containing it |
+| `--source-host` | No | SSH host of the source node; omit for local source |
+| `--vnode` | Yes | Comma-separated list of vnode IDs to copy; ranges with `-` are supported (e.g., `3,5-8,10`) |
+
+### Limitations
+
+- Only `--node-type vnode` is supported.
+- Windows is not currently supported for copy mode.
+- Remote mode requires passwordless SSH access (BatchMode).
+
+### Examples
+
+Copy a single vnode from a local source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /data/source-cluster/taos.cfg \
+  --vnode 3
+```
+
+Copy multiple vnodes from a local source node (specifying config directory):
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/ \
+  --vnode 3,5,8
+```
+
+Copy vnodes from a remote source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/taos.cfg \
+  --source-host 192.168.1.100 \
+  --vnode 3,5
+```
 
 ## Configuration Parameters
 

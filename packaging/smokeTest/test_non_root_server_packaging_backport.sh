@@ -98,10 +98,10 @@ check "explorer config prefers packaged taosx source" "$INSTALL_SH" '${script_di
 check_function_contains "explorer config rewrites data_dir for user mode" "$INSTALL_SH" "install_explorer_config" 'dataDir}/explorer'
 check_function_contains "adapter config rewrites taosConfigDir" "$INSTALL_SH" "install_adapter_config" 'taosConfigDir'
 check_function_contains "keeper config rewrites log path" "$INSTALL_SH" "install_keeper_config" 'logDir'
-check "user-mode taosd unit rewrite" "$INSTALL_SH" '${install_main_dir}/bin/${serverName} -c ${configDir}'
-check "user-mode taosadapter unit rewrite" "$INSTALL_SH" '${install_main_dir}/bin/${adapterName} -c ${configDir}/${adapterName}.toml'
-check "user-mode taos-explorer unit rewrite" "$INSTALL_SH" '${install_main_dir}/bin/${explorerName} -c ${configDir}/explorer.toml'
-check "user-mode taosx unit rewrite" "$INSTALL_SH" '${install_main_dir}/bin/${xname} serve -c ${configDir}/${xname}.toml'
+check "user-mode taosd unit rewrite" "$INSTALL_SH" 'ExecStart=\"${install_main_dir}/bin/${serverName}\" -c \"${configDir}\"'
+check "user-mode taosadapter unit rewrite" "$INSTALL_SH" 'ExecStart=\"${install_main_dir}/bin/${adapterName}\" -c \"${configDir}/${adapterName}.toml\"'
+check "user-mode taos-explorer unit rewrite" "$INSTALL_SH" 'ExecStart=\"${install_main_dir}/bin/${explorerName}\" -c \"${configDir}/explorer.toml\"'
+check "user-mode taosx unit rewrite" "$INSTALL_SH" 'ExecStart=\"${install_main_dir}/bin/${xname}\" serve -c \"${configDir}/${xname}.toml\"'
 check_absent "no sudo/csudo in install.sh"    "$INSTALL_SH" 'sudo|csudo'
 
 echo

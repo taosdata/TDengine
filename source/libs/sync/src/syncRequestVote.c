@@ -100,6 +100,12 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
   }
 
+  if (ths->state == TAOS_SYNC_STATE_LEARNER) {
+    syncLogRecvRequestVote(ths, pMsg, -1, "I'm learner", "process", &pRpcMsg->info.traceId);
+
+    TAOS_RETURN(TSDB_CODE_SYN_LEARNER_NO_VOTE);
+  }
+
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   // maybe update term
   if (pMsg->term > raftStoreGetTerm(ths)) {
