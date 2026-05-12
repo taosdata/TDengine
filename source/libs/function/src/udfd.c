@@ -1063,18 +1063,22 @@ void udfdGetFuncBodyPath(const SUdf *udf, char *path) {
   TAOS_UDF_CHECK_PTR_RVOID(udf, path);
   if (udf->scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
 #ifdef WINDOWS
-    snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64 ".dll", global.udfDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s" TD_DIRSEP "%s_%d_%" PRIx64 ".dll", global.udfDataDir, udf->name, udf->version,
+             udf->createdTime);
 #else
-    snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64 ".so", global.udfDataDir, udf->name, udf->version,
+    snprintf(path, PATH_MAX, "%s" TD_DIRSEP "lib%s_%d_%" PRIx64 ".so", global.udfDataDir, udf->name, udf->version,
              udf->createdTime);
 #endif
   } else if (udf->scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
-    snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64 ".py", global.udfDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s" TD_DIRSEP "%s_%d_%" PRIx64 ".py", global.udfDataDir, udf->name, udf->version,
+             udf->createdTime);
   } else {
 #ifdef WINDOWS
-    snprintf(path, PATH_MAX, "%s/%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s" TD_DIRSEP "%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version,
+             udf->createdTime);
 #else
-    snprintf(path, PATH_MAX, "%s/lib%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version, udf->createdTime);
+    snprintf(path, PATH_MAX, "%s" TD_DIRSEP "lib%s_%d_%" PRIx64, global.udfDataDir, udf->name, udf->version,
+             udf->createdTime);
 #endif
   }
 }

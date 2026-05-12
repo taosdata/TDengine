@@ -230,7 +230,8 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
       fnInfo("[UDFD]Succsess to set TAOS_FQDN:%s", taosFqdn);
     } else {
       fnError("[UDFD]Failed to allocate memory for TAOS_FQDN");
-      return terrno;
+      err = terrno;
+      goto _OVER;
     }
   }
 
