@@ -21,11 +21,12 @@ def do_handle_dynamic_model(request):
     """
     Handle dynamic model operations, e.g. load model to memory, warm up model, etc.
     {
-    "model_name": "sample_ad_model",
-    "config": {
-        "algo": "arima",
-        "best_params": {
-            "p": 3,
+        "model_name": "sample_ad_model_test",
+        "config": {
+            "algo": "arima",
+            "best_params": {
+            "p": 3
+            }
         }
     }
 

@@ -247,6 +247,165 @@ class ServiceTest(unittest.TestCase):
             if os.path.exists(config_path):
                 os.remove(config_path)
 
+    def test_get_service_list_syncs_dynamic_models_from_directory(self):
+        """list API should load dynamic models that exist in the shared directory"""
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_dynamic_service"
+        config_path = os.path.join(tempfile.mkdtemp(), service_name + ".json")
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 1,
+            "d": 1,
+            "q": 1
+          },
+          "freq": "MS"
+        }
+        """
+
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            loader.services.pop(service_name, None)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=os.path.dirname(config_path)):
+                service_list = loader.get_service_list()
+
+            forecast_item = next(item for item in service_list["details"] if item["type"] == "forecast")
+            self.assertTrue(any(item["name"] == service_name for item in forecast_item["algo"]))
+            self.assertIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            temp_dir = os.path.dirname(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_get_service_list_removes_deleted_dynamic_models(self):
+        """list API should drop dynamic models whose config file has been removed"""
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_deleted_dynamic_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 1,
+            "d": 1,
+            "q": 0
+          },
+          "freq": "MS"
+        }
+        """
+
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+            os.remove(config_path)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service_list = loader.get_service_list()
+
+            forecast_item = next(item for item in service_list["details"] if item["type"] == "forecast")
+            self.assertFalse(any(item["name"] == service_name for item in forecast_item["algo"]))
+            self.assertNotIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_get_service_syncs_dynamic_model_from_directory(self):
+        """get_service should load a dynamic model that exists in shared storage"""
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_dynamic_lookup_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 2,
+            "d": 1,
+            "q": 0
+          },
+          "freq": "MS"
+        }
+        """
+
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            loader.services.pop(service_name, None)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service = loader.get_service(service_name)
+
+            self.assertIsNotNone(service)
+            self.assertEqual(service.name, service_name)
+            self.assertIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_get_service_removes_deleted_dynamic_model(self):
+        """get_service should return none after the dynamic model file is deleted"""
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_deleted_lookup_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        conf_file_content = """
+        {
+          "algo": "arima",
+          "best_params": {
+            "p": 1,
+            "d": 1,
+            "q": 1
+          },
+          "freq": "MS"
+        }
+        """
+
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(conf_file_content)
+
+        try:
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+            os.remove(config_path)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service = loader.get_service(service_name)
+
+            self.assertIsNone(service)
+            self.assertNotIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
     def test_dynamic_load_service_missing_algo(self):
         """dynamic register should fail when 'algo' field is missing"""
         import os

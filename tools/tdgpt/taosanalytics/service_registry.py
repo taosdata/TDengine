@@ -114,12 +114,54 @@ class ServiceRegistry:
 
     def get_service(self, name):
         """ get the required service """
+        self.sync_dynamic_services()
         serv = self.services.get(name, None)
         return copy.copy(serv)
+
+    def sync_dynamic_services(self):
+        """Synchronize dynamic services with the shared config directory."""
+        dynamic_service_names = [
+            name for name, service in self.services.items()
+            if isinstance(service, DynamicForecastService)
+        ]
+
+        for name in dynamic_service_names:
+            service = self.services.get(name)
+            if service is None:
+                continue
+
+            config_file_path = getattr(service, 'config_file_path', None)
+            if config_file_path and not Path(config_file_path).exists():
+                del self.services[name]
+                AppLogger.info(
+                    "remove dynamic model '%s' from memory because config file is gone",
+                    name)
+
+        dyn_dir = Path(Configure.get_instance().get_dynamic_model_directory())
+        if not dyn_dir.exists() or not dyn_dir.is_dir():
+            return
+
+        for config_path in dyn_dir.iterdir():
+            if not config_path.is_file() or config_path.suffix != '.json':
+                continue
+
+            model_name = config_path.stem
+            if model_name in self.services:
+                continue
+
+            try:
+                self.register_service_from_file(str(config_path))
+            except Exception as e:
+                AppLogger.error(
+                    "failed to sync dynamic model from file %s: %s, skipping",
+                    str(config_path),
+                    str(e))
 
     def get_typed_services(self, type_str: str) -> list:
         """ get specified type service """
         all_items = []
+        AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(self.services), hex(id(self.services)))
+
         for key, val in self.services.items():
             if val.type == type_str:
                 try:
@@ -138,6 +180,8 @@ class ServiceRegistry:
 
     def get_service_list(self):
         """ return all available service info """
+        self.sync_dynamic_services()
+
         info = {
             "protocol": 1.0,
             "version": 0.1,

@@ -71,12 +71,14 @@ def list_all_services():
     """
     API function to return all available services, including both fc and anomaly detection
     """
+    AppLogger.info("Received request to list all services, ip:%s", request.remote_addr)
     return loader.get_service_list()
 
 
 @app.route("/models")
 def list_all_models():
     """ list all available models """
+    AppLogger.info("Received request to list all models, ip:%s", request.remote_addr)
     return ModelFileManager.get_instance().get_model_list()
 
 
