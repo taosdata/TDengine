@@ -19,6 +19,10 @@ impl MatchRecordFilter {
     pub fn new(r#match: LinkedHashMap<String, JsonValue>) -> Self {
         Self { r#match }
     }
+
+    pub(super) fn matches(&self) -> &LinkedHashMap<String, JsonValue> {
+        &self.r#match
+    }
 }
 
 impl RecordFilter for MatchRecordFilter {

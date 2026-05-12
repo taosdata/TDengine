@@ -1,24 +1,106 @@
 import { cloneDeep } from 'lodash-es';
-import type { ConditionExpr, TransformCapabilities, TransformConfig, TransformFormState, TransformRuleState } from './type';
+import type {
+  ConditionExpr,
+  TransformCapabilities,
+  TransformConfig,
+  TransformFormState,
+  TransformRuleState
+} from './type';
 
 const DEFAULT_RULE_MATCHES = { expr: 'true' } satisfies ConditionExpr;
+type SerializedConditionExprWrapper = {
+  expr: ConditionExprInput;
+  null_if_error?: boolean;
+};
+type SerializedFilterEnumWrapper = {
+  Expr?: ConditionExprInput;
+};
+type ConditionExprInput =
+  | ConditionExpr
+  | SerializedConditionExprWrapper
+  | SerializedFilterEnumWrapper
+  | string
+  | null
+  | undefined
+  | ConditionExprInput[];
 
 function buildRuleId(index: number) {
   return `rule-${index + 1}`;
 }
 
-export function normalizeConditionExpr(expr?: ConditionExpr | string | null): ConditionExpr {
+export function normalizeConditionExpr(expr?: ConditionExprInput): ConditionExpr {
+  if (Array.isArray(expr)) {
+    return normalizeConditionExpr(expr[0]);
+  }
+
   if (typeof expr === 'string') {
     return { expr };
   }
 
-  if (expr?.expr) {
+  if (expr?.Expr) {
+    return normalizeConditionExpr(expr.Expr);
+  }
+
+  if (typeof expr?.expr === 'object') {
+    const nested = normalizeConditionExpr(expr.expr);
+    return typeof expr.null_if_error === 'boolean' && typeof nested.null_if_error !== 'boolean'
+      ? { ...nested, null_if_error: expr.null_if_error }
+      : nested;
+  }
+
+  if (typeof expr?.expr === 'string' && expr.expr) {
     return typeof expr.null_if_error === 'boolean'
       ? { expr: expr.expr, null_if_error: expr.null_if_error }
       : { expr: expr.expr };
   }
 
   return cloneDeep(DEFAULT_RULE_MATCHES);
+}
+
+export function getConditionExprText(expr?: ConditionExprInput): string {
+  if (Array.isArray(expr)) {
+    return getConditionExprText(expr[0]);
+  }
+
+  if (typeof expr === 'string') {
+    return expr;
+  }
+
+  if (expr?.Expr) {
+    return getConditionExprText(expr.Expr);
+  }
+
+  if (typeof expr?.expr === 'object') {
+    return getConditionExprText(expr.expr);
+  }
+
+  return typeof expr?.expr === 'string' ? expr.expr : '';
+}
+
+export function updateConditionExprText(expr: ConditionExprInput, text: string): ConditionExpr {
+  if (Array.isArray(expr)) {
+    return updateConditionExprText(expr[0], text);
+  }
+
+  if (expr?.Expr) {
+    return updateConditionExprText(expr.Expr, text);
+  }
+
+  if (typeof expr?.expr === 'object') {
+    const nested = updateConditionExprText(expr.expr, text);
+    return typeof expr.null_if_error === 'boolean' && typeof nested.null_if_error !== 'boolean'
+      ? { ...nested, null_if_error: expr.null_if_error }
+      : nested;
+  }
+
+  if (typeof expr === 'object' && expr !== null) {
+    return {
+      ...expr,
+      expr: text
+    };
+  }
+
+  return { expr: text };
 }
 
 export function normalizeMutateList(mutate: Recordable[] = []) {

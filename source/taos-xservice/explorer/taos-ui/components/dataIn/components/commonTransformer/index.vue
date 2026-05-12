@@ -32,12 +32,12 @@
                 :before-remove="beforeRemove"
                 :on-success="handleSuccess"
                 :on-progress="handleStart"
-                 :on-error="handleError"
-                 :on-exceed="handleExceed"
-                 :file-list="fileList"
-                 :show-file-list="false"
-                 :with-credentials="true"
-               >
+                :on-error="handleError"
+                :on-exceed="handleExceed"
+                :file-list="fileList"
+                :show-file-list="false"
+                :with-credentials="true"
+              >
                 <el-button
                   size="default"
                   :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -194,12 +194,12 @@
                 :data="uploadData"
                 :headers="uploadHeaders"
                 :before-remove="beforeRemove"
-                 :on-success="handleSuccessUdt"
-                 :on-error="handleError"
-                 :file-list="fileList"
-                 :show-file-list="false"
-                 :with-credentials="true"
-               >
+                :on-success="handleSuccessUdt"
+                :on-error="handleError"
+                :file-list="fileList"
+                :show-file-list="false"
+                :with-credentials="true"
+              >
                 <el-button
                   size="default"
                   plain
@@ -418,7 +418,9 @@
                       </el-button>
                       <template #dropdown>
                         <el-dropdown-menu>
-                          <el-dropdown-item command="sqlCreate">{{ t('dataIn.transformer.createstb') }}</el-dropdown-item>
+                          <el-dropdown-item command="sqlCreate">{{
+                            t('dataIn.transformer.createstb')
+                          }}</el-dropdown-item>
                           <el-dropdown-item command="templateCreate">{{
                             t('dataIn.transformer.templatestb')
                           }}</el-dropdown-item>
@@ -444,7 +446,10 @@
                     <el-table-column prop="Name" show-overflow-tooltip label="Name" width="120px">
                       <template #default="scope">
                         <div style="display: flex; align-items: end">
-                          <el-icon v-if="scope.row.Expression.toString()" style="margin-right: 2px; color: rgb(56 155 255)">
+                          <el-icon
+                            v-if="scope.row.Expression.toString()"
+                            style="margin-right: 2px; color: rgb(56 155 255)"
+                          >
                             <SuccessFilled />
                           </el-icon>
                           <Icon
@@ -475,109 +480,19 @@
                         </el-tooltip>
                       </template>
                       <template #default="scope">
-                        <div class="box-expression">
-                          <template v-if="scope.row['Name'] == 'SubTableName'">
-                            <el-input v-model="scope.row.Expression" size="default" :placeholder="exprformat"></el-input>
-                          </template>
-                          <template v-else>
-                            <el-select
-                              v-model="scope.row.exprname"
-                              size="default"
-                              class="mapping-rule-select"
-                              style="width: 110px; min-width: 110px"
-                              @change="changeCurrentMapExpr(scope)"
-                            >
-                              <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
-                                item
-                              }}</el-option>
-                            </el-select>
-
-                            <el-select
-                              v-if="
-                                scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
-                              "
-                              v-model="scope.row.Expression"
-                              :placeholder="t('dataIn.transformer.coltip')"
-                              :clearable="scope.row.exprname == 'mapping'"
-                              size="default"
-                              filterable
-                              class="mapping-rule-expression"
-                              :multiple="scope.row.exprname != 'mapping'"
-                              @clear="onMappingExpressionCleared(scope.row)"
-                            >
-                              <el-option
-                                v-for="val in mappingcolumns"
-                                :key="val.label"
-                                :value="val.value"
-                                :label="val.label"
-                              ></el-option>
-                            </el-select>
-                            <el-input
-                              v-else
-                              :key="'expr'"
-                              v-model="scope.row.Expression"
-                              class="mapping-rule-expression"
-                              :placeholder="
-                                scope.row.exprname == 'format'
-                                  ? exprformat
-                                  : scope.row.exprname == 'expr'
-                                    ? exprexpression
-                                    : scope.row.exprname == 'value'
-                                      ? t('dataIn.transformer.valuetip')
-                                      : ''
-                              "
-                              size="default"
-                              :disabled="scope.row['exprname'] == 'generator'"
-                              @change="
-                                statisticCol;
-                                relayout();
-                              "
-                            ></el-input>
-                            <el-input
-                              v-if="scope.row.exprname == 'join'"
-                              :key="'exprjoin'"
-                              v-model="scope.row.joinwith"
-                              size="default"
-                              class="mapping-rule-extra"
-                              style="height: 32px"
-                            >
-                              <template #prepend>with</template>
-                            </el-input>
-                            <el-input
-                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
-                              :key="'default-value-of-' + scope.row['Name']"
-                              v-model="scope.row.default"
-                              size="default"
-                              type="number"
-                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                              :maxlength="scope.row.dataRange[2]"
-                              class="mapping-rule-extra"
-                              @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
-                            >
-                            </el-input>
-                            <el-select
-                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
-                              v-model="scope.row.default"
-                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                              size="default"
-                              class="mapping-rule-extra"
-                            >
-                              <el-option label="true" value="true"></el-option>
-                              <el-option label="false" value="false"></el-option>
-                              <el-option label="null" value="null"></el-option>
-                            </el-select>
-                            <el-input
-                              v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
-                              v-model="scope.row.default"
-                              size="default"
-                              :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                              class="mapping-rule-extra"
-                            ></el-input>
-                          </template>
-                          <div v-if="scope.row.defaultValueError" class="default-value-error">
-                            {{ scope.row.defaultValueError }}
-                          </div>
-                        </div>
+                        <MappingExpressionCell
+                          :row="scope.row"
+                          :mapping-types="mappingTypes"
+                          :mappingcolumns="mappingcolumns"
+                          :exprformat="exprformat"
+                          :exprexpression="exprexpression"
+                          :on-default-value-input="onDefaultValueInput"
+                          @changed="
+                            statisticCol();
+                            relayout();
+                          "
+                          @cleared="onMappingExpressionCleared"
+                        />
                       </template>
                     </el-table-column>
                   </el-table>
@@ -818,126 +733,19 @@
                 </el-tooltip>
               </template>
               <template #default="scope">
-                <div class="box-expression">
-                  <template v-if="scope.row['Name'] == 'SubTableName'">
-                    <el-input
-                      v-model="scope.row.Expression"
-                      size="default"
-                      :placeholder="exprformat"
-                      @blur="scope.row.Expression = scope.row.Expression.trim()"
-                    ></el-input>
-                  </template>
-                  <template v-else>
-                    <el-select
-                      v-model="scope.row.exprname"
-                      size="default"
-                      class="mapping-rule-select"
-                      style="width: 110px; min-width: 110px"
-                      @change="changeCurrentMapExpr(scope)"
-                    >
-                      <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
-                        item
-                      }}</el-option>
-                    </el-select>
-
-                    <el-select
-                      v-if="
-                        scope.row.exprname == 'mapping' || scope.row.exprname == 'sum' || scope.row.exprname == 'join'
-                      "
-                      v-model="scope.row.Expression"
-                      :placeholder="t('dataIn.transformer.coltip')"
-                      :clearable="scope.row.exprname == 'mapping'"
-                      size="default"
-                      filterable
-                      class="mapping-rule-expression"
-                      :multiple="scope.row.exprname != 'mapping'"
-                      @clear="onMappingExpressionCleared(scope.row)"
-                    >
-                      <el-option
-                        v-for="val in mappingcolumns"
-                        :key="val.label"
-                        :value="val.value"
-                        :label="val.label"
-                      ></el-option>
-                    </el-select>
-                    <el-input
-                      v-else
-                      :key="'expr'"
-                      v-model="scope.row.Expression"
-                      class="mapping-rule-expression"
-                      :placeholder="
-                        scope.row.exprname == 'format'
-                          ? exprformat
-                          : scope.row.exprname == 'expr'
-                            ? exprexpression
-                            : scope.row.exprname == 'value'
-                              ? t('dataIn.transformer.valuetip')
-                              : ''
-                      "
-                      size="default"
-                      :disabled="scope.row['exprname'] == 'generator'"
-                      @change="
-                        statisticCol;
-                        relayout();
-                      "
-                    ></el-input>
-                    <el-tooltip
-                      v-if="scope.row.PrimaryKey && scope.row.exprname === 'generator'"
-                      :content="t('dataIn.transformer.generatorPkWarning')"
-                      placement="top"
-                      effect="light"
-                      :open-delay="0"
-                    >
-                      <el-icon style="margin-left: 4px; color: #f0a020; cursor: pointer; flex-shrink: 0">
-                        <WarningFilled />
-                      </el-icon>
-                    </el-tooltip>
-                    <!-- 第三列组件 -->
-                    <el-input
-                      v-if="scope.row.exprname == 'join'"
-                      :key="'exprjoin'"
-                      v-model="scope.row.joinwith"
-                      size="default"
-                      class="mapping-rule-extra"
-                      style="height: 32px"
-                    >
-                      <template #prepend>with</template>
-                    </el-input>
-                    <el-input
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataRange"
-                      :key="'default-value-of-' + scope.row['Name']"
-                      v-model="scope.row.default"
-                      size="default"
-                      type="number"
-                      :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                      :maxlength="scope.row.dataRange[2]"
-                      class="mapping-rule-extra"
-                      @blur="onDefaultValueInput(scope.row.Name, scope.row.default, scope.row.dataRange)"
-                    >
-                    </el-input>
-                    <el-select
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType == 'BOOL'"
-                      v-model="scope.row.default"
-                      :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                      size="default"
-                      class="mapping-rule-extra"
-                    >
-                      <el-option label="true" value="true"></el-option>
-                      <el-option label="false" value="false"></el-option>
-                      <el-option label="null" value="null"></el-option>
-                    </el-select>
-                    <el-input
-                      v-else-if="scope.row.exprname == 'mapping' && scope.row.dataType"
-                      v-model="scope.row.default"
-                      size="default"
-                      :placeholder="t('dataIn.transformer.defaultValuePlaceholder')"
-                      class="mapping-rule-extra"
-                    ></el-input>
-                  </template>
-                  <div v-if="scope.row.defaultValueError" class="default-value-error">
-                    {{ scope.row.defaultValueError }}
-                  </div>
-                </div>
+                <MappingExpressionCell
+                  :row="scope.row"
+                  :mapping-types="mappingTypes"
+                  :mappingcolumns="mappingcolumns"
+                  :exprformat="exprformat"
+                  :exprexpression="exprexpression"
+                  :on-default-value-input="onDefaultValueInput"
+                  @changed="
+                    statisticCol();
+                    relayout();
+                  "
+                  @cleared="onMappingExpressionCleared"
+                />
               </template>
             </el-table-column>
           </el-table>
@@ -991,12 +799,21 @@
 import type { ComponentInternalInstance } from 'vue';
 import ExtractSplit from './extractSplit.vue';
 import FilterExpression from './filterExpression.vue';
+import MappingExpressionCell from './mappingExpressionCell.vue';
+import { hasConfiguredExpression, syncMappingColumns } from './mappingExpressionState';
 import RuleBlockCard from './ruleBlockCard.vue';
 import { resolveActiveRuleIdAfterRemoval } from './ruleBlockState';
 import DocsContent from 'components/MdRender.vue';
 import CusSelect from './cusSelect.vue';
 import CreateStable from './createSTB.vue';
-import { getTransformCapabilities, normalizeConditionExpr, toBackendPayload, toRuleFormState } from './ruleAdapter';
+import {
+  getConditionExprText,
+  getTransformCapabilities,
+  normalizeConditionExpr,
+  toBackendPayload,
+  toRuleFormState,
+  updateConditionExprText
+} from './ruleAdapter';
 import { getDataInProps, uploadHeaders } from '../../model/useDataIn.js';
 import { t } from 'locales';
 import {
@@ -1004,6 +821,10 @@ import {
   supportTransform,
   transformerState,
   resetTransformerPreviewState,
+  isEmptyParserResult,
+  showEmptyTransformerPreview,
+  limitPreviewRows,
+  mapPreviewRows,
   extractAllProperties,
   getExampleList,
   validateJsonKeys,
@@ -1358,9 +1179,7 @@ async function previewMatches(ruleId: string) {
       parse: topParse.parser?.parse,
       mutate: topParse.parser?.mutate
     },
-    input: supportTransform.is_sparkplugb
-      ? topParse.samples
-      : generateInput(),
+    input: supportTransform.is_sparkplugb ? topParse.samples : generateInput(),
     matches: block.matches
   };
 
@@ -1376,27 +1195,19 @@ async function previewMatches(ruleId: string) {
       return;
     }
 
-    const resultTableData: any[] = result
-      .map((item: Recordable) => {
-        const fields = item.fields;
-        const columns = item.columns;
-        const fieldNames = fields.map((field: Recordable) => field.name);
-        return columns.map((row: any) => {
-          const rowDict: Recordable = {};
-          fieldNames.forEach((fieldName: string, index: number) => {
-            rowDict[fieldName] = filterEmpty(row[index]);
-          });
-          return rowDict;
-        });
-      })
-      .flat(Infinity);
+    const resultTableData: any[] = mapPreviewRows(result, (row: any, item: Recordable) => {
+      const fieldNames = item.fields.map((field: Recordable) => field.name);
+      const rowDict: Recordable = {};
+      fieldNames.forEach((fieldName: string, index: number) => {
+        rowDict[fieldName] = filterEmpty(row[index]);
+      });
+      return rowDict;
+    });
 
     transformerState.transformResultTable = resultTableData;
-    nextTick(() => {
-      transformerState.showResultTb = true;
-      transformerState.resultTbTitle = 'matchesResTb';
-      transformerState.transResultName = 'matches';
-    });
+    transformerState.resultTbTitle = 'matchesResTb';
+    transformerState.transResultName = 'matches';
+    transformerState.showResultTb = true;
   } catch (error) {
     console.error(error);
   }
@@ -1484,16 +1295,9 @@ watch(
   () => transformerState.transformerMapColumns,
   val => {
     options.value = val;
-    mappingcolumns.value = val.filter(item => item.value == 'mapping')[0].children;
-    const newmappings = mappingcolumns.value.map(item => item.label);
-    tableData.value.map(item => {
-      if (item.exprname == 'mapping' && item['Type'] != 'Tablename') {
-        if (!newmappings.includes(item['Expression'])) {
-          item['Expression'] = '';
-        }
-        return item;
-      }
-    });
+    const mappingEntry = val.filter(item => item.value == 'mapping')[0];
+    mappingcolumns.value = mappingEntry?.children ?? [];
+    syncMappingColumns(mappingcolumns.value, tableData.value);
   },
   {
     deep: true
@@ -1555,20 +1359,7 @@ onMounted(async () => {
 });
 
 function statisticCol() {
-  configuredCount.value = tableData.value.filter(item => item['Expression'] != '').length;
-}
-function changeCurrentMapExpr(scope: Recordable) {
-  nextTick(() => {
-    pageTableData.value[scope.$index].Expression = '';
-    if (pageTableData.value[scope.$index].default != undefined && pageTableData.value[scope.$index].default !== '') {
-      pageTableData.value[scope.$index].default = '';
-      pageTableData.value[scope.$index].defaultValueError = '';
-    }
-    if (scope.row.exprname == 'generator') {
-      pageTableData.value[scope.$index].Expression = 'now';
-    }
-    mappingTable.value?.doLayout?.();
-  });
+  configuredCount.value = tableData.value.filter(item => hasConfiguredExpression(item.Expression)).length;
 }
 function relayout() {
   nextTick(() => {
@@ -1580,7 +1371,7 @@ function relayout() {
   });
 }
 function onMappingExpressionCleared(row?: TableRow) {
-  // 清空 mapping/select 时，重置当前行的表达式和默认值，避免表格状态与布局不一致
+  // Keep row state and configured-count display in sync after select clear actions.
   if (row) {
     row.Expression = '';
     if (row.exprname === 'mapping') {
@@ -1592,7 +1383,7 @@ function onMappingExpressionCleared(row?: TableRow) {
       }
     }
   }
-  // 重新计算表格布局，避免列宽错乱
+  statisticCol();
   relayout();
 }
 async function getMsgBody() {
@@ -1834,7 +1625,7 @@ function getTopParserData() {
   }
   return topParser;
 }
-// 调用 flat 接口处理除了 mapping 的结果
+// Call the flat API for non-mapping preview results.
 async function handleParseResult(topParser: TopParseType) {
   const checkResult = checkParseData(topParser);
   if (checkResult) {
@@ -1856,6 +1647,15 @@ async function handleParseResult(topParser: TopParseType) {
     resetTransformerPreviewState();
     ElMessage.error(result.message);
     isbreak.value = true;
+    return;
+  }
+  if (isEmptyParserResult(result)) {
+    transformerState.transformerMapColumns = [];
+    columnsArr.value = [];
+    transformerState.stbDefaultColumns = [];
+    showEmptyTransformerPreview('mappingResTb', 'mapping');
+    isbreak.value = false;
+    refreshRuleColumnsVisibility();
     return;
   }
   const transformerColumns = [
@@ -1893,27 +1693,23 @@ async function handleParseResult(topParser: TopParseType) {
 
   let resultTableData: any[] = [];
   resultTableData = supportTransform.is_sparkplugb
-    ? result
-        .map((result: any) => {
-          return result.columns.map((data: any) => {
-            return Object.fromEntries(
-              result.fields
-                .map((item: { name: any }, index: string | number) => {
-                  return [
-                    item.name,
-                    filterEmpty(data[index])
-                      ? Array.isArray(data[index])
-                        ? JSON.stringify(data[index])
-                        : data[index].toString()
-                      : null
-                  ];
-                })
-                .filter((f: string[]) => !hiddenCols.includes(f[0]))
-            );
-          });
-        })
-        .flat(Infinity)
-    : result[0].columns.map((data: any) => {
+    ? mapPreviewRows(result, (data: any, result: any) => {
+        return Object.fromEntries(
+          result.fields
+            .map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+            .filter((f: string[]) => !hiddenCols.includes(f[0]))
+        );
+      })
+    : limitPreviewRows(result[0].columns).map((data: any) => {
         return Object.fromEntries(
           result[0].fields
             .map((item: { name: any }, index: string | number) => {
@@ -1934,22 +1730,28 @@ async function handleParseResult(topParser: TopParseType) {
   transformerState.activeColumns = [];
   transformerState.resultCurrentPage = 1;
 
-  const tbdata = result[0].columns.map((data: any) => {
-    return Object.fromEntries(
-      result[0].fields
-        .map((item: { name: any }, index: string | number) => {
-          return [
-            item.name,
-            filterEmpty(data[index])
-              ? Array.isArray(data[index])
-                ? JSON.stringify(data[index])
-                : data[index].toString()
-              : null
-          ];
-        })
-        .filter((f: string[]) => !hiddenCols.includes(f[0]))
-    );
-  });
+  // For the non-sparkplugb path, `tbdata` would compute the exact same rows as
+  // `resultTableData`, so reuse it instead of iterating `result[0].columns` a
+  // second time. For sparkplugb, `resultTableData` is flattened across multiple
+  // results, so we still need a `result[0]`-only view here.
+  const tbdata = supportTransform.is_sparkplugb
+    ? limitPreviewRows(result[0].columns).map((data: any) => {
+        return Object.fromEntries(
+          result[0].fields
+            .map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+            .filter((f: string[]) => !hiddenCols.includes(f[0]))
+        );
+      })
+    : resultTableData;
   columnsArr.value = (
     sourceForm.type == 'csv' || sourceForm.type == 'pulsar' || sourceForm.type == 'pulsarTuya'
       ? result[0].fields
@@ -1984,7 +1786,7 @@ async function handleParseResult(topParser: TopParseType) {
   transformerState.stbDefaultColumns = columnsArr.value;
   refreshRuleColumnsVisibility();
 }
-// 处理 mapping 的结果
+// Process mapping preview results.
 async function getParserData(data: TransformerfullparamsType | TransformerSpbfullparamsType) {
   try {
     const checkResult = checkParseData(data);
@@ -2002,58 +1804,47 @@ async function getParserData(data: TransformerfullparamsType | TransformerSpbful
     }
     isbreak.value = false;
 
-    // 预览映射结果table数据
+    // Preview mapping result table rows.
     let resultTableData: any[] = [];
-    resultTableData = result.map((item: Recordable) => {
-      const fields = item.fields;
-      const columns = item.columns;
-      const fieldNames = fields.map((field: Recordable) => field.name);
-
-      return columns.map((row: any) => {
-        // 为每一行数据创建一个字典，字段名作为键，行数据作为值
-        const rowDict: Recordable = {};
-        fieldNames.forEach((fieldName: string, index: number) => {
-          rowDict[fieldName] = filterEmpty(row[index]);
-        });
-
-        if (sourceForm.type == 'mqtt' || sourceForm.type == 'sparkplugb') {
-          rowDict.SuperTableName = rowDict['__using__'];
-        }
-        rowDict.SubTableName = rowDict['__tbname__'];
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { __using__, __tbname__, ...rest } = rowDict;
-
-        // 统一列顺序: SuperTableName, SubTableName, 其余字段（按原解析顺序）
-        const finalRow: Recordable = {};
-        if (rowDict.SuperTableName !== undefined) {
-          finalRow.SuperTableName = rowDict.SuperTableName;
-        }
-        if (rowDict.SubTableName !== undefined) {
-          finalRow.SubTableName = rowDict.SubTableName;
-        }
-        // 其余字段保持原 fields 顺序（排除已处理和内部字段）
-        fieldNames.forEach((k: string) => {
-          if (!['__using__', '__tbname__', 'SuperTableName', 'SubTableName'].includes(k)) {
-            if (k in rest) finalRow[k] = rest[k];
-          }
-        });
-        // 若解析结果里后来追加的新字段（非常规）也需要保留
-        Object.keys(rest).forEach(k => {
-          if (!(k in finalRow)) {
-            finalRow[k] = rest[k];
-          }
-        });
-
-        return finalRow;
+    resultTableData = mapPreviewRows(result, (row: any, item: Recordable) => {
+      const fieldNames = item.fields.map((field: Recordable) => field.name);
+      const rowDict: Recordable = {};
+      fieldNames.forEach((fieldName: string, index: number) => {
+        rowDict[fieldName] = filterEmpty(row[index]);
       });
+
+      if (sourceForm.type == 'mqtt' || sourceForm.type == 'sparkplugb') {
+        rowDict.SuperTableName = rowDict['__using__'];
+      }
+      rowDict.SubTableName = rowDict['__tbname__'];
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { __using__, __tbname__, ...rest } = rowDict;
+
+      const finalRow: Recordable = {};
+      if (rowDict.SuperTableName !== undefined) {
+        finalRow.SuperTableName = rowDict.SuperTableName;
+      }
+      if (rowDict.SubTableName !== undefined) {
+        finalRow.SubTableName = rowDict.SubTableName;
+      }
+      fieldNames.forEach((k: string) => {
+        if (!['__using__', '__tbname__', 'SuperTableName', 'SubTableName'].includes(k)) {
+          if (k in rest) finalRow[k] = rest[k];
+        }
+      });
+      Object.keys(rest).forEach(k => {
+        if (!(k in finalRow)) {
+          finalRow[k] = rest[k];
+        }
+      });
+
+      return finalRow;
     });
 
     transformerState.transformResultTable = resultTableData;
-    nextTick(() => {
-      transformerState.showResultTb = true;
-      transformerState.resultTbTitle = 'mappingResTb';
-      transformerState.transResultName = 'mapping';
-    });
+    transformerState.resultTbTitle = 'mappingResTb';
+    transformerState.transResultName = 'mapping';
+    transformerState.showResultTb = true;
 
     setPageTableData();
   } catch (error) {
@@ -2080,44 +1871,54 @@ function setPageTableData() {
   );
   relayout();
 }
-function onDefaultValueInput(name: any, val: string, range: number[]) {
-  if (val === undefined || val.trim() === '') {
+function onDefaultValueInput(name: any, val: string | number | null | undefined, range?: (bigint | number)[]) {
+  const text = val == null ? '' : String(val).trim();
+  if (text === '' || !range) {
     setDefaultValueError(name, '');
     return;
   }
 
-  if (range[2] <= 20) {
-    // 整数
-    if (val.indexOf('.') >= 0 || isNaN(Number(val)) || val.length > range[2]) {
-      alertDataRange(name, val, range);
+  const maxLen = Number(range[2]);
+  const integerPattern = /^-?\d+$/;
+  if (maxLen <= 20) {
+    if (!integerPattern.test(text) || text.length > maxLen) {
+      alertDataRange(name, text, range);
       return;
     }
-    let ival;
-    if (range[2] < 20) {
-      ival = parseInt(val);
+    let ival: number | bigint;
+    if (maxLen < 20) {
+      ival = Number(text);
+      if (!Number.isSafeInteger(ival)) {
+        alertDataRange(name, text, range);
+        return;
+      }
     } else {
-      ival = eval(val + 'n');
+      try {
+        ival = BigInt(text);
+      } catch {
+        alertDataRange(name, text, range);
+        return;
+      }
     }
     if (ival < range[0] || ival > range[1]) {
-      alertDataRange(name, val, range);
+      alertDataRange(name, text, range);
       return;
     }
   } else {
-    // 浮点数
-    if (isNaN(Number(val)) || val.length > range[2]) {
-      alertDataRange(name, val, range);
+    if (isNaN(Number(text)) || text.length > maxLen) {
+      alertDataRange(name, text, range);
       return;
     }
-    const fval = parseFloat(val);
-    if (fval < range[0] || fval > range[1]) {
-      alertDataRange(name, val, range);
+    const fval = parseFloat(text);
+    if (fval < Number(range[0]) || fval > Number(range[1])) {
+      alertDataRange(name, text, range);
       return;
     }
   }
 
   setDefaultValueError(name, '');
 }
-function alertDataRange(name: any, _val: string, range: number[]) {
+function alertDataRange(name: any, _val: string, range: (bigint | number)[]) {
   const dataRangeInputTip = t('dataIn.transformer.dataRangeInputTip', [range[0], range[1]]);
   setDefaultValueError(name, dataRangeInputTip);
 }
@@ -2322,11 +2123,15 @@ function echoFilterData(mutate: Recordable[]) {
   mutate.forEach(item => {
     if (Object.keys(item).toString() == 'filter') {
       isincludeFilter = true;
+      const normalizedFilter = normalizeConditionExpr(item.filter);
       const obj = {
-        expression: item.filter,
+        expression: normalizedFilter,
         key: Math.random()
       };
       filterArr.value.splice(0, filterArr.value.length, obj);
+      transformerState.transformerFilterParseData = {
+        filter: normalizedFilter
+      };
     }
     if (Object.keys(item).toString() == 'map') {
       echoMapData = (Object.entries(item['map']) as Recordable).map((val: any) => {
@@ -2355,7 +2160,11 @@ function echoMappingData(transformEchoMapData: Recordable) {
   nextTick(async () => {
     sruleForm.s_name = transformEchoMapData.model?.using;
     transformerState.s_model = transformEchoMapData.s_model;
-    await getSTbaleList(true, !!(transformEchoMapData.s_model && Object.keys(transformEchoMapData.s_model).length), transformEchoMapData);
+    await getSTbaleList(
+      true,
+      !!(transformEchoMapData.s_model && Object.keys(transformEchoMapData.s_model).length),
+      transformEchoMapData
+    );
     echoFetchMap(transformEchoMapData);
     if (sourceForm.type !== 'csv' && !supportTransform.supportSQL) {
       selectJson();
@@ -2653,7 +2462,7 @@ function changeFilter(key: any, value: string, ruleId?: string) {
     return;
   }
   const index = filterArr.value.findIndex(val => val.key == key);
-  filterArr.value[index]['expression'] = value;
+  filterArr.value[index]['expression'] = updateConditionExprText(filterArr.value[index]['expression'], value);
 }
 //extract的expression赋值
 function changeExtractExpr(colname: string, value: string, ruleId?: string) {
@@ -2742,10 +2551,9 @@ async function getTransformerParams() {
     }
 
     const ruleFormState = toRuleFormState(parserData as TransformConfig, sourceForm.type);
-    transformerState.transformerfullparams = toBackendPayload(
-      ruleFormState,
-      sourceForm.type
-    ) as TransformerfullparamsType | TransformerSpbfullparamsType;
+    transformerState.transformerfullparams = toBackendPayload(ruleFormState, sourceForm.type) as
+      | TransformerfullparamsType
+      | TransformerSpbfullparamsType;
     return;
   }
 
@@ -3062,9 +2870,10 @@ async function deleteFilter(key: number, ruleId?: string) {
       transformerState.transformerFilterParseData = null;
     } else {
       transformerState.transformerFilterParseData = {
-        filter: {
-          expr: filterArr.value[0].expression || ''
-        }
+        filter: updateConditionExprText(
+          filterArr.value[0].expression,
+          getConditionExprText(filterArr.value[0].expression)
+        )
       };
     }
 
@@ -3362,30 +3171,8 @@ $color-description: rgb(137 130 130);
 
   .box-expression {
     display: flex;
-    flex-wrap: wrap;
-
-    .mapping-rule-select {
-      width: 100px;
-      margin-right: 5px;
-    }
-
-    .mapping-rule-expression {
-      flex: 1;
-    }
-
-    .mapping-rule-extra {
-      width: 100px;
-      margin-left: 5px;
-    }
-
-    .default-value-error {
-      width: 100%;
-      margin-top: 5px;
-      font-size: 12px;
-      line-height: 1;
-      color: #ff4949;
-      text-align: right;
-    }
+    flex-direction: column;
+    width: 100%;
   }
 
   :deep(.el-table) {

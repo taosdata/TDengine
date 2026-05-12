@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkParseData } from './util';
-import { getTransformCapabilities, toBackendPayload, toRuleFormState } from './ruleAdapter';
+import { getTransformCapabilities, toBackendPayload, toRuleFormState, updateConditionExprText } from './ruleAdapter';
 
 describe('ruleAdapter', () => {
   it('wraps legacy parser config into one default Kafka rule block', () => {
@@ -108,7 +108,10 @@ describe('ruleAdapter', () => {
 
     const payload = toBackendPayload(state, 'kafka');
 
-    expect(payload.parser.rules?.map(rule => rule.matches)).toEqual([{ expr: 'topic == "b"' }, { expr: 'topic == "a"' }]);
+    expect(payload.parser.rules?.map(rule => rule.matches)).toEqual([
+      { expr: 'topic == "b"' },
+      { expr: 'topic == "a"' }
+    ]);
   });
 
   it('validates nested mutate rules through the live checkParseData helper', () => {
@@ -184,12 +187,74 @@ describe('ruleAdapter', () => {
       expr: 'topic == "meters"',
       null_if_error: true
     });
-    expect(state.parser.rules?.[0].mutate).toEqual([
-      { filter: { expr: 'value > 1', null_if_error: false } }
-    ]);
+    expect(state.parser.rules?.[0].mutate).toEqual([{ filter: { expr: 'value > 1', null_if_error: false } }]);
     expect(toBackendPayload(state, 'kafka').parser.rules?.[0]).toMatchObject({
       matches: { expr: 'topic == "meters"', null_if_error: true },
       mutate: [{ filter: { expr: 'value > 1', null_if_error: false } }]
+    });
+  });
+
+  it('normalizes serialized filter arrays from backend task import', () => {
+    const state = toRuleFormState(
+      {
+        parser: {
+          rules: [
+            {
+              matches: { expr: 'topic == "meters"' },
+              mutate: [{ filter: [{ expr: 'value > 1', null_if_error: false }] }],
+              model: { name: 'meters', using: 'meters', tags: [], columns: ['value'] }
+            }
+          ]
+        }
+      },
+      'kafka'
+    );
+
+    expect(state.parser.rules?.[0].mutate).toEqual([{ filter: { expr: 'value > 1', null_if_error: false } }]);
+  });
+
+  it('normalizes backend serialized expression filter wrappers', () => {
+    const state = toRuleFormState(
+      {
+        parser: {
+          rules: [
+            {
+              matches: { expr: 'topic == "meters"' },
+              mutate: [{ filter: [{ expr: { expr: 'value > 1', null_if_error: false } }] }],
+              model: { name: 'meters', using: 'meters', tags: [], columns: ['value'] }
+            }
+          ]
+        }
+      },
+      'kafka'
+    );
+
+    expect(state.parser.rules?.[0].mutate).toEqual([{ filter: { expr: 'value > 1', null_if_error: false } }]);
+  });
+
+  it('normalizes backend serialized enum expression filter wrappers', () => {
+    const state = toRuleFormState(
+      {
+        parser: {
+          rules: [
+            {
+              matches: { expr: 'topic == "meters"' },
+              mutate: [{ filter: [{ Expr: { expr: { expr: 'value > 1', null_if_error: true } } }] }],
+              model: { name: 'meters', using: 'meters', tags: [], columns: ['value'] }
+            }
+          ]
+        }
+      },
+      'kafka'
+    );
+
+    expect(state.parser.rules?.[0].mutate).toEqual([{ filter: { expr: 'value > 1', null_if_error: true } }]);
+  });
+
+  it('preserves wrapper-level null_if_error when editing serialized filters', () => {
+    expect(updateConditionExprText({ expr: { expr: 'value > 1' }, null_if_error: false }, 'value > 2')).toEqual({
+      expr: 'value > 2',
+      null_if_error: false
     });
   });
 });

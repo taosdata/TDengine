@@ -48,33 +48,49 @@ type JsonStatusResult<T> = std::result::Result<(Json<T>, StatusCode), Error>;
 type FlightResult = std::result::Result<RecordBatch, FlightError>;
 
 #[derive(Debug)]
-pub struct Error(anyhow::Error);
+pub struct Error {
+    err: anyhow::Error,
+    status: StatusCode,
+}
+
+impl Error {
+    pub(crate) fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            err: anyhow::anyhow!(message.into()),
+            status: StatusCode::NOT_FOUND,
+        }
+    }
+}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        self.err.fmt(f)
     }
 }
 
 impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
-        Self(err)
+        Self {
+            err,
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.0.source()
+        self.err.source()
     }
 }
 
 impl ResponseError for Error {
     fn status_code(&self) -> http::StatusCode {
-        http::StatusCode::INTERNAL_SERVER_ERROR
+        self.status
     }
 
     fn error_response(&self) -> HttpResponse<BoxBody> {
-        HttpResponse::InternalServerError().json(Fail::new(format!("{self:#}")))
+        let mut resp = HttpResponse::build(self.status);
+        resp.json(Fail::new(format!("{self:#}")))
     }
 }
 

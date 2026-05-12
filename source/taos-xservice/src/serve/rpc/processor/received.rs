@@ -113,15 +113,22 @@ fn log_handled_request(
     handled_fields: &HandledLogFields<'_>,
     latency_ms: u64,
 ) {
-    match level {
-        ReceiveLogLevel::Info => tracing::info!(
+    match (level, handled_fields.outcome) {
+        (ReceiveLogLevel::Info, _) => tracing::info!(
             action = handled_fields.action,
             req_id = handled_fields.req_id,
             outcome = handled_fields.outcome,
             latency_ms,
             "Handled RPC request"
         ),
-        ReceiveLogLevel::Debug => tracing::debug!(
+        (ReceiveLogLevel::Debug, "success") => tracing::debug!(
+            action = handled_fields.action,
+            req_id = handled_fields.req_id,
+            outcome = handled_fields.outcome,
+            latency_ms,
+            "Handled RPC request"
+        ),
+        (ReceiveLogLevel::Debug, _) => tracing::warn!(
             action = handled_fields.action,
             req_id = handled_fields.req_id,
             outcome = handled_fields.outcome,
@@ -456,7 +463,12 @@ pub async fn process(
                 );
             }
             (HEARTBEAT_REQ, _, RpcClientType::Guest) => {
-                process!(HEARTBEAT_REQ, Ok::<_, FlightError>(()), HEARTBEAT_RESP);
+                process!(
+                    debug,
+                    HEARTBEAT_REQ,
+                    Ok::<_, FlightError>(()),
+                    HEARTBEAT_RESP
+                );
             }
             (PLAN_TASK_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 process!(
@@ -820,6 +832,78 @@ mod tests {
         assert!(!logs.contains("Received RPC request"));
         assert!(!logs.contains("Handled RPC request"));
         assert!(!logs.contains(&format!("action=\"{HEARTBEAT_REQ}\"")));
+    }
+
+    #[test]
+    fn guest_heartbeat_lifecycle_logs_are_suppressed() {
+        let _test_guard = TEST_GUARD.lock().expect("lock test guard");
+        let log_buffer = SharedLogBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .without_time()
+            .with_target(false)
+            .with_writer(log_buffer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build test runtime");
+        runtime.block_on(async {
+            let fields = super::build_received_log_fields(HEARTBEAT_REQ, 44, RpcClientType::Guest);
+
+            super::run_with_receive_lifecycle(
+                super::ReceiveLogLevel::Debug,
+                &fields,
+                None,
+                None,
+                async { Ok(super::HandledOutcome::Success) },
+            )
+            .await
+            .expect("guest heartbeat should succeed");
+        });
+
+        let logs = log_buffer.contents();
+        assert!(!logs.contains("Received RPC request"));
+        assert!(!logs.contains("Handled RPC request"));
+        assert!(!logs.contains(&format!("action=\"{HEARTBEAT_REQ}\"")));
+    }
+
+    #[test]
+    fn debug_level_failures_still_log_lifecycle_events() {
+        let _test_guard = TEST_GUARD.lock().expect("lock test guard");
+        let log_buffer = SharedLogBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .without_time()
+            .with_target(false)
+            .with_writer(log_buffer.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build test runtime");
+        runtime.block_on(async {
+            let fields = super::build_received_log_fields(HEARTBEAT_REQ, 45, RpcClientType::Guest);
+
+            super::run_with_receive_lifecycle(
+                super::ReceiveLogLevel::Debug,
+                &fields,
+                None,
+                None,
+                async { Ok(super::HandledOutcome::Failure) },
+            )
+            .await
+            .expect("guest heartbeat failure should complete");
+        });
+
+        let logs = log_buffer.contents();
+        assert!(logs.contains("Handled RPC request"));
+        assert!(logs.contains(&format!("action=\"{HEARTBEAT_REQ}\"")));
+        assert!(logs.contains("outcome=\"failure\""));
     }
 
     #[test]

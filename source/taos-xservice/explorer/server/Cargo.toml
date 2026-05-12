@@ -106,6 +106,7 @@ taosx-core.workspace = true
 taosx-utils.workspace = true
 futures-ext.workspace = true
 tmq-to-local.workspace = true
+tmq-to-td.workspace = true
 
 [dependencies.taos]
 workspace = true

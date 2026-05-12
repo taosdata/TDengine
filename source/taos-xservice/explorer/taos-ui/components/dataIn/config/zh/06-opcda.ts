@@ -207,16 +207,16 @@ export default {
             },
             {
               name: 'table_primary_key',
-              display: '主键列',
+              display: '时间戳列',
               hint: {
                 type: 'str',
                 choices: ['original_ts', 'request_ts', 'received_ts']
               },
               description:
-                '目标数据表主键将使用选择的值作为时间戳主键列，original_ts 表示使用数据点位上报 opc server 时间，request_ts 是 observe 采集模式下每次轮询的发起请求时间，received_ts 表示从 opc server 接收到数据的时间。\n',
+                '在目标数据表中作为时间戳列使用。original_ts 表示使用数据点位上报到 OPC server 的时间；request_ts 表示 observe 采集模式下每次轮询的发起请求时间；received_ts 表示从 OPC server 接收到数据的时间。\n',
               required: false,
               value: 'original_ts',
-              label: '主键列',
+              label: '时间戳列',
               field: 'table_primary_key',
               defaultValue: 'original_ts',
               multiple: false,
@@ -238,14 +238,14 @@ export default {
             },
             {
               name: 'table_primary_key_alias',
-              display: '主键别名',
+              display: '时间戳列名',
               hint: {
                 type: 'str'
               },
-              description: '在目标数据表中的主键列名称。\n',
+              description: '在目标数据表中，时间戳列的列名。例如：`ts` 表示将时间戳列名称设置为 `ts`。\n',
               required: false,
               value: 'ts',
-              label: '主键别名',
+              label: '时间戳列名',
               field: 'table_primary_key_alias',
               defaultValue: 'ts',
               multiple: false,

@@ -21,8 +21,8 @@
 | GET    | /tasks/:id                 | 获取任务详情     | -          | ✅                          |
 | GET    | /tasks/:id/activities      | 获取任务活动日志 | -          | 需 taosd 支持 activities 表 |
 | GET    | /tasks/:id/metrics         | 获取任务指标     | -          | 需 taosd 支持 metrics 表    |
-| GET    | /tasks/:id/table_progress  | 获取表进度       | 优先级: 低 | -                           |
-| GET    | /tasks/:id/vgroup_progress | 获取虚拟组进度   | 优先级: 低 | -                           |
+| GET    | /tasks/:id/table_progress  | 获取表进度       | 优先级: 低 | ✅                          |
+| GET    | /tasks/:id/vgroup_progress | 获取虚拟组进度   | 优先级: 低 | ✅                          |
 | PATCH  | /tasks/:id                 | 更新任务         | -          | ✅                          |
 | DELETE | /tasks/:id                 | 删除任务         | -          | ✅                          |
 | POST   | /tasks/:id/start           | 启动任务         | -          | ✅                          |

@@ -59,3 +59,100 @@ pub fn get_schema_path(dir: impl AsRef<Path>) -> HashMap<Arc<Schema>, PathBuf> {
         .map(|(k, v)| (k, dir.join(v))),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn schema_has_expected_fields_and_metadata_for_value_type() {
+        let schema = schema(DataType::Float64);
+
+        assert_eq!(schema.fields().len(), 7);
+        assert_eq!(schema.field(0).name(), "id");
+        assert_eq!(schema.field(0).data_type(), &DataType::Utf8);
+        assert!(!schema.field(0).is_nullable());
+        assert_eq!(
+            schema.field(2).data_type(),
+            &DataType::Timestamp(TimeUnit::Millisecond, None)
+        );
+        assert_eq!(schema.field(4).name(), "value");
+        assert_eq!(schema.field(4).data_type(), &DataType::Float64);
+        assert!(schema.field(4).is_nullable());
+        assert_eq!(schema.metadata().get("version").unwrap(), "1.0");
+        assert_eq!(schema.metadata().get("stream").unwrap(), "point");
+        assert_eq!(schema.metadata().get("ack").unwrap(), "lush");
+    }
+
+    #[test]
+    fn get_schema_path_returns_all_supported_value_type_directories() {
+        let paths = get_schema_path("/tmp/opc");
+
+        assert_eq!(paths.len(), 13);
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_bool"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_timestamp"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_int8"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_uint8"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_int16"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_uint16"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_int32"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_uint32"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_int64"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_uint64"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_float"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_double"))
+        );
+        assert!(
+            paths
+                .values()
+                .any(|path| path == Path::new("/tmp/opc/_str"))
+        );
+    }
+}

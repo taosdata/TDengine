@@ -1,17 +1,7 @@
-use crate::serve::{controller::Task, data_sources::LangQuery};
+use crate::serve::data_sources::LangQuery;
 use actix_web::{HttpResponse, Responder, get, web::Query};
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, LazyLock},
-};
-use taosx_core::{
-    core_metrics::{CoreMetrics, try_get_metrics},
-    legacy_metric::LegacyToTaosMetrics,
-    sink::ipc_metric::IpcMetrics,
-    tmq::tmq_metric::TmqMetrics,
-};
+use std::{collections::BTreeMap, sync::LazyLock};
 use taosx_metrics::TaosXRecorderHandle;
-use taosx_utils::dsn::json_to_dsn;
 
 /// Metrics like node-exporter.
 #[utoipa::path(
@@ -58,32 +48,6 @@ pub static METRICS_DESC_EN: LazyLock<BTreeMap<String, String>> =
             }
         },
     );
-
-pub async fn try_get_metrics_from_task(task: &Task) -> Option<Arc<CoreMetrics>> {
-    // let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
-    let parse_dsn_result = json_to_dsn(&serde_json::Value::String(task.from.clone()));
-    if parse_dsn_result.is_err() {
-        tracing::error!(
-            "parse dsn error: {}, from={}",
-            parse_dsn_result.unwrap_err(),
-            task.from
-        );
-        return None;
-    }
-    let dsn = parse_dsn_result.unwrap();
-    let task_id = task.id;
-    let job_id = task.job_id;
-    match dsn.driver.as_str() {
-        "taos" => try_get_metrics::<LegacyToTaosMetrics>(task_id, job_id, &dsn).await,
-        "tmq" | "sync" => try_get_metrics::<TmqMetrics>(task_id, job_id, &dsn).await,
-        "opc" | "opcua" | "opcda" | "pi" | "pibackfill" | "mqtt" | "influxdb" | "opentsdb"
-        | "kafka" | "avevaHistorian" | "csv" | "mysql" | "postgres" | "oracle" | "mssql"
-        | "mongodb" | "sparkplugb" | "pulsar" | "pulsarTuya" | "kinghist" => {
-            try_get_metrics::<IpcMetrics>(task_id, job_id, &dsn).await
-        }
-        _ => None,
-    }
-}
 
 /// Profile.
 #[utoipa::path(

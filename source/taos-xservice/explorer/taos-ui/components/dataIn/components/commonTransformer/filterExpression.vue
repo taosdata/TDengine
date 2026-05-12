@@ -25,7 +25,16 @@
 <script setup lang="ts">
 import { t } from 'locales';
 import type { ConditionExpr } from './type';
-import { transformerState, supportTransform, resetTransformerPreviewState } from './util';
+import { getConditionExprText, updateConditionExprText } from './ruleAdapter';
+import {
+  transformerState,
+  supportTransform,
+  resetTransformerPreviewState,
+  isEmptyParserResult,
+  showEmptyTransformerPreview,
+  limitPreviewRows,
+  mapPreviewRows
+} from './util';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 import { ElMessage } from 'element-plus';
 const dataInProps = getDataInProps();
@@ -86,14 +95,12 @@ function executeFilter() {
 function changeFilterCont() {
   isexecuted.value = false;
   transformerState.transformerFilterParseData = {
-    filter: {
-      expr: ruleForm.filter_name
-    }
+    filter: updateConditionExprText(props.itemData.expression, ruleForm.filter_name)
   };
 }
 function initData(val: Recordable) {
   if (val) {
-    ruleForm.filter_name = val.expression;
+    ruleForm.filter_name = getConditionExprText(val.expression);
   }
 }
 function submit() {
@@ -113,15 +120,21 @@ function submit() {
 async function getParserData(data: any) {
   try {
     const result = await dataInProps.transform.api.getParser(data);
-    const tableColumns = result[0].fields.map((item: { name: any }) => item.name);
     if (result.message) {
       resetTransformerPreviewState();
       ElMessage.error(result.message);
       return;
     }
+    if (isEmptyParserResult(result)) {
+      transformerState.transformerMapColumns = [];
+      tableData.value = [];
+      showEmptyTransformerPreview('filterResTb', 'filter');
+      return;
+    }
+    const tableColumns = result[0].fields.map((item: { name: any }) => item.name);
     emit('change-filter', props.itemData.key, ruleForm.filter_name, props.ruleId);
     result[0].columns?.length > 0
-      ? (tableData.value = result[0].columns.map((data: { [x: string]: { toString: () => any } }) => {
+      ? (tableData.value = limitPreviewRows(result[0].columns).map((data: { [x: string]: { toString: () => any } }) => {
           return Object.fromEntries(
             result[0].fields.map((item: { name: any }, index: string | number) => {
               return [
@@ -145,24 +158,20 @@ async function getParserData(data: any) {
     transformerState.showResultTb = true;
     transformerState.resultTbTitle = 'filterResTb';
     transformerState.transformResultTable = supportTransform.is_sparkplugb
-      ? result
-          .map((entry: any) => {
-            return entry.columns.map((data: any) => {
-              return Object.fromEntries(
-                entry.fields.map((item: { name: any }, index: string | number) => {
-                  return [
-                    item.name,
-                    filterEmpty(data[index])
-                      ? Array.isArray(data[index])
-                        ? JSON.stringify(data[index])
-                        : data[index].toString()
-                      : null
-                  ];
-                })
-              );
-            });
-          })
-          .flat(Infinity)
+      ? mapPreviewRows(result, (data: any, entry: any) => {
+          return Object.fromEntries(
+            entry.fields.map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+          );
+        })
       : tableData.value;
 
     const transformerColumns = [
@@ -212,14 +221,15 @@ function deleteFilter() {
 const generateInput: any = inject('generateInput');
 //提交
 function submitFilter() {
+  const filterExpr = updateConditionExprText(props.itemData.expression, ruleForm.filter_name.trim());
   let parser;
   if (supportTransform.is_sparkplugb) {
     parser = {
       parser: {
         parse: transformerState.topParse?.parser.parse,
         mutate: transformerState.transformExtractParseData
-          ? [{ ...transformerState.transformExtractParseData }, { filter: { expr: ruleForm.filter_name.trim() } }]
-          : [{ filter: { expr: ruleForm.filter_name.trim() } }]
+          ? [{ ...transformerState.transformExtractParseData }, { filter: filterExpr }]
+          : [{ filter: filterExpr }]
       },
       samples: Array.from(Object.values(generateInput()[0]))
     };
@@ -228,8 +238,8 @@ function submitFilter() {
       parser: {
         parse: transformerState.topParse?.parser.parse,
         mutate: transformerState.transformExtractParseData
-          ? [{ ...transformerState.transformExtractParseData }, { filter: { expr: ruleForm.filter_name.trim() } }]
-          : [{ filter: { expr: ruleForm.filter_name.trim() } }]
+          ? [{ ...transformerState.transformExtractParseData }, { filter: filterExpr }]
+          : [{ filter: filterExpr }]
       },
       input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
     };
@@ -241,9 +251,7 @@ function submitFilter() {
   }
 
   transformerState.transformerFilterParseData = {
-    filter: {
-      expr: ruleForm.filter_name
-    }
+    filter: filterExpr
   };
   isexecuted.value = true;
   getParserData(parser);

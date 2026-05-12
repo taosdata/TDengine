@@ -4,9 +4,14 @@ import { type I18n, createI18n, I18nOptions, type VueI18nTranslation } from 'vue
 // import elZhLocale from "element-plus/es/locale/lang/zh-cn"; // Simplified Chinese
 
 const modules: Record<string, any> = {};
-const modulesFiles = import.meta.glob<true, string, any>('./**/*.ts', { eager: true });
+const modulesFiles = import.meta.glob<true, string, any>(['./**/*.ts', '!./**/*.test.ts', '!./**/*.spec.ts'], {
+  eager: true
+});
 
 for (const path in modulesFiles) {
+  if (/\.(test|spec)\.ts$/.test(path)) {
+    continue;
+  }
   const moduleName = path.replace(/\.\/([^/]+).*/, '$1');
   // const namespace = path.replace(/.+\/([^/.]+)\.\w+/, '$1');
   if (!modules[moduleName]) {

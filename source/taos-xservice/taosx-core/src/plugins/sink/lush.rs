@@ -971,7 +971,7 @@ pub async fn create_sub_tables(
                 }
             } else {
                 // 成功创建子表则退出循环
-                tracing::info!("Created table {}", table_name);
+                tracing::info!("Created table {} success", table_name);
                 break;
             }
             retry += 1;

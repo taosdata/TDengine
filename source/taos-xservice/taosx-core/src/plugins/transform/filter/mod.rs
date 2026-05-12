@@ -44,10 +44,26 @@ trait RecordFilter {
     ) -> Result<arrow::record_batch::RecordBatch, RecordFilterError>;
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FilterImpl {
     Expr(expr::ExprRecordFilter),
     Match(r#match::MatchRecordFilter),
+}
+
+impl Serialize for FilterImpl {
+    /// Serialize to the legacy/flat shape so saved tasks remain human-readable
+    /// and round-trip cleanly through the custom `Deserialize` impl:
+    /// - `Expr` → `{"expr": "...", "null_if_error": true}`
+    /// - `Match` → `{"col": value, ...}` (the inner map fields)
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            FilterImpl::Expr(e) => e.condition().serialize(serializer),
+            FilterImpl::Match(m) => m.matches().serialize(serializer),
+        }
+    }
 }
 
 impl RecordFilter for FilterImpl {
@@ -92,7 +108,7 @@ impl<'de> Deserialize<'de> for FilterImpl {
                 while let Some((key, value)) = map.next_entry::<String, JsonValue>()? {
                     fields.insert(key, value);
                 }
-                decode_filter_impl(fields).map_err(serde::de::Error::custom)
+                decode_filter_impl_or_tagged(fields).map_err(serde::de::Error::custom)
             }
         }
         deserializer.deserialize_any(FilterImplVisitor)
@@ -129,7 +145,7 @@ impl<'de> Deserialize<'de> for Filter {
                 while let Some((key, value)) = map.next_entry::<String, JsonValue>()? {
                     fields.insert(key, value);
                 }
-                decode_filter_impl(fields)
+                decode_filter_impl_or_tagged(fields)
                     .map(|filter| Filter(vec![filter]))
                     .map_err(serde::de::Error::custom)
             }
@@ -167,6 +183,28 @@ fn decode_filter_impl(
     } else {
         Ok(FilterImpl::Match(r#match::MatchRecordFilter::new(fields)))
     }
+}
+
+/// Decode a filter map, accepting both the current flat/legacy shapes
+/// (bare `{expr,null_if_error}` or `Match` field-set) emitted by `FilterImpl`'s
+/// custom `Serialize` impl, and the externally-tagged enum form
+/// `{Expr: ...}` / `{Match: ...}` that older exports (or any prior derived
+/// `Serialize` output) may contain. The tagged branch is for backward
+/// compatibility only; the current serializer always emits the flat shape.
+fn decode_filter_impl_or_tagged(
+    mut fields: LinkedHashMap<String, JsonValue>,
+) -> Result<FilterImpl, serde_json::Error> {
+    if fields.len() == 1 {
+        if let Some(value) = fields.remove("Expr") {
+            let inner = serde_json::from_value::<expr::ExprRecordFilter>(value)?;
+            return Ok(FilterImpl::Expr(inner));
+        }
+        if let Some(value) = fields.remove("Match") {
+            let inner = serde_json::from_value::<r#match::MatchRecordFilter>(value)?;
+            return Ok(FilterImpl::Match(inner));
+        }
+    }
+    decode_filter_impl(fields)
 }
 
 #[cfg(test)]
@@ -208,6 +246,45 @@ mod tests {
 
         let err = serde_json::from_str::<Filter>(r#""a >""#).unwrap_err();
         assert!(err.to_string().contains("Syntax error"));
+    }
+
+    /// Round-trip the externally-tagged enum form previously produced by the
+    /// derived `Serialize`. Imported tasks still in that shape must continue
+    /// to deserialize as `Expr` (not silently fall back to `Match`).
+    #[test]
+    fn test_filter_round_trip_externally_tagged() {
+        let exported = r#"[{"Expr":{"expr":{"expr":"valueType.starts_with(\"FLOAT\")","null_if_error":true}}}]"#;
+        let filter: Filter = serde_json::from_str(exported).unwrap();
+        assert_eq!(filter.0.len(), 1);
+        match &filter.0[0] {
+            FilterImpl::Expr(_) => {}
+            other => panic!("expected Expr variant, got {other:?}"),
+        }
+
+        // New `Serialize` emits the flat/legacy shape, which itself round-trips.
+        let reserialized = serde_json::to_string(&filter).unwrap();
+        assert_eq!(
+            reserialized,
+            r#"[{"expr":"valueType.starts_with(\"FLOAT\")","null_if_error":true}]"#
+        );
+        let round_tripped: Filter = serde_json::from_str(&reserialized).unwrap();
+        assert_eq!(filter, round_tripped);
+    }
+
+    #[test]
+    fn test_filter_round_trip_match_externally_tagged() {
+        let exported = r#"[{"Match":{"match":{"d":5,"f":"^bc"}}}]"#;
+        let filter: Filter = serde_json::from_str(exported).unwrap();
+        assert_eq!(filter.0.len(), 1);
+        match &filter.0[0] {
+            FilterImpl::Match(_) => {}
+            other => panic!("expected Match variant, got {other:?}"),
+        }
+
+        let reserialized = serde_json::to_string(&filter).unwrap();
+        assert_eq!(reserialized, r#"[{"d":5,"f":"^bc"}]"#);
+        let round_tripped: Filter = serde_json::from_str(&reserialized).unwrap();
+        assert_eq!(filter, round_tripped);
     }
 
     use arrow::array::{

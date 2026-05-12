@@ -60,9 +60,18 @@ pub struct TmqMetrics {
     pub total_write_cost_ms: AtomicU64,
     #[serde(default)]
     pub commits: AtomicU64,
-    // Topic Name -> Vgroup ID -> Assignment
+    // Topic Name -> Vgroup ID -> Assignment (in-memory only; not serialized).
     #[serde(skip)]
     pub progress: DashMap<String, DashMap<i32, Assignment>>,
+
+    // Serializable snapshot of `progress`, refreshed on every progress update.
+    // This is what xnoded persists to log.xnode_task_metrics and what explorer reads.
+    #[serde(
+        default,
+        serialize_with = "serialize_progress_snapshot",
+        deserialize_with = "deserialize_progress_snapshot"
+    )]
+    pub progress_snapshot: std::sync::Mutex<Vec<TopicProgress>>,
 
     /// Last message timestamp in milliseconds.
     #[serde(skip, default = "default_instant")]
@@ -72,8 +81,8 @@ pub struct TmqMetrics {
 fn default_instant() -> AtomicCell<Instant> {
     AtomicCell::new(Instant::now())
 }
-#[derive(Serialize, Deserialize, Debug)]
-struct TopicProgress {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TopicProgress {
     pub topic: String,
     pub vgroup: i32,
     pub offset: i64,
@@ -107,6 +116,7 @@ impl Default for TmqMetrics {
             total_write_cost_ms: AtomicU64::new(0),
             commits: AtomicU64::new(0),
             progress: DashMap::new(),
+            progress_snapshot: std::sync::Mutex::new(Vec::new()),
             last_message_instant: AtomicCell::new(Instant::now()),
         }
     }
@@ -200,7 +210,52 @@ impl AddAssign for TmqMetrics {
         );
         self.commits
             .fetch_add(rhs.commits.load(Ordering::Relaxed), Ordering::Relaxed);
+
+        // Merge progress snapshots.
+        // When deserialized, `self.progress` is empty and `self.progress_snapshot` holds
+        // the persisted state. If `self` has live progress but no snapshot yet, collect it first.
+        let mut lhs_snapshot = self
+            .progress_snapshot
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut rhs_snapshot = rhs
+            .progress_snapshot
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        let lhs_items = if lhs_snapshot.is_empty() && !self.progress.is_empty() {
+            self.collect_progress_snapshot()
+        } else {
+            std::mem::take(&mut *lhs_snapshot)
+        };
+
+        *lhs_snapshot = merge_progress_snapshots(lhs_items, std::mem::take(&mut *rhs_snapshot));
     }
+}
+
+/// Merges two progress snapshot vectors by `(topic, vgroup)`, taking max `offset` and `latest`.
+/// Returns a sorted vector ordered by topic then vgroup.
+fn merge_progress_snapshots(
+    lhs: Vec<TopicProgress>,
+    rhs: Vec<TopicProgress>,
+) -> Vec<TopicProgress> {
+    let mut merged = std::collections::BTreeMap::<(String, i32), (i64, i64)>::new();
+    for item in lhs.into_iter().chain(rhs) {
+        let slot = merged
+            .entry((item.topic, item.vgroup))
+            .or_insert((i64::MIN, i64::MIN));
+        slot.0 = slot.0.max(item.offset);
+        slot.1 = slot.1.max(item.latest);
+    }
+    merged
+        .into_iter()
+        .map(|((topic, vgroup), (offset, latest))| TopicProgress {
+            topic,
+            vgroup,
+            offset,
+            latest,
+        })
+        .collect()
 }
 
 impl TmqMetrics {
@@ -217,6 +272,39 @@ impl TmqMetrics {
 
     pub fn update_last_message_instant(&self) {
         self.last_message_instant.store(Instant::now());
+    }
+
+    /// Collect current live progress from the in-memory `progress` DashMap.
+    /// Returns a sorted vector of topic/vgroup progress entries.
+    fn collect_progress_snapshot(&self) -> Vec<TopicProgress> {
+        let mut data = Vec::<TopicProgress>::new();
+        for entry in self.progress.iter() {
+            let topic = entry.key().clone();
+            let topic_progress = entry.value();
+            for entry in topic_progress {
+                let assignment = entry.value();
+                data.push(TopicProgress {
+                    topic: topic.clone(),
+                    vgroup: assignment.vgroup_id(),
+                    offset: assignment.current_offset(),
+                    latest: assignment.end(),
+                });
+            }
+        }
+        data.sort_by(|a, b| a.topic.cmp(&b.topic).then(a.vgroup.cmp(&b.vgroup)));
+        data
+    }
+
+    /// Rebuild `progress_snapshot` from the current `progress` DashMap.
+    /// Called from `update_progress_of_topic` and `update_progress` so the
+    /// next metrics flush sees an up-to-date snapshot.
+    pub fn refresh_progress_snapshot(&self) {
+        let data = self.collect_progress_snapshot();
+        let mut guard = self
+            .progress_snapshot
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard = data;
     }
 
     #[inline]
@@ -279,6 +367,7 @@ impl TmqMetrics {
                 }
             }
         }
+        self.refresh_progress_snapshot();
     }
     #[inline]
     pub fn update_progress_of_topic(&self, topic: &str, assignments: Vec<Assignment>) {
@@ -290,24 +379,12 @@ impl TmqMetrics {
                 topic_progress.insert(assignment.vgroup_id(), assignment);
             }
         }
+        self.refresh_progress_snapshot();
     }
 
     pub fn get_progress_string(&self) -> String {
         let ts = chrono::Utc::now().timestamp_millis();
-        let mut data = Vec::<TopicProgress>::new();
-        for entry in self.progress.iter() {
-            let topic = entry.key().clone();
-            let topic_progress = entry.value();
-            for entry in topic_progress {
-                let assignment = entry.value();
-                data.push(TopicProgress {
-                    topic: topic.clone(),
-                    vgroup: assignment.vgroup_id(),
-                    offset: assignment.current_offset(),
-                    latest: assignment.end(),
-                });
-            }
-        }
+        let data = self.collect_progress_snapshot();
         let json_value = json!({
             "update_time": ts,
             "data": data,
@@ -368,6 +445,29 @@ impl From<TmqMetrics> for CoreMetrics {
     fn from(val: TmqMetrics) -> Self {
         CoreMetrics::TMQ(val)
     }
+}
+
+fn serialize_progress_snapshot<S>(
+    snapshot: &std::sync::Mutex<Vec<TopicProgress>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let guard = snapshot
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    serde::Serialize::serialize(&*guard, serializer)
+}
+
+fn deserialize_progress_snapshot<'de, D>(
+    deserializer: D,
+) -> Result<std::sync::Mutex<Vec<TopicProgress>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Vec<TopicProgress> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(std::sync::Mutex::new(v))
 }
 
 impl Display for TmqMetrics {
@@ -450,5 +550,169 @@ mod tests {
         tmq_metrics.update_progress_of_topic("topic2", vec![Assignment::default()]);
         let progress = tmq_metrics.get_progress_string();
         println!("{}", progress);
+    }
+
+    #[test]
+    fn refresh_and_serialize_progress_snapshot_roundtrip() {
+        let metrics = TmqMetrics::default();
+        let mut assignments = HashMap::new();
+        assignments.insert("topic_b", vec![Assignment::new(2, 200, 0, 400)]);
+        assignments.insert("topic_a", vec![Assignment::new(1, 100, 0, 200)]);
+        metrics.update_progress(assignments);
+
+        metrics.update_progress_of_topic("topic_a", vec![Assignment::new(3, 150, 0, 300)]);
+
+        let snapshot = metrics
+            .progress_snapshot
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        assert_eq!(snapshot.len(), 3);
+        // Verify sorted order: (topic_a, vg1) < (topic_a, vg3) < (topic_b, vg2)
+        assert_eq!(snapshot[0].topic, "topic_a");
+        assert_eq!(snapshot[0].vgroup, 1);
+        assert_eq!(snapshot[0].offset, 100);
+        assert_eq!(snapshot[0].latest, 200);
+
+        assert_eq!(snapshot[1].topic, "topic_a");
+        assert_eq!(snapshot[1].vgroup, 3);
+        assert_eq!(snapshot[1].offset, 150);
+        assert_eq!(snapshot[1].latest, 300);
+
+        assert_eq!(snapshot[2].topic, "topic_b");
+        assert_eq!(snapshot[2].vgroup, 2);
+        assert_eq!(snapshot[2].offset, 200);
+        assert_eq!(snapshot[2].latest, 400);
+        drop(snapshot);
+
+        let json = serde_json::to_string(&metrics).unwrap();
+        assert!(
+            json.contains("\"progress_snapshot\""),
+            "json should contain progress_snapshot field: {json}"
+        );
+        let restored: TmqMetrics = serde_json::from_str(&json).unwrap();
+        let restored_snapshot = restored
+            .progress_snapshot
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        assert_eq!(restored_snapshot.len(), 3);
+        assert_eq!(restored_snapshot[0].topic, "topic_a");
+        assert_eq!(restored_snapshot[0].vgroup, 1);
+        assert_eq!(restored_snapshot[0].offset, 100);
+        assert_eq!(restored_snapshot[0].latest, 200);
+
+        assert_eq!(restored_snapshot[1].topic, "topic_a");
+        assert_eq!(restored_snapshot[1].vgroup, 3);
+        assert_eq!(restored_snapshot[1].offset, 150);
+        assert_eq!(restored_snapshot[1].latest, 300);
+
+        assert_eq!(restored_snapshot[2].topic, "topic_b");
+        assert_eq!(restored_snapshot[2].vgroup, 2);
+        assert_eq!(restored_snapshot[2].offset, 200);
+        assert_eq!(restored_snapshot[2].latest, 400);
+    }
+
+    #[test]
+    fn add_assign_merges_progress_snapshot() {
+        let mut lhs = TmqMetrics::default();
+        let rhs = TmqMetrics::default();
+
+        // Populate lhs with (topic_a, vg1) and (topic_b, vg2)
+        {
+            let mut snapshot = lhs.progress_snapshot.lock().unwrap();
+            snapshot.push(TopicProgress {
+                topic: "topic_a".into(),
+                vgroup: 1,
+                offset: 100,
+                latest: 200,
+            });
+            snapshot.push(TopicProgress {
+                topic: "topic_b".into(),
+                vgroup: 2,
+                offset: 300,
+                latest: 400,
+            });
+        }
+
+        // Populate rhs with overlapping (topic_a, vg1) and new (topic_c, vg3)
+        {
+            let mut snapshot = rhs.progress_snapshot.lock().unwrap();
+            snapshot.push(TopicProgress {
+                topic: "topic_a".into(),
+                vgroup: 1,
+                offset: 150, // Higher offset
+                latest: 250, // Higher latest
+            });
+            snapshot.push(TopicProgress {
+                topic: "topic_c".into(),
+                vgroup: 3,
+                offset: 500,
+                latest: 600,
+            });
+        }
+
+        lhs += rhs;
+
+        let merged = lhs.progress_snapshot.lock().unwrap();
+        assert_eq!(merged.len(), 3, "should have 3 unique entries");
+
+        // Verify sorted order and max values for duplicates
+        assert_eq!(merged[0].topic, "topic_a");
+        assert_eq!(merged[0].vgroup, 1);
+        assert_eq!(merged[0].offset, 150); // max(100, 150)
+        assert_eq!(merged[0].latest, 250); // max(200, 250)
+
+        assert_eq!(merged[1].topic, "topic_b");
+        assert_eq!(merged[1].vgroup, 2);
+        assert_eq!(merged[1].offset, 300);
+        assert_eq!(merged[1].latest, 400);
+
+        assert_eq!(merged[2].topic, "topic_c");
+        assert_eq!(merged[2].vgroup, 3);
+        assert_eq!(merged[2].offset, 500);
+        assert_eq!(merged[2].latest, 600);
+    }
+
+    #[test]
+    fn add_assign_collects_live_progress_when_snapshot_empty() {
+        let mut lhs = TmqMetrics::default();
+        let rhs = TmqMetrics::default();
+
+        // Populate lhs with live progress but no snapshot
+        let mut assignments = HashMap::new();
+        assignments.insert("topic_live", vec![Assignment::new(1, 100, 0, 200)]);
+        lhs.update_progress(assignments);
+
+        // Clear lhs snapshot to simulate live progress without snapshot refresh
+        {
+            let mut snapshot = lhs.progress_snapshot.lock().unwrap();
+            snapshot.clear();
+        }
+
+        // Populate rhs with one snapshot entry
+        {
+            let mut snapshot = rhs.progress_snapshot.lock().unwrap();
+            snapshot.push(TopicProgress {
+                topic: "topic_rhs".into(),
+                vgroup: 2,
+                offset: 300,
+                latest: 400,
+            });
+        }
+
+        lhs += rhs;
+
+        let merged = lhs.progress_snapshot.lock().unwrap();
+        assert_eq!(merged.len(), 2, "should contain both live and rhs entries");
+
+        // Verify sorted order: (topic_live, vg1) < (topic_rhs, vg2)
+        assert_eq!(merged[0].topic, "topic_live");
+        assert_eq!(merged[0].vgroup, 1);
+        assert_eq!(merged[0].offset, 100);
+        assert_eq!(merged[0].latest, 200);
+
+        assert_eq!(merged[1].topic, "topic_rhs");
+        assert_eq!(merged[1].vgroup, 2);
+        assert_eq!(merged[1].offset, 300);
+        assert_eq!(merged[1].latest, 400);
     }
 }

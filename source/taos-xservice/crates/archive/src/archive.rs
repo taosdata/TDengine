@@ -274,3 +274,159 @@ pub enum CollateError {
     #[error("max_size integer parse error, detail error: {0}")]
     MaxSizeParseIntError(ParseIntError),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn organize_params_fills_archive_defaults_and_relative_location() {
+        let mut archive = Archive::default();
+
+        archive
+            .organize_params(12, 34, PathBuf::from("/var/lib/taosx"), false)
+            .unwrap();
+
+        assert_eq!(archive.keep_days, "30d");
+        assert_eq!(archive.keep_days_value, 30);
+        assert_eq!(archive.keep_days_unit, "d");
+        assert_eq!(archive.max_size, "1GB");
+        assert_eq!(archive.max_size_value, 1);
+        assert_eq!(archive.max_size_unit, "GB");
+        assert_eq!(archive.prefix.as_deref(), Some(ARCHIVE_PREFIX));
+        assert_eq!(
+            archive.location,
+            "/var/lib/taosx/tasks/12/34/archived".to_string()
+        );
+    }
+
+    #[test]
+    fn organize_params_uses_cache_defaults_when_requested() {
+        let mut archive = Archive {
+            location: " custom-cache ".to_string(),
+            ..Default::default()
+        };
+
+        archive
+            .organize_params(1, 2, PathBuf::from("/tmp/data"), true)
+            .unwrap();
+
+        assert_eq!(archive.prefix.as_deref(), Some(CACHE_PREFIX));
+        assert_eq!(archive.location, "/tmp/data/tasks/1/2/custom-cache");
+    }
+
+    #[test]
+    fn organize_params_preserves_absolute_location_and_existing_prefix() {
+        let mut archive = Archive {
+            location: "/absolute/archive".to_string(),
+            prefix: Some("custom".to_string()),
+            ..Default::default()
+        };
+
+        archive
+            .organize_params(3, 4, PathBuf::from("/tmp/data"), false)
+            .unwrap();
+
+        assert_eq!(archive.location, "/absolute/archive");
+        assert_eq!(archive.prefix.as_deref(), Some("custom"));
+    }
+
+    #[test]
+    fn organize_params_parses_units_case_insensitively() {
+        let mut archive = Archive {
+            keep_days: " 7D ".to_string(),
+            max_size: " 512 mb ".to_string(),
+            ..Default::default()
+        };
+
+        archive
+            .organize_params(1, 1, PathBuf::from("/tmp/data"), false)
+            .unwrap();
+
+        assert_eq!(archive.keep_days, "7D");
+        assert_eq!(archive.keep_days_value, 7);
+        assert_eq!(archive.keep_days_unit, "d");
+        assert_eq!(archive.max_size, "512 mb");
+        assert_eq!(archive.max_size_value, 512);
+        assert_eq!(archive.max_size_unit, "MB");
+    }
+
+    #[test]
+    fn organize_params_resets_zero_values_to_defaults() {
+        let mut archive = Archive {
+            keep_days: "0d".to_string(),
+            max_size: "0KB".to_string(),
+            ..Default::default()
+        };
+
+        archive
+            .organize_params(1, 1, PathBuf::from("/tmp/data"), false)
+            .unwrap();
+
+        assert_eq!(archive.keep_days, Archive::default_keep_days());
+        assert_eq!(archive.keep_days_value, Archive::default_keep_days_value());
+        assert_eq!(archive.keep_days_unit, Archive::default_keep_days_unit());
+        assert_eq!(archive.max_size, Archive::default_max_size());
+        assert_eq!(archive.max_size_value, Archive::default_max_size_value());
+        assert_eq!(archive.max_size_unit, Archive::default_max_size_unit());
+    }
+
+    #[test]
+    fn organize_params_rejects_invalid_keep_days_and_max_size() {
+        let mut archive = Archive {
+            keep_days: "30h".to_string(),
+            ..Default::default()
+        };
+
+        assert!(matches!(
+            archive.organize_params(1, 1, PathBuf::from("/tmp/data"), false),
+            Err(CollateError::KeepDaysFormatIncorrect { input }) if input == "30h"
+        ));
+
+        let mut archive = Archive {
+            max_size: "1TB".to_string(),
+            ..Default::default()
+        };
+
+        assert!(matches!(
+            archive.organize_params(1, 1, PathBuf::from("/tmp/data"), false),
+            Err(CollateError::MaxSizeFormatIncorrect { input }) if input == "1TB"
+        ));
+    }
+
+    #[test]
+    fn handling_archive_failed_variants_return_expected_retry_decision() {
+        assert!(
+            HandlingArchiveFailed::Rotate
+                .handle("rotate".to_string())
+                .unwrap()
+        );
+        assert!(
+            !HandlingArchiveFailed::Skip
+                .handle("skip".to_string())
+                .unwrap()
+        );
+        assert!(
+            HandlingArchiveFailed::Break
+                .handle("break".to_string())
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn default_predicates_match_archive_defaults() {
+        assert!(is_default_keep_days("30d"));
+        assert!(is_default_keep_days_value(&30));
+        assert!(is_default_keep_days_unit("d"));
+        assert!(is_default_max_size("1GB"));
+        assert!(is_default_max_size_value(&1));
+        assert!(is_default_max_size_unit("GB"));
+        assert!(is_default_rotate_count(&100));
+        assert!(is_default_location(""));
+        assert!(is_default(&HandlingArchiveFailed::Rotate));
+
+        assert!(!is_default_keep_days("7d"));
+        assert!(!is_default_max_size("512MB"));
+        assert!(!is_default(&HandlingArchiveFailed::Break));
+    }
+}

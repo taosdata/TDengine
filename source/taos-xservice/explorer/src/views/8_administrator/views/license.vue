@@ -15,8 +15,21 @@
         $t('taosuser.activationLicense')
       }}</el-button>
     </div>
+    <template v-if="shouldShowClsInfo(currentClsConfig)">
+      <title-bar :name="$t('topic.clsConfigInfo')" />
+      <el-descriptions class="license-descriptions" style="margin-bottom: 30px" :column="3">
+        <el-descriptions-item
+          v-for="item in clsInfoItems"
+          :key="item.key"
+          :label="$t(`topic.${item.key}`)"
+          :label-style="clsLabelStyle"
+        >
+          <span style="color: #333">{{ item.value }}</span>
+        </el-descriptions-item>
+      </el-descriptions>
+    </template>
     <title-bar :name="$t('topic.basicDatabaseFeatures')" />
-    <el-descriptions style="margin-bottom: 30px" :column="3">
+    <el-descriptions class="license-descriptions" style="margin-bottom: 30px" :column="3">
       <el-descriptions-item :key="'clusterId'" :label="$t('topic.clusterId')" :label-style="style">
         <span>{{ clusterId }}</span>
       </el-descriptions-item>
@@ -112,24 +125,76 @@
         label-position="left"
         @submit.prevent
       >
-        <el-form-item :label="$t('taosuser.activeCode')" prop="active_code">
-          <el-input
-            v-model.trim="ruleForm.active_code"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 6 }"
-            @keyup.enter="submit(ruleFormRef)"
-          ></el-input>
-          <div class="activate-hint">{{ $t('taosuser.activeCodeHint') }}</div>
-        </el-form-item>
-        <el-form-item v-if="isLessThan3_2_3_0" :label="$t('taosuser.cActiveCode')" prop="c_active_code">
-          <el-input
-            v-model.trim="ruleForm.c_active_code"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 6 }"
-            @keyup.enter="submit(ruleFormRef)"
-          ></el-input>
-          <div class="activate-hint">{{ $t('taosuser.activeCodeHint') }}</div>
-        </el-form-item>
+        <el-tabs v-model="dialogTab" stretch>
+          <el-tab-pane name="standard" :label="$t('taosuser.activeCode')">
+            <div v-if="classicActivationLocked" class="activate-lock-tip">
+              {{ $t('taosuser.clsActiveLockedTip') }}
+            </div>
+            <el-form-item prop="active_code">
+              <el-input
+                v-model.trim="ruleForm.active_code"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 6 }"
+                :disabled="classicActivationLocked"
+                @keyup.enter="submit(ruleFormRef)"
+              ></el-input>
+              <div class="activate-hint">{{ $t('taosuser.activeCodeHint') }}</div>
+            </el-form-item>
+            <el-form-item v-if="isLessThan3_2_3_0" :label="$t('taosuser.cActiveCode')" prop="c_active_code">
+              <el-input
+                v-model.trim="ruleForm.c_active_code"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 6 }"
+                :disabled="classicActivationLocked"
+                @keyup.enter="submit(ruleFormRef)"
+              ></el-input>
+              <div class="activate-hint">{{ $t('taosuser.activeCodeHint') }}</div>
+            </el-form-item>
+          </el-tab-pane>
+          <el-tab-pane name="cls" :label="$t('taosuser.clsActivation')">
+            <div class="activate-hint activate-mode-tip">{{ $t('taosuser.clsActiveTip') }}</div>
+            <el-form-item :label="$t('taosuser.clsEnabled')">
+              <el-switch v-model="clsRuleForm.clsEnabled" active-value="1" inactive-value="0" />
+            </el-form-item>
+            <el-form-item :label="$t('taosuser.clsRefreshInterval')">
+              <el-input
+                v-model.trim="clsRuleForm.clsRefreshInterval"
+                type="number"
+                :min="CLS_REFRESH_INTERVAL_MIN"
+                :max="CLS_REFRESH_INTERVAL_MAX"
+                :step="1"
+                :disabled="String(clsRuleForm.clsEnabled) !== '1'"
+              ></el-input>
+              <div class="activate-hint">{{ $t('taosuser.clsRefreshIntervalTip') }}</div>
+            </el-form-item>
+            <el-form-item :label="$t('taosuser.clsUrl')">
+              <el-input
+                v-model.trim="clsRuleForm.clsUrl"
+                :placeholder="DEFAULT_CLS_URL"
+                :disabled="String(clsRuleForm.clsEnabled) !== '1'"
+              ></el-input>
+            </el-form-item>
+            <el-form-item :label="$t('taosuser.clsLicenseId')">
+              <el-input
+                v-model.trim="clsRuleForm.clsLicenseId"
+                :disabled="String(clsRuleForm.clsEnabled) !== '1'"
+              ></el-input>
+            </el-form-item>
+            <el-form-item :label="$t('taosuser.clsQuotaSlotId')">
+              <el-input
+                v-model.trim="clsRuleForm.clsQuotaSlotId"
+                :placeholder="DEFAULT_CLS_QUOTA_SLOT_ID"
+                :disabled="String(clsRuleForm.clsEnabled) !== '1'"
+              ></el-input>
+              <div class="activate-hint">
+                {{ $t('taosuser.clsQuotaSlotIdTip', { value: DEFAULT_CLS_QUOTA_SLOT_ID }) }}
+              </div>
+            </el-form-item>
+            <div v-if="clsValidationError" class="activate-lock-tip">
+              {{ getClsValidationMessage(clsValidationError) }}
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </el-form>
 
       <el-row style="margin-top: 20px">
@@ -158,6 +223,20 @@ import { FormRules, FormInstance } from 'element-plus';
 import useLicense from '@/hooks/useLicense';
 import { useStore } from 'vuex';
 import titleBar from './components/title-bar.vue';
+import {
+  buildClsInfoItems,
+  buildClsLicensePayload,
+  CLS_REFRESH_INTERVAL_MAX,
+  CLS_REFRESH_INTERVAL_MIN,
+  createDefaultClsConfig,
+  DEFAULT_CLS_QUOTA_SLOT_ID,
+  DEFAULT_CLS_URL,
+  isClassicActivationLocked,
+  parseClsConfigFromVariables,
+  SHOW_VARIABLES_SETTLE_DELAY_MS,
+  validateClsConfig,
+  shouldShowClsInfo
+} from './licenseCls.helper';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
 const { $IS_COMMUNITY, $INDUSTRY, $error } = globalCustomProperties;
@@ -169,11 +248,14 @@ const router = useRouter();
 const ruleFormRef = ref<FormInstance>();
 
 const dialog = ref(false);
+const dialogTab = ref('standard');
 const loading = ref(false);
 const ruleForm = reactive({
   active_code: '',
   c_active_code: ''
 });
+const currentClsConfig = reactive(createDefaultClsConfig());
+const clsRuleForm = reactive(createDefaultClsConfig());
 
 const rules = reactive<FormRules>({
   active_code: [
@@ -201,17 +283,31 @@ const style = computed(() => {
     color: '#4d6992'
   };
 });
+const clsLabelStyle = computed(() => {
+  return {
+    ...style.value,
+    'white-space': 'nowrap'
+  };
+});
 function normalizeActivationCode(value: string) {
   return value?.replace(/'/g, '').trim();
 }
 
+const classicActivationLocked = computed(() => isClassicActivationLocked(currentClsConfig));
+const clsValidationError = computed(() => validateClsConfig(clsRuleForm));
 const confirmStatus = computed(() => {
+  if (dialogTab.value === 'cls') {
+    return clsValidationError.value !== null;
+  }
   const activeCode = normalizeActivationCode(ruleForm.active_code);
   const cActiveCode = normalizeActivationCode(ruleForm.c_active_code);
-  if (!activeCode && !cActiveCode) {
+  if (classicActivationLocked.value || (!activeCode && !cActiveCode)) {
     return true;
   }
   return false;
+});
+const clsInfoItems = computed(() => {
+  return buildClsInfoItems(currentClsConfig, t('topic.none'));
 });
 const getlabelWidth = computed(() => {
   const lang = getLocalLang();
@@ -234,7 +330,24 @@ function handlecActiveCodeShow() {
   isGreaterThan3_3_0_1.value = compareVersion(TDengineVersion, '>=3.3.0.1');
 }
 
-async function getData() {
+function syncClsRuleForm() {
+  Object.assign(clsRuleForm, currentClsConfig);
+}
+
+function getClsValidationMessage(errorKey: string) {
+  if (errorKey === 'clsRefreshInterval') {
+    return t('taosuser.clsRefreshIntervalInvalidTip');
+  }
+  if (errorKey === 'clsUrl') {
+    return t('taosuser.clsUrlRequiredTip');
+  }
+  if (errorKey === 'clsLicenseId') {
+    return t('taosuser.clsLicenseIdRequiredTip');
+  }
+  return '';
+}
+
+async function getData(waitForClsSettle = false) {
   try {
     // let cols = [];
     // 获取机器码
@@ -320,12 +433,28 @@ async function getData() {
         console.log('this.tableData', tableData.value, advancedTableData.value);
       });
     }
+    if (waitForClsSettle) {
+      await new Promise(resolve => setTimeout(resolve, SHOW_VARIABLES_SETTLE_DELAY_MS));
+    }
+    await sendSQLReq(`show variables;`, true)
+      .then(res => {
+        Object.assign(currentClsConfig, parseClsConfigFromVariables(res));
+        syncClsRuleForm();
+      })
+      .catch(() => {
+        Object.assign(currentClsConfig, createDefaultClsConfig());
+        syncClsRuleForm();
+      });
     loading.value = false;
   } catch (error) {
     loading.value = false;
   }
 }
 function add() {
+  ruleForm.active_code = '';
+  ruleForm.c_active_code = '';
+  dialogTab.value = classicActivationLocked.value ? 'cls' : 'standard';
+  syncClsRuleForm();
   dialog.value = true;
 }
 
@@ -389,26 +518,40 @@ function showLogoutConfirm() {
       console.log('cancel');
     });
 }
-function refresh() {
+function refresh(waitForClsSettle = false) {
   loading.value = true;
-  getData();
+  getData(waitForClsSettle);
   getGrantsFull();
 }
 async function submit(formEl: FormInstance | undefined) {
   if (!formEl) return;
   try {
     if (confirmStatus.value) return;
-    const payload = {
-      ...ruleForm,
-      active_code: normalizeActivationCode(ruleForm.active_code),
-      c_active_code: normalizeActivationCode(ruleForm.c_active_code)
-    };
+    let payload;
+    if (dialogTab.value === 'cls') {
+      const errorKey = clsValidationError.value;
+      if (errorKey) {
+        $error(getClsValidationMessage(errorKey));
+        return;
+      }
+      payload = buildClsLicensePayload(clsRuleForm);
+    } else {
+      if (classicActivationLocked.value) {
+        $error(t('taosuser.clsActiveLockedTip'));
+        return;
+      }
+      payload = {
+        ...ruleForm,
+        active_code: normalizeActivationCode(ruleForm.active_code),
+        c_active_code: normalizeActivationCode(ruleForm.c_active_code)
+      };
+    }
     await activeLicence(payload).then(res => {
       if (res && res.code == 0) {
         ElMessage.success(t('operateSucc'));
         dialog.value = false;
-        refresh();
-        if ($INDUSTRY) {
+        refresh(true);
+        if ($INDUSTRY && dialogTab.value === 'standard') {
           showLogoutConfirm();
         }
       } else {
@@ -427,6 +570,22 @@ handlecActiveCodeShow();
 <style lang="scss" scoped>
 :deep(.el-form-item__content) {
   display: flex;
+}
+
+:deep(.license-descriptions .el-descriptions__table) {
+  width: 100%;
+  table-layout: fixed;
+}
+
+:deep(.license-descriptions .el-descriptions-item__cell) {
+  width: 33.33%;
+}
+
+:deep(.license-descriptions .el-descriptions__label) {
+  width: 140px !important;
+  min-width: 140px !important;
+  max-width: 140px !important;
+  white-space: nowrap !important;
 }
 
 :deep(th.el-descriptions-item__cell.el-descriptions-item__label.is-bordered-label) {
@@ -471,6 +630,17 @@ handlecActiveCodeShow();
   margin-left: 8px;
   font-size: 12px;
   color: #909399;
+  line-height: 1.5;
+}
+
+.activate-mode-tip,
+.activate-lock-tip {
+  margin-bottom: 12px;
+}
+
+.activate-lock-tip {
+  color: #d03050;
+  font-size: 12px;
   line-height: 1.5;
 }
 </style>

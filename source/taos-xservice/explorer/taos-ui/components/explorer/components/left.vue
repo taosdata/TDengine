@@ -80,6 +80,7 @@ import { getSqlProvider } from '../model/useExplorer';
 import CreateDatabaseDialog from '../../dataIn/components/addDbDialog.vue';
 import { useRoute } from 'vue-router';
 import { PENDING_EXPLORER_REDIRECT_KEY } from '../../../constants/tdengine';
+import { getRouteQueryString } from './routeQuery';
 
 const explorerProps = getExplorerProps();
 const dbsTreeRef = ref<HTMLElement | null>(null);
@@ -89,8 +90,8 @@ const showButtons = ref(true);
 let _dbsResizeObserver: ResizeObserver | null = null;
 
 const route = useRoute();
-const routeTargetDb = computed(() => route.query.db as string | undefined);
-const routeTargetTable = computed(() => route.query.table as string | undefined);
+const routeTargetDb = computed(() => getRouteQueryString(route, 'db'));
+const routeTargetTable = computed(() => getRouteQueryString(route, 'table'));
 let autoLocateDone = false;
 const locateOnceKey = ref(''); // 防止同一组 db/table 重复触发 nameFilter
 

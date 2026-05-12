@@ -110,3 +110,92 @@ impl SecurityConfig {
         key
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn login_captcha_defaults_to_disabled() {
+        assert!(!SecurityConfig::default().login_captcha_enabled());
+
+        let config = SecurityConfig {
+            login_captcha: Some(true),
+            ..Default::default()
+        };
+        assert!(config.login_captcha_enabled());
+    }
+
+    #[test]
+    fn xor_allowed_duration_uses_default_and_clamps_config_values() {
+        assert_eq!(
+            SecurityConfig::default().xor_allowed_duration_secs(),
+            XOR_ALLOWED_DURATION_SECS_DEFAULT
+        );
+
+        let config = SecurityConfig {
+            xor_allowed_duration_secs: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(
+            config.xor_allowed_duration_secs(),
+            XOR_ALLOWED_DURATION_SECS_MIN
+        );
+
+        let config = SecurityConfig {
+            xor_allowed_duration_secs: Some(XOR_ALLOWED_DURATION_SECS_MAX + 1),
+            ..Default::default()
+        };
+        assert_eq!(
+            config.xor_allowed_duration_secs(),
+            XOR_ALLOWED_DURATION_SECS_MAX
+        );
+    }
+
+    #[test]
+    fn xor_allowed_duration_parser_accepts_only_configured_range() {
+        assert_eq!(
+            xor_allowed_duration_secs_parser(&XOR_ALLOWED_DURATION_SECS_MIN.to_string()).unwrap(),
+            XOR_ALLOWED_DURATION_SECS_MIN
+        );
+        assert_eq!(
+            xor_allowed_duration_secs_parser(&XOR_ALLOWED_DURATION_SECS_MAX.to_string()).unwrap(),
+            XOR_ALLOWED_DURATION_SECS_MAX
+        );
+
+        assert!(xor_allowed_duration_secs_parser("9").is_err());
+        assert!(xor_allowed_duration_secs_parser("86401").is_err());
+        assert!(xor_allowed_duration_secs_parser("invalid").is_err());
+    }
+
+    #[test]
+    fn load_encryption_key_accepts_base64_encoded_32_byte_key() {
+        use base64::Engine;
+
+        let expected = [7_u8; 32];
+        let config = SecurityConfig {
+            encryption_key: Some(base64::engine::general_purpose::STANDARD.encode(expected)),
+            ..Default::default()
+        };
+
+        assert_eq!(config.load_encryption_key(), expected);
+    }
+
+    #[test]
+    fn load_encryption_key_falls_back_for_invalid_base64_or_length() {
+        use base64::Engine;
+
+        let default_key = SecurityConfig::default().load_encryption_key();
+        let invalid_base64 = SecurityConfig {
+            encryption_key: Some("not-base64".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(invalid_base64.load_encryption_key(), default_key);
+
+        let invalid_length = SecurityConfig {
+            encryption_key: Some(base64::engine::general_purpose::STANDARD.encode([1_u8; 31])),
+            ..Default::default()
+        };
+        assert_eq!(invalid_length.load_encryption_key(), default_key);
+    }
+}
