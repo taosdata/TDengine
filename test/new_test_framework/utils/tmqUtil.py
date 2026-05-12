@@ -82,12 +82,18 @@ class TMQCom:
         tdSql.query(splitSql)
     
     def checkSplitVgroups(self):
+        cnt = 0
         while True:
             tdSql.query("select * from information_schema.ins_vnodes where db_name='dbt' and status='leader' and restored=true")
+            tdLog.info(tdSql.queryResult)
             if tdSql.getRows() == 2:
+                cnt += 1
+            else:
+                cnt = 0
+            if cnt >= 10:
                 break
             tdLog.info("wait vgroup split done...")
-            time.sleep(1)
+            time.sleep(2)
         tdLog.info("splitSql ok")
     
     def redistributeVgroups(self):

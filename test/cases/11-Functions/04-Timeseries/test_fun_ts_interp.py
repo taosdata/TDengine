@@ -6111,10 +6111,25 @@ class TestInterp:
 
     ## interp_results: _irowts_origin, _irowts, ..., _isfilled
     ## select_all_results must be sorted by ts in ascending order
-    def check_result_for_near(self, interp_results, select_all_results, sql, sql_select_all):
+    ## fill_values: tuple of fill values, e.g. (1, 2), used to verify when _irowts_origin is NULL
+    def check_result_for_near(self, interp_results, select_all_results, sql, sql_select_all, fill_values=None):
         #tdLog.info(f"check_result_for_near for sql: {sql}, sql_select_all:{sql_select_all}")
         for row in interp_results:
             #tdLog.info(f"row: {row}")
+            if row[0] is None:
+                # _irowts_origin is NULL: nearest data point exceeds surroundingTime
+                if row[1] is None:
+                    self.check_failed = True
+                    tdLog.exit(f"_irowts should not be None when _irowts_origin is None: {row}, {sql}")
+                if row[-1] != True:
+                    self.check_failed = True
+                    tdLog.exit(f"_isfilled should be True when _irowts_origin is None: {row}, {sql}")
+                if fill_values is not None:
+                    for i, fv in enumerate(fill_values):
+                        if row[2 + i] != fv:
+                            self.check_failed = True
+                            tdLog.exit(f"interp col[{i}] should be {fv} but got {row[2 + i]} when _irowts_origin is None: {row}, {sql}")
+                continue
             if row[0].tzinfo is None or row[0].tzinfo.utcoffset(row[0]) is None:
                 irowts_origin = row[0].replace(tzinfo=get_localzone())
                 irowts = row[1].replace(tzinfo=get_localzone())
@@ -6124,6 +6139,15 @@ class TestInterp:
             if not self.is_nearest(select_all_results, irowts_origin, irowts):
                 self.check_failed = True
                 tdLog.exit(f"interp result is not the nearest for row: {row}, {sql}")
+            if row[-1] != (irowts_origin != irowts):
+                self.check_failed = True
+                tdLog.exit(f"_isfilled mismatch for row: {row}, {sql}")
+            expected_idx = self.binary_search_ts(select_all_results, irowts_origin)
+            expected_row = select_all_results[expected_idx]
+            for i, expected_value in enumerate(expected_row[1:]):
+                if row[2 + i] != expected_value:
+                    self.check_failed = True
+                    tdLog.exit(f"interp col[{i}] should be {expected_value} but got {row[2 + i]} when _irowts_origin is not None: {row}, {sql}")
 
     def query_routine(self, sql_queue: queue.Queue, output_queue: queue.Queue):
         try:
@@ -6134,28 +6158,34 @@ class TestInterp:
                 if item is None or self.check_failed:
                     output_queue.put(None)
                     break
-                (sql, sql_select_all, _) = item
+                (sql, sql_select_all, fill_values) = item
                 cli.query(sql, queryTimes=1)
                 interp_results = cli.queryResult
                 if sql_select_all is not None:
                     cli.query(sql_select_all, queryTimes=1)
-                output_queue.put((sql, interp_results, cli.queryResult, sql_select_all))
+                    output_queue.put((sql, interp_results, cli.queryResult, sql_select_all, fill_values))
+                else:
+                    output_queue.put((sql, interp_results, None, None, fill_values))
             cli.close()
         except Exception as e:
             self.check_failed = True
             tdLog.exit(f"query_routine error: {e}")
 
-    def interp_check_near_routine(self, select_all_results, output_queue: queue.Queue):
+    def interp_check_near_routine(self, select_all_results, output_queue: queue.Queue, num_producers=1):
         try:
+            none_count = 0
             while True:
                 item = output_queue.get()
                 if item is None:
-                    break
-                (sql, interp_results, all_results, sql_select_all) = item
+                    none_count += 1
+                    if none_count >= num_producers:
+                        break
+                    continue
+                (sql, interp_results, all_results, sql_select_all, fill_values) = item
                 if all_results is not None:
-                    self.check_result_for_near(interp_results, all_results, sql, sql_select_all)
+                    self.check_result_for_near(interp_results, all_results, sql, sql_select_all, fill_values)
                 else:
-                    self.check_result_for_near(interp_results, select_all_results, sql, None)
+                    self.check_result_for_near(interp_results, select_all_results, sql, None, fill_values)
         except Exception as e:
             self.check_failed = True
             tdLog.exit(f"interp_check_near_routine error: {e}")
@@ -6205,7 +6235,7 @@ class TestInterp:
         sql_queue = queue.Queue()
         output_queue = queue.Queue()
         qts = self.create_qt_threads(sql_queue, output_queue, qt_threads_num)
-        ct = threading.Thread(target=self.interp_check_near_routine, args=(select_all_results, output_queue))
+        ct = threading.Thread(target=self.interp_check_near_routine, args=(select_all_results, output_queue, qt_threads_num))
         ct.start()
         for i in range(0, ROUND):
             range_start = random.randint(start, end)
@@ -6220,7 +6250,7 @@ class TestInterp:
             range_point = random.randint(start, end)
             ## all data points are can be filled by near
             sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 range({range_point}, 1h) fill(near, 1, 2)"
-            sql_queue.put((sql, None, None))
+            sql_queue.put((sql, None, (1, 2)))
 
         for i in range(0, ROUND):
             range_start = random.randint(start, end)
@@ -6251,7 +6281,7 @@ class TestInterp:
             where_start_str = tdSql.queryResult[0][0]
             where_end_str = tdSql.queryResult[0][1]
             sql_select_all = f"select ts, c1, c2 from test.t0 where ts between '{where_start_str}' and '{where_end_str}' order by ts asc"
-            sql_queue.put((sql, sql_select_all, None))
+            sql_queue.put((sql, sql_select_all, (1, 2)))
         for i in range(0, qt_threads_num):
             sql_queue.put(None)
         self.wait_qt_threads(qts)
@@ -6335,9 +6365,17 @@ class TestInterp:
         sql = "select to_char(first(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from test.meters"
         tdSql.query(sql, queryTimes=1)
         first_ts = tdSql.queryResult[0][0]
+        sql = "select ts, c1, c2 from test.meters order by ts asc limit 1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        first_row = tdSql.queryResult[0]
         sql = "select to_char(last(ts), 'YYYY-MM-DD HH24:MI:SS.MS') from test.meters"
         tdSql.query(sql, queryTimes=1)
         last_ts = tdSql.queryResult[0][0]
+        sql = "select ts, c1, c2 from test.meters order by ts desc limit 1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        last_row = tdSql.queryResult[0]
         sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1d) fill(near, 1, 2)"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(1)
@@ -6370,6 +6408,8 @@ class TestInterp:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, first_ts)
         tdSql.checkData(0, 1, '2018-09-16 09:00:01')
+        tdSql.checkData(0, 2, first_row[1])
+        tdSql.checkData(0, 3, first_row[2])
         tdSql.checkData(0, 4, True)
 
         sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2018-09-18 10:23:19', 1d) fill(prev, 1, 2)"
@@ -6377,6 +6417,8 @@ class TestInterp:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, last_ts)
         tdSql.checkData(0, 1, '2018-09-18 10:23:19')
+        tdSql.checkData(0, 2, last_row[1])
+        tdSql.checkData(0, 3, last_row[2])
         tdSql.checkData(0, 4, True)
 
         sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters range('{last_ts}', 1a) fill(next, 1, 2)"
@@ -6384,7 +6426,60 @@ class TestInterp:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, last_ts)
         tdSql.checkData(0, 1, last_ts)
+        tdSql.checkData(0, 2, last_row[1])
+        tdSql.checkData(0, 3, last_row[2])
         tdSql.checkData(0, 4, False)
+
+        ### WHERE + range(point, duration): _irowts_origin should be NULL when nearest data exceeds surroundingTime
+        ### data in meters: first(ts) ~ 2018-09-17 09:00:00, last(ts) ~ 2018-09-17 10:23:19
+
+        ## near: WHERE narrows data to [10:00, 10:23], point at 08:00 (>1h from nearest data) → NULL
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' range('2018-09-17 08:00:00', 1h) fill(near, 7, 8)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, '2018-09-17 08:00:00.000')
+        tdSql.checkData(0, 2, 7)
+        tdSql.checkData(0, 3, 8)
+        tdSql.checkData(0, 4, True)
+
+        ## prev: WHERE narrows data to [09:00, 09:30], point at 10:31 (after data, prev exists at ~09:30 but >1h away) → NULL
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2018-09-17 09:00:00' and '2018-09-17 09:30:00' range('2018-09-17 10:31:00', 1h) fill(prev, 9, 10)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, '2018-09-17 10:31:00.000')
+        tdSql.checkData(0, 2, 9)
+        tdSql.checkData(0, 3, 10)
+        tdSql.checkData(0, 4, True)
+
+        ## next: WHERE narrows data to [10:00, 10:23], point at 08:59 (before data, next exists at ~10:00 but >1h away) → NULL
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' range('2018-09-17 08:59:00', 1h) fill(next, 11, 12)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, '2018-09-17 08:59:00.000')
+        tdSql.checkData(0, 2, 11)
+        tdSql.checkData(0, 3, 12)
+        tdSql.checkData(0, 4, True)
+
+        ## near: WHERE narrows data to [10:00, 10:23], point at 09:30 (<1h from nearest data) → NOT NULL
+        ## query the nearest data point in the WHERE range to verify interp results
+        nearest_sql = f"select ts, c1, c2 from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' order by ts asc limit 1"
+        tdSql.query(nearest_sql, queryTimes=1)
+        tdSql.checkRows(1)
+        nearest_ts = tdSql.queryResult[0][0]
+        nearest_c1 = tdSql.queryResult[0][1]
+        nearest_c2 = tdSql.queryResult[0][2]
+
+        sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2018-09-17 10:00:00' and '2018-09-17 10:23:20' range('2018-09-17 09:30:00', 1h) fill(near, 7, 8)"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, nearest_ts)
+        tdSql.checkData(0, 1, '2018-09-17 09:30:00.000')
+        tdSql.checkData(0, 2, nearest_c1)
+        tdSql.checkData(0, 3, nearest_c2)
+        tdSql.checkData(0, 4, True)
 
     def check_interval_fill_extension(self):
         ## not allowed
