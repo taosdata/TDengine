@@ -256,9 +256,9 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     // Names we'll be appending below.  Skip these when copying the inherited
     // env so the spawned udfd sees our overrides instead of duplicate keys.
     // On Windows env-var names are case-insensitive (notably PATH); POSIX is
-    // case-sensitive.
+    // case-sensitive.  osDef.h maps strncasecmp -> _strnicmp on Windows.
 #ifdef WINDOWS
-    int (*envNameCmp)(const char *, const char *, size_t) = _strnicmp;
+    int (*envNameCmp)(const char *, const char *, size_t) = strncasecmp;
 #else
     int (*envNameCmp)(const char *, const char *, size_t) = strncmp;
 #endif
