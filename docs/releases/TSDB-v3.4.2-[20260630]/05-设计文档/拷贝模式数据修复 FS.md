@@ -4,7 +4,9 @@
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
-| 2026-04-20 | 2026-4-21 | 1.0 | 张博民 | 初稿 |
+| 2026-04-20 | - | 0.1 | 张博民 | 初稿 |
+| 2026-04-21 | 2026-4-21 | 1.0 | 张博民 | 根据评审意见修改 |
+| 2026-04-23 | 2026-5-11 | 1.1 | 张博民 | 修改恢复流程，使其更接近于一个事务 |
 
 ## 2. 背景
 
@@ -29,7 +31,7 @@
 taosd -r --mode copy --node-type vnode \
   [--source-host <user@host>] \
   --source-cfg <path> \
-  {--vnode <id> [--vnode <id> ...] | --all-vnodes source | --all-vnodes local}
+  --vnode <id_list>
 ```
 
 **参数说明：**
@@ -41,9 +43,7 @@ taosd -r --mode copy --node-type vnode \
 | `--node-type vnode` | 是 | 指定修复对象为 vnode |
 | `--source-host <user@host>` | 否 | 远程数据源主机地址（格式：`user@host`）。省略时为本地模式。 |
 | `--source-cfg <path>` | 是 | 数据源的 `taos.cfg` 配置文件路径。工具从中解析 `dataDir` 条目以获取源端磁盘布局。远程模式下为远程主机上的配置文件路径（工具通过 SSH 读取），本地模式下为本地文件路径。 |
-| `--vnode <id>` | 三选一 | 指定要修复的 vnode ID，可重复指定多个。 |
-| `--all-vnodes source` | 与 `--vnode` 和 `--all-vnodes local` 三选一 | 修复源端 `vnodes.json` 中的所有 vnode。适用于本地 `vnodes.json` 也损坏或需要完整克隆节点数据的场景。 |
-| `--all-vnodes local` | 与 `--vnode` 和 `--all-vnodes source` 三选一 | 修复本地 `vnodes.json` 中列出的所有 vnode（取本地与源端的交集）。若某 vnode 存在于本地但不在源端，跳过并输出警告。要求本地 `vnodes.json` 可读。 |
+| `--vnode <id_list>` | 是 | 指定要修复的 vnode ID，可同时指定多个，以英文逗号分隔，也可使用英文减号指定一个 vnode 段，例如 `--vnode 2-5,8` 表示要修复 vnode 2、3、4、5 和 8。 |
 
 **配置文件解析说明：**
 
@@ -62,7 +62,7 @@ dataDir /mnt/hdd1 1 0 0            # 带 disable 标志（企业版）
 
 ### 4.2 使用示例
 
-**示例 1：从本地目录恢复所有 vnode（单盘）**
+**示例 1：从本地目录恢复 vnode 2 到 5 和 vnode 8**
 
 适用场景：用户已提前将健康副本数据拷贝到本地目录（或通过 NFS 等挂载了远程目录）。需准备一个描述源端磁盘布局的临时配置文件。
 
@@ -74,7 +74,7 @@ EOF
 
 taosd -r --mode copy --node-type vnode \
   --source-cfg /tmp/source-taos.cfg \
-  --all-vnodes source
+  --vnode 2-5,8
 ```
 
 **示例 2：从本地目录恢复指定 vnode（多级存储）**
@@ -91,7 +91,7 @@ EOF
 
 taosd -r --mode copy --node-type vnode \
   --source-cfg /tmp/source-taos.cfg \
-  --vnode 2 --vnode 5
+  --vnode 2,5
 ```
 
 **示例 3：从远程健康节点恢复（SCP 模式）**
@@ -106,7 +106,7 @@ ssh-copy-id root@192.168.1.10
 taosd -r --mode copy --node-type vnode \
   --source-host root@192.168.1.10 \
   --source-cfg /etc/taos/taos.cfg \
-  --vnode 2 --vnode 5
+  --vnode 2,5
 ```
 
 注意：当指定 `--source-host` 时，`--source-cfg` 为远程主机上的路径。工具会通过 SSH 读取该配置文件，从中提取 `dataDir` 条目以确定远程磁盘布局。
@@ -116,24 +116,28 @@ taosd -r --mode copy --node-type vnode \
 `--mode copy` 的执行流程如下（taosd 进程在修复完成后退出，不会进入正常服务模式）：
 
 1. **解析和校验命令行参数**
-2. **加载目标节点 TFS 配置**（从 `taos.cfg` 读取本地磁盘布局）
-3. **解析源端配置文件并构建 TFS 模型**（本地模式直接读取 `--source-cfg` 文件；远程模式通过 `ssh <host> cat <cfg_path>` 获取内容后解析 `dataDir` 条目）
-4. **连通性检查**（远程模式：`ssh -o BatchMode=yes -o ConnectTimeout=5 <host> true`）
-5. **读取源端 `vnodes.json`**（以及本地 `vnodes.json`，若使用 `--all-vnodes local`），确定最终 vnode 列表：
-   - `--vnode <id>`：使用显式指定的列表，校验每个 ID 在源端存在
-   - `--all-vnodes source`：使用源端 `vnodes.json` 中的全部 vnode
-   - `--all-vnodes local`：读取本地 `vnodes.json`，取与源端 `vnodes.json` 的交集；本地存在但源端不存在的 vnode 跳过并警告
-6. **对每个目标 vnode 依次执行：**
-   - a. 读取源端 `vnode.json` 和各 `current.json`，构建文件清单
-   - b. 计算磁盘 ID 重映射关系
-   - c. 清除目标端已有 vnode 数据（防止残留文件干扰）
-   - d. 创建目标端目录结构
-   - e. 拷贝非 TSDB 数据（meta/、wal/、tq/、bse/、vnode.json等）到主磁盘
-   - f. 拷贝 TSDB 数据文件，按重映射后的磁盘 ID 写入对应磁盘目录
-   - g. 重写 `current.json`，将文件条目中的磁盘 ID 替换为重映射后的值
-   - h. 删除 `current.c.json` / `current.m.json`（未完成操作的残留）
-7. **更新目标端 `vnodes.json`**（添加或更新修复后的 vnode 条目）
-8. **输出汇总报告并退出**
+2. **分析 dnode.json 文件，从中得到 dnode 信息**
+3. **加载目标节点 TFS 配置**（从 `taos.cfg` 读取本地磁盘布局）
+4. **解析源端配置文件并构建 TFS 模型**（本地模式直接读取 `--source-cfg` 文件；远程模式通过 `ssh <host> cat <cfg_path>` 获取内容后解析 `dataDir` 条目）
+5. **对每个目标 vnode 依次执行：**
+
+    a. 在所有磁盘上检查是否存在备份文件夹 vnodeN.bak，如存在，报错并跳过此 vnode。注意：程序无法判断备份文件夹是否是上次执行拷贝修复时创建的，故需手动处理。如可以确认是上次执行拷贝修复时创建的，则：
+    - 如果所有磁盘上都有 vnodeN.bak，则删除所有磁盘上的 vnodeN 文件夹，并将所有 vnodeN.bak 重命名为 vnodeN，然后重新执行拷贝修复操作。
+    - 如只有部分磁盘上有vnodeN.bak，一般是执行步骤 5l 出错导致的，修复工作实质上已经完成，删除备份文件即可；但为确保数据正确，建议删除所有磁盘上的 vnodeN 和 vnodeN.bak 后重新执行整个 vnode 的恢复。
+
+    b. 检查源端是否存在对应的 vnode，如不存在则跳过此 vnode；如存在则读取其 current.json，构建文件清单。
+    c. 读取本地 current.json，如不存在或无法解析则后续拷贝源端所有的文件组，否则后续只拷贝本地缺失的文件组或本地有文件缺失的文件组。
+    d. 在所有磁盘上将文件夹 vnodeN 重命名为 vnodeN.bak，如果某个磁盘上没有文件夹 vnodeN，则创建一个空的 vnodeN.bak 文件夹。
+    e. 在所有磁盘上，创建文件夹 vnodeN。
+    f. 从源端拷贝 vnodeN 文件夹下除 vnodeN/tsdb 之外的所有文件和文件夹到主磁盘上的文件夹 vnodeN，每个文件拷贝完毕后，检查其大小与源端一致。
+    g. 对 vnodeN.bak/tsdb/ 文件夹下需要保留的文件，在其所在磁盘的 vnodeN/tsdb 文件夹下创建同名硬链接文件。
+    h. 对每个要从源端拷贝的文件组中的文件，计算其磁盘 ID 重映射关系，并从源端拷贝到对应磁盘的 vnodeN/tsdb 下，每个文件拷贝完成后，检查其大小与源端一致。
+    i. 生成正确的 vnodeN/tsdb/current.json 文件。
+    j. 根据第 2 步中获取的信息，更新 vnodeN/vnode.json和vnodeN/sync/raft_config.json的 syncCfg.myIndex 字段。
+    k. 删除 vnodeN/sync/文件夹下的 raft_store.json 和所有 *.bak 文件。
+    l. 删除所有磁盘上的备份文件夹 vnodeN.bak。
+    m. 在执行步骤 5d 到 5k 的过程中，如遇到错误，则删除所有磁盘上的 vnodeN 文件夹后将 vnodeN.bak 重命名为 vnodeN，然后终止对此 vnode 的修复。
+6. **输出汇总报告并退出** （报告包括每个 vnode 的修复结果：已修复、失败、跳过）
 
 ### 4.4 磁盘 ID 重映射规则
 
@@ -153,11 +157,10 @@ taosd -r --mode copy --node-type vnode \
 | 配置文件中未找到 `dataDir` 条目 | 报错并退出 |
 | `dataDir` 指向的路径不存在（本地模式） | 校验阶段报错并退出 |
 | SSH 连接失败（远程模式） | 连通性检查失败，报错并退出 |
-| 数据源 `vnodes.json` 缺失或解析失败 | 报错并退出 |
-| 指定的 `--vnode <id>` 在源端不存在 | 报错列出源端可用 vnode 列表 |
-| 单个文件拷贝失败 | 记录错误日志，终止对当前 vnode 的修复，继续处理下一个 vnode |
-| 目标磁盘空间不足 | 拷贝期间 I/O 报错，记录日志并退出 |
-| 修复进程被 kill | 目标 vnode 处于不完整状态；下次运行 `--mode copy` 时步骤 6c 会自动清除后重新拷贝 |
+| 指定的 vnode 在源端不存在 | 报错，跳过对此 vnode 的修复，继续处理下一个 vnode |
+| 单个文件拷贝失败 | 报错，终止对当前 vnode 的修复，继续处理下一个 vnode |
+| 目标磁盘空间不足 | 报错并退出 |
+| 修复进程被 kill | 目标 vnode 处于不完整状态；下次运行 `--mode copy` 前需手动重置修复状态 |
 
 ### 4.6 退出码
 
@@ -216,7 +219,7 @@ TSDB 数据文件中的数据一般已处于压缩状态。对已压缩数据再
 - `--mode copy` 是新增模式，不影响现有 `--mode force` 的行为。
 - 不修改任何现有配置参数、SQL 命令、API 接口。
 - 修复后的 vnode 数据格式与正常运行产生的数据完全一致，taosd 可直接以正常模式启动使用。
-- 目标端 `vnodes.json` 的更新采用原子写入（临时文件 + rename），确保写入过程中不会破坏已有配置。
+- 在修复完成前，目标端始终有备份文件可恢复到修复前的状态。
 
 ## 8. 运维
 
@@ -243,7 +246,7 @@ ssh-copy-id root@<source-host>
 taosd -r --mode copy --node-type vnode \
   --source-host root@<source-host> \
   --source-cfg /etc/taos/taos.cfg \
-  --all-vnodes source
+  --vnode 2,5
 
 # 5. 检查退出码和日志
 echo $?
@@ -255,8 +258,9 @@ systemctl start taosd
 
 ### 8.3 客户支持注意事项
 
-- 修复前务必确认目标节点的磁盘空间充足，至少需要与源端 vnode 数据等量的可用空间。
-- 修复过程中被中断后可安全重新执行，工具会先清除不完整的数据再重新拷贝。
+- 修复前务必确认目标节点的磁盘空间充足。
+- 如文件组中无文件缺失但有文件损坏，需手工删除损坏的文件，否则工具不会修复此文件组。
+- 修复过程中被中断后对应的 vnode 无法重新执行，需手工重置修复状态。
 - 日志中包含进度信息，可用于排查问题。
 
 ## 9. 使用场景
@@ -278,7 +282,8 @@ systemctl start taosd
 
 - **不支持增量拷贝**。每次执行时目标 vnode 数据会被完全替换。如数据量大且仅少量文件损坏，仍会全量拷贝。
 - **不支持并行拷贝多个 vnode**。初始版本按 vnode 串行执行拷贝。
-- **不执行数据一致性校验**。拷贝完成后仅校验文件存在性和 JSON 可解析性，不校验数据块完整性（CRC 等）。
+- **不执行数据一致性校验**。拷贝完成后仅校验文件存在性和文件大小，可能存在文件内容不一致的情形。
+- **在 3.3.6 版本上如数据已上传到 S3 需手工处理**。需要在 S3 上删除目标节点已有文件，然后将源节点上传的文件复制到目标节点。
 
 ## 11. 常见错误和排查
 
@@ -290,14 +295,13 @@ systemctl start taosd
 
 修复过程的观测通过以下方式实现：
 
-- **日志输出**：修复过程通过 `uInfo` / `uError` 输出到 taosd 日志文件（`/var/log/taos/taosdlog.0`），内容包括：
-  - 启动参数（模式、源端配置、目标 vnode 列表）
+- **日志输出**：
+  - 输出到 taosd 日志
   - 每个 vnode 的修复开始和完成
-  - 每个文件的拷贝进度（文件路径、字节数）
-  - 磁盘 ID 重映射详情
-  - 汇总报告（总 vnode 数、文件数、字节数）
-- **退出码**：脚本和运维工具可通过进程退出码判断修复结果
-- **标准输出**：关键进度信息同时打印到标准输出（stdout），方便在终端中直接观察
+  - 每个文件的源端路径和目标路径
+- **汇总报告**：
+  - 输出到标准输出
+  - 内容包括每个 vnode 的修复结果：成功、失败、跳过
 
 ## 13. 安装和卸载
 

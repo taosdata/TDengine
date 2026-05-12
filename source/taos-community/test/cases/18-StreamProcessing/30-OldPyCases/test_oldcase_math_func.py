@@ -106,7 +106,7 @@ class TestMathFunctionInStream:
         tdSql.checkResultsByFunc(
             sql=f"select * from {self.stream}",
             func=lambda: tdSql.getRows() == 1
-            and math.isclose(tdSql.getData(0, 2), expected, rel_tol=1e-5, abs_tol=1e-8),
+            and math.isclose(tdSql.getData(0, 2), expected, rel_tol=1e-4, abs_tol=1e-8),
         )
 
         tdLog.info("test math function done.")

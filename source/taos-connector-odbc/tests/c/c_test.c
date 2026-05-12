@@ -1711,6 +1711,10 @@ static const char *s_dsn_filter = NULL;
 static int running_case(handles_t *handles, case_t *_case)
 {
   int r = 0;
+
+  (void)handles;
+  (void)_case;
+
 #ifdef HAVE_NATIVE
   if (!s_dsn_filter || strcmp(s_dsn_filter, "TAOS_ODBC_DSN") == 0) {
     r = _case->routine(handles, "DSN=TAOS_ODBC_DSN", 0);
