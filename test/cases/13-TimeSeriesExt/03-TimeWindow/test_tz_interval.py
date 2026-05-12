@@ -9,14 +9,11 @@ Covers:
 
 from new_test_framework.utils import tdLog, tdSql
 
-
 def _config_timezone_name(value):
     return str(value).split(' ')[0]
 
-
 def _wstart_count_map(rows):
     return {str(row[0])[:10]: int(row[1]) for row in rows}
-
 
 class TestIntervalNatural:
     """INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING."""
@@ -38,7 +35,7 @@ class TestIntervalNatural:
             ts = base + i * 86400000
             tdSql.execute(f"insert into {self.ctbname} values ({ts}, {float(i)})")
 
-    def test_interval_1n_bucket_count(self):
+    def check_interval_1n_bucket_count(self):
         """INTERVAL(1n) on a full year should produce 12 monthly buckets."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -48,7 +45,7 @@ class TestIntervalNatural:
         )
         tdSql.checkRows(12)
 
-    def test_interval_1d_bucket_count(self):
+    def check_interval_1d_bucket_count(self):
         """INTERVAL(1d) should produce 365 daily buckets for a full year."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -58,7 +55,7 @@ class TestIntervalNatural:
         )
         tdSql.checkRows(365)
 
-    def test_interval_1d_uses_session_timezone_not_client_local(self):
+    def check_interval_1d_uses_session_timezone_not_client_local(self):
         """INTERVAL should use L2 session timezone instead of current client local timezone."""
         self.prepare_data()
         tdSql.execute(f"insert into {self.ctbname} values (1738341000000, 999.0)")
@@ -91,7 +88,7 @@ class TestIntervalNatural:
             tdSql.execute(f"alter local 'timezone {original_local}'")
             tdSql.connect()
 
-    def test_interval_1d_uses_session_timezone_not_client_or_server(self):
+    def check_interval_1d_uses_session_timezone_not_client_or_server(self):
         """INTERVAL should keep using L2 session timezone even if L3/L4 are different."""
         self.prepare_data()
         tdSql.execute(f"insert into {self.ctbname} values (1738341000000, 1000.0)")
@@ -121,7 +118,7 @@ class TestIntervalNatural:
             tdSql.execute(f"alter all dnodes 'timezone {original_server}'")
             tdSql.connect()
 
-    def test_interval_1d_uses_fixed_offset_session_timezone(self):
+    def check_interval_1d_uses_fixed_offset_session_timezone(self):
         """INTERVAL should preserve fixed-offset session timezones through plan transport."""
         self.prepare_data()
         tdSql.execute(f"insert into {self.ctbname} values (1738341000000, 1001.0)")
@@ -150,7 +147,7 @@ class TestIntervalNatural:
             tdSql.execute(f"alter all dnodes 'timezone {original_server}'")
             tdSql.connect()
 
-    def test_interval_1n_dst_no_drift(self):
+    def check_interval_1n_dst_no_drift(self):
         """INTERVAL(1n) with DST timezone should still produce 12 months.
 
         March bucket should be 31 days (DST spring-forward in NY doesn't drift).
@@ -163,7 +160,7 @@ class TestIntervalNatural:
         )
         tdSql.checkRows(12)
 
-    def test_interval_1y_single_bucket(self):
+    def check_interval_1y_single_bucket(self):
         """INTERVAL(1y) on a full year should produce 1 bucket."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -173,7 +170,7 @@ class TestIntervalNatural:
         )
         tdSql.checkRows(1)
 
-    def test_interval_1q_four_buckets(self):
+    def check_interval_1q_four_buckets(self):
         """INTERVAL(1q) on a full year should produce 4 quarterly buckets."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -183,7 +180,7 @@ class TestIntervalNatural:
         )
         tdSql.checkRows(4)
 
-    def test_interval_1q_equals_3n(self):
+    def check_interval_1q_equals_3n(self):
         """INTERVAL(1q) and INTERVAL(3n) should produce identical results."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -201,7 +198,7 @@ class TestIntervalNatural:
         for i in range(len(r_q)):
             assert r_q[i] == r_n[i], f"Row {i}: 1q={r_q[i]} vs 3n={r_n[i]}"
 
-    def test_interval_sliding_1n_1d(self):
+    def check_interval_sliding_1n_1d(self):
         """INTERVAL(1n) SLIDING(1d) should produce many overlapping buckets."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -211,7 +208,7 @@ class TestIntervalNatural:
         )
         assert tdSql.queryRows > 3, f"Expected many rows, got {tdSql.queryRows}"
 
-    def test_interval_1n_supertable(self):
+    def check_interval_1n_supertable(self):
         """INTERVAL(1n) should work on supertable query."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -221,6 +218,35 @@ class TestIntervalNatural:
         )
         tdSql.checkRows(12)
 
+    def test_interval_natural(self):
+        """summary: INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING.
+
+        description: INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_interval_1n_bucket_count()
+        self.check_interval_1d_bucket_count()
+        self.check_interval_1d_uses_session_timezone_not_client_local()
+        self.check_interval_1d_uses_session_timezone_not_client_or_server()
+        self.check_interval_1d_uses_fixed_offset_session_timezone()
+        self.check_interval_1n_dst_no_drift()
+        self.check_interval_1y_single_bucket()
+        self.check_interval_1q_four_buckets()
+        self.check_interval_1q_equals_3n()
+        self.check_interval_sliding_1n_1d()
+        self.check_interval_1n_supertable()
 
 class TestIntervalWeek:
     """INTERVAL(1w) aligned by firstDayOfWeek (high-risk change)."""
@@ -242,7 +268,7 @@ class TestIntervalWeek:
             ts = base + i * 86400000
             tdSql.execute(f"insert into {self.ctbname} values ({ts}, {float(i)})")
 
-    def test_interval_1w_fdow_differences(self):
+    def check_interval_1w_fdow_differences(self):
         """INTERVAL(1w) with different firstDayOfWeek should produce different _wstart."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -257,7 +283,7 @@ class TestIntervalWeek:
         assert str(results[0][0]).startswith('2025-04-20') or str(results[0][0]).startswith('2025-04-20 00:00:00'), results[0]
         assert str(results[1][0]).startswith('2025-04-21') or str(results[1][0]).startswith('2025-04-21 00:00:00'), results[1]
 
-    def test_interval_1w_all_fdow(self):
+    def check_interval_1w_all_fdow(self):
         """INTERVAL(1w) with all 7 firstDayOfWeek values should succeed."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -266,7 +292,7 @@ class TestIntervalWeek:
             tdSql.query(f"select _wstart, count(*) from {self.ctbname} interval(1w)")
             assert tdSql.queryRows > 0, f"fdow={fdow}: no rows"
 
-    def test_interval_1w_dst_no_drift(self):
+    def check_interval_1w_dst_no_drift(self):
         """INTERVAL(1w) during DST week should not drift."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -274,7 +300,7 @@ class TestIntervalWeek:
         tdSql.query(f"select _wstart, count(*) from {self.ctbname} interval(1w)")
         assert tdSql.queryRows > 0
 
-    def test_interval_1w_supertable(self):
+    def check_interval_1w_supertable(self):
         """INTERVAL(1w) should work on supertable."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -282,7 +308,7 @@ class TestIntervalWeek:
         tdSql.query(f"select _wstart, count(*) from {self.stbname} interval(1w)")
         assert tdSql.queryRows > 0
 
-    def test_interval_1w_server_config_without_session_override(self):
+    def check_interval_1w_server_config_without_session_override(self):
         """ALTER LOCAL firstDayOfWeek should affect INTERVAL(1w) after reconnect."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -303,6 +329,29 @@ class TestIntervalWeek:
             f"ALTER LOCAL firstDayOfWeek should change interval starts: {starts_0} vs {starts_1}"
         )
 
+    def test_interval_week(self):
+        """summary: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change).
+
+        description: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_interval_1w_fdow_differences()
+        self.check_interval_1w_all_fdow()
+        self.check_interval_1w_dst_no_drift()
+        self.check_interval_1w_supertable()
+        self.check_interval_1w_server_config_without_session_override()
 
 class TestIntervalQuarter:
     """INTERVAL(1q/2q) quarter boundaries and equivalence tests."""
@@ -324,7 +373,7 @@ class TestIntervalQuarter:
             ts = base + i * 86400000
             tdSql.execute(f"insert into {self.ctbname} values ({ts}, {float(i)})")
 
-    def test_interval_1q_boundaries(self):
+    def check_interval_1q_boundaries(self):
         """INTERVAL(1q): _wstart should be Jan1, Apr1, Jul1, Oct1."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -338,7 +387,7 @@ class TestIntervalQuarter:
             start = str(tdSql.queryResult[i][0])
             assert exp in start, f"Row {i}: expected {exp} in {start}"
 
-    def test_interval_2q_two_buckets(self):
+    def check_interval_2q_two_buckets(self):
         """INTERVAL(2q): 1 year should produce 2 half-year buckets."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -348,7 +397,7 @@ class TestIntervalQuarter:
         )
         tdSql.checkRows(2)
 
-    def test_interval_1q_equals_3n_results(self):
+    def check_interval_1q_equals_3n_results(self):
         """INTERVAL(1q) and INTERVAL(3n) should produce identical rows."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -366,7 +415,7 @@ class TestIntervalQuarter:
         for i in range(len(r_q)):
             assert r_q[i] == r_n[i], f"Row {i}: 1q={r_q[i]} vs 3n={r_n[i]}"
 
-    def test_interval_2q_equals_6n(self):
+    def check_interval_2q_equals_6n(self):
         """INTERVAL(2q) and INTERVAL(6n) should produce identical rows."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -384,7 +433,7 @@ class TestIntervalQuarter:
         for i in range(len(r_2q)):
             assert r_2q[i] == r_6n[i], f"Row {i}: 2q={r_2q[i]} vs 6n={r_6n[i]}"
 
-    def test_interval_1q_supertable(self):
+    def check_interval_1q_supertable(self):
         """INTERVAL(1q) should work on supertable."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -393,3 +442,28 @@ class TestIntervalQuarter:
             f"where ts >= '2025-01-01' and ts < '2026-01-01' interval(1q)"
         )
         tdSql.checkRows(4)
+
+    def test_interval_quarter(self):
+        """summary: INTERVAL(1q/2q) quarter boundaries and equivalence tests.
+
+        description: INTERVAL(1q/2q) quarter boundaries and equivalence tests.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_interval_1q_boundaries()
+        self.check_interval_2q_two_buckets()
+        self.check_interval_1q_equals_3n_results()
+        self.check_interval_2q_equals_6n()
+        self.check_interval_1q_supertable()
+

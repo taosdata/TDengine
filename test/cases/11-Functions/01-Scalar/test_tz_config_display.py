@@ -20,13 +20,11 @@ import pytest
 import re
 import subprocess
 
-
 ERR_INVALID_TIMEZONE = 0x26B2
 ERR_INVALID_FIRST_DAY_OF_WEEK = 0x26B3
 ERR_INVALID_FUNCTION_PARAM = 0x2803
 ERR_INVALID_DNODE_CFG = 0x03B2
 ERR_INVALID_CFG = 0x0119
-
 
 class TestSetTimezone:
     """SET TIMEZONE '<timezone_string>' syntax tests."""
@@ -44,7 +42,7 @@ class TestSetTimezone:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts}, 1)')
 
-    def test_set_timezone_valid_iana(self):
+    def check_set_timezone_valid_iana(self):
         """Valid IANA names should be accepted and affect TO_ISO8601 output."""
         self.prepare_data()
         cases = {
@@ -61,7 +59,7 @@ class TestSetTimezone:
             assert any(e in result for e in expected_any), \
                 f"SET TIMEZONE '{tz}': expected one of {expected_any} in {result}"
 
-    def test_set_timezone_valid_fixed_offsets(self):
+    def check_set_timezone_valid_fixed_offsets(self):
         """Valid fixed offset formats: +HH:MM, +HHMM, +HH, Z, half-hour, ±14:00."""
         self.prepare_data()
         valid_offsets = [
@@ -83,7 +81,7 @@ class TestSetTimezone:
         for tz in ['+14:00', '-14:00']:
             tdSql.execute(f"SET TIMEZONE '{tz}'")
 
-    def test_set_timezone_empty_string_degrades_to_utc(self):
+    def check_set_timezone_empty_string_degrades_to_utc(self):
         """SET TIMEZONE '' (empty string) should degrade to UTC, consistent with C API."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE ''")
@@ -92,7 +90,7 @@ class TestSetTimezone:
         assert any(e in result for e in ['+00:00', '+0000', 'Z']), \
             f"SET TIMEZONE '': expected UTC offset in {result}"
 
-    def test_set_timezone_invalid_inputs(self):
+    def check_set_timezone_invalid_inputs(self):
         """Invalid timezone strings must return error."""
         invalid = [
             '+8', '-4',                    # single digit hour
@@ -104,7 +102,7 @@ class TestSetTimezone:
         for tz in invalid:
             tdSql.error(f"SET TIMEZONE '{tz}'", expectedErrno=ERR_INVALID_TIMEZONE)
 
-    def test_set_timezone_affects_subsequent_queries(self):
+    def check_set_timezone_affects_subsequent_queries(self):
         """Multiple SET TIMEZONE changes on same connection should all take effect."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -118,7 +116,7 @@ class TestSetTimezone:
         assert result_sh != result_ny, \
             f"Same ts should display differently: Shanghai={result_sh}, NY={result_ny}"
 
-    def test_set_timezone_connection_isolation(self):
+    def check_set_timezone_connection_isolation(self):
         """SET TIMEZONE should not leak across reconnects (L2 scope only)."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -134,6 +132,30 @@ class TestSetTimezone:
             f"old={session_result}, new={new_conn_result}"
         )
 
+    def test_set_timezone(self):
+        """summary: SET TIMEZONE '<timezone_string>' syntax tests.
+
+        description: SET TIMEZONE '<timezone_string>' syntax tests.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_set_timezone_valid_iana()
+        self.check_set_timezone_valid_fixed_offsets()
+        self.check_set_timezone_empty_string_degrades_to_utc()
+        self.check_set_timezone_invalid_inputs()
+        self.check_set_timezone_affects_subsequent_queries()
+        self.check_set_timezone_connection_isolation()
 
 class TestSetFirstDayOfWeek:
     """SET FIRST_DAY_OF_WEEK <0..6> syntax and server config tests."""
@@ -152,12 +174,12 @@ class TestSetFirstDayOfWeek:
             ts = 1745712000000 + i * 86400000
             tdSql.execute(f'insert into {self.ntbname} values ({ts}, {i})')
 
-    def test_set_fdow_valid_range(self):
+    def check_set_fdow_valid_range(self):
         """SET FIRST_DAY_OF_WEEK 0..6 should all succeed."""
         for v in range(7):
             tdSql.execute(f"SET FIRST_DAY_OF_WEEK {v}")
 
-    def test_set_fdow_invalid_range(self):
+    def check_set_fdow_invalid_range(self):
         """Values outside 0-6 should fail."""
         for v in [7, 100, -1]:
             tdSql.error(
@@ -165,26 +187,26 @@ class TestSetFirstDayOfWeek:
                 expectedErrno=ERR_INVALID_FIRST_DAY_OF_WEEK,
             )
 
-    def test_fdow_alter_local_accepted(self):
+    def check_fdow_alter_local_accepted(self):
         """ALTER LOCAL 'firstDayOfWeek' should be accepted (client config)."""
         tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
         tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
 
-    def test_fdow_alter_all_dnodes_rejected(self):
+    def check_fdow_alter_all_dnodes_rejected(self):
         """ALTER ALL DNODES 'firstDayOfWeek' should be rejected (client-only config)."""
         tdSql.error(
             "ALTER ALL DNODES 'firstDayOfWeek' '0'",
             expectedErrno=ERR_INVALID_CFG,
         )
 
-    def test_fdow_alter_single_dnode_rejected(self):
+    def check_fdow_alter_single_dnode_rejected(self):
         """ALTER DNODE N 'firstDayOfWeek' should be rejected (client-only config)."""
         tdSql.error(
             "ALTER DNODE 1 'firstDayOfWeek' '0'",
             expectedErrno=ERR_INVALID_CFG,
         )
 
-    def test_fdow_alter_local_updates_process_global_not_existing_connection(self):
+    def check_fdow_alter_local_updates_process_global_not_existing_connection(self):
         """ALTER LOCAL 'firstDayOfWeek' updates the process-global L3 value and is
         visible to new connections; existing connections snapshot L3 at creation
         time and must not be affected.
@@ -226,7 +248,7 @@ class TestSetFirstDayOfWeek:
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '{initial}'")
             tdSql.connect()
 
-    def test_fdow_alter_local_does_not_affect_existing_connection_timetruncate(self):
+    def check_fdow_alter_local_does_not_affect_existing_connection_timetruncate(self):
         """Existing connection must keep its L3 snapshot; ALTER LOCAL must only
         affect connections created afterwards.
 
@@ -275,6 +297,31 @@ class TestSetFirstDayOfWeek:
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '4'")
             tdSql.connect()
 
+    def test_set_first_day_of_week(self):
+        """summary: SET FIRST_DAY_OF_WEEK <0..6> syntax and server config tests.
+
+        description: SET FIRST_DAY_OF_WEEK <0..6> syntax and server config tests.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_set_fdow_valid_range()
+        self.check_set_fdow_invalid_range()
+        self.check_fdow_alter_local_accepted()
+        self.check_fdow_alter_all_dnodes_rejected()
+        self.check_fdow_alter_single_dnode_rejected()
+        self.check_fdow_alter_local_updates_process_global_not_existing_connection()
+        self.check_fdow_alter_local_does_not_affect_existing_connection_timetruncate()
 
 class TestTimezoneFunc:
     """TIMEZONE() function tests (P6 Task 6.1)."""
@@ -291,7 +338,7 @@ class TestTimezoneFunc:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (now, 1)')
 
-    def test_timezone_returns_session_tz_after_set(self):
+    def check_timezone_returns_session_tz_after_set(self):
         """TIMEZONE() should return current session timezone after SET TIMEZONE."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -300,7 +347,7 @@ class TestTimezoneFunc:
         assert 'New_York' in val or 'America/New_York' in val, \
             f"TIMEZONE() should reflect session timezone: {val}"
 
-    def test_timezone_no_set_fallback_l3_l5(self):
+    def check_timezone_no_set_fallback_l3_l5(self):
         """Without SET TIMEZONE, TIMEZONE() should follow connection snapshot (L3->L5)."""
         self.prepare_data()
 
@@ -324,7 +371,7 @@ class TestTimezoneFunc:
         assert reconnect_val == baseline, \
             f"TIMEZONE() without SET should fallback to connection snapshot: baseline={baseline}, reconnect={reconnect_val}"
 
-    def test_alter_local_timezone_changes_new_connections_only(self):
+    def check_alter_local_timezone_changes_new_connections_only(self):
         """ALTER LOCAL timezone should affect new connections only."""
         self.prepare_data()
 
@@ -361,19 +408,42 @@ class TestTimezoneFunc:
             tdSql.execute(f"alter local 'timezone {original_global}'")
             tdSql.connect()
 
-    def test_timezone_invalid_params(self):
+    def check_timezone_invalid_params(self):
         """TIMEZONE() should reject any parameter under no-arg grammar."""
         self.prepare_data()
         for p in ['0', '1', "'abc'"]:
             tdSql.error(f"select timezone({p})")
 
-    def test_timezone_from_table(self):
+    def check_timezone_from_table(self):
         """TIMEZONE() should work in FROM table context."""
         self.prepare_data()
         tdSql.query(f"select timezone() from {self.ntbname}")
         tdSql.checkRows(1)
         assert tdSql.queryResult[0][0] is not None and len(tdSql.queryResult[0][0]) > 0
 
+    def test_timezone_func(self):
+        """summary: TIMEZONE() function tests (P6 Task 6.1).
+
+        description: TIMEZONE() function tests (P6 Task 6.1).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_timezone_returns_session_tz_after_set()
+        self.check_timezone_no_set_fallback_l3_l5()
+        self.check_alter_local_timezone_changes_new_connections_only()
+        self.check_timezone_invalid_params()
+        self.check_timezone_from_table()
 
 class TestDisplayTimezone:
     """Timestamp display using connection timezone (SELECT ts, SHOW, etc.)."""
@@ -391,7 +461,7 @@ class TestDisplayTimezone:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts}, 1)')
 
-    def test_select_ts_uses_connection_tz(self):
+    def check_select_ts_uses_connection_tz(self):
         """SELECT ts display should differ across session timezones in taos CLI output."""
         self.prepare_data()
 
@@ -422,14 +492,14 @@ class TestDisplayTimezone:
 
         assert r_utc != r_sh, f"SELECT ts should differ across timezones: {r_utc} vs {r_sh}"
 
-    def test_show_tables_uses_connection_tz(self):
+    def check_show_tables_uses_connection_tz(self):
         """SHOW TABLES should not error with connection timezone set."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query(f"show {self.dbname}.tables")
         assert tdSql.queryRows > 0
 
-    def test_explain_uses_connection_tz(self):
+    def check_explain_uses_connection_tz(self):
         """EXPLAIN should execute successfully with connection timezone set."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -448,12 +518,34 @@ class TestDisplayTimezone:
 
         assert rows_utc > 0 and rows_sh > 0
 
-    def test_display_without_set_timezone(self):
+    def check_display_without_set_timezone(self):
         """Without SET TIMEZONE, display should use L3 -> L5 (unchanged behavior)."""
         self.prepare_data()
         tdSql.query(f"select ts from {self.ntbname}")
         assert tdSql.queryResult[0][0] is not None
 
+    def test_display_timezone(self):
+        """summary: Timestamp display using connection timezone (SELECT ts, SHOW, etc.).
+
+        description: Timestamp display using connection timezone (SELECT ts, SHOW, etc.).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_select_ts_uses_connection_tz()
+        self.check_show_tables_uses_connection_tz()
+        self.check_explain_uses_connection_tz()
+        self.check_display_without_set_timezone()
 
 class TestWhereCastJoinTz:
     """WHERE / CAST / JOIN time literal parsing with connection timezone (L2 -> L3 -> L5)."""
@@ -477,7 +569,7 @@ class TestWhereCastJoinTz:
         for ts, c1 in [(1768435200000, 10), (1768478400000, 20)]:
             tdSql.execute(f'insert into {self.ntbname2} values ({ts}, {c1})')
 
-    def test_where_uses_connection_tz(self):
+    def check_where_uses_connection_tz(self):
         """WHERE '2026-01-15 12:00:00' should match different rows with different L2.
 
         UTC: matches c1=2. Shanghai: no match (would be 04:00 UTC).
@@ -492,7 +584,7 @@ class TestWhereCastJoinTz:
         tdSql.query(f"select c1 from {self.ntbname} where ts = '2026-01-15 12:00:00'")
         tdSql.checkRows(0)
 
-    def test_cast_uses_connection_tz(self):
+    def check_cast_uses_connection_tz(self):
         """CAST same string to timestamp should differ with different L2."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -505,7 +597,7 @@ class TestWhereCastJoinTz:
 
         assert r_utc != r_sh, f"CAST should differ: UTC={r_utc}, Shanghai={r_sh}"
 
-    def test_join_uses_connection_tz(self):
+    def check_join_uses_connection_tz(self):
         """JOIN with time literal should use connection timezone."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -517,13 +609,35 @@ class TestWhereCastJoinTz:
             tdSql.checkData(0, 0, 2)
             tdSql.checkData(0, 1, 20)
 
-    def test_where_no_set_timezone_fallback(self):
+    def check_where_no_set_timezone_fallback(self):
         """Without SET TIMEZONE, WHERE should use L3 -> L5 (current behavior)."""
         tdSql.connect()  # reset connection to system default timezone
         self.prepare_data()
         tdSql.query(f"select c1 from {self.ntbname} where ts >= '2026-01-15 00:00:00'")
         assert tdSql.queryRows > 0
 
+    def test_where_cast_join_tz(self):
+        """summary: WHERE / CAST / JOIN time literal parsing with connection timezone (L2 -> L3 -> L5).
+
+        description: WHERE / CAST / JOIN time literal parsing with connection timezone (L2 -> L3 -> L5).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_where_uses_connection_tz()
+        self.check_cast_uses_connection_tz()
+        self.check_join_uses_connection_tz()
+        self.check_where_no_set_timezone_fallback()
 
 class TestTodayNowTz:
     """TODAY() connection timezone (L2->L3->L5) and NOW() unchanged behavior."""
@@ -540,7 +654,7 @@ class TestTodayNowTz:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (now, 1)')
 
-    def test_today_with_different_timezones(self):
+    def check_today_with_different_timezones(self):
         """TODAY() with very different timezones should both succeed.
 
         Auckland (UTC+12/+13) vs Honolulu (UTC-10): 22-23h apart.
@@ -554,7 +668,7 @@ class TestTodayNowTz:
         tdSql.query("select today()")
         assert tdSql.queryResult[0][0] is not None
 
-    def test_today_utc_returns_midnight(self):
+    def check_today_utc_returns_midnight(self):
         """TODAY() with UTC should return a midnight-aligned timestamp."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -567,20 +681,20 @@ class TestTodayNowTz:
             assert ts_ms % 86400000 == 0, \
                 f"TODAY() in UTC should be midnight-aligned (ms): {ts_ms}"
 
-    def test_today_not_affected_by_server_tz(self):
+    def check_today_not_affected_by_server_tz(self):
         """TODAY() is client-side (L2->L3->L5), not server-side L4."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query("select today()")
         assert tdSql.queryResult[0][0] is not None
 
-    def test_today_in_where(self):
+    def check_today_in_where(self):
         """TODAY() should work in WHERE clause."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query(f"select * from {self.ntbname} where ts >= today()")
 
-    def test_now_not_affected_by_set_timezone(self):
+    def check_now_not_affected_by_set_timezone(self):
         """NOW() returns raw UTC timestamp, unaffected by timezone settings."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -591,6 +705,29 @@ class TestTodayNowTz:
         tdSql.query("select now()")
         assert tdSql.queryResult[0][0] is not None
 
+    def test_today_now_tz(self):
+        """summary: TODAY() connection timezone (L2->L3->L5) and NOW() unchanged behavior.
+
+        description: TODAY() connection timezone (L2->L3->L5) and NOW() unchanged behavior.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_today_with_different_timezones()
+        self.check_today_utc_returns_midnight()
+        self.check_today_not_affected_by_server_tz()
+        self.check_today_in_where()
+        self.check_now_not_affected_by_set_timezone()
 
 class TestIntervalTimezone:
     """INTERVAL window aggregation with different connection timezones (P2).
@@ -619,7 +756,7 @@ class TestIntervalTimezone:
             ts = base + i * 7200000  # every 2 hours
             tdSql.execute(f'insert into {self.ntbname} values ({ts}, {i + 1})')
 
-    def test_interval_1d_different_tz_different_buckets(self):
+    def check_interval_1d_different_tz_different_buckets(self):
         """interval(1d) should produce different bucket counts under UTC vs Asia/Shanghai.
 
         Data: 6 rows from 2026-01-14 20:00 to 2026-01-15 06:00 UTC (every 2h).
@@ -647,7 +784,7 @@ class TestIntervalTimezone:
         assert utc_buckets == 2, f"UTC should have 2 daily buckets, got {utc_buckets}"
         assert sh_buckets == 1, f"Shanghai should have 1 daily bucket, got {sh_buckets}"
 
-    def test_interval_1h_same_across_tz(self):
+    def check_interval_1h_same_across_tz(self):
         """interval(1h) should produce the same number of buckets regardless of timezone.
 
         Hourly boundaries are timezone-independent (always 3600s aligned).
@@ -670,7 +807,7 @@ class TestIntervalTimezone:
         assert utc_buckets == sh_buckets, \
             f"1h interval should be same across timezones: UTC={utc_buckets}, SH={sh_buckets}"
 
-    def test_interval_1d_sum_consistent(self):
+    def check_interval_1d_sum_consistent(self):
         """Total sum across all buckets must be the same regardless of timezone."""
         self.prepare_data()
 
@@ -689,3 +826,30 @@ class TestIntervalTimezone:
         expected = sum(range(1, 7))  # 1+2+3+4+5+6 = 21
         assert utc_total == expected, f"UTC sum should be {expected}, got {utc_total}"
         assert ny_total == expected, f"NY sum should be {expected}, got {ny_total}"
+
+    def test_interval_timezone(self):
+        """summary: INTERVAL window aggregation with different connection timezones (P2).
+
+        description: INTERVAL window aggregation with different connection timezones (P2).
+
+            Different timezones shift "one day" boundaries, so the same data
+            grouped by interval(1d) should produce different bucket counts or
+            different per-bucket aggregation results.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_interval_1d_different_tz_different_buckets()
+        self.check_interval_1h_same_across_tz()
+        self.check_interval_1d_sum_consistent()
+

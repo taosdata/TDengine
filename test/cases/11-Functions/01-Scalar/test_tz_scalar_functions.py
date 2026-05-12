@@ -13,10 +13,8 @@ Covers:
 import pytest
 from new_test_framework.utils import tdLog, tdSql
 
-
 ERR_INVALID_TIMEZONE = 0x26B2
 ERR_INVALID_FUNCTION_PARAM = 0x2803
-
 
 class TestToIso8601Iana:
     """TO_ISO8601 IANA timezone parameter and DST-aware output."""
@@ -36,7 +34,7 @@ class TestToIso8601Iana:
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts_winter}, 1)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts_summer}, 2)')
 
-    def test_to_iso8601_iana_no_dst(self):
+    def check_to_iso8601_iana_no_dst(self):
         """IANA timezones without DST should have constant offset."""
         self.prepare_data()
         cases = {
@@ -49,7 +47,7 @@ class TestToIso8601Iana:
                 assert any(e in row[0] for e in expected), \
                     f"{tz}: expected {expected} in {row[0]}"
 
-    def test_to_iso8601_iana_dst_new_york(self):
+    def check_to_iso8601_iana_dst_new_york(self):
         """America/New_York: winter -05:00 (EST), summer -04:00 (EDT)."""
         self.prepare_data()
         tdSql.query(
@@ -59,7 +57,7 @@ class TestToIso8601Iana:
         assert '-05:00' in winter or '-0500' in winter, f"Winter: {winter}"
         assert '-04:00' in summer or '-0400' in summer, f"Summer: {summer}"
 
-    def test_to_iso8601_iana_dst_london(self):
+    def check_to_iso8601_iana_dst_london(self):
         """Europe/London: winter +00:00 (GMT), summer +01:00 (BST)."""
         self.prepare_data()
         tdSql.query(
@@ -69,14 +67,14 @@ class TestToIso8601Iana:
         assert any(e in winter for e in ['+00:00', '+0000', 'Z'])
         assert '+01:00' in summer or '+0100' in summer, f"Summer: {summer}"
 
-    def test_to_iso8601_fixed_offset_compat(self):
+    def check_to_iso8601_fixed_offset_compat(self):
         """Fixed offset params (+08:00, Z) should still work (backward compat)."""
         self.prepare_data()
         tdSql.query(f"select to_iso8601(ts, '+08:00') from {self.ntbname} order by ts")
         for row in tdSql.queryResult:
             assert '+08:00' in row[0] or '+0800' in row[0]
 
-    def test_to_iso8601_invalid_tz(self):
+    def check_to_iso8601_invalid_tz(self):
         """Invalid timezone params should fail."""
         self.prepare_data()
         for tz in ["'Invalid/Zone'", "'CST'", "'+8'"]:
@@ -85,7 +83,7 @@ class TestToIso8601Iana:
                 expectedErrno=ERR_INVALID_TIMEZONE,
             )
 
-    def test_to_iso8601_no_param_uses_l2(self):
+    def check_to_iso8601_no_param_uses_l2(self):
         """TO_ISO8601(ts) without tz param should use connection timezone (L2)."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -94,7 +92,7 @@ class TestToIso8601Iana:
         assert '-05:00' in winter or '-0500' in winter, f"L2 winter: {winter}"
         assert '-04:00' in summer or '-0400' in summer, f"L2 summer: {summer}"
 
-    def test_to_iso8601_l1_overrides_l2(self):
+    def check_to_iso8601_l1_overrides_l2(self):
         """Explicit tz param (L1) should override connection timezone (L2)."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -103,7 +101,7 @@ class TestToIso8601Iana:
         )
         assert '-05:00' in tdSql.queryResult[0][0] or '-0500' in tdSql.queryResult[0][0]
 
-    def test_to_iso8601_us_ns_precision(self):
+    def check_to_iso8601_us_ns_precision(self):
         """IANA timezone should work with us/ns precision databases."""
         for prec, factor in [('us', 1000), ('ns', 1000000)]:
             dbname = f'{self.dbname}_{prec}'
@@ -118,6 +116,32 @@ class TestToIso8601Iana:
             tdSql.query(f"select to_iso8601(ts, 'Asia/Shanghai') from {ntbname}")
             assert '+08:00' in tdSql.queryResult[0][0] or '+0800' in tdSql.queryResult[0][0]
 
+    def test_to_iso8601_iana(self):
+        """summary: TO_ISO8601 IANA timezone parameter and DST-aware output.
+
+        description: TO_ISO8601 IANA timezone parameter and DST-aware output.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_to_iso8601_iana_no_dst()
+        self.check_to_iso8601_iana_dst_new_york()
+        self.check_to_iso8601_iana_dst_london()
+        self.check_to_iso8601_fixed_offset_compat()
+        self.check_to_iso8601_invalid_tz()
+        self.check_to_iso8601_no_param_uses_l2()
+        self.check_to_iso8601_l1_overrides_l2()
+        self.check_to_iso8601_us_ns_precision()
 
 class TestToCharTimezone:
     """TO_CHAR(ts, fmt [, timezone]) third parameter tests."""
@@ -137,7 +161,7 @@ class TestToCharTimezone:
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts_winter}, 1)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts_summer}, 2)')
 
-    def test_to_char_iana_and_fixed_offset(self):
+    def check_to_char_iana_and_fixed_offset(self):
         """TO_CHAR with IANA timezone and fixed offset.
 
         2022-01-15 12:00 UTC -> Shanghai 20:00, NY 07:00, +08:00 20:00.
@@ -158,7 +182,7 @@ class TestToCharTimezone:
             assert expected_time in tdSql.queryResult[0][0], \
                 f"tz={tz}, c1={c1}: expected {expected_time} in {tdSql.queryResult[0][0]}"
 
-    def test_to_char_invalid_tz(self):
+    def check_to_char_invalid_tz(self):
         """Invalid timezone params should fail."""
         self.prepare_data()
         fmt = 'YYYY-MM-DD HH24:MI:SS'
@@ -168,7 +192,7 @@ class TestToCharTimezone:
                 expectedErrno=ERR_INVALID_TIMEZONE,
             )
 
-    def test_to_char_no_param_uses_l2(self):
+    def check_to_char_no_param_uses_l2(self):
         """TO_CHAR without tz param should use connection timezone (L2)."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -177,7 +201,7 @@ class TestToCharTimezone:
         )
         assert '07:00:00' in tdSql.queryResult[0][0]
 
-    def test_to_char_l1_overrides_l2(self):
+    def check_to_char_l1_overrides_l2(self):
         """Explicit tz (L1) should override connection timezone (L2)."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -187,7 +211,7 @@ class TestToCharTimezone:
         )
         assert '07:00:00' in tdSql.queryResult[0][0]
 
-    def test_to_char_two_params_compat(self):
+    def check_to_char_two_params_compat(self):
         """TO_CHAR(ts, fmt) two-param form should still work."""
         self.prepare_data()
         tdSql.query(
@@ -195,6 +219,29 @@ class TestToCharTimezone:
         )
         assert '2022' in tdSql.queryResult[0][0]
 
+    def test_to_char_timezone(self):
+        """summary: TO_CHAR(ts, fmt [, timezone]) third parameter tests.
+
+        description: TO_CHAR(ts, fmt [, timezone]) third parameter tests.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_to_char_iana_and_fixed_offset()
+        self.check_to_char_invalid_tz()
+        self.check_to_char_no_param_uses_l2()
+        self.check_to_char_l1_overrides_l2()
+        self.check_to_char_two_params_compat()
 
 class TestTimetruncateTz:
     """TIMETRUNCATE third parameter: string timezone, integer 0/1 compat, fallback chain."""
@@ -212,7 +259,7 @@ class TestTimetruncateTz:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts1}, 1)')
 
-    def test_timetruncate_iana_tz_different_boundaries(self):
+    def check_timetruncate_iana_tz_different_boundaries(self):
         """String tz param should truncate in that timezone's calendar.
 
         UTC vs Shanghai should produce different 1d boundaries for this timestamp.
@@ -224,7 +271,7 @@ class TestTimetruncateTz:
         r_sh = tdSql.queryResult[0][0]
         assert r_utc != r_sh, f"UTC vs Shanghai 1d should differ: {r_utc} vs {r_sh}"
 
-    def test_timetruncate_int_01_compat(self):
+    def check_timetruncate_int_01_compat(self):
         """Integer 0/1 and no-param forms should work (backward compat)."""
         self.prepare_data()
         for p in ['0', '1', '']:
@@ -232,7 +279,7 @@ class TestTimetruncateTz:
             tdSql.query(f"select timetruncate(ts, 1d{suffix}) from {self.ntbname}")
             assert tdSql.queryResult[0][0] is not None
 
-    def test_timetruncate_invalid_tz(self):
+    def check_timetruncate_invalid_tz(self):
         """Invalid timezone string should fail."""
         self.prepare_data()
         for tz in ["'Invalid/Zone'", "'CST'"]:
@@ -241,7 +288,7 @@ class TestTimetruncateTz:
                 expectedErrno=ERR_INVALID_TIMEZONE,
             )
 
-    def test_timetruncate_l1_overrides_l2(self):
+    def check_timetruncate_l1_overrides_l2(self):
         """Explicit tz (L1) should override connection timezone (L2)."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -251,7 +298,7 @@ class TestTimetruncateTz:
         r_sh = tdSql.queryResult[0][0]
         assert r_utc != r_sh
 
-    def test_timetruncate_no_param_uses_l2(self):
+    def check_timetruncate_no_param_uses_l2(self):
         """Without tz param, different L2 should produce different results."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -262,7 +309,7 @@ class TestTimetruncateTz:
         r_sh = tdSql.queryResult[0][0]
         assert r_ny != r_sh
 
-    def test_timetruncate_subday_string_tz_uses_target_offset(self):
+    def check_timetruncate_subday_string_tz_uses_target_offset(self):
         """Sub-day truncation with string timezone should use target local offset.
 
         2026-03-15T10:10:00Z in +05:45 is 15:55 local, so 1h should
@@ -281,6 +328,30 @@ class TestTimetruncateTz:
             result = tdSql.queryResult[0][0]
             assert expected in result, f"tz={tz}, unit={unit}: expected {expected} in {result}"
 
+    def test_timetruncate_tz(self):
+        """summary: TIMETRUNCATE third parameter: string timezone, integer 0/1 compat, fallback chain.
+
+        description: TIMETRUNCATE third parameter: string timezone, integer 0/1 compat, fallback chain.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_timetruncate_iana_tz_different_boundaries()
+        self.check_timetruncate_int_01_compat()
+        self.check_timetruncate_invalid_tz()
+        self.check_timetruncate_l1_overrides_l2()
+        self.check_timetruncate_no_param_uses_l2()
+        self.check_timetruncate_subday_string_tz_uses_target_offset()
 
 class TestTimetruncateNaturalUnits:
     """TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx is invalid)."""
@@ -299,7 +370,7 @@ class TestTimetruncateNaturalUnits:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1773750600000, 1)')
 
-    def test_timetruncate_1n_month(self):
+    def check_timetruncate_1n_month(self):
         """1n should align to first day of month 00:00:00."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -313,7 +384,7 @@ class TestTimetruncateNaturalUnits:
             result = tdSql.queryResult[0][0]
             assert '2026-03-01T00:00:00' in result, f"1n({ts_str}): {result}"
 
-    def test_timetruncate_1q_all_quarters(self):
+    def check_timetruncate_1q_all_quarters(self):
         """1q: Q1->Jan1, Q2->Apr1, Q3->Jul1, Q4->Oct1."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -328,7 +399,7 @@ class TestTimetruncateNaturalUnits:
             result = tdSql.queryResult[0][0]
             assert expected in result, f"1q({ts_str}): expected {expected} in {result}"
 
-    def test_timetruncate_1y_year(self):
+    def check_timetruncate_1y_year(self):
         """1y should align to Jan 1 00:00:00."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -337,7 +408,7 @@ class TestTimetruncateNaturalUnits:
             result = tdSql.queryResult[0][0]
             assert '2026-01-01T00:00:00' in result, f"1y({ts_str}): {result}"
 
-    def test_timetruncate_1q_equals_3n_is_invalid(self):
+    def check_timetruncate_1q_equals_3n_is_invalid(self):
         """3n is invalid (Nx not supported); only 1n/1q/1y are valid."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -347,7 +418,7 @@ class TestTimetruncateNaturalUnits:
         tdSql.error("select timetruncate('2026-08-15 10:30:00', 2w)")
         tdSql.error("select timetruncate('2026-08-15 10:30:00', 6n)")
 
-    def test_timetruncate_natural_with_tz_param(self):
+    def check_timetruncate_natural_with_tz_param(self):
         """n/q/y units combined with string timezone parameter."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -361,6 +432,29 @@ class TestTimetruncateNaturalUnits:
                 f"{session_result} vs {explicit_result}"
             )
 
+    def test_timetruncate_natural_units(self):
+        """summary: TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx is invalid).
+
+        description: TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx is invalid).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_timetruncate_1n_month()
+        self.check_timetruncate_1q_all_quarters()
+        self.check_timetruncate_1y_year()
+        self.check_timetruncate_1q_equals_3n_is_invalid()
+        self.check_timetruncate_natural_with_tz_param()
 
 class TestTimetruncateUnitMultiplierValidation:
     """TIMETRUNCATE unit multiplier constraint: only N=1 allowed, Nx (N>1) returns "Invalid time unit"."""
@@ -379,84 +473,84 @@ class TestTimetruncateUnitMultiplierValidation:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1773750600000, 1)')
 
-    def test_timetruncate_2n_invalid(self):
+    def check_timetruncate_2n_invalid(self):
         """Natural month: 2n, 3n, 6n, 12n should all be invalid."""
         self.prepare_data()
         for mult in [2, 3, 6, 12]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}n)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2q_invalid(self):
+    def check_timetruncate_2q_invalid(self):
         """Natural quarter: 2q, 3q, 4q should all be invalid."""
         self.prepare_data()
         for mult in [2, 3, 4]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}q)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2y_invalid(self):
+    def check_timetruncate_2y_invalid(self):
         """Natural year: 2y, 3y, 5y should all be invalid."""
         self.prepare_data()
         for mult in [2, 3, 5]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}y)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2w_invalid(self):
+    def check_timetruncate_2w_invalid(self):
         """Week: 2w, 3w, 4w, 10w should all be invalid."""
         self.prepare_data()
         for mult in [2, 3, 4, 10]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}w)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2d_invalid(self):
+    def check_timetruncate_2d_invalid(self):
         """Day: 2d, 3d, 7d should all be invalid."""
         self.prepare_data()
         for mult in [2, 3, 7]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}d)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2h_invalid(self):
+    def check_timetruncate_2h_invalid(self):
         """Hour: 2h, 3h, 6h, 24h should all be invalid."""
         self.prepare_data()
         for mult in [2, 3, 6, 24]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}h)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2m_invalid(self):
+    def check_timetruncate_2m_invalid(self):
         """Minute: 2m, 5m, 15m, 60m should all be invalid."""
         self.prepare_data()
         for mult in [2, 5, 15, 60]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}m)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2s_invalid(self):
+    def check_timetruncate_2s_invalid(self):
         """Second: 2s, 5s, 10s, 60s should all be invalid."""
         self.prepare_data()
         for mult in [2, 5, 10, 60]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}s)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2ms_invalid(self):
+    def check_timetruncate_2ms_invalid(self):
         """Millisecond: 2ms, 100ms, 1000ms should all be invalid."""
         self.prepare_data()
         for mult in [2, 100, 1000]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}a)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2u_invalid(self):
+    def check_timetruncate_2u_invalid(self):
         """Microsecond: 2u, 1000u should all be invalid."""
         self.prepare_data()
         for mult in [2, 1000]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}u)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_2b_invalid(self):
+    def check_timetruncate_2b_invalid(self):
         """Nanosecond: 2b, 1000b should all be invalid."""
         self.prepare_data()
         for mult in [2, 1000]:
             tdSql.error(f"select timetruncate('2026-05-15 10:30:00', {mult}b)",
                         expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_multiplier_with_tz_param_invalid(self):
+    def check_timetruncate_multiplier_with_tz_param_invalid(self):
         """Multiplier > 1 with string timezone parameter should also be invalid."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -469,7 +563,7 @@ class TestTimetruncateUnitMultiplierValidation:
         for sql in invalid_cases:
             tdSql.error(sql, expectErrInfo="Invalid time unit : timetruncate")
 
-    def test_timetruncate_multiplier_from_table_invalid(self):
+    def check_timetruncate_multiplier_from_table_invalid(self):
         """Multiplier > 1 in FROM table queries should also be invalid."""
         self.prepare_data()
         tdSql.error(f"select timetruncate(ts, 2d) from {self.ntbname}",
@@ -479,6 +573,37 @@ class TestTimetruncateUnitMultiplierValidation:
         tdSql.error(f"select timetruncate(ts, 2h) from {self.ntbname}",
                     expectErrInfo="Invalid time unit : timetruncate")
 
+    def test_timetruncate_unit_multiplier_validation(self):
+        """summary: TIMETRUNCATE unit multiplier constraint: only N=1 allowed, Nx (N>1) returns "Invalid time unit".
+
+        description: TIMETRUNCATE unit multiplier constraint: only N=1 allowed, Nx (N>1) returns "Invalid time unit".
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_timetruncate_2n_invalid()
+        self.check_timetruncate_2q_invalid()
+        self.check_timetruncate_2y_invalid()
+        self.check_timetruncate_2w_invalid()
+        self.check_timetruncate_2d_invalid()
+        self.check_timetruncate_2h_invalid()
+        self.check_timetruncate_2m_invalid()
+        self.check_timetruncate_2s_invalid()
+        self.check_timetruncate_2ms_invalid()
+        self.check_timetruncate_2u_invalid()
+        self.check_timetruncate_2b_invalid()
+        self.check_timetruncate_multiplier_with_tz_param_invalid()
+        self.check_timetruncate_multiplier_from_table_invalid()
 
 class TestTimetruncateWeek:
     """TIMETRUNCATE 1w/Nw aligned by firstDayOfWeek (high-risk behavior change)."""
@@ -495,7 +620,7 @@ class TestTimetruncateWeek:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1745920800000, 1)')
 
-    def test_timetruncate_1w_fdow_differences(self):
+    def check_timetruncate_1w_fdow_differences(self):
         """TIMETRUNCATE(1w) with fdow 0-6 should produce different alignments.
 
         2026-04-30 is Thursday.
@@ -515,7 +640,7 @@ class TestTimetruncateWeek:
         assert '2026-04-26T00:00:00' in results[0], f"fdow=0: {results[0]}"
         assert '2026-04-30T00:00:00' in results[4], f"fdow=4: {results[4]}"
 
-    def test_timetruncate_1w_on_week_start(self):
+    def check_timetruncate_1w_on_week_start(self):
         """Truncating on exact week start day should return that day's midnight."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'UTC'")
@@ -524,7 +649,7 @@ class TestTimetruncateWeek:
         result = tdSql.queryResult[0][0]
         assert '2026-04-27T00:00:00' in result, f"Monday fdow=1: {result}"
 
-    def test_timetruncate_1w_with_iana_tz(self):
+    def check_timetruncate_1w_with_iana_tz(self):
         """Regression: 1w with explicit IANA tz should match session tz path."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
@@ -538,7 +663,7 @@ class TestTimetruncateWeek:
             f"{explicit_result} vs {session_result}"
         )
 
-    def test_timetruncate_1w_with_iana_tz_dst_consistency(self):
+    def check_timetruncate_1w_with_iana_tz_dst_consistency(self):
         """Regression: 1w explicit IANA tz should match session tz across DST."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -557,7 +682,7 @@ class TestTimetruncateWeek:
                 f"{explicit_result} vs {session_result}"
             )
 
-    def test_timetruncate_1w_dst_spring(self):
+    def check_timetruncate_1w_dst_spring(self):
         """1w during DST spring-forward should still align to local 00:00:00."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -566,6 +691,29 @@ class TestTimetruncateWeek:
         result = tdSql.queryResult[0][0]
         assert '2026-03-08T00:00:00' in result, f"1w DST spring: {result}"
 
+    def test_timetruncate_week(self):
+        """summary: TIMETRUNCATE 1w/Nw aligned by firstDayOfWeek (high-risk behavior change).
+
+        description: TIMETRUNCATE 1w/Nw aligned by firstDayOfWeek (high-risk behavior change).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_timetruncate_1w_fdow_differences()
+        self.check_timetruncate_1w_on_week_start()
+        self.check_timetruncate_1w_with_iana_tz()
+        self.check_timetruncate_1w_with_iana_tz_dst_consistency()
+        self.check_timetruncate_1w_dst_spring()
 
 class TestWeekFunctions:
     """WEEK/WEEKOFYEAR respect firstDayOfWeek; DAYOFWEEK/WEEKDAY unchanged."""
@@ -582,7 +730,7 @@ class TestWeekFunctions:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1735689600000, 1)')
 
-    def test_weekofyear_respects_fdow(self):
+    def check_weekofyear_respects_fdow(self):
         """WEEKOFYEAR with different firstDayOfWeek should succeed."""
         self.prepare_data()
         results = {}
@@ -592,7 +740,7 @@ class TestWeekFunctions:
             results[fdow] = tdSql.queryResult[0][0]
         assert results[0] != results[1], f"WEEKOFYEAR should respect fdow: {results}"
 
-    def test_week_mode_all_valid(self):
+    def check_week_mode_all_valid(self):
         """WEEK(ts, mode) for mode 0-7 should all succeed."""
         self.prepare_data()
         results = []
@@ -601,7 +749,7 @@ class TestWeekFunctions:
             results.append(tdSql.queryResult[0][0])
         assert all(result is not None for result in results), f"WEEK mode results: {results}"
 
-    def test_week_mode_8_invalid(self):
+    def check_week_mode_8_invalid(self):
         """WEEK(ts, 8) should fail."""
         self.prepare_data()
         tdSql.error(
@@ -609,7 +757,7 @@ class TestWeekFunctions:
             expectedErrno=ERR_INVALID_FUNCTION_PARAM,
         )
 
-    def test_dayofweek_not_affected_by_fdow(self):
+    def check_dayofweek_not_affected_by_fdow(self):
         """DAYOFWEEK should return identical values regardless of firstDayOfWeek.
 
         DAYOFWEEK: 1=Sunday, 2=Monday, ..., 7=Saturday.
@@ -623,7 +771,7 @@ class TestWeekFunctions:
         assert all(r == results[0] for r in results), \
             f"DAYOFWEEK should not change: {results}"
 
-    def test_weekday_not_affected_by_fdow(self):
+    def check_weekday_not_affected_by_fdow(self):
         """WEEKDAY should return identical values regardless of firstDayOfWeek.
 
         WEEKDAY: 0=Monday, 1=Tuesday, ..., 6=Sunday.
@@ -637,7 +785,7 @@ class TestWeekFunctions:
         assert all(r == results[0] for r in results), \
             f"WEEKDAY should not change: {results}"
 
-    def test_dayofweek_known_values(self):
+    def check_dayofweek_known_values(self):
         """Verify DAYOFWEEK returns correct values for known dates."""
         self.prepare_data()
         cases = [
@@ -650,7 +798,7 @@ class TestWeekFunctions:
             assert tdSql.queryResult[0][0] == expected, \
                 f"DAYOFWEEK({ts_str}): expected {expected}, got {tdSql.queryResult[0][0]}"
 
-    def test_weekday_known_values(self):
+    def check_weekday_known_values(self):
         """Verify WEEKDAY returns correct values for known dates."""
         self.prepare_data()
         cases = [
@@ -662,12 +810,38 @@ class TestWeekFunctions:
             assert tdSql.queryResult[0][0] == expected, \
                 f"WEEKDAY({ts_str}): expected {expected}, got {tdSql.queryResult[0][0]}"
 
-    def test_week_from_table(self):
+    def check_week_from_table(self):
         """WEEK/WEEKOFYEAR should work with table data."""
         self.prepare_data()
         tdSql.query(f"select week(ts), weekofyear(ts) from {self.ntbname}")
         tdSql.checkRows(1)
 
+    def test_week_functions(self):
+        """summary: WEEK/WEEKOFYEAR respect firstDayOfWeek; DAYOFWEEK/WEEKDAY unchanged.
+
+        description: WEEK/WEEKOFYEAR respect firstDayOfWeek; DAYOFWEEK/WEEKDAY unchanged.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_weekofyear_respects_fdow()
+        self.check_week_mode_all_valid()
+        self.check_week_mode_8_invalid()
+        self.check_dayofweek_not_affected_by_fdow()
+        self.check_weekday_not_affected_by_fdow()
+        self.check_dayofweek_known_values()
+        self.check_weekday_known_values()
+        self.check_week_from_table()
 
 class TestDstEdge:
     """DST edge cases: spring-forward gap, fall-back overlap, write-path regression.
@@ -688,7 +862,7 @@ class TestDstEdge:
         tdSql.execute(f'drop table if exists {self.ntbname}')
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
 
-    def test_dst_spring_iso8601_offset(self):
+    def check_dst_spring_iso8601_offset(self):
         """TO_ISO8601 should show -05:00 before and -04:00 after spring-forward."""
         self.prepare_data()
         ts_before = 1772949600000  # 2026-03-08 01:00 EST = 06:00 UTC
@@ -703,7 +877,7 @@ class TestDstEdge:
         assert '-05:00' in before or '-0500' in before, f"Before spring: {before}"
         assert '-04:00' in after or '-0400' in after, f"After spring: {after}"
 
-    def test_dst_spring_to_char_gap(self):
+    def check_dst_spring_to_char_gap(self):
         """TO_CHAR should show 01:59 before gap and 03:00 after gap (no 02:xx exists)."""
         self.prepare_data()
         ts_before_gap = 1772953140000  # 01:59 EST = 06:59 UTC (2026-03-08)
@@ -718,7 +892,7 @@ class TestDstEdge:
         assert '01:59:00' in tdSql.queryResult[0][0]
         assert '03:00:00' in tdSql.queryResult[1][0]
 
-    def test_dst_spring_timetruncate_1d(self):
+    def check_dst_spring_timetruncate_1d(self):
         """TIMETRUNCATE(1d) on spring-forward day should align to local midnight."""
         self.prepare_data()
         ts = 1772982000000  # 2026-03-08 15:00 UTC = 11:00 EDT
@@ -728,7 +902,7 @@ class TestDstEdge:
         result = tdSql.queryResult[0][0]
         assert '2026-03-08T05:00:00' in result, f"1d spring day: {result}"
 
-    def test_dst_fall_iso8601_offset(self):
+    def check_dst_fall_iso8601_offset(self):
         """TO_ISO8601 should show -04:00 before and -05:00 after fall-back."""
         self.prepare_data()
         ts_edt = 1793509200000  # 2026-11-01 01:00 EDT = 05:00 UTC
@@ -743,7 +917,7 @@ class TestDstEdge:
         assert '-04:00' in before or '-0400' in before, f"Before fall: {before}"
         assert '-05:00' in after or '-0500' in after, f"After fall: {after}"
 
-    def test_dst_fall_timetruncate_1d(self):
+    def check_dst_fall_timetruncate_1d(self):
         """TIMETRUNCATE(1d) on fall-back day (25h long) should align to local midnight."""
         self.prepare_data()
         ts = 1793552400000  # 2026-11-01 17:00 UTC = 12:00 EST (after fall-back)
@@ -753,11 +927,7 @@ class TestDstEdge:
         result = tdSql.queryResult[0][0]
         assert '2026-11-01T04:00:00' in result, f"1d fall-back day: {result}"
 
-    @pytest.mark.skip(
-        reason="Server rejects spring-gap timestamps (Timestamp data out of range) rather than normalizing; "
-               "this is existing write-path behavior, not a P3 regression"
-    )
-    def test_dst_spring_write_gap_normalized(self):
+    def check_dst_spring_write_gap_normalized(self):
         """Writing non-existent local time in spring gap should be normalized.
 
         '2026-03-08 02:30:00' in New York does not exist -> normalized to 03:30 EDT.
@@ -772,7 +942,7 @@ class TestDstEdge:
         result = tdSql.queryResult[0][0]
         assert '2026-03-08 03:30:00' in result, f"Spring gap write: {result}"
 
-    def test_dst_fall_write_overlap_first_occurrence(self):
+    def check_dst_fall_write_overlap_first_occurrence(self):
         """Writing ambiguous local time in fall overlap should use first occurrence.
 
         '2026-11-01 01:30:00' exists twice (EDT and EST) -> default EDT (first).
@@ -785,7 +955,7 @@ class TestDstEdge:
         assert '2026-11-01T01:30:00' in result, f"Fall overlap write: {result}"
         assert '-04:00' in result or '-0400' in result, f"Fall overlap write: {result}"
 
-    def test_write_integer_ts_unaffected(self):
+    def check_write_integer_ts_unaffected(self):
         """Integer timestamp write should NOT be affected by timezone."""
         self.prepare_data()
         ts_val = 1640966400000
@@ -801,7 +971,7 @@ class TestDstEdge:
         r2 = tdSql.queryResult[0][0]
         assert r1 == r2, f"Integer ts write should be timezone-independent: {r1} vs {r2}"
 
-    def test_write_with_explicit_offset(self):
+    def check_write_with_explicit_offset(self):
         """Writing timestamp with explicit offset should be unambiguous."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'America/New_York'")
@@ -811,10 +981,44 @@ class TestDstEdge:
         assert '2026-11-01T01:30:00' in result, f"Explicit offset write: {result}"
         assert '-05:00' in result or '-0500' in result, f"Explicit offset write: {result}"
 
-    def test_no_dst_timezone_unaffected(self):
+    def check_no_dst_timezone_unaffected(self):
         """Asia/Shanghai (no DST) should produce constant offset."""
         self.prepare_data()
         tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
         # 2026-03-08 10:00 CST = 2026-03-08 02:00 UTC = 1772935200000 ms
         tdSql.query("select to_iso8601(1772935200000, 'Asia/Shanghai')")
         assert '+08:00' in tdSql.queryResult[0][0] or '+0800' in tdSql.queryResult[0][0]
+
+    def test_dst_edge(self):
+        """summary: DST edge cases: spring-forward gap, fall-back overlap, write-path regression.
+
+        description: DST edge cases: spring-forward gap, fall-back overlap, write-path regression.
+
+            DST times (America/New_York 2026):
+            - Spring: 2026-03-08 02:00 EST -> 03:00 EDT
+            - Fall:   2026-11-01 02:00 EDT -> 01:00 EST
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-05-12: Tony Zhang created
+
+        """
+        self.check_dst_spring_iso8601_offset()
+        self.check_dst_spring_to_char_gap()
+        self.check_dst_spring_timetruncate_1d()
+        self.check_dst_fall_iso8601_offset()
+        self.check_dst_fall_timetruncate_1d()
+        # self.check_dst_spring_write_gap_normalized()  # skip: Server rejects spring-gap timestamps (Timestamp data out of ...
+        self.check_dst_fall_write_overlap_first_occurrence()
+        self.check_write_integer_ts_unaffected()
+        self.check_write_with_explicit_offset()
+        self.check_no_dst_timezone_unaffected()
+
