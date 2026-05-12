@@ -7020,7 +7020,15 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
           taosHashCleanup(pTagRefDedup);
           goto _return;
         }
-        (void)taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0);
+        code = taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pNextRefs);
+          taosArrayDestroy(pPendingRefs);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          taosHashCleanup(pTagRefDedup);
+          goto _return;
+        }
 
         // If this source is also virtual with tag-refs, queue its refs for next depth
         if (pRefNode->pMeta && pRefNode->pMeta->tagRef && pRefNode->pMeta->numOfTagRefs > 0) {
