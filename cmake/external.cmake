@@ -980,6 +980,7 @@ if(NOT TD_WINDOWS)       # {
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
                     --without-librtmp #--enable-debug
+                    CFLAGS=-Wno-implicit-function-declaration
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND

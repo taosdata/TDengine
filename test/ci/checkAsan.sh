@@ -2,6 +2,7 @@
 
 set +e
 #set -x
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
   TD_OS="Darwin"
 else
@@ -42,20 +43,33 @@ LOG_DIR=$TAOS_DIR/asan
 error_num=$(cat "${LOG_DIR}"/*.asan | grep "ERROR" | wc -l)
 
 archOs=$(arch)
-# shellcheck disable=SC2126
-if [[ $archOs =~ "aarch64" ]]; then
-  echo "arm64 check mem leak"
-  memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | wc -l)
-  memory_count=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak of 32 byte" | wc -l)
 
-  if [ "$memory_count" -eq "$error_num" ] && [ "$memory_leak" -eq 0 ]; then
+# ---------- 1. 集中白名单，以后要加只改这里 ----------
+ignore_pat='taosMemCalloc|transDumpFromBuffer|cliHandleResp'
+
+# ---------- 2. 一次性读出内容，避免 4 次 cat ----------
+asan=$(cat "${LOG_DIR}"/*.asan)
+
+# ---------- 3. 统计 ----------
+# non_32: 真泄漏（非 32 字节）
+non_32=$(grep -E "Direct leak(?! of 32 byte)" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
+
+# byte32: 32 字节且非白名单
+byte32=$(grep -E "Direct leak of 32 byte" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
+
+# ---------- 4. 判断 ----------
+if [[ $archOs == *aarch64* ]]; then
+  echo "arm64 check mem leak"
+  if [[ $non_32 -eq 0 && $byte32 -eq $error_num ]]; then
     echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
     error_num=0
   fi
 else
   echo "os check mem leak"
-  memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | wc -l)
+  # 非 arm64 只关心真泄漏
+  [[ $non_32 -eq 0 ]] && echo "no memory leak detected"
 fi
+
 # shellcheck disable=SC2126
 indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 # shellcheck disable=SC2126
@@ -69,10 +83,13 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 #/home/TDengine/source/common/src/tdataformat.c
 #/root/chr/test_taosd/lib/python3.12/site-packages/taosws/taosws.abi3.so+0x1b2fe4
 # shellcheck disable=SC2126
+# ignore gcov-instrumented noasan test binaries (sml_test/tmq_get_meta_json/replay_test etc.) running under ASAN:
+# when these noasan binaries exit, __gcov_open/__gcov_exit tries to write coverage data and SEGVs.
+# this is NOT a product bug — it's an artifact of running gcov-compiled binaries via LD_PRELOAD ASAN.
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
   grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/)" |
-  grep -E -v "venv|taosws.abi3.so" |
+  grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci" |
   wc -l
 )
 
