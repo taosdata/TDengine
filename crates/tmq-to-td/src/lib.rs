@@ -23,16 +23,22 @@ use worker::{Worker, WriteOptions};
 
 use taosx_core::{
     Action,
-    core_metrics::{CoreMetrics, TaskMetrics, get_metrics_arc_or},
+    core_metrics::{CoreMetrics, TaskMetrics, get_metrics_arc_or, update_metrics},
     tmq::{tmq_metric::TmqMetrics, *},
     utils::{
         constants::{VERSION_3_3_0, VERSION_3_3_6},
         interval::IntervalLimit,
+        validate_table_column_name,
     },
 };
 use taosx_utils::dsn::json_to_dsn;
 
 use legacy_to_taos::sync_super_table_schema;
+
+fn record_commit_metrics(metrics: &TmqMetrics) {
+    metrics.add_commits(1);
+    update_metrics(metrics.com.task_id, metrics.com.job_id);
+}
 
 async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> anyhow::Result<bool> {
     let target_desc = to.describe(table).await?;
@@ -164,6 +170,14 @@ async fn write_data(
                 }
             }
         } else {
+            let raw_write_metrics = worker::raw_data_write_metrics(data)
+                .await
+                .inspect_err(|err| {
+                    tracing::warn!("failed to collect raw data write metrics: {err:#}")
+                })
+                .ok()
+                .flatten();
+            worker::record_successful_raw_write_metrics(metrics, raw_write_metrics);
             return Ok(0);
         }
     }
@@ -705,6 +719,16 @@ async fn sync_msg(
                 }
                 return Err(err).with_context(|| format!("[{id}] writing metadata message error"));
             }
+            if actions.is_empty() && !meta_skipped {
+                let raw_write_metrics = worker::raw_data_write_metrics(&data)
+                    .await
+                    .inspect_err(|err| {
+                        tracing::warn!("failed to collect raw metadata write metrics: {err:#}")
+                    })
+                    .ok()
+                    .flatten();
+                worker::record_successful_raw_write_metrics(metrics, raw_write_metrics);
+            }
             retries = 0;
             break;
         },
@@ -712,7 +736,7 @@ async fn sync_msg(
     if let Err(err) = consumer.commit(offset).await {
         tracing::warn!(retries, "Commit error: {err:?}");
     }
-    metrics.add_commits(1);
+    record_commit_metrics(metrics);
     anyhow::Ok(())
 }
 
@@ -1142,7 +1166,7 @@ async fn sync_concurrently(
                     msg_tx.send_async(raw).await?;
                     res_rx.recv_async().await??;
                     consumer.commit(offset).await?;
-                    metrics.add_commits(1);
+                    record_commit_metrics(metrics);
                     per_message_instant = std::time::Instant::now();
                     continue;
                 }
@@ -1154,7 +1178,7 @@ async fn sync_concurrently(
                     msg_tx.send_async(raw).await?;
                     res_rx.recv_async().await??;
                     consumer.commit(offset).await?;
-                    metrics.add_commits(1);
+                    record_commit_metrics(metrics);
                 } else {
                     msg_tx.send_async(raw).await?;
                     chunk_len += 1;
@@ -1171,7 +1195,7 @@ async fn sync_concurrently(
                         if let Err(err) = consumer.commit(offset).await {
                             tracing::warn!(?err, "Commit error: {err}");
                         };
-                        metrics.add_commits(1);
+                        record_commit_metrics(metrics);
                     }
                 }
 
@@ -1196,7 +1220,7 @@ async fn sync_concurrently(
                 if let Err(err) = consumer.commit(last_offset).await {
                     tracing::warn!(?err, "Final commit error: {err}");
                 };
-                metrics.add_commits(1);
+                record_commit_metrics(metrics);
             }
         }
         Ok(())
@@ -1292,6 +1316,7 @@ async fn update_progress(
                 .collect_vec();
             if !assignments.is_empty() {
                 metrics.update_progress_of_topic(topic, assignments);
+                update_metrics(metrics.com.task_id, metrics.com.job_id);
             }
         }
     }
@@ -1904,37 +1929,7 @@ pub async fn get_table_progress(
     from_taos.use_database(from_db).await?;
     let to_taos = to_builder.build().await?;
 
-    let (from_sql, to_sql) = if let Some(start) = start {
-        if let Some(end) = end {
-            (
-                format!(
-                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"
-                ),
-                format!(
-                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"
-                ),
-            )
-        } else {
-            (
-                format!(
-                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}'"
-                ),
-                format!(
-                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}'"
-                ),
-            )
-        }
-    } else if let Some(end) = end {
-        (
-            format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < '{end}'"),
-            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < '{end}'"),
-        )
-    } else {
-        (
-            format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}`"),
-            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}`"),
-        )
-    };
+    let (from_sql, to_sql) = build_table_progress_sql(from_db, &to_db, table, start, end)?;
     tracing::debug!("\nfrom_sql: {from_sql}\nto_sql: {to_sql}");
     let from_result = from_taos
         .query_one::<String, (Option<u64>, u64)>(from_sql)
@@ -1989,11 +1984,216 @@ async fn execute_many_sql(conn: &Taos, sqls: Vec<String>) -> anyhow::Result<()> 
     Ok(())
 }
 
+/// Build the pair of `(from_sql, to_sql)` used by [`get_table_progress`].
+///
+/// `start` and `end` are escaped with [`sql_value_escaped_fmt`] so they cannot
+/// break out of their SQL string literals.
+fn build_table_progress_sql(
+    from_db: &str,
+    to_db: &str,
+    table: &str,
+    start: Option<&String>,
+    end: Option<&String>,
+) -> anyhow::Result<(String, String)> {
+    validate_table_column_name("source database", from_db)?;
+    validate_table_column_name("target database", to_db)?;
+    validate_table_column_name("table name", table)?;
+
+    match (start, end) {
+        (Some(start), Some(end)) => {
+            let start_sql = taosx_utils::sql::sql_value_escaped_fmt(start);
+            let end_sql = taosx_utils::sql::sql_value_escaped_fmt(end);
+            Ok((
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > {start_sql} and _c0 < {end_sql}"
+                ),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > {start_sql} and _c0 < {end_sql}"
+                ),
+            ))
+        }
+        (Some(start), None) => {
+            let start_sql = taosx_utils::sql::sql_value_escaped_fmt(start);
+            Ok((
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > {start_sql}"
+                ),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > {start_sql}"
+                ),
+            ))
+        }
+        (None, Some(end)) => {
+            let end_sql = taosx_utils::sql::sql_value_escaped_fmt(end);
+            Ok((
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 < {end_sql}"
+                ),
+                format!(
+                    "SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 < {end_sql}"
+                ),
+            ))
+        }
+        (None, None) => Ok((
+            format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}`"),
+            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}`"),
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
+    use taosx_core::core_metrics::{
+        MetricsEvent, clear_metrics, insert_metrics, subscribe_task_metrics_watcher,
+    };
     use taosx_core::utils::sql::connect_taos;
+
+    // ── build_table_progress_sql unit tests ────────────────────────────────
+
+    /// A single-quote in `start` or `end` must be doubled (SQL-escaped), so
+    /// an attacker cannot break out of the string literal.
+    #[test]
+    fn test_build_table_progress_sql_escapes_quotes() {
+        let malicious = "2024-01-01' or '1'='1".to_string();
+        let (from_sql, to_sql) =
+            build_table_progress_sql("db_from", "db_to", "my_table", Some(&malicious), None)
+                .expect("valid identifiers should build SQL");
+        // The raw injection string must NOT appear verbatim in either query.
+        assert!(
+            !from_sql.contains("or '1'='1"),
+            "from_sql should not contain raw injection payload: {from_sql}"
+        );
+        assert!(
+            !to_sql.contains("or '1'='1"),
+            "to_sql should not contain raw injection payload: {to_sql}"
+        );
+        // The escaped form uses doubled single-quotes.
+        assert!(
+            from_sql.contains("2024-01-01'' or ''1''=''1"),
+            "from_sql should contain escaped timestamp: {from_sql}"
+        );
+        assert!(
+            to_sql.contains("2024-01-01'' or ''1''=''1"),
+            "to_sql should contain escaped timestamp: {to_sql}"
+        );
+    }
+
+    /// When `end` contains a quote the same escaping applies.
+    #[test]
+    fn test_build_table_progress_sql_escapes_end_quotes() {
+        let malicious = "2024-12-31' or '1'='1".to_string();
+        let (from_sql, to_sql) =
+            build_table_progress_sql("db_from", "db_to", "tbl", None, Some(&malicious))
+                .expect("valid identifiers should build SQL");
+        assert!(!from_sql.contains("or '1'='1"), "{from_sql}");
+        assert!(!to_sql.contains("or '1'='1"), "{to_sql}");
+    }
+
+    /// No filter: no WHERE clause in either query.
+    #[test]
+    fn test_build_table_progress_sql_no_filter() {
+        let (from_sql, to_sql) = build_table_progress_sql("src", "dst", "events", None, None)
+            .expect("valid identifiers should build SQL");
+        assert_eq!(from_sql, "SELECT last(_c0), count(*) FROM `src`.`events`");
+        assert_eq!(to_sql, "SELECT last(_c0), count(*) FROM `dst`.`events`");
+    }
+
+    /// Start-only: only a lower-bound filter.
+    #[test]
+    fn test_build_table_progress_sql_start_only() {
+        let start = "2024-01-01".to_string();
+        let (from_sql, to_sql) =
+            build_table_progress_sql("src", "dst", "events", Some(&start), None)
+                .expect("valid identifiers should build SQL");
+        assert_eq!(
+            from_sql,
+            "SELECT last(_c0), count(*) FROM `src`.`events` where _c0 > '2024-01-01'"
+        );
+        assert_eq!(
+            to_sql,
+            "SELECT last(_c0), count(*) FROM `dst`.`events` where _c0 > '2024-01-01'"
+        );
+    }
+
+    /// End-only: only an upper-bound filter.
+    #[test]
+    fn test_build_table_progress_sql_end_only() {
+        let end = "2024-12-31".to_string();
+        let (from_sql, to_sql) = build_table_progress_sql("src", "dst", "events", None, Some(&end))
+            .expect("valid identifiers should build SQL");
+        assert_eq!(
+            from_sql,
+            "SELECT last(_c0), count(*) FROM `src`.`events` where _c0 < '2024-12-31'"
+        );
+        assert_eq!(
+            to_sql,
+            "SELECT last(_c0), count(*) FROM `dst`.`events` where _c0 < '2024-12-31'"
+        );
+    }
+
+    /// Both start and end: full range filter.
+    #[test]
+    fn test_build_table_progress_sql_both() {
+        let start = "2024-01-01".to_string();
+        let end = "2024-12-31".to_string();
+        let (from_sql, to_sql) =
+            build_table_progress_sql("src", "dst", "events", Some(&start), Some(&end))
+                .expect("valid identifiers should build SQL");
+        assert_eq!(
+            from_sql,
+            "SELECT last(_c0), count(*) FROM `src`.`events` where _c0 > '2024-01-01' and _c0 < '2024-12-31'"
+        );
+        assert_eq!(
+            to_sql,
+            "SELECT last(_c0), count(*) FROM `dst`.`events` where _c0 > '2024-01-01' and _c0 < '2024-12-31'"
+        );
+    }
+
+    #[test]
+    fn test_build_table_progress_sql_rejects_backticks_in_identifiers() {
+        let err = build_table_progress_sql("src`db", "dst", "events", None, None)
+            .expect_err("backticks in identifiers must be rejected");
+        assert!(
+            err.to_string().contains("`"),
+            "error should explain the invalid backtick: {err:#}"
+        );
+    }
+
+    // ── existing tests ──────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn commit_metrics_notify_metrics_watcher() {
+        let task_id = 91_001;
+        let job_id = 91_002;
+        let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
+            "test_stable".to_string(),
+            task_id,
+            job_id,
+            None,
+        )));
+        insert_metrics(task_id, job_id, metrics.clone());
+        let mut receiver = subscribe_task_metrics_watcher(task_id, job_id)
+            .expect("metrics watcher should exist after metrics are inserted");
+
+        record_commit_metrics(metrics.tmq());
+
+        tokio::time::timeout(std::time::Duration::from_millis(100), receiver.changed())
+            .await
+            .expect("metrics watcher should be notified after commit metrics change")
+            .expect("metrics watcher should stay open");
+        match receiver.borrow_and_update().clone() {
+            MetricsEvent::Update(updated_task_id, updated_job_id, updated_metrics) => {
+                assert_eq!(updated_task_id, task_id);
+                assert_eq!(updated_job_id, job_id);
+                assert_eq!(updated_metrics.tmq().commits.load(SeqCst), 1);
+            }
+            event => panic!("expected update event, got {event:?}"),
+        }
+
+        clear_metrics(task_id, job_id).await;
+    }
 
     /// # description
     /// Test case for real-time synchronization of a database using TMQ and TD.

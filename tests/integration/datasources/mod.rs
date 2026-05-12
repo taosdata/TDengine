@@ -24,6 +24,9 @@ pub mod mssql;
 #[cfg(feature = "test-mqtt")]
 pub mod mqtt;
 
+#[cfg(feature = "test-tmq")]
+pub mod tmq;
+
 #[cfg(feature = "test-opcua")]
 pub mod opcua;
 
@@ -39,7 +42,12 @@ pub mod historian;
 /// Reads integration test environment variable with `INTEGRATION_TEST_` prefix.
 #[cfg(all(
     test,
-    any(feature = "test-kafka", feature = "test-mqtt", feature = "test-opcua")
+    any(
+        feature = "test-kafka",
+        feature = "test-mqtt",
+        feature = "test-tmq",
+        feature = "test-opcua"
+    )
 ))]
 pub(crate) fn env_var(key: &str) -> anyhow::Result<String> {
     use anyhow::Context;
@@ -50,8 +58,8 @@ pub(crate) fn env_var(key: &str) -> anyhow::Result<String> {
 /// Derives Explorer root URL from INTEGRATION_TEST_TAOSX_API_BASE_URL.
 ///
 /// This is the single source of truth for integration tests.
-/// CI sets INTEGRATION_TEST_TAOSX_API_BASE_URL=http://localhost:${PORT_6060}/api/x/
-/// and we derive http://localhost:${PORT_6060}/ from it.
+/// CI sets INTEGRATION_TEST_TAOSX_API_BASE_URL=http://127.0.0.1:${PORT_6060}/api/x/
+/// and we derive http://127.0.0.1:${PORT_6060}/ from it.
 #[cfg(all(test, any(feature = "test-mqtt", feature = "test-opcua")))]
 pub(crate) fn explorer_base_url_from_env() -> String {
     env_var("TAOSX_API_BASE_URL")
@@ -99,7 +107,10 @@ fn derive_explorer_base_url_from_api(raw: &str) -> Option<String> {
     Some(url.to_string())
 }
 
-#[cfg(all(test, any(feature = "test-kafka", feature = "test-mqtt")))]
+#[cfg(all(
+    test,
+    any(feature = "test-kafka", feature = "test-mqtt", feature = "test-tmq")
+))]
 pub async fn resolve_agent_via(
     client: &crate::core::api::ApiClient,
     with_agent: bool,

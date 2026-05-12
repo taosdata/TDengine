@@ -1,26 +1,18 @@
-use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
 use actix_web::body::BoxBody;
-use actix_web::{
-    HttpRequest, HttpResponse, Responder, ResponseError, get, post,
-    web::{Data, Path, Query},
-};
+use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, get, post, web::Query};
 use anyhow::Context;
 use anyhow::anyhow;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
-use taosx_core::core_metrics::CoreMetrics;
 use utoipa::*;
 
 use taosx_core::{get_data_dir, get_file_upload_home_dir};
-
-use crate::serve::controller::TaskControllerRef;
-use crate::serve::metrics::try_get_metrics_from_task;
 
 /// Task endpoint error responses
 #[derive(Debug, Default, Serialize, Deserialize, Clone, ToSchema)]
@@ -95,77 +87,6 @@ pub(super) enum FromOrTo {
 pub struct TaskBatchReq {
     /// task ids
     ids: Vec<i64>,
-}
-
-/// Get tmq task progress by given task ID in respect of the vgroup consume progress.
-#[get("/tasks/{id}/{job_id}/vgroup_progress")]
-pub(super) async fn get_tmq_task_vgroup_progress(
-    task_store: Data<TaskControllerRef>,
-    id: Path<i64>,
-    job_id: Path<i64>,
-) -> impl Responder {
-    let task_id = id.into_inner();
-    let job_id = job_id.into_inner();
-    let task = task_store.get_task(task_id, job_id).await;
-    match task {
-        Some(task) => {
-            let metrics = try_get_metrics_from_task(&task).await;
-            match metrics {
-                Some(metrics) => match metrics.as_ref() {
-                    CoreMetrics::TMQ(tmq_metrics) => tmq_metrics.get_progress_string(),
-                    _ => {
-                        tracing::error!("Expect TmqMetrics, but got: {:?}", metrics);
-                        "{}".to_string()
-                    }
-                },
-                None => {
-                    tracing::info!("Not found metrics for task: {}", task_id);
-                    "{}".to_string()
-                }
-            }
-        }
-        None => {
-            tracing::info!("Not found task by id: {}", task_id);
-            "{}".to_string()
-        }
-    }
-}
-
-/// Get tmq task progress by given task ID in respect of latest data in specific table.
-#[get("/tasks/{id}/table_progress")]
-pub(super) async fn get_tmq_task_table_progress(
-    task_store: Data<TaskControllerRef>,
-    id: Path<i64>,
-    query: Query<HashMap<String, String>>,
-) -> impl Responder {
-    let task_id = id.into_inner();
-    let job_id = -1;
-    let table = query.get("table");
-    if table.is_none() {
-        return Err(Failed::from_error("table name is required"));
-    }
-    let table = table.unwrap().as_str();
-    let start = query.get("start");
-    let end = query.get("end");
-    let task = task_store.get_task(task_id, job_id).await;
-    match task {
-        Some(task) => {
-            let from = &task.from;
-            let to = &task.to;
-            let table_progress = tmq_to_td::get_table_progress(from, to, table, start, end).await;
-            match table_progress {
-                Ok(progress) => Ok(serde_json::to_string(&progress).unwrap()),
-                Err(err) => {
-                    tracing::error!("Get table progress error: {}", err);
-                    Err(Failed::from_error(err))
-                }
-            }
-        }
-        None => {
-            tracing::info!("Not found task by id: {}", task_id);
-            Ok("{}".to_string())
-        }
-    }
 }
 
 #[derive(Debug, MultipartForm, ToSchema)]

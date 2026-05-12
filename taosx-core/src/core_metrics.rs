@@ -291,12 +291,12 @@ pub trait TaskMetrics: Into<CoreMetrics> + Serialize {
     }
 
     #[inline]
-    fn received_messages(&self) {
-        self.com().received_messages();
+    fn received_messages(&self) -> u64 {
+        self.com().received_messages()
     }
     #[inline]
-    fn processed_messages(&self) {
-        self.com().processed_messages();
+    fn processed_messages(&self) -> u64 {
+        self.com().processed_messages()
     }
 }
 
@@ -527,6 +527,11 @@ pub fn compute_avg_speed(
         common_metrics.execute_time.load(SeqCst)
     };
     map.insert("execute_time".to_string(), execute_time.into());
+    if execute_time == 0 {
+        map.insert("rows_per_second".to_string(), 0.0.into());
+        map.insert("points_per_second".to_string(), 0.0.into());
+        return;
+    }
     map.insert(
         "rows_per_second".to_string(),
         (written_rows as f64 * 1000_f64 / execute_time as f64).into(),
@@ -736,32 +741,17 @@ pub fn get_task_metrics_string(
     metrics: Arc<CoreMetrics>,
 ) -> anyhow::Result<String> {
     let running = status.is_running();
-    let mut is_tmq = false;
     let (common_metrics, json) = match metrics.as_ref() {
         CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
-        CoreMetrics::TMQ(tmq_metrics) => {
-            is_tmq = true;
-            (tmq_metrics.com(), tmq_metrics.to_json())
-        }
+        CoreMetrics::TMQ(tmq_metrics) => (tmq_metrics.com(), tmq_metrics.to_json()),
         CoreMetrics::IPC(ipc_metrics) => (ipc_metrics.com(), ipc_metrics.to_json()),
     };
     let mut map = serde_json::from_str::<HashMap<String, serde_json::Value>>(&json)
         .context("deserialize metrics to map")?;
     map.remove("task_id");
     map.remove("stable");
-    if is_tmq {
-        map.remove("written_rows");
-        map.remove("total_written_rows");
-        map.remove("written_points");
-        map.remove("total_written_points");
-        map.remove("success_blocks");
-        map.remove("total_success_blocks");
-        map.remove("write_raw_fails");
-        map.remove("total_write_raw_fails");
-    } else {
-        compute_total_avg_speed(common_metrics, &mut map);
-        compute_avg_speed(common_metrics, &mut map, running);
-    }
+    compute_total_avg_speed(common_metrics, &mut map);
+    compute_avg_speed(common_metrics, &mut map, running);
     let result = split_to_total_and_current(&map);
     serde_json::to_string(&result).context("serialize metrics to string")
 }
@@ -769,8 +759,41 @@ pub fn get_task_metrics_string(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::get_data_dir;
+    use crate::runners::ENV_TAOSX_DATA_DIR;
+    use std::{
+        ffi::{OsStr, OsString},
+        sync::OnceLock,
+    };
     const TEST_STABLE: &str = "test_stable";
+
+    static DATA_DIR_ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set<P: AsRef<OsStr>>(key: &'static str, value: P) -> Self {
+            let original = std::env::var_os(key);
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(original) = &self.original {
+                    std::env::set_var(self.key, original);
+                } else {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+    }
 
     /// This test case is to verify that the global metrics can be accessed by multiple threads and the metrics can be updated concurrently.
     #[tokio::test]
@@ -830,8 +853,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_save_load_and_clear_metrics() {
-        let task_dir = get_data_dir().join("tasks").join("1024");
-        std::fs::create_dir_all(&task_dir).unwrap();
+        let _env_lock = DATA_DIR_ENV_LOCK
+            .get_or_init(|| tokio::sync::Mutex::new(()))
+            .lock()
+            .await;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let _env_guard = EnvVarGuard::set(ENV_TAOSX_DATA_DIR, tmp.path());
         let db = MetricsStore::new(1024, -1).await;
 
         let legacy_to_taos_metrics =
@@ -1042,6 +1069,21 @@ mod tests {
         assert_eq!(execute_time, 2500);
         assert!((rows_per_second - 500.0).abs() < 1e-6);
         assert!((points_per_second - 100.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compute_avg_speed_zero_time_uses_zero_speed() {
+        let metrics = CommonMetrics::default();
+        metrics.execute_time.store(0, SeqCst);
+        metrics.written_rows.store(1250, SeqCst);
+        metrics.written_points.store(250, SeqCst);
+
+        let mut map = HashMap::new();
+        compute_avg_speed(&metrics, &mut map, false);
+
+        assert_eq!(map.get("execute_time").unwrap().as_u64().unwrap(), 0);
+        assert_eq!(map.get("rows_per_second").unwrap().as_f64().unwrap(), 0.0);
+        assert_eq!(map.get("points_per_second").unwrap().as_f64().unwrap(), 0.0);
     }
 
     #[test]

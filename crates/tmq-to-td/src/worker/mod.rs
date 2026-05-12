@@ -13,7 +13,7 @@ use taos::*;
 use taosx_core::tmq::Topic;
 use taosx_core::{
     Action,
-    core_metrics::{CoreMetrics, TaskMetrics},
+    core_metrics::{CoreMetrics, TaskMetrics, update_metrics},
     legacy_metric::LegacyToTaosMetrics,
     tmq::tmq_metric::TmqMetrics,
     utils::sql::BlockPartitionBy,
@@ -58,16 +58,52 @@ pub struct RawMessage {
     pub meta: Option<JsonMeta>,
     /// TMQ data blocks in current message.
     pub data: Option<Vec<RawBlock>>,
+    /// Precomputed counts for raw-message writes that do not write blocks one by one.
+    raw_write_metrics: Option<RawWriteMetrics>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct RawWriteMetrics {
+    rows: u64,
+    points: u64,
+    block_count: u64,
+}
+
+impl RawWriteMetrics {
+    fn from_counts(rows: u64, columns: u64) -> Self {
+        Self {
+            rows,
+            points: rows.saturating_mul(columns),
+            block_count: 1,
+        }
+    }
+
+    fn from_block_shape(rows: usize, columns: usize) -> Self {
+        Self::from_counts(rows as u64, columns as u64)
+    }
+
+    fn add_block(&mut self, block: &RawBlock) {
+        let block_metrics = Self::from_block_shape(block.nrows(), block.ncols());
+        self.rows = self.rows.saturating_add(block_metrics.rows);
+        self.points = self.points.saturating_add(block_metrics.points);
+        self.block_count = self.block_count.saturating_add(block_metrics.block_count);
+    }
 }
 
 impl RawMessage {
-    pub fn raw_only(mid: usize, mty: MessageType, raw: RawMeta) -> Self {
+    pub fn raw_only(
+        mid: usize,
+        mty: MessageType,
+        raw: RawMeta,
+        raw_write_metrics: Option<RawWriteMetrics>,
+    ) -> Self {
         Self {
             mid,
             mty,
             raw,
             meta: None,
             data: None,
+            raw_write_metrics,
         }
     }
     pub fn meta_only(mid: usize, raw: RawMeta, meta: Option<JsonMeta>) -> Self {
@@ -77,16 +113,19 @@ impl RawMessage {
             raw,
             meta,
             data: None,
+            raw_write_metrics: None,
         }
     }
 
     pub fn data_only(mid: usize, raw: RawMeta, data: Vec<RawBlock>) -> Self {
+        let raw_write_metrics = raw_blocks_metrics(&data);
         Self {
             mid,
             mty: MessageType::DataOnly,
             raw,
             meta: None,
             data: Some(data),
+            raw_write_metrics,
         }
     }
 
@@ -96,20 +135,74 @@ impl RawMessage {
         meta: Option<JsonMeta>,
         data: Vec<RawBlock>,
     ) -> Self {
+        let raw_write_metrics = raw_blocks_metrics(&data);
         Self {
             mid,
             mty: MessageType::MetaData,
             raw,
             meta,
             data: Some(data),
+            raw_write_metrics,
         }
     }
 
-    pub fn rows(&self) -> Option<usize> {
-        self.data
-            .as_ref()
-            .map(|v| v.iter().map(|b| b.nrows()).sum())
+    pub fn rows(&self) -> Option<u64> {
+        self.raw_write_metrics
+            .map(|metrics| metrics.rows)
+            .or_else(|| {
+                self.data.as_ref().map(|blocks| {
+                    blocks.iter().fold(0u64, |rows, block| {
+                        rows.saturating_add(block.nrows() as u64)
+                    })
+                })
+            })
     }
+}
+
+fn raw_blocks_metrics(blocks: &[RawBlock]) -> Option<RawWriteMetrics> {
+    if blocks.is_empty() {
+        return None;
+    }
+    let mut metrics = RawWriteMetrics::default();
+    for block in blocks {
+        metrics.add_block(block);
+    }
+    Some(metrics)
+}
+
+pub(super) async fn raw_data_write_metrics(data: &Data) -> Result<Option<RawWriteMetrics>> {
+    let mut metrics = RawWriteMetrics::default();
+    while let Some(block) = data
+        .fetch_raw_block()
+        .await
+        .context("Fetch raw block for metrics error")?
+    {
+        metrics.add_block(&block);
+    }
+    Ok((metrics.block_count > 0).then_some(metrics))
+}
+
+pub(super) fn record_successful_raw_write_metrics(
+    metrics: &TmqMetrics,
+    raw_write_metrics: Option<RawWriteMetrics>,
+) {
+    if let Some(raw_write_metrics) = raw_write_metrics {
+        metrics.add_suc_blocks(raw_write_metrics.block_count);
+        metrics.add_written_rows(raw_write_metrics.rows);
+        metrics.add_written_points(raw_write_metrics.points);
+        update_metrics(metrics.com.task_id, metrics.com.job_id);
+    }
+}
+
+pub(super) fn record_successful_block_write_metrics(
+    metrics: &TmqMetrics,
+    rows: usize,
+    columns: usize,
+) {
+    metrics.add_suc_blocks(1);
+    metrics.add_written_rows(rows as _);
+    metrics.add_written_points(RawWriteMetrics::from_block_shape(rows, columns).points);
+    update_metrics(metrics.com.task_id, metrics.com.job_id);
 }
 
 // async fn parse_data_only(
@@ -286,10 +379,18 @@ impl WriteOptions {
         metrics.add_message_bytes(raw.raw_len() as _);
 
         if self.actions.is_empty() && !self.strategy.require_blocks() {
+            let raw_write_metrics = raw_data_write_metrics(data)
+                .await
+                .inspect_err(|err| {
+                    tracing::warn!("failed to collect raw data write metrics: {err:#}")
+                })
+                .ok()
+                .flatten();
             return Ok(RawMessage::raw_only(
                 self.next_mid(),
                 MessageType::DataOnly,
                 raw,
+                raw_write_metrics,
             ));
         }
         let mut vec = Vec::new();
@@ -312,10 +413,18 @@ impl WriteOptions {
         let raw = meta.as_raw_meta().await?;
         metrics.add_message_bytes(raw.raw_len() as _);
         if self.actions.is_empty() && self.strategy.without_json_meta() {
+            let raw_write_metrics = raw_data_write_metrics(data)
+                .await
+                .inspect_err(|err| {
+                    tracing::warn!("failed to collect raw metadata write metrics: {err:#}")
+                })
+                .ok()
+                .flatten();
             return Ok(RawMessage::raw_only(
                 self.next_mid(),
                 MessageType::MetaData,
                 raw,
+                raw_write_metrics,
             ));
         }
         let json_meta = meta
@@ -1024,9 +1133,7 @@ impl Worker {
                     .with_context(raw_block_context)
                     .context("write table with stmt error")?;
             }
-            metrics.add_suc_blocks(1);
-            metrics.add_written_rows(raw.nrows() as _);
-            metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
+            record_successful_block_write_metrics(metrics, raw.nrows(), raw.ncols());
         }
         tracing::debug!(
             "End writing data, current written rows {}",
@@ -1293,9 +1400,7 @@ impl Worker {
                 .with_context(raw_block_context)
                 .context("write table with stmt error")?;
         }
-        metrics.add_suc_blocks(1);
-        metrics.add_written_rows(raw.nrows() as _);
-        metrics.add_written_points((raw.nrows() * raw.ncols()) as _);
+        record_successful_block_write_metrics(metrics, raw.nrows(), raw.ncols());
         tracing::debug!(
             "End writing block, current written rows {}",
             metrics.written_rows()
@@ -1348,6 +1453,7 @@ impl Worker {
             .as_ref()
             .tmq()
             .add_write_raw_cost_ms(elapsed.as_millis() as _);
+        let mut record_raw_metrics = res.is_ok();
         if let Err(err) = res {
             // metrics.add_write_raw_fails(1);
             // Print error no matter how we will deal with it, so that we can know what happened.
@@ -1419,6 +1525,7 @@ impl Worker {
                         .with_context(|| format!("Retry error: {err2}"))
                         .context("Write raw message into target error");
                 }
+                record_raw_metrics = true;
             }
             if let Some(meta) = &message.meta {
                 match code {
@@ -1619,6 +1726,12 @@ impl Worker {
             }
         }
 
+        if record_raw_metrics {
+            record_successful_raw_write_metrics(
+                self.metrics.as_ref().tmq(),
+                message.raw_write_metrics,
+            );
+        }
         Ok(())
     }
 }
@@ -1695,5 +1808,114 @@ impl deadpool::managed::Manager for Worker {
         _metrics: &Metrics,
     ) -> RecycleResult<Self::Error> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::Ordering::SeqCst;
+    use taosx_core::core_metrics::{
+        MetricsEvent, clear_metrics, insert_metrics, subscribe_task_metrics_watcher,
+    };
+
+    #[test]
+    fn successful_raw_write_metrics_record_rows_points_and_blocks() {
+        let metrics = TmqMetrics::default();
+        let raw_write_metrics = RawWriteMetrics {
+            rows: 12,
+            points: 36,
+            block_count: 3,
+        };
+
+        record_successful_raw_write_metrics(&metrics, Some(raw_write_metrics));
+
+        assert_eq!(metrics.written_rows(), 12);
+        assert_eq!(metrics.total_written_rows(), 12);
+        assert_eq!(metrics.written_points(), 36);
+        assert_eq!(metrics.total_written_points(), 36);
+        assert_eq!(metrics.success_blocks.load(SeqCst), 3);
+        assert_eq!(metrics.total_success_blocks.load(SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn successful_raw_write_metrics_notifies_metrics_watcher() {
+        let task_id = 90_001;
+        let job_id = 90_002;
+        let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
+            "test_stable".to_string(),
+            task_id,
+            job_id,
+            None,
+        )));
+        insert_metrics(task_id, job_id, metrics.clone());
+        let mut receiver = subscribe_task_metrics_watcher(task_id, job_id)
+            .expect("metrics watcher should exist after metrics are inserted");
+
+        let raw_write_metrics = RawWriteMetrics {
+            rows: 12,
+            points: 36,
+            block_count: 3,
+        };
+        record_successful_raw_write_metrics(metrics.tmq(), Some(raw_write_metrics));
+
+        tokio::time::timeout(std::time::Duration::from_millis(100), receiver.changed())
+            .await
+            .expect("metrics watcher should be notified after successful raw write metrics change")
+            .expect("metrics watcher should stay open");
+        match receiver.borrow_and_update().clone() {
+            MetricsEvent::Update(updated_task_id, updated_job_id, updated_metrics) => {
+                assert_eq!(updated_task_id, task_id);
+                assert_eq!(updated_job_id, job_id);
+                assert_eq!(updated_metrics.tmq().written_rows(), 12);
+            }
+            event => panic!("expected update event, got {event:?}"),
+        }
+
+        clear_metrics(task_id, job_id).await;
+    }
+
+    #[tokio::test]
+    async fn successful_block_write_metrics_notifies_metrics_watcher() {
+        let task_id = 90_003;
+        let job_id = 90_004;
+        let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
+            "test_stable".to_string(),
+            task_id,
+            job_id,
+            None,
+        )));
+        insert_metrics(task_id, job_id, metrics.clone());
+        let mut receiver = subscribe_task_metrics_watcher(task_id, job_id)
+            .expect("metrics watcher should exist after metrics are inserted");
+
+        record_successful_block_write_metrics(metrics.tmq(), 4, 3);
+
+        tokio::time::timeout(std::time::Duration::from_millis(100), receiver.changed())
+            .await
+            .expect(
+                "metrics watcher should be notified after successful block write metrics change",
+            )
+            .expect("metrics watcher should stay open");
+        match receiver.borrow_and_update().clone() {
+            MetricsEvent::Update(updated_task_id, updated_job_id, updated_metrics) => {
+                assert_eq!(updated_task_id, task_id);
+                assert_eq!(updated_job_id, job_id);
+                assert_eq!(updated_metrics.tmq().written_rows(), 4);
+                assert_eq!(updated_metrics.tmq().written_points(), 12);
+            }
+            event => panic!("expected update event, got {event:?}"),
+        }
+
+        clear_metrics(task_id, job_id).await;
+    }
+
+    #[test]
+    fn raw_write_metrics_saturates_point_count() {
+        let metrics = RawWriteMetrics::from_counts(u64::MAX, 2);
+
+        assert_eq!(metrics.rows, u64::MAX);
+        assert_eq!(metrics.points, u64::MAX);
+        assert_eq!(metrics.block_count, 1);
     }
 }
