@@ -51,3 +51,39 @@ pub fn sql_value_escaped_fmt(value: &str) -> SingleQuoteSqlValueEscaped<'_> {
 pub fn sql_value_escape(value: &str) -> String {
     SingleQuoteSqlValueEscaped(value).to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sql_value_escape_wraps_plain_text_in_single_quotes() {
+        assert_eq!(sql_value_escape("abc"), "'abc'");
+        assert_eq!(sql_value_escape(""), "''");
+    }
+
+    #[test]
+    fn sql_value_escape_doubles_single_quotes() {
+        assert_eq!(sql_value_escape("it's ok"), "'it''s ok'");
+    }
+
+    #[test]
+    fn sql_value_escape_backslash_escapes_control_chars_and_quotes() {
+        assert_eq!(
+            sql_value_escape("a\tb\rc\nd\\e\"f"),
+            "'a\\tb\\rc\\nd\\\\e\\\"f'"
+        );
+    }
+
+    #[test]
+    fn sql_value_escape_omits_null_bytes() {
+        assert_eq!(sql_value_escape("a\0b"), "'ab'");
+    }
+
+    #[test]
+    fn sql_value_escaped_fmt_can_be_used_with_format_args() {
+        let escaped = format!("values ({})", sql_value_escaped_fmt("x'y"));
+
+        assert_eq!(escaped, "values ('x''y')");
+    }
+}
