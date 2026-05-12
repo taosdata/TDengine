@@ -442,7 +442,11 @@ bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or origina
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
+#ifdef USE_UDF
 bool    tsStartUdfd = true;
+#else
+bool    tsStartUdfd = false;
+#endif
 
 // wal
 int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
