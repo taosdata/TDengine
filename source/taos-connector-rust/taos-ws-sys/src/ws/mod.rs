@@ -435,7 +435,7 @@ fn taos_init_impl() -> Result<(), Box<dyn std::error::Error>> {
         return Err(TaosError::new(Code::FAILED, &err).into());
     }
 
-    unsafe { std::env::set_var("TZ", config::timezone().as_str()) };
+    util::set_tz_env(config::timezone().as_str());
 
     let mut layers = Vec::new();
     let log_dir = config::log_dir();
