@@ -1,11 +1,11 @@
 ---
-title: "GE Cimplicity OPC UA Server 集成指南"
-sidebar_label: "GE Cimplicity"
+title: "GE CSS OPC UA Server 集成指南"
+sidebar_label: "GE CSS OPC UA Server"
 ---
 
-本页介绍当数据源是 **GE Cimplicity OPC UA Server** 时，如何在 taosX Explorer 中配置 OPC UA 连接。
+本页介绍当数据源是 **GE CSS OPC UA Server** 时，如何在 taosX Explorer 中配置 OPC UA 连接。
 
-OPC UA 安全分为两个相互独立的层级，连接 GE Cimplicity OPC Server 时两者都必须满足：
+OPC UA 安全分为两个相互独立的层级，连接 GE CSS OPC UA Server 时两者都必须满足：
 
 ### 安全通道（Secure Channel）
 

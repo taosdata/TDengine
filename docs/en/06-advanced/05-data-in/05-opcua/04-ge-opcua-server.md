@@ -1,11 +1,11 @@
 ---
-title: "GE Cimplicity OPC UA Server Integration Guide"
-sidebar_label: "GE Cimplicity"
+title: "GE CSS OPC UA Server Integration Guide"
+sidebar_label: "GE CSS OPC UA Server"
 ---
 
-This page describes how to configure the OPC UA connection in taosX Explorer when the data source is a **GE Cimplicity OPC UA Server**.
+This page describes how to configure the OPC UA connection in taosX Explorer when the data source is a **GE CSS OPC UA Server**.
 
-OPC UA security has two independent layers, and you have to satisfy both for a GE Cimplicity OPC UA Server.
+OPC UA security has two independent layers, and you have to satisfy both for a GE CSS OPC UA Server.
 
 ### Secure Channel
 
