@@ -163,30 +163,58 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   numCpuCores = TMAX(numCpuCores, 2);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int32_t)numCpuCores * 2);
 
-  char    pathTaosdLdLib[512] = {0};
-  size_t  taosdLdLibPathLen = sizeof(pathTaosdLdLib);
+  char    pathTaosdLdLibStack[512] = {0};
+  char   *pathTaosdLdLib = pathTaosdLdLibStack;
+  char   *pathTaosdLdLibHeap = NULL;
+  size_t  taosdLdLibPathLen = sizeof(pathTaosdLdLibStack);
   int32_t ret = uv_os_getenv(UDF_LIB_PATH_ENV, pathTaosdLdLib, &taosdLdLibPathLen);
-  if (ret != UV_ENOBUFS) {
+  if (ret == UV_ENOBUFS) {
+    // taosdLdLibPathLen now holds the required buffer size (incl. NUL).
+    pathTaosdLdLibHeap = (char *)taosMemoryCalloc(taosdLdLibPathLen, 1);
+    if (pathTaosdLdLibHeap == NULL) {
+      return terrno;
+    }
+    pathTaosdLdLib = pathTaosdLdLibHeap;
+    ret = uv_os_getenv(UDF_LIB_PATH_ENV, pathTaosdLdLib, &taosdLdLibPathLen);
+    if (ret != 0) {
+      pathTaosdLdLib[0] = '\0';
+      taosdLdLibPathLen = 0;
+    } else {
+      taosdLdLibPathLen = strlen(pathTaosdLdLib);
+    }
+  } else if (ret != 0) {
+    pathTaosdLdLib[0] = '\0';
+    taosdLdLibPathLen = 0;
+  } else {
     taosdLdLibPathLen = strlen(pathTaosdLdLib);
   }
 
-  char   udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
+  size_t joinedLen = udfdLdLibPathLen + taosdLdLibPathLen + 2;  // sep + NUL
+  char  *udfdPathLdLib = (char *)taosMemoryCalloc(joinedLen, 1);
+  if (udfdPathLdLib == NULL) {
+    taosMemoryFreeClear(pathTaosdLdLibHeap);
+    return terrno;
+  }
   if (udfdLdLibPathLen > 0 && taosdLdLibPathLen > 0) {
-    snprintf(udfdPathLdLib, sizeof(udfdPathLdLib), "%s%c%s",
+    snprintf(udfdPathLdLib, joinedLen, "%s%c%s",
              tsUdfdLdLibPath, UDF_LIB_PATH_SEP, pathTaosdLdLib);
   } else if (udfdLdLibPathLen > 0) {
-    tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, sizeof(udfdPathLdLib));
+    tstrncpy(udfdPathLdLib, tsUdfdLdLibPath, joinedLen);
   } else {
-    tstrncpy(udfdPathLdLib, pathTaosdLdLib, sizeof(udfdPathLdLib));
+    tstrncpy(udfdPathLdLib, pathTaosdLdLib, joinedLen);
   }
-  if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    fnInfo("udfd %s: %s", UDF_LIB_PATH_ENV, udfdPathLdLib);
-  } else {
-    fnError("can not set correct udfd %s", UDF_LIB_PATH_ENV);
+  fnInfo("udfd %s: %s", UDF_LIB_PATH_ENV, udfdPathLdLib);
+  taosMemoryFreeClear(pathTaosdLdLibHeap);
+
+  size_t ldLibEnvLen = strlen(UDF_LIB_PATH_ENV) + 1 /* '=' */ + strlen(udfdPathLdLib) + 1;
+  char  *ldLibPathEnvItem = (char *)taosMemoryCalloc(ldLibEnvLen, 1);
+  if (ldLibPathEnvItem == NULL) {
+    taosMemoryFree(udfdPathLdLib);
+    return terrno;
   }
-  char ldLibPathEnvItem[1024 + 32] = {0};
-  snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", UDF_LIB_PATH_ENV, udfdPathLdLib);
+  snprintf(ldLibPathEnvItem, ldLibEnvLen, "%s=%s", UDF_LIB_PATH_ENV, udfdPathLdLib);
+  taosMemoryFree(udfdPathLdLib);
 
   char *taosFqdnEnvItem = NULL;
   char *taosFqdn = getenv("TAOS_FQDN");
@@ -293,6 +321,9 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 _OVER:
   if (taosFqdnEnvItem) {
     taosMemoryFree(taosFqdnEnvItem);
+  }
+  if (ldLibPathEnvItem) {
+    taosMemoryFree(ldLibPathEnvItem);
   }
 
   if (envUdfdWithPEnv != NULL) {
