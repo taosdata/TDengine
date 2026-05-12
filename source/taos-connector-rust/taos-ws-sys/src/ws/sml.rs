@@ -694,6 +694,41 @@ mod tests {
     }
 
     #[test]
+    fn test_sml_insert_raw_line_micro_seconds() {
+        unsafe {
+            let taos = test_connect();
+            test_exec_many(
+                taos,
+                &[
+                    "drop database if exists test_1778486191",
+                    "create database test_1778486191 precision 'us'",
+                    "use test_1778486191",
+                ],
+            );
+
+            let data = "measurement,host=host1 field1=2i,field2=2.0 1741153642000000";
+            let data = data.as_bytes();
+            let len = data.len() as i32;
+            let lines = data.as_ptr() as *mut _;
+            let mut total_rows = 0;
+            let protocol = TSDB_SML_PROTOCOL_TYPE::TSDB_SML_LINE_PROTOCOL as i32;
+            let precision = TSDB_SML_TIMESTAMP_TYPE::TSDB_SML_TIMESTAMP_MICRO_SECONDS as i32;
+
+            let res =
+                taos_schemaless_insert_raw(taos, lines, len, &mut total_rows, protocol, precision);
+            assert!(!res.is_null());
+            assert_eq!(total_rows, 1);
+
+            let affected_rows = taos_affected_rows(res);
+            assert_eq!(affected_rows, 1);
+
+            taos_free_result(res);
+            test_exec(taos, "drop database test_1778486191");
+            taos_close(taos);
+        }
+    }
+
+    #[test]
     fn test_sml_insert() {
         unsafe {
             let taos = test_connect();
