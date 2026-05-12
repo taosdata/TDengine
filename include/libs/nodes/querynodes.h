@@ -740,6 +740,7 @@ typedef struct SSelectStmt {
   bool            joinContains;
   bool            mixSysTableAndActualTable;
   bool            hasScalarExpr;
+  bool            windowScalarMode;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

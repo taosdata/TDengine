@@ -928,10 +928,14 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
 
   switch (pWin->winType) {
     case WINDOW_TYPE_INTERVAL:
-    case WINDOW_TYPE_EXTERNAL:
+      // In projection mode (no agg funcs, only scalar projections), interval window reuses
+      // session/state batch split since it only needs partition-level data without time-alignment
+      // or cross-vnode merge that the normal interval split requires.
       if (!pWin->pFuncs && pWin->pProjs) {
         return stbSplSplitSessionOrStateForBatch(pCxt, pInfo);
       }
+      return stbSplSplitIntervalForBatch(pCxt, pInfo);
+    case WINDOW_TYPE_EXTERNAL:
       return stbSplSplitIntervalForBatch(pCxt, pInfo);
     case WINDOW_TYPE_SESSION:
     case WINDOW_TYPE_STATE:

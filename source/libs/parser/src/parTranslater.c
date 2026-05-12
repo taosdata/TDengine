@@ -5382,6 +5382,13 @@ static EDealRes checkProjectionModeHasScalarExpr(SNode* pNode, void* pCtx) {
   return DEAL_RES_CONTINUE;
 }
 
+static bool isExternalWindowInScalarMode(SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow || nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW) {
+    return false;
+  }
+  return pSelect->windowMode != WINDOW_MODE_AGG;
+}
+
 static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
   if (pSelect->pProjectionList == NULL || pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc || pSelect->pGroupByList) {
     return false;
@@ -5393,7 +5400,7 @@ static bool checkWindowProjectionMode(SSelectStmt* pSelect) {
   if (ctx.hasScalarExpr) {
     return true;
   } else {
-    return (pSelect->windowMode == WINDOW_MODE_SCALAR);
+    return (pSelect->windowMode == WINDOW_MODE_SCALAR) || isExternalWindowInScalarMode(pSelect);
   }
 }
 
@@ -5408,7 +5415,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   bool   isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
-  bool   isScalarMode = checkWindowProjectionMode(pSelect);
+  bool   isScalarMode = pSelect->windowScalarMode;
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
@@ -5512,7 +5519,7 @@ static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode** pNode) {
 
 static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pList) {
   if (NULL == getGroupByList(pCxt) &&
-      (NULL == pSelect->pWindow || nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW) &&
+      (NULL == pSelect->pWindow || isExternalWindowInScalarMode(pSelect)) &&
       (!isWindowJoinStmt(pSelect) || (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc))) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5734,19 +5741,18 @@ static EDealRes checkExtWinPartAggProjectionWalker(SNode* pNode, void* pContext)
 
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList ||
-      (NULL != pSelect->pWindow && nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW) ||
+      (NULL != pSelect->pWindow && !isExternalWindowInScalarMode(pSelect)) ||
       isWindowJoinStmt(pSelect) ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc &&
        !pSelect->hasForecastFunc)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // For EXTERNAL_WINDOW, `PARTITION BY` provides the grouping semantics already.
+  // For EXTERNAL_WINDOW in SCALAR mode, `PARTITION BY` provides the grouping semantics already.
   // Do NOT rewrite columns-to-selectVal here, otherwise
   // it may perturb downstream slot mapping (e.g. window primary ts key) and cause
   // execution-time failures.
-  if (NULL != pSelect->pWindow && nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW &&
-      NULL != pSelect->pPartitionByList) {
+  if (isExternalWindowInScalarMode(pSelect) && NULL != pSelect->pPartitionByList) {
     // Still enforce "not single-group" for tbname/tag outputs that are not in PARTITION BY.
     // Keep the behavior consistent with non-window queries, while avoiding select_val rewrite.
     CheckExtWinPartAggProjCxt extCxt = {.pTranslateCxt = pCxt, .pSelect = pSelect, .invalidName = NULL};
@@ -8016,7 +8022,7 @@ static EDealRes needFillImpl(SNode* pNode, void* pContext) {
 
 
 static bool needFill(SNode* pNode, bool isScalarMode) {
-  SNeedFillContext cxt = {.hasFillFunc = false, isScalarMode = isScalarMode};
+  SNeedFillContext cxt = {.hasFillFunc = false, .isScalarMode = isScalarMode};
   nodesWalkExpr(pNode, needFillImpl, &cxt);
   return cxt.hasFillFunc;
 }
@@ -8704,6 +8710,7 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkExternalWindowFillQueryType(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pSelect->windowScalarMode = checkWindowProjectionMode(pSelect);
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
   }
   if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
@@ -12181,6 +12188,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
   }
+  if (TSDB_CODE_SUCCESS == code && pSelect->windowMode != WINDOW_MODE_NONE && NULL == pSelect->pWindow) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTR_USAGE, "SCALAR/AGG");
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateGroupBy(pCxt, pSelect);
   }
@@ -12227,7 +12237,10 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = resetSelectFuncNumWithoutDup(pSelect);
-    if (TSDB_CODE_SUCCESS == code) code = checkAggColCoexist(pCxt, pSelect);
+    if (TSDB_CODE_SUCCESS == code) {
+      pSelect->windowScalarMode = checkWindowProjectionMode(pSelect);
+      code = checkAggColCoexist(pCxt, pSelect);
+    }
   }
   /*
     if (TSDB_CODE_SUCCESS == code) {
@@ -14849,6 +14862,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
   if (NULL == pSelect) {
     return code;
   }
+  pSelect->windowMode = WINDOW_MODE_NONE;
   snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
   code = buildTableForSampleAst(pInfo, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -23404,6 +23418,7 @@ static int32_t createSimpleSelectStmtImpl(const char* pDb, const char* pTable, S
   snprintf(pRealTable->table.tableAlias, sizeof(pRealTable->table.tableAlias), "%s", pTable);
   pSelect->pFromTable = (SNode*)pRealTable;
   pSelect->pProjectionList = pProjectionList;
+  pSelect->windowMode = WINDOW_MODE_NONE;
 
   *pStmt = pSelect;
 
@@ -28206,6 +28221,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
 
   pStmt->pProjectionList = pProjList;
   pStmt->pFromTable = pTempTblNode;
+  pStmt->windowMode = WINDOW_MODE_NONE;
   snprintf(pStmt->stmtName, TSDB_TABLE_NAME_LEN, "%p", pStmt);
 
   nodesDestroyNode(pQuery->pRoot);

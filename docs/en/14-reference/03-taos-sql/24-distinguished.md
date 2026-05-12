@@ -433,9 +433,11 @@ Where:
 
 2. **Aggregation and computation within windows:** The outer query calculates independently within each window range and supports aggregation and scalar expressions.
 
-3. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
+3. **Window query mode:** External windows support the `SCALAR` / `AGG` keywords. Unlike other windows, external windows default to **projection mode** (each window outputs all original rows) in the ambiguous case. Use `AGG` to switch to aggregation mode (one row per window). See [Window Projection Mode](#window-projection-mode) for details.
 
-4. **Grouping and alignment**
+4. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
+
+5. **Grouping and alignment**
 
 - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
 - When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
@@ -444,7 +446,7 @@ Where:
 - When the subquery uses grouping but the outer query does not, the syntax is invalid.
 - **Current limitation and caveat:** When both inner and outer queries use grouping, and the window subquery also uses `ORDER BY`, the sorting may disturb the original organization of each grouped window stream. The outer query may then operate on a merged window stream, causing the inner grouping semantics to become ineffective, as if there were no grouping, and the one-to-one alignment between inner and outer groups is lost.
 
-5. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
+6. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
 
 #### Rules for Referencing Window Attribute Columns
 
@@ -572,14 +574,16 @@ The system automatically detects the query mode based on the SELECT list:
 
 - **Aggregation mode**: The SELECT list contains aggregate functions; each window outputs one row.
 - **Projection mode**: The SELECT list contains column expressions or indefinite-row functions (such as DIFF, CSUM, etc.); each window outputs all original rows.
-- **Ambiguous case**: When the SELECT list contains only pseudocolumns (`_wstart`, `_wend`, etc.), tag columns, tbname, constants, group keys, and/or state keys, the system defaults to aggregation mode.
+- **Ambiguous case**: When the SELECT list contains only pseudocolumns (`_wstart`, `_wend`, etc.), tag columns, tbname, constants, group keys, and/or state keys, INTERVAL, SESSION, STATE_WINDOW, EVENT_WINDOW, and COUNT_WINDOW default to aggregation mode, while EXTERNAL_WINDOW defaults to projection mode.
 
 #### SCALAR / AGG Keywords
 
 In ambiguous cases, the `SCALAR` or `AGG` keyword can be used to explicitly specify the mode:
 
 - `SCALAR`: Forces projection mode.
-- `AGG`: Explicitly declares aggregation mode (consistent with the default behavior).
+- `AGG`: Forces aggregation mode.
+
+Note: For EXTERNAL_WINDOW, the default mode in the ambiguous case is projection mode (opposite to other windows). Use `AGG` to switch it to aggregation mode.
 
 These keywords are placed between `SELECT` and the select list, after `TAGS`. The syntax is:
 
@@ -600,6 +604,18 @@ SELECT SCALAR _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
 SELECT _wstart, ts, current FROM d1001 INTERVAL(3s);
 SELECT SCALAR _wstart, ts, current FROM d1001 INTERVAL(3s);
 SELECT AGG _wstart, ts, current FROM d1001 INTERVAL(3s);
+```
+
+EXTERNAL_WINDOW defaults to projection mode in the ambiguous case. Use `AGG` to switch to aggregation mode:
+
+```sql
+-- Ambiguous case: only pseudocolumns + tags, EXTERNAL_WINDOW defaults to projection mode (N rows per window)
+SELECT _wstart, _wend, location FROM d1001
+  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+
+-- Use AGG to force aggregation mode (1 row per window)
+SELECT AGG _wstart, _wend, location FROM d1001
+  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
 ```
 
 #### FILL Support

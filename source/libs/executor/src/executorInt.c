@@ -1294,19 +1294,19 @@ static int32_t fillIndefRowsWindowPseudoCols(SOperatorInfo* pOperator, SIndefRow
                                              SSDataBlock* pBlock, const STimeWindow* pWin,
                                              int32_t startOffset, int32_t rows) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t line = 0;
+  int32_t lino = 0;
   if (rows <= 0) {
     return code;
   }
   code = fillPseudoColsInExprSupp(&pOperator->exprSupp, pBlock, pWin, startOffset, rows);
-  QUERY_CHECK_CODE(code, line, _return);
+  QUERY_CHECK_CODE(code, lino, _return);
   if (pRuntime != NULL && pRuntime->projSupp.numOfExprs > 0) {
     code = fillPseudoColsInExprSupp(&pRuntime->projSupp, pBlock, pWin, startOffset, rows);
-    QUERY_CHECK_CODE(code, line, _return);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
   return code;
 _return:
-  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 

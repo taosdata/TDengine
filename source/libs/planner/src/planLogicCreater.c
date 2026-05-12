@@ -2312,7 +2312,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     pWindow->node.requireDataOrder = pCxt->pCurrRoot->resultDataOrder;
     pWindow->node.resultDataOrder = pCxt->pCurrRoot->resultDataOrder;
   } else {
-    if (!pSelect->hasAggFuncs) {
+    bool extWinExplicitAgg = (pSelect->windowMode == WINDOW_MODE_AGG && !pSelect->hasScalarExpr);
+    if (!pSelect->hasAggFuncs && !extWinExplicitAgg) {
       if (pSelect->hasIndefiniteRowsFunc) {
         pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
         pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;

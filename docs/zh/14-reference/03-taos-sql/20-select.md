@@ -119,7 +119,7 @@ true_for_expr: {
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
   - EVERY: 时间间隔范围，every_val 为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
-- SCALAR | AGG：窗口查询模式关键字（3.4.2.0 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，系统默认选择聚合模式。此时可使用 `SCALAR` 强制切换为投影模式，或使用 `AGG` 显式声明聚合模式。详见 [TDengine TSDB 特色查询](../distinguished#窗口投影模式)。
+- SCALAR | AGG：窗口查询模式关键字（3.4.2.0 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [TDengine TSDB 特色查询](../distinguished#窗口投影模式)。
 - fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
