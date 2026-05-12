@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.25.10'
 
       - name: Install go-licenses
         run: go install github.com/google/go-licenses/v2@latest
