@@ -22,8 +22,9 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "tutil.h"
 #include "tcompare.h"
+#include "tunit.h"
+#include "tutil.h"
 
 #define CFG_VER_NUMBER    1
 #define CFG_RESERVE_SIZE  63

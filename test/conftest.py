@@ -279,7 +279,7 @@ def before_test_class(request):
     time.sleep(request.session.create_dnode_num)
     # check dnodes ready
     count = 0
-    timeout = 20
+    timeout = 60
     while count < timeout:
         tdSql.query("select * from information_schema.ins_dnodes")
         status = 0

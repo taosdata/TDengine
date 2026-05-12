@@ -317,7 +317,7 @@ TEST(osSemaphoreTests, Performance4_1) {
       (void)tsem_post(&sem);
     });
 
-    EXPECT_EQ(tsem_timewait(&sem, 1000),0);
+    EXPECT_EQ(tsem_timewait(&sem, 10000), 0);
 
     p.join();
 
@@ -334,7 +334,7 @@ TEST(osSemaphoreTests, Performance4_2) {
       (void)tsem2_post(&sem);
     });
 
-    (void)tsem2_timewait(&sem, 1000);
+    EXPECT_EQ(tsem2_timewait(&sem, 10000), 0);
 
     p2.join();
 

@@ -1562,6 +1562,86 @@ class TestCase:
         for role_name in invalid_role_names:
             tdSql.error(f"create role {role_name}", expectErrInfo="Invalid role format", fullMatched=False)
 
+    def do_check_alter_pass_privilege(self):
+        """Verify ALTER PASS privilege correctly distinguishes self vs others.
+
+        Covers the fix in parTranslater.c where the password-change privilege check
+        was comparing authRsp.user (requesting user) against pParCxt->pUser (also the
+        requesting user) — always equal — so the 'change others password' branch was
+        never triggered. After fix it compares against targetUser correctly.
+        """
+        tdSql.connect("root", "taosdata")
+
+        # Cleanup from previous runs
+        for stmt in [
+            "drop user u_pass_a",
+            "drop user u_pass_b",
+        ]:
+            try:
+                tdSql.execute(stmt, queryTimes=1)
+            except Exception:
+                pass
+
+        # Create two normal users
+        tdSql.execute(f"create user u_pass_a pass '{self.test_pass}'")
+        tdSql.execute(f"create user u_pass_b pass '{self.test_pass}'")
+
+        # --- Case 1: user without ALTER PASS privilege cannot change another's password ---
+        tdSql.connect("u_pass_a", self.test_pass)
+        tdSql.error(
+            f"alter user u_pass_b pass 'NewPass_456!'",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # --- Case 2: grant ALTER PASS, now user CAN change another's password ---
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant alter pass to u_pass_a")
+        tdSql.execute(f"revoke role `SYSINFO_1` from u_pass_a")
+        tdSql.connect("u_pass_a", self.test_pass)
+        time.sleep(5)  # wait for privilege propagation
+        tdSql.execute(f"alter user u_pass_b pass 'NewPass_456!'")
+
+        # Verify u_pass_b can login with new password
+        tdSql.connect("u_pass_b", "NewPass_456!")
+        tdSql.query("select 1")
+        tdSql.checkRows(1)
+
+        # --- Case 3: revoke ALTER PASS, cannot change other's password ---
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("revoke alter pass from u_pass_a")
+        tdSql.execute("grant alter self pass to u_pass_a")
+        tdSql.connect("u_pass_a", self.test_pass)
+        time.sleep(5)
+        tdSql.error(
+            f"alter user u_pass_b pass 'AnotherPass_789!'",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # --- Case 4: user can change own password ---
+        tdSql.connect("u_pass_a", self.test_pass)
+        tdSql.execute(f"alter user u_pass_a pass 'SelfNew_123!'")
+        # Verify can login with new password
+        tdSql.connect("u_pass_a", "SelfNew_123!")
+        tdSql.query("select 1")
+        tdSql.checkRows(1)
+
+        # -- Case 5: user can't change own password --
+        tdSql.connect("root", "taosdata")
+        tdSql.execute(f"revoke alter self pass from u_pass_a")
+        tdSql.connect("u_pass_a", "SelfNew_123!")
+        time.sleep(5)
+        tdSql.error(f"alter user u_pass_a pass 'SelfNew_123@'", expectErrInfo="Permission denied", fullMatched=False)
+        tdSql.connect("u_pass_a", "SelfNew_123!")
+        tdSql.query("select 1")
+        tdSql.checkRows(1)
+
+        # Cleanup
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop user u_pass_a")
+        tdSql.execute("drop user u_pass_b")
+
     #
     # ------------------- main ----------------
     #
@@ -1611,5 +1691,6 @@ class TestCase:
         self.do_check_schemaless_db_owner()
         self.do_check_legacy_grammar()
         self.do_check_reserved_principal_names()
+        self.do_check_alter_pass_privilege()
         
         tdLog.debug("finish executing %s" % __file__)

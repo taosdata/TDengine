@@ -1960,7 +1960,7 @@ EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* p
         pOptions->hasFailedLoginAttempts || pOptions->hasPasswordLifeTime || pOptions->hasPasswordReuseTime ||
         pOptions->hasPasswordReuseMax || pOptions->hasPasswordLockTime || pOptions->hasPasswordGraceTime ||
         pOptions->hasInactiveAccountTime || pOptions->hasAllowTokenNum || pOptions->pSecurityLevels)) {
-    if (pCurrentUser && strcmp(pCurrentUser, pStmt->userName) == 0) {
+    if (pCurrentUser && strncmp(pCurrentUser, pStmt->userName, TSDB_USER_LEN) == 0) {
       privType = PRIV_PASS_ALTER_SELF;
     } else {
       privType = PRIV_PASS_ALTER;

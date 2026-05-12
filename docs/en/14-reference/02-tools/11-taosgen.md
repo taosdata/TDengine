@@ -13,7 +13,7 @@ taosgen currently supports Windows, Linux and macOS systems.
 Compared to taosBenchmark, taosgen offers the following advantages and improvements:
 
 - Provides job orchestration capabilities, with jobs supporting DAG dependencies to simulate real business processes.
-- Supports multiple targets/protocols (TDengine, MQTT, Kafka), enabling scenarios such as database writing and message publishing.
+- Supports multiple targets/protocols (TDengine, MQTT, Kafka, InfluxDB), enabling scenarios such as database writing and message publishing.
 - More diverse data generation methods, including support for Lua expressions to easily simulate real business data.
 - Supports real-time data generation, eliminating the need to pre-generate large data files, saving preparation time and better simulating real scenarios.
 - Supports various time interval strategies to control data writing operations, such as "playing" data according to its actual generation time.
@@ -67,11 +67,12 @@ Tip: If no parameters are specified when running taosgen, taosgen will create th
 
 ### Overall Structure
 
-The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", "schema", "concurrency", and "jobs".
+The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", "influxdb", "schema", "concurrency", and "jobs".
 
 - tdengine: Describes configuration parameters related to the TDengine database.
 - mqtt: Describes configuration parameters for the MQTT Broker.
 - kafka: Describes configuration parameters for the Kafka Broker.
+- influxdb: Describes configuration parameters for the InfluxDB database.
 - schema: Describes configuration parameters for data definition and generation.
 - concurrency: Describes job execution concurrency.
 - jobs: List structure, describes specific parameters for all jobs.
@@ -163,6 +164,14 @@ These parameters can also be set via command line options (`--log-dir`, `--log-f
     - sasl.password (string): The password for SASL authentication.
 
     For more parameters, refer to the [librdkafka configuration documentation](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md).
+
+#### InfluxDB Parameters
+
+- influxdb: Describes configuration parameters for the InfluxDB database, including:
+  - url (string): The HTTP address of the InfluxDB server, default: `http://localhost:8086`.
+  - token (string): API Token for authentication. Can also be set via the `INFLUXDB_TOKEN` environment variable.
+  - org (string): InfluxDB organization name, default: default.
+  - bucket (string): InfluxDB Bucket name, default: default.
 
 #### schema Parameters
 
@@ -267,6 +276,7 @@ Currently supported built-in actions:
 - `tdengine/insert`: Write data to TDengine database
 - `mqtt/publish`: Publish data to MQTT Broker
 - `kafka/produce`: Publish data to Kafka Broker
+- `influxdb/write`: Write data to InfluxDB database
 Each action can receive parameters via the with field, with content varying by action type.
 
 :::note
@@ -301,7 +311,10 @@ The `tdengine/create-child-table` action creates multiple child tables in the ta
 The `tdengine/insert` action writes data to specified child tables. Supports obtaining child table names and normal column data from generator or CSV file sources, and allows users to control timestamp attributes via various strategies. Also provides rich write control strategies for optimization.
 
 - schema: Uses global schema configuration by default; can be overridden for this action.
-- format (string): Format for writing data, options: sql, stmt, default: stmt.
+- format (string): Format for writing data, options: sql, stmt, schemaless, default: stmt.
+  - sql: Write data using SQL statements.
+  - stmt: Write data using parameterized write (Prepared Statement), suitable for high-performance batch writing.
+  - schemaless: Write data using Line Protocol format, without requiring pre-creation of super tables and child tables. Suitable for simulating data collection agents like Telegraf sending data to TDengine.
 - auto_create_table (bool): Whether to enable TDengine's auto-create-table feature to create tables on the fly when writing data; default: false.
 - concurrency (int): Number of threads for concurrent data writing, default: 8.
 - failure_handling (optional): Failure handling strategy:
@@ -368,6 +381,18 @@ The `kafka/produce` action publishes data to the specified topic. It supports ob
 - compression (string): Message compression type. Supported values: "none", "gzip", "snappy", "lz4", "zstd". Default is "none".
 - tbname_key (string): Specifies the field name for the table name in the JSON output. If set to an empty string (""), the table name is not included. Default is "table".
 - records_per_message (int): Number of records per message, default: 1.
+
+### Format for Writing Data to InfluxDB Action
+
+The `influxdb/write` action writes data to the specified InfluxDB Bucket via the InfluxDB v2 Write API in line protocol format. It supports obtaining data from generator or CSV file sources and allows users to control timestamp attributes via various strategies. It also provides rich write control strategies for optimization.
+
+- schema: Uses global schema configuration by default; can be overridden for this action. The `name` field in the schema will be used as the InfluxDB measurement name.
+- concurrency (int): Number of concurrent write threads, default: 8.
+- failure_handling: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- time_interval: For parameter details, see the description in [Format for Writing Data to TDengine Action](#format-for-writing-data-to-tdengine-action).
+- precision (string): Timestamp precision for writing. Options: "ns", "us", "ms", "s". Default is "ns".
+- batch_size (int): Number of line protocol rows per HTTP request, default: 5000. InfluxDB officially recommends a value of 5000.
+- gzip (bool): Whether to enable gzip compression. Default is false. Enabling gzip significantly reduces bandwidth usage and is recommended for large-batch writes.
 
 ## Configuration File Examples
 
@@ -542,4 +567,36 @@ In a multi-broker cluster, use high-concurrency writes to test Kafka's replica s
 
 ```yaml
 {{#include docs/examples/taosgen/taosgen_config.yaml:kafka_produce_config}}
+```
+
+### Generator-Based Data Generation, Writing to InfluxDB Example
+
+This example demonstrates how to use taosgen to simulate CPU monitoring data from 10 servers, each generating a record every 10 seconds with CPU usage metrics. The generated data is written to InfluxDB via the InfluxDB v2 Write API in line protocol format.
+
+Configuration details:
+
+- InfluxDB configuration
+  - Connection info: The InfluxDB service address is specified via url, and authentication is performed via token.
+  - Target: Data is written to the specified Bucket within the organization.
+- schema configuration
+  - Name: Specifies the measurement name as cpu, consistent with the measurement name output by Telegraf's cpu input plugin.
+  - Table names: Defines naming rules for generating 10 logical tables, from host_0 to host_9, used to organize and identify the generated data.
+  - Table column structure: Defines 4 fields (usage_idle, usage_system, usage_user, usage_iowait) and 2 tags (host, cpu).
+    - Timestamp: Uses nanosecond precision with a 10-second step increment, simulating Telegraf's default 10-second collection interval.
+    - Time-series data: Each CPU metric uses random numbers within specified ranges.
+    - Tag data: The host tag uses 10 server names, and the cpu tag uses 5 CPU core identifiers.
+  - Data generation behavior: Uses interlace mode, 100 records per table, 500 rows per batch.
+- Data writing: Writes to InfluxDB using 2 concurrent threads in line protocol format, with gzip compression enabled to reduce bandwidth usage.
+
+Scenario description:
+
+This configuration is specifically designed to simulate Telegraf-collected system monitoring data writing to InfluxDB. It is suitable for the following scenarios:
+
+- InfluxDB Write Performance Testing: Simulate monitoring data writes from large-scale server clusters to test InfluxDB's throughput and latency under high-concurrency line protocol writes.
+- Telegraf Data Simulation: Generate data in a format fully consistent with Telegraf's cpu plugin output, for testing data pipelines in environments without real devices.
+- InfluxDB to TDengine Migration Validation: Write simulated data to InfluxDB first, then test the complete data migration process from InfluxDB to TDengine.
+- Monitoring Platform Integration Testing: Provide continuous simulated data streams for monitoring platforms like Grafana to validate dashboard configurations and alert rules.
+
+```yaml
+{{#include docs/examples/taosgen/taosgen_config.yaml:influxdb_write_config}}
 ```

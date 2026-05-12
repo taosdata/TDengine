@@ -57,6 +57,7 @@ typedef struct SSTriggerWindow {
 typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
+  bool        forceWinOpen;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
@@ -84,6 +85,7 @@ typedef struct SSTriggerRealtimeGroup {
     };
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
+      char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
     };

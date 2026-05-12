@@ -29,7 +29,7 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-SDmNotifyHandle dmNotifyHdl = {.state = 0};
+SDmNotifyHandle dmNotifyHdl = {}; // zero-init (state = 0)
 
 #include "tq.h"
 int main(int argc, char **argv) {
@@ -40,7 +40,9 @@ int main(int argc, char **argv) {
 void tqWriteOffset() {
   TdFilePtr pFile = taosOpenFile(TQ_OFFSET_NAME, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
 
-  STqOffset offset = {.val = {.type = TMQ_OFFSET__LOG, .version = 8923}};
+  STqOffset offset = {};
+  offset.val.type = TMQ_OFFSET__LOG;
+  offset.val.version = 8923;
   strcpy(offset.subKey, "testtest");
   int32_t    bodyLen;
   int32_t    code;

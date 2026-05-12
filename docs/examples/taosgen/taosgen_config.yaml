@@ -267,3 +267,60 @@ jobs:
           concurrency: 8
           acks: 1
 # ANCHOR_END: kafka_produce_config
+
+# ANCHOR: influxdb_write_config
+influxdb:
+  url: http://localhost:8086
+  token: "your-influxdb-api-token"
+  org: default
+  bucket: default
+
+schema:
+  name: cpu
+  tbname:
+    prefix: host_
+    count: 10
+  columns:
+    - name: ts
+      type: timestamp
+      start: now
+      precision: ns
+      step: 10s
+    - name: usage_idle
+      type: float
+      min: 50
+      max: 99
+    - name: usage_system
+      type: float
+      min: 0
+      max: 20
+    - name: usage_user
+      type: float
+      min: 0
+      max: 50
+    - name: usage_iowait
+      type: float
+      min: 0
+      max: 10
+  tags:
+    - name: host
+      type: binary(64)
+      values: [server01, server02, server03, server04, server05, server06, server07, server08, server09, server10]
+    - name: cpu
+      type: binary(16)
+      values: [cpu-total, cpu0, cpu1, cpu2, cpu3]
+  generation:
+    interlace: 1
+    rows_per_table: 100
+    rows_per_batch: 500
+
+jobs:
+  write-data:
+    steps:
+      - uses: influxdb/write
+        with:
+          concurrency: 2
+          precision: ns
+          batch_size: 500
+          gzip: true
+# ANCHOR_END: influxdb_write_config

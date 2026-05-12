@@ -338,6 +338,78 @@ gcc -g -O0 -fPIC -shared extract_avg.c -o libextract_avg.so
 
 </details>
 
+#### Aggregate Function Example 4: Accumulate All Data Then Compute — Permutation Entropy
+
+Permutation Entropy was proposed by Bandt and Pompe in 2002. It measures the complexity of a time series by analyzing the probability distribution of ordinal patterns and is widely used in fault detection, physiological signal analysis, and related fields.
+
+`perm_entropy` is a **full-accumulation** aggregate function: its algorithm requires all data in the window before computation can begin. Each AGG_PROC call therefore only accumulates data; the entropy is computed in the `perm_entropy_finish` callback. This is fundamentally different from functions like `l2norm` that can be computed incrementally row by row.
+
+This pattern involves **two independent memory layers** whose ownership must be kept clear:
+
+| Memory layer | Owner | Typical variable | Allocated / freed by |
+|---|---|---|---|
+| **Framework container** (fixed size = BUFSIZE) | Framework | `interBuf->buf`, `newInterBuf->buf`, `resultData->buf` | Framework `malloc`s before each callback and frees via `freeUdfInterBuf()` after; UDF may only write into it — **must not replace the pointer** |
+| **UDF heap content** (dynamic size) | UDF | `state->values` (a pointer embedded inside the container) | UDF grows it with `realloc` as needed; `freeUdfInterBuf()` frees only the container and is unaware of inner pointers; UDF **must** free it explicitly in `finish` and on every error path |
+
+Responsibilities of each callback:
+
+- `perm_entropy_start`: zero-initialises a `PermEntropyState` with `memset` into the framework-provided `interBuf->buf`; the `values` pointer is left `NULL` (heap content not yet allocated).
+- `perm_entropy` (AGG_PROC):
+  1. Value-copy the state from `interBuf->buf` into a stack variable `newState`;
+  2. If the current batch has valid rows, extend the UDF heap content (`newState.values`) with `realloc` and append the data;
+  3. `memcpy` `newState` (with the updated `values` pointer) into the framework-preallocated `newInterBuf->buf` — **never** replace `newInterBuf->buf` with a fresh `malloc`, or the BUFSIZE bytes the framework allocated are lost on every AGG_PROC call;
+  4. On `realloc` failure, free the original UDF heap content via `interBuf->buf` and zero the pointer, because `freeUdfInterBuf()` will not follow the inner `values` pointer.
+- `perm_entropy_finish`: compute the permutation entropy from all accumulated data, **free `state->values`**, and write the result into the framework-preallocated `resultData->buf`.
+
+Create tables:
+
+```sql
+-- Plain table for full-table aggregation and time-window queries
+CREATE TABLE vibration (ts TIMESTAMP, val DOUBLE);
+
+-- Super table for per-subtable grouped queries
+CREATE STABLE vibration_stb (ts TIMESTAMP, val DOUBLE) TAGS (device_id INT);
+CREATE TABLE vibration_d1 USING vibration_stb TAGS (1);
+CREATE TABLE vibration_d2 USING vibration_stb TAGS (2);
+```
+
+Generate `.so` file:
+
+```bash
+gcc -g -O0 -fPIC -shared perm_entropy.c -o libperm_entropy.so -lm
+```
+
+Create custom function:
+
+```sql
+CREATE AGGREGATE FUNCTION perm_entropy
+  AS '/path/to/libperm_entropy.so'
+  OUTPUTTYPE DOUBLE
+  BUFSIZE 256;
+```
+
+Use custom function:
+
+```sql
+-- Full-table aggregation: compute permutation entropy over the entire table
+SELECT perm_entropy(val) FROM vibration;
+
+-- Time-window aggregation: compute permutation entropy independently for each window
+SELECT perm_entropy(val) FROM vibration INTERVAL(10s);
+
+-- Grouped by subtable: compute permutation entropy separately for each device
+SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
+```
+
+<details>
+<summary>perm_entropy.c</summary>
+
+```c
+{{#include docs/examples/udf/perm_entropy.c}}
+```
+
+</details>
+
 ## Developing UDFs in Python Language
 
 ### Environment Setup

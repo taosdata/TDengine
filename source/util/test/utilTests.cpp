@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <tutil.h>
 #include <random>
+#include <functional>
 #include "tglobal.h"
 #include "ttime.h"
 
@@ -482,9 +483,9 @@ template <int16_t type, typename ValType, typename F>
 void dataBlockNullTest(const F& setValFunc) {
   int32_t         totalRows = 16;
   SColumnInfoData columnInfoData = createColumnInfoData(type, tDataTypes[type].bytes, 0);
-  SColumnDataAgg  columnDataAgg = {.numOfNull = 0};
+  SColumnDataAgg  columnDataAgg = {};  // zero-init (numOfNull = 0)
 
-  auto checkNull = [totalRows, &columnInfoData, &columnDataAgg](uint32_t row, bool expected) {
+  std::function<void(uint32_t, bool)> checkNull = [totalRows, &columnInfoData, &columnDataAgg](uint32_t row, bool expected) {
     EXPECT_EQ(colDataIsNull_s(&columnInfoData, row), expected);
     EXPECT_EQ(colDataIsNull_t(&columnInfoData, row, IS_VAR_DATA_TYPE(columnInfoData.info.type)), expected);
     EXPECT_EQ(colDataIsNull(&columnInfoData, totalRows, row, NULL), expected);

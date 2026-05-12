@@ -20,9 +20,35 @@
 #include "tanalytics.h"
 #include "tglobal.h"
 
+#ifdef TD_ENTERPRISE
 namespace {
-//
+class ClsConfigDynamicTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    taosCleanupCfg();
+    tsClsEnabled = false;
+    tsClsRefreshInterval = 3600;
+    gGrantClsPreRefreshInterval = 3600;
+    ASSERT_EQ(cfgInit(&tsCfg), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(cfgAddBool(tsCfg, "clsEnabled", tsClsEnabled, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL,
+                         CFG_PRIV_SYSTEM),
+              TSDB_CODE_SUCCESS);
+    ASSERT_EQ(cfgAddInt32(tsCfg, "clsRefreshInterval", tsClsRefreshInterval, 1, 86400, CFG_SCOPE_SERVER,
+                          CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM),
+              TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override { taosCleanupCfg(); }
+
+  void applyServerConfig(const char *name, const char *value, ECfgSrcType stype = CFG_STYPE_ALTER_SERVER_CMD) {
+    SConfig *pCfg = taosGetCfg();
+    ASSERT_NE(pCfg, nullptr);
+    ASSERT_EQ(cfgSetItem(pCfg, name, value, stype, true), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosCfgDynamicOptions(pCfg, name, true), TSDB_CODE_SUCCESS);
+  }
+};
 }  // namespace
+#endif
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
@@ -237,6 +263,39 @@ TEST(testCase, toInteger_test) {
   ret = toInteger(s, strlen(s), 10, &val);
   ASSERT_EQ(ret, -1);
 }
+
+#ifdef TD_ENTERPRISE
+TEST_F(ClsConfigDynamicTest, clsEnabledTransitionKeepsLastExplicitRefreshInterval) {
+  ASSERT_EQ(tsClsEnabled, false);
+  ASSERT_EQ(tsClsRefreshInterval, 3600);
+
+  applyServerConfig("clsRefreshInterval", "30");
+  ASSERT_EQ(tsClsRefreshInterval, 30);
+
+  applyServerConfig("clsEnabled", "1");
+  ASSERT_EQ(tsClsEnabled, true);
+  ASSERT_EQ(gGrantClsPreRefreshInterval, 30);
+  ASSERT_EQ(tsClsRefreshInterval, 2);
+
+  applyServerConfig("clsEnabled", "0");
+  ASSERT_EQ(tsClsEnabled, false);
+  ASSERT_EQ(gGrantClsPreRefreshInterval, 30);
+  ASSERT_EQ(tsClsRefreshInterval, 1);
+
+  applyServerConfig("clsEnabled", "1");
+  ASSERT_EQ(tsClsEnabled, true);
+  ASSERT_EQ(gGrantClsPreRefreshInterval, 30);
+  ASSERT_EQ(tsClsRefreshInterval, 2);
+
+  applyServerConfig("clsRefreshInterval", "40");
+  ASSERT_EQ(tsClsRefreshInterval, 40);
+
+  applyServerConfig("clsEnabled", "0");
+  ASSERT_EQ(tsClsEnabled, false);
+  ASSERT_EQ(gGrantClsPreRefreshInterval, 40);
+  ASSERT_EQ(tsClsRefreshInterval, 1);
+}
+#endif
 
 TEST(testCase, dmRepairDefaultsToNoWalRepair) {
   ASSERT_FALSE(dmRepairNeedWalRepair(123));

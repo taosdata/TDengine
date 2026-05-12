@@ -961,7 +961,7 @@ TEST(testCase, build_executor_tree_Test) {
 
 TEST(testCase, inMem_sort_Test) {
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
+  SOrder o = {}; o.order = TSDB_ORDER_ASC;
   o.col.info.colId = 1;
   o.col.info.type = TSDB_DATA_TYPE_INT;
   taosArrayPush(pOrderVal, &o);

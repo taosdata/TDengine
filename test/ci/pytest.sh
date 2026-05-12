@@ -18,7 +18,11 @@ else
   TD_OS=$(echo "${OS}" | awk '{print $1}')
 fi
 
-export ASAN_OPTIONS=detect_odr_violation=0
+# malloc_context_size=10: 每次分配只记录10层调用栈（默认30），大幅减少 ASAN 内存开销，避免 OOM-kill
+# quarantine_size_mb=64:  减小 ASAN 隔离区（默认256MB），进一步降低内存峰值
+# detect_leaks 默认开启（不设置 detect_leaks=0），由 checkAsan.sh 过滤 Python/numpy 等已知噪声，
+#              只统计调用栈中含 TDinternal/TDengine 路径的泄漏帧。
+export ASAN_OPTIONS=detect_odr_violation=0:malloc_context_size=10:quarantine_size_mb=64
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -100,13 +104,24 @@ else
   echo "AsanFile:" "$AsanFile"
 
   unset LD_PRELOAD
-  # export LD_PRELOAD=libasan.so.5
-  # export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
-  LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
-  export LD_PRELOAD
-  echo "Preload AsanSo:" $?
-
-  "$@" -A 2>"$AsanFile"
+  if [[ "${CI_ASAN_BUILD}" == "1" ]]; then
+    # ASAN 构建（others:latest GCC14, libasan.so.8 与测试容器匹配）
+    # 用 LD_PRELOAD 注入 libasan.so.8，使 libtaos.so 等共享库也能正常加载 ASAN 符号。
+    # 内核 6.8+ 的机器已在 run_container.sh 中跳过 CI_ASAN_BUILD=1，不会到达此分支。
+    LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
+    export LD_PRELOAD
+    echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD} (CI_ASAN_BUILD=1)"
+    "$@" -A 2>"$AsanFile"
+  elif [[ "${CI_NO_ASAN}" == "1" ]]; then
+    echo "Preload AsanSo: skipped (CI_NO_ASAN=1)"
+    "$@" 2>"$AsanFile"
+  else
+    # 兜底：legacy 路径（本地开发环境）
+    LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
+    export LD_PRELOAD
+    echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD}"
+    "$@" -A 2>"$AsanFile"
+  fi
 
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
