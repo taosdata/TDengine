@@ -142,8 +142,9 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
     }
 
     // toggle snap replication mode
-    vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
-    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+    vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d, sver:%" PRId64, TD_VID(pVnode), tsdbOpts.format,
+          pReader->sver);
+    if (tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
       pReader->tsdbDone = true;
     } else {
       pReader->tsdbRAWDone = true;
@@ -178,7 +179,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
-    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->pRanges, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
 
@@ -349,7 +350,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbRAWDone) {
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
-      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, pReader->pRanges,
+                                   &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 

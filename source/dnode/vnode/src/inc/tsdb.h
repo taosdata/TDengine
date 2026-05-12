@@ -724,7 +724,6 @@ int32_t            tsdbFSetPartListToRangeDiff(STsdbFSetPartList *pList, TFileSe
 typedef enum ETsdbRepFmt {
   TSDB_SNAP_REP_FMT_DEFAULT = 0,
   TSDB_SNAP_REP_FMT_RAW,
-  TSDB_SNAP_REP_FMT_HYBRID,
 } ETsdbRepFmt;
 
 typedef struct STsdbRepOpts {

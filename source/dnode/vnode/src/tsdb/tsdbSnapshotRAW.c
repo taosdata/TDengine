@@ -47,7 +47,7 @@ typedef struct STsdbSnapRAWReader {
   SDataFileRAWReaderIter dataIter[1];
 } STsdbSnapRAWReader;
 
-int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** reader) {
+int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRanges, STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -58,19 +58,24 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapR
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
+  TFileSetRangeArray* pTypedRanges = (TFileSetRangeArray*)pRanges;
+  if (pTypedRanges != NULL && TARRAY2_SIZE(pTypedRanges) > 0) {
+    code = tsdbFSCreateRefSnapshotWithRanges(tsdb->pFS, pTypedRanges, &reader[0]->fsetArr);
+  } else {
+    code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
+  }
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), __func__,
-              lino, tstrerror(code), ever, type);
+    tsdbError("vgId:%d %s failed at line %d since %s, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), __func__, lino,
+              tstrerror(code), ever, type);
     tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
-    tsdbInfo("vgId:%d, tsdb snapshot raw reader opened. sver:0, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), ever,
-             type);
+    tsdbInfo("vgId:%d, tsdb snapshot raw reader opened. ever:%" PRId64 " type:%d ranged:%d", TD_VID(tsdb->pVnode), ever,
+             type, (pTypedRanges != NULL && TARRAY2_SIZE(pTypedRanges) > 0));
   }
   return code;
 }

@@ -344,7 +344,7 @@ int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter, bool rollback);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapRAWReader ========================================
-int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** ppReader);
+int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, void* pRanges, STsdbSnapRAWReader** ppReader);
 void    tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
 int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
 // STsdbSnapRAWWriter ========================================
