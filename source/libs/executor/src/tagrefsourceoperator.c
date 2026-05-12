@@ -217,16 +217,6 @@ static int32_t tagRefSourceGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   // Scan tables until result block is full or no more tables
   while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
     code = tagRefSourceScanOneTable(pOperator, pRes, &mr, pRes->info.rows);
-
-    // Ignore certain errors and continue to next table
-    if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
-        code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
-      if (code != TSDB_CODE_SUCCESS) {
-        qWarn("%s: tagRefSourceScanOneTable failed, pos:%d, code:%s, skipping", __func__, pInfo->curPos,
-               tstrerror(code));
-      }
-      code = TSDB_CODE_SUCCESS;
-    }
     QUERY_CHECK_CODE(code, lino, _end);
 
     pInfo->curPos++;
