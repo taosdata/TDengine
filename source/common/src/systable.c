@@ -447,9 +447,10 @@ static const SSysDbTableSchema snapSendVnodesSchema[] = {
 static const SSysDbTableSchema snapSendFilesetsSchema[] = {
     {.name = "vgroup_id",     .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
     {.name = "fid",           .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "stt_count",     .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
-    {.name = "total_size",    .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
-    {.name = "sent_size",     .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "file_count",          .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "finished_file_count",  .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "total_size",           .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "read_size",            .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
     {.name = "start_time",    .bytes = 8,                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "elapsed",       .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
     {.name = "start_index",   .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},

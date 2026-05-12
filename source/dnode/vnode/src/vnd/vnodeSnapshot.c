@@ -982,9 +982,10 @@ int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnode
         SSnapSendFileSetStat *pSrc  = &pStat->pFileSetStats[i];
         SSnapSendFileSetInfo *pDest = &pInfo->pFileSetInfos[i];
         pDest->fid          = pSrc->fid;
-        pDest->sttCount     = pSrc->sttCount;
-        pDest->totalSize    = pSrc->totalSize;
-        pDest->sentSize     = pSrc->sentSize;
+        pDest->fileCount = pSrc->fileCount;
+        pDest->finishedFileCount = pSrc->finishedFileCount;
+        pDest->totalSize = pSrc->totalSize;
+        pDest->readSize = pSrc->readSize;
         pDest->startTime    = pSrc->startTime;
         pDest->sver         = pSrc->sver;
         pDest->ever         = pSrc->ever;

@@ -2332,9 +2332,10 @@ void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
 // Snap send progress query (mnode → dnode, dnode → mnode RSP)
 typedef struct {
   int32_t fid;
-  int32_t sttCount;
+  int32_t fileCount;
+  int32_t finishedFileCount;
   int64_t totalSize;
-  int64_t sentSize;
+  int64_t readSize;
   int64_t startTime;    // ms timestamp
   int64_t sver;
   int64_t ever;

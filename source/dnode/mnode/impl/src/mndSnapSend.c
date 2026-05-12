@@ -90,8 +90,6 @@ static int32_t mndProcessDnodeSnapSendProgressRsp(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  mDebug("snap-send-progress rsp from dnode:%d, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
-
   (void)taosThreadMutexLock(&gSnapSendMgmt.mutex);
 
   for (int32_t i = 0; i < rsp.numOfVnodes; i++) {
@@ -111,16 +109,20 @@ static int32_t mndProcessDnodeSnapSendProgressRsp(SRpcMsg *pReq) {
     SSnapSendVnodeInfo copy = *pSrc;
     copy.pFileSetInfos = pFsCopy;
 
-    // Evict old entry (free its pFileSetInfos)
-    SSnapSendVnodeInfo *pOld = taosHashGet(gSnapSendMgmt.pHash, &pSrc->vgId, sizeof(int32_t));
-    if (pOld) snapSendFreeVnodeInfo(pOld);
+    // Save old pFileSetInfos pointer so we can free it AFTER a successful put.
+    // Do NOT call snapSendFreeVnodeInfo before taosHashPut: if the put fails,
+    // it would leave an entry with fileSetCount>0 but pFileSetInfos=NULL in the
+    // hash, causing a NULL-dereference in mndRetrieveSnapSendFilesets.
+    SSnapSendVnodeInfo   *pOld = taosHashGet(gSnapSendMgmt.pHash, &pSrc->vgId, sizeof(int32_t));
+    SSnapSendFileSetInfo *pOldFs = (pOld != NULL) ? pOld->pFileSetInfos : NULL;
 
-    // Upsert
+    // Upsert — only free old memory after a successful put
     if (taosHashPut(gSnapSendMgmt.pHash, &pSrc->vgId, sizeof(int32_t), &copy, sizeof(copy)) != 0) {
       taosMemoryFree(pFsCopy);
       code = TSDB_CODE_OUT_OF_MEMORY;
       break;
     }
+    taosMemoryFree(pOldFs);
   }
 
   (void)taosThreadMutexUnlock(&gSnapSendMgmt.mutex);
@@ -334,7 +336,13 @@ int32_t mndRetrieveSnapSendFilesets(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      if (colDataSetVal(pColInfo, numOfRows, (const char *)&pFs->sttCount, false) != 0) {
+      if (colDataSetVal(pColInfo, numOfRows, (const char *)&pFs->fileCount, false) != 0) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _done;
+      }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      if (colDataSetVal(pColInfo, numOfRows, (const char *)&pFs->finishedFileCount, false) != 0) {
         code = TSDB_CODE_OUT_OF_MEMORY; goto _done;
       }
 
@@ -344,7 +352,7 @@ int32_t mndRetrieveSnapSendFilesets(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      if (colDataSetVal(pColInfo, numOfRows, (const char *)&pFs->sentSize, false) != 0) {
+      if (colDataSetVal(pColInfo, numOfRows, (const char *)&pFs->readSize, false) != 0) {
         code = TSDB_CODE_OUT_OF_MEMORY; goto _done;
       }
 

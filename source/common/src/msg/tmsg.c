@@ -8243,9 +8243,10 @@ int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDno
     for (int32_t j = 0; j < pInfo->fileSetCount; j++) {
       SSnapSendFileSetInfo *pFs = &pInfo->pFileSetInfos[j];
       TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFs->fid));
-      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFs->sttCount));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFs->fileCount));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFs->finishedFileCount));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFs->totalSize));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFs->sentSize));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFs->readSize));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFs->startTime));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFs->sver));
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFs->ever));
@@ -8300,9 +8301,10 @@ int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SD
     for (int32_t j = 0; j < pInfo->fileSetCount; j++) {
       SSnapSendFileSetInfo *pFs = &pInfo->pFileSetInfos[j];
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFs->fid));
-      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFs->sttCount));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFs->fileCount));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFs->finishedFileCount));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFs->totalSize));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFs->sentSize));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFs->readSize));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFs->startTime));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFs->sver));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFs->ever));

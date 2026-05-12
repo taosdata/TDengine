@@ -3620,7 +3620,7 @@ bool syncNodeSnapshotSending(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return false;
   bool b = false;
   for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
-    if (pSyncNode->senders[i] != NULL && pSyncNode->senders[i]->start) {
+    if (pSyncNode->senders[i] != NULL && snapshotSenderIsStart(pSyncNode->senders[i])) {
       b = true;
       break;
     }

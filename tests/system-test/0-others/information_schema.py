@@ -394,6 +394,25 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkRows(2)
 
+    def ins_snap_send_check(self):
+        # ins_snap_send_vnodes: table must exist and have the expected 6 columns.
+        # No active snapshot transfer in a single-node test, so 0 rows is correct.
+        tdSql.query('select * from information_schema.ins_snap_send_vnodes')
+        tdSql.checkRows(0)
+        tdSql.query('describe information_schema.ins_snap_send_vnodes')
+        col_names = [row[0] for row in tdSql.queryResult]
+        for col in ['vgroup_id', 'dnode_id', 'total_file_sets', 'finished_file_sets', 'start_time', 'elapsed']:
+            tdSql.checkEqual(True, col in col_names)
+
+        # ins_snap_send_filesets: table must exist and have the expected 10 columns.
+        tdSql.query('select * from information_schema.ins_snap_send_filesets')
+        tdSql.checkRows(0)
+        tdSql.query('describe information_schema.ins_snap_send_filesets')
+        col_names = [row[0] for row in tdSql.queryResult]
+        for col in ['vgroup_id', 'fid', 'file_count', 'finished_file_count',
+                    'total_size', 'read_size', 'start_time', 'elapsed',
+                    'start_index', 'end_index', 'transfer_type']:
+            tdSql.checkEqual(True, col in col_names)
 
     def run(self):
         self.prepare_data()
@@ -406,6 +425,7 @@ class TDTestCase:
         self.ins_grants_check()
         self.ins_encryptions_check()
         self.test_query_ins_tags()
+        self.ins_snap_send_check()
 
 
     def stop(self):

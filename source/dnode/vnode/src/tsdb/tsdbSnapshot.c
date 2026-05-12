@@ -241,7 +241,12 @@ static int32_t tsdbSnapReadRangeEnd(STsdbSnapReader* reader) {
   STsdb* tsdb = reader->tsdb;
   (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
   if (tsdb->pSnapStat != NULL) {
+    int32_t idx = reader->ctx->fsrArrIdx - 1;
     tsdb->pSnapStat->finishedFileSets++;
+    if (idx >= 0 && idx < tsdb->pSnapStat->totalFileSets) {
+      SSnapSendFileSetStat* pFs = &tsdb->pSnapStat->pFileSetStats[idx];
+      pFs->finishedFileCount = pFs->fileCount;
+    }
   }
   (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
 
@@ -504,6 +509,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
         for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
           if (fsr->fset->farr[ftype] != NULL) {
             s->totalSize += fsr->fset->farr[ftype]->f[0].size;
+            s->fileCount++;
           }
         }
         // sum up stt file sizes
@@ -512,7 +518,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
           STFileObj* fobj;
           TARRAY2_FOREACH(lvl->fobjArr, fobj) {
             s->totalSize += fobj->f[0].size;
-            s->sttCount++;
+            s->fileCount++;
           }
         }
       }
@@ -628,7 +634,7 @@ _exit:
       if (tsdb->pSnapStat != NULL) {
         int32_t idx = reader->ctx->fsrArrIdx - 1;
         if (idx >= 0 && idx < tsdb->pSnapStat->totalFileSets) {
-          tsdb->pSnapStat->pFileSetStats[idx].sentSize += ((SSnapDataHdr*)data[0])->size;
+          tsdb->pSnapStat->pFileSetStats[idx].readSize += ((SSnapDataHdr*)data[0])->size;
         }
       }
       (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);

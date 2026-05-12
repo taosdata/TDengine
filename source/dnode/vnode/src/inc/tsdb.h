@@ -363,9 +363,10 @@ typedef struct SCompMonitor SCompMonitor;
 // Snapshot send progress tracking structs (internal tsdb layer)
 typedef struct {
   int32_t fid;
-  int32_t sttCount;
+  int32_t fileCount;
+  int32_t finishedFileCount;
   int64_t totalSize;
-  int64_t sentSize;
+  int64_t readSize;
   int64_t startTime;    // ms timestamp, set at RangeBegin/RAWReadBegin
   int64_t sver;
   int64_t ever;
