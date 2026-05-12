@@ -4805,7 +4805,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "timezone",
     .type = FUNCTION_TYPE_TIMEZONE,
-    .classification = FUNC_MGT_SCALAR_FUNC,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,

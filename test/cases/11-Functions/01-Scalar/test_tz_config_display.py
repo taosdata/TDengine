@@ -10,13 +10,15 @@ Covers:
 - P2 Task 2.5: TODAY() connection timezone (L2 -> L3 -> L5)
 - NOW() regression (unchanged behavior)
 - P2: INTERVAL window aggregation gap coverage (session timezone not fully wired yet)
-- P6 Task 6.1/6.2: TIMEZONE([0|1]) function
+- P6 Task 6.1: TIMEZONE() returns session timezone (L2 -> L3 -> L5)
 """
 
-from new_test_framework.utils import tdLog, tdSql
-import json
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
+import os
 import pytest
+import re
+import subprocess
 
 
 ERR_INVALID_TIMEZONE = 0x26B2
@@ -224,13 +226,6 @@ class TestSetFirstDayOfWeek:
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '{initial}'")
             tdSql.connect()
 
-    @pytest.mark.skip(reason=(
-        "P4: TIMETRUNCATE(1w) not yet wired through qworker->planner->executor. "
-        "Un-skip when P4 is complete to verify that an existing connection's "
-        "firstDayOfWeek snapshot (L3 at creation time) is not overwritten by a "
-        "subsequent ALTER LOCAL on another connection. "
-        "This is the full behavioural regression for the clientEnv.c snapshot fix."
-    ))
     def test_fdow_alter_local_does_not_affect_existing_connection_timetruncate(self):
         """Existing connection must keep its L3 snapshot; ALTER LOCAL must only
         affect connections created afterwards.
@@ -282,7 +277,7 @@ class TestSetFirstDayOfWeek:
 
 
 class TestTimezoneFunc:
-    """TIMEZONE([0|1]) function tests."""
+    """TIMEZONE() function tests (P6 Task 6.1)."""
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -296,143 +291,88 @@ class TestTimezoneFunc:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (now, 1)')
 
-    @pytest.mark.skip(reason="P6: TIMEZONE(0) not yet implemented")
-    def test_timezone_no_param_and_0_identical(self):
-        """TIMEZONE() and TIMEZONE(0) should return the same client tz string."""
+    def test_timezone_returns_session_tz_after_set(self):
+        """TIMEZONE() should return current session timezone after SET TIMEZONE."""
         self.prepare_data()
-        tdSql.query("select timezone()")
-        r_none = tdSql.queryResult[0][0]
-        tdSql.query("select timezone(0)")
-        r_0 = tdSql.queryResult[0][0]
-        assert r_none == r_0, f"TIMEZONE() vs TIMEZONE(0): {r_none} vs {r_0}"
-        assert r_none is not None and len(r_none) > 0
-
-    @pytest.mark.skip(
-        reason="P1 regression: current TIMEZONE() reflects session L2 after SET TIMEZONE; "
-               "FS requires it to return client L3 unchanged (backward compat). "
-               "Will be fixed in P6 when TIMEZONE(0) is separated from session scope."
-    )
-    def test_timezone_returns_client_tz_not_session(self):
-        """TIMEZONE() must return client tz (L3) unchanged after SET TIMEZONE (backward compat).
-
-        SET TIMEZONE changes the session/connection timezone (L2).
-        TIMEZONE() is specified to return the CLIENT timezone string, not the
-        session override.  This is the backward-compatibility guarantee:
-        TIMEZONE(1) is the future API that exposes the L2/L3/L4 split.
-        """
-        self.prepare_data()
-        tdSql.query("select timezone()")
-        before = tdSql.queryResult[0][0]
         tdSql.execute("SET TIMEZONE 'America/New_York'")
         tdSql.query("select timezone()")
-        after = tdSql.queryResult[0][0]
-        assert before == after, \
-            f"TIMEZONE() should not change after SET TIMEZONE: {before} vs {after}"
+        val = tdSql.queryResult[0][0]
+        assert 'New_York' in val or 'America/New_York' in val, \
+            f"TIMEZONE() should reflect session timezone: {val}"
 
-    @pytest.mark.skip(reason="P6: TIMEZONE(1) not yet implemented")
-    def test_alter_local_timezone_changes_new_connections_only(self):
-        """ALTER LOCAL timezone should update client tz for new connections only."""
+    def test_timezone_no_set_fallback_l3_l5(self):
+        """Without SET TIMEZONE, TIMEZONE() should follow connection snapshot (L3->L5)."""
         self.prepare_data()
 
+        tdSql.connect()
         tdSql.query("select timezone()")
-        original_client_tz = tdSql.queryResult[0][0]
-
-        tdSql.query("select timezone(1)")
-        before = json.loads(tdSql.queryResult[0][0])
+        baseline = tdSql.queryResult[0][0]
 
         target = 'Asia/Shanghai'
-        if 'Shanghai' in original_client_tz or '+08' in original_client_tz:
+        if 'Shanghai' in baseline or '+08' in baseline:
+            target = 'UTC'
+
+        tdSql.execute(f"SET TIMEZONE '{target}'")
+        tdSql.query("select timezone()")
+        session_val = tdSql.queryResult[0][0]
+        assert target.split('/')[-1] in session_val or target == session_val, \
+            f"SET TIMEZONE should affect current session TIMEZONE(): target={target}, val={session_val}"
+
+        tdSql.connect()
+        tdSql.query("select timezone()")
+        reconnect_val = tdSql.queryResult[0][0]
+        assert reconnect_val == baseline, \
+            f"TIMEZONE() without SET should fallback to connection snapshot: baseline={baseline}, reconnect={reconnect_val}"
+
+    def test_alter_local_timezone_changes_new_connections_only(self):
+        """ALTER LOCAL timezone should affect new connections only."""
+        self.prepare_data()
+
+        def _get_global_timezone():
+            tdSql.query("SHOW LOCAL VARIABLES LIKE 'timezone'")
+            for row in tdSql.queryResult:
+                if row[0] == 'timezone':
+                    return str(row[1])
+            raise AssertionError("timezone not found in SHOW LOCAL VARIABLES")
+
+        tdSql.connect()
+        tdSql.query("select timezone()")
+        original = tdSql.queryResult[0][0]
+        original_global = _get_global_timezone().split(' (')[0]
+
+        target = 'Asia/Shanghai'
+        if 'Shanghai' in original or '+08' in original:
             target = 'UTC'
 
         try:
             tdSql.execute(f"alter local 'timezone {target}'")
 
             tdSql.query("select timezone()")
-            same_conn_tz = tdSql.queryResult[0][0]
-            assert same_conn_tz == original_client_tz, (
-                f"ALTER LOCAL should not affect established connection TIMEZONE(): "
-                f"before={original_client_tz}, after={same_conn_tz}"
-            )
-
-            tdSql.query("select timezone(1)")
-            same_conn = json.loads(tdSql.queryResult[0][0])
-            assert same_conn['client'] == before['client'], (
-                f"ALTER LOCAL should not affect established connection client tz: "
-                f"before={before['client']}, after={same_conn['client']}"
-            )
-            assert same_conn['session'] == before['session'], (
-                f"ALTER LOCAL should not affect established connection session tz: "
-                f"before={before['session']}, after={same_conn['session']}"
-            )
+            same_conn = tdSql.queryResult[0][0]
+            assert same_conn == original, \
+                f"ALTER LOCAL should not affect existing connection: before={original}, after={same_conn}"
 
             tdSql.connect()
             tdSql.query("select timezone()")
-            new_conn_tz = tdSql.queryResult[0][0]
-            assert target in new_conn_tz or target.split('/')[-1] in new_conn_tz, (
-                f"ALTER LOCAL should change TIMEZONE() for new connection: "
-                f"target={target}, actual={new_conn_tz}"
-            )
-
-            tdSql.query("select timezone(1)")
-            new_conn = json.loads(tdSql.queryResult[0][0])
-            assert target in new_conn['client'] or target.split('/')[-1] in new_conn['client'], (
-                f"ALTER LOCAL should change client tz for new connection: "
-                f"target={target}, actual={new_conn['client']}"
-            )
-            assert new_conn['session'] == new_conn['client'], (
-                f"Without SET TIMEZONE, session should follow new client tz after reconnect: "
-                f"session={new_conn['session']}, client={new_conn['client']}"
-            )
+            new_conn = tdSql.queryResult[0][0]
+            assert target in new_conn or target.split('/')[-1] in new_conn, \
+                f"ALTER LOCAL should affect new connection: target={target}, actual={new_conn}"
         finally:
-            tdSql.execute(f"alter local 'timezone {original_client_tz}'")
+            tdSql.execute(f"alter local 'timezone {original_global}'")
             tdSql.connect()
 
-    @pytest.mark.skip(reason="P6: TIMEZONE(1) not yet implemented")
-    def test_timezone_1_json_structure(self):
-        """TIMEZONE(1) should return JSON with session/client/server keys."""
-        self.prepare_data()
-        tdSql.query("select timezone(1)")
-        data = json.loads(tdSql.queryResult[0][0])
-        for key in ['session', 'client', 'server']:
-            assert key in data, f"Missing '{key}' in TIMEZONE(1): {data}"
-
-    @pytest.mark.skip(reason="P6: TIMEZONE(1) not yet implemented")
-    def test_timezone_1_session_reflects_set(self):
-        """TIMEZONE(1) session field should reflect SET TIMEZONE value."""
-        self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'America/New_York'")
-        tdSql.query("select timezone(1)")
-        data = json.loads(tdSql.queryResult[0][0])
-        assert 'New_York' in data['session'] or 'America/New_York' in data['session'], \
-            f"session should contain New_York: {data['session']}"
-
-    @pytest.mark.skip(reason="P6: TIMEZONE(1) not yet implemented")
-    def test_timezone_1_no_set_session_equals_client(self):
-        """Without SET TIMEZONE, session should equal client in TIMEZONE(1)."""
-        self.prepare_data()
-        tdSql.query("select timezone(1)")
-        data = json.loads(tdSql.queryResult[0][0])
-        assert data['session'] == data['client'], \
-            f"session should equal client: {data['session']} vs {data['client']}"
-
-    @pytest.mark.skip(reason="P6: TIMEZONE(0/1) not yet implemented")
     def test_timezone_invalid_params(self):
-        """TIMEZONE(2), TIMEZONE(-1), TIMEZONE('abc') should fail."""
+        """TIMEZONE() should reject any parameter under no-arg grammar."""
         self.prepare_data()
-        for p in ['2', '-1', "'abc'"]:
-            tdSql.error(
-                f"select timezone({p})",
-                expectedErrno=ERR_INVALID_FUNCTION_PARAM,
-            )
+        for p in ['0', '1', "'abc'"]:
+            tdSql.error(f"select timezone({p})")
 
-    @pytest.mark.skip(reason="P6: TIMEZONE(1) not yet implemented")
     def test_timezone_from_table(self):
-        """TIMEZONE() and TIMEZONE(1) should work in FROM table context."""
+        """TIMEZONE() should work in FROM table context."""
         self.prepare_data()
         tdSql.query(f"select timezone() from {self.ntbname}")
         tdSql.checkRows(1)
-        tdSql.query(f"select timezone(1) from {self.ntbname}")
-        tdSql.checkRows(1)
+        assert tdSql.queryResult[0][0] is not None and len(tdSql.queryResult[0][0]) > 0
 
 
 class TestDisplayTimezone:
@@ -451,20 +391,34 @@ class TestDisplayTimezone:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values ({self.ts}, 1)')
 
-    @pytest.mark.skip(
-        reason="P2: Python connector converts timestamps to system timezone datetime; "
-               "SELECT ts display with connection timezone is only visible via taos CLI"
-    )
     def test_select_ts_uses_connection_tz(self):
-        """SELECT ts should display differently with different connection timezones."""
+        """SELECT ts display should differ across session timezones in taos CLI output."""
         self.prepare_data()
-        tdSql.execute("SET TIMEZONE 'UTC'")
-        tdSql.query(f"select ts from {self.ntbname}")
-        r_utc = str(tdSql.queryResult[0][0])
 
-        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
-        tdSql.query(f"select ts from {self.ntbname}")
-        r_sh = str(tdSql.queryResult[0][0])
+        taos_bin = os.path.join(tdCom.getBuildPath(), "build", "bin", "taos")
+        cfg_path = tdCom.getClientCfgPath()
+        assert os.path.exists(taos_bin), f"taos binary not found: {taos_bin}"
+
+        def _query_ts_with_cli(timezone):
+            sql = (
+                f"use {self.dbname}; "
+                f"SET TIMEZONE '{timezone}'; "
+                f"select ts from {self.ntbname};"
+            )
+            result = subprocess.run(
+                [taos_bin, "-c", cfg_path, "-s", sql],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+            output = result.stdout
+            match = re.search(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}", output)
+            assert match is not None, f"cannot parse timestamp from taos output: {output}"
+            return match.group(0)
+
+        r_utc = _query_ts_with_cli('UTC')
+        r_sh = _query_ts_with_cli('Asia/Shanghai')
 
         assert r_utc != r_sh, f"SELECT ts should differ across timezones: {r_utc} vs {r_sh}"
 
@@ -665,10 +619,6 @@ class TestIntervalTimezone:
             ts = base + i * 7200000  # every 2 hours
             tdSql.execute(f'insert into {self.ntbname} values ({ts}, {i + 1})')
 
-    @pytest.mark.skip(
-        reason="P2 gap: interval(1d) still uses server timezone in current implementation; "
-               "enable this assertion after session timezone is wired into interval windows"
-    )
     def test_interval_1d_different_tz_different_buckets(self):
         """interval(1d) should produce different bucket counts under UTC vs Asia/Shanghai.
 

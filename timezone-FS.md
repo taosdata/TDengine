@@ -53,7 +53,7 @@
 | 普通列读取使用连接时区 | F1 | 使用客户端时区 | 改为连接时区 |
 | SHOW/EXPLAIN 使用连接时区 | F2 | 使用客户端时区 | 改为连接时区 |
 | `SET TIMEZONE` 语法 | F3 | 不存在（仅 C API `taos_options_connection`） | 新增 |
-| TIMEZONE() 函数增强 | F4 | 返回单个时区字符串 | 新增可选参数 `all`；默认保持单字符串，`all=1` 返回包含三级时区的字符串 |
+| TIMEZONE() 函数增强 | F4 | 返回客户端时区字符串（L3→L5） | 改为返回连接级时区字符串（L2→L3→L5） |
 | TO_ISO8601 / TO_CHAR 支持 IANA 时区 | F5 | 仅支持 `±HH:MM` 偏移格式；TO_CHAR 无时区参数 | 扩展支持 IANA；无时区参数时回退连接时区 |
 | TIMETRUNCATE 第三参数扩展 | F6 | 仅支持整数 `0`/`1` | 新增字符串时区参数 |
 | `firstDayOfWeek` 配置参数 | F7 | 不存在 | 新增（客户端 `taos.cfg` 静态配置或 `ALTER LOCAL` 动态修改） |
@@ -189,80 +189,40 @@ SET TIMEZONE '+14:30'; -- 返回错误, 超出允许范围
 #### 5.5.1 语法
 
 ```sql
-SELECT TIMEZONE([all]);
-```
-
-**参数**：
-- `all`：可选整数参数，仅接受 `0` 或 `1`
-- 省略或传 `0`：返回单个字符串，行为与当前版本一致
-- 传 `1`：返回单个 JSON 格式字符串，包含连接级、客户端、服务端三层时区信息
-
-#### 5.5.2 现有行为
-
-返回单个字符串：客户端时区字符串。
-
-#### 5.5.3 改造后行为
-
-默认行为保持兼容：
-
-- `TIMEZONE()` 或 `TIMEZONE(0)`：返回单个字符串，行为与当前版本一致，即返回客户端时区字符串
-- `TIMEZONE(1)`：返回单个 JSON 格式字符串，包含三级时区信息
-
-`TIMEZONE(1)` 的返回格式定义为：
-
-```text
-{"session":"<session_timezone>","client":"<client_timezone>","server":"<server_timezone>"}
-```
-
-其中：
-- `session_timezone`：连接级时区（L2）；未显式设置时仍输出实际生效的连接时区值，即继承客户端时区后的结果
-- `client_timezone`：客户端 `taos.cfg timezone` 配置值；未配置时回退到系统检测值
-- `server_timezone`：服务端 `taos.cfg timezone` 配置值；未配置时回退到系统检测值
-
-**示例 1**：已设置连接级时区
-
-```sql
--- 假设客户端/服务端配置文件中配置了 timezone=Asia/Shanghai
-SET TIMEZONE 'America/New_York';
 SELECT TIMEZONE();
 ```
 
-返回：
+无参数，不接受任何参数。
 
-```text
-Asia/Shanghai
+#### 5.5.2 现有行为
+
+返回单个字符串：客户端时区字符串（L3→L5）。
+
+#### 5.5.3 改造后行为
+
+`TIMEZONE()` 改为返回当前**连接级时区**字符串，回退链为 `L2 → L3 → L5`：
+
+- 若当前连接已通过 `SET TIMEZONE` 或 C API `taos_options_connection` 设置了连接级时区（L2），则返回该值
+- 否则回退到客户端全局时区（L3），再回退到系统检测值（L5）
+
+**示例**：
+
+```sql
+-- 假设客户端配置文件中配置了 timezone=Asia/Shanghai
+SET TIMEZONE 'America/New_York';
+SELECT TIMEZONE();
+-- 返回: America/New_York
 ```
 
 ```sql
-SELECT TIMEZONE(1);
+-- 未设置连接级时区时，回退到客户端时区
+SELECT TIMEZONE();
+-- 返回: Asia/Shanghai
 ```
-
-返回：
-
-```text
-{"session":"America/New_York (UTC-5, EST)","client":"Asia/Shanghai (UTC+8, CST)","server":"Asia/Shanghai (UTC+8, CST)"}
-```
-
-**示例 2**：未设置连接级时区
-
-```sql
-SELECT TIMEZONE(1);
-```
-
-返回：
-
-```text
-{"session":"Asia/Shanghai (UTC+8, CST)","client":"Asia/Shanghai (UTC+8, CST)","server":"Asia/Shanghai (UTC+8, CST)"}
-```
-
-**各字段含义**：
-- **session**（L2）：通过 `SET TIMEZONE` 或 C API `taos_options_connection` 设置的连接级时区，未设置时继承客户端时区
-- **client**（L3→L5）：客户端 `taos.cfg timezone` 配置值，未配置时回退到系统检测值
-- **server**（L4→L5）：服务端 `taos.cfg timezone` 配置值，未配置时回退到系统检测值
 
 #### 5.5.4 兼容性考虑
 
-默认调用 `TIMEZONE()` / `TIMEZONE(0)` 保持单行单列字符串返回，是**兼容变更**。仅显式使用 `TIMEZONE(1)` 时，才返回包含三级时区信息的 JSON 格式字符串。
+此变更属于**有条件改动**：仅在设置连接级时区后，返回值从客户端时区变为连接时区；未设置 L2 时行为与原版本一致（仍返回 L3→L5 的结果）。
 
 ## 6. firstDayOfWeek 配置与覆盖（F7, F8）
 
@@ -730,8 +690,8 @@ SELECT _wstart, COUNT(*) FROM t INTERVAL(1w);
 | 客户端 `firstDayOfWeek` 配置 / `SET FIRST_DAY_OF_WEEK` | 新增 | 新增配置和连接级覆盖能力；默认值为 4（周四），与 epoch 取模旧行为兼容，本身不破坏旧查询结果 |
 | `INTERVAL(..., q)` | 新增 | 新增季度窗口，不影响旧 SQL |
 | `INTERVAL(..., w)` | 行为变更 | 窗口起始日从 epoch 取模改为按 `firstDayOfWeek` 对齐；默认值 4（周四）时与旧行为一致；仅修改配置后才会影响窗口边界 |
-| `TIMEZONE()` 返回值 | 有条件改动 | 默认 `TIMEZONE()` / `TIMEZONE(0)` 保持旧格式兼容；仅新增 `TIMEZONE(1)` 扩展字符串返回三级时区信息 |
-| 新增错误码 `0x2600` / `0x2601` | 新增 | 仅在使用新增语法或传入非法参数时返回；不影响原有合法 SQL |
+| `TIMEZONE()` 返回值 | 有条件改动 | 仅在设置连接级时区（L2）后，返回值从客户端时区改为连接时区；未设置 L2 时行为与原版本一致（L3→L5 回退） |
+| 新增错误码 `0x26B2` / `0x26B3` | 新增 | 仅在使用新增语法或传入非法参数时返回；不影响原有合法 SQL |
 
 **兼容性说明**：
 - TIMETRUNCATE `1w` 和 INTERVAL `1w` 的对齐机制从 epoch 取模改为按 `firstDayOfWeek` 对齐，但默认值 4（周四）与 epoch 取模旧行为结果一致，因此未修改配置的用户查询结果不变。

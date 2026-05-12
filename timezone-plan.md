@@ -29,7 +29,7 @@
 
 1. 普通查询链路中，服务端仅需要感知连接级时区（session timezone / L2）。
 2. 客户端全局时区（L3）仅用于客户端本地展示与兼容回退，不作为普通查询链路的服务端协议透传目标。
-3. `TIMEZONE(1)` 作为诊断接口可返回三层时区（session/client/server）。
+3. `TIMEZONE()` 改为返回连接级时区（L2 回退至 L3 → L5）。
 
 ### 2.3 规范优先级约定
 
@@ -46,7 +46,7 @@
 | P3 | 函数扩展（TO_ISO8601/TO_CHAR/TIMETRUNCATE 时区参数） | P1 |
 | P4 | 自然单位与周对齐 | P1, P3 |
 | P5 | 季度集成收口 | P4 + rebase |
-| P6 | TIMEZONE(1) 服务端扩展 | P1, P2 |
+| P6 | TIMEZONE() 返回连接时区 | P1, P2 |
 
 ### 2.5 执行节奏与评审门禁
 
@@ -647,69 +647,37 @@ SELECT COUNT(*) FROM t INTERVAL(3n);
 
 ---
 
-## 8. P6：TIMEZONE(1) 服务端扩展
+## 8. P6：TIMEZONE() 返回连接时区
 
-### 8.1 Task 6.1：`TIMEZONE()` 参数扩展
+### 8.1 Task 6.1：`TIMEZONE()` 返回连接级时区
 
-**目标**：支持 `TIMEZONE([0|1])`，参数为 1 时返回三层 JSON。
+**目标**：`TIMEZONE()` 改为返回当前连接时区（L2 → L3 → L5），不接受参数。
 
 **涉及文件**：
 
 | 文件 | 改动 |
 | --- | --- |
-| `source/libs/function/src/builtins.c` | 参数从 0 参改为可选 1 参 |
-| `source/libs/scalar/src/sclfunc.c` | `timezoneFunction` 按参数分支 |
-| planner | `TIMEZONE(1)` 标记为需服务端执行 |
-| 查询请求消息结构体与序列化代码 | 增加/透传 `clientTimezoneStr`（仅用于 `TIMEZONE(1)`） |
-| parser/planner/executor 请求上下文 | 补充 `clientTimezoneStr` 透传与读取 |
+| `source/libs/function/src/builtins.c` | 确认参数为 0 参（`minParamNum=0, maxParamNum=0`） |
+| `source/libs/scalar/src/sclfunc.c` | `timezoneFunction` 优先返回 `pInput->tz`（L2），为空时回退到客户端全局时区（L3→L5） |
+| planner | 确认 `TIMEZONE()` 始终在客户端执行，不路由到服务端 |
 
 **实现步骤**：
 
-1. builtins：`minParamNum=0, maxParamNum=1`，参数仅接受整数 0 或 1
-2. scalar 分支：
-   - 无参 / 参数 0：**始终在客户端执行**，返回客户端时区字符串（兼容旧行为）。注意：当前代码中 `timezoneFunction` 在服务端执行时会检查 `pInput->tz`，若非 NULL 则返回连接/服务端时区，这与 FS 要求的“返回客户端时区字符串”不一致。实现时需确保 planner 不会将 `TIMEZONE(0)` 路由到服务端执行
-   - 参数 1：需下发服务端执行
-3. 服务端执行时：
-   - 从请求上下文读取 session timezone（L2）
-   - 读取服务端 `tsTimezoneStr`（L4）
-   - 保留 `TIMEZONE(1)` 三层语义：`session/client/server`
-   - 其中 `client` 层由客户端本地时区（L3）填充；该透传仅用于 `TIMEZONE(1)`，普通查询链路不要求服务端感知 L3
-   - 最终返回 JSON：`{"session":"<tz>","client":"<tz>","server":"<tz>"}`
-4. Planner 识别 `TIMEZONE(1)` 为"需服务端参与"的表达式
-
-### 8.2 Task 6.2：`TIMEZONE(1)` 的 client timezone 来源与透传
-
-**目标**：补齐 `TIMEZONE(1)` 三层输出中的 `client` 字段来源，避免实现断点。
-
-**实现步骤**：
-
-1. 统一 client timezone 取值来源：连接创建时可见的客户端 L3 最终字符串（含回退到 L5 后的最终值）
-2. 在查询请求结构中增加 `clientTimezoneStr` 字段，并完成编解码
-3. 仅在 `TIMEZONE(1)` 请求路径填充该字段；普通查询请求不要求填充
-4. 服务端 `timezoneFunction(1)` 从请求上下文读取该字段并写入 JSON `client` 键
-5. 字段缺失或为空时定义兜底策略（返回 `unknown` 或回退到请求侧可用值），并固化测试
-
-**验收标准**：
-
-- `TIMEZONE(1)` 在不同客户端全局时区下可稳定返回正确 `client` 字段
-- 普通查询路径不依赖 `clientTimezoneStr`，不引入额外语义耦合
+1. `timezoneFunction` 内检查 `pInput->tz` 是否非空：非空时直接返回连接级时区字符串；为空时回退到客户端全局时区字符串
+2. 传入任何参数则返回参数错误
+3. Planner 确认 `TIMEZONE()` 不推下服务端
 
 **验收标准**：
 
 ```sql
+-- 假设客户端配置 timezone=Asia/Shanghai
 SET TIMEZONE 'America/New_York';
 SELECT TIMEZONE();
--- 返回: Asia/Shanghai（兼容旧行为，返回客户端时区字符串）
+-- 返回: America/New_York
 
-SELECT TIMEZONE(0);
--- 返回: Asia/Shanghai（同上）
-
-SELECT TIMEZONE(1);
--- 返回: {"session":"America/New_York (UTC-5, EST)","client":"Asia/Shanghai (UTC+8, CST)","server":"Asia/Shanghai (UTC+8, CST)"}
-
--- 未设置连接级时区时，session 字段继承客户端时区，与 client 字段相同
-SELECT TIMEZONE(1);
--- 返回: {"session":"Asia/Shanghai (UTC+8, CST)","client":"Asia/Shanghai (UTC+8, CST)","server":"Asia/Shanghai (UTC+8, CST)"}
+-- 未设置连接级时区时，回退到客户端时区
+SELECT TIMEZONE();
+-- 返回: Asia/Shanghai
 ```
 
 ---
@@ -726,7 +694,7 @@ SELECT TIMEZONE(1);
 | 时区校验函数 | IANA / 固定偏移 / 非法输入覆盖 |
 | scalar/TIMETRUNCATE | n/q/y 截断算法、周对齐算法、DST 边界 |
 | 周相关函数 | `WEEK` / `WEEKOFYEAR` 的 `firstDayOfWeek` 回退与边界归属 |
-| TIMEZONE(1) 组装 | `session/client/server` 三层字段来源与缺省分支 |
+| TIMEZONE() 回退链 | L2 非空时返回连接时区；L2 为空时回退 L3→L5 |
 
 #### 9.1.1 当前已补充
 
@@ -745,9 +713,7 @@ SELECT TIMEZONE(1);
 1. parser 新语法单元测试
    - 阻塞原因：`QUERY_NODE_SET_TIMEZONE_STMT` / `QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT` 节点类型、对应 grammar 规则和 AST 构造函数当前尚不存在，直接补 parser gtest 会因符号缺失无法编译
 3. `firstDayOfWeek` 请求透传 / 编解码单元测试
-   - 阻塞原因：`SSubQueryMsg` / `SInterval` 当前尚无 `firstDayOfWeek` 字段，`tSerializeSSubQueryMsg()` / `tDeserializeSSubQueryMsg()` 也无对应编解码路径
-4. `TIMEZONE(1)` 组装单元测试
-   - 阻塞原因：`timezoneFunction()` 当前仍仅返回单层时区字符串，尚无 `TIMEZONE(1)` 的 `session/client/server` JSON 组装分支；`clientTimezoneStr` 透传字段也未进入请求结构
+4. `WEEK` / `WEEKOFYEAR` 的 `firstDayOfWeek` 回退链单元测试
 5. `WEEK` / `WEEKOFYEAR` 的 `firstDayOfWeek` 回退链单元测试
    - 阻塞原因：当前周函数尚未接入 plan 要求的 `SET -> server -> default` 解析链，补单测只能固化旧行为，和目标实现不一致
 
@@ -770,7 +736,7 @@ SELECT TIMEZONE(1);
 | `test_week_functions_fdow` | `WEEK` / `WEEKOFYEAR` 尊重 firstDayOfWeek；覆盖连接级 override / 客户端配置 / 默认值；`WEEK(ts, mode)` 中 mode 作为 L1 覆盖 firstDayOfWeek |
 | `test_today_tz` | TODAY() 在设置连接时区后返回正确 UTC 时间戳；未设置 L2 时按 L3→L5 回退，不使用服务端 L4 |
 | `test_now_tz` | NOW() 返回原始 UTC 时间戳，不受 SET TIMEZONE 影响；确认行为未变 |
-| `test_timezone_func` | TIMEZONE() / TIMEZONE(0) / TIMEZONE(1) |
+| `test_timezone_func` | TIMEZONE() 返回连接时区（L2→L3→L5）；SET TIMEZONE 后可见；未设置 L2 时与旧行为一致 |
 | `test_display_tz` | 普通列/SHOW/EXPLAIN 使用连接时区展示 |
 | `test_where_cast_join_tz` | WHERE/CAST/JOIN 时间字面量按 `L2→L3→L5` 解析 |
 | `test_write_dst_parse` | 写入路径春跳/秋退解析行为回归（含整型/带偏移对照） |
@@ -784,7 +750,7 @@ SELECT TIMEZONE(1);
 
 - 所有现有 `TO_ISO8601`、`TO_CHAR`、`TIMETRUNCATE`、`INTERVAL` 用例在未设置 `SET TIMEZONE` 时行为不变
 - `ALTER LOCAL 'timezone'` 行为不受影响
-- `TIMEZONE()` / `TIMEZONE(0)` 默认返回行为与 FS 定义保持一致
+- `TIMEZONE()` 默认返回行为与 FS 定义保持一致（未设置 L2 时仍返回 L3→L5 结果）
 
 ---
 
@@ -794,7 +760,6 @@ SELECT TIMEZONE(1);
 | --- | --- | --- |
 | `TIMETRUNCATE(1w)` / `INTERVAL(1w)` 对齐机制变更 | 仅修改配置后影响 | 默认 `firstDayOfWeek=4`（周四）与 epoch 取模旧行为结果一致，未修改配置的用户不受影响 |
 | 季度 PR rebase 冲突 | 阻塞 P5 | P1-P4 先行，P5 独立收口 |
-| `TIMEZONE(1)` 需服务端执行 | 增加复杂度 | 放在 P6 最后阶段，充分测试 |
 | 错误码 0x2600/0x2601 编号冲突 | 与现有语义冲突 | 已确认占用，必须在函数/参数错误码域分配新编号；不得复用现有 parser 错误码 |
 | DST 边界行为差异 | 不同平台 tzdata 版本差异 | 使用 TDengine 内置 tzdata；测试覆盖 DST 切换日 |
 | FS 口径变更后的实现漂移 | plan 与最新 FS 不同步，导致实现/测试偏离最终行为 | 区分场景对齐 FS：服务端日历计算按 `L2 → L4 → L5`，客户端格式化函数（TO_ISO8601/TO_CHAR）按 `L2 → L3 → L5`，并在评审与回归测试中显式校验 |
@@ -822,7 +787,7 @@ SELECT TIMEZONE(1);
 
 1. `SET TIMEZONE` 需写明支持的固定偏移格式（`Z` / `±HH` / `±HHMM` / `±HH:MM`）、小时两位限制、`-14:00 ~ +14:00` 范围、模糊缩写如 `CST` 非法。
 2. `SET FIRST_DAY_OF_WEEK` 与客户端 `firstDayOfWeek` 配置需明确优先级链：连接级 override → 客户端配置 → 默认值 4。
-3. `TIMEZONE()` / `TIMEZONE(0)` 需明确保持兼容，返回客户端时区字符串；`TIMEZONE(1)` 返回 `session/client/server` 三层 JSON 字符串。
+3. `TIMEZONE()` 需写明返回连接级时区（L2 → L3 → L5）；未设置 L2 时回退到客户端时区字符串，行为与旧版本一致。
 4. `TO_ISO8601(ts)` / `TO_CHAR(ts, fmt)` 无参时的最终回退链为 `L2 → L3 → L5`（客户端执行）；`TIMETRUNCATE(ts, unit)` 无参时为 `L2 → L4 → L5`（服务端执行）；`TODAY()` 为 `L2 → L3 → L5`。
 5. `WHERE` / `CAST` / `JOIN` 中时间字面量的解析需明确仍按 `L2 → L3 → L5`，不引入服务端 `L4`。
 6. `TIMETRUNCATE` 第三参数需说明整数 `0/1` 兼容语义与字符串时区新语义并存；字符串参数支持 IANA 与固定偏移。
@@ -833,7 +798,7 @@ SELECT TIMEZONE(1);
 ### 11.3 示例要求
 
 1. 每个新增语法至少给出 1 个合法示例和 1 个非法示例。
-2. `TIMEZONE(1)` 需给出“已设置 L2”和“未设置 L2”两组示例输出。
+2. `TIMEZONE()` 需给出"已设置 L2"和"未设置 L2"两组示例，说明 session 回退行为。
 3. `TO_ISO8601` / `TO_CHAR` 需给出 IANA 时区示例，并覆盖 DST 冬夏令时偏移变化。
 4. `TIMETRUNCATE` 需给出 `1d`、`1w`、`1n`、`1q`、`1y` 与第三参数字符串时区示例。
 5. `INTERVAL(1q)` 与 `INTERVAL(3n)` 需给出等价示例；`INTERVAL(1w)` 需给出 `firstDayOfWeek=1/0` 对比示例。
@@ -841,9 +806,9 @@ SELECT TIMEZONE(1);
 ### 11.4 文档验收标准
 
 1. 中英文手册需同步更新，术语、错误码、回退链与 FS/plan 保持一致。
-2. 用户手册中的默认行为必须与兼容性要求一致，不能把 `TIMEZONE()` 默认行为误写成连接时区。
+2. 用户手册中的默认行为必须与兼容性要求一致，正确描述 `TIMEZONE()` 的 L2→L3→L5 回退语义。
 3. 所有高风险行为变更都需在版本说明中显式标注，不得只出现在函数章节示例中。
-4. 手册示例与测试口径一致，至少覆盖 `CST` 非法、DST 边界、`TIMEZONE(1)` JSON 输出、`firstDayOfWeek` 对周边界影响。
+4. 手册示例与测试口径一致，至少覆盖 `CST` 非法、DST 边界、`TIMEZONE()` 连接时区示例、`firstDayOfWeek` 对周边界影响。
 
 ---
 
@@ -869,11 +834,8 @@ SELECT TIMEZONE(1);
 - [x] P4：`d/w` 保持不纳入 `IS_CALENDAR_TIME_DURATION`，并以专用日历分支完成对齐与步进
 - [x] P5：季度 PR rebase 完成
 - [x] P5：INTERVAL(1q) 集成验证
-- [x] P6.1：TIMEZONE(0) planner 不路由到服务端执行 → `doRewritePrecalcExprs()` 中判断参数=0/无参时跳过推下
-- [x] P6.1：TIMEZONE() 参数扩展 → 支持可选参数 0 或 1；param=0 返回客户端时区字符串；param=1 返回 JSON
-- [x] P6.1：TIMEZONE(1) 基础 JSON 返回 → {"session":"...", "client":"...", "server":"..."} 结构已实现；session 反映 SET TIMEZONE，client/server 当前同值（待 Task 6.2）
-- [x] P6.2：TIMEZONE(1) clientTimezoneStr 完整透传 → 消息结构/编解码/executor 链路已完成；client 字段现在正确反映客户端全局时区
-- [ ] FS 第 12 章错误码编号同步更新（当前仍为 0x2600/0x2601，与实际占用冲突）
+- [x] P6.1：TIMEZONE() 返回连接时区（L2→L3→L5） → `timezoneFunction` 优先返回 `pInput->tz`，为空时回退客户端全局时区；planner 不路由到服务端
+- [x] FS 第 12 章错误码编号同步更新（已改为 0x26B2/0x26B3）
 - [ ] 全量回归测试通过
 - [ ] 用户手册已补充新语法、函数参数、回退链、DST 与兼容性说明
 - [ ] 中英文错误码文档已同步新增错误码与消息

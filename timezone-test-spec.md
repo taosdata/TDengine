@@ -12,6 +12,7 @@
 | 2026-05-09 | 0.6 | AI | `firstDayOfWeek` 从服务端改为客户端参数：TestSetFirstDayOfWeek 改为 `ALTER LOCAL` 验证；TestIntervalWeek 改为客户端配置生效；回退链矩阵更新 |
 | 2026-05-11 | 0.7 | AI | 新增 Finding 1 连接隔离回归测试：`test_fdow_alter_local_updates_process_global_not_existing_connection`（立即运行）和 `test_fdow_alter_local_does_not_affect_existing_connection_timetruncate`（P4 skip）；更新 TestSetFirstDayOfWeek 验证要点 |
 | 2026-05-11 | 0.8 | AI | P4 全部落地（48 passed）；删除冗余/无效 skip 测试：`test_fdow_affects_timetruncate_week`（被 TestTimetruncateWeek 覆盖）、`test_fdow_client_config_applies_without_session_override`（ALTER LOCAL 不影响当前连接快照，设计缺陷）、`test_week_mode_overrides_fdow`（选取日期下 mode=0/1 结果相同，期望错误）；更新 TestTimetruncateNaturalUnits / TestTimetruncateWeek / TestWeekFunctions 为已实现状态；更新 9.2 阻塞项为已落地 |
+| 2026-05-12 | 0.9 | AI | 对齐当前 P6 定义恢复 `TestTimezoneFunc`（TIMEZONE() 无参语义）：新增/恢复 5 个回归用例（L2 生效、L3→L5 回退、ALTER LOCAL 新连接生效、参数非法、FROM table），并完成回归 `31 passed, 3 skipped` |
 
 ## 2. 概述
 
@@ -29,7 +30,7 @@
 
 | # | 文件 | 包含 Class | 对应 Task |
 |---|------|-----------|-----------|
-| 1 | `test/cases/11-Functions/01-Scalar/test_tz_config_display.py` | TestSetTimezone, TestSetFirstDayOfWeek, TestTimezoneFunc, TestDisplayTimezone, TestWhereCastJoinTz, TestTodayNowTz, TestIntervalTimezone | P1 Task 1.1-1.3, P2 Task 2.1-2.5, P6 Task 6.1-6.2 |
+| 1 | `test/cases/11-Functions/01-Scalar/test_tz_config_display.py` | TestSetTimezone, TestSetFirstDayOfWeek, TestTimezoneFunc, TestDisplayTimezone, TestWhereCastJoinTz, TestTodayNowTz, TestIntervalTimezone | P1 Task 1.1-1.3, P2 Task 2.1-2.5, P6 Task 6.1 |
 | 2 | `test/cases/11-Functions/01-Scalar/test_tz_scalar_functions.py` | TestToIso8601Iana, TestToCharTimezone, TestTimetruncateTz, TestTimetruncateNaturalUnits, TestTimetruncateWeek, TestWeekFunctions, TestDstEdge | P3 Task 3.1-3.3, P4 Task 4.1-4.2/4.4, P2 Task 2.4, DST 边界 |
 | 3 | `test/cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py` | TestIntervalNatural, TestIntervalWeek, TestIntervalQuarter | P4 Task 4.3, P5 Task 5.2 |
 
@@ -56,11 +57,11 @@
 - 🗑️ ~~`test_fdow_affects_timetruncate_week`~~（已删除：被 `TestTimetruncateWeek::test_timetruncate_1w_fdow_differences` 覆盖）
 - 🗑️ ~~`test_fdow_client_config_applies_without_session_override`~~（已删除：ALTER LOCAL 不影响当前连接快照，逻辑错误）
 
-#### TestTimezoneFunc — TIMEZONE() 函数（P6 Task 6.1, 6.2）
-- ✅ `TIMEZONE()` / `TIMEZONE(0)` 返回客户端时区字符串，SET TIMEZONE 后不变
+#### TestTimezoneFunc — TIMEZONE() 函数（P6 Task 6.1）
+- ✅ `TIMEZONE()` 在 SET TIMEZONE 后返回连接级时区（L2）
+- ✅ 未设置 L2 时回退到客户端时区（L3→L5），结果与旧版本一致
 - ✅ `ALTER LOCAL 'timezone ...'` 改变客户端时区（L3），新连接可见；已建立连接保持原值不受影响
-- ✅ `TIMEZONE(1)` 返回 JSON（session/client/server），session 反映 SET TIMEZONE
-- ✅ 未设置 L2 时 session == client；非法参数（2、-1、'abc'）报错
+- ✅ 传入任何参数（0、1、'abc'）均返回参数错误
 - ✅ FROM table 查询兼容
 
 #### TestDisplayTimezone — 时间戳展示（P2 Task 2.1, 2.2）
@@ -216,8 +217,8 @@
 | INTERVAL 时间窗口 | L2 → L4 → L5（已设置 L2 时不受 L3/L4 覆盖） | TestIntervalNatural, TestIntervalWeek, TestIntervalQuarter, TestIntervalTimezone |
 | WHERE / CAST / JOIN 时间字面量 | L2 → L3 → L5 | TestWhereCastJoinTz |
 | TODAY() | L2 → L3 → L5 | TestTodayNowTz |
-| TIMEZONE() / TIMEZONE(0) | 返回 L3 (client tz) | TestTimezoneFunc |
-| TIMEZONE(1) | 返回 L2/L3/L4 三层 | TestTimezoneFunc |
+| TIMEZONE() | L2 → L3 → L5 | TestTimezoneFunc |
+
 | firstDayOfWeek | SET → client → default 4 | TestSetFirstDayOfWeek, TestTimetruncateWeek, TestWeekFunctions, TestIntervalWeek |
 
 ---
@@ -243,7 +244,7 @@
 | INTERVAL(1w) 从 epoch 取模改为 fdow 对齐 | ⚠️ 低（默认 fdow=4 兼容旧行为） | TestIntervalWeek |
 | INTERVAL(1d) 从 24h 固定步进改为日历日步进 | ⚠️ 高 | TestIntervalNatural |
 | TO_ISO8601 无参从 translator 折叠改为运行时 IANA | ⚠️ 中 | TestToIso8601Iana |
-| TIMEZONE() 保持返回客户端时区（不变为 session） | ⚠️ 中 | TestTimezoneFunc |
+| TIMEZONE() 改为返回连接时区（SET TIMEZONE 后可见；未设置 L2 时与旧行为一致） | ⚠️ 中 | TestTimezoneFunc |
 
 ---
 
@@ -252,7 +253,7 @@
 1. **DST 时间点精确性**：2026 年 America/New_York 春跳 3/8、秋退 11/1 是否正确？（需与 TDengine 内置 tzdata 版本一致）
 2. **WEEK(ts, mode) 取值范围**：当前测试假定 mode 0-7，8 报错 — 与 MySQL 兼容性是否 OK？
 3. **DAYOFWEEK 返回值**：假定 1=Sun..7=Sat；WEEKDAY 假定 0=Mon..6=Sun — 是否与 TDengine 现有行为一致？
-4. **TIMEZONE() 在 SET TIMEZONE 后的行为**：FS 明确说返回客户端时区（L3），不是 session 时区（L2） — 已按此编写测试
+4. **TIMEZONE() 在 SET TIMEZONE 后的行为**：FS 明确说返回连接时区（L2→L3→L5）— 已按此编写测试
 5. **TIMETRUNCATE 多倍数的 epoch 基准**：`Nn`/`Nq`/`Ny` 的 epoch 起计数是否从 1970-01-01 UTC 开始？
 6. **INTERVAL(1d) DST 行为**：Plan 明确 `d` 不纳入 `IS_CALENDAR_TIME_DURATION` 但走专用日历分支 — 测试按此预期
 7. **错误码**：已在 pytest 中显式锁定 `TSDB_CODE_PAR_INVALID_TIMEZONE=0x26B2`、`TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK=0x26B3`；函数参数非法场景当前沿用 `0x2803`
@@ -287,11 +288,11 @@
 - ✅ **TIMETRUNCATE n/q/y 日历截断**：`validateTimeUnitParamEx` / `checkTimeUnitOrCalendar` 新增，`translateTimeTruncate` 注入 `fdow` + `unitCh` 尾参数，`timeTruncateFunction` 实现月/季/年本地日历对齐
 - ✅ **TIMETRUNCATE 1w fdow 对齐**：session IANA tz 路径和显式字符串 tz 路径均使用 `wday/daysBack` 算法对齐
 - ✅ **WEEKOFYEAR fdow**：根据 `pInput->firstDayOfWeek` 派生 WEEK mode（fdow=1→mode 3，其他→mode 2）
+- ✅ **TIMEZONE() 回退链**：`TIMEZONE()` 返回连接级时区（L2），未设置时回退 L3→L5；参数非法与 FROM table 场景已补齐 pytest 回归
 
 仍待落地的项目：
 
 - ⏸️ `SSubQueryMsg` / `SInterval` `firstDayOfWeek` 序列化/反序列化（executor 侧已就绪，消息序列化还需验证）
-- ⏸️ scalar/TIMEZONE(1) 组装：`session/client/server` JSON 三层（P6）
 - ⏸️ WEEK mode 参数与 firstDayOfWeek 完整隔离回归（`test_week_mode_overrides_fdow` 已删除，需找合适日期重写）
 
 ## 10. 测试执行方式

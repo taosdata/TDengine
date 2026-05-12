@@ -38,6 +38,7 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "ttime.h"
+#include "osTimezone.h"
 #include "tutil.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
@@ -4353,6 +4354,23 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char** pLiteral, SNod
   return pCxt->errCode;
 }
 
+static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
+  timezone_t sessionTz = pCxt->pParseCxt->timezone;
+  char*      pTzName = NULL;
+  if (sessionTz != NULL && pTimezoneNameMap != NULL) {
+    char* tzName = (char*)taosHashGet(pTimezoneNameMap, &sessionTz, sizeof(timezone_t));
+    pTzName = taosStrdup(tzName ? tzName : tsTimezoneStr);
+  } else {
+    pTzName = taosStrdup(tsTimezoneStr);  /* L3→L5 fallback */
+  }
+  if (pTzName == NULL) {
+    return terrno;
+  }
+  int32_t code = rewriteFuncToValue(pCxt, &pTzName, pNode);
+  taosMemoryFree(pTzName);
+  return code;
+}
+
 static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
   char* pCurrDb = NULL;
   if (NULL != pCxt->pParseCxt->db) {
@@ -4429,6 +4447,8 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
     case FUNCTION_TYPE_CURRENT_USER:
     case FUNCTION_TYPE_USER:
       return rewriteUserFunc(pCxt, pNode);
+    case FUNCTION_TYPE_TIMEZONE:
+      return rewriteTimezoneFunc(pCxt, pNode);
     default:
       break;
   }
