@@ -955,7 +955,7 @@ TEST(sessionTest, session1) {
     ASSERT(code != 0);
   }
 
-  SSessParam para = {.type = SESSION_PER_USER, .value = 1};
+  SSessParam para = {}; para.type = SESSION_PER_USER; para.value = 1;
   for (int32_t i = 0; i <= 1000; i++) {
     for (int32_t i = 0; i < sizeof(users) / sizeof(users[0]); i++) {
       code = sessMgtUpdateUserMetric(users[i], &para);

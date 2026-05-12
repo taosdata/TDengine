@@ -141,10 +141,10 @@ class TestQueryBugs:
         ]
         tdSql.executes(sqls)
         sqls2 = [
-            "insert into t1 values(now, 1, 1);",
-            "insert into t1 values(now, 1, 2);",
-            "insert into t1 values(now, 2, 3);",
-            "insert into t1 values(now, 3, 4);"
+            "insert into t1 values(now-3s, 1, 1);",
+            "insert into t1 values(now-2s, 1, 2);",
+            "insert into t1 values(now-1s, 2, 3);",
+            "insert into t1 values(now,    3, 4);"
         ]
         tdSql.executes(sqls2)
 

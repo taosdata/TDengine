@@ -3643,15 +3643,15 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
         
         STREAM_CLR_FLAG((*ppStatus)->flags, STREAM_FLAG_REDEPLOY_RUNNER);
       }
+
+      if (STREAM_TRIGGER_TASK == pTask->type && STREAM_STATUS_RUNNING == pTask->status) {
+        mstInfo("streamId:0x%" PRIx64 " trigger task status updated to Running in streamMap", (uint64_t)pTask->streamId);
+      }
     }
     
     (*ppStatus)->errCode = pTask->errorCode;
     (*ppStatus)->status = pTask->status;
     (*ppStatus)->lastUpTs = pCtx->currTs;
-    
-    if (STREAM_TRIGGER_TASK == pTask->type && STREAM_STATUS_RUNNING == pTask->status) {
-      mstInfo("streamId:0x%" PRIx64 " trigger task status updated to Running in streamMap", (uint64_t)pTask->streamId);
-    }
     
     if (STREAM_STATUS_RUNNING != pTask->status) {
       msmHandleTaskAbnormalStatus(pCtx, pTask, *ppStatus);

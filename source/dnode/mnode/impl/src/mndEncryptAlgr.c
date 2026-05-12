@@ -14,6 +14,11 @@
  */
 
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+#define MND_ENCRYPT_ALGR_LAST_ID 6
+#else
+#define MND_ENCRYPT_ALGR_LAST_ID 1
+#endif
 
 #include "audit.h"
 #include "mndEncryptAlgr.h"
@@ -371,7 +376,18 @@ static int32_t mndProcessBuiltinRsp(SRpcMsg *pRsp) {
 static int32_t mndUpgradeBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
+  mInfo("upgrade builtin encrypt algr, current version:%d, target version:%d", version,
+        TSDB_MNODE_BUILTIN_DATA_VERSION);
   return mndSendCreateBuiltinReq(pMnode);
+}
+
+static bool mndIsUpgradedBuiltinEncryptAlgr(SMnode *pMnode) {
+  SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, MND_ENCRYPT_ALGR_LAST_ID);
+  if (obj != NULL) {
+    mndReleaseEncryptAlgr(pMnode, obj);
+    return true;
+  }
+  return false;
 }
 
 #define SYMCBC "Symmetric Ciphers CBC mode"
@@ -736,6 +752,7 @@ int32_t mndInitEncryptAlgr(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndEncryptAlgrActionInsert,
       .updateFp = (SdbUpdateFp)mndEncryptAlgrActionUpdate,
       .deleteFp = (SdbDeleteFp)mndEncryptAlgrActionDelete,
+      .isUpgradedFp = (SdbIsUpgradedFp)mndIsUpgradedBuiltinEncryptAlgr,
   };
 
   return sdbSetTable(pMnode->pSdb, table);
