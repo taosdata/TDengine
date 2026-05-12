@@ -17,7 +17,6 @@
 
 #include <algorithm>
 #include <array>
-#include <mutex>
 #include <thread>
 
 #include "catalog.h"
@@ -64,14 +63,6 @@ void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
-static void initKeywordsTableOnce() {
-  static once_flag once;
-  call_once(once, []() {
-    int32_t code = qInitKeywordsTable();
-    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
-  });
-}
-
 // Dummy catalog object for parser tests. Never dereferenced; only checked for NULL.
 static struct {
   char dummy;  // minimal non-empty struct to avoid UB
@@ -80,7 +71,8 @@ static struct {
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
-    initKeywordsTableOnce();
+    int32_t code = qInitKeywordsTable();
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
     caseEnv_.numOfSkipSql_ = g_skipSql;
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
