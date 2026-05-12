@@ -4364,6 +4364,9 @@ static int32_t msgToPhysiRowsetSourceNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_ROWSET_SOURCE_CODE_BLOCK_BUF:
         code = tlvDecodeDynBinary(pTlv, (void**)&pNode->pBlockBuf);
+        if (TSDB_CODE_SUCCESS == code) {
+          pNode->blockBufLen = pTlv->len;
+        }
         break;
       default:
         break;

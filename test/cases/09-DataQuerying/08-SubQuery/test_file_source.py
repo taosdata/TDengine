@@ -87,6 +87,16 @@ class TestFileSource:
             f"SELECT ts FROM FILE('{in_dir}/file_source_basic.csv', '') f"
         )
 
+        tdLog.info("file_source: multi-char delimiter should fail")
+        tdSql.error(
+            f"SELECT ts FROM FILE('{in_dir}/file_source_basic.csv', 'ts TIMESTAMP, a INT', delimiter='||') f"
+        )
+
+        tdLog.info("file_source: delimiter without quotes should fail")
+        tdSql.error(
+            f"SELECT ts FROM FILE('{in_dir}/file_source_basic.csv', 'ts TIMESTAMP, a INT', delimiter=1) f"
+        )
+
     def test_file_source_large(self):
         """FILE table source — large data volume: 10,000 rows (well within cap) and over-limit rejection.
 

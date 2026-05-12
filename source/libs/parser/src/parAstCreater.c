@@ -8477,11 +8477,12 @@ SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const
       opt.header = (int8_t)(taosStrncasecmp(buf, "true", 4) == 0 || buf[0] == '1');
     }
   } else if (pName->n == 9 && taosStrncasecmp(pName->z, "delimiter", 9) == 0) {
-    // delimiter = ',' or "," — take first char inside quotes
-    if (pVal->n >= 3) {
-      opt.delimiter = pVal->z[1];  // skip opening quote
-    } else if (pVal->n == 1) {
-      opt.delimiter = pVal->z[0];
+    // delimiter = ',' — must be exactly one char inside quotes
+    if (pVal->n == 3 && (pVal->z[0] == '\'' || pVal->z[0] == '"')) {
+      opt.delimiter = pVal->z[1];
+    } else {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                           "FILE: delimiter must be a single character");
     }
   }
   return opt;
@@ -8490,6 +8491,9 @@ SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const
 SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const SToken* pSchemaDecl,
                            bool header, char delimiter, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
   if (!pPath || pPath->n < 2) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a path string");
     return NULL;
