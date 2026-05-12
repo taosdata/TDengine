@@ -1007,7 +1007,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
 
   // commit if need
   if (needCommit) {
-    vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
+    vInfo("vgId:%d, commit at version: %" PRId64, TD_VID(pVnode), ver);
     code = vnodeAsyncCommit(pVnode, forceTrimWal);
     if (code) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
