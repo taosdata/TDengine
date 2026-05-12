@@ -13004,7 +13004,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (cut.splitStandalone) {
-              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
@@ -13034,12 +13034,12 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
             } else {
-              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             code = stAssignStateRowToValues(pStateCols, r, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
@@ -13112,7 +13112,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               if (cut.splitStandalone) {
-                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false);
+                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false, false);
                 QUERY_CHECK_CODE(code, lino, _end_block);
                 TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
                 TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
@@ -13145,12 +13145,12 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (pTask->stateExtend == STATE_WIN_EXTEND_OPTION_FORWARD) {
-              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, startTs, &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += pGroup->ds.numPendingNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
             } else {
-              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false);
+              code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             code = stAssignStateRowToValues(pStateCols, r, pGroup->ds.pStateVals, pGroup->ds.stateKeyDefined);
