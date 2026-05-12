@@ -151,41 +151,16 @@ Assuming there is an existing single replica cluster with N nodes (N>=1), and yo
 
 ## Monitoring Snapshot Send Progress
 
-When a follower node has been offline for an extended period or has fallen significantly behind and the WAL has already been trimmed, TDengine automatically triggers a snapshot replication process to transfer the leader's current TSDB snapshot to the follower. This process can take several minutes or longer. TDengine provides two system tables to monitor snapshot send progress in real time.
-
-### Vnode-Level Progress
-
-The `ins_snap_send_vnodes` table has one row per vnode currently undergoing snapshot transfer:
+When a follower node has been offline for an extended period or has fallen significantly behind and the WAL has been trimmed, TDengine automatically triggers snapshot replication. Two system tables provide real-time visibility into the transfer progress.
 
 ```sql
+-- Vnode-level: overall progress for each vnode currently sending a snapshot
 SELECT * FROM information_schema.ins_snap_send_vnodes;
-```
 
-### Fileset-Level Progress
-
-The `ins_snap_send_filesets` table lists per-fileset (time-partition) transfer details for the active snapshot send:
-
-```sql
+-- Fileset-level: per-time-partition file transfer details for a given vgroup
 SELECT * FROM information_schema.ins_snap_send_filesets
 WHERE vgroup_id = <vgroup_id>
 ORDER BY fid;
 ```
 
-### Detecting a Stalled Transfer
-
-Use the `elapsed` column to quickly identify long-running snapshots:
-
-```sql
--- Find vnodes where snapshot transfer has taken more than 10 minutes
-SELECT * FROM information_schema.ins_snap_send_vnodes
-WHERE elapsed > '0:10:00';
-```
-
-If `read_size` does not increase over time, the transfer is likely stalled. Check network connectivity between dnodes and disk I/O on the leader.
-
-### Notes
-
-- Data in these tables is pulled from each leader dnode by the mnode approximately every 10 seconds, so there may be up to ~10 seconds of delay.
-- The `elapsed` column is calculated in real time at query time (`current time - start_time`) and is not affected by the pull interval.
-- `total_size` vs `read_size`: in RAW (full) transfer mode the two values share the same unit (physical bytes) and are directly comparable; in ROW (incremental) transfer mode, `read_size` reflects re-compressed bytes and should be used only as a trend indicator.
-- Once a snapshot send completes, the corresponding rows are automatically removed from the tables.
+For column definitions of both tables, see [Metadata](../../tdengine-reference/sql-manual/metadata).
