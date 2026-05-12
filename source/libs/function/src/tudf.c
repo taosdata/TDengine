@@ -257,7 +257,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     // On Windows env-var names are case-insensitive (notably PATH); POSIX is
     // case-sensitive.
 #ifdef WINDOWS
-    int (*envNameCmp)(const char *, const char *, size_t) = strncasecmp;
+    int (*envNameCmp)(const char *, const char *, size_t) = _strnicmp;
 #else
     int (*envNameCmp)(const char *, const char *, size_t) = strncmp;
 #endif
