@@ -16,6 +16,7 @@ if(TD_COMMUNITY_STANDALONE)
   set(BUILD_GITINFOI        "" CACHE STRING "Internal git commit ID override")
 endif()
 
+option(USE_CONAN               "Use Conan for dependency management"  OFF)
 option(BUILD_ADVANCED_SECURITY "If enable advanced security"          OFF)
 option(BUILD_ASSERT_NOT_CORE   "If assert not generate core file"     OFF)
 option(BUILD_WEBSOCKET         "Enable websocket"                     OFF)
@@ -124,6 +125,13 @@ option(BUILD_LIBSASL          "If build libsasl2"                    ON)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
+
+# When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
+# CMake built-in Release flags and ExternalProject configuration align.
+if(BUILD_RELEASE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+  message(STATUS "[options] BUILD_RELEASE=ON => CMAKE_BUILD_TYPE forced to Release")
+endif()
 
 message(STATUS
   "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"
