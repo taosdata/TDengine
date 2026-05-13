@@ -457,6 +457,102 @@ mod tests {
     }
 
     #[test]
+    fn regex_empty_input_returns_empty_schema_for_selected_fields() {
+        let re = Regex {
+            regex: regex::Regex::new(r"(?P<name>\w+)=(?P<value>\d+)").unwrap(),
+            select: Some(serde_json::from_str(r#"["name::nchar(20)", "value::i32"]"#).unwrap()),
+            keep: false,
+        };
+        let field = Field::new("payload", DataType::Utf8, false);
+        let array: ArrayRef = Arc::new(StringArray::from(Vec::<&str>::new()));
+
+        let (records, selected) = re.parse_array(&field, &array).unwrap();
+
+        assert!(selected.is_none());
+        assert_eq!(records.num_rows(), 0);
+        assert_eq!(records.num_columns(), 2);
+        assert_eq!(records.schema().field(0).name(), "name");
+        assert_eq!(records.schema().field(1).data_type(), &DataType::Int32);
+    }
+
+    #[test]
+    fn regex_named_captures_preserve_nulls_and_cast_selected_types() {
+        let re = Regex {
+            regex: regex::Regex::new(r"name=(?P<name>\w+) active=(?P<active>true|false)").unwrap(),
+            select: Some(serde_json::from_str(r#"["name::nchar(20)", "active::bool"]"#).unwrap()),
+            keep: false,
+        };
+        let field = Field::new("payload", DataType::Utf8, true);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("name=alice active=true"),
+            None,
+            Some("name=bob active=false"),
+        ]));
+
+        let (records, selected) = re.parse_array(&field, &array).unwrap();
+
+        assert!(selected.is_none());
+        assert_eq!(records.num_rows(), 3);
+        let expected_names: ArrayRef =
+            Arc::new(StringArray::from(vec![Some("alice"), None, Some("bob")]));
+        let expected_active: ArrayRef =
+            Arc::new(BooleanArray::from(vec![Some(true), None, Some(false)]));
+        assert_eq!(records.column(0), &expected_names);
+        assert_eq!(records.column(1), &expected_active);
+    }
+
+    #[test]
+    fn regex_capture_locations_fill_nulls_for_non_matches() {
+        let re = Regex {
+            regex: regex::Regex::new(r"([a-z]+)-(\d+)").unwrap(),
+            select: None,
+            keep: false,
+        };
+        let field = Field::new("payload", DataType::Utf8, true);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("ab-12"),
+            Some("nomatch"),
+            None,
+        ]));
+
+        let (records, selected) = re.parse_array(&field, &array).unwrap();
+
+        assert!(selected.is_none());
+        assert_eq!(records.num_columns(), 3);
+        assert_eq!(records.schema().field(0).name(), "payload0");
+        let expected_full_match: ArrayRef =
+            Arc::new(StringArray::from(vec![Some("ab-12"), None, None]));
+        let expected_first_capture: ArrayRef =
+            Arc::new(StringArray::from(vec![Some("ab"), None, None]));
+        let expected_second_capture: ArrayRef =
+            Arc::new(StringArray::from(vec![Some("12"), None, None]));
+        assert_eq!(records.column(0), &expected_full_match);
+        assert_eq!(records.column(1), &expected_first_capture);
+        assert_eq!(records.column(2), &expected_second_capture);
+    }
+
+    #[test]
+    fn regex_match_without_captures_returns_match_or_null() {
+        let re = Regex {
+            regex: regex::Regex::new(r"ERR\d+").unwrap(),
+            select: None,
+            keep: false,
+        };
+        let field = Field::new("message", DataType::Utf8, true);
+        let array: ArrayRef = Arc::new(StringArray::from(vec![
+            Some("prefix ERR42 suffix"),
+            Some("ok"),
+            None,
+        ]));
+
+        let (records, selected) = re.parse_array(&field, &array).unwrap();
+
+        assert!(selected.is_none());
+        let expected: ArrayRef = Arc::new(StringArray::from(vec![Some("ERR42"), None, None]));
+        assert_eq!(records.column(0), &expected);
+    }
+
+    #[test]
     #[ignore]
     fn parse_regex_test() -> anyhow::Result<()> {
         let re = Regex {

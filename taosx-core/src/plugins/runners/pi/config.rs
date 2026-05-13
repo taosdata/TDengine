@@ -536,9 +536,62 @@ impl PiConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use taos::IntoDsn;
+    use tempfile::{Builder, TempDir};
 
     use super::*;
+
+    fn repo_temp_dir() -> TempDir {
+        let base = std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("taosx-core-unit-tests");
+        fs::create_dir_all(&base).unwrap();
+        Builder::new()
+            .prefix("pi-config-")
+            .tempdir_in(base)
+            .unwrap()
+    }
+
+    #[test]
+    fn test_parse_transform_config_file_param_prefers_unscoped_key() {
+        let mut dsn = Dsn::from_str("pi://server").unwrap();
+        dsn.params
+            .insert("transform_config_file".to_string(), "@base.csv".to_string());
+        dsn.params.insert(
+            "single-column.transform_config_file".to_string(),
+            "@single.csv".to_string(),
+        );
+
+        assert_eq!(
+            PiConfig::parse_transform_config_file_param(&dsn).as_deref(),
+            Some("@base.csv")
+        );
+    }
+
+    #[test]
+    fn test_parse_transform_config_file_param_falls_back_to_scoped_keys() {
+        let mut dsn = Dsn::from_str("pi://server").unwrap();
+        dsn.params.insert(
+            "multi-column.transform_config_file".to_string(),
+            "@multi.csv".to_string(),
+        );
+        assert_eq!(
+            PiConfig::parse_transform_config_file_param(&dsn).as_deref(),
+            Some("@multi.csv")
+        );
+
+        dsn.params.insert(
+            "single-column.transform_config_file".to_string(),
+            "@single.csv".to_string(),
+        );
+        assert_eq!(
+            PiConfig::parse_transform_config_file_param(&dsn).as_deref(),
+            Some("@single.csv")
+        );
+    }
 
     #[test]
     fn test_parse_server_name() {
@@ -648,6 +701,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_max_wait_len_uses_batch_size_fallback_after_explicit_key() {
+        let dsn = Dsn::from_str("pi:///?batch_size=64").unwrap();
+        let config = PiConfig::parse_max_wait_len(&dsn).unwrap();
+        assert_eq!(Some(64), config);
+
+        let dsn = Dsn::from_str("pi:///?MaxWaitLen=32&batch_size=64").unwrap();
+        let config = PiConfig::parse_max_wait_len(&dsn).unwrap();
+        assert_eq!(Some(32), config);
+    }
+
+    #[test]
     #[ignore]
     fn test_parse_update_interval() {
         let dsn = Dsn::from_str("pi:///").unwrap();
@@ -679,6 +743,38 @@ mod tests {
         assert!(config.is_err());
         assert_eq!(
             "UpdateInterval should be in range 100..60000",
+            config.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_update_interval_uses_batch_timeout_seconds_fallback() {
+        let dsn = Dsn::from_str("pi:///?batch_timeout=2").unwrap();
+        let config = PiConfig::parse_update_interval(&dsn).unwrap();
+        assert_eq!(Some(2000), config);
+
+        let dsn = Dsn::from_str("pi:///?UpdateInterval=500&batch_timeout=2").unwrap();
+        let config = PiConfig::parse_update_interval(&dsn).unwrap();
+        assert_eq!(Some(500), config);
+    }
+
+    #[test]
+    fn test_parse_log_level_accepts_canonical_keys_and_trims_values() {
+        let mut dsn = Dsn::from_str("pi:///").unwrap();
+        dsn.params
+            .insert("LogLevel".to_string(), " debug ".to_string());
+        let config = PiConfig::parse_log_level(&dsn).unwrap();
+        assert_eq!(Some("debug".to_string()), config);
+
+        let dsn = Dsn::from_str("pi:///?log_level=warn").unwrap();
+        let config = PiConfig::parse_log_level(&dsn).unwrap();
+        assert_eq!(Some("warn".to_string()), config);
+
+        let dsn = Dsn::from_str("pi:///?log_level=verbose").unwrap();
+        let config = PiConfig::parse_log_level(&dsn);
+        assert!(config.is_err());
+        assert_eq!(
+            "invalid log_level, cause: provided `verbose`, but expects one of [trace, debug, info, warn, error]",
             config.unwrap_err().to_string()
         );
     }
@@ -817,6 +913,38 @@ mod tests {
         assert_eq!("2024-05-01T00:00:00+08:00", config.to_string());
     }
 
+    #[test]
+    fn test_parse_transform_config_file_extracts_lists_and_sorts_unique_templates() {
+        let tmp = repo_temp_dir();
+        let file = tmp.path().join("transform.csv");
+        fs::write(
+            &file,
+            "\nTemplate,TemplateB\nTemplate,TemplateA\nTemplate,TemplateB\nElement Name,element,ignored,Element-001\nPoint-001,point\nIgnored,unknown\n",
+        )
+        .unwrap();
+
+        let (elements, points, templates) =
+            PiConfig::parse_transform_config_file(file.to_str().unwrap()).unwrap();
+
+        assert_eq!(elements, vec!["Element-001"]);
+        assert_eq!(points, vec!["Point-001"]);
+        assert_eq!(templates, vec!["TemplateA", "TemplateB"]);
+    }
+
+    #[test]
+    fn test_parse_transform_config_file_requires_element_id_column() {
+        let tmp = repo_temp_dir();
+        let file = tmp.path().join("invalid-transform.csv");
+        fs::write(&file, "Element Name,element,missing-id").unwrap();
+
+        let err = PiConfig::parse_transform_config_file(file.to_str().unwrap()).unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Invalid transform config file, cause: ElementID is required"
+        );
+    }
+
     #[tokio::test]
     #[ignore]
     async fn test_config() {
@@ -854,5 +982,41 @@ mod tests {
 
         let toml = toml::to_string_pretty(&config).unwrap();
         println!("{}", toml);
+    }
+
+    #[test]
+    fn test_parse_connection_serializes_only_populated_config_fields_to_toml() {
+        let dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&PIServerUser=abc&PIServerPassword=123&PIServerDomain=piserver&PIDataPipesInstances=2&AFDataPipesInstances=3&MaxWaitLen=32&UpdateInterval=500&MaxBackfillRangeDays=65s&FromTDengineLastTime=false&ToTDengineFirstTime=true&LogLevel=info"
+            .into_dsn()
+            .unwrap();
+
+        let config = PiConfig::parse_connection(&dsn, "td_db".to_string(), 6041, 6042).unwrap();
+        let toml = toml::to_string_pretty(&config).unwrap();
+        let value: toml::Value = toml::from_str(&toml).unwrap();
+        let table = value.as_table().unwrap();
+
+        assert_eq!(table["PIServerName"].as_str(), Some("WIN-2OA23UM12TN"));
+        assert_eq!(table["PISystemName"].as_str(), Some("other"));
+        assert_eq!(table["PIServerUser"].as_str(), Some("abc"));
+        assert_eq!(table["PIServerPassword"].as_str(), Some("123"));
+        assert_eq!(table["PIServerDomain"].as_str(), Some("piserver"));
+        assert_eq!(table["AFDatabaseName"].as_str(), Some("Met1"));
+        assert_eq!(table["PIDataPipesInstances"].as_integer(), Some(2));
+        assert_eq!(table["AFDataPipesInstances"].as_integer(), Some(3));
+        assert_eq!(table["MaxWaitLen"].as_integer(), Some(32));
+        assert_eq!(table["UpdateInterval"].as_integer(), Some(500));
+        assert_eq!(table["MaxBackfillRangeDays"].as_integer(), Some(2));
+        assert_eq!(table["IPCStream"].as_str(), Some("127.0.0.1:6041"));
+        assert_eq!(table["SQLAPI"].as_str(), Some("http://127.0.0.1:6042"));
+        assert_eq!(table["TDDataBase"].as_str(), Some("td_db"));
+        assert_eq!(table["ForBackfill"].as_bool(), Some(false));
+        assert_eq!(table["FromTDengineLastTime"].as_bool(), Some(false));
+        assert_eq!(table["ToTDengineFirstTime"].as_bool(), Some(true));
+        assert_eq!(table["LogLevel"].as_str(), Some("info"));
+        assert!(!table.contains_key("TemplateForPIPoint"));
+        assert!(!table.contains_key("TemplateForAFElement"));
+        assert!(!table.contains_key("ElementIDList"));
+        assert!(!table.contains_key("PointList"));
+        assert!(!table.contains_key("TaskID"));
     }
 }

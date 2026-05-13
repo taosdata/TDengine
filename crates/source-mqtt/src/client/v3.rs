@@ -350,11 +350,114 @@ mod tests {
 
     use super::*;
 
+    fn mqtt_config(keep_alive: std::time::Duration) -> MqttConnectConfig {
+        MqttConnectConfig {
+            host: "mqtt.example.com".to_string(),
+            port: 1884,
+            version: crate::client::Version::V3,
+            client_id: "client-1".to_string(),
+            username: Some("user".to_string()),
+            password: Some("pass".to_string()),
+            keep_alive,
+            clean_session: false,
+            certificates: None,
+            connect_user_properties: None,
+            subscribe_user_properties: None,
+        }
+    }
+
     #[test]
     fn build_subscribe_filters_test() {
         assert!(build_subscribe_filters([("abc".to_string(), 0)]).is_ok());
         assert!(build_subscribe_filters([("abc".to_string(), 1)]).is_ok());
         assert!(build_subscribe_filters([("abc".to_string(), 2)]).is_ok());
         assert!(build_subscribe_filters([("abc".to_string(), 3)]).is_err());
+    }
+
+    #[test]
+    fn build_subscribe_filters_preserves_topic_order_and_qos() {
+        let filters = build_subscribe_filters([
+            ("sensors/temperature".to_string(), 0),
+            ("sensors/humidity".to_string(), 2),
+        ])
+        .unwrap();
+
+        let topics = filters
+            .iter()
+            .map(|filter| (filter.path.as_str(), filter.qos as u8))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            topics,
+            vec![("sensors/temperature", 0), ("sensors/humidity", 2)]
+        );
+    }
+
+    #[test]
+    fn build_options_copies_connection_settings() {
+        let config = mqtt_config(std::time::Duration::from_secs(42));
+
+        let options = build_options(&config).unwrap();
+
+        assert_eq!(
+            options.broker_address(),
+            ("mqtt.example.com".to_string(), 1884)
+        );
+        assert_eq!(options.client_id(), "client-1");
+        assert_eq!(options.keep_alive(), std::time::Duration::from_secs(42));
+        assert!(!options.clean_session());
+        assert_eq!(options.max_packet_size(), usize::MAX);
+        let credentials = options.credentials().unwrap();
+        assert_eq!(credentials.username, "user");
+        assert_eq!(credentials.password, "pass");
+    }
+
+    #[test]
+    fn build_options_rejects_keep_alive_above_broker_limit() {
+        let config = mqtt_config(std::time::Duration::from_secs(u64::from(u16::MAX) + 1));
+
+        let error = build_options(&config).unwrap_err();
+
+        assert!(matches!(
+            error,
+            Error::InvalidKeepAlive {
+                keep_alive_secs
+            } if keep_alive_secs == u64::from(u16::MAX) + 1
+        ));
+    }
+
+    #[test]
+    fn is_connection_error_classifies_only_connection_failures() {
+        let connection_errors = [
+            Error::ConnectionFailed {
+                source: Box::new(ConnectionError::NetworkTimeout),
+            },
+            Error::ConnFailedWithCode {
+                code: ConnectReturnCode::NotAuthorized,
+            },
+            Error::UnexpectedPollFailed {
+                source: Box::new(ConnectionError::RequestsDone),
+            },
+            Error::RetryTooManyTimes {
+                source: Box::new(ConnectionError::FlushTimeout),
+            },
+        ];
+
+        for error in connection_errors {
+            assert!(error.is_connection_error(), "{error:?}");
+        }
+
+        let non_connection_errors = [
+            Error::InvalidQoS { qos: 3 },
+            Error::ExpectedConnAck,
+            Error::ExpectedSubAck,
+            Error::TaskExited,
+            Error::SubscriptionEmpty,
+            Error::PendingFiltersNotFound,
+            Error::InvalidKeepAlive { keep_alive_secs: 1 },
+        ];
+
+        for error in non_connection_errors {
+            assert!(!error.is_connection_error(), "{error:?}");
+        }
     }
 }
