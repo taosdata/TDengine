@@ -360,6 +360,26 @@ typedef struct {
 
 typedef struct SCompMonitor SCompMonitor;
 
+// Snapshot send progress tracking structs (internal tsdb layer)
+typedef struct {
+  int32_t fid;
+  int32_t fileCount;
+  int32_t finishedFileCount;
+  int64_t totalSize;
+  int64_t readSize;
+  int64_t startTime;    // ms timestamp, set at RangeBegin/RAWReadBegin
+  int64_t sver;
+  int64_t ever;
+  int8_t  transferType; // SNAP_DATA_TSDB(2) or SNAP_DATA_RAW(14)
+} SSnapSendFileSetStat;
+
+typedef struct {
+  int32_t               totalFileSets;
+  int32_t               finishedFileSets;
+  int64_t               startTime;       // ms timestamp, set at ReaderOpen
+  SSnapSendFileSetStat *pFileSetStats;   // array[totalFileSets], allocated once at open
+} SSnapSendVnodeStat;
+
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -380,6 +400,8 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
+  SSnapSendVnodeStat  *pSnapStat;     // NULL when no active snapshot send
+  TdThreadRwlock       snapStatLock;  // protects pSnapStat (readers: mnode query; writer: snapshot reader)
   struct {
     SVHashTable *ht;
     SArray      *arr;

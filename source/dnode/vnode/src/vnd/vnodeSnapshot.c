@@ -940,3 +940,61 @@ _exit:
   }
   return code;
 }
+
+/* ======================================================================
+ * vnodeGetSnapSendProgress — copy the live snapshot-send progress from
+ * the tsdb layer into an SSnapSendVnodeInfo for the mnode progress query.
+ *
+ * Returns:
+ *   0                        — progress data available, *pInfo populated (caller
+ *                              must taosMemoryFree(pInfo->pFileSetInfos))
+ *   TSDB_CODE_NOT_FOUND      — no active snapshot send on this vnode
+ *   TSDB_CODE_OUT_OF_MEMORY  — failed to allocate pFileSetInfos copy
+ * ====================================================================== */
+int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo) {
+  STsdb *pTsdb = pVnode->pTsdb;
+  if (pTsdb == NULL) return TSDB_CODE_NOT_FOUND;
+
+  (void)taosThreadRwlockRdlock(&pTsdb->snapStatLock);
+
+  if (pTsdb->pSnapStat == NULL) {
+    (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+    return TSDB_CODE_NOT_FOUND;
+  }
+
+  SSnapSendVnodeStat *pStat = pTsdb->pSnapStat;
+
+  pInfo->vgId            = TD_VID(pVnode);
+  pInfo->dnodeId         = dnodeId;
+  pInfo->totalFileSets   = pStat->totalFileSets;
+  pInfo->finishedFileSets = pStat->finishedFileSets;
+  pInfo->startTime       = pStat->startTime;
+  pInfo->fileSetCount    = pStat->totalFileSets;
+  pInfo->pFileSetInfos   = NULL;
+
+  int32_t code = 0;
+  if (pStat->totalFileSets > 0 && pStat->pFileSetStats != NULL) {
+    pInfo->pFileSetInfos =
+        (SSnapSendFileSetInfo *)taosMemoryMalloc(pStat->totalFileSets * sizeof(SSnapSendFileSetInfo));
+    if (pInfo->pFileSetInfos == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      for (int32_t i = 0; i < pStat->totalFileSets; i++) {
+        SSnapSendFileSetStat *pSrc  = &pStat->pFileSetStats[i];
+        SSnapSendFileSetInfo *pDest = &pInfo->pFileSetInfos[i];
+        pDest->fid          = pSrc->fid;
+        pDest->fileCount = pSrc->fileCount;
+        pDest->finishedFileCount = pSrc->finishedFileCount;
+        pDest->totalSize = pSrc->totalSize;
+        pDest->readSize = pSrc->readSize;
+        pDest->startTime    = pSrc->startTime;
+        pDest->sver         = pSrc->sver;
+        pDest->ever         = pSrc->ever;
+        pDest->transferType = pSrc->transferType;
+      }
+    }
+  }
+
+  (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+  return code;
+}

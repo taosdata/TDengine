@@ -934,6 +934,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pVgroup->totalStorage = pVload->totalStorage;
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;
+        // Track snapshot send state (ephemeral, in-memory only — cleared on decode)
+        pVgroup->snapRestoring = pVload->snapshotSending;
       }
       bool stateChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
