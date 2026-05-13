@@ -726,6 +726,11 @@ typedef struct STsdbRepOpts {
 int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 
+int32_t tMissingFileListDataLenCalc(const char **fnames, int32_t fileCount);
+int32_t tSerializeMissingFileList(void *buf, int32_t bufLen, const char **fnames, int32_t fileCount);
+int32_t tDeserializeMissingFileList(void *buf, int32_t bufLen, SHashObj **ppHash);
+int32_t tsdbExtractMissingFids(STsdb *pTsdb, SHashObj *missingFileHash, int32_t **ppFids, int32_t *pFidCount);
+
 // snap read
 struct STsdbReadSnap {
   SMemTable     *pMem;

@@ -1185,7 +1185,21 @@ _out:
 
 void tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr) { tsdbFSDestroyCopySnapshot(fsetArr); }
 
+static bool tsdbFSFidInMissingSet(int32_t fid, const int32_t *missingFids, int32_t missingFidCount) {
+  int32_t lo = 0, hi = missingFidCount - 1;
+  while (lo <= hi) {
+    int32_t mid = lo + (hi - lo) / 2;
+    if (missingFids[mid] == fid) return true;
+    if (missingFids[mid] < fid)
+      lo = mid + 1;
+    else
+      hi = mid - 1;
+  }
+  return false;
+}
+
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TFileSetRangeArray *pRanges,
+                                      const int32_t *missingFids, int32_t missingFidCount,
                                       TFileSetRangeArray **fsrArr) {
   int32_t         code = 0;
   STFileSet      *fset;
@@ -1212,6 +1226,12 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
     int64_t sver1 = sver;
     int64_t ever1 = ever;
 
+    // skip fids not in missing-fid filter
+    if (missingFids != NULL && !tsdbFSFidInMissingSet(fset->fid, missingFids, missingFidCount)) {
+      tsdbDebug("vgId:%d, skip fid:%d not in missing-fid set", TD_VID(fs->tsdb->pVnode), fset->fid);
+      continue;
+    }
+
     if (pHash) {
       int32_t         fid = fset->fid;
       STFileSetRange *u = taosHashGet(pHash, &fid, sizeof(fid));
@@ -1226,7 +1246,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
       continue;
     }
 
-    tsdbDebug("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
+    tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
 
     code = tsdbTFileSetRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
     if (code) break;

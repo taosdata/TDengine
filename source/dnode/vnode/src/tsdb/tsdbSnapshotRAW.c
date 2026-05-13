@@ -45,9 +45,28 @@ typedef struct STsdbSnapRAWReader {
 
   // iter
   SDataFileRAWReaderIter dataIter[1];
+
+  // missing file filter
+  SHashObj* missingFileHash;  // key=fname — per-file filtering (not owned, do not free)
+  int32_t*  missingFids;      // FID set for FID-level pre-filtering (owned, copy)
+  int32_t   missingFidCount;
 } STsdbSnapRAWReader;
 
-int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRanges, STsdbSnapRAWReader** reader) {
+static bool tsdbFidInMissingSet(int32_t fid, const int32_t* missingFids, int32_t missingFidCount) {
+  int32_t lo = 0, hi = missingFidCount - 1;
+  while (lo <= hi) {
+    int32_t mid = lo + (hi - lo) / 2;
+    if (missingFids[mid] == fid) return true;
+    if (missingFids[mid] < fid)
+      lo = mid + 1;
+    else
+      hi = mid - 1;
+  }
+  return false;
+}
+
+int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRanges, SHashObj* missingFileHash,
+                              const int32_t* missingFids, int32_t missingFidCount, STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -57,6 +76,21 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRan
   reader[0]->tsdb = tsdb;
   reader[0]->ever = ever;
   reader[0]->type = type;
+
+  // set missing file filter (hash is borrowed, not owned)
+  reader[0]->missingFileHash = missingFileHash;
+
+  // copy missing fid filter
+  if (missingFids != NULL && missingFidCount > 0) {
+    reader[0]->missingFids = taosMemoryMalloc(missingFidCount * sizeof(int32_t));
+    if (reader[0]->missingFids == NULL) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    memcpy(reader[0]->missingFids, missingFids, missingFidCount * sizeof(int32_t));
+    reader[0]->missingFidCount = missingFidCount;
+    tsdbInfo("vgId:%d, RAW reader opened with %d missing-fid filter", TD_VID(tsdb->pVnode), missingFidCount);
+  }
 
   TFileSetRangeArray* pTypedRanges = (TFileSetRangeArray*)pRanges;
   if (pTypedRanges != NULL && TARRAY2_SIZE(pTypedRanges) > 0) {
@@ -71,6 +105,7 @@ _exit:
     tsdbError("vgId:%d %s failed at line %d since %s, ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), __func__, lino,
               tstrerror(code), ever, type);
     tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
+    taosMemoryFree(reader[0]->missingFids);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -90,6 +125,8 @@ void tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
 
   TARRAY2_DESTROY(reader[0]->dataReaderArr, tsdbDataFileRAWReaderClose);
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
+  // missingFileHash is borrowed, not freed here
+  taosMemoryFree(reader[0]->missingFids);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
   return;
@@ -105,6 +142,16 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
       continue;
     }
     STFileObj*               fobj = reader->ctx->fset->farr[ftype];
+    // per-file filter: skip files not in missing set (use basename only)
+    if (reader->missingFileHash != NULL) {
+      const char* base = strrchr(fobj->fname, TD_DIRSEP_CHAR);
+      base = (base != NULL) ? base + 1 : fobj->fname;
+      if (taosHashGet(reader->missingFileHash, base, strlen(base)) == NULL) {
+        tsdbDebug("vgId:%d, RAW skip file:%s not in missing set", TD_VID(reader->tsdb->pVnode), fobj->fname);
+        continue;
+      }
+      tsdbInfo("vgId:%d, RAW include file:%s in missing set", TD_VID(reader->tsdb->pVnode), base);
+    }
     SDataFileRAWReader*      dataReader;
     SDataFileRAWReaderConfig config = {
         .tsdb = reader->tsdb,
@@ -123,6 +170,16 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
   TARRAY2_FOREACH(reader->ctx->fset->lvlArr, lvl) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      // per-file filter: skip stt files not in missing set (use basename only)
+      if (reader->missingFileHash != NULL) {
+        const char* base = strrchr(fobj->fname, TD_DIRSEP_CHAR);
+        base = (base != NULL) ? base + 1 : fobj->fname;
+        if (taosHashGet(reader->missingFileHash, base, strlen(base)) == NULL) {
+          tsdbDebug("vgId:%d, RAW skip stt file:%s not in missing set", TD_VID(reader->tsdb->pVnode), fobj->fname);
+          continue;
+        }
+        tsdbInfo("vgId:%d, RAW include stt file:%s in missing set", TD_VID(reader->tsdb->pVnode), base);
+      }
       SDataFileRAWReader*      dataReader;
       SDataFileRAWReaderConfig config = {
           .tsdb = reader->tsdb,
@@ -238,8 +295,18 @@ static int32_t tsdbSnapRAWReadBegin(STsdbSnapRAWReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (reader->ctx->fsetArrIdx < TARRAY2_SIZE(reader->fsetArr)) {
+  while (reader->ctx->fsetArrIdx < TARRAY2_SIZE(reader->fsetArr)) {
     reader->ctx->fset = TARRAY2_GET(reader->fsetArr, reader->ctx->fsetArrIdx++);
+
+    // skip fids not in missing-fid filter
+    if (reader->missingFids != NULL &&
+        !tsdbFidInMissingSet(reader->ctx->fset->fid, reader->missingFids, reader->missingFidCount)) {
+      tsdbDebug("vgId:%d, skip fid:%d not in missing-fid set", TD_VID(reader->tsdb->pVnode), reader->ctx->fset->fid);
+      reader->ctx->fset = NULL;
+      continue;
+    }
+    tsdbInfo("vgId:%d, RAW include fid:%d in missing-fid set", TD_VID(reader->tsdb->pVnode), reader->ctx->fset->fid);
+
     reader->ctx->isDataDone = false;
 
     code = tsdbSnapRAWReadFileSetOpenReader(reader);
@@ -247,6 +314,8 @@ static int32_t tsdbSnapRAWReadBegin(STsdbSnapRAWReader* reader) {
 
     code = tsdbSnapRAWReadFileSetOpenIter(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    return code;
   }
 
 _exit:

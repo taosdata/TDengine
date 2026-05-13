@@ -529,6 +529,257 @@ _err:
   return code;
 }
 
+int32_t tMissingFileListDataLenCalc(const char** fnames, int32_t fileCount) {
+  int32_t hdrLen = sizeof(int32_t);
+  int32_t datLen = 0;
+
+  int8_t msgVer = 0;
+  hdrLen += sizeof(msgVer);
+  datLen += hdrLen;
+  datLen += sizeof(int32_t);  // fileCount
+  for (int32_t i = 0; i < fileCount; ++i) {
+    datLen += sizeof(int32_t) + (int32_t)strlen(fnames[i]) + 1;  // tEncodeCStr overhead
+  }
+  return datLen;
+}
+
+int32_t tSerializeMissingFileList(void* buf, int32_t bufLen, const char** fnames, int32_t fileCount) {
+  int32_t  code = 0;
+  SEncoder encoder = {0};
+  int8_t   msgVer = TSDB_SNAP_MSG_VER;
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if ((code = tStartEncode(&encoder))) goto _err;
+  if ((code = tEncodeI8(&encoder, msgVer))) goto _err;
+  if ((code = tEncodeI32(&encoder, fileCount))) goto _err;
+  for (int32_t i = 0; i < fileCount; ++i) {
+    if ((code = tEncodeCStr(&encoder, fnames[i]))) goto _err;
+  }
+
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+
+_err:
+  tEncoderClear(&encoder);
+  return code;
+}
+
+int32_t tDeserializeMissingFileList(void* buf, int32_t bufLen, SHashObj** ppHash) {
+  int32_t   code = 0;
+  SDecoder  decoder = {0};
+  int8_t    msgVer = 0;
+  int32_t   fileCount = 0;
+  SHashObj* pHash = NULL;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if ((code = tStartDecode(&decoder))) goto _err;
+  if ((code = tDecodeI8(&decoder, &msgVer))) goto _err;
+  if (msgVer != TSDB_SNAP_MSG_VER) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+  if ((code = tDecodeI32(&decoder, &fileCount))) goto _err;
+  if (fileCount < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
+  if (fileCount > 0) {
+    pHash = taosHashInit(fileCount * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pHash == NULL) {
+      code = terrno;
+      goto _err;
+    }
+    for (int32_t i = 0; i < fileCount; ++i) {
+      char* fname = NULL;
+      if ((code = tDecodeCStr(&decoder, &fname))) goto _err;
+      char dummy = 0;
+      tsdbDebug("Missing File fname:%s", fname);
+      if (taosHashPut(pHash, fname, strlen(fname), &dummy, sizeof(dummy)) != 0) {
+        code = terrno;
+        goto _err;
+      }
+    }
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+
+  *ppHash = pHash;
+  return 0;
+
+_err:
+  if (pHash) taosHashCleanup(pHash);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tsdbExtractMissingFids(STsdb* pTsdb, SHashObj* missingFileHash, int32_t** ppFids, int32_t* pFidCount) {
+  int32_t  code = 0;
+  int32_t  fidCap = 0;
+  int32_t  fidCount = 0;
+  int32_t* fids = NULL;
+
+  (void)taosThreadMutexLock(&pTsdb->mutex);
+
+  STFileSet* fset;
+  TARRAY2_FOREACH(pTsdb->pFS->fSetArr, fset) {
+    bool hasMissing = false;
+
+    // check farr
+    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if (fset->farr[ftype] != NULL) {
+        const char* base = strrchr(fset->farr[ftype]->fname, TD_DIRSEP_CHAR);
+        base = (base != NULL) ? base + 1 : fset->farr[ftype]->fname;
+        if (taosHashGet(missingFileHash, base, strlen(base)) != NULL) {
+          hasMissing = true;
+          break;
+        }
+      }
+    }
+
+    // check stt
+    if (!hasMissing) {
+      SSttLvl* lvl;
+      TARRAY2_FOREACH(fset->lvlArr, lvl) {
+        STFileObj* fobj;
+        TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+          const char* base = strrchr(fobj->fname, TD_DIRSEP_CHAR);
+          base = (base != NULL) ? base + 1 : fobj->fname;
+          if (taosHashGet(missingFileHash, base, strlen(base)) != NULL) {
+            hasMissing = true;
+            break;
+          }
+        }
+        if (hasMissing) break;
+      }
+    }
+
+    if (hasMissing) {
+      if (fidCount >= fidCap) {
+        int32_t  newCap = fidCap == 0 ? 16 : fidCap * 2;
+        int32_t* tmp = taosMemoryRealloc(fids, newCap * sizeof(int32_t));
+        if (tmp == NULL) {
+          code = terrno;
+          (void)taosThreadMutexUnlock(&pTsdb->mutex);
+          taosMemoryFree(fids);
+          return code;
+        }
+        fids = tmp;
+        fidCap = newCap;
+      }
+      fids[fidCount++] = fset->fid;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
+
+  *ppFids = fids;
+  *pFidCount = fidCount;
+  return 0;
+}
+
+static int32_t tsdbDetectMissingFiles(SVnode* pVnode, char*** ppFnames, int32_t* pFnameCount) {
+  int32_t code = 0;
+  char**  fnames = NULL;
+  int32_t fnameCount = 0;
+  int32_t fnameCap = 0;
+  STsdb*  pTsdb = pVnode->pTsdb;
+
+  *ppFnames = NULL;
+  *pFnameCount = 0;
+
+  (void)taosThreadMutexLock(&pTsdb->mutex);
+
+  STFileSet* fset;
+  TARRAY2_FOREACH(pTsdb->pFS->fSetArr, fset) {
+    // check farr entries (HEAD, DATA, SMA, TOMB)
+    for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if (fset->farr[ftype] != NULL) {
+        if (!taosCheckExistFile(fset->farr[ftype]->fname)) {
+          if (fnameCount >= fnameCap) {
+            int32_t newCap = fnameCap == 0 ? 16 : fnameCap * 2;
+            char**  tmp = taosMemoryRealloc(fnames, newCap * sizeof(char*));
+            if (tmp == NULL) {
+              code = terrno;
+              goto _unlock;
+            }
+            fnames = tmp;
+            fnameCap = newCap;
+          }
+          const char* base = strrchr(fset->farr[ftype]->fname, TD_DIRSEP_CHAR);
+          base = (base != NULL) ? base + 1 : fset->farr[ftype]->fname;
+          fnames[fnameCount] = taosStrdup(base);
+          if (fnames[fnameCount] == NULL) {
+            code = terrno;
+            goto _unlock;
+          }
+          fnameCount++;
+        }
+      }
+    }
+
+    // check STT files in lvlArr
+    SSttLvl* lvl;
+    TARRAY2_FOREACH(fset->lvlArr, lvl) {
+      STFileObj* fobj;
+      TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+        if (!taosCheckExistFile(fobj->fname)) {
+          if (fnameCount >= fnameCap) {
+            int32_t newCap = fnameCap == 0 ? 16 : fnameCap * 2;
+            char**  tmp = taosMemoryRealloc(fnames, newCap * sizeof(char*));
+            if (tmp == NULL) {
+              code = terrno;
+              goto _unlock;
+            }
+            fnames = tmp;
+            fnameCap = newCap;
+          }
+          const char* base = strrchr(fobj->fname, TD_DIRSEP_CHAR);
+          base = (base != NULL) ? base + 1 : fobj->fname;
+          fnames[fnameCount] = taosStrdup(base);
+          if (fnames[fnameCount] == NULL) {
+            code = terrno;
+            goto _unlock;
+          }
+          fnameCount++;
+        }
+      }
+    }
+  }
+
+_unlock:
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
+
+  if (code != 0) {
+    for (int32_t i = 0; i < fnameCount; ++i) {
+      taosMemoryFree(fnames[i]);
+    }
+    taosMemoryFree(fnames);
+    return code;
+  }
+
+  *ppFnames = fnames;
+  *pFnameCount = fnameCount;
+  return 0;
+}
+
+static int32_t tsdbMissingFilesEstSize(const char** fnames, int32_t fileCount) {
+  return sizeof(SSyncTLV) + tMissingFileListDataLenCalc(fnames, fileCount);
+}
+
+static int32_t tsdbMissingFilesSerialize(const char** fnames, int32_t fileCount, void* buf, int32_t bufLen) {
+  SSyncTLV* pSubHead = buf;
+  int32_t   tlen = tSerializeMissingFileList(pSubHead->val, bufLen - sizeof(*pSubHead), fnames, fileCount);
+  if (tlen < 0) return tlen;
+  pSubHead->typ = SNAP_DATA_MISSING_FIDS;
+  pSubHead->len = tlen;
+  return sizeof(*pSubHead) + tlen;
+}
+
 static int32_t tsdbRepOptsEstSize(STsdbRepOpts* pOpts) {
   int32_t dataLen = 0;
   dataLen += sizeof(SSyncTLV);
@@ -578,9 +829,8 @@ static int32_t tsdbSnapPrepDealWithSnapInfo(SVnode* pVnode, SSnapshot* pSnap, ST
         }
       } break;
       default:
-        code = TSDB_CODE_INVALID_MSG;
-        tsdbError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), pField->typ);
-        return code;
+        tsdbWarn("vgId:%d, unknown subfield type in snap info, skipping. typ:%d", TD_VID(pVnode), pField->typ);
+        break;
     }
   }
 
@@ -599,6 +849,8 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
 
   // deal with snap info for reply
   STsdbRepOpts opts = {.format = TSDB_SNAP_REP_FMT_RAW};
+  char**       missingFiles = NULL;
+  int32_t      missingFileCount = 0;
   if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     STsdbRepOpts leaderOpts = {0};
     if ((code = tsdbSnapPrepDealWithSnapInfo(pVnode, pSnap, &leaderOpts)) < 0) {
@@ -606,6 +858,15 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
       goto _out;
     }
     opts.format = TMIN(opts.format, leaderOpts.format);
+
+    int32_t detectCode = tsdbDetectMissingFiles(pVnode, &missingFiles, &missingFileCount);
+    if (detectCode != 0) {
+      tsdbWarn("vgId:%d, failed to detect missing files since %s, continuing without", TD_VID(pVnode),
+               tstrerror(detectCode));
+      missingFileCount = 0;
+    } else if (missingFileCount > 0) {
+      tsdbInfo("vgId:%d, detected %d missing files for snapshot", TD_VID(pVnode), missingFileCount);
+    }
   }
 
   // info data realloc
@@ -613,6 +874,9 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   int32_t       bufLen = headLen;
   bufLen += tsdbPartitionInfoEstSize(pInfo);
   bufLen += tsdbRepOptsEstSize(&opts);
+  if (missingFileCount > 0) {
+    bufLen += tsdbMissingFilesEstSize((const char**)missingFiles, missingFileCount);
+  }
   if ((code = syncSnapInfoDataRealloc(pSnap, bufLen)) != 0) {
     tsdbError("vgId:%d, failed to realloc memory for data of snap info. bytes:%d", TD_VID(pVnode), bufLen);
     goto _out;
@@ -637,6 +901,16 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   }
   offset += tlen;
 
+  if (missingFileCount > 0) {
+    if ((tlen = tsdbMissingFilesSerialize((const char**)missingFiles, missingFileCount, buf + offset,
+                                          bufLen - offset)) < 0) {
+      code = tlen;
+      tsdbError("vgId:%d, failed to serialize missing files since %s", TD_VID(pVnode), terrstr());
+      goto _out;
+    }
+    offset += tlen;
+  }
+
   // set header of info data
   SSyncTLV* pHead = pSnap->data;
   pHead->typ = pSnap->type;
@@ -646,6 +920,10 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
            pHead->len);
 
 _out:
+  for (int32_t i = 0; i < missingFileCount; ++i) {
+    taosMemoryFree(missingFiles[i]);
+  }
+  taosMemoryFree(missingFiles);
   tsdbPartitionInfoClear(pInfo);
   return code;
 }

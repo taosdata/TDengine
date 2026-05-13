@@ -52,6 +52,10 @@ struct STsdbSnapReader {
   TTsdbIterArray tombIterArr[1];
   SIterMerger*   tombIterMerger;
 
+  // missing fid filter (NULL = send all, non-NULL = only send listed fids)
+  int32_t* missingFids;
+  int32_t  missingFidCount;
+
   // data
   SBlockData blockData[1];
   STombBlock tombBlock[1];
@@ -198,12 +202,35 @@ static void tsdbSnapReadFileSetCloseIter(STsdbSnapReader* reader) {
   return;
 }
 
+static bool tsdbSnapFidInMissingSet(int32_t fid, const int32_t* missingFids, int32_t missingFidCount) {
+  int32_t lo = 0, hi = missingFidCount - 1;
+  while (lo <= hi) {
+    int32_t mid = lo + (hi - lo) / 2;
+    if (missingFids[mid] == fid) return true;
+    if (missingFids[mid] < fid)
+      lo = mid + 1;
+    else
+      hi = mid - 1;
+  }
+  return false;
+}
+
 static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (reader->ctx->fsrArrIdx < TARRAY2_SIZE(reader->fsrArr)) {
+  while (reader->ctx->fsrArrIdx < TARRAY2_SIZE(reader->fsrArr)) {
     reader->ctx->fsr = TARRAY2_GET(reader->fsrArr, reader->ctx->fsrArrIdx++);
+
+    // skip fids not in missing-fid filter
+    if (reader->missingFids != NULL &&
+        !tsdbSnapFidInMissingSet(reader->ctx->fsr->fset->fid, reader->missingFids, reader->missingFidCount)) {
+      tsdbDebug("vgId:%d, snap reader skip fid:%d not in missing-fid set", TD_VID(reader->tsdb->pVnode),
+                reader->ctx->fsr->fset->fid);
+      reader->ctx->fsr = NULL;
+      continue;
+    }
+
     reader->ctx->isDataDone = false;
     reader->ctx->isTombDone = false;
 
@@ -212,6 +239,8 @@ static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
 
     code = tsdbSnapReadFileSetOpenIter(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    return code;
   }
 
 _exit:
@@ -441,7 +470,7 @@ _exit:
 }
 
 int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
-                           STsdbSnapReader** reader) {
+                           const int32_t* missingFids, int32_t missingFidCount, STsdbSnapReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -453,7 +482,20 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges, &reader[0]->fsrArr);
+  // copy missing fid filter
+  if (missingFids != NULL && missingFidCount > 0) {
+    reader[0]->missingFids = taosMemoryMalloc(missingFidCount * sizeof(int32_t));
+    if (reader[0]->missingFids == NULL) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    memcpy(reader[0]->missingFids, missingFids, missingFidCount * sizeof(int32_t));
+    reader[0]->missingFidCount = missingFidCount;
+    tsdbInfo("vgId:%d, snap reader opened with %d missing-fid filter", TD_VID(tsdb->pVnode), missingFidCount);
+  }
+
+  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges, reader[0]->missingFids,
+                                       reader[0]->missingFidCount, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -461,6 +503,7 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
               __func__, __FILE__, lino, tstrerror(code), sver, ever, type);
     tsdbTFileSetRangeArrayDestroy(&reader[0]->fsrArr);
+    taosMemoryFree(reader[0]->missingFids);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -496,6 +539,7 @@ void tsdbSnapReaderClose(STsdbSnapReader** reader) {
     tBufferDestroy(reader[0]->buffers + i);
   }
 
+  taosMemoryFree(reader[0]->missingFids);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
 
