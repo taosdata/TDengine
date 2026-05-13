@@ -997,7 +997,7 @@ int32_t metaSnapTxnFinalRead(SMeta* pMeta, uint8_t** ppData) {
   pHdr->size = (int64_t)bodyLen;
 
   uint8_t* pCur = pHdr->data;
-  *(uint32_t*)pCur = nEntries;
+  memcpy(pCur, &nEntries, sizeof(uint32_t));
   pCur += sizeof(uint32_t);
 
   for (uint32_t i = 0; i < nEntries; i++) {
@@ -1007,11 +1007,11 @@ int32_t metaSnapTxnFinalRead(SMeta* pMeta, uint8_t** ppData) {
       STxnFinalVal val;
     } *pE = taosArrayGet(pResult, i);
 
-    *(int64_t*)pCur = pE->txnId;
+    memcpy(pCur, &pE->txnId, sizeof(int64_t));
     pCur += sizeof(int64_t);
-    *(int8_t*)pCur = pE->val.finalStatus;
+    *pCur = (uint8_t)pE->val.finalStatus;
     pCur += sizeof(int8_t);
-    *(int64_t*)pCur = pE->val.timestamp;
+    memcpy(pCur, &pE->val.timestamp, sizeof(int64_t));
     pCur += sizeof(int64_t);
   }
 
@@ -1042,7 +1042,8 @@ int32_t metaSnapTxnFinalWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData) {
 
   uint8_t* pCur = pHdr->data;
   uint8_t* pEnd = pHdr->data + pHdr->size;
-  uint32_t nEntries = *(uint32_t*)pCur;
+  uint32_t nEntries = 0;
+  memcpy(&nEntries, pCur, sizeof(uint32_t));
   pCur += sizeof(uint32_t);
 
   if ((uint64_t)nEntries * META_SNAP_TXN_FINAL_ENTRY_SIZE != (uint64_t)(pEnd - pCur)) {
@@ -1070,12 +1071,13 @@ int32_t metaSnapTxnFinalWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData) {
 
   uint32_t applied = 0;
   for (uint32_t i = 0; i < nEntries; i++) {
-    int64_t txnId = *(int64_t*)pCur;
+    int64_t txnId = 0;
+    memcpy(&txnId, pCur, sizeof(int64_t));
     pCur += sizeof(int64_t);
     STxnFinalVal val = {0};
-    val.finalStatus = *(int8_t*)pCur;
+    val.finalStatus = (int8_t)*pCur;
     pCur += sizeof(int8_t);
-    val.timestamp = *(int64_t*)pCur;
+    memcpy(&val.timestamp, pCur, sizeof(int64_t));
     pCur += sizeof(int64_t);
 
     if (txnId == 0 ||

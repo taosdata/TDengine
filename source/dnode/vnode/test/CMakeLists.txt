@@ -40,7 +40,7 @@ ADD_EXECUTABLE(vnodeTxnTest vnodeTxnTest.cpp)
 DEP_ext_gtest(vnodeTxnTest)
 TARGET_LINK_LIBRARIES(
          vnodeTxnTest
-         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+         PUBLIC os util common vnode mgmt_mnode
 )
 SET_TARGET_PROPERTIES(
          vnodeTxnTest PROPERTIES
