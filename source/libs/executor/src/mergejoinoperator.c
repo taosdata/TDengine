@@ -908,28 +908,82 @@ static int32_t mJoinInitFinColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
 static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTarget) {
   SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
   if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
+    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join prim "
+           "expr expects TIMETRUNCATE, funcType:%d",
+           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR), pFunc->funcType);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  if (4 != pFunc->pParameterList->length && 5 != pFunc->pParameterList->length) {
+  int32_t numOfParams = pFunc->pParameterList->length;
+  if (4 != numOfParams && 5 != numOfParams && 6 != numOfParams && 7 != numOfParams) {
+    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join "
+           "TIMETRUNCATE invalid param count:%d",
+           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR), pFunc->pParameterList->length);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   SValueNode* pUnit = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
   if (NULL == pUnit) {
+    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join "
+           "TIMETRUNCATE missing unit parameter",
+           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   SValueNode* pCurrTz = NULL;
-  if (5 == pFunc->pParameterList->length) {
+  SValueNode* pTimeZone = NULL;
+
+  if (7 == numOfParams) {
+    /* [ts, unit, use_current_timezone, precision, tz_name, fdow, unitCh] */
     pCurrTz = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4);
     if (NULL == pCurrTz) {
+      qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join "
+             "TIMETRUNCATE missing current timezone parameter",
+             __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+             tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
+  } else if (6 == numOfParams) {
+    SValueNode* pThird = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    if (NULL == pThird) {
+      qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join "
+             "TIMETRUNCATE missing third parameter",
+             __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+             tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    if (IS_VAR_DATA_TYPE(pThird->node.resType.type)) {
+      /* [ts, unit, user_tz, precision, fdow, unitCh] */
+      pTimeZone = pThird;
+      pCurrTz = NULL;
+    } else {
+      /* [ts, unit, precision, tz_name, fdow, unitCh] */
+      pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
+      pCurrTz = NULL;
+    }
+  } else if (5 == numOfParams) {
+    pCurrTz = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4);
+    if (NULL == pCurrTz) {
+      qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join "
+             "TIMETRUNCATE missing current timezone parameter",
+             __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+             tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  } else {
+    pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
   }
-  SValueNode* pTimeZone = (5 == pFunc->pParameterList->length)
-                              ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4)
-                              : (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
+
   if (NULL == pTimeZone) {
+    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join "
+           "TIMETRUNCATE missing timezone parameter",
+           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
@@ -962,6 +1016,7 @@ static int32_t mJoinInitValPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTa
 static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoinTableCtx* pTable) {
   if (NULL == pNode) {
     pCtx->targetSlotId = pTable->primCol->srcSlot;
+    qDebug("merge join prim expr fallback to source slot:%d", pCtx->targetSlotId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2049,26 +2104,73 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
   initOperatorCostInfo(pOperator);
 
   pInfo->pOperator = pOperator;
-  MJ_ERR_JRET(mJoinInitDownstreamInfo(pInfo, &pDownstream, &numOfDownstream, &newDownstreams));
+  code = mJoinInitDownstreamInfo(pInfo, &pDownstream, &numOfDownstream, &newDownstreams);
+  if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge join init downstream failed, oldDownstream:%d, newDownstream:%d",
+        __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo), oldNum, numOfDownstream);
+    MJ_ERR_JRET(code);
+  }
 
   setOperatorInfo(pOperator, "MergeJoinOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
   mJoinSetBuildAndProbeTable(pInfo, pJoinNode);
 
-  MJ_ERR_JRET(mJoinHandleConds(pInfo, pJoinNode, pTaskInfo));
+  code = mJoinHandleConds(pInfo, pJoinNode, pTaskInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
+           "join handle conds failed",
+           __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo));
+    MJ_ERR_JRET(code);
+  }
 
-  MJ_ERR_JRET(mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0], newDownstreams));
-  MJ_ERR_JRET(mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1], newDownstreams));
+  code = mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0], newDownstreams);
+  if (code != TSDB_CODE_SUCCESS) {
+    int32_t opType = (pDownstream && numOfDownstream > 0 && pDownstream[0]) ? pDownstream[0]->operatorType : -1;
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
+             "join init left table failed, leftOpType:%d(%s)",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             opType, opType >= 0 ? nodesNodeName(opType) : "NULL");
+    MJ_ERR_JRET(code);
+  }
 
-  MJ_ERR_JRET(mJoinInitCtx(pInfo, pJoinNode));
-  MJ_ERR_JRET(mJoinSetImplFp(pInfo));
+  code = mJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1], newDownstreams);
+  if (code != TSDB_CODE_SUCCESS) {
+    int32_t opType = (pDownstream && numOfDownstream > 1 && pDownstream[1]) ? pDownstream[1]->operatorType : -1;
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
+             "join init right table failed, rightOpType:%d(%s)",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             opType, opType >= 0 ? nodesNodeName(opType) : "NULL");
+    MJ_ERR_JRET(code);
+  }
+
+  code = mJoinInitCtx(pInfo, pJoinNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
+           "join init ctx failed",
+           __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo));
+    MJ_ERR_JRET(code);
+  }
+
+  code = mJoinSetImplFp(pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
+           "join set impl failed",
+           __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo));
+    MJ_ERR_JRET(code);
+  }
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, mJoinMainProcess, NULL, destroyMergeJoinOperator,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   setOperatorResetStateFn(pOperator, resetMergeJoinOperState);
-  MJ_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
+  code = appendDownstream(pOperator, pDownstream, numOfDownstream);
+  if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:merge "
+             "join append downstream failed, downstream:%d",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo), numOfDownstream);
+    MJ_ERR_JRET(code);
+  }
 
   if (newDownstreams) {
     taosMemoryFree(pDownstream);

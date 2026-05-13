@@ -596,6 +596,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
     code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i], model);
     if (ops[i] == NULL || code != 0) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, "
+             "parentType:%d(%s), childIdx:%d, childType:%d(%s), childOp:%p",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             type, nodesNodeName(type), i, nodeType(pChildNode),
+             nodesNodeName(nodeType(pChildNode)), ops[i]);
       for (int32_t j = 0; j < i; ++j) {
         destroyOperator(ops[j]);
       }
@@ -691,6 +696,13 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     taosMemoryFree(ops);
     qError("invalid operator type %d", type);
     return code;
+  }
+
+  if (code != TSDB_CODE_SUCCESS || pOptr == NULL) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, type:%d(%s), "
+             "op:%p",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             type, nodesNodeName(type), pOptr);
   }
 
   taosMemoryFree(ops);

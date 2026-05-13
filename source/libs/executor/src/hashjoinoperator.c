@@ -287,13 +287,42 @@ static int32_t hJoinInitPrimExprCtx(SNode* pNode, SHJoinPrimExprCtx* pCtx, SHJoi
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  if (4 != pFunc->pParameterList->length && 5 != pFunc->pParameterList->length) {
+  int32_t numOfParams = pFunc->pParameterList->length;
+  if (4 != numOfParams && 5 != numOfParams && 6 != numOfParams && 7 != numOfParams) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   SValueNode* pUnit = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-  SValueNode* pCurrTz = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2) : NULL;
-  SValueNode* pTimeZone = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4) : (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
+  SValueNode* pCurrTz = NULL;
+  SValueNode* pTimeZone = NULL;
+
+  if (7 == numOfParams) {
+    /* [ts, unit, use_current_timezone, precision, tz_name, fdow, unitCh] */
+    pCurrTz = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4);
+  } else if (6 == numOfParams) {
+    SValueNode* pThird = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    if (NULL == pThird) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    if (IS_VAR_DATA_TYPE(pThird->node.resType.type)) {
+      /* [ts, unit, user_tz, precision, fdow, unitCh] */
+      pTimeZone = pThird;
+    } else {
+      /* [ts, unit, precision, tz_name, fdow, unitCh] */
+      pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
+    }
+  } else if (5 == numOfParams) {
+    pCurrTz = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4);
+  } else {
+    pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
+  }
+
+  if (NULL == pUnit || NULL == pTimeZone) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 
   pCtx->truncateUnit = pUnit->typeData;
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
