@@ -2067,6 +2067,36 @@ static char** getBackupStbNames(const char *dbName, int *code) {
 //
 
 // restore stream create SQL
+// Replace all occurrences of oldPat with newPat in src, write result to dst.
+// Returns true if at least one replacement was made.
+static bool replaceAllSubstr(const char *src, const char *oldPat, const char *newPat,
+                              char *dst, int dstSize) {
+    int oldLen = strlen(oldPat);
+    int newLen = strlen(newPat);
+    char *d = dst;
+    int left = dstSize - 1;
+    const char *s = src;
+    bool replaced = false;
+    const char *pos;
+
+    while ((pos = strstr(s, oldPat)) != NULL && left > 0) {
+        int chunk = (int)(pos - s);
+        if (chunk > left) chunk = left;
+        memcpy(d, s, chunk);
+        d += chunk; left -= chunk;
+        if (newLen > left) break;
+        memcpy(d, newPat, newLen);
+        d += newLen; left -= newLen;
+        s = pos + oldLen;
+        replaced = true;
+    }
+    int tail = strlen(s);
+    if (tail > left) tail = left;
+    memcpy(d, s, tail);
+    d[tail] = '\0';
+    return replaced;
+}
+
 static int restoreStreamsSql(const char *dbName) {
     int code = TSDB_CODE_SUCCESS;
     const char *targetDb = argRenameDb(dbName);
@@ -2141,45 +2171,44 @@ static int restoreStreamsSql(const char *dbName) {
                 while (*nameEnd && *nameEnd != ' ' && *nameEnd != '\t') nameEnd++;
                 bool alreadyQualified = (memchr(afterCS, '.', nameEnd - afterCS) != NULL);
                 if (!alreadyQualified) {
-                    // Insert "targetDb." before stream name
-                    int n = snprintf(renamedBuf, sizeof(renamedBuf), "%.*s%s.%s",
+                    // Insert db-qualifier before stream name.
+                    // Use backtick-quoted form if the name itself is backtick-quoted.
+                    int n;
+                    if (*afterCS == '`') {
+                        n = snprintf(renamedBuf, sizeof(renamedBuf), "%.*s`%s`.%s",
                                      hdrLen, line, targetDb, afterCS);
+                    } else {
+                        n = snprintf(renamedBuf, sizeof(renamedBuf), "%.*s%s.%s",
+                                     hdrLen, line, targetDb, afterCS);
+                    }
                     if (n > 0 && n < (int)sizeof(renamedBuf)) {
                         execSql = renamedBuf;
                     }
                 }
             }
 
-            // Step 2: if rename is configured, replace old dbName. with targetDb.
+            // Step 2: if rename is configured, replace old dbName references with targetDb.
+            // Handle both backtick-quoted (`dbName`.) and unquoted (dbName.) patterns.
             if (strcmp(targetDb, dbName) != 0) {
+                char *input = execSql;
+                char tmpBuf[TSDB_MAX_SQL_LEN];
+
+                // First pass: backtick-quoted  `dbName`. -> `targetDb`.
+                char oldBt[256], newBt[256];
+                snprintf(oldBt, sizeof(oldBt), "`%s`.", dbName);
+                snprintf(newBt, sizeof(newBt), "`%s`.", targetDb);
+                if (replaceAllSubstr(input, oldBt, newBt, tmpBuf, sizeof(tmpBuf))) {
+                    strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
+                    renamedBuf[sizeof(renamedBuf) - 1] = '\0';
+                    execSql = renamedBuf;
+                    input = execSql;
+                }
+
+                // Second pass: unquoted  dbName. -> targetDb.
                 char oldPat[256], newPat[256];
                 snprintf(oldPat, sizeof(oldPat), "%s.", dbName);
                 snprintf(newPat, sizeof(newPat), "%s.", targetDb);
-                // work on whichever buffer is current
-                char *input = execSql;
-                char tmpBuf[TSDB_MAX_SQL_LEN];
-                if (strstr(input, oldPat)) {
-                    char *src = input;
-                    char *dst = tmpBuf;
-                    int dstLeft = sizeof(tmpBuf) - 1;
-                    int oldPatLen = strlen(oldPat);
-                    int newPatLen = strlen(newPat);
-                    char *pos;
-                    while ((pos = strstr(src, oldPat)) != NULL && dstLeft > 0) {
-                        int chunk = (int)(pos - src);
-                        if (chunk > dstLeft) chunk = dstLeft;
-                        memcpy(dst, src, chunk);
-                        dst += chunk; dstLeft -= chunk;
-                        if (newPatLen > dstLeft) break;
-                        memcpy(dst, newPat, newPatLen);
-                        dst += newPatLen; dstLeft -= newPatLen;
-                        src = pos + oldPatLen;
-                    }
-                    int tailLen = strlen(src);
-                    if (tailLen > dstLeft) tailLen = dstLeft;
-                    memcpy(dst, src, tailLen);
-                    dst[tailLen] = '\0';
-                    // copy to renamedBuf so execSql stays valid
+                if (replaceAllSubstr(input, oldPat, newPat, tmpBuf, sizeof(tmpBuf))) {
                     strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
                     renamedBuf[sizeof(renamedBuf) - 1] = '\0';
                     execSql = renamedBuf;
