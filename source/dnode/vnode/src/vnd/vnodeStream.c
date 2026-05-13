@@ -3408,6 +3408,7 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   resultRsp.ver = req->walMetaNewReq.lastVer;
   {
     int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
+    ST_TASK_DLOG("vgId:%d %s hook rc=0x%x ver=%" PRId64, TD_VID(pVnode), __func__, hookRc, resultRsp.ver);
     if (hookRc == TSDB_CODE_STREAM_VTB_TAG_CHANGED) { code = hookRc; goto end; }
   }
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo, req->walMetaNewReq.ctime));
@@ -3464,6 +3465,7 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   STREAM_CHECK_NULL_GOTO(resultRsp.indexHash, terrno);
   {
     int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
+    ST_TASK_DLOG("vgId:%d %s hook rc=0x%x ver=%" PRId64, TD_VID(pVnode), __func__, hookRc, resultRsp.ver);
     if (hookRc == TSDB_CODE_STREAM_VTB_TAG_CHANGED) { code = hookRc; goto end; }
   }
 
@@ -3799,13 +3801,26 @@ static int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fu
   }
 
   // Sync request col/tag cid arrays so refresh hook knows what to re-resolve.
+  // IMPORTANT: must mirror the caller's NULL/non-NULL exactly. The downstream
+  // streamPushInitialWorkItemsForUid treats NULL as "all columns" and a
+  // (possibly empty) array as "specified cid list". If we left a stale empty
+  // array here when the caller passed NULL, the next recheck would resolve
+  // zero columns and falsely diff against the fully-resolved cache.
+  if (pCache->reqColCids != NULL) {
+    taosArrayDestroy(pCache->reqColCids);
+    pCache->reqColCids = NULL;
+  }
   if (cids != NULL) {
-    if (pCache->reqColCids != NULL) taosArrayDestroy(pCache->reqColCids);
     pCache->reqColCids = taosArrayDup(cids, NULL);
+    if (pCache->reqColCids == NULL) { code = terrno; goto _exit; }
+  }
+  if (pCache->reqTagCids != NULL) {
+    taosArrayDestroy(pCache->reqTagCids);
+    pCache->reqTagCids = NULL;
   }
   if (tagCids != NULL) {
-    if (pCache->reqTagCids != NULL) taosArrayDestroy(pCache->reqTagCids);
     pCache->reqTagCids = taosArrayDup(tagCids, NULL);
+    if (pCache->reqTagCids == NULL) { code = terrno; goto _exit; }
   }
   pCache->lastCheckMs = taosGetTimestampMs();
   pCache->valid       = true;
@@ -3920,23 +3935,59 @@ end:
 
 // Compare two SColResolveItem; returns true if they refer to the same terminal column.
 static bool colResolveItemEqual(const SColResolveItem *a, const SColResolveItem *b) {
-  if (a == NULL && b == NULL) return true;
-  if (a == NULL || b == NULL) return false;
-  if (a->hasRef != b->hasRef) return false;
-  if (!a->hasRef) return true;
-  return strcmp(a->refDbName, b->refDbName) == 0 &&
-         strcmp(a->refTableName, b->refTableName) == 0 &&
-         strcmp(a->refColName, b->refColName) == 0;
+  if (a == NULL && b == NULL) {
+    stDebug("%s both NULL -> equal", __func__);
+    return true;
+  }
+  if (a == NULL || b == NULL) {
+    stDebug("%s one side NULL: a=%p b=%p -> diff", __func__, a, b);
+    return false;
+  }
+  if (a->hasRef != b->hasRef) {
+    stDebug("%s hasRef diff: a=%d b=%d -> diff", __func__, a->hasRef, b->hasRef);
+    return false;
+  }
+  if (!a->hasRef) {
+    stDebug("%s both no-ref -> equal", __func__);
+    return true;
+  }
+  bool eq = strcmp(a->refDbName, b->refDbName) == 0 &&
+            strcmp(a->refTableName, b->refTableName) == 0 &&
+            strcmp(a->refColName, b->refColName) == 0;
+  stDebug("%s old=%s.%s.%s new=%s.%s.%s -> %s", __func__, a->refDbName, a->refTableName,
+          a->refColName, b->refDbName, b->refTableName, b->refColName, eq ? "equal" : "diff");
+  return eq;
 }
 
 static bool tagValueEqual(const STagValue *a, const STagValue *b) {
-  if (a == NULL && b == NULL) return true;
-  if (a == NULL || b == NULL) return false;
-  if (a->type != b->type) return false;
-  if (a->nLen != b->nLen) return false;
-  if (a->nLen == 0) return true;
-  if (a->pData == NULL || b->pData == NULL) return a->pData == b->pData;
-  return memcmp(a->pData, b->pData, a->nLen) == 0;
+  if (a == NULL && b == NULL) {
+    stDebug("%s both NULL -> equal", __func__);
+    return true;
+  }
+  if (a == NULL || b == NULL) {
+    stDebug("%s one side NULL: a=%p b=%p -> diff", __func__, a, b);
+    return false;
+  }
+  if (a->type != b->type) {
+    stDebug("%s type diff: a=%d b=%d -> diff", __func__, a->type, b->type);
+    return false;
+  }
+  if (a->nLen != b->nLen) {
+    stDebug("%s nLen diff: a=%d b=%d -> diff", __func__, a->nLen, b->nLen);
+    return false;
+  }
+  if (a->nLen == 0) {
+    stDebug("%s both empty -> equal", __func__);
+    return true;
+  }
+  if (a->pData == NULL || b->pData == NULL) {
+    bool eq = a->pData == b->pData;
+    stDebug("%s pData NULL: a=%p b=%p -> %s", __func__, a->pData, b->pData, eq ? "equal" : "diff");
+    return eq;
+  }
+  bool eq = memcmp(a->pData, b->pData, a->nLen) == 0;
+  stDebug("%s memcmp type=%d nLen=%d -> %s", __func__, a->type, a->nLen, eq ? "equal" : "diff");
+  return eq;
 }
 
 // Re-resolve full uid set and diff against existing cache.
@@ -3949,8 +4000,16 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
   SStreamVTableInfoCache *pCache    = pInfo->vtbCache;
   if (pCache == NULL) return 0;
 
+  stDebug("vgId:%d %s enter: walVer=%" PRId64 " reqCols=%d reqTags=%d oldUidCnt=%d",
+          TD_VID(pVnode), __func__, walVer,
+          (int32_t)taosArrayGetSize(pCache->reqColCids),
+          (int32_t)taosArrayGetSize(pCache->reqTagCids),
+          pCache->uid2Result ? tSimpleHashGetSize(pCache->uid2Result) : 0);
+
   code = streamResolveVTableRefChain(pVnode, NULL, pInfo, walVer, NULL,
                                      pCache->reqColCids, pCache->reqTagCids, &uid2Result);
+  stDebug("vgId:%d %s resolve done: code=0x%x newUidCnt=%d", TD_VID(pVnode), __func__, code,
+          uid2Result ? tSimpleHashGetSize(uid2Result) : 0);
   if (code != 0) return code;
 
   // Diff against existing cache.
@@ -3973,6 +4032,8 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
                                (STagValue **)tSimpleHashGet(newRes->tagMap, &cid, sizeof(cid));
           STagValue *newV = (ppNewV == NULL) ? NULL : *ppNewV;
           if (!tagValueEqual(oldV, newV)) {
+            stDebug("vgId:%d %s tag changed: uid=%" PRId64 " cid=%d", TD_VID(pVnode), __func__,
+                    uid, (int32_t)cid);
             code = TSDB_CODE_STREAM_VTB_TAG_CHANGED;
             goto _exit;
           }
@@ -3993,6 +4054,7 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
         }
       }
       if (colChanged && changedUids != NULL) {
+        stDebug("vgId:%d %s col changed: uid=%" PRId64, TD_VID(pVnode), __func__, uid);
         if (taosArrayPush(changedUids, &uid) == NULL) { code = terrno; goto _exit; }
       }
     }
@@ -4032,16 +4094,30 @@ _exit:
 // All other cases: returns 0 and lets caller continue normal processing.
 static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
                                              int64_t walVer, SSTriggerWalNewRsp *pRsp) {
-  if (pInfo == NULL || pInfo->vtbCache == NULL || !pInfo->vtbCache->valid) return 0;
+  if (pInfo == NULL || pInfo->vtbCache == NULL || !pInfo->vtbCache->valid) {
+    stDebug("vgId:%d %s skip: pInfo=%p vtbCache=%p valid=%d", TD_VID(pVnode), __func__, pInfo,
+            pInfo ? pInfo->vtbCache : NULL,
+            (pInfo && pInfo->vtbCache) ? pInfo->vtbCache->valid : 0);
+    return 0;
+  }
   SStreamVTableInfoCache *pCache = pInfo->vtbCache;
   int64_t now = taosGetTimestampMs();
-  if (now - pCache->lastCheckMs < 10 * 1000) return 0;
+  if (now - pCache->lastCheckMs < 10 * 1000) {
+    stDebug("vgId:%d %s skip throttled: now=%" PRId64 " lastCheckMs=%" PRId64 " walVer=%" PRId64,
+            TD_VID(pVnode), __func__, now, pCache->lastCheckMs, walVer);
+    return 0;
+  }
+
+  stDebug("vgId:%d %s enter: walVer=%" PRId64 " lastCheckMs=%" PRId64, TD_VID(pVnode), __func__,
+          walVer, pCache->lastCheckMs);
 
   int32_t code = 0;
   SArray *changedUids = NULL;
   taosWLockLatch(&pCache->lock);
   if (now - pCache->lastCheckMs < 10 * 1000) {
     taosWUnLockLatch(&pCache->lock);
+    stDebug("vgId:%d %s skip throttled (post-lock): lastCheckMs=%" PRId64, TD_VID(pVnode),
+            __func__, pCache->lastCheckMs);
     return 0;
   }
   changedUids = taosArrayInit(0, sizeof(int64_t));
@@ -4050,16 +4126,23 @@ static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReade
   pCache->lastCheckMs = taosGetTimestampMs();
   taosWUnLockLatch(&pCache->lock);
 
+  stDebug("vgId:%d %s recheck done: code=0x%x changedUids=%d walVer=%" PRId64, TD_VID(pVnode),
+          __func__, code, (int32_t)taosArrayGetSize(changedUids), walVer);
+
   if (code == TSDB_CODE_STREAM_VTB_TAG_CHANGED) {
+    stDebug("vgId:%d %s tag changed, abort fast", TD_VID(pVnode), __func__);
     taosArrayDestroy(changedUids);
     return code;
   }
   if (code != 0) {
+    stDebug("vgId:%d %s recheck failed since %s", TD_VID(pVnode), __func__, tstrerror(code));
     taosArrayDestroy(changedUids);
     return code;
   }
   if (pRsp != NULL && taosArrayGetSize(changedUids) > 0) {
     int32_t rc = addUidListToBlock(changedUids, &pRsp->tableBlock, walVer, &pRsp->totalRows, TABLE_BLOCK_ADD);
+    stDebug("vgId:%d %s addUidListToBlock rc=0x%x changedUids=%d totalRows=%d", TD_VID(pVnode),
+            __func__, rc, (int32_t)taosArrayGetSize(changedUids), pRsp->totalRows);
     if (rc != 0) { taosArrayDestroy(changedUids); return rc; }
   }
   taosArrayDestroy(changedUids);
@@ -4627,6 +4710,8 @@ static int32_t vnodeFillTagValueFromChild(SVnode *pVnode, const SMetaEntry *pChi
   r->terminated = true;
   int32_t code = streamReadChildTagConstValue(pVnode, pChildEntry, tagColName,
                                               &r->tagType, &r->tagLen, &r->tagData);
+  vDebug("vgId:%d %s tag=%s code=0x%x type=%d len=%d", TD_VID(pVnode), __func__, tagColName, code,
+         r->tagType, r->tagLen);
   if (code == TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST ||
       code == TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST) {
     // per-item soft error: surface via r->code, do not abort the batch.
@@ -4641,14 +4726,20 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
   SMetaReader mr   = {0};
   int32_t     code = 0;
 
+  vDebug("vgId:%d %s enter: kind=%d ref=%s.%s.%s", TD_VID(pVnode), __func__, q->kind, q->refDbName,
+         q->refTableName, q->refColName);
+
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
   if (metaGetTableEntryByName(&mr, q->refTableName) != 0) {
+    vDebug("vgId:%d %s ref table not exist: %s", TD_VID(pVnode), __func__, q->refTableName);
     r->code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
     metaReaderClear(&mr);
     return 0;
   }
 
   bool isVtable = (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE);
+  vDebug("vgId:%d %s table found: name=%s type=%d isVtable=%d", TD_VID(pVnode), __func__,
+         q->refTableName, mr.me.type, isVtable);
 
   if (isVtable) {
     SColRefWrapper *pWrap = &mr.me.colRef;
@@ -4663,12 +4754,16 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
       }
     }
     if (pFound == NULL) {
+      vDebug("vgId:%d %s ref col not found in vtable: col=%s", TD_VID(pVnode), __func__,
+             q->refColName);
       r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
       metaReaderClear(&mr);
       return 0;
     }
 
     if (pFound->hasRef) {
+      vDebug("vgId:%d %s vtable next-hop: -> %s.%s.%s", TD_VID(pVnode), __func__,
+             pFound->refDbName, pFound->refTableName, pFound->refColName);
       r->terminated     = false;
       r->nextRef.kind   = q->kind;
       r->nextRef.hasRef = true;
@@ -4741,14 +4836,20 @@ int32_t vnodeProcessVTableRefResolveReq(SVnode *pVnode, SRpcMsg *pMsg) {
   void                *pBuf   = NULL;
   SVTableRefResolveReq req    = {0};
   SVTableRefResolveRsp rsp    = {0};
+  SRpcMsg              rspMsg = {0};
+
+  vDebug("vgId:%d %s enter: contLen=%d msgType=%d", TD_VID(pVnode), __func__, pMsg->contLen,
+         pMsg->msgType);
 
   if (tDeserializeSVTableRefResolveReq((char *)pMsg->pCont + sizeof(SMsgHead),
                                        pMsg->contLen - (int32_t)sizeof(SMsgHead), &req) < 0) {
+    vError("vgId:%d %s deserialize failed", TD_VID(pVnode), __func__);
     code = TSDB_CODE_INVALID_MSG;
     goto _end;
   }
 
   int32_t n = (req.items != NULL) ? (int32_t)taosArrayGetSize(req.items) : 0;
+  vDebug("vgId:%d %s req: ver=%" PRId64 " items=%d", TD_VID(pVnode), __func__, req.ver, n);
   rsp.items = taosArrayInit(n, sizeof(SVTableRefResolveRspItem));
   if (rsp.items == NULL) {
     code = terrno;
@@ -4759,6 +4860,9 @@ int32_t vnodeProcessVTableRefResolveReq(SVnode *pVnode, SRpcMsg *pMsg) {
     SVTableRefResolveItem    *q = (SVTableRefResolveItem *)taosArrayGet(req.items, i);
     SVTableRefResolveRspItem  r = {0};
     int32_t                   rc = vnodeResolveOneHop(pVnode, q, &r);
+    vDebug("vgId:%d %s item[%d/%d]: kind=%d ref=%s.%s.%s rc=0x%x rCode=0x%x term=%d nextHasRef=%d",
+           TD_VID(pVnode), __func__, i, n, q->kind, q->refDbName, q->refTableName, q->refColName,
+           rc, r.code, r.terminated, r.nextRef.hasRef);
     if (rc != 0) {
       // Hard failure (e.g. OOM): record and continue, do not abort batch.
       r.code = rc;
@@ -4782,16 +4886,29 @@ int32_t vnodeProcessVTableRefResolveReq(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   if (tSerializeSVTableRefResolveRsp(pBuf, rspLen, &rsp) < 0) {
     rpcFreeCont(pBuf);
+    pBuf = NULL;
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _end;
   }
-  pMsg->info.rsp    = pBuf;
-  pMsg->info.rspLen = rspLen;
 
 _end:
   tFreeSVTableRefResolveReq(&req);
   tFreeSVTableRefResolveRsp(&rsp);
-  return code;
+
+  rspMsg.info    = pMsg->info;
+  rspMsg.pCont   = (code == 0) ? pBuf : NULL;
+  rspMsg.contLen = (code == 0) ? rspLen : 0;
+  rspMsg.code    = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code != 0) {
+    vError("vgId:%d, vtable ref resolve failed since %s", TD_VID(pVnode), tstrerror(code));
+    if (pBuf != NULL) rpcFreeCont(pBuf);
+  }
+
+  vDebug("vgId:%d %s send rsp: code=0x%x rspLen=%d", TD_VID(pVnode), __func__, code, rspMsg.contLen);
+  tmsgSendRsp(&rspMsg);
+  return 0;
 }
 
 // ============================================================================
@@ -4811,7 +4928,11 @@ typedef struct SResolveWorkItem {
 
 static SVTableResolveResult *streamGetOrCreateUidResult(SSHashObj *uid2Result, int64_t uid) {
   SVTableResolveResult **ppRes = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
-  if (ppRes != NULL && *ppRes != NULL) return *ppRes;
+  if (ppRes != NULL && *ppRes != NULL) {
+    stDebug("%s reuse uid=%" PRId64 " colMapSz=%d tagMapSz=%d", __func__, uid,
+            tSimpleHashGetSize((*ppRes)->colMap), tSimpleHashGetSize((*ppRes)->tagMap));
+    return *ppRes;
+  }
 
   SVTableResolveResult *pRes = taosMemoryCalloc(1, sizeof(*pRes));
   if (pRes == NULL) return NULL;
@@ -4825,6 +4946,7 @@ static SVTableResolveResult *streamGetOrCreateUidResult(SSHashObj *uid2Result, i
     streamVTableResolveResultDestroy(pRes);
     return NULL;
   }
+  stDebug("%s create uid=%" PRId64, __func__, uid);
   return pRes;
 }
 
@@ -4848,14 +4970,27 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
   SMetaReader mr   = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
 
+  stDebug("vgId:%d %s enter uid=%" PRId64 " colCids=%s nCol=%d nTag=%d",
+          TD_VID(pVnode), __func__, uid,
+          colCids == NULL ? "NULL(all)" : "specified",
+          colCids == NULL ? -1 : (int32_t)taosArrayGetSize(colCids),
+          tagCids == NULL ? 0  : (int32_t)taosArrayGetSize(tagCids));
+
   if (metaReaderGetTableEntryByUid(&mr, uid) != 0) {
+    stDebug("vgId:%d %s uid=%" PRId64 " META_NOT_FOUND -> skip", TD_VID(pVnode), __func__, uid);
     code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
     goto _end;
   }
   if (mr.me.type != TSDB_VIRTUAL_NORMAL_TABLE && mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    stDebug("vgId:%d %s uid=%" PRId64 " type=%d not vtable -> skip",
+            TD_VID(pVnode), __func__, uid, mr.me.type);
     code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
     goto _end;
   }
+
+  stDebug("vgId:%d %s uid=%" PRId64 " type=%d nCols=%d nTagRefs=%d",
+          TD_VID(pVnode), __func__, uid, mr.me.type,
+          mr.me.colRef.nCols, mr.me.colRef.nTagRefs);
 
   SVTableResolveResult *pRes = streamGetOrCreateUidResult(uid2Result, uid);
   if (pRes == NULL) {
@@ -4878,6 +5013,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
           code = terrno;
           goto _end;
         }
+        stDebug("vgId:%d %s uid=%" PRId64 " COL cid=%d hasRef=0 -> colMap(terminal)",
+                TD_VID(pVnode), __func__, uid, cid);
         continue;
       }
       SResolveWorkItem w = {0};
@@ -4888,6 +5025,9 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       tstrncpy(w.refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(w.refColName,   pRef->refColName,   TSDB_COL_NAME_LEN);
       if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+      stDebug("vgId:%d %s uid=%" PRId64 " COL cid=%d hasRef=1 -> workList ref=%s.%s.%s",
+              TD_VID(pVnode), __func__, uid, cid,
+              pRef->refDbName, pRef->refTableName, pRef->refColName);
     }
   } else {
     int32_t nCol = (int32_t)taosArrayGetSize(colCids);
@@ -4901,6 +5041,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
         }
       }
       if (pFound == NULL) {
+        stDebug("vgId:%d %s uid=%" PRId64 " COL cid=%d NOT_IN_COLREF -> uid skip",
+                TD_VID(pVnode), __func__, uid, cid);
         code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
         goto _end;
       }
@@ -4913,6 +5055,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
           code = terrno;
           goto _end;
         }
+        stDebug("vgId:%d %s uid=%" PRId64 " COL cid=%d hasRef=0 -> colMap(terminal)",
+                TD_VID(pVnode), __func__, uid, cid);
         continue;
       }
       SResolveWorkItem w = {0};
@@ -4923,6 +5067,9 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       tstrncpy(w.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(w.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
       if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+      stDebug("vgId:%d %s uid=%" PRId64 " COL cid=%d hasRef=1 -> workList ref=%s.%s.%s",
+              TD_VID(pVnode), __func__, uid, cid,
+              pFound->refDbName, pFound->refTableName, pFound->refColName);
     }
   }
 
@@ -4938,6 +5085,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       }
     }
     if (pFound == NULL) {
+      stDebug("vgId:%d %s uid=%" PRId64 " TAG cid=%d NOT_IN_TAGREF -> uid skip",
+              TD_VID(pVnode), __func__, uid, cid);
       code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
       goto _end;
     }
@@ -4946,6 +5095,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       // Constant tag on a virtual child table: read locally, write terminal STagValue.
       // Virtual normal tables have no tag concept, so reject.
       if (mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+        stDebug("vgId:%d %s uid=%" PRId64 " TAG cid=%d hasRef=0 but type=%d not VCT -> uid skip",
+                TD_VID(pVnode), __func__, uid, cid, mr.me.type);
         code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
         goto _end;
       }
@@ -4954,6 +5105,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       int32_t rc = streamReadChildTagConstValue(pVnode, &mr.me, pFound->colName,
                                                 &tv->type, &tv->nLen, &tv->pData);
       if (rc != 0) {
+        stDebug("vgId:%d %s uid=%" PRId64 " TAG cid=%d const-read err=0x%x -> uid skip",
+                TD_VID(pVnode), __func__, uid, cid, rc);
         taosMemoryFreeClear(tv->pData);
         taosMemoryFree(tv);
         code = rc;
@@ -4965,6 +5118,8 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
         code = terrno;
         goto _end;
       }
+      stDebug("vgId:%d %s uid=%" PRId64 " TAG cid=%d hasRef=0 const type=%d nLen=%d -> tagMap(terminal)",
+              TD_VID(pVnode), __func__, uid, cid, tv->type, tv->nLen);
       continue;
     }
 
@@ -4976,10 +5131,14 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
     tstrncpy(w.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
     tstrncpy(w.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
     if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+    stDebug("vgId:%d %s uid=%" PRId64 " TAG cid=%d hasRef=1 -> workList ref=%s.%s.%s",
+            TD_VID(pVnode), __func__, uid, cid,
+            pFound->refDbName, pFound->refTableName, pFound->refColName);
   }
 
 _end:
   metaReaderClear(&mr);
+  stDebug("vgId:%d %s exit uid=%" PRId64 " code=0x%x", TD_VID(pVnode), __func__, uid, code);
   return code;
 }
 
@@ -5169,6 +5328,39 @@ static int32_t streamRouteTableToVg(SUseDbRsp *pRsp, const char *dbFName, const 
   return 0;
 }
 
+// Async-callback context used by streamSendOneVgResolveRpc to receive
+// SVTableRefResolveRsp from a vnode.
+typedef struct SStreamVgResolveCtx {
+  tsem_t               ready;
+  SVTableRefResolveRsp rsp;
+  int32_t              code;
+} SStreamVgResolveCtx;
+
+static int32_t streamProcessVgResolveRsp(void *param, SDataBuf *pMsg, int32_t code) {
+  SStreamVgResolveCtx *pCtx = (SStreamVgResolveCtx *)param;
+  stDebug("stream vtable resolve rsp arrived: code=0x%x len=%d pData=%p", code,
+          pMsg ? (int32_t)pMsg->len : -1, pMsg ? pMsg->pData : NULL);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pMsg != NULL && pMsg->pData != NULL && pMsg->len > 0) {
+      if (tDeserializeSVTableRefResolveRsp(pMsg->pData, (int32_t)pMsg->len, &pCtx->rsp) < 0) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    } else {
+      code = TSDB_CODE_INVALID_MSG;
+    }
+  }
+  pCtx->code = code;
+  stDebug("stream vtable resolve rsp processed: code=0x%x rspItems=%d", code,
+          pCtx->rsp.items ? (int32_t)taosArrayGetSize(pCtx->rsp.items) : 0);
+
+  if (pMsg != NULL) {
+    taosMemoryFreeClear(pMsg->pData);
+    taosMemoryFreeClear(pMsg->pEpSet);
+  }
+  TAOS_UNUSED(tsem_post(&pCtx->ready));
+  return code;
+}
+
 // Send one TDMT_VND_VTABLE_REF_RESOLVE RPC for a subset of work-items targeting
 // the same vgId. indexList[] holds positions inside the parent batch/outRspItems
 // arrays so we can reorder responses back to the caller's original layout.
@@ -5179,14 +5371,16 @@ static int32_t streamRouteTableToVg(SUseDbRsp *pRsp, const char *dbFName, const 
 static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, int32_t vgId,
                                          int64_t ver, SArray *batch, SArray *indexList,
                                          SArray *outRspItems) {
-  int32_t              code     = 0;
-  SVTableRefResolveReq req      = {0};
-  SVTableRefResolveRsp rsp      = {0};
-  SRpcMsg              rpcMsg   = {0};
-  SRpcMsg              rpcRsp   = {0};
-  void                *pReqBuf  = NULL;
+  int32_t              code      = 0;
+  SVTableRefResolveReq req       = {0};
+  void                *pReqBuf   = NULL;
+  SMsgSendInfo        *pSendInfo = NULL;
+  SStreamVgResolveCtx  ctx       = {0};
+  bool                 semInited = false;
 
   int32_t cnt = (int32_t)taosArrayGetSize(indexList);
+  stDebug("vgId:%d %s enter: targetVgId=%d ver=%" PRId64 " items=%d", TD_VID(pVnode), __func__,
+          vgId, ver, cnt);
   req.ver   = ver;
   req.items = taosArrayInit(cnt, sizeof(SVTableRefResolveItem));
   if (req.items == NULL) { code = terrno; goto _end; }
@@ -5203,11 +5397,17 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
     if (taosArrayPush(req.items, &it) == NULL) { code = terrno; goto _end; }
   }
 
+  void *clientRpc = pVnode->msgCb.clientRpc;
+  if (clientRpc == NULL) { code = TSDB_CODE_INVALID_PARA; goto _end; }
+
+  if (tsem_init(&ctx.ready, 0, 0) != 0) { code = terrno; goto _end; }
+  semInited = true;
+
   int32_t reqLen = tSerializeSVTableRefResolveReq(NULL, 0, &req);
   if (reqLen < 0) { code = terrno; goto _end; }
   // Prepend SMsgHead so dnode dispatcher (vmPutMsgToQueue) can route by vgId.
   int32_t totalLen = reqLen + (int32_t)sizeof(SMsgHead);
-  pReqBuf = rpcMallocCont(totalLen);
+  pReqBuf = taosMemoryCalloc(1, totalLen);
   if (pReqBuf == NULL) { code = terrno; goto _end; }
   if (tSerializeSVTableRefResolveReq((char *)pReqBuf + sizeof(SMsgHead), reqLen, &req) < 0) {
     code = terrno;
@@ -5216,32 +5416,35 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
   ((SMsgHead *)pReqBuf)->vgId    = htonl(vgId);
   ((SMsgHead *)pReqBuf)->contLen = htonl(totalLen);
 
-  rpcMsg.msgType            = TDMT_VND_VTABLE_REF_RESOLVE;
-  rpcMsg.pCont              = pReqBuf;
-  rpcMsg.contLen            = totalLen;
-  rpcMsg.info.ahandle       = (void *)0x9527;
-  rpcMsg.info.notFreeAhandle = 1;
+  pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (pSendInfo == NULL) { code = terrno; goto _end; }
 
-  void *clientRpc = pVnode->msgCb.clientRpc;
-  if (clientRpc == NULL) { code = TSDB_CODE_INVALID_PARA; goto _end; }
+  pSendInfo->param         = &ctx;
+  pSendInfo->msgInfo.pData = pReqBuf;
+  pSendInfo->msgInfo.len   = totalLen;
+  pSendInfo->msgType       = TDMT_VND_VTABLE_REF_RESOLVE;
+  pSendInfo->fp            = streamProcessVgResolveRsp;
+  pReqBuf = NULL;  // ownership transferred to pSendInfo
 
-  code = rpcSendRecv(clientRpc, (SEpSet *)pEpSet, &rpcMsg, &rpcRsp);
-  pReqBuf = NULL;
+  code = asyncSendMsgToServer(clientRpc, (SEpSet *)pEpSet, NULL, pSendInfo);
+  pSendInfo = NULL;  // ownership transferred (or freed by asyncSendMsgToServer on error)
+  stDebug("vgId:%d %s asyncSend done: targetVgId=%d code=0x%x reqLen=%d", TD_VID(pVnode), __func__,
+          vgId, code, totalLen);
   if (code != 0) goto _end;
-  if (rpcRsp.code != 0) { code = rpcRsp.code; goto _end; }
-  if (rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) { code = TSDB_CODE_INVALID_MSG; goto _end; }
 
-  if (tDeserializeSVTableRefResolveRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp) < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _end;
-  }
-  int32_t m = (rsp.items != NULL) ? (int32_t)taosArrayGetSize(rsp.items) : 0;
+  if (tsem_wait(&ctx.ready) != 0) { code = terrno; goto _end; }
+  stDebug("vgId:%d %s wait done: targetVgId=%d ctxCode=0x%x rspItems=%d", TD_VID(pVnode), __func__,
+          vgId, ctx.code, ctx.rsp.items ? (int32_t)taosArrayGetSize(ctx.rsp.items) : 0);
+
+  if (ctx.code != 0) { code = ctx.code; goto _end; }
+
+  int32_t m = (ctx.rsp.items != NULL) ? (int32_t)taosArrayGetSize(ctx.rsp.items) : 0;
   if (m != cnt) { code = TSDB_CODE_INVALID_MSG; goto _end; }
 
   // Move each rsp item to its original position in outRspItems (pre-sized).
   for (int32_t i = 0; i < m; ++i) {
     int32_t pos = *(int32_t *)taosArrayGet(indexList, i);
-    SVTableRefResolveRspItem *src = taosArrayGet(rsp.items, i);
+    SVTableRefResolveRspItem *src = taosArrayGet(ctx.rsp.items, i);
     SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, pos);
     *dst = *src;
     src->tagData = NULL;
@@ -5249,10 +5452,12 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
   }
 
 _end:
-  if (pReqBuf != NULL) rpcFreeCont(pReqBuf);
-  if (rpcRsp.pCont != NULL) rpcFreeCont(rpcRsp.pCont);
+  stDebug("vgId:%d %s exit: targetVgId=%d code=0x%x", TD_VID(pVnode), __func__, vgId, code);
+  if (pReqBuf != NULL) taosMemoryFree(pReqBuf);
+  if (pSendInfo != NULL) taosMemoryFree(pSendInfo);
   tFreeSVTableRefResolveReq(&req);
-  tFreeSVTableRefResolveRsp(&rsp);
+  tFreeSVTableRefResolveRsp(&ctx.rsp);
+  if (semInited) TAOS_UNUSED(tsem_destroy(&ctx.ready));
   return code;
 }
 
@@ -5278,6 +5483,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
   SHashObj *vg2Ep    = NULL;  // key: int32_t vgId, value: SEpSet
 
   int32_t n = (int32_t)taosArrayGetSize(batch);
+  stDebug("vgId:%d %s enter: ver=%" PRId64 " batch=%d", TD_VID(pVnode), __func__, ver, n);
   // Pre-size outRspItems with n zero entries so positional writes are safe.
   for (int32_t i = (int32_t)taosArrayGetSize(outRspItems); i < n; ++i) {
     SVTableRefResolveRspItem zero = {0};
@@ -5353,6 +5559,8 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     SEpSet  *pEpSet  = (SEpSet *)taosHashGet(vg2Ep, &vgId, sizeof(vgId));
 
     int32_t rc = streamSendOneVgResolveRpc(pVnode, pEpSet, vgId, ver, batch, pList, outRspItems);
+    stDebug("vgId:%d %s per-vg done: targetVgId=%d items=%d rc=0x%x", TD_VID(pVnode), __func__,
+            vgId, (int32_t)taosArrayGetSize(pList), rc);
     if (rc != 0) {
       if (rc == TSDB_CODE_OUT_OF_MEMORY) {
         taosHashCancelIterate(vg2Idx, pIter);
@@ -5372,6 +5580,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
   }
 
 _end:
+  stDebug("vgId:%d %s exit: code=0x%x", TD_VID(pVnode), __func__, code);
   if (vg2Idx != NULL) {
     void *p = taosHashIterate(vg2Idx, NULL);
     while (p != NULL) {
@@ -5413,6 +5622,10 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   if (pVnode == NULL || ppUid2Result == NULL) return TSDB_CODE_INVALID_PARA;
   *ppUid2Result = NULL;
 
+  stDebug("vgId:%d %s enter: ver=%" PRId64 " vtbUids=%d virtCols=%d virtTags=%d", TD_VID(pVnode),
+          __func__, ver, (int32_t)taosArrayGetSize(vtbUids),
+          (int32_t)taosArrayGetSize(virtColCids), (int32_t)taosArrayGetSize(virtTagCids));
+
   // Full-uid branch: pull live uids from the reader's table list.
   if (vtbUids == NULL || taosArrayGetSize(vtbUids) == 0) {
     if (pReaderInfo == NULL) return TSDB_CODE_INVALID_PARA;
@@ -5428,6 +5641,28 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
       if (taosArrayPush(fullUids, &pKey->uid) == NULL) { code = terrno; goto _end; }
     }
     vtbUids = fullUids;
+    stDebug("vgId:%d %s full-uid branch: tableList=%d activeUids=%d", TD_VID(pVnode), __func__,
+            nAll, (int32_t)taosArrayGetSize(fullUids));
+  }
+
+  // Dump the uid list and the requested cid/tag set so we can compare against
+  // what gets committed to cache and what later recheck sees.
+  {
+    int32_t nu = (int32_t)taosArrayGetSize(vtbUids);
+    for (int32_t i = 0; i < nu && i < 32; ++i) {
+      stDebug("vgId:%d %s seed uid[%d]=%" PRId64, TD_VID(pVnode), __func__, i,
+              *(int64_t *)taosArrayGet(vtbUids, i));
+    }
+    int32_t nc = virtColCids ? (int32_t)taosArrayGetSize(virtColCids) : -1;
+    for (int32_t i = 0; i < nc && i < 32; ++i) {
+      stDebug("vgId:%d %s req colCid[%d]=%d", TD_VID(pVnode), __func__, i,
+              *(col_id_t *)taosArrayGet(virtColCids, i));
+    }
+    int32_t nt = virtTagCids ? (int32_t)taosArrayGetSize(virtTagCids) : 0;
+    for (int32_t i = 0; i < nt && i < 32; ++i) {
+      stDebug("vgId:%d %s req tagCid[%d]=%d", TD_VID(pVnode), __func__, i,
+              *(col_id_t *)taosArrayGet(virtTagCids, i));
+    }
   }
 
   uid2Result = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -5446,13 +5681,21 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
     int32_t rc  = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, workList, uid2Result);
     if (rc != 0) {
       if (rc == TSDB_CODE_OUT_OF_MEMORY) { code = rc; goto _end; }
+      stDebug("vgId:%d %s seed uid=%" PRId64 " push rc=0x%x -> SKIPPED", TD_VID(pVnode), __func__, uid, rc);
       (void)taosHashPut(skipped, &uid, sizeof(uid), &uid, sizeof(uid));
     }
   }
+  stDebug("vgId:%d %s after seed: workListSz=%d uid2ResultSz=%d skippedSz=%d",
+          TD_VID(pVnode), __func__,
+          (int32_t)taosArrayGetSize(workList),
+          tSimpleHashGetSize(uid2Result),
+          taosHashGetSize(skipped));
 
   // 2. main hop loop
   for (int32_t hop = 0; hop < STREAM_VTB_MAX_HOPS; ++hop) {
     int32_t cur = (int32_t)taosArrayGetSize(workList);
+    stDebug("vgId:%d %s hop=%d workListSz=%d skippedSz=%d", TD_VID(pVnode), __func__,
+            hop, cur, taosHashGetSize(skipped));
     if (cur == 0) break;
 
     batch = taosArrayInit(cur, sizeof(SResolveWorkItem));
@@ -5488,12 +5731,16 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
       SVTableRefResolveRspItem *r = taosArrayGet(rspItems, i);
 
       if (r->code != 0) {
+        stDebug("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d rspCode=0x%x -> SKIPPED uid",
+                TD_VID(pVnode), __func__, hop, w->originVtbUid, w->kind, w->originCid, r->code);
         (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid), &w->originVtbUid, sizeof(w->originVtbUid));
         taosMemoryFreeClear(r->tagData);
         continue;
       }
       // already in skip list (race from earlier failure on same uid)
       if (taosHashGet(skipped, &w->originVtbUid, sizeof(w->originVtbUid)) != NULL) {
+        stDebug("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d already-skipped, drop",
+                TD_VID(pVnode), __func__, hop, w->originVtbUid, w->kind, w->originCid);
         taosMemoryFreeClear(r->tagData);
         continue;
       }
@@ -5516,6 +5763,9 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
             taosMemoryFreeClear(r->tagData);
             code = terrno; goto _end;
           }
+          stDebug("vgId:%d %s hop=%d uid=%" PRId64 " COL cid=%d TERMINATED hasRef=%d ref=%s.%s.%s -> colMap",
+                  TD_VID(pVnode), __func__, hop, w->originVtbUid, w->originCid,
+                  item->hasRef, item->refDbName, item->refTableName, item->refColName);
           taosMemoryFreeClear(r->tagData);
         } else {
           STagValue *tv = taosMemoryCalloc(1, sizeof(*tv));
@@ -5529,6 +5779,8 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
             taosMemoryFree(tv);
             code = terrno; goto _end;
           }
+          stDebug("vgId:%d %s hop=%d uid=%" PRId64 " TAG cid=%d TERMINATED type=%d nLen=%d -> tagMap",
+                  TD_VID(pVnode), __func__, hop, w->originVtbUid, w->originCid, tv->type, tv->nLen);
         }
       } else {
         SResolveWorkItem next = {0};
@@ -5542,6 +5794,9 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
           taosMemoryFreeClear(r->tagData);
           code = terrno; goto _end;
         }
+        stDebug("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d NEXT-HOP -> %s.%s.%s",
+                TD_VID(pVnode), __func__, hop, w->originVtbUid, next.kind, w->originCid,
+                next.refDbName, next.refTableName, next.refColName);
         taosMemoryFreeClear(r->tagData);
       }
     }
@@ -5556,8 +5811,15 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   // 3. hop overflow: any leftover work-items belong to chains that exceeded MAX_HOPS
   if (workList != NULL) {
     int32_t leftover = (int32_t)taosArrayGetSize(workList);
+    if (leftover > 0) {
+      stDebug("vgId:%d %s HOP_OVERFLOW leftover=%d -> mark uids skipped",
+              TD_VID(pVnode), __func__, leftover);
+    }
     for (int32_t i = 0; i < leftover; ++i) {
       SResolveWorkItem *w = taosArrayGet(workList, i);
+      stDebug("vgId:%d %s OVERFLOW uid=%" PRId64 " kind=%d cid=%d ref=%s.%s.%s",
+              TD_VID(pVnode), __func__, w->originVtbUid, w->kind, w->originCid,
+              w->refDbName, w->refTableName, w->refColName);
       (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid), &w->originVtbUid, sizeof(w->originVtbUid));
     }
   }
@@ -5568,16 +5830,53 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
     int64_t                uid    = *(int64_t *)pIter;
     SVTableResolveResult **ppRes  = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
     if (ppRes != NULL && *ppRes != NULL) {
+      stDebug("vgId:%d %s drop partial uid=%" PRId64 " (had colMapSz=%d tagMapSz=%d)",
+              TD_VID(pVnode), __func__, uid,
+              tSimpleHashGetSize((*ppRes)->colMap),
+              tSimpleHashGetSize((*ppRes)->tagMap));
       streamVTableResolveResultDestroy(*ppRes);
       (void)tSimpleHashRemove(uid2Result, &uid, sizeof(uid));
     }
     pIter = taosHashIterate(skipped, pIter);
   }
 
+  // Final dump: per-uid colMap/tagMap contents.
+  {
+    void *p = NULL; int32_t it = 0;
+    while ((p = tSimpleHashIterate(uid2Result, p, &it)) != NULL) {
+      int64_t                uid = *(int64_t *)tSimpleHashGetKey(p, NULL);
+      SVTableResolveResult  *res = *(SVTableResolveResult **)p;
+      stDebug("vgId:%d %s FINAL uid=%" PRId64 " colMapSz=%d tagMapSz=%d",
+              TD_VID(pVnode), __func__, uid,
+              tSimpleHashGetSize(res->colMap),
+              tSimpleHashGetSize(res->tagMap));
+      void *cp = NULL; int32_t ci = 0;
+      while ((cp = tSimpleHashIterate(res->colMap, cp, &ci)) != NULL) {
+        col_id_t         cid  = *(col_id_t *)tSimpleHashGetKey(cp, NULL);
+        SColResolveItem *item = *(SColResolveItem **)cp;
+        stDebug("vgId:%d %s   FINAL uid=%" PRId64 " COL cid=%d hasRef=%d ref=%s.%s.%s",
+                TD_VID(pVnode), __func__, uid, cid, item ? item->hasRef : -1,
+                item ? item->refDbName : "", item ? item->refTableName : "",
+                item ? item->refColName : "");
+      }
+      void *tp = NULL; int32_t ti = 0;
+      while ((tp = tSimpleHashIterate(res->tagMap, tp, &ti)) != NULL) {
+        col_id_t   cid = *(col_id_t *)tSimpleHashGetKey(tp, NULL);
+        STagValue *tv  = *(STagValue **)tp;
+        stDebug("vgId:%d %s   FINAL uid=%" PRId64 " TAG cid=%d type=%d nLen=%d",
+                TD_VID(pVnode), __func__, uid, cid, tv ? tv->type : -1, tv ? tv->nLen : -1);
+      }
+    }
+  }
+
   *ppUid2Result = uid2Result;
   uid2Result    = NULL;
 
 _end:
+  stDebug("vgId:%d %s exit: code=0x%x outUidCnt=%d skipped=%d", TD_VID(pVnode), __func__, code,
+          uid2Result ? tSimpleHashGetSize(uid2Result) :
+          (*ppUid2Result ? tSimpleHashGetSize(*ppUid2Result) : 0),
+          skipped ? taosHashGetSize(skipped) : 0);
   if (fullUids        != NULL) taosArrayDestroy(fullUids);
   if (pTableListArray != NULL) taosArrayDestroyP(pTableListArray, taosMemFree);
   if (workList     != NULL) taosArrayDestroy(workList);

@@ -523,13 +523,16 @@ static void destroyBlock(void* data) {
 int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   if (pCache == NULL) return TSDB_CODE_INVALID_PARA;
   taosInitRWLatch(&pCache->lock);
-  pCache->reqColCids  = taosArrayInit(0, sizeof(col_id_t));
-  pCache->reqTagCids  = taosArrayInit(0, sizeof(col_id_t));
+  // reqColCids / reqTagCids are NULL until the first commit. NULL means
+  // "resolve all columns" downstream; an empty array would mean "resolve
+  // zero columns" and produce a false diff on recheck.
+  pCache->reqColCids  = NULL;
+  pCache->reqTagCids  = NULL;
   pCache->uid2Result  = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   pCache->lastCheckMs = 0;
   pCache->valid       = false;
-  if (!pCache->reqColCids || !pCache->reqTagCids || !pCache->uid2Result || !pCache->dbVgInfo) {
+  if (!pCache->uid2Result || !pCache->dbVgInfo) {
     streamVTableInfoCacheDestroy(pCache);
     return terrno;
   }

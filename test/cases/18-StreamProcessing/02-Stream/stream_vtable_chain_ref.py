@@ -68,11 +68,11 @@ class TestStreamVtableChainRef:
         tdSql.execute("use tc01")
         tdSql.execute("create table tc01.ct1 (ts timestamp, v int)")
         tdSql.execute("create vtable tc01.vt (ts timestamp, v int from tc01.ct1.v)")
-        # tdSql.execute(
-        #     "create stream tc01.s1 sliding(1s) from tc01.vt into tc01.res as "
-        #     "select ts, v from tc01.vt"
-        # )
-        # tdStream.checkStreamStatus("s1")
+        tdSql.execute(
+            "create stream tc01.s1 sliding(1s) from tc01.vt into tc01.res as "
+            "select ts, v from tc01.vt"
+        )
+        tdStream.checkStreamStatus("s1")
         tdSql.execute("insert into tc01.ct1 values ('2026-01-01 00:00:01', 1) ('2026-01-01 00:00:02', 2) ('2026-01-01 00:00:03', 3)")
         self._waitRows("select * from tc01.res", 1)
 
