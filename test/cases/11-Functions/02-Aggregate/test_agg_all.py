@@ -271,7 +271,7 @@ class TestAggFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
+            order by ts desc) limit 1000;", expectErrInfo="Invalid timezone format") # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid time unit : timetruncate") #
 
