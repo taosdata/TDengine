@@ -169,10 +169,10 @@ Note: Exclusive to the TSDB-Enterprise.
 ## SHOW STABLES
 
 ```sql
-SHOW [NORMAL | VIRTUAL] [db_name.]STABLES [LIKE 'pattern'];
+SHOW [db_name.]STABLES [LIKE 'pattern'];
 ```
 
-Displays information about all supertables in the current database. You can use LIKE for fuzzy matching of table names. `VIRTUAL` shows only virtual supertables, and `NORMAL` shows only physical supertables.
+Displays information about all supertables in the current database. You can use LIKE for fuzzy matching of table names.
 
 ## SHOW CREATE VTABLE
 

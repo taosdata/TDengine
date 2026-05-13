@@ -50,10 +50,10 @@ table_option: {
 ### 显示当前数据库下的所有超级表信息
 
 ```sql
-SHOW [NORMAL | VIRTUAL] STABLES [LIKE tb_name_wildcard];
+SHOW STABLES [LIKE tb_name_wildcard];
 ```
 
-查看数据库内全部超级表。`VIRTUAL` 仅显示虚拟超级表，`NORMAL` 仅显示物理超级表。
+查看数据库内全部超级表。
 
 ### 显示一个超级表的创建语句
 

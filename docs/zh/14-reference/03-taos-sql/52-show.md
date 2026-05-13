@@ -181,10 +181,10 @@ SHOW SCORES;
 ## SHOW STABLES
 
 ```sql
-SHOW [NORMAL | VIRTUAL] [db_name.]STABLES [LIKE 'pattern'];
+SHOW [db_name.]STABLES [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有超级表的信息。可以使用 LIKE 对表名进行模糊匹配。`VIRTUAL` 仅显示虚拟超级表，`NORMAL` 仅显示物理超级表。
+显示当前数据库下的所有超级表的信息。可以使用 LIKE 对表名进行模糊匹配。
 
 ## SHOW CREATE VTABLE
 
