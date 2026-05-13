@@ -184,18 +184,24 @@ void RandomColumnGenerator::initialize_generator() {
                     return dist(random_engine);
                 };
                 break;
-            case ColumnTypeTag::NCHAR:
-                generator_ = [this]() {
-                    int len = *instance_.config().len;
-                    std::uniform_int_distribution<uint16_t> dist(0x4E00, 0x9FA5);
+            case ColumnTypeTag::NCHAR: {
+                int cap = *instance_.config().len;
+                bool use_random_len = instance_.config().min_length.has_value() || instance_.config().max_length.has_value();
+                int min_len = instance_.config().min_length.value_or(0);
+                int max_len = instance_.config().max_length.value_or(cap);
+                std::uniform_int_distribution<int> len_dist(min_len, max_len);
+                std::uniform_int_distribution<uint16_t> char_dist(0x4E00, 0x9FA5);
+                generator_ = [use_random_len, cap, len_dist, char_dist]() mutable {
+                    int len = use_random_len ? len_dist(random_engine) : cap;
                     std::u16string result;
                     result.reserve(len);
                     for (int i = 0; i < len; ++i) {
-                        result.push_back(static_cast<char16_t>(dist(random_engine)));
+                        result.push_back(static_cast<char16_t>(char_dist(random_engine)));
                     }
                     return result;
                 };
                 break;
+            }
             case ColumnTypeTag::VARCHAR:
             case ColumnTypeTag::BINARY:
                 if (instance_.config().corpus) {
@@ -206,12 +212,18 @@ void RandomColumnGenerator::initialize_generator() {
                     };
                 } else {
                     static const std::string default_corpus = "abcdefghijklmnopqrstuvwxyz";
-                    std::uniform_int_distribution<size_t> dist(0, default_corpus.size() - 1);
-                    generator_ = [this, dist]() mutable {
+                    int cap = *instance_.config().len;
+                    bool use_random_len = instance_.config().min_length.has_value() || instance_.config().max_length.has_value();
+                    int min_len = instance_.config().min_length.value_or(0);
+                    int max_len = instance_.config().max_length.value_or(cap);
+                    std::uniform_int_distribution<int> len_dist(min_len, max_len);
+                    std::uniform_int_distribution<size_t> char_dist(0, default_corpus.size() - 1);
+                    generator_ = [use_random_len, cap, len_dist, char_dist]() mutable {
+                        int len = use_random_len ? len_dist(random_engine) : cap;
                         std::string result;
-                        result.reserve(*instance_.config().len);
-                        for (int i = 0; i < *instance_.config().len; ++i) {
-                            result.push_back(default_corpus[dist(random_engine)]);
+                        result.reserve(len);
+                        for (int i = 0; i < len; ++i) {
+                            result.push_back(default_corpus[char_dist(random_engine)]);
                         }
                         return result;
                     };

@@ -421,6 +421,204 @@ max: 100
     assert(col.order_max.has_value() && *col.order_max == 100);
 }
 
+void test_ColumnConfig_min_max_length_varchar() {
+    std::string yaml = R"(
+name: describe
+type: varchar(20)
+min_length: 5
+max_length: 15
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.name == "describe");
+    assert(col.type == "varchar(20)");
+    assert(col.gen_type.has_value() && *col.gen_type == "random");
+    assert(col.min_length.has_value() && *col.min_length == 5);
+    assert(col.max_length.has_value() && *col.max_length == 15);
+}
+
+void test_ColumnConfig_min_max_length_nchar() {
+    std::string yaml = R"(
+name: info
+type: nchar(32)
+min_length: 0
+max_length: 32
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.name == "info");
+    assert(col.type == "nchar(32)");
+    assert(col.min_length.has_value() && *col.min_length == 0);
+    assert(col.max_length.has_value() && *col.max_length == 32);
+}
+
+void test_ColumnConfig_only_min_length() {
+    std::string yaml = R"(
+name: label
+type: binary(16)
+min_length: 3
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.name == "label");
+    assert(col.min_length.has_value() && *col.min_length == 3);
+    assert(col.max_length.has_value() && *col.max_length == 16);
+}
+
+void test_ColumnConfig_only_max_length() {
+    std::string yaml = R"(
+name: label
+type: varchar(20)
+max_length: 10
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.name == "label");
+    assert(col.min_length.has_value() && *col.min_length == 0);
+    assert(col.max_length.has_value() && *col.max_length == 10);
+}
+
+void test_ColumnConfig_min_max_length_default() {
+    std::string yaml = R"(
+name: tag
+type: varchar(10)
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.name == "tag");
+    assert(!col.min_length.has_value());
+    assert(!col.max_length.has_value());
+}
+
+void test_ColumnConfig_max_length_exceeds_cap() {
+    std::string yaml = R"(
+name: bad
+type: varchar(10)
+max_length: 20
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for max_length exceeding capacity");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("exceeds type capacity") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_min_length_exceeds_max_length() {
+    std::string yaml = R"(
+name: bad
+type: varchar(10)
+min_length: 8
+max_length: 5
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for min_length > max_length");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("must be <= max_length") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_negative_min_length() {
+    std::string yaml = R"(
+name: bad
+type: varchar(10)
+min_length: -1
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for negative min_length");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("min_length must be >= 0") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_negative_max_length() {
+    std::string yaml = R"(
+name: bad
+type: varchar(10)
+max_length: -1
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for negative max_length");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("max_length must be >= 0") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_min_max_length_non_varlen() {
+    std::string yaml = R"(
+name: val
+type: int
+min_length: 1
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for min_length on non-varlen type");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("only applicable to variable-length types") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_corpus_within_len() {
+    std::string yaml = R"(
+name: code
+type: varchar(10)
+corpus: "abc"
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.name == "code");
+    assert(col.corpus.has_value() && *col.corpus == "abc");
+}
+
+void test_ColumnConfig_corpus_exceeds_len() {
+    std::string yaml = R"(
+name: code
+type: varchar(3)
+corpus: "abcdef"
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for corpus exceeding max length");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("corpus length (6) exceeds max length (3)") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_corpus_exact_len() {
+    std::string yaml = R"(
+name: flag
+type: binary(5)
+corpus: "abcde"
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.corpus.has_value() && col.corpus->size() == 5);
+}
+
+void test_ColumnConfig_corpus_empty() {
+    std::string yaml = R"(
+name: code
+type: varchar(10)
+corpus: ""
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for empty corpus");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("corpus must be non-empty") != std::string::npos);
+    }
+}
+
 void test_ColumnConfig_expression() {
     std::string yaml = R"(
 name: value
@@ -1165,6 +1363,20 @@ int main() {
     test_ColumnConfig_random();
     test_ColumnConfig_order();
     test_ColumnConfig_expression();
+    test_ColumnConfig_min_max_length_varchar();
+    test_ColumnConfig_min_max_length_nchar();
+    test_ColumnConfig_only_min_length();
+    test_ColumnConfig_only_max_length();
+    test_ColumnConfig_min_max_length_default();
+    test_ColumnConfig_max_length_exceeds_cap();
+    test_ColumnConfig_min_length_exceeds_max_length();
+    test_ColumnConfig_negative_min_length();
+    test_ColumnConfig_negative_max_length();
+    test_ColumnConfig_min_max_length_non_varlen();
+    test_ColumnConfig_corpus_within_len();
+    test_ColumnConfig_corpus_exceeds_len();
+    test_ColumnConfig_corpus_exact_len();
+    test_ColumnConfig_corpus_empty();
     test_ColumnConfig_strip_backticks_plain();
     test_ColumnConfig_strip_backticks_unmatched();
     test_ColumnConfig_strip_backticks_none();
