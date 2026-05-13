@@ -63,8 +63,10 @@ Notes:
 The following statement displays information about all supertables in the current database:
 
 ```sql
-SHOW STABLES [LIKE tb_name_wildcard];
+SHOW [NORMAL | VIRTUAL] STABLES [LIKE tb_name_wildcard];
 ```
+
+Use `VIRTUAL` to list only virtual supertables, or `NORMAL` to list only physical supertables.
 
 ### Supertable Creation Statement
 

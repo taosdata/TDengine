@@ -37,9 +37,12 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     TAGS (tag_value [, tag_value] ...)
      
   create_definition:
-    [stb_col_name FROM] [db_name.]table_name.col_name
+     [stb_col_name FROM] [db_name.]table_name.col_name
   tag_value:
      const_value
+     | [db_name.]table_name.tag_name
+     | FROM [db_name.]table_name.tag_name
+     | tag_name FROM [db_name.]table_name.tag_name
 ```
 
 **使用说明** ：
@@ -55,7 +58,16 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 9. 虚拟超级表下只支持创建虚拟子表，虚拟子表也只能以虚拟超级表为模版来创建。
 10. 创建虚拟表时需要保证虚拟表中的列、标签和指定的数据来源列、标签的数据类型相同，否则会报错。
 11. 在同一个数据库内，虚拟表名称不允许重名，虚拟表名和表名也不允许重名。虚拟表名和视图名允许重名（不推荐）当出现视图与虚拟表名重名时，写入、查询、授权、回收权限等操作优先使用同名表。
-12. 创建虚拟子表和虚拟普通表时，使用 FROM 指定某一列的数据来源时，该列只能来源于普通子表或普通表，不支持来源于超级表、视图或其他虚拟表。也不支持来源于有复合主键的表。
+12. 创建虚拟子表和虚拟普通表时，使用 FROM 指定某一列的数据来源时，该列支持来源于普通表、普通子表以及已有虚拟表；不支持来源于超级表、视图，也不支持来源于有复合主键的表。
+13. 创建虚拟子表时，`TAGS (...)` 中的标签既可以使用常量值，也可以使用 tag-ref。当前支持三种 tag-ref 写法：`table.tag`、`FROM table.tag`、`tag_name FROM table.tag`；跨库时可写成 `db_name.table.tag`。
+14. tag-ref 只能引用标签列，不能引用数据列；标签类型必须与目标虚拟标签类型一致。
+
+### 当前支持的引用能力
+
+- 虚拟子表支持 tag-ref，查询时会动态解析为源标签的当前值。
+- 虚拟表列支持直接引用已有虚拟表的列，因此可以构建 VChild → VChild 的直接引用链。
+- 可以在不同虚拟超级表之间分层构建虚拟子表引用链，当前已验证支持同库和跨库场景。
+- tag-ref 与 col-ref 可以混合多跳；当前引用深度上限为 32，超过时校验或查询会返回错误码 `0x8000620C`。
 
 ## 查询虚拟表
 
@@ -304,7 +316,7 @@ ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
   ALTER COLUMN vtb_col_name SET table_name.col_name
-  | SET TAG tag_name = new_tag_value
+  | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
 }
 ```
 
@@ -317,6 +329,8 @@ alter_table_clause: {
 ```sql
 ALTER VTABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
+
+`SET TAG` 既可以把标签改成静态值，也可以把标签改成 tag-ref，例如 `ALTER VTABLE v0 SET TAG local_tag = src0.city`。被引用对象必须是标签列，且类型必须与目标标签一致；当设置为字面量时，原有的 tag-ref 会被清除。
 
 ### 修改列的数据源
 
@@ -343,6 +357,7 @@ SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
 **使用说明** ：
 
 1. 如果没有指定 db_name，显示当前数据库下的所有虚拟普通表和虚拟子表的信息。若没有使用数据库并且没有指定 db_name, 则会报错 database not specified。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示虚拟普通表信息，CHILD 指定只显示虚拟子表信息。
+2. `SHOW TABLES` 不会返回这里展示的虚拟普通表和虚拟子表，请使用 `SHOW VTABLES` 查看。
 
 ### 显示虚拟表创建语句
 
@@ -351,6 +366,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 ```
 
 显示 vtable_name 指定的虚拟表的创建语句。支持虚拟普通表和虚拟子表。常用于数据库迁移。对一个已经存在的虚拟表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的虚拟表。
+对于使用 tag-ref 创建的虚拟子表，返回结果会保留对应的标签引用定义。
 
 ### 获取虚拟表结构信息
 
@@ -358,11 +374,36 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 DESCRIBE [db_name.]vtb_name;
 ```
 
-### 查看所有虚拟表信息
+`DESCRIBE` 会展示虚拟表的列与标签结构；对于 tag-ref/col-ref，结果中会包含对应的引用来源信息。
+
+### 查看虚拟子表当前标签值
+
+```sql
+SHOW TAGS FROM child_table_name [FROM db_name];
+SHOW TAGS FROM [db_name.]child_table_name;
+```
+
+对于使用 tag-ref 的虚拟子表，`SHOW TAGS` 返回的是当前解析后的标签值。
+
+### 校验虚拟表引用关系
+
+```sql
+SHOW VTABLE VALIDATE FOR [db_name.]vtb_name;
+```
+
+`SHOW VTABLE VALIDATE` 用于检查虚拟普通表或虚拟子表的列/标签引用关系，并返回与 `information_schema.ins_virtual_tables_referencing` 一致的校验结果（包括 `err_code`、`err_msg`）。
+
+### 查看虚拟普通表和虚拟子表信息
 
 ```sql
 SELECT ... FROM information_schema.ins_tables where type = 'VIRTUAL_NORMAL_TABLE' or type = 'VIRTUAL_CHILD_TABLE';
 ```
+
+```sql
+SELECT ... FROM information_schema.ins_virtual_tables_referencing;
+```
+
+其中 `ins_virtual_tables_referencing` 可用于批量查询虚拟表列/标签的源库、源表、源列以及校验状态。
 
 ## 写入虚拟表
 
@@ -431,8 +472,8 @@ priv_type: {
 
 | 序号 | 操作 | 权限要求                                                     |
 |------|------|----------------------------------------------------------|
-| 1 | CREATE VTABLE | 用户对虚拟表所属数据库有 WRITE 权限 且<br /> 用户对虚拟表的数据源对应的原始表有 READ 权限。 |
-| 2 | DROP/ALTER VTABLE | 用户对虚拟表有 WRITE 权限，若要指定某一列的数据源，需要同时对数据源对应的原始表有 READ 权限。    |
+| 1 | CREATE VTABLE | 用户对虚拟表所属数据库有 WRITE 权限 且<br /> 用户对虚拟表数据源对应的源表或源虚拟表有 READ 权限。 |
+| 2 | DROP/ALTER VTABLE | 用户对虚拟表有 WRITE 权限；若在操作中指定列引用或标签引用的数据源，需要同时对对应的源表或源虚拟表有 READ 权限。    |
 | 3 |SHOW VTABLES | 无                                                        |
 | 4 | SHOW CREATE VTABLE | 无                                                        |
 | 5 | DESCRIBE VTABLE | 无                                                        |
@@ -442,6 +483,6 @@ priv_type: {
 
 ## 使用场景
 
-| SQL 查询 | SQL 写入 | STMT 查询 | STMT 写入 | 订阅 | 流计算 |
-|---------|--------|---------|------|--------|---|
-| 支持     | 不支持    | 不支持     | 不支持 | 不支持 | 支持 |
+| SQL 查询 | SQL 写入 | STMT 查询 | STMT 写入 |
+|---------|--------|---------|------|
+| 支持     | 不支持    | 不支持     | 不支持 |
