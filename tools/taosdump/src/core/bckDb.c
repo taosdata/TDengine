@@ -209,6 +209,67 @@ int getDBNormalTableCount(const char *dbName, int32_t *outCount) {
     return queryValueInt(sql, 0, outCount);
 }
 
+char ** getDBStreamNames(const char *dbName, int *code) {
+    *code = TSDB_CODE_FAILED;
+
+    TAOS *conn = getConnection(code);
+    if (!conn) {
+        logError("get connection failed");
+        return NULL;
+    }
+
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT stream_name FROM information_schema.ins_streams "
+             "WHERE db_name='%s' ORDER BY stream_name", dbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    *code = taos_errno(res);
+    if (!res || *code) {
+        logError("query streams failed(0x%08X %s): %s", *code, taos_errstr(res), sql);
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
+    }
+
+    int count = 0;
+    int capacity = 16;
+    char **names = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
+    if (!names) {
+        *code = TSDB_CODE_BCK_MALLOC_FAILED;
+        taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
+    }
+
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res))) {
+        int32_t *length = taos_fetch_lengths(res);
+        if (count >= capacity) {
+            capacity *= 2;
+            char **tmp = (char **)taosMemoryRealloc(names, (capacity + 1) * sizeof(char *));
+            if (!tmp) {
+                freeArrayPtr(names);
+                *code = TSDB_CODE_BCK_MALLOC_FAILED;
+                taos_free_result(res);
+                releaseConnection(conn);
+                return NULL;
+            }
+            names = tmp;
+        }
+        names[count++] = tstrndup((char *)row[0], length[0]);
+    }
+    names[count] = NULL;
+
+    taos_free_result(res);
+    releaseConnection(conn);
+    *code = TSDB_CODE_SUCCESS;
+    if (count == 0) {
+        freeArrayPtr(names);
+        return NULL;
+    }
+    return names;
+}
+
 int queryValueInt(const char *sql, int col, int32_t *outValue) {
     int connCode = TSDB_CODE_FAILED;
     TAOS* conn = getConnection(&connCode);

@@ -2063,6 +2063,135 @@ static char** getBackupStbNames(const char *dbName, int *code) {
 
 
 //
+// -------------------------------------- STREAM SQL -----------------------------------------
+//
+
+// restore stream create SQL
+static int restoreStreamsSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+    const char *targetDb = argRenameDb(dbName);
+
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_STREAMSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    if (!taosCheckExistFile(sqlFile)) {
+        logDebug("stream.sql not found, skip streams: %s", sqlFile);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    char *content = readFileContent(sqlFile, NULL);
+    if (content == NULL) {
+        logError("read stream.sql failed: %s", sqlFile);
+        return TSDB_CODE_BCK_READ_FILE_FAILED;
+    }
+
+    TAOS *conn = getConnection(&code);
+    if (conn == NULL) {
+        taosMemoryFree(content);
+        return code;
+    }
+
+    // set database context for stream DDL (%%trows needs it)
+    char useDb[256];
+    snprintf(useDb, sizeof(useDb), "USE `%s`", targetDb);
+    TAOS_RES *useRes = taos_query(conn, useDb);
+    if (taos_errno(useRes) != TSDB_CODE_SUCCESS) {
+        logError("use database failed for stream restore: %s", targetDb);
+        if (useRes) taos_free_result(useRes);
+        releaseConnection(conn);
+        taosMemoryFree(content);
+        return TSDB_CODE_FAILED;
+    }
+    if (useRes) taos_free_result(useRes);
+
+    // stream.sql contains CREATE STREAM statements, one per line
+    char *line = content;
+    char *next = NULL;
+    int streamCount = 0;
+
+    while (line && *line) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        next = strchr(line, '\n');
+        if (next) {
+            *next = '\0';
+            next++;
+        }
+
+        // trim
+        while (*line == ' ' || *line == '\r') line++;
+        int lineLen = strlen(line);
+        while (lineLen > 0 && (line[lineLen-1] == ' ' || line[lineLen-1] == '\r')) {
+            line[--lineLen] = '\0';
+        }
+
+        if (lineLen > 0) {
+            // if rename is configured, replace old db name with new in DDL
+            char *execSql = line;
+            char renamedBuf[TSDB_MAX_SQL_LEN];
+            if (strcmp(targetDb, dbName) != 0) {
+                // simple substring replacement: dbName. -> targetDb.
+                char oldPat[256], newPat[256];
+                snprintf(oldPat, sizeof(oldPat), "%s.", dbName);
+                snprintf(newPat, sizeof(newPat), "%s.", targetDb);
+                char *pos = strstr(line, oldPat);
+                if (pos) {
+                    int prefixLen = (int)(pos - line);
+                    int oldPatLen = strlen(oldPat);
+                    int newPatLen = strlen(newPat);
+                    int remaining = lineLen - prefixLen - oldPatLen;
+                    // Build renamed SQL iteratively
+                    char *src = line;
+                    char *dst = renamedBuf;
+                    int dstLeft = sizeof(renamedBuf) - 1;
+                    while ((pos = strstr(src, oldPat)) != NULL && dstLeft > 0) {
+                        int chunk = (int)(pos - src);
+                        if (chunk > dstLeft) chunk = dstLeft;
+                        memcpy(dst, src, chunk);
+                        dst += chunk; dstLeft -= chunk;
+                        if (newPatLen > dstLeft) break;
+                        memcpy(dst, newPat, newPatLen);
+                        dst += newPatLen; dstLeft -= newPatLen;
+                        src = pos + oldPatLen;
+                    }
+                    // copy remainder
+                    int tailLen = strlen(src);
+                    if (tailLen > dstLeft) tailLen = dstLeft;
+                    memcpy(dst, src, tailLen);
+                    dst[tailLen] = '\0';
+                    execSql = renamedBuf;
+                }
+            }
+
+            TAOS_RES *res = taos_query(conn, execSql);
+            int rc = taos_errno(res);
+
+            if (rc == TSDB_CODE_SUCCESS) {
+                streamCount++;
+            } else if (rc == TSDB_CODE_MND_STREAM_ALREADY_EXIST) {
+                logWarn("stream already exists(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                streamCount++;
+            } else {
+                logError("create stream failed(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                code = rc;
+            }
+            if (res) taos_free_result(res);
+        }
+
+        line = next;
+    }
+
+    logInfo("restored %d stream(s) for db: %s", streamCount, dbName);
+    releaseConnection(conn);
+    taosMemoryFree(content);
+    return code;
+}
+
+
+//
 // -------------------------------------- MAIN -----------------------------------------
 //
 
@@ -2174,6 +2303,16 @@ int restoreDatabaseMeta(const char *dbName) {
     code = restoreVtbSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         logError("restore vtb sql failed(%d): %s", code, dbName);
+        return code;
+    }
+
+    //
+    // 6. Restore stream SQL (stream.sql)
+    //    Must run after all tables are created since streams depend on source/target tables
+    //
+    code = restoreStreamsSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore stream sql failed(%d): %s", code, dbName);
         return code;
     }
 

@@ -8,7 +8,7 @@ taosdump 是 TDengine TSDB 提供的高性能数据备份/恢复工具。备份�
 
 ## taosdump 全新升级版本
 
-从 v3.4.1.1 开始，taosdump 进行了全新升级，升级后的版本提供了更高性能、更小备份数据大小及增加了更多实用功能。
+从 v3.4.2.0 开始，taosdump 进行了全新升级，升级后的版本提供了更高性能、更小备份数据大小及增加了更多实用功能。
 新版本支持老版本生成的 avro 格式数据导入，但不再支持生成 avro 格式备份数据。
 
 ## 性能提升
@@ -28,7 +28,7 @@ taosdump 是 TDengine TSDB 提供的高性能数据备份/恢复工具。备份�
 ## 新增功能
 
 - 断点续传
-- 导出 Parquet 格式
+- 导出 [Parquet](https://parquet.apache.org/) 格式
 - STMT2 导入
 - 多线程元数据备份
 - 仅恢复指定数据库
@@ -39,7 +39,7 @@ taosdump 是 TDengine TSDB 提供的高性能数据备份/恢复工具。备份�
 
 ## 工具获取
 
-taosdump 在 TDengine TSDB v3.4.1.1 及之后版本的服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../../get-started/)
+taosdump 在 TDengine TSDB v3.4.2.0 及之后版本的服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../../get-started/)
 
 ## 运行
 
@@ -105,7 +105,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-B, --data-batch=DATA_BATCH` | 恢复时每次 STMT 批量写入的行数。STMT2（默认）有效范围 [1, 16384]，默认 10000；STMT1 有效范围 [1, 100000]，默认 60000。仅恢复操作生效 |
 | `-v, --stmt-version=VER` | 恢复时使用的 STMT API 版本：`2`（默认，TAOS_STMT2，速度更快，需 TDengine v3.3+）或 `1`（兼容旧版 TAOS_STMT API）。仅恢复操作生效 |
 | `-W, --rename=RENAME-LIST` | 恢复时对数据库进行重命名，格式为 `"db1->newdb1\|db2->newdb2"`，表示将 `db1` 重命名为 `newdb1`，`db2` 重命名为 `newdb2`，仅恢复操作生效 |
-| `-C, --checkpoint` | 开关参数，开启断点续传模式。taosdump 始终会写入检查点文件；开启此参数后，再次运行时会跳过已完成的项目 |
+| `-C, --checkpoint` | 断点续传开关参数，默认关闭，加此参数时才开启，跳过已备份的表或已恢复过的文件，备份/恢复操作均生效，适用于大数据量备份/恢复场景|
 | `-k, --retry-count=VALUE` | 连接或查询失败后的重试次数，默认值为 3 |
 | `-z, --retry-sleep-ms=VALUE` | 每次重试之间的等待时间，单位为毫秒，默认值为 1000 |
 | `-X, --dsn=DSN` | 连接云服务的 DSN，格式如 `https://host?token=<TOKEN>`。也可通过环境变量 `TDENGINE_CLOUD_DSN` 设置，命令行参数优先级更高 |

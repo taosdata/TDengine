@@ -568,6 +568,102 @@ int backVirtualTablesSql(const char *dbName) {
 }
 
 //
+// stream create sql
+//
+int backStreamsSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    // get stream names
+    char **streamNames = getDBStreamNames(dbName, &code);
+    if (streamNames == NULL) {
+        if (code != TSDB_CODE_SUCCESS) return code;
+        return TSDB_CODE_SUCCESS; // no streams
+    }
+
+    // count
+    int streamCount = 0;
+    for (int i = 0; streamNames[i] != NULL; i++) streamCount++;
+    if (streamCount == 0) {
+        freeArrayPtr(streamNames);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    logInfo("backup %d stream(s) sql for db: %s", streamCount, dbName);
+
+    // open stream.sql file
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_STREAMSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    TdFilePtr fp = taosOpenFile(sqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    if (!fp) {
+        logError("open stream.sql failed: %s", sqlFile);
+        freeArrayPtr(streamNames);
+        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+    }
+
+    // get connection
+    TAOS *conn = getConnection(&code);
+    if (!conn) {
+        taosCloseFile(&fp);
+        freeArrayPtr(streamNames);
+        return code;
+    }
+
+    // for each stream: query DDL from ins_streams.sql column
+    code = TSDB_CODE_SUCCESS;
+    char sql[512];
+    for (int i = 0; streamNames[i] != NULL; i++) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        snprintf(sql, sizeof(sql),
+                 "SELECT sql FROM information_schema.ins_streams WHERE stream_name='%s'",
+                 streamNames[i]);
+        TAOS_RES *res = taos_query(conn, sql);
+        code = taos_errno(res);
+        if (!res || code != TSDB_CODE_SUCCESS) {
+            logError("query stream sql failed(0x%08X %s): %s", code, taos_errstr(res), sql);
+            if (res) taos_free_result(res);
+            break;
+        }
+
+        TAOS_ROW row = taos_fetch_row(res);
+        if (row && row[0]) {
+            int32_t *lens = taos_fetch_lengths(res);
+            int ddlLen = lens[0];
+            char *ddl = (char *)row[0];
+
+            // DDL may contain embedded newlines, replace with spaces
+            // to ensure one statement per line
+            char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
+            if (buf) {
+                int n = 0;
+                for (int j = 0; j < ddlLen; j++) {
+                    buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
+                }
+                buf[n++] = '\n';
+                if (taosWriteFile(fp, buf, n) != n) {
+                    logError("write stream DDL to file failed: %s", sqlFile);
+                    code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+                }
+                taosMemoryFree(buf);
+            } else {
+                code = TSDB_CODE_BCK_MALLOC_FAILED;
+            }
+        }
+        taos_free_result(res);
+        if (code != TSDB_CODE_SUCCESS) break;
+    }
+
+    releaseConnection(conn);
+    taosCloseFile(&fp);
+    freeArrayPtr(streamNames);
+    return code;
+}
+
+//
 // backup database meta
 //
 int backDatabaseMeta(DBInfo *dbInfo) {
@@ -711,6 +807,14 @@ int backDatabaseMeta(DBInfo *dbInfo) {
     // virtual tables DDL sql (vtb.sql): virtual normal tables + virtual child tables
     //
     code = backVirtualTablesSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+
+    //
+    // stream sql
+    //
+    code = backStreamsSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
