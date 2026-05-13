@@ -1,0 +1,74 @@
+name: License Check
+on:
+  pull_request:
+    branches:
+      - '3.0'
+      - 'main'
+  push:
+    branches:
+      - '3.0'
+      - 'main'
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ['ubuntu-latest']
+        go: ['stable']
+    name: enterprise-${{ matrix.os }}-${{ matrix.go }}
+    steps:
+      - name: Determine branch
+        id: get-branch
+        run: |
+          case "${{ github.event_name }}" in
+            push)
+              echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              ;;
+            pull_request)
+              echo "branch=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "branch=main" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'nightly'
+          branch: ${{ steps.get-branch.outputs.branch }}
+          start-services: 'true'
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Test
+        id: test
+        env:
+          GO_TEST_DISABLE_DISPLAY_LOG: "true"
+          GO_TEST_ENTERPRISE: "true"
+        run: |
+          go mod download
+          go test -coverpkg=./... -v --count=1 -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.txt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+          OS: linux
+
+      - name: Upload logs on failure
+        uses: actions/upload-artifact@v6
+        if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
+        with:
+          name: enterprise-${{ matrix.os }}-${{ matrix.go }}-log
+          path: /var/log/taos/

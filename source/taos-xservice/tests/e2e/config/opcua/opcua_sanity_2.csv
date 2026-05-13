@@ -1,0 +1,5 @@
+No.,point_id,enabled,stable,tbname,value_col,value_transform,type,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name
+8,ns=3;i=1013,1,opc_{type},t_{ns}_{id},val,,,ts,rts,,,double
+9,ns=3;i=1014,1,opc_{type},t_{ns}_{id},val,,,ts,rts,,,str
+10,ns=3;i=1015,1,opc_{type},t_{ns}_{id},val,,,ts,rts,,,int
+11,ns=3;i=1016,1,opc_{type},t_{ns}_{id},val,,,ts,rts,,,bool

@@ -1,0 +1,60 @@
+# Fake data schema for air_robot_v Kafka messages.
+# Generates JSON matching the parser rule: modelQualifier == "air_robot_v"
+
+type = "object"
+
+[properties.dataQualifier]
+type = "string"
+fixed = "jobInfo"
+
+[properties.deviceName]
+type = "string"
+samples = ["robot_alpha", "robot_beta", "robot_gamma"]
+
+[properties.deviceQualifier]
+type = "string"
+fixed = "robot_qual_001"
+
+[properties.factoryCode]
+type = "string"
+fixed = "FC001"
+
+[properties.factoryName]
+type = "string"
+fixed = "TestFactory"
+
+[properties.machineType]
+type = "number"
+fixed = 1
+
+[properties.machineTypeName]
+type = "string"
+fixed = "robot"
+
+[properties.modelQualifier]
+type = "string"
+fixed = "air_robot_v"
+
+[properties.uuid]
+type = "string"
+samples = ["dev001", "dev002", "dev003"]
+
+[properties.reportData]
+type = "object"
+
+[properties.reportData.properties.DeviceNo]
+type = "number"
+range = { min = 1, max = 100 }
+
+[properties.reportData.properties.originTime]
+type = "timestamp"
+start_time = 2026-01-01T00:00:00
+interval = "1ms"
+
+[properties.reportData.properties.RunMode]
+type = "number"
+range = { min = 0, max = 3 }
+
+[properties.reportData.properties.DStatus]
+type = "number"
+range = { min = 0, max = 7 }

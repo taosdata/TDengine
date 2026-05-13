@@ -1,0 +1,2 @@
+信息点编码,OPC点地址,数据类型,超级表,tscol,信息点属性名称
+tbname,point_id,type,stable,ts_col,tag::int::name

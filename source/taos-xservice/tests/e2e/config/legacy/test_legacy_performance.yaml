@@ -1,0 +1,20 @@
+task_name: legacy
+task_type: tdengine2.x
+
+from:
+  fromhost: taos+ws://root:taosdata@{0}/legacy_perf
+  host: 192.168.1.40
+  dbname: legacy_perf
+  libraryPath: /mnt/share/configlib/taos2600/libtaos.so.2.6.0.27
+  configDir: /mnt/share/configlib/taos2600
+  mode: history
+  schema: always
+
+to:
+  target_type: taos
+  target_dbname: perf_legacy
+
+task_exec_time: 20
+
+source:
+  name: legacy_perf

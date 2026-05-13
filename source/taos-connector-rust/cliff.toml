@@ -1,0 +1,89 @@
+# configuration file for git-cliff (0.1.0)
+
+[changelog]
+# changelog header
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+"""
+# template for the changelog body
+# https://tera.netlify.app/docs/#introduction
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% if previous %}\
+    {% if previous.version %}
+        **Full Changelog**: [{{ previous.version }}...{{ version }}]\
+            (https://github.com/taosdata/taos-connector-rust/compare/{{ previous.version }}...{{ version }})
+    {% endif %}\
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | upper_first }}
+    {% for commit in commits
+    | filter(attribute="scope")
+    | sort(attribute="scope") %}
+        - *{{commit.scope}}*: {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}]({{ commit.id }}))
+        {%- if commit.breaking %}
+        {% raw %}  {% endraw %}- **BREAKING**: {{commit.breaking_description}}
+        {%- endif -%}
+    {% endfor %}
+
+    {% for commit in commits %}
+        {%- if commit.scope -%}
+        {% else -%}
+            - {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=7, end="") }}]({{ commit.id }}))
+            {% if commit.breaking -%}
+            {% raw %}  {% endraw %}- **BREAKING**: {{commit.breaking_description}}
+            {% else -%}
+            {% endif -%}
+        {% endif -%}
+    {% endfor -%}
+    {% raw %}\n{% endraw %}\
+{% endfor %}\n
+"""
+# remove the leading and trailing whitespace from the template
+trim = true
+
+[git]
+# parse the commits based on https://www.conventionalcommits.org
+conventional_commits = true
+# filter out the commits that are not conventional
+filter_unconventional = true
+
+commit_preprocessors = [
+    { pattern = "(T[DS]-\\d+)", replace = "[$1](https://jira.taosdata.com:18080/browse/$1)" },
+]
+
+# regex for parsing and grouping commits
+commit_parsers = [
+    { message = "^feat", group = "Features"},
+    { message = "^fix", group = "Bug Fixes"},
+    { message = "^doc", group = "Documentation"},
+    { message = "^perf", group = "Performance"},
+    { message = "^refactor|^ref:", group = "Refactor"},
+    { message = "^test", group = "Testing"},
+    { message = "^enh", group = "Enhancements"},
+    { message = "^ci", group = "CI", skip = true },
+    { message = "^style", group = "Styling", skip = true },
+    { message = "^chore\\(release\\): prepare for", skip = true},
+    { message = "^release:", skip = true},
+    { message = "^ref:", skip = true},
+    { message = "^chore", skip = true},
+    { message = "^init", skip = true},
+    { body = ".*security", group = "Security"},
+]
+
+# sort the tags chronologically
+date_order = false
+# sort the commits inside sections by oldest/newest order
+sort_commits = "oldest"
+
+tag_pattern = "taos-v[0-9]*"

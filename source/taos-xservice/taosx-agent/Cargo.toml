@@ -1,0 +1,79 @@
+[package]
+name = "taosx-agent"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+snafu.workspace = true
+anyhow.workspace = true
+cfg-if.workspace = true
+clap.workspace = true
+clap-verbosity-flag = { workspace = true }
+const_format.workspace = true
+log = { workspace = true, features = ["serde"] }
+uuid = { workspace = true, features = ["serde"] }
+thiserror.workspace = true
+twelf = { version = "0.15.0", default-features = false, features = [
+  "toml",
+  "env",
+  "clap",
+] }
+dashmap = "5.4.0"
+flume.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+arrow = { workspace = true, features = ["chrono-tz"] }
+arrow-flight = { workspace = true }
+chrono = { workspace = true }
+tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots", "zstd"] }
+rustls = { workspace = true, features = ["ring"] }
+tokio-rustls = { workspace = true }
+shadow-rs = { workspace = true }
+metrics = { workspace = true }
+futures.workspace = true
+futures-ext.workspace = true
+tokio = { workspace = true, features = [
+  "rt",
+  "rt-multi-thread",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "process",
+  "macros",
+  "sync",
+  "signal",
+  "fs",
+] }
+tokio-util.workspace = true
+tokio-stream.workspace = true
+tracing = { workspace = true, features = ["log"] }
+tracing-subscriber = { workspace = true, features = [
+  "time",
+  "local-time",
+  "env-filter",
+] }
+hyper = "1.5.2"
+hyper-util = "0.1.10"
+tower = "0.5.2"
+taoslog = { workspace = true }
+bytes = { workspace = true }
+sysinfo = { workspace = true }
+taos.workspace = true
+
+taosx-task.workspace = true
+source-kinghistorian.workspace = true
+source-pspace.workspace = true
+taosx-utils = { workspace = true, features = ["signal"] }
+ha-core.workspace = true
+taosx-core.workspace = true
+taosx-metrics.workspace = true
+
+[build-dependencies]
+dotenv.workspace = true
+shadow-rs = { workspace = true }
+
+[lints]
+workspace = true

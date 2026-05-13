@@ -1,0 +1,281 @@
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:_ZN4STMT16free_fake_resultEb
+   fun:_Z22my_SQLFreeStmtExtendedPvtt
+   fun:_Z14my_SQLFreeStmtPvt
+   fun:_Z13my_SQLExecuteP4STMT
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:_Z9my_mallocjmi
+   fun:_ZN9file_info16RegisterFilenameEiPKcNS_8OpenTypeE
+   fun:_Z7my_openPKcii
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:__pthread_once_slow
+   fun:_ZSt9call_onceIRFvvEJEEvRSt9once_flagOT_DpOT0_
+   fun:_Z22my_charset_get_by_nameP17MY_CHARSET_LOADERPKcji
+   fun:_Z21get_charset_by_csnamePKcji
+   fun:_Z11myodbc_initv
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:_ZN4STMT16free_fake_resultEb
+   fun:_Z22my_SQLFreeStmtExtendedPvtt
+   fun:_Z14my_SQLFreeStmtPvt
+   fun:_Z11MySQLTablesPvPhsS0_sS0_sS0_s
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:_Z9my_mallocjmi
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:_Z12insert_paramP4STMTP10MYSQL_BINDP4DESCP7DESCRECS6_m
+   fun:_Z13insert_paramsP4STMTmPPcPm
+   fun:_Z13my_SQLExecuteP4STMT
+   fun:SQLExecute
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:__libc_alloc_buffer_allocate
+   fun:alloc_buffer_allocate
+   fun:__resolv_conf_allocate
+   fun:__resolv_conf_load
+   fun:__resolv_conf_get_current
+   fun:__res_vinit
+   fun:maybe_init
+   fun:context_get
+   fun:context_get
+   fun:__resolv_context_get
+   fun:gaih_inet.constprop.0
+   fun:getaddrinfo
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:connect_helper
+   fun:mysql_real_connect
+   fun:_ZN3DBC7connectEP10DataSource
+   fun:_Z12MySQLConnectPvPtsS0_sS0_s
+   fun:SQLConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:_Z9my_mallocjmi
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:_Z12insert_paramP4STMTP10MYSQL_BINDP4DESCP7DESCRECS6_m
+   fun:_Z13insert_paramsP4STMTmPPcPm
+   fun:_Z13my_SQLExecuteP4STMT
+   fun:SQLExecute
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:_Z12insert_paramP4STMTP10MYSQL_BINDP4DESCP7DESCRECS6_m
+   fun:_Z13insert_paramsP4STMTmPPcPm
+   fun:_Z13my_SQLExecuteP4STMT
+   fun:SQLExecDirect
+   fun:SQLExecDirect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:_ZN9file_info16RegisterFilenameEiPKcNS_8OpenTypeE
+   fun:_Z7my_openPKcii
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:__pthread_once_slow
+   fun:_Z22my_charset_get_by_nameP17MY_CHARSET_LOADERPKcji
+   fun:_Z21get_charset_by_csnamePKcji
+   fun:_Z11myodbc_initv
+   fun:_Z14my_SQLAllocEnvPPv
+   fun:SQLAllocHandle
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   fun:SQLConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:_Z12insert_paramP4STMTP10MYSQL_BINDP4DESCP7DESCRECS6_m
+   fun:_Z13insert_paramsP4STMTmPPcPm
+   fun:_Z13my_SQLExecuteP4STMT
+   fun:SQLExecDirect
+   fun:SQLExecDirect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr8
+   fun:strncmp
+   fun:is_dst
+   fun:_dl_dst_substitute
+   fun:fillin_rpath.isra.0
+   fun:decompose_rpath
+   fun:cache_rpath
+   fun:cache_rpath
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_exception
+   fun:_dl_map_object_deps
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   fun:lt_dlopenadvise
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   fun:SQLDriverConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:_ZN9file_info16RegisterFilenameEiPKcNS_8OpenTypeE
+   fun:_Z7my_openPKcii
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   obj:/usr/lib/x86_64-linux-gnu/odbc/libmyodbc8a.so
+   fun:__pthread_once_slow
+   fun:_Z22my_charset_get_by_nameP17MY_CHARSET_LOADERPKcji
+   fun:_Z21get_charset_by_csnamePKcji
+   fun:_Z11myodbc_initv
+   fun:_Z14my_SQLAllocEnvPPv
+   fun:SQLAllocHandle
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   fun:SQLDriverConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr8
+   fun:strncmp
+   fun:is_dst
+   fun:_dl_dst_count
+   fun:expand_dynamic_string_token
+   fun:fillin_rpath.isra.0
+   fun:decompose_rpath
+   fun:cache_rpath
+   fun:cache_rpath
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_exception
+   fun:_dl_map_object_deps
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   fun:lt_dlopenadvise
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   fun:SQLDriverConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr8
+   fun:strncmp
+   fun:is_dst
+   fun:_dl_dst_count
+   fun:expand_dynamic_string_token
+   fun:fillin_rpath.isra.0
+   fun:decompose_rpath
+   fun:cache_rpath
+   fun:cache_rpath
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_exception
+   fun:_dl_map_object_deps
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   fun:lt_dlopenadvise
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   fun:SQLConnect
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr8
+   fun:strncmp
+   fun:is_dst
+   fun:_dl_dst_substitute
+   fun:fillin_rpath.isra.0
+   fun:decompose_rpath
+   fun:cache_rpath
+   fun:cache_rpath
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_exception
+   fun:_dl_map_object_deps
+   fun:dl_open_worker_begin
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   obj:/usr/lib/x86_64-linux-gnu/libltdl.so.7.3.1
+   fun:lt_dlopenadvise
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   obj:/usr/lib/x86_64-linux-gnu/libodbc.so.2.0.0
+   fun:SQLConnect
+}
+

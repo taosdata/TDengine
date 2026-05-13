@@ -1,0 +1,32 @@
+---
+name: TDengine Server Community Edition
+type: feature
+grade: stable
+cputype: amd64
+format: tar.gz
+buildOption:
+  - BUILD_HTTP: true
+  - BUILD_TOOLS: true
+  - WEBSOCKET: false
+  - JEMALLOC_ENABLED: false
+  - OSTYPE: Linux
+  - SOMODE: dynamic
+  - CMAKE_BUILD_TYPE: Release
+parts:
+  taosd:
+  taos:
+  libtaos:
+  taosBenchmark:
+  taosAdapter:
+  taosKeeper:
+  examples:
+    isFolder: true
+    location: ../../community/examples
+  install.sh:
+  uninstall.sh:
+  taosd.service:
+  taosadapter.service:
+
+prepareAction:
+
+postAction:

@@ -1,0 +1,16 @@
+[package]
+name = "x-spawner-replication"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+flume.workspace = true
+
+taosx-core.workspace = true
+tmq-to-td.workspace = true
+
+[lints]
+workspace = true

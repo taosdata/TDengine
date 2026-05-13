@@ -1,0 +1,16 @@
+cors = true
+[oauth]
+enabled = true
+provider = "oidc"
+#fallback_redirect_uri = "http://localhost:8081" # only for development
+[oauth.oidc]
+client_id = "client1"
+client_secret = "my-secret-key-123"
+issuer_url = "http://localhost:8080/realms/test"
+# redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+scopes = ["openid", "profile", "email"]
+[oauth.user_mapping]
+username = "preferred_username"
+email = "email"
+first_name = "given_name"
+last_name = "family_name"

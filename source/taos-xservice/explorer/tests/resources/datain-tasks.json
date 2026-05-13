@@ -1,0 +1,128 @@
+{
+  "server_version": "3.3.6.42",
+  "version": "1.11.0",
+  "commit": "5a29a6b0e8ef4a1b65aa9b995404c33e4f73ce25",
+  "build": "linux-x86_64 2026-02-28 15:25:00 +08:00",
+  "cluster_id": "",
+  "export_user": "root",
+  "export_time": "2026-03-10T02:06:53.636058750+00:00",
+  "tasks_num": 1,
+  "tasks": [
+    {
+      "id": 1,
+      "name": "mqtt",
+      "from": {
+        "type": "mqtt",
+        "data": {
+          "host": "192.168.2.158",
+          "port": 1883,
+          "endpoint": "192.168.2.158:1883",
+          "a7dcf55a-a4ea-483b-8980-2db60cd2d8d6": "plain",
+          "batch_size": "1000",
+          "batch_timeout": "500",
+          "busy_threshold": "100%",
+          "char_encoding": "UTF_8",
+          "clean_session": "true",
+          "client_id": "client_id",
+          "compression": "none",
+          "health_check_window_in_second": "0s",
+          "keep_alive": "60",
+          "keep_raw_data": "false",
+          "keep_raw_data_days": "1",
+          "max_errors_in_window": "10",
+          "max_queue_length": "1000",
+          "maximum_processing_batch": "100",
+          "persist_data_enable": "false",
+          "topics": "abc::0",
+          "tsl_verify": "none",
+          "unprocessed_messages_buffer_size": "50000",
+          "version": "3.1"
+        }
+      },
+      "to": "taos+http://root:taosdata@astro:6041/test",
+      "parser": {
+        "parser": {
+          "global": {
+            "cache": {
+              "keep_days": "30d",
+              "max_size": "1GB",
+              "rotate_count": 100,
+              "location": "",
+              "on_fail": "skip"
+            },
+            "archive": {
+              "keep_days": "30d",
+              "max_size": "1GB",
+              "rotate_count": 100,
+              "location": "",
+              "on_fail": "rotate"
+            },
+            "database_connection_error": "cache",
+            "database_not_exist": "break",
+            "table_not_exist": "retry",
+            "primary_timestamp_overflow": "archive",
+            "primary_timestamp_null": "archive",
+            "primary_key_null": "archive",
+            "table_name_length_overflow": "archive",
+            "table_name_contains_illegal_char": {
+              "replace_to": ""
+            },
+            "variable_not_exist_in_table_name_template": {
+              "replace_to": ""
+            },
+            "field_name_not_found": "add_field",
+            "field_name_length_overflow": "archive",
+            "field_length_extend": true,
+            "field_length_overflow": "archive",
+            "ingesting_error": "archive",
+            "connection_timeout_in_second": "30s"
+          },
+          "parse": {
+            "payload": {
+              "json": ""
+            }
+          },
+          "model": {
+            "name": "mqtt_stable_${g}",
+            "using": "mqtt_stable",
+            "tags": ["g"],
+            "columns": ["ts", "a"]
+          },
+          "mutate": [
+            {
+              "map": {
+                "ts": {
+                  "cast": "a",
+                  "as": "TIMESTAMP(ms)"
+                },
+                "a": {
+                  "cast": "a",
+                  "as": "BIGINT"
+                },
+                "g": {
+                  "value": "1",
+                  "as": "INT"
+                }
+              }
+            }
+          ]
+        },
+        "input": [
+          {
+            "payload": "{\"a\": 1}"
+          }
+        ],
+        "format": {
+          "pageCount": 4,
+          "pageSize": 20,
+          "currentPage": 1
+        }
+      },
+      "via": null,
+      "jobs": 0,
+      "compression_level": null,
+      "oneshot_topic": null,
+      "created_at": "2026-03-10T02:06:43.998043161Z"
+    }
+  ]
+}

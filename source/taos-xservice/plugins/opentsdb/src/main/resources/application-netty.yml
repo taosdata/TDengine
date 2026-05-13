@@ -1,0 +1,10 @@
+# taosx连接配置
+taosx:
+  host: 127.0.0.1
+  port: 6051
+  soKeepalive: true
+  tcpNoDelay: true
+  idleReader: 10
+  idleWriter: 0
+  idleAll: 0
+  unPongRetryTimes: 3

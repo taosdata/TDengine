@@ -1,0 +1,45 @@
+Pwcheck is a daemon for permitting the SASL library to check passwords
+against the shadow password database.
+
+To use:
+
+* Configure the Cyrus SASL library with the "--with-pwcheck" switch.
+
+* Compile and install the Cyrus SASL library software
+
+* Create the directory "/var/pwcheck" and make it readable by only
+those users who need to be able to verify passwords.  For instance, if
+you wish to use pwcheck with Cyrus imapd:
+
+	mkdir /var/pwcheck
+	chown cyrus /var/pwcheck
+	chmod 700 /var/pwcheck
+
+* Configure your applications to use "pwcheck_method: pwcheck". For 
+  example, if you are using this with the Cyrus IMAP server, you can
+  put in the imapd.conf the following line:
+
+	sasl_pwcheck_method: pwcheck
+ 
+  or for an application that doesn't overload its configuration file,
+  you could put the following line in its configuration file located
+  in /usr/lib/sasl (e.g. /usr/lib/<app_name>.conf): 
+
+  	pwcheck_method: pwcheck
+
+* Upon system startup, arrange for the daemon $prefix/sbin/pwcheck
+to be run as root in the background.
+
+How it works:
+
+The Cyrus servers connect to the unix-domain socket
+/var/pwcheck/pwcheck to send a potential user's userid and password to
+the pwcheck daemon.  The pwcheck daemon uses its root privileges to
+verify the userid and password against the shadow password database.
+The pwcheck daemon then returns an error message or "OK" to the Cyrus
+server and closes the unix-domain connection.
+
+The permissions on the /var/pwcheck directory control who can connect
+to the pwcheck daemon.  The pwcheck daemon is not designed to deal
+with denial-of-service attacks from its clients, so the directory
+should be restricted to trustworthy server processes.

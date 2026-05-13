@@ -1,0 +1,4 @@
+# Project targets .NET Framework 4.6 due to legacy constraints.
+# CVEs are framework-level and cannot be patched without upgrading framework.
+CVE-2018-8292
+CVE-2019-0820

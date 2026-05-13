@@ -1,0 +1,581 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [unreleased]
+
+**Full Changelog**: [3.8.0...](https://github.com/taosdata/taos-connector-jdbc/compare/3.8.0...)
+
+### Features
+
+
+- Add dependency check actions (#307) ([2811a31](https://github.com/taosdata/taos-connector-jdbc/commit/2811a318fdc9f01ca3f5265b3f0c1768c5f58c11))
+- Feat: support blob and decimal in parameter binding
+Closes: feat/6662931308 ([9e9c2f0](https://github.com/taosdata/taos-connector-jdbc/commit/9e9c2f0146fb539adf93d79254172075ac47794c))
+
+
+## [3.8.0] - 2025-12-31
+
+**Full Changelog**: [3.7.9...3.8.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.9...3.8.0)
+
+### Bug Fixes
+
+
+- Fix sonar error and security issues (#295) ([ca06cee](https://github.com/taosdata/taos-connector-jdbc/commit/ca06cee9fab9e5cfdbb456c106d49869e31822ec))
+- Error info contains password (#301) ([1746ee8](https://github.com/taosdata/taos-connector-jdbc/commit/1746ee8e1588cfc1dc42c0cb2c6c013a25be1f88))
+
+
+### Features
+
+
+- Report connector version when connecting. (#298) ([76e8c7b](https://github.com/taosdata/taos-connector-jdbc/commit/76e8c7b0b56b8e69ffc0fa19662cd78655834c2d))
+- Support token (#302) ([9d14c50](https://github.com/taosdata/taos-connector-jdbc/commit/9d14c50ac411ba3cb65122a5225ee374a18c5520))
+
+
+## [3.7.9] - 2025-12-06
+
+**Full Changelog**: [3.7.8...3.7.9](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.8...3.7.9)
+
+### Bug Fixes
+
+
+- Websocket reconnect null point error (#296) ([b0a3738](https://github.com/taosdata/taos-connector-jdbc/commit/b0a3738138af99e8e20df060fc4f0f250f080fa5))
+
+
+### Features
+
+
+- Optimize the load balancing logic to achieve rebalancing after node failure recovery. (#291) ([9c473bc](https://github.com/taosdata/taos-connector-jdbc/commit/9c473bccc699ddba33316efa313da2230143ac34))
+
+
+## [3.7.8] - 2025-11-20
+
+**Full Changelog**: [3.7.7...3.7.8](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.7...3.7.8)
+
+### Bug Fixes
+
+
+- Fix getTables need identifier quote string bug. (#292) ([ce5651d](https://github.com/taosdata/taos-connector-jdbc/commit/ce5651d31c87174c06ba567b9a1596c54a6c288b))
+
+
+## [3.7.7] - 2025-11-13
+
+**Full Changelog**: [3.7.6...3.7.7](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.6...3.7.7)
+
+### Bug Fixes
+
+
+- Load properties issue in windows (#289) ([b6841d7](https://github.com/taosdata/taos-connector-jdbc/commit/b6841d726f9520556ddf069a5e0aea95af3be876))
+- WebSocket statement timeout setting resets transport's timeout (#290) ([c9792c0](https://github.com/taosdata/taos-connector-jdbc/commit/c9792c0eea77e9978ff29bf64c55b823d0c0755f))
+
+
+## [3.7.6] - 2025-10-17
+
+**Full Changelog**: [3.7.5...3.7.6](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.5...3.7.6)
+
+### Features
+
+
+- Improve stmt setObject and loadbalance (#284) ([84721c5](https://github.com/taosdata/taos-connector-jdbc/commit/84721c585c1863d2da9e127b248b0c383b39c318))
+
+
+## [3.7.5] - 2025-09-29
+
+**Full Changelog**: [3.7.4...3.7.5](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.4...3.7.5)
+
+### Features
+
+
+- JDBC URL supports multiple endpoints (#279) ([fe1090d](https://github.com/taosdata/taos-connector-jdbc/commit/fe1090dd42afb78d5f7558d879896afc4a699f3b))
+- Stmt supports reconnection (#280) ([87f27e8](https://github.com/taosdata/taos-connector-jdbc/commit/87f27e8214b84db827bbd3a75d1c2a5f85c131d0))
+
+
+### Performance
+
+
+- Improve writing efficiency in efficient writing mode by serializing data with a separate thread (#278) ([bf8e615](https://github.com/taosdata/taos-connector-jdbc/commit/bf8e615bf4f6328efc96aebc1c84cbcdabf8a994))
+- Improve isValid performace (#281) ([67edba7](https://github.com/taosdata/taos-connector-jdbc/commit/67edba7b608115cd92a2bbd2107a295535ba714f))
+
+
+## [3.7.4] - 2025-09-05
+
+**Full Changelog**: [3.7.3...3.7.4](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.3...3.7.4)
+
+### Features
+
+
+- Stop using regex pattern to escape single quota (#275) ([c4b41ff](https://github.com/taosdata/taos-connector-jdbc/commit/c4b41ff34c63f9c3f61edc5c63ea2225e0dfbcc9))
+- Supports delete meta subscription (#277) ([13e51e0](https://github.com/taosdata/taos-connector-jdbc/commit/13e51e0dba6419ea0747268ff305cc3df2a05b8a))
+
+
+## [3.7.3] - 2025-08-20
+
+**Full Changelog**: [3.7.2...3.7.3](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.2...3.7.3)
+
+### Performance
+
+
+- Improve native query performance (#274) ([68df9e5](https://github.com/taosdata/taos-connector-jdbc/commit/68df9e56174e087406f79213f5c8364e5e436332))
+
+
+## [3.7.2] - 2025-08-12
+
+**Full Changelog**: [3.7.1...3.7.2](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.1...3.7.2)
+
+### Bug Fixes
+
+
+- Fix spring jdbc template perf bug (#273) ([180ba59](https://github.com/taosdata/taos-connector-jdbc/commit/180ba59e0aa7793a85db8d1cc332722f324b0b9d))
+
+
+## [3.7.1] - 2025-07-27
+
+**Full Changelog**: [3.7.0...3.7.1](https://github.com/taosdata/taos-connector-jdbc/compare/3.7.0...3.7.1)
+
+### Bug Fixes
+
+
+- Set varbinary/geometry compatibility issue (#271) ([157c4ec](https://github.com/taosdata/taos-connector-jdbc/commit/157c4ec13057e867a64dfcd5ec52e014ad4db912))
+
+
+## [3.7.0] - 2025-07-26
+
+**Full Changelog**: [3.6.3...3.7.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.6.3...3.7.0)
+
+### Bug Fixes
+
+
+- Deadlock when binding a wrong type in efficient writing (#252) ([7684a5c](https://github.com/taosdata/taos-connector-jdbc/commit/7684a5c6005fa330a4800bda2124f27150a18779))
+- GetPrimaryKeys return null (#260) ([3ecc754](https://github.com/taosdata/taos-connector-jdbc/commit/3ecc75459078f5ed3bbdde29ccfaa1cf4306b938))
+- Set timezone 'Asia/Shanghai' bug (#261) ([8e5b840](https://github.com/taosdata/taos-connector-jdbc/commit/8e5b84084afaa4f9d937bce46e3ddf2d4032c3b9))
+- Deploy pom slf4j dependency ([52e0961](https://github.com/taosdata/taos-connector-jdbc/commit/52e0961b97d3cba102479b33ad0bd8bf6fbf1989))
+
+
+### Documentation
+
+
+- Add change log file (#251) ([3f1fdad](https://github.com/taosdata/taos-connector-jdbc/commit/3f1fdadad9d946b5ca21f29a9b35bda8dd84534a))
+
+
+### Features
+
+
+- Replace websocket lib to netty, support stmt line bind mode. (#253) ([c84fd78](https://github.com/taosdata/taos-connector-jdbc/commit/c84fd78d647780d54b35b0f123bf062b95ea5803))
+- Support ipv6 (#254) ([2f56e61](https://github.com/taosdata/taos-connector-jdbc/commit/2f56e615c782d5bfe4d4ea316cd051d1cff8fde7))
+- Supports varchar as string on websocket connections (#255) ([816e782](https://github.com/taosdata/taos-connector-jdbc/commit/816e782ed85825bcb216c51888291014862bfffe))
+- Supports version compatibility checks for TDengine (#256) ([7c405cd](https://github.com/taosdata/taos-connector-jdbc/commit/7c405cd35ae848c17dde05bcfbe0668824cc32f7))
+- Support blob data type (#259) ([bb47387](https://github.com/taosdata/taos-connector-jdbc/commit/bb47387dcc7a2c5a60838bf7b9e5bab97e974c41))
+
+
+## [3.6.3] - 2025-05-19
+
+**Full Changelog**: [3.6.2...3.6.3](https://github.com/taosdata/taos-connector-jdbc/compare/3.6.2...3.6.3)
+
+### Bug Fixes
+
+
+- Database subscription data type conversion bug (#250) ([2ead789](https://github.com/taosdata/taos-connector-jdbc/commit/2ead789a94065463795c8dd45a5d9660228bd9d6))
+
+
+## [3.6.2] - 2025-04-25
+
+**Full Changelog**: [3.6.1...3.6.2](https://github.com/taosdata/taos-connector-jdbc/compare/3.6.1...3.6.2)
+
+### Bug Fixes
+
+
+- Fix ci bug ([2406065](https://github.com/taosdata/taos-connector-jdbc/commit/24060656fafdfbd1539043d61bb60e151fd49b17))
+- Cloud tmq subscribe bug (#249) ([196b609](https://github.com/taosdata/taos-connector-jdbc/commit/196b6097e237fcb15bf881623836f07ca33b00c2))
+
+
+## [3.6.1] - 2025-04-15
+
+**Full Changelog**: [3.6.0...3.6.1](https://github.com/taosdata/taos-connector-jdbc/compare/3.6.0...3.6.1)
+
+### Bug Fixes
+
+
+- Fix ci error ([fc64c83](https://github.com/taosdata/taos-connector-jdbc/commit/fc64c83c38a452e6868987eb81ce742142cd0958))
+- Fix small query perf bug (#247) ([e4e8407](https://github.com/taosdata/taos-connector-jdbc/commit/e4e8407d7e994fc199e93ef5819341eb5d416cb4))
+
+
+### Enhancements
+
+- *loadLibrary*: Loading dynamic library by adding TD_LIBRARY_PATH, especially when DYLD_LIBRARY_PATH ineffective on MacOS because of SIP ([c99b1f8](c99b1f81f8184e4862d9a91bcf94add5799d9703))
+
+- Add tmq subscribe db data support ([fbb0d23](https://github.com/taosdata/taos-connector-jdbc/commit/fbb0d239b3d50bde6864b43052b074e892feca9e))
+
+
+### Testing
+
+
+- Test ci ([c59a577](https://github.com/taosdata/taos-connector-jdbc/commit/c59a577c379a058a542ac764325f5912a348fbda))
+
+
+## [3.6.0] - 2025-03-26
+**Full Changelog**: [3.5.3...3.6.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.5.3...3.6.0)
+
+### Features
+- Add Efficient Writing in jdbc (#238) ([dcfb754](https://github.com/taosdata/taos-connector-jdbc/commit/dcfb7542a5371f7c700b8c01ce8d409dfc9424ad))
+- Support decimal data type ([6d1ffa1](https://github.com/taosdata/taos-connector-jdbc/commit/6d1ffa12840f8129ecef84c0f08559b648297bbf))
+- Add tmq only meta support ([b5956b2](https://github.com/taosdata/taos-connector-jdbc/commit/b5956b22c7feb53e3b143c15a1b8c62228115a2d))
+- Supports tmq add params automatically ([1152b78](https://github.com/taosdata/taos-connector-jdbc/commit/1152b78366a842dc883ead4cc9d8b00828c596d9))
+
+### Performance
+- Preallocate List size to avoid performance loss during large array expansion and simplify some code ([9a089c0](https://github.com/taosdata/taos-connector-jdbc/commit/9a089c0b022a74cb9e90021bd68f3e335bd168f1))
+
+### Bug Fixes
+
+- Fix bug ([ff9b5d4](https://github.com/taosdata/taos-connector-jdbc/commit/ff9b5d4cd4aa7ffaee641c146c82671edb948a2d))
+
+### Changed
+- Update readme and action yml ([a0c8837](https://github.com/taosdata/taos-connector-jdbc/commit/a0c8837933ab7572f82507cfa0488401503c5dd2))
+
+### Testing
+
+- Test toc ([f6331b0](https://github.com/taosdata/taos-connector-jdbc/commit/f6331b0c70b06a3cdb70ac0f5d4ec53e242bff78))
+
+## [3.5.3] - 2025-01-22
+**Full Changelog**: [3.5.2...3.5.3](https://github.com/taosdata/taos-connector-jdbc/compare/3.5.2...3.5.3)
+### Changed
+
+- Improve code, update version ([fdbeeed](https://github.com/taosdata/taos-connector-jdbc/commit/fdbeeed88acd1458cf9cf3cc678a87ac22ba6bc6))
+
+## [3.5.2] - 2025-01-16
+**Full Changelog**: [3.5.1...3.5.2](https://github.com/taosdata/taos-connector-jdbc/compare/3.5.1...3.5.2)
+
+### Features
+- Add unsigned data to jdbc ([585686f](https://github.com/taosdata/taos-connector-jdbc/commit/585686f189f7cd9cc6e5e7d46edcf267f740366c))
+
+### Bug Fixes
+
+- Fix memory leak caused by: query and do not get result bug ([f913058](https://github.com/taosdata/taos-connector-jdbc/commit/f913058258c804f3dd93b9d8f4b2982841d55ae9))
+
+### Testing
+- Update test case ([b6b6a41](https://github.com/taosdata/taos-connector-jdbc/commit/b6b6a41156b3575b7a107db2e8ee58b64e1ae1e2))
+- Add test case ([983dd2a](https://github.com/taosdata/taos-connector-jdbc/commit/983dd2acbcfdc32c0391a4edbde55fe5b9ffc2a5))
+
+## [3.5.1] - 2024-12-31
+**Full Changelog**: [3.5.0...3.5.1](https://github.com/taosdata/taos-connector-jdbc/compare/3.5.0...3.5.1)
+### Bug Fixes
+- Fix tmq getobj bug ([b33d1d2](https://github.com/taosdata/taos-connector-jdbc/commit/b33d1d29dea24c8b04ea2495780baddbc2284bbe))
+
+### Testing
+
+- Add tmq get obj test ([be59a40](https://github.com/taosdata/taos-connector-jdbc/commit/be59a40cdd87306dd0399cb21c71fe4498391773))
+
+## [3.5.0] - 2024-12-27
+**Full Changelog**: [3.4.0...3.5.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.4.0...3.5.0)
+### Features
+- Add ws timezone and app info support ([a4555cd](https://github.com/taosdata/taos-connector-jdbc/commit/a4555cd119bbbed68444fae9c73e109bc1143989))
+- Support set timezone on websocket connection ([2160506](https://github.com/taosdata/taos-connector-jdbc/commit/21605063d9c3772adbbfc814a9cd71f6b54b4c09))
+### Bug Fixes
+- Fix native resultset get int on float type error ([7ea4be8](https://github.com/taosdata/taos-connector-jdbc/commit/7ea4be8ae26b6977fcd9e0cd25fe139e4bafaca1))
+### Performance
+- Add stmt2 support ([f11d7ba](https://github.com/taosdata/taos-connector-jdbc/commit/f11d7badcfa802ae134d8d96cbe249525a9c44ae))
+- Improve websocket small query performance ([810c46b](https://github.com/taosdata/taos-connector-jdbc/commit/810c46b22ab9e578be18ffc29b8a7c3bffba9a82))
+### Testing
+- Add codecov ([fa69f5c](https://github.com/taosdata/taos-connector-jdbc/commit/fa69f5cb8bfec936aeab8e8f118581a4911762ff))
+- Mod test case ([6885cef](https://github.com/taosdata/taos-connector-jdbc/commit/6885cef534288c92a9ec1cd36c9437d253b00987))
+- Add timezone test case ([e4373a6](https://github.com/taosdata/taos-connector-jdbc/commit/e4373a6d9f6a670ff4f828688223acceb0ad9e4a))
+
+## [3.4.0] - 2024-10-18
+**Full Changelog**: [3.3.3...3.4.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.3.3...3.4.0)
+### Bug Fixes
+
+- Fix unit test issue ([07a0691](https://github.com/taosdata/taos-connector-jdbc/commit/07a0691bf47ed03a6c2810d9e0e37687ae72c2a9))
+
+### Changed
+- Use jackson replaced fastjson, add websocket independent driver, improve common pool ([f7b1e77](https://github.com/taosdata/taos-connector-jdbc/commit/f7b1e77cf3a25942c9546f3a6bbaa290e726ffb9))
+
+## [3.3.3] - 2024-09-23
+**Full Changelog**: [3.3.2...3.3.3](https://github.com/taosdata/taos-connector-jdbc/compare/3.3.2...3.3.3)
+### Bug Fixes
+
+- Fix statement close mem leak issue ([3cd4e08](https://github.com/taosdata/taos-connector-jdbc/commit/3cd4e08e02c0a4c37cc1370c51f224b090103c01))
+
+## [3.3.2] - 2024-09-05
+**Full Changelog**: [3.3.0...3.3.2](https://github.com/taosdata/taos-connector-jdbc/compare/3.3.0...3.3.2)
+
+### Features
+- Support mybatis localtime ([a8a796f](https://github.com/taosdata/taos-connector-jdbc/commit/a8a796f30cf89746cdc838c76f45f461c629bca3))
+- Support websocket ResultSet getObject with type ([9bdffe1](https://github.com/taosdata/taos-connector-jdbc/commit/9bdffe17fd5c3ab881757ec3d49766a0da681143))
+
+### Changed
+- Replace server_status with show cluster alive ([a474e9e](https://github.com/taosdata/taos-connector-jdbc/commit/a474e9e2435ef7583060a6eb02a7c4a67f5198e0))
+### Performance
+- Improve stmt query perf, remove precision query ([fa08c33](https://github.com/taosdata/taos-connector-jdbc/commit/fa08c336aaaac55e59dcc4e3d9467e4047966337))
+
+### Bug Fixes
+- Fix typo issue ([5114024](https://github.com/taosdata/taos-connector-jdbc/commit/511402458ff3c6298545ab4bc07e4446da98d0b1))
+- Fix server version, log with password ([f352d00](https://github.com/taosdata/taos-connector-jdbc/commit/f352d000949c251543b27f821ac90761f9746535))
+
+### Testing
+- Add ns query test ([42be5a6](https://github.com/taosdata/taos-connector-jdbc/commit/42be5a6b1ac80da87530b08dd28dab11ceca61cb))
+- Add stmt perf ci ([285086f](https://github.com/taosdata/taos-connector-jdbc/commit/285086fdd4a9528a3c8038f115758b2d9cce4d34))
+- Add ci perf test ([94b5a02](https://github.com/taosdata/taos-connector-jdbc/commit/94b5a02459dc6cf37bc24f4a67e58b8c5895d155))
+
+## [3.3.0] - 2024-07-01
+**Full Changelog**: [3.2.11...3.3.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.11...3.3.0)
+### Features
+- Add skip ssl validation support ([99f7f86](https://github.com/taosdata/taos-connector-jdbc/commit/99f7f86c8225d78b0de5079a9a981dc3a671d2c6))
+
+### Bug Fixes
+
+- Fix master slave issue ([ba279e3](https://github.com/taosdata/taos-connector-jdbc/commit/ba279e336d9be9100975c4b0ad2695b69145c044))
+- Fix retry bug ([2393b7d](https://github.com/taosdata/taos-connector-jdbc/commit/2393b7d5861eb21b36424e96559be0f9c9e599c3))
+- Fix typo issue ([d9630f0](https://github.com/taosdata/taos-connector-jdbc/commit/d9630f0971cb3d6e4c3ab215483fd8dccdaf3563))
+- Fix skip type bug ([38149b9](https://github.com/taosdata/taos-connector-jdbc/commit/38149b9ffec95483d8f9dca9b16ecf8620f229d5))
+### Performance
+- Use new binary interface ([f8bb7da](https://github.com/taosdata/taos-connector-jdbc/commit/f8bb7dacd63795567b022a1ed4d61c90926094cd))
+- Improve tmq perf by using fetch raw block ([4a2ab10](https://github.com/taosdata/taos-connector-jdbc/commit/4a2ab103e75d16e1947adb91c5e3b5c133fbc0f6))
+- Improve websocket query performance ([013c72f](https://github.com/taosdata/taos-connector-jdbc/commit/013c72faafa6e943bf9efbd1c51ac4713057a056))
+
+### Testing
+- Add varbinary and geometry test ([a52f7f4](https://github.com/taosdata/taos-connector-jdbc/commit/a52f7f4acaf8dc7812f53ed14f794860a3f7d77a))
+
+## [3.2.11] - 2024-04-30
+**Full Changelog**: [3.2.10...3.2.11](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.10...3.2.11)
+### Bug Fixes
+
+- Fix fetch data jni crash bug ([fab7d85](https://github.com/taosdata/taos-connector-jdbc/commit/fab7d85c10ee8218286f5dee74e7da76bc2e5945))
+
+## [3.2.10] - 2024-04-28
+**Full Changelog**: [3.2.8...3.2.10](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.8...3.2.10)
+
+### Features
+- Add compress support ([afaa9a2](https://github.com/taosdata/taos-connector-jdbc/commit/afaa9a2e757a34523253543637d3eff539ac4b53))
+- Move schemaless support to normal connection ([4c37a34](https://github.com/taosdata/taos-connector-jdbc/commit/4c37a34b38ffbeb83125c7d724879b8f2bdc5951))
+- Specify IdentifierQuoteString as the ` symbol ([49af51b](https://github.com/taosdata/taos-connector-jdbc/commit/49af51bdf692bbf0e748416c06fce8594919c7cf))
+- Add master slave support ([eac1db8](https://github.com/taosdata/taos-connector-jdbc/commit/eac1db88a6fe42f260e538103e3d9d32ff93f8b4))
+### Bug Fixes
+
+- Fix preparestatment close bug ([3312453](https://github.com/taosdata/taos-connector-jdbc/commit/331245323ce3c43e7653b31e48f1f712d4394367))
+- Handle timeout error ([b3b251c](https://github.com/taosdata/taos-connector-jdbc/commit/b3b251c50bc0f2bc1bee439d69fbc148092f0278))
+
+### Changed
+- Improve timestamp converter ([5cde6a5](https://github.com/taosdata/taos-connector-jdbc/commit/5cde6a5a0c8a4bd5b124b2329e1ff9ccd34a99b6))
+### Performance
+- Improve native fetch data performance ([601b26f](https://github.com/taosdata/taos-connector-jdbc/commit/601b26f8c38a96fb87f11b0047732787eba0c2ec))
+### Testing
+- Add unit test ([9d0940d](https://github.com/taosdata/taos-connector-jdbc/commit/9d0940d726d109ff0b1ea3f6d93f930da8605e4d))
+
+## [3.2.8] - 2024-01-31
+**Full Changelog**: [3.2.7...3.2.8](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.7...3.2.8)
+### Features
+- Support decompress from server ([84a4e26](https://github.com/taosdata/taos-connector-jdbc/commit/84a4e26b358b9b0f9a195d5ea57977a4ac1ae992))
+- Support view ([4e33cba](https://github.com/taosdata/taos-connector-jdbc/commit/4e33cba9f122421d834ca1e4d38d6bd54b83e99b))
+- Auto commit msg by jdbc own ([f64e910](https://github.com/taosdata/taos-connector-jdbc/commit/f64e910ddec09bfbe8f43b3905194671a1fa2396))
+
+### Bug Fixes
+- Fix bug ([a26873e](https://github.com/taosdata/taos-connector-jdbc/commit/a26873ea0af9d896ce76850fe1aeb9511ddec323))
+- Fix manual commit offset bug ([5aa0978](https://github.com/taosdata/taos-connector-jdbc/commit/5aa0978aced887bc75ae6e1b6f791062efcbcf29))
+### Enhancements
+- Stmt use one connection, improve the websocket reconnection ([e1c68bd](https://github.com/taosdata/taos-connector-jdbc/commit/e1c68bd6e232c4333e0865157852256b693ded84))
+
+## [3.2.7] - 2023-10-27
+**Full Changelog**: [3.2.5...3.2.7](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.5...3.2.7)
+
+### Features
+- Add geometry support ([e525c59](https://github.com/taosdata/taos-connector-jdbc/commit/e525c59b32cc6f320ad62af86c95b3965c881e2e))
+- New type varbinary ([ac2b15c](https://github.com/taosdata/taos-connector-jdbc/commit/ac2b15c00c4cb343a8d764b44fa114cd20e31a0a))
+- Varbinary ([6b23b2b](https://github.com/taosdata/taos-connector-jdbc/commit/6b23b2b122ea181ec44087838f5329e76f2e44fb))
+
+### Bug Fixes
+
+- Fix bug: need handle timezone in query result ([a1de417](https://github.com/taosdata/taos-connector-jdbc/commit/a1de41795cad14456f28c8cc1e4d77c3890a24f9))
+- Rawblock binary length ([17307de](https://github.com/taosdata/taos-connector-jdbc/commit/17307ded1a9de19812d1c259062054009f463d8c))
+- Fix test bugs ([5f96eac](https://github.com/taosdata/taos-connector-jdbc/commit/5f96eac715ff7ecd704750041769c7cfe084b65f))
+- Fix [TD-26619](https://jira.taosdata.com:18080/browse/TD-26619), [TD-26567](https://jira.taosdata.com:18080/browse/TD-26567) ([30fb506](https://github.com/taosdata/taos-connector-jdbc/commit/30fb506bbb576820280b999c9da8833f50b5334e))
+- Handle http response code ([deb6045](https://github.com/taosdata/taos-connector-jdbc/commit/deb6045af894892bf183c58cf263a3224bb7ed9b))
+- Normal handle ([0dafa7d](https://github.com/taosdata/taos-connector-jdbc/commit/0dafa7da9f0de3754285ae4ea614c34a07719044))
+- Tmq skip meta data ([7f9d17e](https://github.com/taosdata/taos-connector-jdbc/commit/7f9d17e9b4e65bdccb4a793f831cb00ae3bb32ec))
+
+### Enhancements
+- Support ws new endpoint ([26d611d](https://github.com/taosdata/taos-connector-jdbc/commit/26d611dc3c75b8cc488e9fe3552c8fb071f1ed3a))
+## [3.2.5] - 2023-08-28
+**Full Changelog**: [3.2.4...3.2.5](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.4...3.2.5)
+
+### Features
+
+- Tmq add commit_offset commttied position list_topic function ([f340184](https://github.com/taosdata/taos-connector-jdbc/commit/f340184ce14fad50ba7766cd33a047c931869234))
+- Get db and tablename in resultSet meta data ([1363fc2](https://github.com/taosdata/taos-connector-jdbc/commit/1363fc2c52a1f582d3782b99a618caa9d6f1e795))
+- GetColumns function ([f7d2a38](https://github.com/taosdata/taos-connector-jdbc/commit/f7d2a3805fa3018c1945f42be73adafd966aada6))
+- Stmt get insert db ([6fbcba8](https://github.com/taosdata/taos-connector-jdbc/commit/6fbcba865d993e1d684e2332cee0dd5865aad68a))
+
+### Bug Fixes
+
+- GetColumns test case ([4dc6819](https://github.com/taosdata/taos-connector-jdbc/commit/4dc681951f49e0cdcb71a97244f6527b4e0b55b1))
+- Database matedata test ([eeb26da](https://github.com/taosdata/taos-connector-jdbc/commit/eeb26da7594473a47f29f2d0407fc7bc9552683b))
+- Unify error code ([e7c659b](https://github.com/taosdata/taos-connector-jdbc/commit/e7c659b45d60976c2a2d4c0e5bb8a7502491c66e))
+- Tmq committed msg ([bf000cc](https://github.com/taosdata/taos-connector-jdbc/commit/bf000cc484146755cbc93b8a1bdf5d4576575bd8))
+
+## [3.2.4] - 2023-07-06
+**Full Changelog**: [3.2.3...3.2.4](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.3...3.2.4)
+### Features
+
+- Add auto commit param to taosAdapter ([b0efef6](https://github.com/taosdata/taos-connector-jdbc/commit/b0efef61fc701a15777bad9700bc728f96a4ba24))
+
+## [3.2.3] - 2023-06-27
+**Full Changelog**: [3.2.2...3.2.3](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.2...3.2.3)
+### Enhancements
+- RawBlock parse ([4f29654](https://github.com/taosdata/taos-connector-jdbc/commit/4f29654b3fcb03a4c3c91ac72980623e2f4c041f))
+- Refine code ([8a85c4e](https://github.com/taosdata/taos-connector-jdbc/commit/8a85c4eb48e0ce7f49a116c2e73476b544c9c83f))
+- PrepareStatement rawBlock set Null ([ea46813](https://github.com/taosdata/taos-connector-jdbc/commit/ea468134f12577cdbdd11013931b79d32f2f7de7))
+- Default wait time to 60s ([6ce31c6](https://github.com/taosdata/taos-connector-jdbc/commit/6ce31c628ea2d08e9682a6db92f3e2db77448dc4))
+- *deps*: Bump guava from 30.1.1-jre to 32.0.0-jre ([5bd4b36](https://github.com/taosdata/taos-connector-jdbc/commit/5bd4b36c843e3320e305ea07338b31f5ef6cf9cb))
+### Testing
+- Test case ([14dafe1](https://github.com/taosdata/taos-connector-jdbc/commit/14dafe1e13ef02d4faf54eab3fa75e9268bfb0bc))
+- Test case product version ([d48f924](https://github.com/taosdata/taos-connector-jdbc/commit/d48f924bc335fa462cadf8c80d6bb834f87d16b6))
+
+## [3.2.2] - 2023-06-08
+**Full Changelog**: [3.2.1...3.2.2](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.1...3.2.2)
+### Features
+
+- Add consumer seek function ([4297b07](https://github.com/taosdata/taos-connector-jdbc/commit/4297b074856e1fd3442debb5b3f0072621ad20a2))
+- Tmq seek over websocket ([b6375cb](https://github.com/taosdata/taos-connector-jdbc/commit/b6375cbdeffb10ebaa80ee50d2201f006c4c565f))
+
+### Bug Fixes
+- Parameter visibility ([f31e92c](https://github.com/taosdata/taos-connector-jdbc/commit/f31e92c1367f005d8f56c8478ed81fe6f6ec26d7))
+- Remove to String method ([980361c](https://github.com/taosdata/taos-connector-jdbc/commit/980361c187e4d9c42172643fd82fd8a1ebda8359))
+### Enhancements
+- When multiple jars contain "version.properties", get "version.properties" from the jar package of td ([3183519](3183519dd050d5baed3ef38003ddf317a44e0052))
+- Error code ([4526bd2](4526bd2e972d3f240e1c23f73ce16003e6e066f0))
+### Testing
+- CI checkout TD main branch ([59ceabd](https://github.com/taosdata/taos-connector-jdbc/commit/59ceabd990542ff931a55233f0eec6ef2c63a851))
+- Add offset seek test case ([066716a](https://github.com/taosdata/taos-connector-jdbc/commit/066716ad519af6543bc81bdd2568e3738f24147b))
+- Test case ([7b4774b](https://github.com/taosdata/taos-connector-jdbc/commit/7b4774bf98f6e0959ff65ae2a9d6a0d1459f7885))
+- Change test case ([cf128f1](https://github.com/taosdata/taos-connector-jdbc/commit/cf128f11373fda97a1fd9594c25850907c34893f))
+- 3.0 add github action ([8633dd5](https://github.com/taosdata/taos-connector-jdbc/commit/8633dd5a315dbf22b1b3d5668dff3a53a623b1f6))
+- Consumer test case ([e8cf23b](https://github.com/taosdata/taos-connector-jdbc/commit/e8cf23b8ca1d28d8b6fb9047ba34106b3261e760))
+- Remove test ignore ([c8b25d7](https://github.com/taosdata/taos-connector-jdbc/commit/c8b25d750f1a0362c82093b770a49f094e474bbb))
+- Cloud test case ([6a1ccde](https://github.com/taosdata/taos-connector-jdbc/commit/6a1ccdee6d01b32fc521ad3ca7683c0d8b397112))
+
+## [3.2.1] - 2023-05-08
+**Full Changelog**: [3.2.0...3.2.1](https://github.com/taosdata/taos-connector-jdbc/compare/3.2.0...3.2.1)
+### Bug Fixes
+
+- Deploy pom update ([8fb2216](https://github.com/taosdata/taos-connector-jdbc/commit/8fb2216c6eafd596e2312b6afec2ab13532abb8b))
+
+## [3.2.0] - 2023-05-06
+**Full Changelog**: [3.1.0...3.2.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.1.0...3.2.0)
+
+### Features
+
+- Add schemaless and stmt entity for websocket ([b821f95](https://github.com/taosdata/taos-connector-jdbc/commit/b821f95282241587423539e22ce7e486c9c06335))
+- Schemaless over websocket ([d06111f](https://github.com/taosdata/taos-connector-jdbc/commit/d06111f27c312dbd9021bce512883807e0a94b1c))
+- Schemaless insert raw data ([212b555](https://github.com/taosdata/taos-connector-jdbc/commit/212b55593aa1a4ac66b88e081edcd76c9184c5bb))
+- Add rest query with reqId ([5f6bf08](https://github.com/taosdata/taos-connector-jdbc/commit/5f6bf08b666e27a90acbe6f3d814ea2fc9359584))
+- Add websocket preparestatment ([57d9b77](https://github.com/taosdata/taos-connector-jdbc/commit/57d9b7745a5f22933ebd5c31d070dce308fc591d))
+
+### Bug Fixes
+- Tmq deserializer null Object ([bead6fe](https://github.com/taosdata/taos-connector-jdbc/commit/bead6fe38cb27c4b109383c032b0ffffc5ddb561))
+- Rest resultset meta ([c86113c](https://github.com/taosdata/taos-connector-jdbc/commit/c86113c40a29eca0492ec706e76546a2f34ddf2e))
+- Stmt error code from taosc ([baa14b9](https://github.com/taosdata/taos-connector-jdbc/commit/baa14b96adbd9ee26a83fcc6801728769994d3eb))
+- Github action ([520bb88](https://github.com/taosdata/taos-connector-jdbc/commit/520bb886a225f88c3847164df51f301ce9c144e0))
+- Remove print url ([d89b750](https://github.com/taosdata/taos-connector-jdbc/commit/d89b750e9b6e59030fac061a7ad0e766026e41ba))
+### Testing
+- Null test case (#76) ([b95544d](https://github.com/taosdata/taos-connector-jdbc/commit/b95544d059714ae1b5482ab6e911865541618729))
+- Consumer test case add WAL_RETENTION_PERIOD ([47aa171](https://github.com/taosdata/taos-connector-jdbc/commit/47aa1715e1bf1efb42803b8776c965027ed4442d))
+- Fix test case ([431460e](https://github.com/taosdata/taos-connector-jdbc/commit/431460e57637eb2d430e8a141577e7f74f5ef660))
+- Test case ([0af0cd7](https://github.com/taosdata/taos-connector-jdbc/commit/0af0cd76e59b1bb79e9c6a4b42a291581fb6a36e))
+- Jdbc version test case ([48cb7be](https://github.com/taosdata/taos-connector-jdbc/commit/48cb7be0884cdaa02086c40ff692dc60a05bac02))
+- Schemaless test, can't use SchemalessTimestampType.NOT_CONFIGURED ([b93dae7](https://github.com/taosdata/taos-connector-jdbc/commit/b93dae7d93bb78eaefe27783e012ba056817b4fc))
+- Schemaless test case ([eac9465](https://github.com/taosdata/taos-connector-jdbc/commit/eac94650e93ae8cbcde8ce9ffab66dbe35b81bee))
+- Error code case with hex ([3a3fc02](https://github.com/taosdata/taos-connector-jdbc/commit/3a3fc02044f28fa6c4e4322e040ca76816adb8f0))
+- Test type ([d391940](https://github.com/taosdata/taos-connector-jdbc/commit/d3919404fb99efa0e359c67ed13af030269ba9ef))
+- Rest result set meta test ([8815e97](https://github.com/taosdata/taos-connector-jdbc/commit/8815e97d503c02f2aacef4e0eeac422dee4f7b97))
+- Add schemaless cloud test ([d443dac](https://github.com/taosdata/taos-connector-jdbc/commit/d443dac7eff5b340c1abd4d4bc0ddcff93cef438))
+
+### Documentation
+
+- Update version list (#77) ([0a5d5e9](https://github.com/taosdata/taos-connector-jdbc/commit/0a5d5e964c47959517dc5de635c8c9b8349c632a))
+- Update README.md ([cb4ec00](https://github.com/taosdata/taos-connector-jdbc/commit/cb4ec00236616824422cb5ffbef6bd34f0d81935))
+
+### Enhancements
+
+- Add comsumer get topic (#78) ([4f50a3e](https://github.com/taosdata/taos-connector-jdbc/commit/4f50a3e0644ed33f104ca2310b9e77d0e2bb0e73))
+- Add topic and dbName to deserializer (#79) ([f35a0c9](https://github.com/taosdata/taos-connector-jdbc/commit/f35a0c983be74481697c97c2d51c8c6bb809c15b))
+- Schemaless cloud ([6aaa633](https://github.com/taosdata/taos-connector-jdbc/commit/6aaa6335324a7245f834031feec86347527556e5))
+- Get jdbc version from pom.xml file ([8082892](https://github.com/taosdata/taos-connector-jdbc/commit/80828920c9997e9549021cbb07de31913e31c4a0))
+- Jdbc add reqId ([c43a7c9](https://github.com/taosdata/taos-connector-jdbc/commit/c43a7c96babe56520cf5579f248e019f75ea1722))
+- Preparestatement over websocket ([bb2e826](https://github.com/taosdata/taos-connector-jdbc/commit/bb2e82659f0eb96ed27ac6a281713211a8384f0e))
+
+## [3.1.0] - 2023-02-23
+**Full Changelog**: [3.0.4...3.1.0](https://github.com/taosdata/taos-connector-jdbc/compare/3.0.4...3.1.0)
+### Features
+- Tmq over websocket (#71) ([e7f3b3d](https://github.com/taosdata/taos-connector-jdbc/commit/e7f3b3d7569b8f6cefbf81b92c8206aa8df819a4))
+### Bug Fixes
+
+- REST type remove default port 6041 (#73) ([2497f1b](https://github.com/taosdata/taos-connector-jdbc/commit/2497f1b33351fdc0eed82fce75dd6b56162e2924))
+### Enhancements
+- Tmq use generics ([afaa3cc](https://github.com/taosdata/taos-connector-jdbc/commit/afaa3cc8d1492531c5132f11763a1df5d893e8a9))
+- Enhance consumer commit aync callback ([bfda4d1](https://github.com/taosdata/taos-connector-jdbc/commit/bfda4d169d042cee7cf73f271e549efde6084ef6))
+- Replace TDengine branch temporary ([da8468e](https://github.com/taosdata/taos-connector-jdbc/commit/da8468e715f0da6e047701153409a96a492d69e3))
+
+
+## [3.0.4] - 2023-01-18
+**Full Changelog**: [3.0.3...3.0.4](https://github.com/taosdata/taos-connector-jdbc/compare/3.0.3...3.0.4)
+### Bug Fixes
+- Deserializer boolean value ([d2fa4a8](https://github.com/taosdata/taos-connector-jdbc/commit/d2fa4a8cf18f76232c076583c2cb2c9ad22f020f))
+
+### Testing
+
+- Add test ([142fa71](https://github.com/taosdata/taos-connector-jdbc/commit/142fa7101505590984cf1330731198ec2537adb8))
+
+### Enhancements
+
+- Support get table vgid ([ecd43d3](https://github.com/taosdata/taos-connector-jdbc/commit/ecd43d354ba732fcb6641adcbbb47f85e9d7b422))
+- Use github action variable ([2d7ec3d](https://github.com/taosdata/taos-connector-jdbc/commit/2d7ec3d18e91fb3e71d2f8c4115872dd7be4bcdf))
+- Workflow for environment ([5371ccb](https://github.com/taosdata/taos-connector-jdbc/commit/5371ccbea2dd2add1ef52f409d550c48e36c0f1c))
+
+### Testing
+- Add deserializer boolean value test ([567a647](https://github.com/taosdata/taos-connector-jdbc/commit/567a647ab606467f67bd40b467d492b13e6e36fb))
+- Add test case ([52b92f4](https://github.com/taosdata/taos-connector-jdbc/commit/52b92f48d0956325e101dc9b472594afba85415f))
+
+## [3.0.3] - 2022-12-09
+**Full Changelog**: [3.0.1...3.0.3](https://github.com/taosdata/taos-connector-jdbc/compare/3.0.1...3.0.3)
+### Bug Fixes
+
+- Timestamp parse error in jdk17 ([d54b045](https://github.com/taosdata/taos-connector-jdbc/commit/d54b04559f26e5740d1097cf1cd8bd26e9158e8d))
+- Convert object value type ([2596d4e](https://github.com/taosdata/taos-connector-jdbc/commit/2596d4e98d17b6508cac7c70e217e0430924b116))
+- Add exception desc ([f93c27a](https://github.com/taosdata/taos-connector-jdbc/commit/f93c27ab4926ce8d726253289aa55f66e6a758ad))
+
+### Enhancements
+
+- Log add execute sql ([a97ead2](https://github.com/taosdata/taos-connector-jdbc/commit/a97ead2f879dba42855d90f5c191dede3408e477))
+
+### Features
+
+- Implement setQueryTimeout/getQueryTimeout for TSDBStatement (#47) ([84e7d12](https://github.com/taosdata/taos-connector-jdbc/commit/84e7d122a7119058cdf25e400e071b1e1d20aa59))
+
+### Testing
+
+- Add restful Timestamp parse test case ([356da5c](https://github.com/taosdata/taos-connector-jdbc/commit/356da5cd91a4ad0742ce1a05907b1a57a2966b62))
+
+## [3.0.1] - 2022-10-21
+**Full Changelog**: [3.0.0...3.0.1](https://github.com/taosdata/taos-connector-jdbc/compare/3.0.0...3.0.1)
+### Bug Fixes
+
+- Wasnull set false ([a99520e](https://github.com/taosdata/taos-connector-jdbc/commit/a99520ee85de2f9cdd40063bb6112492f681d68e))
+- GetInt -> getString ([3329980](https://github.com/taosdata/taos-connector-jdbc/commit/33299804c86f537a96c641e91bdc8d285291bc91))
+- Clear tmq meta when poll data (#44) ([b0009c3](https://github.com/taosdata/taos-connector-jdbc/commit/b0009c310942d8db3710f3d05819e4f39296e055))
+- Raw block use offset when nchar json binary ([3fef9dd](https://github.com/taosdata/taos-connector-jdbc/commit/3fef9ddff797cfe92b214a2123a06988e78597c1))
+
+### Enhancements
+
+- Remove timestampFormat parameter ([4a9f839](https://github.com/taosdata/taos-connector-jdbc/commit/4a9f839fb0d96abb2af9e4d8476a97bec6d75e9d))
+
+### Documentation
+
+- Fix link of docs.taosdata.com ([9f2b54b](https://github.com/taosdata/taos-connector-jdbc/commit/9f2b54bc027948b70eb84106b2c4736c4de0a1ca))
+- Modify jdbc ([444dba7](https://github.com/taosdata/taos-connector-jdbc/commit/444dba7299d53662e9b8a5c03491284cecfe57b3))
+
+### Testing
+- Test remove exception ([a91fce0](https://github.com/taosdata/taos-connector-jdbc/commit/a91fce0e198cdcfbde16acbc4f6340b7a54f3328))
+- Add fetch block tests ([2587b57](https://github.com/taosdata/taos-connector-jdbc/commit/2587b57c28afd2763731656c7d636806526628a1))
+- Add wasnull test ([c1963ef](https://github.com/taosdata/taos-connector-jdbc/commit/c1963eff3825aaa37c43206162c68cf065508d00))
+

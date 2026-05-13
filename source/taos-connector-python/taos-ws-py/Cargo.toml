@@ -1,0 +1,44 @@
+[package]
+name = "taos-ws-py"
+version = "0.6.9"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[lib]
+name = "_taosws"
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1"
+bigdecimal = "0.4"
+chrono = "0.4"
+chrono-tz = "0.10.4"
+iana-time-zone = "0.1.63"
+log = "0.4"
+pretty_env_logger = "0.5"
+serde_json = "1"
+shadow-rs = { version = "0.33.0", default-features = false }
+
+[build-dependencies]
+shadow-rs = { version = "0.33.0", default-features = false }
+
+[dependencies.pyo3]
+version = "0.17.3"
+features = ["extension-module", "anyhow", "chrono", "abi3-py37"]
+
+[target.'cfg(windows)'.dependencies]
+taos = { git = "https://github.com/taosdata/taos-connector-rust.git", branch = "main", default-features = false, version = "0.12.3", features = [
+	"optin",
+	"ws-rustls",
+	"ws-rustls-aws-lc-crypto-provider",
+] }
+[target.'cfg(unix)'.dependencies]
+taos = { git = "https://github.com/taosdata/taos-connector-rust.git", branch = "main", default-features = false, version = "0.12.3", features = [
+	"optin",
+	"ws-rustls",
+	"ws-rustls-ring-crypto-provider",
+] }
+
+[patch.crates-io]
+ring = { git = "https://github.com/taosdata/ring.git", branch = "fix/loongarch" }

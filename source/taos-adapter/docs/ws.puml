@@ -1,0 +1,100 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+title bulk pulling
+
+note left of WSClient: version
+WSClient->WSServer: get version request
+activate WSServer
+WSServer->taosc:taos_get_client_info
+activate taosc
+taosc-->WSServer:client version
+deactivate taosc
+WSServer-->WSClient:client version
+note left of WSClient: connect
+WSClient->WSServer: DB connect request
+WSServer->taosc:taos_connect()
+activate taosc
+taosc-->WSServer: connect pointer
+deactivate taosc
+WSServer-->WSClient:DB connect response
+
+note left of WSClient: query
+WSClient->WSServer: SQL query request
+WSServer->taosc:taos_query_a()
+activate taosc
+taosc-->WSServer: query result
+deactivate taosc
+WSServer->taosc:taos_is_update_query()
+activate taosc
+taosc-->WSServer: weather is update
+deactivate taosc
+alt update query
+    WSServer->taosc: taos_affected_rows()
+    activate taosc
+    taosc --> WSServer: affected rows
+    deactivate taosc
+    WSServer->taosc: taos_free_result()
+    activate taosc
+    taosc-->WSServer: freed
+    deactivate taosc
+    WSServer-->WSClient: affected rows
+else need result query
+    WSServer->taosc: taos_num_fields()
+    activate taosc
+    taosc --> WSServer: result fields count
+    deactivate taosc
+    WSServer->taosc: taos_fetch_fields()
+    activate taosc
+    taosc --> WSServer: fields info
+    deactivate taosc
+    WSServer->taosc: taos_result_precision()
+    activate taosc
+    taosc --> WSServer: precision
+    deactivate taosc
+    WSServer-->WSClient: result info
+end
+
+note left of WSClient: fetch
+WSClient->WSServer: fetch request
+WSServer->taosc:taos_fetch_raw_block_a()
+activate taosc
+taosc-->WSServer:fetch result
+deactivate taosc
+alt have raws to fetch
+WSServer->taosc: taos_get_raw_block()
+activate taosc
+taosc-->WSServer:raw block
+deactivate taosc
+WSServer-->WSClient: return bolck lengths
+else no raws
+WSServer-->WSClient: return completed
+end
+
+note left of WSClient: fetch_block
+WSClient-->WSServer: fetch block request
+WSServer-->WSClient: fetch block response
+
+
+note left of WSClient: free result
+WSClient->WSServer: fetch free result request
+WSServer->taosc:taos_free_result()
+activate taosc
+taosc-->WSServer:freed
+deactivate taosc
+
+note left of WSClient: write meta
+WSClient->WSServer: write meta request
+WSServer->taosc:taos_write_raw_meta()
+activate taosc
+taosc-->WSServer: write result
+deactivate taosc
+WSServer-->WSClient: write meta response
+
+
+note left of WSClient: disconnect or error
+WSServer -->WSClient: close connection
+deactivate WSServer
+WSServer-->taosc: free all result
+
+@enduml

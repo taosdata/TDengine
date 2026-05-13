@@ -1,0 +1,74 @@
+# taosX service endpoint
+#
+#endpoint = "http://localhost:6055"
+
+# !important!
+# Uncomment it and copy-paste the token generated in Explorer.
+#
+#token = ""
+
+# CA certificate file path or content
+# Option 1. file
+#ca = "/path/to/ca.pem"
+# Option 2. content
+#ca = """
+#-----BEGIN CERTIFICATE-----
+#...
+#-----END CERTIFICATE-----
+#""""
+
+# Server instance id
+#
+# The instanceId of each instance is unique on the host
+#instanceId = 48
+
+# Enable communication data compression between Agent and taosX
+#
+#compression = true
+
+# In-memory cache capacity
+#
+#in_memory_cache_capacity = 64
+
+# Keep the agent alive when the taosX service exits or disconnects
+keep_online = true
+
+[client_port_range]
+# Minimum boundary of listening port of agent, can not less than 49152
+#
+# min = 49152
+
+# Maximum boundary of listening port of agent, can not greater than 65535
+#
+# max = 65535
+
+# Log configuration entry
+[log]
+# All log files are stored in this directory
+#
+#path = "/var/log/taos" # on linux/macOS
+#path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+#level = "info"
+
+# Compress archived log files or not
+#
+#compress = false
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+#
+#rotationCount = 3
+
+# Rotate when the log file reaches this size
+#
+#rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+#
+#reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+#keepDays = 3

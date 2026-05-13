@@ -1,0 +1,115 @@
+@font-face {
+  font-family: "element-icons"; /* Project id 3857053 */
+  src: url('iconfont.woff2?t=1703497287058') format('woff2'),
+       url('iconfont.woff?t=1703497287058') format('woff'),
+       url('iconfont.ttf?t=1703497287058') format('truetype');
+}
+
+.element-icons {
+  font-family: "element-icons" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.el-icon-PREVIEW:before {
+  content: "\ea06";
+}
+
+.el-icon-a-6:before {
+  content: "\e602";
+}
+
+.el-icon-Language-copy:before {
+  content: "\ed51";
+}
+
+.el-icon-Language:before {
+  content: "\e659";
+}
+
+.el-icon-data-metric:before {
+  content: "\e63a";
+}
+
+.el-icon-chaxun:before {
+  content: "\e66b";
+}
+
+.el-icon-query:before {
+  content: "\e601";
+}
+
+.el-icon-search-tables:before {
+  content: "\e6d6";
+}
+
+.el-icon-profile:before {
+  content: "\e63f";
+}
+
+.el-icon-profile-copy:before {
+  content: "\ed50";
+}
+
+.el-icon-files1:before {
+  content: "\ed4f";
+}
+
+.el-icon-files-:before {
+  content: "\e609";
+}
+
+.el-icon-files:before {
+  content: "\e60a";
+}
+
+.el-icon-file-table:before {
+  content: "\e682";
+}
+
+.el-icon--Files:before {
+  content: "\e779";
+}
+
+.el-icon--Files1:before {
+  content: "\e77a";
+}
+
+.el-icon-tuitetwitter44:before {
+  content: "\e6ef";
+}
+
+.el-icon-youtube:before {
+  content: "\e600";
+}
+
+.el-icon-Linkedin:before {
+  content: "\e637";
+}
+
+.el-icon-github-fill:before {
+  content: "\e885";
+}
+
+.el-icon-discord:before {
+  content: "\e60b";
+}
+
+.el-icon-tingzhi:before {
+  content: "\e67d";
+}
+
+.el-icon-qidong:before {
+  content: "\e616";
+}
+
+.el-icon-more:before {
+  content: "\e68a";
+}
+
+.el-icon-checkmore:before {
+  content: "\e6a8";
+}
+

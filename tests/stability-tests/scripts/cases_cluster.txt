@@ -1,0 +1,23 @@
+taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/compact_test.py --keep --containers
+taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/redistribute_test.py --keep --containers
+taostest --setup=cluster/cluster_common_insert.yaml --case=cluster/vnode_split_test.py --keep --containers
+taostest --setup=cluster/multi_stream_restart.yaml --case=cluster/multi_stream_restart.py --keep
+
+# no partition
+taostest --setup=cluster/cluster_common_insert.yaml --case=stability/insert/scenario_test/stream_stability_test.py --keep --containers --disable_data_collection --case-param="\"--prepare-param-file=cases/stability/insert/scenario_test/fh_stream_exist_stb_tag_prepare.json --insert-param-file=cases/stability/insert/scenario_test/fh_stream_exist_stb_tag_insert.json\""
+# with partition
+taostest --setup=cluster/cluster_common_insert.yaml --case=stability/insert/scenario_test/stream_stability_test.py --keep --containers --disable_data_collection --case-param="\"--prepare-param-file=cases/stability/insert/scenario_test/fh_stream_exist_stb_tag_prepare_partition.json --insert-param-file=cases/stability/insert/scenario_test/fh_stream_exist_stb_tag_insert_partition.json\""
+# multi streams
+taostest --setup=cluster/cluster_common_insert.yaml --case=stability/insert/scenario_test/stream_stability_test.py --keep --containers --disable_data_collection --case-param="\"--prepare-param-file=cases/stability/insert/scenario_test/fh_stream_exist_stb_tag_prepare_multi_stream.json --insert-param-file=cases/stability/insert/scenario_test/fh_stream_exist_stb_tag_insert_multi_stream.json\""
+
+# TS stability
+taostest --setup=bug_regression/TS-4478.yaml --case=bug_regression/bug_ts4478.py --keep --containers
+# nevados
+# taostest --setup=cluster/cluster_common_insert.yaml --case=stability/insert/scenario_test/stream_stability_test.py --keep --containers --disable_data_collection --case-param="\"--prepare-param-file=cases/stability/insert/scenario_test/fh_nevados_prepare_data.json --insert-param-file=cases/stability/insert/scenario_test/fh_nevados_stream_insert.json\""
+
+taostest --setup=common_insert.yaml --case=bug_regression/bug_ts4805.py --keep --containers
+
+
+
+
+

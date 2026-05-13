@@ -1,0 +1,62 @@
+name: govulncheck.yml
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  push:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine nightly
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'nightly'
+          branch: 'main'
+          start-services: 'false'
+          nightly-url: ${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 'stable'
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run vulnerability scan
+        run: |
+          govulncheck -show verbose -test ./...  | tee govulncheck.out
+          if grep -q "Vulnerability #" govulncheck.out; then
+            echo "❌ Vulnerabilities found"
+            exit 1
+          fi
+          echo "✅ No vulnerabilities found"
+
+      - name: Feishu notification
+        if: failure() && github.event_name == 'schedule'
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          curl -X POST $FEISHU_WEBHOOK_URL \
+               -H 'Content-Type: application/json' \
+               -d "{
+                 \"msg_type\": \"interactive\",
+                 \"card\": {
+                   \"config\": {\"wide_screen_mode\": true},
+                   \"header\": {\"title\": {\"tag\": \"plain_text\",\"content\": \"Dependency Scan Alert\"}},
+                   \"elements\": [
+                     {
+                       \"tag\": \"div\",
+                       \"text\": {
+                         \"tag\": \"lark_md\",
+                         \"content\": \"${GITHUB_REPOSITORY} Dependency check failed. [View Workflow](${WORKFLOW_URL})\"
+                       }
+                     }
+                   ]
+                 }
+               }"

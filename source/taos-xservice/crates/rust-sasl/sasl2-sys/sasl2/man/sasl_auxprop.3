@@ -1,0 +1,328 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "SASL_AUXPROP" "3" "February 18, 2022" "2.1.28" "Cyrus SASL"
+.SH NAME
+sasl_auxprop \- Cyrus SASL documentation
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.SH SYNOPSIS
+.sp
+.nf
+#include <sasl/prop.h>
+
+struct propctx *prop_new(unsigned estimate)
+
+int prop_dup(struct propctx *src_ctx,
+             struct propctx *dst_ctx)
+
+int prop_request(struct propctx *ctx,
+                 const char **names)
+
+const struct propval *prop_get(struct propctx *ctx)
+
+int prop_getnames(struct propctx *ctx, const char **names,
+                  struct propval *vals)
+
+void prop_clear(struct propctx *ctx, int requests)
+
+void prop_erase(struct propctx *ctx, const char *name)
+
+void prop_dispose(struct propctx **ctx)
+
+int prop_format(struct propctx *ctx, const char *sep, int seplen,
+                char *outbuf, unsigned outmax, unsigned *outlen)
+
+int prop_set(struct propctx *ctx, const char *name,
+             const char *value, int vallen)
+
+int prop_setvals(struct propctx *ctx, const char *name,
+                 const char **values)
+.fi
+.SH DESCRIPTION
+.sp
+SASL auxiliary properties are used to obtain properties
+from external sources during the authentication process.
+For example,  a mechanism might need to query an LDAP
+server to obtain the authentication secret.  The application probably needs other information from there as well,
+such as home directory or UID.   The auxiliary property
+interface allows the two to cooperate, and only results in
+a single query against the LDAP server (or other property
+sources).
+.sp
+Property lookups take place directly after user canonicalization occurs.  Therefore, all requests should be
+registered with the context before that time.   Note that
+requests can also be registered using the
+sasl_auxprop_request(3)  function.   Most of the functions listed
+below, however, require a property context which can be
+obtained by calling sasl_auxprop_getctx(3)\&.
+.SH API DESCRIPTION
+.INDENT 0.0
+.TP
+.B struct  \fI\%propctx\fP  *prop_new(unsigned  estimate) 
+Create a new property context.  Probably unnecessary for application developers
+to call this at any point.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBestimate\fP – is the estimate of storage needed in total for requests & responses.  A value of 0 implies the library default.
+.UNINDENT
+.TP
+.B Returns
+a new property context: \fI\%propctx\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B int  prop_dup(struct  \fI\%propctx\fP  *src_ctx, struct  \fI\%propctx\fP  *dst_ctx) 
+Duplicate a given property context.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsrc_ctx\fP (\fI\%propctx\fP) – Property context to copy.
+.IP \(bu 2
+\fBdst_ctx\fP (\fI\%propctx\fP) – Destination context to copy into.
+.UNINDENT
+.TP
+.B Returns
+SASL error code.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B int  prop_request(struct  \fI\%propctx\fP  *ctx, const  char  **names) 
+Add properties to the request list of a given context.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to add add the request list to.
+.IP \(bu 2
+\fBnames\fP – is the NULL\-terminated array of property names,  and must persist until the requests are cleared or the context is disposed of with a call to \fI\%prop_dispose()\fP\&.
+.UNINDENT
+.TP
+.B Returns
+SASL error code
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B const  struct  \fI\%propval\fP  *prop_get(struct  \fI\%propctx\fP  *ctx) 
+Fetch out the property values from a context.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to fetch from.
+.UNINDENT
+.TP
+.B Returns
+a NULL\-terminated array of property values from the given context.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B int  prop_getnames(struct  \fI\%propctx\fP  *ctx, const  char  **names, struct  \fI\%propval\fP  *vals) 
+Fill in a (provided) array of property values based
+on a list of property names.  This implies that
+the \fBvals\fP array is at least as long as the  \fBnames\fP
+array.  The values that are filled in by this call
+persist   until   next   call   to   \fI\%prop_request()\fP,
+\fI\%prop_clear()\fP, or \fI\%prop_dispose()\fP on context.  If a name
+specified here was never requested, then its associated
+values entry will be set to NULL.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to fill in.
+.UNINDENT
+.TP
+.B Returns
+number of matching properties that were found, or a SASL error code.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B void  prop_clear(struct  \fI\%propctx\fP  *ctx, int  requests) 
+Clear values and (optionally) requests from a property context.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to clear.
+.IP \(bu 2
+\fBrequests\fP – set to 1 if the requests should be cleared, 0 otherwise.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B void  prop_erase(struct  \fI\%propctx\fP  *ctx, const  char  *name) 
+Securely erase the value of a property from a context.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to find the property in.
+.IP \(bu 2
+\fBname\fP – is the name of the property to erase.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B void  prop_dispose(struct  \fI\%propctx\fP  **ctx) 
+Disposes of a property context and NULLifys the pointer.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to clear.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B int  prop_format(struct  \fI\%propctx\fP  *ctx, const  char  *sep, int  seplen, char  *outbuf, unsigned  outmax, unsigned  *outlen) 
+Format the requested property names into a string.
+This not intended for use by the application (\fIonly
+by auxprop plugins\fP).
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to extract values from.
+.IP \(bu 2
+\fBsep\fP – the separator to use for the string
+.IP \(bu 2
+\fBoutbuf\fP – destination string. Caller must allocate the buffer of length \fBoutmax\fP (including NUL terminator).
+.IP \(bu 2
+\fBoutlen\fP – if non\-NULL, will contain the length of the resulting string (excluding NUL terminator).
+.UNINDENT
+.TP
+.B Returns
+SASL error code.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B int  prop_set(struct  \fI\%propctx\fP  *ctx, const  char  *name, const  char  *value, int  vallen) 
+Adds a property value to the context.  \fIThis is intended for use by auxprop plugins only.\fP
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to add a value to.
+.IP \(bu 2
+\fBname\fP – the name of the property to receive the new value,  or NULL, which implies that the value will be added to the same property as the last call to either \fI\%prop_set()\fP or \fI\%prop_setvals()\fP\&.
+.IP \(bu 2
+\fBvalue\fP – the new value (of length \fIvallen\fP)
+.IP \(bu 2
+\fBvallen\fP – the length of the string \fIvalue\fP\&.
+.UNINDENT
+.TP
+.B Returns
+SASL error code
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B int  prop_setvals(struct  \fI\%propctx\fP  *ctx, const  char  *name, const  char  **values) 
+Adds multiple values to a single property.  \fIThis is intended for use by auxprop plugins only\fP\&.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBctx\fP (\fI\%propctx\fP) – The property context to add values to.
+.IP \(bu 2
+\fBname\fP – The name of the property to receive the new value, or NULL, which implies that the values will be added to the same property as the last call to either \fI\%prop_set()\fP or \fI\%prop_setvals()\fP\&.
+.IP \(bu 2
+\fBvalues\fP – A NULL\-terminated array of values to be added the property.
+.UNINDENT
+.TP
+.B Returns
+SASL error code
+.UNINDENT
+.UNINDENT
+.SH DATA STRUCTURES
+.INDENT 0.0
+.TP
+.B type  propval 
+A struct holding a name and its property values. A name can have zero or more values.
+.INDENT 7.0
+.TP
+.B Param name
+\fBconst char *\fP\&. Name of this propval. NULL means end of list.
+.TP
+.B Param values
+\fBconst char **\fP\&. List of string values. If property not found, values == NULL. If property found with no values, then *values == NULL
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B type  propctx 
+A property context.
+.INDENT 7.0
+.TP
+.B Param values
+List of property values in this context.
+.TP
+.B Type values
+\fI\%propval\fP *
+.UNINDENT
+.UNINDENT
+.SH RETURN VALUE
+.sp
+The property functions that return an int return SASL error codes.   See  sasl_errors(3)\&.   Those that return
+pointers will return a valid pointer on success, or NULL on any error.
+.SH CONFORMING TO
+.sp
+\fI\%RFC 4422\fP
+.SH SEE ALSO
+.sp
+sasl(3), sasl_errors(3),
+sasl_auxprop_request(3), sasl_auxprop_getctx(3)
+.SH AUTHOR
+The Cyrus Team
+.SH COPYRIGHT
+1993-2016, The Cyrus Team
+.\" Generated by docutils manpage writer.
+.

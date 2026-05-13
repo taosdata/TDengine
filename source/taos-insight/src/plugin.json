@@ -1,0 +1,100 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "TDengine Datasource",
+  "id": "tdengine-datasource",
+  "metrics": true,
+  "backend": true,
+  "alerting": true,
+  "executable": "tdengine-datasource",
+  "includes": [
+    {
+      "type": "dashboard",
+      "name": "TDinsightV3",
+      "path": "dashboards/TDinsightV3.json"
+    },
+    {
+      "type": "dashboard",
+      "name": "TDsmeters",
+      "path": "dashboards/TDsmeters.json"
+    },
+    {
+      "type": "dashboard",
+      "name": "taosX",
+      "path": "dashboards/taosX.json"
+    }
+  ],
+  "routes": [
+    {
+      "path": "sqlutc",
+      "url": "{{ .SecureJsonData.url }}/rest/sqlutc",
+      "method": "POST",
+      "headers": [
+        {
+          "name": "Authorization",
+          "content": "Basic {{ .SecureJsonData.basicAuth }}"
+        }
+      ],
+      "urlParams": [
+        {
+          "name": "token",
+          "content": "{{ .SecureJsonData.token }}"
+        }
+      ]
+    },
+    {
+      "path": "sql",
+      "url": "{{ .SecureJsonData.url }}/rest/sql",
+      "method": "POST",
+      "headers": [
+        {
+          "name": "Authorization",
+          "content": "Basic {{ .SecureJsonData.basicAuth }}"
+        }
+      ],
+      "urlParams": [
+        {
+          "name": "token",
+          "content": "{{ .SecureJsonData.token }}"
+        }
+      ]
+    }
+  ],
+  "info": {
+    "description": "Grafana datasource plugin for TDengine",
+    "author": {
+      "name": "TAOS Data Inc.",
+      "url": "https://tdengine.com"
+    },
+    "keywords": [
+      "taosdata",
+      "TDengine"
+    ],
+    "logos": {
+      "small": "img/taosdata_logo.png",
+      "large": "img/taosdata_logo.png"
+    },
+    "links": [
+      {
+        "name": "GitHub",
+        "url": "https://github.com/taosdata/grafanaplugin"
+      },
+      {
+        "name": "AGPL-3.0",
+        "url": "https://github.com/taosdata/grafanaplugin/blob/master/LICENSE"
+      }
+    ],
+    "screenshots": [
+      {
+        "name": "config",
+        "path": "img/howto-add-datasource.jpg"
+      }
+    ],
+    "version": "4.0.0",
+    "updated": "2026-03-26"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=8.0.0",
+    "plugins": []
+  }
+}

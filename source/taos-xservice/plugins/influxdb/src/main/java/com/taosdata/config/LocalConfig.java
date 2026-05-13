@@ -1,0 +1,33 @@
+package com.taosdata.config;
+
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * 本地配置
+ *
+ * @author ZYP
+ */
+public class LocalConfig {
+
+    /**
+     * 线程运行标志，用于安全退出前的处理
+     */
+    public static volatile boolean isRunBucketThread = true;
+    public static volatile boolean isRunBucketDataThread = true;
+    public static volatile boolean isRunScheduleThread = true;
+    public static volatile boolean isRunPushPrepareThread = true;
+    public static volatile boolean isRunPushThread = true;
+    public static volatile boolean isRunMonitorThread = true;
+    public static volatile boolean isRunMessageThread = true;
+
+    /**
+     * 读取数据任务过滤集合，用于断点续传
+     */
+    public static Set<String> fetchFilterSet = new HashSet<>();
+
+    /**
+     * 是否是InfluxDB云服务（云服务需要做一些特殊处理）
+     */
+    public static boolean isInfluxDBCloud = false;
+}

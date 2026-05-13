@@ -1,0 +1,6 @@
+point_id,stable,tbname,value_col,type
+ns=3;i=1001,stb1,stb1_tb1,val1,double
+ns=3;i=1002,stb1,stb1_tb1,val2,int
+ns=3;i=1003,stb1,stb1_tb1,val3,double
+ns=3;i=1010,stb2,stb2_tb2,val4,boolean
+ns=3;i=1014,stb2,stb2_tb2,val5,varchar(256)

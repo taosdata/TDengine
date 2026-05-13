@@ -1,0 +1,45 @@
+char = { ASCII_ALPHANUMERIC | "." | "_" | "-" }
+
+encoded_char = { ASCII_ALPHANUMERIC | "%" }
+
+driver = { char* }
+protocol = { char+ }
+SCHEME_IDENT = { "://" }
+
+scheme = { driver ~ ("+" ~ protocol)? }
+
+username = { char+ }
+password = { char+ }
+with_password = { ":" ~ password? }
+username_with_password = { username? ~ (":" ~ password)? ~ "@" }
+
+nondot = { ASCII_ALPHANUMERIC | "-" | "|" }
+host = { nondot+ ~ ("." ~ nondot+)* }
+port = { ASCII_DIGIT+ }
+// url encoded path
+path = { "%" ~ (char | "%" | "+" )+ }
+address = { path | host ~ (":" ~ port?)? | ":" ~ port | ":" }
+addresses = { address? ~ ("," ~ address)* }
+paths = { path | ("," ~ path)}
+
+fchar = { char | ":" }
+fragment = { "./" ~ fchar+  ~ ("/" ~ fchar+)? | ("/" ~ fchar+) ~ ("/" ~ fchar+)+ }
+path_like = { (fchar | "/" )+ }
+
+protocol_with_addresses = { protocol ~ "(" ~ addresses ~ ")" | addresses }
+
+name = { char+ }
+varchar = { ASCII_ALPHANUMERIC | "." | "_" | "-" | "%" | "," | " " | "*" }
+value = { varchar* }
+param = { name ~ "=" ~ value }
+
+database_char = { nondot | "," | "." | "_" }
+database = { database_char+ }
+
+dsn = {
+  SOI ~
+  scheme ~ (SCHEME_IDENT ~
+      username_with_password* ~ protocol_with_addresses ~ (fragment | "/" ~ database?)? | ":" ~ path_like)
+     ~ ("?" ~ param ~ ("&" ~ param)*)? ~
+  EOI
+}

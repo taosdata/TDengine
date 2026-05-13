@@ -1,0 +1,24 @@
+Release Notes
+
+FIX BUGS:
+[TD-5018]: taosdemo prompt if the batch is too large to insert data. (#6737)
+[TD-5007]: use build directory's taosdump to test. (#6711)
+[td-4988]: check for having clause in outer query.
+[TD-4989]: fix stmt_bind_param error for unsigned types (#6692)
+[TD-4987]: issues memory sanitizier detected. (#6677)
+[td-4970]: limit/offset is not active in the outer query.
+[td-4973]:fix the conversion bug in outer query when handling the data of nchar type.
+[TD-4986]:fix core when no ts returned from subquery
+[td-4894]:fix bug in group by normal columns.
+
+ENHANCEMENTS:
+[td-4865]: support group by in the outer query.
+
+NEW FEATURES:
+
+DOCS:
+
+TEST:
+[TD-5000]: add test case for nested query
+[TD-4939]: add a Proxool Connection Pool Demo (#6657)
+

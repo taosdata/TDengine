@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tdengine.fullname" . }}-server
+  labels:
+    {{- include "tdengine.labels" . | nindent 4 }}
+data:
+  serverEnv: |-
+{{ .Values.services.server.environment | toYaml | indent 4 }}
+
+  {{- range .Values.services.server.files }}
+  {{ .name }}: |-
+{{ .content |trim | indent 6 }}
+  {{- end }}

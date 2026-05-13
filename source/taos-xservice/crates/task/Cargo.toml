@@ -1,0 +1,50 @@
+[package]
+name = "taosx-task"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+flume.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+
+source-csv.workspace = true
+source-historian.workspace = true
+source-kinghistorian.workspace = true
+source-influxdb.workspace = true
+source-kafka.workspace = true
+source-mongodb.workspace = true
+source-mqtt.workspace = true
+source-mssql.workspace = true
+source-mysql.workspace = true
+source-opc.workspace = true
+source-opentsdb.workspace = true
+source-oracle.workspace = true
+source-pi.workspace = true
+source-postgres.workspace = true
+source-sparkplugb.workspace = true
+source-orc.workspace = true
+source-pulsar.workspace = true
+sink-kafka.workspace = true
+sink-mqtt.workspace = true
+sink-parquet.workspace = true
+tmq-to-td.workspace = true
+tmq-to-local.workspace = true
+local-to-taos.workspace = true
+legacy-to-taos.workspace = true
+taos-to-local.workspace = true
+source-pspace.workspace = true
+
+taosx-core.workspace = true
+taoslog.workspace = true
+ha-core.workspace = true
+source-parquet.workspace = true
+
+[lints]
+workspace = true

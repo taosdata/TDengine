@@ -1,0 +1,92 @@
+name: compatibility-3360
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+  push:
+    branches:
+      - 'main'
+      - '3.0'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ['ubuntu-latest']
+        go: ['1.14', '1.17', '1.22', 'stable']
+    name: Go-${{ matrix.os }}-${{ matrix.go }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download TDengine 3.3.6.0
+        run: |
+          wget https://github.com/taosdata/TDengine/releases/download/ver-3.3.6.0/TDengine-server-3.3.6.0-Linux-x64.tar.gz
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'fixed'
+          package-path: 'TDengine-server-3.3.6.0-Linux-x64.tar.gz'
+          version: '3.3.6.0'
+          install-args: '-e no'
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Test
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TD_3360_TEST: 'true'
+        run: |
+          go version
+          go env
+          packages="./..."
+          if [ "${{ matrix.go }}" = "1.14" ] || [ "${{ matrix.go }}" = "1.17" ]; then
+            packages="$(go list ./... | grep -v '^github.com/taosdata/driver-go/v3/examples/')"
+          fi
+          go test -v $packages
+
+  test_asan:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ['ubuntu-latest']
+        go: ['stable']
+    name: ASAN-${{ matrix.os }}-${{ matrix.go }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download TDengine 3.3.6.0
+        run: |
+          wget https://github.com/taosdata/TDengine/releases/download/ver-3.3.6.0/TDengine-server-3.3.6.0-Linux-x64.tar.gz
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'fixed'
+          package-path: 'TDengine-server-3.3.6.0-Linux-x64.tar.gz'
+          version: '3.3.6.0'
+          install-args: '-e no'
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Test with ASAN
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TD_3360_TEST: 'true'
+          ASAN_OPTIONS: 'detect_leaks=0'
+        run: go test -v -asan ./...

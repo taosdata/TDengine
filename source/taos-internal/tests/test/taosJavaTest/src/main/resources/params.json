@@ -1,0 +1,41 @@
+{
+  "__CONNECTION_INFO": "",
+  "host": "192.168.0.1",
+  "user": "root",
+  "password": "taosdata",
+
+  "__SCHEMA_PARAMS": "",
+  "db": "db",
+  "mt": "plates",
+  "tbPrefix": "plate",
+  "cols": "ts timestamp, longitude double, latitude double, camid bigint",
+  "tags": "t1 binary(16), t2 binary(10), t3 binary(10)",
+
+  "__DATA_SCALE_PARAMS": "",
+  "timestep": 1000,
+  "tbNum": 2000,
+  "dataEndTime": -1,
+  "dataTimeRange": 2,
+
+  "__RETENTION_PARAMS": "",
+  "replica": 2,
+  "days": 10,
+  "keep": 3650,
+  "tables": 1000,
+  "rows": 4096,
+  "cache": 16384,
+  "ablocks": 4.0,
+  "tblocks": 200,
+  "ctime": 3600,
+  "clog": 1,
+  "comp": 2,
+
+  "__INSERT_OPTION_PARAMS": "",
+  "__insertOptions": ["HISTORICAL", "REALTIME"],
+  "insertOption": "HISTORICAL",
+  "threadNum": 4,
+  "batchSize": 20,
+  "batchNum": 10,
+  "sleepBetweenInserts": 0
+
+}

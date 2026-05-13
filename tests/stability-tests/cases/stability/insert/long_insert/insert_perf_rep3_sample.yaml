@@ -1,0 +1,1406 @@
+case1:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case2:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case3:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "stmt"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+case4:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "line"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case5:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "telnet"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+case6:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "json"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case7:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml-rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "line"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case8:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml-rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "telnet"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case9:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 3
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml-rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "json"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+
+case10:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "taosc"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case11:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case12:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "stmt"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: null
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+case13:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "line"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case14:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "telnet"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+case15:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "json"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case16:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml-rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "line"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_timestamp_count: 0
+      col_tinyint_count: 0
+      col_smallint_count: 0
+      col_int_count: 1
+      col_bigint_count: 0
+      col_utinyint_count: 0
+      col_usmallint_count: 0
+      col_uint_count: 0
+      col_ubigint_count: 0
+      col_float_count: 2
+      col_double_count: 0
+      col_varchar_count: 0
+      col_varchar_length: 16
+      col_nchar_count: 0
+      col_nchar_length: 4
+      col_bool_count: 0
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case17:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml-rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "telnet"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000
+
+case18:
+  json_file1:
+    json_info:
+      host: "u1-53"
+      port: 6030
+      rest_port: 6041
+      thread_count: 40
+      create_table_thread_count: 40
+      result_file: "/root/taosBenchmark_result.log"
+      confirm_parameter_prompt: "no"
+      num_of_records_per_req: 1000
+      max_sql_len: 1024000
+    db_info:
+      db_name: "perf_test"
+      drop: "yes"
+      replica: 1
+      precision: "ms"
+      vgroups: 40
+      duration: "1d"
+      keep: "3650d"
+      stt_trigger: 1
+    stb_info:
+      stb_name: "stb0"
+      child_table_exists: "no"
+      childtable_count: 10000
+      childtable_prefix: "ctb"
+      escape_character: "no"
+      auto_create_table: "no"
+      batch_create_tbl_num: 10000
+      data_source: "rand"
+      insert_mode: "sml-rest"
+      interlace_rows: 0
+      partial_col_num: 0
+      line_protocol: "json"
+      tcp_transfer: "no"
+      insert_rows: 100000
+      childtable_limit: 0
+      childtable_offset: 0
+      rows_per_tbl: 0
+      max_sql_len: 1048576
+      disorder_ratio: 0
+      disorder_range: 1000
+      timestamp_step: 10
+      start_timestamp: "2022-10-29 00:00:00"
+      sample_format: "csv"
+      sample_file: "./sample.csv"
+      tags_file: ""
+      col_double_count: 1
+
+      tag_tinyint_count: 1
+      tag_smallint_count: 0
+      tag_int_count: 0
+      tag_bigint_count: 0
+      tag_utinyint_count: 0
+      tag_usmallint_count: 0
+      tag_uint_count: 0
+      tag_ubigint_count: 0
+      tag_float_count: 0
+      tag_double_count: 0
+      tag_binary_count: 1
+      tag_binary_length: 16
+      tag_varchar_count: 0
+      tag_varchar_length: 16
+      tag_nchar_count: 0
+      tag_nchar_length: 16
+      tag_timestamp_count: 0
+      tag_bool_count: 0
+      keep_trying: -1
+      trying_interval: 10000

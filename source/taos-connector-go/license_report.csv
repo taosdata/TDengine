@@ -1,0 +1,10 @@
+github.com/davecgh/go-spew/spew,https://github.com/davecgh/go-spew/blob/v1.1.1/LICENSE,ISC
+github.com/google/uuid,https://github.com/google/uuid/blob/v1.6.0/LICENSE,BSD-3-Clause
+github.com/gorilla/websocket,https://github.com/gorilla/websocket/blob/v1.5.0/LICENSE,BSD-2-Clause
+github.com/json-iterator/go,https://github.com/json-iterator/go/blob/v1.1.12/LICENSE,MIT
+github.com/modern-go/concurrent,https://github.com/modern-go/concurrent/blob/e0a39a4cb421/LICENSE,Apache-2.0
+github.com/modern-go/reflect2,https://github.com/modern-go/reflect2/blob/v1.0.2/LICENSE,Apache-2.0
+github.com/pmezard/go-difflib/difflib,https://github.com/pmezard/go-difflib/blob/v1.0.0/LICENSE,BSD-3-Clause
+github.com/stretchr/objx,https://github.com/stretchr/objx/blob/v0.5.0/LICENSE,MIT
+github.com/stretchr/testify,https://github.com/stretchr/testify/blob/v1.8.2/LICENSE,MIT
+gopkg.in/yaml.v3,https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE,MIT

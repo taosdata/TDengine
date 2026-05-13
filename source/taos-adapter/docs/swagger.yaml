@@ -1,0 +1,376 @@
+definitions:
+  influxdb.badRequest:
+    properties:
+      code:
+        type: string
+      err:
+        type: string
+      line:
+        type: integer
+      message:
+        type: string
+      op:
+        type: string
+    type: object
+  influxdb.message:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  opentsdb.message:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  rest.Message:
+    properties:
+      code:
+        type: integer
+      desc:
+        type: string
+      status:
+        type: string
+    type: object
+  rest.TDEngineRestfulRespDoc:
+    properties:
+      code:
+        type: integer
+      column_meta:
+        items:
+          items: {}
+          type: array
+        type: array
+      data:
+        items:
+          items: {}
+          type: array
+        type: array
+      desc:
+        type: string
+      head:
+        items:
+          type: string
+        type: array
+      rows:
+        type: integer
+      status:
+        type: string
+    type: object
+host: http://127.0.0.1:6041
+info:
+  contact: {}
+  description: taosAdapter restful API
+  title: taosAdapter
+  version: "1.0"
+paths:
+  /influxdb/v1/write:
+    post:
+      consumes:
+      - text/plain
+      description: influxdb write v1 https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/
+      parameters:
+      - description: basic authorization
+        in: header
+        name: Authorization
+        type: string
+      - description: username to authenticate the request
+        in: query
+        name: u
+        type: string
+      - description: username to authenticate the request
+        in: query
+        name: p
+        type: string
+      - description: the database to write data to
+        in: query
+        name: db
+        required: true
+        type: string
+      - description: the precision of Unix timestamps in the line protocol
+        in: query
+        name: precision
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: no content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/influxdb.badRequest'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/influxdb.message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/influxdb.message'
+      summary: influxdb write
+      tags:
+      - influxdb
+  /opentsdb/v1/put/json/:db:
+    post:
+      consumes:
+      - application/json
+      description: opentsdb write json message
+      parameters:
+      - description: basic authorization
+        in: header
+        name: Authorization
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/opentsdb.message'
+        "400":
+          description: badRequest
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/opentsdb.message'
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: opentsdb write
+      tags:
+      - opentsdb
+  /opentsdb/v1/put/telnet/:db:
+    post:
+      consumes:
+      - text/plain
+      description: opentsdb write telent message over http
+      parameters:
+      - description: basic authorization
+        in: header
+        name: Authorization
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/opentsdb.message'
+        "400":
+          description: badRequest
+          schema:
+            type: string
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/opentsdb.message'
+        "500":
+          description: internal server error
+          schema:
+            type: string
+      summary: opentsdb write
+      tags:
+      - opentsdb
+  /rest/login/:user/:password:
+    get:
+      consumes:
+      - text/plain
+      description: get login token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.Message'
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: get login token
+      tags:
+      - rest
+  /rest/sql:
+    post:
+      consumes:
+      - text/plain
+      description: execute sql returns results in the time format "2006-01-02 15:04:05.000"
+      parameters:
+      - description: authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.TDEngineRestfulRespDoc'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: execute sql
+      tags:
+      - rest
+  /rest/sql/:db:
+    post:
+      consumes:
+      - text/plain
+      description: execute sql returns results in the time format "2006-01-02 15:04:05.000"
+      parameters:
+      - description: authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.TDEngineRestfulRespDoc'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: execute sql
+      tags:
+      - rest
+  /rest/sqlt:
+    post:
+      consumes:
+      - text/plain
+      description: execute sql to return results, time formatted as timestamp
+      parameters:
+      - description: authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.TDEngineRestfulRespDoc'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: execute sqlt
+      tags:
+      - rest
+  /rest/sqlt/:db:
+    post:
+      consumes:
+      - text/plain
+      description: execute sql to return results, time formatted as timestamp
+      parameters:
+      - description: authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.TDEngineRestfulRespDoc'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: execute sqlt
+      tags:
+      - rest
+  /rest/sqlutc:
+    post:
+      consumes:
+      - text/plain
+      description: execute sql to return results, time formatted as RFC3339Nano
+      parameters:
+      - description: authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.TDEngineRestfulRespDoc'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: execute sqlutc
+      tags:
+      - rest
+  /rest/sqlutc/:db:
+    post:
+      consumes:
+      - text/plain
+      description: execute sql to return results, time formatted as RFC3339Nano
+      parameters:
+      - description: authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.TDEngineRestfulRespDoc'
+        "401":
+          description: unauthorized
+          schema:
+            type: string
+        "500":
+          description: internal error
+          schema:
+            type: string
+      summary: execute sqlutc
+      tags:
+      - rest
+swagger: "2.0"

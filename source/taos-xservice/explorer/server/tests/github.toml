@@ -1,0 +1,30 @@
+# Test configuration for Custom OAuth 2.0 SSO Integration
+# SSO Provider: http://www.dodocloud.cn:43391/
+cors = true
+
+[oauth]
+enabled = true
+provider = "plain"
+
+[oauth.provider_display_name]
+en = "GitHub"
+zh = "GitHub"
+
+[oauth.custom]
+client_id = "Iv23liD4HO7HOssf6rS5"
+client_secret = "adedcd30c974d863661a5aca7d5b403aeafd9f36"
+
+# Custom OAuth endpoints
+authorize_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+profile_url = "https://api.github.com/user"
+redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+[oauth.user_mapping]
+username = "log"
+email = "email"
+
+# Test accounts:
+# Account 1: admin/admin
+# Account 2: test/12345

@@ -1,0 +1,25 @@
+settings:
+  - name: taosd
+    fqdn: [trd02]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: trd02:6030
+      dnodes:
+        - endpoint: trd02:6030
+          config_dir: /data/testframe/cfg
+          config: # will write into taos.cfg
+            dataDir: /data/testframe/data
+            logDir: /data/testframe/log
+            debugFlag: 135
+            supportVnodes: 128
+  - name: taospy
+    fqdn: [trd02]
+    spec:
+      version: 2.3.6
+      client_version: 3.0.0.0
+      config:
+        firstEP: trd02:6030
+        logDir: /data/testframe/log
+        debugFlag: 135
+        asyncLog: 0

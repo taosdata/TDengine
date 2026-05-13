@@ -1,0 +1,127 @@
+#taostest --setup=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
+#taostest --setup=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --primary_key --containers
+
+taostest --setup=common_insert.yaml --case=taosc_insert/alter_table.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/create_tables_by_csv.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/delete_data.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/alter_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/auto_create_table.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/batch_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/bool_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/child_tb_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_buffer.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_cachelast.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_comp.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_duration.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_fsync.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_maxrows.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_minrows.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_ntables.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_pages.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_pagesize.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_precision.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_replica.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_single_stable.py --keep --containers
+#taostest --use=common_insert.yaml --case=taosc_insert/db_param_strict.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_vgroups.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_wal.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/disorder_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/double_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/float_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/illegal_type_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/specified_column_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/stable_param_comment.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/stb_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/tag_col_limit_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/tb_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/timestamp_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/numeric_type_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/str_type_boundary_check.py --keep --containers
+
+taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_restful_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_restful_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_restful_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+taostest --use=common_insert_for_sml_id.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts2910.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts2912.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts2918.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts2919.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts2920.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts2989.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts3090.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts3099.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts3159.py --keep --containers
+# abandoned function
+# taostest --use=common_insert.yaml --case=bug_regression/bug_ts3236.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts3948.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts4001.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts4730.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_td28032.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_td30044.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts4964.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/improve_29091.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/improve_29092.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts4556.py --keep --containers
+taostest --setup=td_22981.yaml --case=bug_regression/improve_td22981.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/improve_ts2986.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts2988.py --keep --containers
+taostest --use=common_insert.yaml --case=bug_regression/bug_ts4728.py --keep --containers
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts5354.py --keep --containers
+#taostest --use=update_taosd.yaml --case=bug_regression/bug_ts2899.py --keep --containers
+#taostest --use=ts_3959.yaml --case=bug_regression/bug_ts_3959.py --keep
+#taostest --use=common_insert.yaml --case=bug_regression/bug_ts5410/bug_ts5410.py --keep --containers
+taostest --setup=common_insert.yaml --case=restful_insert/alter_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/auto_create_table.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/batch_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/bool_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/child_tb_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_buffer.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_cachelast.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_comp.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_duration.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_fsync.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_maxrows.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_minrows.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_ntables.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_pages.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_pagesize.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_precision.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_single_stable.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/db_param_wal.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/disorder_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/double_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/error_insert_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/float_boundary_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/illegal_type_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/multi_table_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/specified_column_insert.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/stb_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/tag_col_limit_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/tb_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/timestamp_check.py --keep --containers
+taostest --use=common_insert.yaml --case=restful_insert/null_check.py --keep --containers
+
+taostest --use=common_insert.yaml --case=restful_insert/numeric_type_boundary_check.py --keep --containers
+#taostest --use=common_insert.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
+
+#taostest --setup=common_cluster_30_redistribute.yaml --case=cluster/vnode_redistribute.py --keep
+# wait to add in stability frame
+#taostest --setup=common_insert.yaml --case=bug_regression/improve_td20239.py --keep
+
+
+
+
+
+

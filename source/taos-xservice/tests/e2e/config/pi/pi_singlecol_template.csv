@@ -1,0 +1,23 @@
+
+SuperTable,ts_float32
+SubTable,${point_name}
+Filter,
+ts,KEY,TIMESTAMP,$ts
+value,COLUMN,FLOAT,$value
+status,COLUMN,INT,$status
+path,TAG,VARCHAR(200),$path
+point_name,TAG,VARCHAR(100),$point_name
+ptclassname,TAG,VARCHAR(100),$ptclassname
+sourcetag,TAG,VARCHAR(100),$sourcetag
+tag,TAG,VARCHAR(100),$tag
+descriptor,TAG,VARCHAR(100),$descriptor
+exdesc,TAG,VARCHAR(100),$exdesc
+engunits,TAG,VARCHAR(100),$engunits
+pointsource,TAG,VARCHAR(100),$pointsource
+step,TAG,VARCHAR(100),$step
+future,TAG,VARCHAR(100),$future
+element_paths,TAG,VARCHAR(512),`$element_paths.replace("\\", ".")`
+
+
+Meter_1000003_Current,POINT,ts_float32
+Meter_1000003_Voltage,POINT,ts_float32

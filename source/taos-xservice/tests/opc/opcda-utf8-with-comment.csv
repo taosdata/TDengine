@@ -1,0 +1,5 @@
+序号,数据点位,是否启用(配置为0，将停止数据点位的采集),超级表名,子表名,采集值列名,采集值转换规则,"采集值类型(不填，根据实际类型自动填充，可选值有int, double, float,string)",数据质量列名,OPC原始时间列名(默认作为时间戳主键),TD服务端接收时间列名(将本列剪切到ts_col之前，将会使用本列作为时间戳主键),ts_col的时间戳转换规则,received_ts_col的时间戳转换规则," 标签列(不需要可删除,需要多个,可以在右侧添加新列,可指定列名和类型）"
+0,tag_name,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name
+1,root.parent.temperature,1,opc_{type},t_{tag_name},val,val *1.8 + 32,int,quality,ts,rts,,rts + 8h,入库温度
+2,root.parent.pressure,0,opc_{type},t_{tag_name},val,val + 10,,quality,ts,rts,ts + 8h,,减压阀压力
+3,root.parent.current,1,opc_da_elec,t_custom_current,val,,,quality,ts,rts,ts - 6s,rts - 6s,总线电流

@@ -1,0 +1,5 @@
+nohup /data4/guoxy/td_iotdb/iotdb/code/apache-iotdb-1.3.3-all-bin/tools/import-data.sh -h 192.168.1.61 -p 6667 -u root -pw root -s /data4/guoxy/td_iotdb/iotdb/csv/out/0  >iot0.log &
+nohup /data4/guoxy/td_iotdb/iotdb/code/apache-iotdb-1.3.3-all-bin/tools/import-data.sh -h 192.168.1.61 -p 6667 -u root -pw root -s /data4/guoxy/td_iotdb/iotdb/csv/out/1  >iot1.log &
+nohup /data4/guoxy/td_iotdb/iotdb/code/apache-iotdb-1.3.3-all-bin/tools/import-data.sh -h 192.168.1.61 -p 6667 -u root -pw root -s /data4/guoxy/td_iotdb/iotdb/csv/out/2  >iot2.log &
+nohup /data4/guoxy/td_iotdb/iotdb/code/apache-iotdb-1.3.3-all-bin/tools/import-data.sh -h 192.168.1.61 -p 6667 -u root -pw root -s /data4/guoxy/td_iotdb/iotdb/csv/out/3  >iot3.log &
+nohup /data4/guoxy/td_iotdb/iotdb/code/apache-iotdb-1.3.3-all-bin/tools/import-data.sh -h 192.168.1.61 -p 6667 -u root -pw root -s /data4/guoxy/td_iotdb/iotdb/csv/out/4  >iot4.log &

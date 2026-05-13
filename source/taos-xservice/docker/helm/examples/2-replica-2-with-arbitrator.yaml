@@ -1,0 +1,59 @@
+# This example shows how to deploy a 2-replica TDengine cluster with an arbitrator.
+name: "tdengine"
+
+image:
+  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  my-app: "tdengine"
+  # Add more labels as needed.
+
+services:
+  arbitrator:
+    type: ClusterIP
+    volumes:
+      - name: arb-data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: arb-log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+  server:
+    type: ClusterIP
+    replica: 2
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"

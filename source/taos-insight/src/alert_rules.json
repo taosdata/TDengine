@@ -1,0 +1,1211 @@
+{
+    "alert_24h": {
+        "title": "alert_24h",
+        "folderUid": "fdvz0sywic3r4c",
+        "interval": 86400,
+        "rules": [
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_24h",
+                "title": "Expire Time Alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 172800,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 86400000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0 "
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            60,
+                                            0
+                                        ],
+                                        "type": "lt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Authorization is about to expire"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_24h",
+                "title": "Used Measuring Points alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 172800,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 86400000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": " select now(), cluster_id, CASE WHEN max(grants_timeseries_total) > 0.0 THEN max(grants_timeseries_used) / max(grants_timeseries_total) * 100.0 ELSE 0.0 END AS result from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having timetruncate(first(_ts), 1m) > 0 "
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            90,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Used Measuring Points above 90%"
+                },
+                "isPaused": false
+            }
+        ]
+    },
+
+    "alert_5m": {
+        "title": "alert_5m",
+        "folderUid": "fdvz0sywic3r4c",
+        "interval": 300,
+        "rules": [
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_5m",
+                "title": "CPU Usage alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 3600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 30000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), dnode_ep, last(cpu_system) as cpu_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_ep "
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            80,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "5m",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Node CPU usage exceeds 80%"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_5m",
+                "title": "RAM Usage alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 3600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 30000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), dnode_ep, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_ep"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            60,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "5m",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Node RAM usage exceeds 60%"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_5m",
+                "title": "Disk Used Rate alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 3600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 30000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), dnode_ep, data_dir_level, data_dir_name, last(used)  / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_ep, data_dir_level, data_dir_name "
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            80,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "5m",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Disk Used above 80%"
+                },
+                "isPaused": false
+            }
+        ]
+    },
+
+    "alert_30s": {
+        "title": "alert_30s",
+        "folderUid": "fdvz0sywic3r4c",
+        "interval": 30,
+        "rules": [
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_30s",
+                "title": "DNodes offline alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            0,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "There are nodes offline in the cluster"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_30s",
+                "title": "VNodes Offline alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            0,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "There are vnodes offline in the cluster"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_30s",
+                "title": "Delete Request Alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), sum(`count`)  as `delete_count`  from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            0,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "OK",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Received data deletion request within 30 seconds"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_30s",
+                "title": "Adapter Websocket Failed Alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            5,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "OK",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "The adapter websocket interface has failed more than 5 times within 30 seconds"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_30s",
+                "title": "Adapter RESTful Failed Alert alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now;"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            5,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "OK",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "The adapter restful interface has failed more than 5 times within 30 seconds"
+                },
+                "isPaused": false
+            }
+        ]
+    },
+
+    "alert_1m": {
+        "title": "alert_1m",
+        "folderUid": "fdvz0sywic3r4c",
+        "interval": 60,
+        "rules": [
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_1m",
+                "title": "Query Count Alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now() as ts, count(*) as slow_count from performance_schema.perf_queries"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            100,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "OK",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "The number of query requests exceeds 100 times within one minute"
+                },
+                "isPaused": false
+            },
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_1m",
+                "title": "Slow Query Alert alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            0,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "OK",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Query duration exceeds 300 seconds"
+                },
+                "isPaused": false
+            }
+        ]
+    },
+
+    "alert_180s": {
+        "title": "alert_180s",
+        "folderUid": "fdvz0sywic3r4c",
+        "interval": 180,
+        "rules": [
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_180s",
+                "title": "DNodes report alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 3600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id having timetruncate(first(_ts), 1h) > 0"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            3,
+                                            0
+                                        ],
+                                        "type": "lt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "min"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "DNodes Metrics reports less than 3 times within 180 seconds"
+                },
+                "isPaused": false
+            }
+        ]
+    },
+
+    "alert_90s": {
+        "title": "alert_90s",
+        "folderUid": "fdvz0sywic3r4c",
+        "interval": 90,
+        "rules": [
+            {
+                "orgID": 1,
+                "folderUID": "fdvz0sywic3r4c",
+                "ruleGroup": "alert_90s",
+                "title": "Dnodes reboot alert",
+                "condition": "B",
+                "data": [
+                    {
+                        "refId": "A",
+                        "queryType": "SQL",
+                        "relativeTimeRange": {
+                            "from": 3600,
+                            "to": 0
+                        },
+                        "datasourceUid": "eduofcpsbaqkgb",
+                        "model": {
+                            "datasource": {
+                                "type": "tdengine-datasource",
+                                "uid": "eduofcpsbaqkgb"
+                            },
+                            "formatType": "Time series",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "queryType": "SQL",
+                            "refId": "A",
+                            "sql": "select now(), dnode_ep,  max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now  partition by dnode_ep"
+                        }
+                    },
+                    {
+                        "refId": "B",
+                        "queryType": "",
+                        "relativeTimeRange": {
+                            "from": 600,
+                            "to": 0
+                        },
+                        "datasourceUid": "__expr__",
+                        "model": {
+                            "conditions": [
+                                {
+                                    "evaluator": {
+                                        "params": [
+                                            0,
+                                            0
+                                        ],
+                                        "type": "gt"
+                                    },
+                                    "operator": {
+                                        "type": "and"
+                                    },
+                                    "query": {
+                                        "params": [
+                                            "A"
+                                        ]
+                                    },
+                                    "reducer": {
+                                        "params": [],
+                                        "type": "max"
+                                    },
+                                    "type": "query"
+                                }
+                            ],
+                            "datasource": {
+                                "name": "Expression",
+                                "type": "__expr__",
+                                "uid": "__expr__"
+                            },
+                            "expression": "",
+                            "intervalMs": 1000,
+                            "maxDataPoints": 43200,
+                            "refId": "B",
+                            "type": "classic_conditions"
+                        }
+                    }
+                ],
+                "noDataState": "Alerting",
+                "execErrState": "Alerting",
+                "for": "0s",
+                "annotations": {
+                    "description": "detailed information：{{ .Value }}",
+                    "summary": "Dnodes restart"
+                },
+                "isPaused": false
+            }
+        ]
+    }
+}

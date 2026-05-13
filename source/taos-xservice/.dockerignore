@@ -1,0 +1,26 @@
+# /target
+USER_MANUAL.md
+TODO.md
+TDengine
+.vscode
+/conf
+/docs
+cobertura.xml
+lcov.info
+tarpaulin-report.html
+tarpaulin-report.json
+taosx.code-workspace
+*.profraw
+/.idea/
+go.work*
+/.idea/centos7.target
+.idea
+logs/*
+/release
+centos7.target
+vendor
+# plugins/opentsdb/target/
+# plugins/opc/taosx-opc
+# plugins/mqtt/mqtt
+# plugins/mqtt/target/
+# plugins/opc/target/

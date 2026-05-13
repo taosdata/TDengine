@@ -1,0 +1,9 @@
+信息点编码,OPC点地址,数据类型,超级表,tscol,信息点属性名称
+tbname,point_id,type,stable,ts_col,tag::int::name
+double_1001,ns=3;i=1001,double,stb_double,ts,100
+int32_1002,ns=3;i=1002,int,stb_int,ts,100
+double_1003,ns=3;i=1003,double,stb_double,ts,100
+double_1004,ns=3;i=1004,double,stb_double,ts,100
+double_1005,ns=3;i=1005,double,stb_double,ts,100
+double_1006,ns=3;i=1006,double,stb_double,ts,100
+double_1007,ns=3;i=1007,double,stb_double,ts,100

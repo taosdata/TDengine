@@ -1,0 +1,1 @@
+taostest --use=walrestore.yaml --case=abnormal/walrestore.py --reset --keep

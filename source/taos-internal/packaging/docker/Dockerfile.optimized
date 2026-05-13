@@ -1,0 +1,45 @@
+FROM ubuntu:22.04
+
+WORKDIR /root
+
+ARG cpuType
+
+# Set environment variables
+ENV TINI_VERSION=v0.19.0
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies and tini, this layer can be cached
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales tzdata netcat curl gdb vim tmux less \
+    net-tools valgrind openjdk-11-jdk rsync jq \
+    sqlite3 ca-certificates && \
+    locale-gen en_US.UTF-8 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    chmod +x /tini
+
+# Receive build args
+ARG pkgFile
+ARG dirName
+RUN echo ${pkgFile} && echo ${dirName}
+
+# Process large package files - this layer will only be rebuilt if the package file changes
+COPY ${pkgFile} /root/
+RUN tar -zxf $(basename ${pkgFile}) && \
+    cd /root/${dirName}/ && \
+    /bin/bash install.sh -e no && \
+    cd /root && \
+    rm /root/$(basename ${pkgFile}) && \
+    rm -rf /root/${dirName}
+
+# Set runtime environment variables
+ENV LD_LIBRARY_PATH=/usr/lib \
+    LC_CTYPE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+COPY ./bin/* /usr/bin/
+
+ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
+
+VOLUME [ "/var/lib/taos", "/var/log/taos", "/etc/taos", "/corefile" ]

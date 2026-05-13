@@ -1,0 +1,74 @@
+settings:
+  - name: taosd
+    fqdn: [vm83]
+    spec:
+      version: 2.4.0.0  #
+      config: # common config for all dnodes
+        firstEP: vm83:6030
+      dnodes:
+        - endpoint: vm83:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        
+  - name: taospy
+    fqdn: [vm83]
+    spec:
+      version: 2.2.0  
+      client_version: 2.4.0.0
+      config:
+        firstEP: vm83:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+        asynclog: 0
+    
+  - name: taosBenchmark
+    fqdn: [vm83]
+    spec:
+      version: 1.0.0
+      taos_version: 2.4.0.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: vm83:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+  # - name: taosBenchmark
+  #   fqdn: [vm83]
+  #   spec:
+  #     version: 1.0.0
+  #     taos_version: 2.4.0.0
+  #     config_dir: /etc/taos
+  #     taos_config:
+  #       firstEP: vm83:6030
+  #       logDir: /var/log/taos
+  #       debugFlag: 135
+
+
+  - name: prometheus
+    fqdn: [ceph02]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [192.168.1.188:9090]
+      node_exporter:
+        fqdn: [vm83]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [vm83]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark]
+          custom_process:
+            vm83: [taosd, taosBenchmark]
+            # vm83: [taosBenchmark]
+

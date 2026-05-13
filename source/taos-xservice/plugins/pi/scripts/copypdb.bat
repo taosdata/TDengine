@@ -1,0 +1,1 @@
+CopyPdb "C:\Git\td-pi-connector\dist"

@@ -1,0 +1,165 @@
+{{- $releaseName := .Release.Name }}
+{{- $serviceName := include "tdengine.fullname" . }}
+{{/* Global labels from .Values.labels */}}
+{{- $labels := .Values.labels -}}
+{{/* Chart labels from _helpers.tpl */}}
+{{- $chartLabels := include "tdengine.labels" . -}}
+{{/* Chart selector labels from _helpers.tpl */}}
+{{- $selectorLabels := include "tdengine.selectorLabels" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tdengine.fullname" . }}
+  labels:
+    {{- $chartLabels | nindent 4 }}
+    {{- with .Values.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    app: "tdengine"
+    component: "taosd"
+    role: "dnode"
+spec:
+  {{- $releaseName := .Release.Name }}
+  {{- $serviceName := include "tdengine.fullname" . }}
+  serviceName: {{ include "tdengine.fullname" . }}
+  replicas: {{ .Values.services.server.replica }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      {{- with .Values.labels }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      app: "tdengine"
+      component: "taosd"
+      role: "dnode"
+  template:
+    metadata:
+      {{- with .Values.services.server.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- $chartLabels | nindent 8 }}
+        {{- with $labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app: "tdengine"
+        component: "taosd"
+        role: "dnode"
+    spec:
+      {{- with .Values.services.server.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}{{ .Values.image.server }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports: {{ range $idx, $val := .Values.services.server.ports.tcp }}
+          - name: tcp{{- $idx}}
+            containerPort: {{ $val }}
+            protocol: TCP
+          {{- end }}
+          {{ range $idx, $val := .Values.services.server.ports.udp }}
+          - name: udp {{- $idx}}
+            containerPort: {{ $val }}
+            protocol: UDP
+          {{- end }}
+
+          env:
+          # POD_NAME for FQDN config
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          # SERVICE_NAME and NAMESPACE for fqdn resolve
+          - name: SERVICE_NAME
+            value: {{ include "tdengine.fullname" . }}
+          - name: STS_NAME
+            value: {{ include "tdengine.fullname" . }}
+          - name: STS_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          # TZ for timezone settings, we recommend to always set it.
+          - name: TZ
+            value: {{ .Values.timezone }}
+          # TAOS_ prefix will configured in taos.cfg, strip prefix and camelCase.
+          - name: TAOS_SERVER_PORT
+            value: "6030"
+          # Must set if you want a cluster.
+          - name: TAOS_FIRST_EP
+            value: "$(STS_NAME)-0.$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local:$(TAOS_SERVER_PORT)"
+          # TAOS_FQND should always be set in k8s env.
+          - name: TAOS_FQDN
+            value: "$(POD_NAME).$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local"
+
+          
+          volumeMounts:
+          
+          {{- range .Values.services.server.files }}
+          - name: {{ printf "%s-%s" $serviceName .name }}
+            mountPath: {{ .mountPath }}
+            subPath: {{ .name }}
+          {{- end }}
+
+          {{- range .Values.services.server.volumes }}
+          - name: {{ printf "%s-%s" $serviceName .name }}
+            mountPath: {{ .mountPath }}
+          {{- end }}
+          readinessProbe:
+            exec:
+              command:
+              - taos
+              - -s
+              - "select server_version()"
+            initialDelaySeconds: 10
+            timeoutSeconds: 1500
+          livenessProbe:
+            tcpSocket:
+              port: 6030
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          {{- with .Values.services.server.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.services.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.services.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.services.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      volumes:
+      {{- range .Values.services.server.files }}
+        - name: {{ printf "%s-%s" $serviceName .name }}
+          configMap:
+            name: {{ $serviceName }}-server
+            items:
+              - key: {{ .name }}
+                path: {{ .name }}
+      {{- end }}
+  volumeClaimTemplates:
+  {{- range .Values.services.server.volumes }}
+  - metadata:
+      name: {{ printf "%s-%s" $serviceName .name }}
+      labels:
+        {{- $chartLabels | nindent 8 }}
+        {{- with $labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app: "tdengine"
+        component: "taosd"
+        role: "dnode"
+    spec:
+      {{- toYaml .spec | nindent 6 }}
+  {{- end }}

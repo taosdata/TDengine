@@ -1,0 +1,39 @@
+version: '3.6'
+services:
+  tdengine:
+    image: tdengine/tdengine:2.4.0.20
+    environment:
+      TAOS_FQDN: tdengine
+    volumes:
+      - taosdata:/var/lib/taos/
+  telegraf:
+    image: telegraf:1.20-alpine
+    hostname: telegraf
+    volumes:
+    - ./telegraf/etc/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    environment:
+    - TDENGINE_API=http://tdengine:6041
+    - TDENGINE_USER=root
+    - TDENGINE_PASS=taosdata
+    - TDENGINE_METRICS_DATABASE=metrics
+  grafana:
+    image: grafana/grafana:8.5.4
+    environment:
+    - TDENGINE_API=http://tdengine:6041
+    # gen: printf "root:taosdata"|base64
+    - TDENGINE_BASIC_AUTH=cm9vdDp0YW9zZGF0YQ==
+
+    - GF_SECURITY_ADMIN_USER=admin
+    - GF_SECURITY_ADMIN_PASSWORD=admin
+    - GF_INSTALL_PLUGINS=tdengine-datasource
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+
+volumes:
+  grafana_data:
+  taosdata:

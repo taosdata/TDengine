@@ -1,0 +1,5 @@
+[workspace]
+members = [
+  "sasl2-sys",
+  "systest",
+]

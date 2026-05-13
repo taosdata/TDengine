@@ -1,0 +1,18 @@
+task_name: opcda_select_all_points
+task_type: opcda
+
+from:
+  fromhost: opcda://{0}/Matrikon.OPC.Simulation.1
+  select_all_points: "true"
+  child_table_expression: ctb_{TagName}
+  table_primary_key: "received_ts"
+  connect_timeout: 10
+  request_timeout: 10
+  interval: 1
+
+to:
+  target_type: taos
+  target_dbname: ci_opcda
+
+via: 7
+task_exec_time: 20

@@ -1,0 +1,7 @@
+jobs:
+  # MQTT publish job
+  publish-data:
+    steps:
+      - uses: mqtt/publish
+        with:
+          concurrency: 8

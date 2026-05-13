@@ -1,0 +1,210 @@
+parser: {
+    "input": [
+        {
+            "sint": 4112,
+            "iint": 1542070115,
+            "bint": "9223372036854775807",
+            "ddecimal": "952716079.2",
+            "rreal": 448057600,
+            "dprecision": "769638610.369239",
+            "vvar": "rdYIUPWIgR",
+            "cchar": "UpdnjXpIscZpzMa     ",
+            "ttext": "CVIdJrZdUigAhjQXshggurhjJIpVZZRXRgXrfoTyvWLXWrbJAgvOLuSInIGtIHJzXdqThSqaVjoqxasKlfIlQkfecnwSMKPwQuHB",
+            "bbool": "false",
+            "bbit": "1",
+            "bvar": "0000000000",
+            "ddate": "2024-05-07",
+            "ttimezone": "2024-05-07T11:23:13.243394Z",
+            "ttsnozone": "2024-05-07T19:23:13.243394",
+            "ttnozone": "19:23:13.243394",
+            "ttzone": "19:23:13.243394 +08:00"
+        },
+        {
+            "sint": 27287,
+            "iint": 748619846,
+            "bint": "9223372036854775807",
+            "ddecimal": "552510500.2",
+            "rreal": 371790592,
+            "dprecision": "917149225.2908248",
+            "vvar": "eoMQewjzON",
+            "cchar": "cXMlwEGHByLexAW     ",
+            "ttext": "YqwYRpLvKQDPNDDVbROMxOsrsgWGAgNNMOrTgAmBnbZRNnGmxhpeRVzvfUwlWACBywIqtAjcAFICWpWOcZCErUOrjBkAEWkJTPNz",
+            "bbool": "false",
+            "bbit": "1",
+            "bvar": "0000000000",
+            "ddate": "2024-05-07",
+            "ttimezone": "2024-05-07T11:23:13.248454Z",
+            "ttsnozone": "2024-05-07T19:23:13.248454",
+            "ttnozone": "19:23:13.248454",
+            "ttzone": "19:23:13.248454 +08:00"
+        },
+        {
+            "sint": -28911,
+            "iint": 1309139447,
+            "bint": "9223372036854775807",
+            "ddecimal": "554786735.2",
+            "rreal": 103658328,
+            "dprecision": "610745585.6095899",
+            "vvar": "WsFtBuAKjS",
+            "cchar": "XsYPkgjwChKGqzk     ",
+            "ttext": "ChDYoktzQzurZsUXPfhDSrZyiwhrZhxgoeVWfGolsKGdfxoDnlmllpFtOxaRbbQAvDKSgwBtaXhIdBDlyiwLJtcULilLrVPCmUtH",
+            "bbool": "true",
+            "bbit": "1",
+            "bvar": "0000000000",
+            "ddate": "2024-05-07",
+            "ttimezone": "2024-05-07T11:23:13.251085Z",
+            "ttsnozone": "2024-05-07T19:23:13.251085",
+            "ttnozone": "19:23:13.251085",
+            "ttzone": "19:23:13.251085 +08:00"
+        },
+        {
+            "sint": 26033,
+            "iint": 243447708,
+            "bint": "9223372036854775807",
+            "ddecimal": "885772896.3",
+            "rreal": 413390016,
+            "dprecision": "623199165.4459091",
+            "vvar": "ofUOpdfzqD",
+            "cchar": "XnJipaZSHuKGege     ",
+            "ttext": "iRCpkCfQjYLUYXZJiYCWxScLbClpMyjYBkaHlytZfXVcuTTyDHYZNSfIYhckUKRZdJmxgMmLhnQihRwhOykvNvvDsASGqXcagLbr",
+            "bbool": "true",
+            "bbit": "1",
+            "bvar": "0000000000",
+            "ddate": "2024-05-07",
+            "ttimezone": "2024-05-07T11:23:13.254439Z",
+            "ttsnozone": "2024-05-07T19:23:13.254439",
+            "ttnozone": "19:23:13.254439",
+            "ttzone": "19:23:13.254439 +08:00"
+        },
+        {
+            "sint": 9050,
+            "iint": 1302262918,
+            "bint": "9223372036854775807",
+            "ddecimal": "413107285.1",
+            "rreal": 181454720,
+            "dprecision": "659193286.3818195",
+            "vvar": "LiaHClxPZW",
+            "cchar": "NHAPnyqASiLfrxU     ",
+            "ttext": "xHsBsaDsMBfvMJMMAzyYPdANanwqnzipsXIVyprzOlUNImKNZXbIfpaAgvhZcPlElEkWoEZKTeySdFPVeJzvhcFagWyEDCdOkQQI",
+            "bbool": "false",
+            "bbit": "1",
+            "bvar": "0000000000",
+            "ddate": "2024-05-07",
+            "ttimezone": "2024-05-07T11:23:13.260901Z",
+            "ttsnozone": "2024-05-07T19:23:13.260901",
+            "ttnozone": "19:23:13.260901",
+            "ttzone": "19:23:13.260901 +08:00"
+        }
+    ],
+    "format": {
+        "pageCount": 20,
+        "pageSize": 20,
+        "currentPage": 1
+    },
+    "parser": {
+        "model": {
+           "name": "pg_${sint}_${cchar}",
+           "using": "pgstb",
+           "tags": ["sint", "cchar"],
+           "columns": ["ts","iint","bint","ddecimal","rreal","dprecision","vvar",
+           "ttext","bbool","bbit","bvar","ddate","ttimezone","ttsnozone","ttnozone","ttzone"]
+        },
+        "mutate": [
+            {
+              "map": {
+                    "ts": {
+                        "cast": "ttimezone",
+                        "as": "TIMESTAMP"
+                    },
+                    "sint": {
+                        "cast": "sint",
+                        "as": "SMALLINT"
+                    },
+                    "iint": {
+                        "cast": "iint",
+                        "as": "INT"
+                    },
+                    "bint": {
+                        "cast": "bint",
+                        "as": "BIGINT"
+                    },
+                    "ddecimal": {
+                        "cast": "ddecimal",
+                        "as": "VARCHAR(128)"
+                    },
+                    "rreal": {
+                        "cast": "rreal",
+                        "as": "FLOAT"
+                    },
+                    "dprecision": {
+                        "cast": "dprecision",
+                        "as": "DOUBLE"
+                    },
+                    "vvar": {
+                        "cast": "vvar",
+                        "as": "VARCHAR(128)"
+                    },
+                    "cchar": {
+                        "cast": "cchar",
+                        "as": "VARCHAR(128)"
+                    },
+                    "ttext": {
+                        "cast": "ttext",
+                        "as": "VARCHAR(128)"
+                    },
+                    "bbool": {
+                        "cast": "bbool",
+                        "as": "VARCHAR(128)"
+                    },
+                    "bbit": {
+                        "cast": "bbit",
+                        "as": "VARCHAR(128)"
+                    },
+                    "bvar": {
+                        "cast": "bvar",
+                        "as": "VARCHAR(128)"
+                    },
+                    "ddate": {
+                        "cast": "ddate",
+                        "as": "VARCHAR(128)"
+                    },
+                    "ttimezone": {
+                        "cast": "ttimezone",
+                        "as": "TIMESTAMP"
+                    },
+                    "ttsnozone": {
+                        "cast": "ttsnozone",
+                        "as": "VARCHAR(128)"
+                    },
+                    "ttnozone": {
+                        "cast": "ttnozone",
+                        "as": "VARCHAR(128)"
+                    },
+                    "ttzone": {
+                        "cast": "ttzone",
+                        "as": "VARCHAR(128)"
+                    }
+                }
+            }
+        ],
+       "parse": {
+           "sint": {"as": "smallint"},
+           "iint": {"as": "int"},
+           "bint": {"as": "bigint"},
+           "ddecimal": {"as": "nchar(50)"},
+           "rreal": {"as": "float"},
+           "dprecision": {"as": "double"},
+           "vvar": {"as": "nchar(50)"},
+           "cchar": {"as": "nchar(50)"},
+           "ttext": {"as": "nchar(50)"},
+           "bbool": {"as": "nchar(50)"},
+           "bbit": {"as": "nchar(50)"},
+           "bvar": {"as": "nchar(50)"},
+           "ddate": {"as": "nchar(50)"},
+           "ttimezone": {"as": "timestamp"},
+           "ttsnozone": {"as": "nchar(50)"},
+           "ttnozone": {"as": "nchar(50)"},
+           "ttzone": {"as": "nchar(50)"}
+       }
+    }
+}

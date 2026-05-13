@@ -1,0 +1,52 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    paths-ignore:
+      - "taos-ws-py/**"
+      - ".github/workflows/taos-ws-py*.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    permissions:
+      checks: write
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install poetry
+        run: pip install poetry
+
+      - name: Audit check
+        run: |
+          poetry self add poetry-plugin-export
+          poetry export --with dev,test -f requirements.txt --output reqs.txt
+          pip install pip-audit
+          pip-audit -r reqs.txt --ignore-vuln PYSEC-2024-48 \
+            --ignore-vuln CVE-2024-35195 \
+            --ignore-vuln CVE-2024-47081 \
+            --ignore-vuln CVE-2024-37891 \
+            --ignore-vuln CVE-2025-50181 \
+            --ignore-vuln CVE-2025-66418 \
+            --ignore-vuln CVE-2025-66471 \
+            --ignore-vuln CVE-2026-21441
+
+      - name: License check
+        run: |
+          python -m venv .license_env
+          source .license_env/bin/activate
+          poetry install --no-interaction --no-root
+          pip install pip-licenses
+          pip-licenses --from mixed -o license --partial-match \
+            --allow-only "Apache;BSD;MIT;MPL 2.0;Python Software Foundation License" \
+            --ignore-packages pip

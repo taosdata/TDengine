@@ -1,0 +1,572 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "taosAdapter restful API",
+        "title": "taosAdapter",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "http://127.0.0.1:6041",
+    "paths": {
+        "/influxdb/v1/write": {
+            "post": {
+                "description": "influxdb write v1 https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "influxdb"
+                ],
+                "summary": "influxdb write",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "basic authorization",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "username to authenticate the request",
+                        "name": "u",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "username to authenticate the request",
+                        "name": "p",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "the database to write data to",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "the precision of Unix timestamps in the line protocol",
+                        "name": "precision",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "no content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/influxdb.badRequest"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/influxdb.message"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/influxdb.message"
+                        }
+                    }
+                }
+            }
+        },
+        "/opentsdb/v1/put/json/:db": {
+            "post": {
+                "description": "opentsdb write json message",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opentsdb"
+                ],
+                "summary": "opentsdb write",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "basic authorization",
+                        "name": "Authorization",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success",
+                        "schema": {
+                            "$ref": "#/definitions/opentsdb.message"
+                        }
+                    },
+                    "400": {
+                        "description": "badRequest",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/opentsdb.message"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/opentsdb/v1/put/telnet/:db": {
+            "post": {
+                "description": "opentsdb write telent message over http",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "opentsdb"
+                ],
+                "summary": "opentsdb write",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "basic authorization",
+                        "name": "Authorization",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success",
+                        "schema": {
+                            "$ref": "#/definitions/opentsdb.message"
+                        }
+                    },
+                    "400": {
+                        "description": "badRequest",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/opentsdb.message"
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/login/:user/:password": {
+            "get": {
+                "description": "get login token",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "get login token",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.Message"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/sql": {
+            "post": {
+                "description": "execute sql returns results in the time format \"2006-01-02 15:04:05.000\"",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "execute sql",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.TDEngineRestfulRespDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/sql/:db": {
+            "post": {
+                "description": "execute sql returns results in the time format \"2006-01-02 15:04:05.000\"",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "execute sql",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.TDEngineRestfulRespDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/sqlt": {
+            "post": {
+                "description": "execute sql to return results, time formatted as timestamp",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "execute sqlt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.TDEngineRestfulRespDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/sqlt/:db": {
+            "post": {
+                "description": "execute sql to return results, time formatted as timestamp",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "execute sqlt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.TDEngineRestfulRespDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/sqlutc": {
+            "post": {
+                "description": "execute sql to return results, time formatted as RFC3339Nano",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "execute sqlutc",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.TDEngineRestfulRespDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/rest/sqlutc/:db": {
+            "post": {
+                "description": "execute sql to return results, time formatted as RFC3339Nano",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rest"
+                ],
+                "summary": "execute sqlutc",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.TDEngineRestfulRespDoc"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "influxdb.badRequest": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "err": {
+                    "type": "string"
+                },
+                "line": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "op": {
+                    "type": "string"
+                }
+            }
+        },
+        "influxdb.message": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "opentsdb.message": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "rest.Message": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "rest.TDEngineRestfulRespDoc": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "column_meta": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                },
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "head": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rows": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

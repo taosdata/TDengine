@@ -1,0 +1,2 @@
+#####
+taostest --containers --use=common_insert.yaml --fast_write_param_list=[20m,8,8,10000,1000000,3000] --case=Performance/Insert/high_volume_insert/python/fast_write_example.py --keep

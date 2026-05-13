@@ -1,0 +1,38 @@
+[advisories]
+unmaintained = "none"
+ignore = ["RUSTSEC-2025-0020"]
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+]
+exceptions = [
+    { allow = ["OpenSSL"], name = "ring" },
+    { allow = ["OpenSSL"], name = "aws-lc-sys" },
+]
+
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    "https://github.com/taosdata/taos-connector-rust.git",
+    "https://github.com/taosdata/tokio-tungstenite.git",
+    "https://github.com/taosdata/tungstenite-rs.git",
+    "https://github.com/taosdata/ring.git",
+]

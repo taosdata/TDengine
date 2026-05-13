@@ -1,0 +1,91 @@
+[
+  {
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table t(ts timestamp,name varchar(20),age int,sex varchar(10),birth timestamp,text nchar(3),f float,d double)",
+      "insert into t(ts,name,age,sex,birth,text,f,d) values (now+0s,'name1',10,'male',1665025866843,'中国人',1.23,2.34)",
+      "insert into t(ts,name,age,sex,birth,text,f,d) values (now+1s,'name2',20,'female',1655125866843,'苏州人',3.45,4.56)",
+      "select * from t",
+      {
+        "sql":"insert into t (ts, name) values (?, ?)",
+        "executes": [
+          {
+            "params": [{"timestamp":1662961478755},"none0"]
+          }
+        ]
+      },{
+        "sql":"insert into t (ts, age) values (now, '3abcd')",
+        "positive": false
+      },{
+        "sql":"select name from t where name in (?, ?)",
+        "executes": [
+          {
+            "params": ["name2", "name"],
+            "rs":[[["name2"]]]
+          }
+        ]
+      },{
+        "sql":"select name from t where name in (?, ?)",
+        "executes": [
+          {
+            "params": ["name", "name2"],
+            "rs":[[["name2"]]]
+          }
+        ]
+      },{
+        "sql":"select name from t where name in (?, ?)",
+        "executes": [
+          {
+            "params": ["name1", "name2"],
+            "rs":[[["name1"],["name2"]]]
+          }
+        ]
+      },{
+        "sql":"select name from t where name in ('name2', ?)",
+        "executes": [
+          {
+            "params": ["name1"],
+            "rs":[[["name1"],["name2"]]]
+          }
+        ]
+      },{
+        "sql":"select * from (select name from t where name in ('name2', ?))",
+        "executes": [
+          {
+            "params": ["name1"],
+            "rs":[[["name1"],["name2"]]]
+          }
+        ]
+      },{
+        "comments": "nested-select with parameter-placeholders in outer clause",
+        "comments": "https://github.com/taosdata/TDengine/issues/17872",
+        "git-commit":"d3b61c5261962d188914f7d5f8c241fed9322284",
+        "sql":"select * from (select name from t) where name in ('name2', ?)",
+        "executes": [
+          {
+            "params": ["name1"],
+            "rs":[[["name1"],["name2"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "comments": "nested-select with parameter-placeholders in outer clause",
+        "comments": "https://github.com/taosdata/TDengine/issues/17872",
+        "git-commit":"d3b61c5261962d188914f7d5f8c241fed9322284",
+        "sql":"select name from (select * from t) where name in (?, ?)",
+        "executes": [
+          {
+            "params": ["name1", "name2"],
+            "rs":[[["name1"],["name2"]]],
+            "positive": true
+          }
+        ]
+      }
+    ]
+  }
+]
+

@@ -1,0 +1,18 @@
+[package]
+name = "futures-ext"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+futures.workspace = true
+pin-project-lite.workspace = true
+tokio = { workspace = true, features = ["time"] }
+paste.workspace = true
+tokio-util.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+futures-test = "0.3"
+tokio-test = "0.4"

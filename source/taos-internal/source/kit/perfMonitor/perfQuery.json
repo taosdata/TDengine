@@ -1,0 +1,25 @@
+{
+  "filetype": "query",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "databases": "qsdb",  
+  "specified_table_query": {
+    "query_times": 1,
+    "concurrent": 1,
+    "sqls": [
+      {
+        "sql": "select count(*) from qsdb.stb",
+        "result_mode": "writefile",
+        "result_file": "./query_sql_res0.txt"
+      },
+      {
+        "sql": "select avg(c0), max(c1), min(c2) from qsdb.stb where ts >= '2020-10-01 00:00:00.000' and ts <= '2020-11-01 14:00:40.000'",        
+        "result_mode": "writefile", 
+        "result_file": "./query_sql_res1.txt"
+      }
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+[
+  {
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table t(ts timestamp,name varchar(20),age int,sex varchar(10),birth timestamp,text nchar(3),f float,d double)",
+      "insert into t(ts,name,age,sex,birth,text,f,d) values (now+0s,'name1',10,'male',1665025866843,'中国人',1.23,2.34)",
+      "insert into t(ts,name,age,sex,birth,text,f,d) values (now+1s,'name2',20,'female',1655125866843,'苏州人',3.45,4.56)",
+      "select * from t"
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "use foo",
+      {
+        "sql": "select f from t",
+        "rs": [
+          [1.23],
+          [3.45]
+        ]
+      },{
+        "sql": "select f from t where f > '1.23'",
+        "rs": [
+          [3.45]
+        ]
+      },{
+        "sql": "select f from t where f >= '1.23'",
+        "rs": [
+          [1.23],
+          [3.45]
+        ]
+      },{
+        "sql": "select f from t where f <= '1.23'",
+        "rs": [
+          [1.23]
+        ]
+      },{
+        "sql": "select f from t where f < '1.23'",
+        "rs": []
+      },{
+        "sql": "select name from t",
+        "rs": [["name1"],["name2"]]
+      },{
+        "sql": "select name from t",
+        "rs": [["name1"],["name"]],
+        "positive": false
+      },{
+        "sql": "select name,age,sex,birth,text from t",
+        "rs": [
+          ["name1",10,"male",1665025866843,"中国人"],
+          ["name2",20,"female",1655125866843,"苏州人"]
+        ]
+      },{
+        "sql": "select name,age,sex,birth,text,f,d from t",
+        "rs": [
+          ["name1",10,"male",1665025866843,"中国人",1.23,2.34],
+          ["name2",20,"female",1655125866843,"苏州人",3.45,4.56]
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table t(ts timestamp,name varchar(20))",
+      "insert into t(ts,name) values (now+0s,'name1')",
+      "insert into t(ts,name) values (now+1s,'name2')",
+      "insert into t(ts,name) values (now+2s,'12345')",
+      "insert into t(ts,name) values (now+3s,'34567')",
+      "select * from t",
+      {
+        "sql": "select name from t where name = 12345",
+        "rs": [["12345"]]
+      },{
+        "sql": "select name from t where name > 12345",
+        "rs": [["34567"]]
+      },{
+        "sql": "select name from t where name < 12345",
+        "rs": [["name1"],["name2"]]
+      }
+    ]
+  },{
+  }
+]
+

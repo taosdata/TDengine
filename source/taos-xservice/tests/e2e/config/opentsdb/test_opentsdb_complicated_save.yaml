@@ -1,0 +1,20 @@
+task_name: opentsdb_complicated
+task_type: opentsdb
+
+# complicated save
+# 在使用复杂配置的同时将所有可用值设置为可允许的最大
+
+from:
+  fromhost: opentsdb+http://{0}
+  # metrics: test2,test3,test4
+  beginTime: "2024-09-20T00:00:00+08:00"
+  endTime: "2024-09-20T18:00:00+08:00"
+  readWindow: 60
+  delay: 10
+
+to:
+  target_type: taos
+  target_dbname: ci_opentsdb
+
+# via: 7
+task_exec_time: 20

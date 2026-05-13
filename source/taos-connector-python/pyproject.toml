@@ -1,0 +1,74 @@
+[tool.poetry]
+name = "taospy"
+version = "2.8.9"
+description = "The official TDengine Python connector"
+authors = ["Taosdata Inc. <support@taosdata.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "taos" }, { include = "taosrest" }]
+
+[tool.poetry.plugins]
+
+[tool.poetry.plugins."sqlalchemy.dialects"]
+"taos" = "taos.sqlalchemy:TaosDialect"
+"taosrest" = "taosrest.sqlalchemy:TaosRestDialect"
+
+[tool.poetry.dependencies]
+python = ">=3.7,<4.0"
+pytz = "*"
+iso8601 = "1.0.2"
+requests = [
+	{ version = ">=2.33.0", python = ">=3.10,<4.0" },
+	{ version = ">=2.27.1,<2.33.0", python = ">=3.7,<3.10" },
+]
+typing-extensions = ">=4.2.0,<4.15.0"
+
+[tool.poetry.dependencies.taos-ws-py]
+version = ">=0.3.0"
+python = ">=3.7,<4.0"
+optional = true
+
+[tool.poetry.extras]
+ws = ["taos-ws-py"]
+
+[tool.poetry.group.dev]
+
+[tool.poetry.group.dev.dependencies]
+typing = "*"
+pytest = [{ version = "^7.2.0", python = ">=3.7,<4.0" }]
+pytest-cov = "^4.0.0"
+mypy = { version = "^0.910", python = "^3.6" }
+black = [
+	{ version = ">=26.3.1", python = ">=3.10,<4.0" },
+	{ version = ">=21.0,<26.3.1", python = ">=3.6.2,<3.10" },
+]
+sqlalchemy = { version = "^2.0.0", python = ">=3.7,<4.0" }
+pandas = { version = ">=2.1.0", python = ">=3.9,<4.0" }
+python-dotenv = { version = "0.20.0" }
+toml = { version = ">=0.8.0", python = ">=3.7,<4.0" }
+shapely = { version = ">=2.0.0", python = ">=3.7,<4.0" }
+
+[tool.poetry.group.test]
+
+[tool.poetry.group.test.dependencies]
+typing = "*"
+pytest = [{ version = "^7.2.0", python = ">=3.7,<4.0" }]
+pytest-cov = "^4.0.0"
+mypy = { version = "^0.910", python = "^3.6" }
+black = [
+	{ version = ">=26.3.1", python = ">=3.10,<4.0" },
+	{ version = ">=21.0,<26.3.1", python = ">=3.6.2,<3.10" },
+]
+sqlalchemy = { version = "^2.0.0", python = ">=3.7,<4.0" }
+pandas = { version = ">=2.1.0", python = ">=3.9,<4.0" }
+python-dotenv = { version = "0.20.0" }
+toml = { version = ">=0.8.0", python = ">=3.7,<4.0" }
+shapely = { version = ">=2.0.0", python = ">=3.7,<4.0" }
+DBUtils = { version = ">=3.1.1", python = ">=3.7,<4.0" }
+
+[build-system]
+requires = ["poetry-core>=1.0.5"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 119

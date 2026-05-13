@@ -1,0 +1,11 @@
+opc_type = "opcda"
+debug = false
+
+
+[connect.da]  # opc da config.
+server = "Matrikon.OPC.Simulation.1" # opc da server
+nodes = ["localhost"] # opc da nodes
+
+[points] # config for collect opc points.
+limit = 200 # max points return in one request
+regex = ".*" # regex for point name

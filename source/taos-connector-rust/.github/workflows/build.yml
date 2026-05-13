@@ -1,0 +1,117 @@
+name: Build
+
+on:
+  push:
+
+env:
+  TOOLS_BUILD_TYPE: Release
+  PR_NUMBER: ${{ github.event.number }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Step that prints name of pull request's base branch
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          echo "Pull request's base branch is: ${BASE_BRANCH}"
+          echo "Pull request's branch is: ${GITHUB_REF##*/}"
+          echo "Pull request's head ref is: ${GITHUB_HEAD_REF}"
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        id: setup-rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+          components: clippy, rustfmt
+
+      - uses: actions/cache@v4
+        id: cache-rust
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.cachekey }}
+
+      - uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-taos-target-${{ steps.setup-rust.outputs.cachekey }}
+
+      - name: Format check
+        run: cargo fmt --check --all
+
+      - name: Audit check
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clippy check
+        run: cargo clippy -- -D warnings
+
+      - name: Build taos and taos-ws-sys
+        run: |
+          cargo build -p taos --no-default-features --features ws-rustls
+          cargo build -p taos-ws-sys
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout TDengine
+        uses: actions/checkout@v4
+        with:
+          repository: "taosdata/TDengine"
+          path: "TDengine"
+          ref: "main"
+
+      - name: Prepare development tools
+        run: |
+          sudo apt update
+          sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config -y
+          sudo timedatectl set-timezone Asia/Shanghai
+          sudo date
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Build TDengine
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          cd TDengine
+          echo use commit ${BRANCH_NAME}
+          sed -iE "/ExternalProject_Add(ext_taosws/,/GIT_TAG.*/s#GIT_TAG.*#GIT_TAG ${BRANCH_NAME}#" tools/CMakeLists.txt
+          mkdir release && cd release
+          cmake .. -DBUILD_JDBC=false -DBUILD_HTTP=false -DWEBSOCKET=true -DVERNUMBER=3.9.9.9 -DBUILD_DEPENDENCY_TESTS=false
+
+      - uses: actions/cache@v4
+        id: cache-rust-target
+        with:
+          path: TDengine/tools/taosws-rs/target/
+          key: ${{ runner.os }}-cargo-target-${{ steps.setup-rust.outputs.cachekey }}
+
+      - name: Install TDengine
+        run: |
+          cd TDengine/release/
+          make -j8 || exit 1
+          make install
+          nohup sudo taosd > /dev/null 2>&1 &
+          sleep 5
+          nohup sudo taosadapter > /dev/null 2>&1 &
+
+      - name: Run examples
+        run: |
+          cd TDengine/.externals/build/ext_taosws/src/ext_taosws
+          ./taos-ws-sys/ci/package.sh
+          cd ./target/libtaosws
+          make
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:./
+          ./show-databases || exit 1

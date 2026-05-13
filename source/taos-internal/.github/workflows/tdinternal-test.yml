@@ -1,0 +1,29 @@
+name: TDinternal Test
+
+on:
+  pull_request:
+    branches:
+      - '3.3.6'
+    paths-ignore:
+      - 'enterprise/documentation/**'
+      - 'enterprise/packaging/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-TDinternal
+  cancel-in-progress: true
+
+jobs:
+  run-tests-on-linux:
+    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
+    with:
+      tdinternal: true
+
+  run-tests-on-mac:
+    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
+    with:
+      tdinternal: true
+
+  run-tests-on-windows:
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
+    with:
+      tdinternal: true

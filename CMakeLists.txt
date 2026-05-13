@@ -1,75 +1,121 @@
 cmake_minimum_required(VERSION 3.16)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(
   TDengine
   VERSION 3.0
   DESCRIPTION
     "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
-)
+) 
 
-# ref: https://cmake.org/cmake/help/latest/command/cmake_policy.html
-#     `CMake keeps policy settings on a stack`
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
-  cmake_policy(SET CMP0135 NEW)
+# ── Build-type default ─────────────────────────────────────────────────────
+# For single-config generators (Make, Ninja) default to Release when the
+# caller does not pass -DCMAKE_BUILD_TYPE=<type>.  Multi-config generators
+# (MSVC, Xcode) use CMAKE_CONFIGURATION_TYPES and ignore CMAKE_BUILD_TYPE.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING
+    "Build type (Debug | Release | RelWithDebInfo | MinSizeRel)" FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
-if(NOT DEFINED TD_ENTERPRISE_DIR)
-  set(TD_COMMUNITY_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-  set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
-  set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
-  set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
+option(BUILD_ENTERPRISE "Build enterprise edition" ON)
 
-  message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
-  message(STATUS "Source directory: " ${TD_SOURCE_DIR})
-  message(STATUS "Support directory: " ${TD_SUPPORT_DIR})
-  message(STATUS "Contrib directory: " ${TD_CONTRIB_DIR})
+option(BUILD_ENGINE "Build engine component" ON)
+option(BUILD_ADAPTER "Build taosadapter component" ON)
+option(BUILD_KEEPER "Build taoskeeper component" ON)
+option(BUILD_TOOLS "Build tools component" ON)
 
-  include(cmake/preinclude.cmake)
-  include(cmake/platform.cmake)
-  include(cmake/options.cmake)
-  include(cmake/check_env.cmake)
-  include(cmake/define.cmake)
-  include(cmake/version.cmake)
+option(BUILD_GEN "Build taos-gen component" ON)
+option(BUILD_TAOSX "Build taos-xservice component" ON)
+option(BUILD_TAOSX_BINARY "Build taosx binary" ON)
+option(BUILD_TAOSX_AGENT "Build taosx-agent binary" ON)
 
-  # Support for Conan package manager
-  option(USE_CONAN "Use Conan for dependency management" OFF)
-  if(USE_CONAN)
-    message(STATUS "Using Conan for dependency management")
-    include(cmake/conan.cmake)
-  else()
-    message(STATUS "Using ExternalProject for dependency management")
-    include(cmake/external.cmake)
-  endif()
+set(BUILD_TAOSX_PROFILE "release" CACHE STRING "Cargo profile for taosx family (release|dev)")
+set_property(CACHE BUILD_TAOSX_PROFILE PROPERTY STRINGS "release" "dev")
+
+set(BUILD_TAOSX_UPX "AUTO" CACHE STRING "UPX policy for taosx family (AUTO|ON|OFF)")
+set_property(CACHE BUILD_TAOSX_UPX PROPERTY STRINGS "AUTO" "ON" "OFF")
+option(BUILD_EXPLORER "Build taos-explorer binary" ON)
+option(BUILD_EXPLORER_UI "Build taos-explorer frontend with pnpm" ON)
+option(BUILD_EXPLORER_DOCS "Bundle taos-explorer docs assets" OFF)
+option(BUILD_INSIGHT "Build taos-insight component" ON)
+
+option(BUILD_DOTNET "Build taos-connector-dotnet component" ON)
+option(BUILD_GO "Build taos-connector-go component" ON)
+option(BUILD_JDBC "Build taos-connector-jdbc component" ON)
+option(BUILD_NODE "Build taos-connector-node component" ON)
+option(BUILD_ODBC "Build taos-connector-odbc component" ON)
+option(BUILD_PYTHON "Build taos-connector-python component" ON)
+option(BUILD_RUST "Build taos-connector-rust component" ON)
+
+option(BUILD_TEST "Build unit test" OFF)
+option(BUILD_SANITIZER "Enable sanitizers" OFF)
+option(BUILD_COVERAGE "Enable code coverage" OFF)
+option(BUILD_JEMALLOC "Enable jemalloc allocator" OFF)
+
+set(BUILD_CUS_NAME "TDengine" CACHE STRING "Customer/brand name injected into binary")
+set(BUILD_CUS_PROMPT "taos" CACHE STRING "Prompt/brand prefix injected into binary")
+set(BUILD_CUS_EMAIL "" CACHE STRING "Customer email injected into binary")
+set(BUILD_CUS_PRODUCT_NAME "" CACHE STRING "Product name injected into taoskeeper binary")
+set(BUILD_VER_NUMBER "" CACHE STRING "Version number override")
+set(BUILD_VER_COMPATIBLE "" CACHE STRING "Compatible version number override")
+set(BUILD_VER_TYPE "" CACHE STRING "Version type override (e.g. stable)")
+set(BUILD_VER_DATE "" CACHE STRING "Version date override (e.g. %Y-%m-%d %H:%M:%S %z)")
+set(BUILD_VER_CPUTYPE "" CACHE STRING "CPU type override")
+set(BUILD_VER_OSTYPE "" CACHE STRING "OS type override")
+set(BUILD_GITINFO "" CACHE STRING "Git commit ID override")
+set(BUILD_GITINFOI "" CACHE STRING "Internal git commit ID override")
+
+include(cmake/build-config.cmake)
+
+if(BUILD_ENGINE)
+  add_subdirectory(source/taos-community)
 endif()
 
-set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
-add_subdirectory(contrib)
+if(BUILD_ADAPTER)
+  include(cmake/taos-adapter.cmake)
+endif()
 
-if(${BUILD_TEST})
-  include(CTest)
-  enable_testing()
-endif(${BUILD_TEST})
+if(BUILD_KEEPER)
+  include(cmake/taos-keeper.cmake)
+endif()
 
-add_library(api INTERFACE)
-target_include_directories(api INTERFACE "include/client")
+if(BUILD_GEN)
+  include(cmake/taos-gen.cmake)
+endif()
 
-add_subdirectory(contrib/TSZ)
-add_subdirectory(contrib/libaes)
-add_subdirectory(contrib/libmqtt)
-add_subdirectory(source)
-add_subdirectory(tools)
-add_subdirectory(utils)
-add_subdirectory(tests)
-add_subdirectory(examples/c)
+if(BUILD_TAOSX)
+  include(cmake/taos-xservice.cmake)
+endif()
 
-include(cmake/install.cmake)
-include(CPack)
+if(BUILD_INSIGHT)
+  include(cmake/taos-insight.cmake)
+endif()
 
-message(STATUS "TAOSADAPTER_BUILD_OPTIONS:${TAOSADAPTER_BUILD_OPTIONS}")
-message(STATUS "TAOSADAPTER_GIT_TAG:${TAOSADAPTER_GIT_TAG}")
-message(STATUS "TAOSADAPTER_GIT_TAG_NAME:${TAOSADAPTER_GIT_TAG_NAME}")
-message(STATUS "TAOSADAPTER_GIT_TAG_SHALLOW:${TAOSADAPTER_GIT_TAG_SHALLOW}")
+if(BUILD_DOTNET)
+  include(cmake/taos-connector-dotnet.cmake)
+endif()
 
-message(STATUS "TAOSWS_GIT_TAG_NAME:${TAOSWS_GIT_TAG_NAME}")
+if(BUILD_GO)
+  include(cmake/taos-connector-go.cmake)
+endif()
 
+if(BUILD_JDBC)
+  include(cmake/taos-connector-jdbc.cmake)
+endif()
+
+if(BUILD_NODE)
+  include(cmake/taos-connector-node.cmake)
+endif()
+
+if(BUILD_ODBC)
+  include(cmake/taos-connector-odbc.cmake)
+endif()
+
+if(BUILD_PYTHON)
+  include(cmake/taos-connector-python.cmake)
+endif()
+
+if(BUILD_RUST)
+  include(cmake/taos-connector-rust.cmake)
+endif()

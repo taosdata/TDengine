@@ -1,0 +1,120 @@
+name: compatibility
+
+on:
+  pull_request:
+    branches:
+      - '3.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        td_version: ['main', '3.0']
+    name: Build ${{ matrix.td_version }}
+    outputs:
+      commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
+    steps:
+      - name: Checkout TDengine
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ matrix.td_version }}
+
+      - name: Get commit ID
+        id: get_commit_id
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache server
+        id: cache-server
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ matrix.td_version }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Install dependencies
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: sudo apt install -y libgeos-dev
+
+      - name: Build TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: |
+          cd TDengine
+          mkdir -p debug
+          cd debug
+          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DVERNUMBER=3.9.9.9
+          make -j 4
+
+      - name: Package TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ./release
+          cp ./TDengine/debug/build/bin/taos ./release/
+          cp ./TDengine/debug/build/bin/taosd ./release/
+          cp ./TDengine/tools/taosadapter/taosadapter ./release/
+          cp ./TDengine/debug/build/lib/libtaos.so.3.9.9.9 ./release/
+          cp ./TDengine/debug/build/lib/librocksdb.so.8.1.1 ./release/ ||:
+          cp ./TDengine/include/client/taos.h ./release/
+          cat >./release/install.sh<<EOF
+          chmod +x ./taos
+          chmod +x ./taosd
+          chmod +x ./taosadapter
+          cp ./taos /bin/
+          cp ./taosd /bin/
+          cp ./taosadapter /bin/
+          cp ./libtaos.so.3.9.9.9 /usr/lib
+          cp ./librocksdb.so.8.1.1 /usr/lib ||:
+          ln -sf /usr/lib/libtaos.so.3.9.9.9 /usr/lib/libtaos.so.1
+          ln -sf /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
+          ln -sf /usr/lib/librocksdb.so.8.1.1 /usr/lib/librocksdb.so.8 ||:
+          ln -sf /usr/lib/librocksdb.so.8 /usr/lib/librocksdb.so ||:
+          cp ./taos.h /usr/include
+          EOF
+          tar -zcvf server.tar.gz ./release
+
+  test:
+    runs-on: ubuntu-22.04
+    needs: build
+    strategy:
+      matrix:
+        go: ['1.14', '1.17', '1.22', 'stable']
+        td_version: ['main', '3.0']
+    name: Go ${{ matrix.td_version }} ${{ matrix.go }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache server
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ matrix.td_version }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ matrix.td_version }}-
+
+      - name: Install dependencies
+        run: sudo apt install -y libgeos-dev
+
+      - name: Setup TDengine from build
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ matrix.td_version }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Test
+        run: |
+          packages="./..."
+          if [ "${{ matrix.go }}" = "1.14" ] || [ "${{ matrix.go }}" = "1.17" ]; then
+            packages="$(go list ./... | grep -v '^github.com/taosdata/driver-go/v3/examples/')"
+          fi
+          sudo go test -v --count=1 -coverprofile=coverage.txt -covermode=atomic $packages

@@ -1,0 +1,710 @@
+#define OPCGdbaInstallPath "c:\\Windows\SysWOW64"
+#define MyAppName "TDengine"
+#define MyAppPublisher "taosdata"
+#define MyAppURL "http://www.taosdata.com/"
+#define MyAppBeforeInstallTxt "windows_before_install.txt"
+#define MyAppIco "favicon.ico"
+#define MyAppInstallDir "C:\TDengine"
+#define MyAppOutputDir "./"
+#define MyAppSourceDir "C:\TDengine"
+;#define MyAppAllFile "\*"
+#define MyAppCfgName "\cfg\*"
+#define MyAppDriverName "\driver\*"
+#define MyAppConnectorName "\connector\*"
+#define MyAppExamplesName "\examples\*"
+#define MyAppIncludeName "\include\*"
+#define MyAppPluginsName "\plugins\*"
+#define MyAppExeName "\*.exe"
+#define MyAppTaosExeName "\taos.bat"
+#define MyAppTaosdemoExeName "\taosBenchmark.exe"
+#define MyAppDLLName "\*.dll"
+;#define MyAppVersion "3.0"
+;#define MyAppInstallName "TDengine"
+#define MyProductFullName "TDengine TSDB"
+[Setup]
+VersionInfoVersion={#MyAppVersion}
+AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
+AppName={#CusName}
+AppVersion={#MyAppVersion}
+;AppVerName={#MyAppName} {#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+DefaultDirName={#MyAppInstallDir}
+DefaultGroupName={#MyAppName}
+DisableProgramGroupPage=yes
+InfoBeforeFile={#MyAppBeforeInstallTxt}
+OutputDir={#MyAppOutputDir}
+OutputBaseFilename={#MyAppInstallName}
+SetupIconFile={#MyAppIco}
+Compression=lzma
+CloseApplications=force
+SolidCompression=yes
+ChangesEnvironment=yes
+DisableDirPage=yes
+Uninstallable=yes
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
+
+[Languages]
+Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
+;Name: "english"; MessagesFile: "compiler:Languages\English.isl"
+
+[Files]
+;Source: {#MyAppSourceDir}{#MyAppAllFile}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs 
+Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
+;Source: taosdemo.png; DestDir: "{app}\include"; Flags: igNoreversion;
+;Source: taosShell.png; DestDir: "{app}\include"; Flags: igNoreversion;
+Source: favicon.ico; DestDir: "{app}\include"; Flags: igNoreversion;
+Source: start-all.bat; DestDir: "{app}"; Flags: igNoreversion;
+Source: stop-all.bat; DestDir: "{app}"; Flags: igNoreversion;
+Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos.exe')
+Source: {#MyAppSourceDir}\taosBenchmark.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosBenchmark.exe')
+Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosdump.exe')
+Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosd.exe')
+Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
+Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
+Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
+Source: {#MyAppSourceDir}\xnoded.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs;
+Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
+Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion 64bit;Check:IsWin64;
+Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
+Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
+Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{app}\driver"; Flags: igNoreversion
+Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\taos_odbc\*; DestDir: "{app}\taos_odbc"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}\*.xml; DestDir: "{app}"; Excludes: "taosx-agent-srv.xml"; Flags: igNoreversion recursesubdirs createallsubdirs
+
+[Components]
+Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
+
+[run]
+Filename: {sys}\sc.exe; Parameters: "create taosd start= AUTO binPath= ""{app}\\taosd.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosadapter start= AUTO binPath= ""{app}\\taosadapter.exe""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taoskeeper start= AUTO binPath= ""{app}\\taoskeeper.exe""" ; Flags: runhidden
+;Filename: "{cmd}"; Parameters: "/c ""echo monitorFqdn %computername% >> {app}\\cfg\\taos.cfg""" ; Flags: runhidden
+Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
+Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
+Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
+Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+Filename: "C:\Windows\System32\odbcconf.exe"; Parameters: "/S /F win_odbc_install.ini"; WorkingDir: "{app}\taos_odbc\x64"; Flags: runhidden; StatusMsg: "Configuring ODBC x64"
+Filename: "C:\Windows\SysWOW64\odbcconf.exe"; Parameters: "/S /F win_odbc_install.ini"; WorkingDir: "{app}\taos_odbc\x86"; Flags: runhidden; StatusMsg: "Configuring ODBC x86"
+
+[Registry]
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
+    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{#MyAppInstallDir}"; \
+    Check: NeedsAddPath('{#MyAppInstallDir}')
+
+[Code]
+procedure AddMonitorFqdnIfNotExists;
+var
+  FqdnLine, CfgFile, LineStr: string;
+  Lines: TArrayOfString;
+  I: Integer;
+  Found: Boolean;
+begin
+  CfgFile := ExpandConstant('{app}\cfg\taos.cfg');
+  FqdnLine := 'monitorFqdn ' + GetComputerNameString();
+  Found := False;
+  SetArrayLength(Lines, 0); 
+
+  if not FileExists(CfgFile) then
+    exit;
+  if not LoadStringsFromFile(CfgFile, Lines) then
+    exit;
+
+
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    LineStr := Trim(Lines[I]);
+    // Skip comment lines
+    if (LineStr = '') or (Copy(LineStr, 1, 1) = '#') then
+      continue;
+    // Ignore leading whitespace and comments, check if line starts with monitorFqdn
+    if Pos('monitorFqdn ', LineStr) = 1 then
+    begin
+      Found := True;
+      Break;
+    end;
+  end;
+
+  if not Found then
+  begin
+    // Ensure the new line is independent
+    if (GetArrayLength(Lines) > 0) and (Trim(Lines[GetArrayLength(Lines)-1]) <> '') then
+      begin
+        SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+        Lines[GetArrayLength(Lines) - 1] := '';
+      end;
+
+    SetArrayLength(Lines, GetArrayLength(Lines) + 1);
+    Lines[GetArrayLength(Lines) - 1] := FqdnLine;
+    SaveStringsToFile(CfgFile, Lines, False);
+  end;
+end;
+
+function NeedsAddPath(Param: string): boolean;
+var
+  OrigPath: string;
+begin
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+    'Path', OrigPath)
+  then begin
+    Result := True;
+    exit;
+  end;
+  { look for the path with leading and trailing semicolon }
+  { Pos() returns 0 if not found }
+  Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
+end;
+
+function RemovePath(Param: string): Boolean;
+var
+  OrigPath: string;
+  NewPath: string;
+begin
+  Result := True;
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
+    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+    'Path', OrigPath)
+  then begin
+    exit;
+  end;
+
+  NewPath := ';' + OrigPath + ';';
+  while StringChangeEx(NewPath, ';' + Param + ';', ';', True) > 0 do
+  begin
+  end;
+  while StringChangeEx(NewPath, ';;', ';', True) > 0 do
+  begin
+  end;
+
+  if (Length(NewPath) > 0) and (Copy(NewPath, 1, 1) = ';') then
+    Delete(NewPath, 1, 1);
+  if (Length(NewPath) > 0) and (Copy(NewPath, Length(NewPath), 1) = ';') then
+    Delete(NewPath, Length(NewPath), 1);
+
+  if NewPath <> OrigPath then
+    Result := RegWriteExpandStringValue(HKEY_LOCAL_MACHINE,
+      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+      'Path', NewPath);
+end;
+
+
+{ Checks whether ProcessName is running via tasklist.
+  Returns True if the process appears to be running.
+  Sets CheckOk to True only when the tasklist command ran successfully
+  and we could reliably parse the output; False means the result is
+  just a conservative guess (assume still running). }
+function IsProcessRunning(ProcessName: String; var CheckOk: Boolean): Boolean;
+var
+  ResultCode: Integer;
+  OutputFile: String;
+  OutputText: AnsiString;
+begin
+  Result := True;
+  CheckOk := False;
+  OutputFile := ExpandConstant('{tmp}\tasklist_' + ProcessName + '.txt');
+  DeleteFile(OutputFile);
+  if not Exec(ExpandConstant('{cmd}'), '/c "' + ExpandConstant('{sys}\tasklist.exe') + '" /FI "IMAGENAME eq ' + ProcessName + '" /NH > "' + OutputFile + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    exit;
+  if ResultCode <> 0 then
+    exit;
+  if not LoadStringFromFile(OutputFile, OutputText) then
+    exit;
+  CheckOk := True;
+  Result := Pos(UpperCase(ProcessName), UpperCase(OutputText)) > 0;
+end;
+
+
+procedure TaskKill(FileName: String);
+var
+  ResultCode: Integer;
+  ServiceName: String;
+  I: Integer;
+  CheckFailCount: Integer;
+  CheckOk: Boolean;
+  IsServiceProc: Boolean;
+begin
+  IsServiceProc := (FileName = 'taosd.exe') or (FileName = 'taosadapter.exe') or (FileName = 'taos-explorer.exe') or (FileName = 'taosx.exe') or (FileName = 'taoskeeper.exe');
+
+  if IsServiceProc then
+  begin
+    ServiceName := Copy(FileName, 1, Length(FileName) - 4);
+    Exec(ExpandConstant('{sys}\sc.exe'), ' stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    CheckFailCount := 0;
+    for I := 1 to 60 do
+    begin
+      if not IsProcessRunning(FileName, CheckOk) then
+        break;
+
+      if CheckOk then
+        CheckFailCount := 0
+      else
+      begin
+        CheckFailCount := CheckFailCount + 1;
+        if CheckFailCount >= 3 then
+        begin
+          Log('tasklist check failed 3 times in a row for ' + FileName + ', falling back to taskkill');
+          break;
+        end;
+      end;
+
+      Sleep(500);
+    end;
+  end;
+
+  if IsProcessRunning(FileName, CheckOk) then
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+
+function IsVC2015x64Installed(): Boolean;
+var
+  InstallKey: String;
+begin
+  // Check for any VC++ 2015-2022 Redistributable (14.x versions)
+  InstallKey := 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  
+  if not Result then
+  begin
+    InstallKey := 'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+    Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  end;
+  
+  if Result then
+    Log('find VC++ Redistributable x64,version 14.0+')
+  else
+    Log('find VC++ Redistributable x64，need to install version 14.0');
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  if not IsVC2015x64Installed() then  
+  begin
+    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) version 14.x before install TDengine', mbInformation, MB_OK);
+    Result := False;
+  end;
+end;
+
+var
+  InputQueryPage: TInputQueryWizardPage;
+  OutputMsgCheckPISDK: TOutputMsgMemoWizardPage;
+  PISDKVersionString: string;
+  OPCInstallFileFlag: Boolean;
+  ExplorerAddInput: string;
+  CustomFinishedLabel: TLabel;
+  CustomFinishedLabel1: TLabel;
+  CustomFinishedLabel2: TLabel;
+  CustomFinishedLabel3: TLabel;
+  SilentMode: Boolean;
+
+function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
+var
+  Lines: TArrayOfString;
+  I, PosSearch, CommentSearch, FqdnSearch: Integer;
+  Found: Boolean;
+begin
+  Result := False;
+  if LoadStringsFromFile(FileName, Lines) then
+  begin
+    Found := False;
+    for I := 0 to GetArrayLength(Lines) - 1 do
+    begin
+      PosSearch := Pos(SearchText, Lines[I]);
+      if PosSearch > 0 then
+      begin
+        Delete(Lines[I], PosSearch, Length(SearchText));
+        Insert(ReplaceText, Lines[I], PosSearch);
+        
+        CommentSearch := Pos('#', Lines[I]);
+        FqdnSearch := Pos('fqdn', Lines[I]);
+        if CommentSearch > 0 then
+          if FqdnSearch > 0 then
+            begin
+              Delete(Lines[I], CommentSearch, 1);
+            end;
+        Found := True;
+      end;
+    end;
+
+    if Found then
+    begin
+      Result := SaveStringsToFile(FileName, Lines, False);
+    end;
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  //if CurPageID = InputDirWizardPage.ID then begin
+  //    WizardForm.DirEdit.Text := InputDirWizardPage.Values[0] + '/{#SubDirectory}';
+  //    WizardForm.DirEdit.Update;
+  //end;
+  if CurPageID = InputQueryPage.ID then
+  begin
+    ExplorerAddInput := InputQueryPage.Values[0];
+    begin
+      ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'explorer.toml', 'localhost', ExplorerAddInput);
+      ReplaceLineInFile(ExpandConstant('{app}\cfg\') + 'taosx.toml', 'localhost', ExplorerAddInput);
+    end;
+  end;
+  Result := True;
+end;
+
+procedure MyBeforeInstall(filename: string);
+var
+  SourceFile: string;
+  DestFile: string;
+  NewDestFile: string;
+begin
+  SourceFile := '{#MyAppSourceDir}\cfg\' + filename;
+  DestFile := ExpandConstant('{app}\cfg') + '\' + filename;
+  if FileExists(SourceFile) then
+    if FileExists(DestFile) then
+      begin
+        NewDestFile := ExpandConstant('{app}\cfg') + '\' + filename + '.new';
+        if not FileCopy(SourceFile, NewDestFile, False) then
+        begin
+          MsgBox('Error copying file.', mbError, MB_OK);
+        end;
+      end;
+end;
+
+function ContainsSubstringIgnoreCase(const str, substr: string): Boolean;
+  begin
+    Result := Pos(AnsiLowerCase(substr), AnsiLowerCase(str)) > 0;
+  end;
+
+function GetPISDKVersionDesc() : string;
+var
+  ResultCode: Integer;
+  OutputFile: string;
+  OutputText: AnsiString;
+  FileContent: TArrayOfString;
+  PIPluginDir: string;
+  PIProbeExe: string;
+begin
+  Log('InitializeSetup called');
+  OutputFile := ExpandConstant('{tmp}\pisdk_version.txt');
+  PIPluginDir := AddBackslash(WizardDirValue()) + 'plugins\pi';
+  PIProbeExe := PIPluginDir + '\taosx-pi.exe';
+
+  if not FileExists(PIProbeExe) then
+  begin
+    Log('PI SDK probe executable not available yet: ' + PIProbeExe);
+    PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK check unavailable before installation.';
+  end
+  else if not ExecAsOriginalUser('cmd.exe', '/c taosx-pi.exe -pv >> "'+ OutputFile + '" 2>&1', PIPluginDir, SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
+  end
+  else
+  begin
+    SetArrayLength(FileContent, 0);
+    if not LoadStringsFromFile(OutputFile, FileContent) then
+    begin
+      Log('Unable to read PI SDK check output file: ' + OutputFile);
+      PISDKVersionString := 'WARNING' + #13#10 + 'Unable to read PI SDK check output.';
+    end
+    else if GetArrayLength(FileContent) = 0 then
+    begin
+      Log('PI SDK check produced no output: ' + OutputFile);
+      PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK check returned no output.';
+    end
+    else
+    begin
+      OutputText := FileContent[0];
+      if ContainsSubstringIgnoreCase(OutputText, 'not found') then  begin
+        PISDKVersionString := 'WARNING' + #13#10 + 'PI SDK not found.';
+      end
+      else begin
+        PISDKVersionString := OutputText + #13#10 + 'PI SDK Found' + #13#10 + 'OK';
+      end;
+    end
+  end;
+  Result := PISDKVersionString;
+end;
+
+procedure ExtendFinishedPageControl(Control: TControl);
+begin
+  Control.Left := Control.Left - WizardForm.WizardBitmapImage2.Width;
+  Control.Width := Control.Width + WizardForm.WizardBitmapImage2.Width;
+end;
+
+procedure InitializeWizard;
+var
+  InstallPath: String;
+  ComputerName: String;
+  AfterID: Integer;
+begin
+  AfterID := wpSelectTasks;
+  AfterID := wpInstalling;
+  GetPISDKVersionDesc();
+  OutputMsgCheckPISDK := CreateOutputMsgMemoPage(AfterID, 'Check PI SDK for PI Connector', 'The PI connector depends on the PI SDK.'
+  + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
+  AfterID := OutputMsgCheckPISDK.ID;
+
+  InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
+  ComputerName := GetComputerNameString();
+  InputQueryPage.Add('&Default: ' + ComputerName, False);
+  InputQueryPage.Values[0] := ComputerName;
+  AfterID := InputQueryPage.ID;
+
+  InstallPath := WizardDirValue();
+  WizardForm.FinishedLabel.Visible := False;
+  WizardForm.WizardBitmapImage2.Visible := False;
+  ExtendFinishedPageControl(WizardForm.RunList);
+  ExtendFinishedPageControl(WizardForm.NoRadio);
+  ExtendFinishedPageControl(WizardForm.YesRadio);
+  ExtendFinishedPageControl(WizardForm.FinishedLabel);
+  ExtendFinishedPageControl(WizardForm.FinishedHeadingLabel);
+
+  CustomFinishedLabel := TLabel.Create(WizardForm);  
+  CustomFinishedLabel.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel.Left := WizardForm.FinishedHeadingLabel.Left;  
+  CustomFinishedLabel.Top := WizardForm.FinishedHeadingLabel.Top + WizardForm.FinishedHeadingLabel.Height + ScaleY(8); // Adjust the top position as needed  
+
+  CustomFinishedLabel.WordWrap := True;
+  CustomFinishedLabel.Width := WizardForm.FinishedHeadingLabel.Width; 
+  
+  CustomFinishedLabel.Caption := 'You can use following instructions to edit configuration files and run commands manually in terminal as Administrator:';
+
+  CustomFinishedLabel1 := TLabel.Create(WizardForm);  
+  CustomFinishedLabel1.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel1.Left := WizardForm.FinishedHeadingLabel.Left;
+  CustomFinishedLabel1.Top := CustomFinishedLabel.Top + CustomFinishedLabel.Height;
+  CustomFinishedLabel1.Width := WizardForm.FinishedHeadingLabel.Width div 2; 
+  CustomFinishedLabel1.Height := ScaleY(120);
+  CustomFinishedLabel1.Caption := #13#10 + ''
+  + #13#10 + 'To configure {#MyProductFullName}:'
+  + #13#10 + 'To configure taosadapter:'
+  + #13#10 + 'To configure taos-explorer:   '
+  + #13#10 + 'To start taosd:' 
+  + #13#10 + 'To start taosadapter:' 
+  + #13#10 + 'To start taoskeeper:' 
+  + #13#10 + 'To start taosx:' 
+  + #13#10 + 'To start taos-explorer:';
+
+
+  CustomFinishedLabel2 := TLabel.Create(WizardForm);  
+  CustomFinishedLabel2.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel2.Left := CustomFinishedLabel1.Left + CustomFinishedLabel1.Width;
+  CustomFinishedLabel2.Top := CustomFinishedLabel.Top + CustomFinishedLabel.Height;
+  CustomFinishedLabel2.Width := WizardForm.FinishedHeadingLabel.Width div 2; 
+  CustomFinishedLabel2.Height := ScaleY(120);
+  CustomFinishedLabel2.Caption := #13#10 + ''
+  + #13#10 + 'edit ' + InstallPath + '\cfg\taos.cfg'
+  + #13#10 + 'edit ' + InstallPath + '\cfg\taosadapter.toml'
+  + #13#10 + 'edit ' + InstallPath + '\cfg\explorer.toml'
+  + #13#10 + 'sc.exe start taosd' 
+  + #13#10 + 'sc.exe start taosadapter' 
+  + #13#10 + 'sc.exe start taoskeeper' 
+  + #13#10 + 'sc.exe start taosx' 
+  + #13#10 + 'sc.exe start taos-explorer';
+
+  CustomFinishedLabel3 := TLabel.Create(WizardForm);  
+  CustomFinishedLabel3.Parent := WizardForm.FinishedPage;  
+  CustomFinishedLabel3.Left := WizardForm.FinishedHeadingLabel.Left;
+  CustomFinishedLabel3.Top := CustomFinishedLabel1.Top + CustomFinishedLabel1.Height + ScaleY(8);
+  CustomFinishedLabel3.Width := WizardForm.FinishedHeadingLabel.Width; 
+  CustomFinishedLabel3.Caption := 'To use all {#MyProductFullName} services, please run start-all.bat under ' + InstallPath + ' directory';
+
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpReady then
+    begin
+      if WizardForm.ComponentsList.Checked[0] then
+        begin
+          OPCInstallFileFlag := True;
+        end;
+      //if WizardForm.ComponentsList.Checked[1] then   // PI Connector
+      //  begin
+      //    MsgBox('PI Selected.', mbError, MB_OK);
+      //  end;
+    end;
+end;
+
+function IsSilentMode: Boolean;
+var
+  I: Integer;
+  Param: String;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+  begin
+    Param := Uppercase(ParamStr(I));
+    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/VERYSILENT') or (Param = '-VERYSILENT') then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+procedure DeleteDirectory(const DirPath: string; const Recursive: Boolean; const Confirm: Boolean; const ErrorDialogs: Boolean);
+begin
+  if DirExists(ExpandConstant(DirPath)) then
+    DelTree(ExpandConstant(DirPath), Recursive, Confirm, ErrorDialogs);
+end;
+
+procedure DeleteDirectoriesIfConfirmed;
+begin
+  SilentMode := IsSilentMode;
+  if  not SilentMode then
+    begin
+      if MsgBox('Please confirm if you would like to delete cfg, data and log directory ?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      begin
+        DeleteDirectory('{app}\cfg', True, True, True);
+        DeleteDirectory('{app}\log', True, True, True);
+        DeleteDirectory('{app}\data', True, True, True);
+      end;
+    end
+  else
+    begin
+      // silent mode, no confirm dialog, delete directory directly
+      DeleteDirectory('{app}\cfg', True, True, True);
+      DeleteDirectory('{app}\log', True, True, True);
+      DeleteDirectory('{app}\data', True, True, True);
+    end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  case CurUninstallStep of
+    usUninstall:
+      begin
+        TaskKill('taosd.exe');
+        TaskKill('taosadapter.exe');
+        TaskKill('taoskeeper.exe');
+        TaskKill('taosx.exe');
+        TaskKill('taos-explorer.exe');
+        TaskKill('taos.exe');
+        TaskKill('taosBenchmark.exe');
+        TaskKill('taosdump.exe');
+        TaskKill('xnoded.exe');
+      end;
+    usPostUninstall:
+      begin
+        if FileExists(ExpandConstant('{app}\taosd.exe')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\taosd.exe'), 10);
+          end; 
+        
+        if FileExists(ExpandConstant('{app}\taosx.exe')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\taosx.exe'), 5);
+          end;
+
+        if FileExists(ExpandConstant('{app}\.taos_history')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\.taos_history'), 5);
+          end;
+
+        if FileExists(ExpandConstant('{app}\output.txt')) then
+          begin            
+            DelayDeleteFile(ExpandConstant('{app}\output.txt'), 5);
+          end;
+        DeleteDirectoriesIfConfirmed;
+    end;    
+  end;
+end;
+
+function DeleteOdbcDsnRegistry: Boolean;
+begin
+  RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_DSN');  
+  RegDeleteKeyIncludingSubkeys(HKCU, 'SOFTWARE\ODBC\ODBC.INI\TAOS_ODBC_WS_DSN');
+
+  RegDeleteValue(HKCU, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'TAOS_ODBC_DSN'); 
+  RegDeleteValue(HKCU, 'SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources', 'TAOS_ODBC_WS_DSN'); 
+     
+  Result := True;
+end;
+
+function DeleteOdbcDriverRegistry: Boolean;
+begin
+  // Delete 64-bit ODBC driver registry 
+  RegDeleteKeyIncludingSubkeys(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\TAOS_ODBC_DRIVER');    
+  RegDeleteValue(HKLM64, 'SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers', 'TAOS_ODBC_DRIVER');
+
+  // Delete 32-bit ODBC driver registry 
+  RegDeleteKeyIncludingSubkeys(HKLM64, 'SOFTWARE\Wow6432Node\ODBC\ODBCINST.INI\TAOS_ODBC_DRIVER');
+  RegDeleteValue(HKLM64, 'SOFTWARE\Wow6432Node\ODBC\ODBCINST.INI\ODBC Drivers', 'TAOS_ODBC_DRIVER');
+
+  Result := True;
+end;
+
+procedure DeinitializeUninstall();
+begin
+	DeleteOdbcDsnRegistry();
+	DeleteOdbcDriverRegistry();
+  RemovePath(ExpandConstant('{#MyAppInstallDir}'));
+end;
+
+function ShouldInstallOPC: Boolean;
+begin
+  Result := OPCInstallFileFlag;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    AddMonitorFqdnIfNotExists;
+end;
+
+[UninstallDelete]
+Name: {app}\driver; Type: filesandordirs 
+Name: {app}\connector; Type: filesandordirs
+Name: {app}\examples; Type: filesandordirs
+Name: {app}\include; Type: filesandordirs
+Name: {app}\plugins\pi; Type: filesandordirs 
+Name: {app}\plugins\opc; Type: filesandordirs 
+Name: {app}\plugins\mqtt; Type: filesandordirs 
+Name: {app}\plugins\influxdb; Type: filesandordirs
+Name: {app}\plugins\opentsdb; Type: filesandordirs
+
+[UninstallRun]
+RunOnceId: "stopall"; Filename: {app}\stop-all.bat; Flags: runhidden
+RunOnceId: "stoptaoskeeper"; Filename: {sys}\sc.exe; Parameters: "stop taoskeeper" ; Flags: runhidden
+RunOnceId: "deltaoskeeper"; Filename: {sys}\sc.exe; Parameters: "delete taoskeeper" ; Flags: runhidden
+RunOnceId: "stoptaosadapter"; Filename: {sys}\sc.exe; Parameters: "stop taosadapter" ; Flags: runhidden
+RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosadapter" ; Flags: runhidden
+RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
+RunOnceId: "stoptaos-explorer"; Filename: {sys}\sc.exe; Parameters: "stop taos-explorer" ; Flags: runhidden
+RunOnceId: "deltaosx"; Filename: "{app}\\taosx-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaosx-agent"; Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "deltaos-explorer"; Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "uninstall" ; Flags: runhidden
+RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
+RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
+
+RunOnceId: "uninstall"; Filename: "{uninstallexe}"; Parameters: "/SILENT"; Check: fileexists('{uninstallexe}')
+RunOnceId: "removeopc1"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+RunOnceId: "removeopc2"; Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+
+[Tasks]
+Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm:AdditionalIcons}"; Flags: checkablealone
+
+[Icons]
+Name:"{group}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
+Name:"{group}\Open {#CusName} Directory"; Filename: "{app}\" 
+Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}" ; IconFilename: "{app}\include\{#MyAppIco}" 
+Name:"{commondesktop}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; Tasks: desktopicon; WorkingDir: "{app}" ; IconFilename: "{app}\include\{#MyAppIco}" 
+
+
+[Messages]
+ConfirmUninstall=Do you really want to uninstall {#CusName} from your computer?%n%nPress [Y] to completely delete %1 and all its components;%nPress [N] to keep the software on your computer.

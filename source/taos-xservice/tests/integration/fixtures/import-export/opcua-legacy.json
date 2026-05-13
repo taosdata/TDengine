@@ -1,0 +1,57 @@
+{
+  "tasks_num": 1,
+  "export_time": "2026-04-13T09:52:56.553327+08:00",
+  "tasks": [
+    {
+      "id": 13,
+      "name": "opc",
+      "from": {
+        "type": "opcua",
+        "data": {
+          "host": "192.168.0.34",
+          "port": 53530,
+          "subject": "OPCUA/SimulationServer",
+          "endpoint": "opcua://192.168.0.34:53530/OPCUA/SimulationServer",
+          "authentication.currentTab": "anonymous",
+          "batch_size": "1000",
+          "batch_timeout": "1",
+          "busy_threshold": "100%",
+          "child_table_expression": "t_{ns}_{id#/_}",
+          "collect_mode": "subscribe",
+          "collect_options.request_timeout": "10",
+          "connect_timeout": "10",
+          "connection_options.request_timeout": "10",
+          "contains_bad": "false",
+          "csv_config_file": "@resources/opcua/opcua-points.csv",
+          "custom_tags": "VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}.Value",
+          "datasets.currentTab": "csv_config_file",
+          "health_check_window_in_second": "0s",
+          "interval": "10",
+          "keep_raw_data": "false",
+          "keep_raw_data_days": "1",
+          "log_level": "info",
+          "max_errors_in_window": "10",
+          "max_queue_length": "1000",
+          "opc_points_mode": "all",
+          "persist_data_enable": "false",
+          "super_table_expression": "opc_{type}",
+          "table_primary_key": "original_ts",
+          "table_primary_key_alias": "ts",
+          "update_interval": "600",
+          "update_mode": "none",
+          "value_col": "val",
+          "write_concurrency": "0"
+        }
+      },
+      "to": "taos+http://root:taosdata@localhost:6041/test",
+      "parser": null,
+      "via": null,
+      "created_at": "2026-04-13T01:52:48.477Z",
+      "trigger": null,
+      "labels": {
+        "type": "datain",
+        "user": "root"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Copy from go 1.17.2 runtime/cgo. In order to be compatible with lower versions

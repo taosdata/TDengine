@@ -1,0 +1,31 @@
+{
+	"filetype": "query",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"confirm_parameter_prompt": "no",
+    "continue_if_fail": "yes",
+	"databases": "test",
+	"query_times": 10,
+	"query_mode": "rest",
+	"specified_table_query": {
+		"query_interval": 1,
+		"concurrent": 3,
+		"sqls": [
+			{
+				"sql": "select ts, _value, diff(ts) as duration,(case when _value like \"%Stopping%\" then \"Unavailable\" when _value like \"%Starting%\" then \"Available\" when _value like \"%Standby%\" then \"Unavailable\" \"%RunUF%\" then \"Available\" \"%RunPQ%\" then \"Available\" \"%Ready%\" then \"Available\" \"%Fault%\" then \"Unavailable\" \"%Off%\" then \"Unavailable\" \"%No%\" then \"Unavailable\" \"%Connecting%\" then \"Available\" \"%Disconnecting%\" then \"Available\" \"%GoingToStandby%\" then \"Available\" else \"No Data\" end) as status, unit_controller_id, from (select ts, concat(last_row(`InvStatus`), \"-\", last_row(`RunMode`)) as _value, unit_controller_id from ems.site where ts between TIME_TRUNCATE(now, 1h) and TIME_TRUNCATE(now, 1h) + 1h and site_controller_id != \"undefined\" order by ts asc partition by unit_controller_id interval(1m) fill(PREV));",
+				"result": "./query_res0.txt"
+			},
+			{
+				"sql": "select (case 1.0 * `UnitsOnline` / 20.0 when chast_flt = 1.0 and locremctl_flt = 1.0 then 1.0 else 0.0 end) as mean, \"system_availability\" as point_name from ems.site where ts between (TIMETRUNCATE(NOW(), 1h) - 1h) and TIMETRUNCATE(NOW(), 1h)partition by site_controller_id;",
+				"result": "./query_res1.txt"
+			},
+            {
+				"sql": "select (case 1.0 * `abc` / 20.0 when ighg = 1.0 and iigg = 1.0 then 1.0 else 0.0 end) as mean, \"system_availability\" as point_name from ems.site where ts between (TIMETRUNCATE('2025-10-01 07:29:16.340+08:00', 1h) - 1h)and TIMETRUNCATE('2025-10-01 07:29:16.340+08:00', 1h) partition by site_controller_id;",
+				"result": "./query_res1.txt"
+			}
+		]
+	}
+}

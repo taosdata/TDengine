@@ -1,0 +1,158 @@
+{
+	"filetype": "insert",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"thread_count": 16,
+	"create_table_thread_count": 7,
+	"confirm_parameter_prompt": "no",
+	"insert_interval": 0,
+	"interlace_rows": 0,
+	"num_of_records_per_req": 30000,
+	"prepared_rand": 10000,
+	"chinese": "no",
+	"databases": [
+		{
+			"dbinfo": {
+				"name": "benchmark",
+				"drop": "yes",
+				"replica": 1,
+				"precision": "ms",
+				"keep": 3650,
+				"minRows": 100,
+				"maxRows": 4096,
+				"comp": 2
+			},
+			"super_tables": [
+				{
+					"name": "stb",
+					"child_table_exists": "no",
+					"childtable_count": 10000,
+					"childtable_prefix": "stb_",
+					"escape_character": "yes",
+					"auto_create_table": "no",
+					"batch_create_tbl_num": 10000,
+					"data_source": "rand",
+					"insert_mode": "taosc",
+					"non_stop_mode": "no",
+					"line_protocol": "line",
+					"insert_rows": 0,
+					"childtable_limit": 10,
+					"childtable_offset": 100,
+					"interlace_rows": 0,
+					"insert_interval": 0,
+					"partial_col_num": 0,
+					"disorder_ratio": 0,
+					"disorder_range": 1000,
+					"timestamp_step": 10,
+					"start_timestamp": "2020-10-01 00:00:00.000",
+					"sample_format": "csv",
+					"sample_file": "./sample.csv",
+					"use_sample_ts": "no",
+					"tags_file": "",
+					"columns": [
+						{
+							"type": "BOOL",
+							"name":"bl"
+						},
+						{
+							"type": "TINYINT",
+							"name":"i8"
+						},
+						{
+							"type": "SMALLINT",
+							"name":"i16"
+						},
+						{
+							"type": "INT",
+							"name":"i32"
+						},
+						{
+							"type": "BIGINT",
+							"name":"i64"
+						},
+                        {
+							"type": "UTINYINT",
+							"name":"u8"
+						},
+						{
+							"type": "USMALLINT",
+							"name":"u16"
+						},
+						{
+							"type": "UINT",
+							"name":"u32"
+						},
+						{
+							"type": "UBIGINT",
+							"name":"u64"
+						},
+						{
+							"type": "FLOAT",
+							"name":"f32"
+						},
+						{
+							"type": "DOUBLE",
+							"name":"d64"
+						},
+						{
+							"type": "VARCHAR",
+							"name":"bnr",
+                            "len": 20
+						},
+						{
+							"type": "NCHAR",
+							"name":"nchr",
+                            "len": 20
+						}
+					],
+					"tags": [
+						{
+							"type": "BOOL"
+						},
+						{
+							"type": "UTINYINT"
+						},
+						{
+							"type": "USMALLINT"
+						},
+						{
+							"type": "UINT"
+						},
+						{
+							"type": "UBIGINT"
+						},
+						{
+							"type": "TINYINT"
+						},
+						{
+							"type": "SMALLINT"
+						},
+						{
+							"type": "INT"
+						},
+						{
+							"type": "BIGINT"
+						},
+						{
+							"type": "FLOAT"
+						},
+						{
+							"type": "DOUBLE"
+						},
+						{
+							"type": "VARCHAR",
+                            "len": 20
+						},
+						{
+							"type": "NCHAR",
+                            "len": 20
+						}
+					]
+				}
+			]
+		}
+	]
+}

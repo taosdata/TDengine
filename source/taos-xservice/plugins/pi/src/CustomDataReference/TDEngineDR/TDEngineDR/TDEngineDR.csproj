@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{17224054-7EA4-45BD-8EF4-14FD35F41411}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>TDEngineDR</RootNamespace>
+    <AssemblyName>TDEngineDR</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>false</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\..\..\..\dist\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\..\..\dist\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="OSIsoft.AFSDK, Version=4.0.0.0, Culture=neutral, PublicKeyToken=6238be57836698e6, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\PIPC\AF\PublicAssemblies\4.0\OSIsoft.AFSDK.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AFTDExtensions.cs" />
+    <Compile Include="ConfigStringEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ConfigStringEditor.Designer.cs">
+      <DependentUpon>ConfigStringEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ConfigStringInfo.cs" />
+    <Compile Include="CreateTableForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CreateTableForm.Designer.cs">
+      <DependentUpon>CreateTableForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SimpleLogger.cs" />
+    <Compile Include="StringCipher.cs" />
+    <Compile Include="TDEngineClient\AttributeTypeConverter.cs" />
+    <Compile Include="TDEngineClient\Exceptions\TDTableNotFoundException.cs" />
+    <Compile Include="TDEngineClient\Helper\StringHelper.cs" />
+    <Compile Include="TDEngineClient\InterpolatorService.cs" />
+    <Compile Include="TDEngineClient\Models\TDColumn.cs" />
+    <Compile Include="TDEngineClient\Models\TDEngineResponse.cs" />
+    <Compile Include="TDEngineClient\Models\TDSummaryTypes.cs" />
+    <Compile Include="TDEngineClient\Models\TDValue.cs" />
+    <Compile Include="TDEngineClient\Models\TDValues.cs" />
+    <Compile Include="TDEngineClient\Models\TDValueType.cs" />
+    <Compile Include="TDEngineClient\PointTypeConverter.cs" />
+    <Compile Include="TDEngineClient\TDEngineHttpClient.cs" />
+    <Compile Include="TDEngineClient\TDHttpClient.cs" />
+    <Compile Include="TDEngineClient\TDPIStream.cs" />
+    <Compile Include="TDEngineClient\TDPIStreamMode.cs" />
+    <Compile Include="TDEngineDataReference.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TDEngineServerManager.cs" />
+    <Compile Include="TDEventSource.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="ConfigStringEditor.resx">
+      <DependentUpon>ConfigStringEditor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CreateTableForm.resx">
+      <DependentUpon>CreateTableForm.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CopyPdb\CopyPdb.csproj">
+      <Project>{af6d41a2-8bc4-48aa-9943-1ac329eb600c}</Project>
+      <Name>CopyPdb</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

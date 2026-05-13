@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "taos-ws-py"
+dynamic = ["version"]
+description = "The official TDengine Python WebSocket connector"
+readme = "README.md"
+requires-python = ">=3.7"
+license = { text = "MIT" }
+classifiers = ["Programming Language :: Python", "Programming Language :: Rust"]
+
+[project.optional-dependencies]
+sqlalchemy = ["sqlalchemy>=2.0.0"]
+
+[project.entry-points."sqlalchemy.dialects"]
+taosws = "taosws.sqlalchemy:TaosWsDialect"
+
+[tool.maturin]
+python-source = "."
+module-name = "taosws._taosws"

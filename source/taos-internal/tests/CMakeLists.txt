@@ -1,0 +1,12 @@
+PROJECT(TDengine)
+
+# ADD_SUBDIRECTORY(sim)
+# ADD_SUBDIRECTORY(jenkins)
+IF(TD_LINUX_64)
+  # ADD_SUBDIRECTORY(test)
+  # ADD_SUBDIRECTORY(cenc)
+ENDIF()
+
+# ADD_SUBDIRECTORY(test/cdriver)
+# ADD_SUBDIRECTORY(test/custom/gwwz)
+# ADD_SUBDIRECTORY(test/bug)

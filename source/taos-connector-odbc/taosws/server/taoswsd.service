@@ -1,0 +1,13 @@
+[Unit]
+Description=taoswsd Websocket Service
+After=syslog.target
+
+[Service]
+ExecStart=/usr/local/bin/taoswsd
+# xExecReload=/usr/bin/kill -INT $MAINPID
+# xExecStop=/usr/bin/killall lwsws
+ExecStop=/usr/bin/kill -INT $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+

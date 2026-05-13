@@ -1,0 +1,19 @@
+[Unit]
+Description=taosX Agent.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/taosx-agent
+ExecStart=/usr/bin/taosx-agent
+Restart=always
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+StartLimitBurst=3
+StartLimitInterval=60s
+
+[Install]
+WantedBy=multi-user.target

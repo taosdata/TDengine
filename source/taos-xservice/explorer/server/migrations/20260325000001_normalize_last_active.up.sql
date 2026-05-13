@@ -1,0 +1,12 @@
+-- Normalize last_active for the session-renewal feature.
+--
+-- Previous code updated last_active on every verified request while leaving
+-- expires_at fixed.  The new renewal logic derives the per-session TTL from
+-- (expires_at - last_active), so the old per-request writes would produce a
+-- corrupted (too-small) TTL.
+--
+-- Resetting last_active to login_at restores the invariant:
+--   expires_at - last_active == original session TTL
+-- for every existing row.  New code only writes last_active together with
+-- expires_at during renewal, so the invariant is maintained going forward.
+UPDATE oauth_sessions SET last_active = login_at;

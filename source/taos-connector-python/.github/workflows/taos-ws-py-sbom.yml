@@ -1,0 +1,41 @@
+name: taos-ws-py-sbom
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "3.0"
+    paths:
+      - "taos-ws-py/**"
+      - ".github/workflows/taos-ws-py*.yml"
+  release:
+    types:
+      - published
+
+jobs:
+  sbom:
+    name: Generate and Scan SBOM
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'taos-ws-py-v')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      SBOM_FILENAME: "taos-ws-py-sbom.cdx.json"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./taos-ws-py/
+          format: cyclonedx-json
+          output-file: "${{ env.SBOM_FILENAME }}"
+          artifact-name: "${{ env.SBOM_FILENAME }}"
+
+      - name: Scan SBOM
+        uses: anchore/scan-action@v7
+        with:
+          sbom: "${{ env.SBOM_FILENAME }}"
+          cache-db: true
+          output-format: "table"

@@ -1,0 +1,903 @@
+name: PR-CI-workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number for manual reruns
+        required: true
+      pr_title:
+        description: PR title for notifications
+        required: true
+      pr_url:
+        description: PR URL for notifications
+        required: true
+      base_ref:
+        description: Base branch name for conditional jobs
+        required: true
+  pull_request:
+    paths:
+      - ".github/workflows/pr-ci.yaml"
+      - "crates/**"
+      - "plugins/**"
+      - "src/**"
+      - "taosx-agent/**"
+      - "taosx-core/**"
+      - "taosx-ipc/**"
+      - "taosx-metrics/**"
+      - "explorer/server/**"
+      - "explorer/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "Makefile.toml"
+      - "build.rs"
+      - ".github/workflows/**"
+      - "tests/e2e/**"
+      - "tests/**"
+
+env:
+  RELEASE_HOST: taosx-ci-server
+  ARTIFACT_BASE_DIR: /data/artifacts
+  COVERAGE_BASE_DIR: /data/coverage
+  DIR_PATH: ${{ github.event.number || inputs.pr_number }}
+  RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
+  REPORT_BASE_URL: http://192.168.1.45:8787
+  TDENGINE_DOWNLOAD_HOST: "192.168.1.131"
+  ZIG_VERSION: "0.14.1"
+  BUILD_PROFILE: dev
+  COVERAGE_THRESHOLD: "48.0" # Default threshold, may be overridden by target branch coverage
+  COVERAGE_ALLOW_DECREASE: "0.2" # Allowable decrease in coverage compared to target branch
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr_number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  remove_artifacts:
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: remove_artifacts
+        run: |
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH/
+
+  detect_version:
+    runs-on: ubuntu-latest
+    outputs:
+      TDENGINE_VERSION: ${{ steps.detect.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - name: detect_tdengine_version
+        id: detect
+        run: |
+          VERSION=$(git tag --list 'ver-3.4.*' | sort -V | tail -1 | sed 's/ver-//')
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: No TDengine version tag found matching 'ver-3.4.*'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected TDengine version: $VERSION"
+
+  check:
+    name: check
+    runs-on: [self-hosted, linux, x64, app2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+      - name: packaging_check
+        run: ruff check packaging/*.py
+      - name: format_check
+        run: |
+          cargo fmt --check --all
+      - name: typos_check
+        run: |
+          cargo make --version || cargo install cargo-make -f
+          cargo make typos
+      - name: clippy_check
+        run: |
+          cargo make clippy
+
+  # Run unit tests with llvm-cov coverage inside a Docker container.
+  # The container has TDengine + Rust toolchain + all build tools.
+  # Source code is bind-mounted into the container, so coverage files
+  # (target/*.lcov) are written directly to the host filesystem.
+  local_test:
+    name: local_tests_with_coverage
+    needs: [check, detect_version]
+    runs-on: [self-hosted, linux, x64, app2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+
+      - name: resolve_tdengine_version
+        run: |
+          REQUESTED="${{ needs.detect_version.outputs.TDENGINE_VERSION }}"
+          MAJOR=$(echo "$REQUESTED" | cut -d'.' -f1)
+          MINOR=$(echo "$REQUESTED" | cut -d'.' -f2)
+          PATCH1=$(echo "$REQUESTED" | cut -d'.' -f3)
+          PATCH2=$(echo "$REQUESTED" | cut -d'.' -f4)
+          MAJOR_MINOR="${MAJOR}.${MINOR}"
+          for P2 in $PATCH2 $((PATCH2-1)) $((PATCH2-2)); do
+            [ "$P2" -lt 0 ] && continue
+            TRY="${MAJOR}.${MINOR}.${PATCH1}.${P2}"
+            URL="http://${TDENGINE_DOWNLOAD_HOST}/data/nas/TDengine/${MAJOR_MINOR}/v${TRY}/enterprise/tdengine-tsdb-enterprise-${TRY}-linux-x64.tar.gz"
+            STATUS=$(curl -sI --max-time 10 -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            echo "Version $TRY → HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Using TDengine version: $TRY"
+              echo "TDENGINE_VERSION=$TRY" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "ERROR: No TDengine version available on NAS for $REQUESTED (tried last 3 patch versions)"
+          exit 1
+
+      - name: build_unit_test_base_image
+        run: |
+          RUST_VERSION=$(grep 'channel = ' rust-toolchain.toml | cut -d'"' -f2)
+          BASE_INPUT_HASH=$(cat docker/tdengine-unit-test-base/Dockerfile | sha256sum | cut -c1-12)
+          BASE_TAG="tdengine-unit-test-base:rust-${RUST_VERSION}-${BASE_INPUT_HASH}"
+          echo "UNIT_TEST_BASE_TAG=$BASE_TAG" >> "$GITHUB_ENV"
+
+          if docker image inspect "$BASE_TAG" >/dev/null 2>&1; then
+            echo "Base image $BASE_TAG already exists, skipping build"
+          else
+            echo "Building base image $BASE_TAG (Rust toolchain + cargo tools)..."
+            docker build \
+              --build-arg RUST_VERSION="$RUST_VERSION" \
+              -t "$BASE_TAG" \
+              docker/tdengine-unit-test-base/
+            echo "Built base image: $BASE_TAG"
+          fi
+
+      - name: build_tdengine_unit_test_image
+        run: |
+          # $TDENGINE_VERSION is set by resolve_tdengine_version step via GITHUB_ENV
+          RUST_VERSION=$(grep 'channel = ' rust-toolchain.toml | cut -d'"' -f2)
+          UNIT_TEST_INPUT_HASH=$( { printf '%s\n' "$UNIT_TEST_BASE_TAG"; cat docker/tdengine-unit-test/Dockerfile docker/tdengine-unit-test/run_tests.sh; } | sha256sum | cut -c1-12)
+          IMAGE_TAG="tdengine-unit-test:${TDENGINE_VERSION}-rust-${RUST_VERSION}-${UNIT_TEST_INPUT_HASH}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+          if docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists, skipping build"
+          else
+            # Check if any image for this TDengine+Rust version already exists
+            # (same version, different run_tests.sh hash). If so, build a thin
+            # layer that only updates run_tests.sh — avoids re-downloading TDengine.
+            VERSION_PREFIX="tdengine-unit-test:${TDENGINE_VERSION}-rust-${RUST_VERSION}-"
+            EXISTING=$(docker images --format "{{.Repository}}:{{.Tag}}" \
+              | grep "^${VERSION_PREFIX}" | head -1 || true)
+
+            if [ -n "$EXISTING" ]; then
+              echo "Found existing image $EXISTING for same version — updating run_tests.sh only..."
+              TMPDIR=$(mktemp -d)
+              cp docker/tdengine-unit-test/run_tests.sh "$TMPDIR/"
+              printf 'FROM %s\nCOPY run_tests.sh /run_tests.sh\nRUN chmod +x /run_tests.sh\n' \
+                "$EXISTING" > "$TMPDIR/Dockerfile"
+              docker build -t "$IMAGE_TAG" "$TMPDIR"
+              rm -rf "$TMPDIR"
+              echo "Built image: $IMAGE_TAG (script update only)"
+            else
+              echo "Building $IMAGE_TAG (TDengine + run_tests.sh from scratch)..."
+              docker build \
+                --build-arg BASE_IMAGE_TAG="$UNIT_TEST_BASE_TAG" \
+                --build-arg TDENGINE_VERSION="$TDENGINE_VERSION" \
+                --build-arg TDENGINE_DOWNLOAD_HOST=${{ env.TDENGINE_DOWNLOAD_HOST }} \
+                -t "$IMAGE_TAG" \
+                docker/tdengine-unit-test/
+              echo "Built image: $IMAGE_TAG"
+            fi
+          fi
+
+      - name: start_test_container
+        id: start_container
+        run: |
+          # Include timestamp to avoid name conflicts on retries or concurrent runs
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          CONTAINER_NAME="unit-test-${{ github.run_id }}-${TIMESTAMP}"
+          # Source code is mounted at /workspace/taosx so the LCOV path
+          # normalization (sed 's#SF:.*taosx/#SF:#') works correctly.
+          # Keep the shared cargo registry cache, but avoid sharing the git db:
+          # run_tests.sh refreshes taos-connector-rust and would otherwise race
+          # with other jobs using the host-level cargo git cache.
+          docker run -d \
+            --name "$CONTAINER_NAME" \
+            -v "$PWD:/workspace/taosx" \
+            -v "$HOME/.cargo/registry:/usr/local/cargo/registry" \
+            -e CARGO_NET_GIT_FETCH_WITH_CLI=true \
+            "$IMAGE_TAG"
+
+          CONTAINER_ID=$(docker inspect -f '{{.Id}}' "$CONTAINER_NAME")
+          echo "Container name: $CONTAINER_NAME"
+          echo "Container ID:   $CONTAINER_ID"
+          echo "container_name=$CONTAINER_NAME" >> "$GITHUB_OUTPUT"
+          echo "container_id=$CONTAINER_ID" >> "$GITHUB_OUTPUT"
+
+      - name: activate_tdengine_license
+        env:
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
+          GRANT_SSH: tdengine-grant
+        run: |
+          ./.github/scripts/activate_tdengine_license.sh
+
+      - name: wait_for_tests
+        run: |
+          CONTAINER_NAME="${{ steps.start_container.outputs.container_name }}"
+          echo "Waiting for tests to complete inside container..."
+          docker logs -f "$CONTAINER_NAME" &
+          LOGS_PID=$!
+          EXIT_CODE=$(docker wait "$CONTAINER_NAME")
+          wait "$LOGS_PID" || true
+          echo "Container exited with code: $EXIT_CODE"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "=== Last 200 lines of container logs ==="
+            docker logs --tail 200 "$CONTAINER_NAME"
+            exit "$EXIT_CODE"
+          fi
+
+      - name: restore_workspace_ownership
+        if: always()
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace/taosx" \
+            --entrypoint /bin/sh \
+            "$IMAGE_TAG" \
+            -c "chown -R $(id -u):$(id -g) /workspace/taosx/target 2>/dev/null || true"
+
+      - name: stop_test_container
+        if: always()
+        run: |
+          docker rm -f "${{ steps.start_container.outputs.container_name }}" || true
+
+      - name: save_coverage_files
+        run: |
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH
+          ssh root@$RELEASE_HOST "mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH"
+          cp target/llvm-cov-taosx.lcov $COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: llvm-cov-taosx.lcov not found"
+          cp target/llvm-cov-explorer.lcov $COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: llvm-cov-explorer.lcov not found"
+          scp target/llvm-cov-taosx.lcov root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: failed to upload llvm-cov-taosx.lcov"
+          scp target/llvm-cov-explorer.lcov root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: failed to upload llvm-cov-explorer.lcov"
+
+  # Upload coverage for unit test
+  upload_coverage:
+    needs: [generate_coverage_reports]
+    name: upload_coverage_report
+    runs-on: [self-hosted, linux, x64, app2]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: download_coverage_artifacts
+        run: |
+          scp -r root@${{ env.RELEASE_HOST }}:${{ env.COVERAGE_BASE_DIR }}/${{ env.DIR_PATH }}/llvm-cov-merged.lcov ./
+          scp -r root@${{ env.RELEASE_HOST }}:${{ env.COVERAGE_BASE_DIR }}/${{ env.DIR_PATH }}/html ./coverage-html
+
+      - name: check_coverage_threshold
+        id: check_coverage
+        run: |
+          # Install tools if needed
+          if ! command -v lcov &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y lcov
+          fi
+
+          # Calculate coverage from lcov file
+          lcov --summary llvm-cov-merged.lcov 2>&1 | tee coverage_summary.txt
+
+          # Extract line coverage percentage
+          COVERAGE=$(grep -oP 'lines......: \K[0-9.]+' coverage_summary.txt | head -1)
+
+          echo "Current coverage: ${COVERAGE}%"
+
+          TARGET_BRANCH="${{ github.base_ref }}"
+          TARGET_COVERAGE=$(curl --request GET \
+            --url "https://api.codecov.io/api/v2/github/taosdata/repos/taosx/totals/?branch=$TARGET_BRANCH" \
+            --header 'accept: application/json' \
+            --header "authorization: Bearer ${{ secrets.CODECOV_API_TOKEN }}" | jq '.totals.coverage')
+
+          if [ -z "$TARGET_COVERAGE" ] || [ "$TARGET_COVERAGE" == "null" ]; then
+            echo "Could not retrieve target branch coverage. Using default threshold of ${COVERAGE_THRESHOLD}%."
+            TARGET_COVERAGE=$COVERAGE_THRESHOLD
+          else
+            echo "Target branch ($TARGET_BRANCH) coverage: ${TARGET_COVERAGE}%"
+            echo "target_coverage=$TARGET_COVERAGE" >> "$GITHUB_OUTPUT"
+            # allow some decrease in coverage
+            COVERAGE_THRESHOLD=$(echo "$TARGET_COVERAGE - $COVERAGE_ALLOW_DECREASE" | bc)
+          fi
+          echo "Required threshold: ${COVERAGE_THRESHOLD}%"
+          echo "coverage_threshold=$COVERAGE_THRESHOLD" >> "$GITHUB_OUTPUT"
+
+          # Compare coverage to threshold
+          if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below threshold ${COVERAGE_THRESHOLD}%"
+            echo "Please add tests to maintain or improve coverage."
+
+            echo "coverage_status=failed" >> "$GITHUB_OUTPUT"
+            echo "coverage_difference=-$(echo "$COVERAGE_THRESHOLD - $COVERAGE" | bc -l)" >> "$GITHUB_OUTPUT"
+            echo "coverage_report=❌ Coverage ${COVERAGE}% is below threshold ${COVERAGE_THRESHOLD}%" >> "$GITHUB_OUTPUT"
+            exit 1
+          elif (( $(echo "$COVERAGE < $TARGET_COVERAGE" | bc -l) )); then
+            echo "⚠️ Coverage ${COVERAGE}% has decreased compared to target branch coverage ${TARGET_COVERAGE}%"
+            echo "Consider adding tests to improve coverage."
+
+            echo "coverage_status=warning" >> "$GITHUB_OUTPUT"
+            echo "coverage_difference=-$(echo "$TARGET_COVERAGE - $COVERAGE" | bc -l)" >> "$GITHUB_OUTPUT"
+            echo "coverage_report=⚠️ Coverage ${COVERAGE}% has decreased compared to target branch coverage ${TARGET_COVERAGE}%" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Coverage ${COVERAGE}% meets or exceeds threshold ${COVERAGE_THRESHOLD}%"
+            echo "coverage_status=passed" >> "$GITHUB_OUTPUT"
+            echo "coverage_difference=+$(echo "$COVERAGE - $TARGET_COVERAGE" | bc -l)" >> "$GITHUB_OUTPUT"
+            echo "coverage_report=✅ Coverage ${COVERAGE}% meets or exceeds target branch coverage ${TARGET_COVERAGE}%" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: false
+
+      - name: upload_coverage_to_codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: llvm-cov-merged.lcov
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: upload_html_coverage_report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: coverage-html/
+          retention-days: 7
+
+      - name: send_coverage_to_feishu
+        run: |
+          coverage=$(lcov --summary llvm-cov-merged.lcov |grep "[0-9].*lines.*" -o)
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                  "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          PR_INFO="${{ github.workflow }} Coverage Report:\n
+          PR Title: ${{ github.event.pull_request.title || inputs.pr_title }}\n
+          PR Owner: @${{ github.actor }}\n
+          PR Page: ${{ github.event.pull_request.html_url || inputs.pr_url }}\n
+          PR Status: ${{ steps.check_coverage.outputs.coverage_status }}\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          Coverage Summary: $coverage\n
+          Coverage Threshold: ${{ steps.check_coverage.outputs.coverage_threshold }}%\n
+          Coverage Difference: ${{ steps.check_coverage.outputs.coverage_difference }}%\n
+          ${{ steps.check_coverage.outputs.coverage_report }}"
+          post_to_feishu "$PR_INFO"
+
+  check_arm:
+    name: check_arm
+    if: contains(fromJSON('["main", "3.3.8", "3.3.6"]'), github.event.pull_request.base.ref || inputs.base_ref)
+    runs-on: [self-hosted, linux, x64, app2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+      - name: prepare_arm_builder
+        run: |
+          set -euo pipefail
+
+          RUST_VERSION=$(awk -F'"' '/^RUST_VERSION = / {print $2; exit}' Makefile.toml)
+          MAKEFILE_ZIG_VERSION=$(awk -F'"' '/^ZIG_VERSION = / {print $2; exit}' Makefile.toml)
+          ZIG_VERSION="${{ env.ZIG_VERSION }}"
+          if [ "${ZIG_VERSION}" != "${MAKEFILE_ZIG_VERSION}" ]; then
+            echo "error: workflow ZIG_VERSION=${ZIG_VERSION} does not match Makefile.toml ZIG_VERSION=${MAKEFILE_ZIG_VERSION}"
+            exit 1
+          fi
+          DOCKERFILE_HASH=$(sha256sum docker/ci/build.arm64.Dockerfile | awk '{print $1}')
+          IMAGE_TAG="taosx/zigbuilder:rust-${RUST_VERSION}-zig-${ZIG_VERSION}-${DOCKERFILE_HASH}"
+          ZIG_ARCHIVE="docker/ci/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          ZIG_URL="https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+
+          echo "Resolved ARM builder image: ${IMAGE_TAG}"
+          echo "ARM_BUILDER_IMAGE=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+          if docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "ARM builder image ${IMAGE_TAG} already present. Reusing."
+          else
+            if [ ! -f "${ZIG_ARCHIVE}" ]; then
+              echo "Downloading Zig archive ${ZIG_ARCHIVE}"
+              wget -c -O "${ZIG_ARCHIVE}" "${ZIG_URL}"
+            fi
+            echo "ARM builder image ${IMAGE_TAG} not found locally. Building..."
+            docker build \
+              -f docker/ci/build.arm64.Dockerfile \
+              --build-arg ZIG_VERSION="${ZIG_VERSION}" \
+              --build-arg RUST_VERSION="${RUST_VERSION}" \
+              -t "${IMAGE_TAG}" \
+              docker/ci
+          fi
+      - name: check
+        run: |
+          cargo make zigbuild-aarch64-taosx
+
+  build_taosx:
+    needs: [check, remove_artifacts]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: check_out_repository_code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+
+      - name: build_taosx
+        run: |
+          cargo make taosx-with-coverage
+
+      - name: copy_files
+        run: |
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          cp ./target/debug/taosx $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          cd ..
+          tar --exclude=./taosx/target/* --exclude=./taosx/.git/* -zcf taosx.tar.gz ./taosx
+          cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm taosx.tar.gz
+          tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
+          rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
+
+  build_agent:
+    needs: [check, remove_artifacts]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: check_out_repository_code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+
+      - name: build_agent
+        run: |
+          cargo make taosx-agent-with-coverage
+
+      - name: copy_files
+        run: |
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          cp ./target/debug/taosx-agent $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+
+  build_explorer:
+    needs: [check, remove_artifacts]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: check_out_repository_code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+
+      - name: setup_node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: explorer/pnpm-lock.yaml
+
+      - name: setup_pnpm
+        run: npm install -g pnpm@10.33.4
+
+      - name: test_explorer_ui
+        working-directory: explorer
+        run: |
+          pnpm install
+          pnpm test
+
+      - name: build_explorer
+        run: |
+          cargo make explorer-with-coverage
+
+      - name: validate_explorer_ui_binary
+        run: |
+          ./.github/scripts/validate_explorer_ui_binary.sh
+
+      - name: copy_files
+        run: |
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          cp ./target/debug/taos-explorer $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+          # Copy explorer dist so debug/test runs can serve the UI with EXPLORER_ASSETS.
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH/explorer-dist
+          cp -r ./explorer/dist $ARTIFACT_BASE_DIR/$DIR_PATH/explorer-dist
+
+  build_xnoded:
+    needs: [check, remove_artifacts]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: build_xnoded
+        run: |
+          cargo make xnoded-with-coverage
+
+      - name: copy_files
+        run: |
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
+          cp ./target/debug/xnoded $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
+
+  build_go:
+    needs: remove_artifacts
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: check_out_repository_code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+      - name: print_env
+        run: |
+          pwd
+          go version
+      - name: build_opc
+        run: |
+          cd plugins/opc
+          go build -cover -o taosx-opc
+      - name: run_opc_unit_test
+        continue-on-error: true
+        run: |
+          cd plugins/opc
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run opc unit test"
+            go test -coverpkg=./... -coverprofile=opc_unit_report.txt  -timeout=5s ./...
+          fi
+      - name: copy_opc_files
+        run: |
+          cd plugins/opc
+          if [ -f "opc_unit_report.txt" ]; then
+            echo "Copy OPC Unit Test Coverage Data"
+            ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/"
+            scp opc_unit_report.txt root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/go_cover/opc_cover_data/
+            rm opc_unit_report.txt
+          fi
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/"
+          scp taosx-opc root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/
+
+  build_java:
+    needs: remove_artifacts
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - name: check_out_repository_code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
+      - name: print_env
+        run: |
+          pwd
+          java -version
+
+      - name: run_influxdb_unit_test
+        continue-on-error: true
+        run: |
+          cd plugins/influxdb
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run influxdb unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            mvn test
+          fi
+      - name: package_influxdb
+        run: |
+          cd plugins/influxdb
+          mvn clean package -Dmaven.test.skip=true
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/"
+          # scp ./target/taosx-influxdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/
+          scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/
+
+      - name: run_opentsdb_unit_test
+        continue-on-error: true
+        run: |
+          cd plugins/opentsdb
+          if [ -f "$RUN_UNIT_TEST_FILE_FLAG" ]; then
+            echo "run opentsdb unit test"
+            # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+            mvn test
+          fi
+      - name: package_opentsdb
+        run: |
+          cd plugins/opentsdb
+          mvn clean package -Dmaven.test.skip=true
+          ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/"
+          #scp ./target/taosx-opentsdb.jar root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
+          scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
+
+  test_integration:
+    needs:
+      [
+        detect_version,
+        build_taosx,
+        build_agent,
+        build_explorer,
+        build_xnoded,
+        build_go,
+        build_java,
+      ]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check_if_base_image_exists
+        id: check_base
+        run: |
+          # Extract Rust version from rust-toolchain.toml
+          RUST_VERSION=$(grep 'channel = ' rust-toolchain.toml | cut -d'"' -f2)
+          IMAGE_TAG="taosx-ha-ci-base:rust-${RUST_VERSION}"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+          if docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Base image $IMAGE_TAG already exists, skipping build"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Base image $IMAGE_TAG not found, will build"
+          fi
+
+      - name: build_base_image
+        if: steps.check_base.outputs.exists == 'false'
+        run: |
+          IMAGE_TAG="${{ steps.check_base.outputs.image_tag }}"
+          RUST_VERSION=$(grep 'channel = ' rust-toolchain.toml | cut -d'"' -f2)
+          cd docker/taosx-ha-ci-base
+          docker build --build-arg RUST_VERSION="$RUST_VERSION" -t "$IMAGE_TAG" .
+          # Also tag as latest for backward compatibility
+          docker tag "$IMAGE_TAG" taosx-ha-ci-base:latest
+          echo "✅ Base image built successfully: $IMAGE_TAG"
+
+      - name: resolve_tdengine_version
+        run: |
+          REQUESTED="${{ needs.detect_version.outputs.TDENGINE_VERSION }}"
+          MAJOR=$(echo "$REQUESTED" | cut -d'.' -f1)
+          MINOR=$(echo "$REQUESTED" | cut -d'.' -f2)
+          PATCH1=$(echo "$REQUESTED" | cut -d'.' -f3)
+          PATCH2=$(echo "$REQUESTED" | cut -d'.' -f4)
+          MAJOR_MINOR="${MAJOR}.${MINOR}"
+          for P2 in $PATCH2 $((PATCH2-1)) $((PATCH2-2)); do
+            [ "$P2" -lt 0 ] && continue
+            TRY="${MAJOR}.${MINOR}.${PATCH1}.${P2}"
+            URL="http://${TDENGINE_DOWNLOAD_HOST}/data/nas/TDengine/${MAJOR_MINOR}/v${TRY}/enterprise/tdengine-tsdb-enterprise-${TRY}-linux-x64.tar.gz"
+            STATUS=$(curl -sI --max-time 10 -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            echo "Version $TRY → HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Using TDengine version: $TRY"
+              echo "TDENGINE_VERSION=$TRY" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "ERROR: No TDengine version available on NAS for $REQUESTED (tried last 3 patch versions)"
+          exit 1
+
+      - name: prepare_build_context
+        run: |
+          mkdir -p docker/taosx-ha-ci/build
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx docker/taosx-ha-ci/build/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taosx-agent docker/taosx-ha-ci/build/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/taos-explorer docker/taosx-ha-ci/build/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/xnoded docker/taosx-ha-ci/build/
+          # Copy explorer dist files so taos-explorer can serve UI via EXPLORER_ASSETS in the container.
+          cp -r $ARTIFACT_BASE_DIR/$DIR_PATH/explorer-dist docker/taosx-ha-ci/build/explorer-dist
+          mkdir -p \
+            docker/taosx-ha-ci/build/plugins/influxdb \
+            docker/taosx-ha-ci/build/plugins/opentsdb \
+            docker/taosx-ha-ci/build/plugins/opc
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/influxdb/taosx-influxdb.jar docker/taosx-ha-ci/build/plugins/influxdb/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/taosx-opentsdb.jar docker/taosx-ha-ci/build/plugins/opentsdb/
+          cp $ARTIFACT_BASE_DIR/$DIR_PATH/bin/opc/taosx-opc docker/taosx-ha-ci/build/plugins/opc/
+          cp docker/taosx-ha-ci/startup.sh docker/taosx-ha-ci/build/
+          cp docker/taosx-ha-ci/convert-coverage.sh docker/taosx-ha-ci/build/
+
+      - name: build_docker_image
+        id: build
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          IMAGE_TAG="taosx-ha-ci:pr-${{ github.event.number || inputs.pr_number }}-${TIMESTAMP}"
+          BASE_IMAGE_TAG="${{ steps.check_base.outputs.image_tag }}"
+          docker build \
+            --build-arg BASE_IMAGE_TAG="$BASE_IMAGE_TAG" \
+            --build-arg TDENGINE_VERSION="$TDENGINE_VERSION" \
+            --build-arg TDENGINE_DOWNLOAD_HOST=${{ env.TDENGINE_DOWNLOAD_HOST }} \
+            -t $IMAGE_TAG \
+            -f docker/taosx-ha-ci/Dockerfile \
+            docker/taosx-ha-ci/build/
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "Built image: $IMAGE_TAG"
+
+      - name: find_available_ports_and_start_container
+        id: start_container
+        env:
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+          GRANT_SSH: tdengine-grant
+        run: |
+          ./.github/scripts/start_ci_container.sh
+
+      - name: verify_runtime_coverage_preflight
+        env:
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
+        run: |
+          PRECHECK_DIR="${COVERAGE_BASE_DIR}/${DIR_PATH}"
+          docker exec -i -e PRECHECK_DIR="$PRECHECK_DIR" "$CONTAINER_ID" sh <<'SH'
+          set -eu
+          rm -f "$PRECHECK_DIR"/preflight-*.profraw
+          for cmd in \
+            "/usr/bin/taosx --help" \
+            "/usr/bin/taosx-agent --help" \
+            "/usr/bin/taos-explorer --help" \
+            "/usr/bin/xnoded --help"
+          do
+            echo "Running coverage preflight: $cmd"
+            LLVM_PROFILE_FILE="$PRECHECK_DIR/preflight-%p-%m.profraw" sh -c "$cmd >/dev/null 2>&1" || true
+          done
+          SH
+
+          if ! find "$PRECHECK_DIR" -maxdepth 1 -name 'preflight-*.profraw' -print -quit | grep -q .; then
+            echo "ERROR: runtime coverage preflight did not generate any profraw files"
+            docker exec "$CONTAINER_ID" sh -c 'echo "LLVM_PROFILE_FILE=${LLVM_PROFILE_FILE:-unset}"'
+            ls -al "$PRECHECK_DIR" || true
+            exit 1
+          fi
+
+          echo "Coverage preflight generated:"
+          find "$PRECHECK_DIR" -maxdepth 1 -name 'preflight-*.profraw' -print | sort
+          rm -f "$PRECHECK_DIR"/preflight-*.profraw
+
+      - name: validate_explorer_routes_in_container
+        env:
+          # Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues.
+          # Docker maps ports to 0.0.0.0 (IPv4 only); if Chromium resolves
+          # localhost to ::1 (IPv6) first, it may get 404 from Docker's IPv6
+          # proxy instead of reaching the container.
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:${{ steps.start_container.outputs.port_6060 }}
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
+        run: |
+          ./.github/scripts/validate_explorer_routes_in_container.sh
+
+      - name: setup_integration_test_env
+        env:
+          PORT_6060: ${{ steps.start_container.outputs.port_6060 }}
+          PORT_6041: ${{ steps.start_container.outputs.port_6041 }}
+        run: |
+          ./.github/scripts/setup_integration_test_env.sh
+
+      - name: run_unit_tests_on_host
+        run: |
+          # Run tests on host without llvm-cov instrumentation, connecting to instrumented container services
+          # Coverage data comes from the instrumented binaries running in the container
+          cargo make test-integration
+
+      - name: setup_node_for_ui_tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: explorer/pnpm-lock.yaml
+
+      - name: install_pnpm_for_ui_tests
+        run: npm install -g pnpm@10.33.4
+
+      - name: cache_playwright_browsers
+        uses: actions/cache@v4
+        with:
+          # Self-hosted UI test runners mount /data2 for browser binaries
+          # that should survive workspace cleanup between workflow runs.
+          path: /data2/taosx-playwright-cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/taos-ui/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: run_ui_tests
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:${{ steps.start_container.outputs.port_6060 }}
+          # Keep CI browser binaries outside the workspace so self-hosted
+          # runners can reuse them across clean checkouts.
+          PLAYWRIGHT_BROWSERS_PATH: /data2/taosx-playwright-cache/ms-playwright
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
+        run: |
+          ./.github/scripts/run_ui_tests.sh
+
+      - name: upload_ui_test_report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: explorer/playwright-report/
+          retention-days: 7
+
+      - name: stop_services_and_collect_coverage
+        if: success()
+        env:
+          CONTAINER_ID: ${{ steps.start_container.outputs.container_id }}
+        run: |
+          ./.github/scripts/stop_services_and_collect_coverage.sh
+
+      - name: publish_integration_coverage
+        if: success()
+        run: |
+          ssh root@$RELEASE_HOST "mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH"
+          scp $COVERAGE_BASE_DIR/$DIR_PATH/llvm-cov-integration.lcov root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: failed to upload llvm-cov-integration.lcov"
+
+      - name: stop_and_remove_container_and_image
+        if: always()
+        run: |
+          CONTAINER_ID="${{ steps.start_container.outputs.container_id }}"
+          IMAGE_TAG="${{ steps.build.outputs.image_tag }}"
+
+          # Stop and remove container
+          docker stop $CONTAINER_ID || true
+          docker rm $CONTAINER_ID || true
+
+          # Remove the PR-specific image
+          docker rmi $IMAGE_TAG || true
+
+          echo "Cleaned up container $CONTAINER_ID and image $IMAGE_TAG"
+
+  generate_coverage_reports:
+    needs: [local_test, test_integration, check_arm]
+    if: ${{ success() || ( needs.local_test.result == 'success' && needs.test_integration.result == 'success' && needs.check_arm.result == 'skipped') }}
+    runs-on: [self-hosted, linux, x64, qa, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generate_and_merge_coverage_reports
+        run: |
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH
+          scp root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/llvm-cov-taosx.lcov $COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: llvm-cov-taosx.lcov not found on $RELEASE_HOST"
+          scp root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/llvm-cov-explorer.lcov $COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: llvm-cov-explorer.lcov not found on $RELEASE_HOST"
+          scp root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/llvm-cov-integration.lcov $COVERAGE_BASE_DIR/$DIR_PATH/ || echo "Warning: llvm-cov-integration.lcov not found on $RELEASE_HOST"
+          export COVERAGE_OUTPUT_DIR=$COVERAGE_BASE_DIR/$DIR_PATH
+
+          # Merge all lcov files (unit tests + integration tests)
+          cargo make merge-all-coverage
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH/html --quiet --ignore-errors source --ignore-errors unmapped $COVERAGE_BASE_DIR/$DIR_PATH/llvm-cov-merged.lcov
+          ssh root@$RELEASE_HOST "mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH"
+          scp $COVERAGE_BASE_DIR/$DIR_PATH/llvm-cov-merged.lcov root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/
+          scp -r $COVERAGE_BASE_DIR/$DIR_PATH/html root@$RELEASE_HOST:$COVERAGE_BASE_DIR/$DIR_PATH/
+
+  feishu_report:
+    runs-on: [self-hosted, linux, x64, qa, test]
+    needs: [local_test, test_integration, generate_coverage_reports]
+    if: failure()
+    steps:
+      - name: send_feishu_message
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          PR_INFO="${{ github.workflow }} failed:\n
+          PR Title: ${{ github.event.pull_request.title || inputs.pr_title }}\n
+          PR Owner: @${{ github.actor }}\n
+          PR Page: ${{ github.event.pull_request.html_url || inputs.pr_url }}\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          Test Report: $REPORT_BASE_URL/$DIR_PATH/allure_report/\n"
+
+          post_to_feishu "$PR_INFO"

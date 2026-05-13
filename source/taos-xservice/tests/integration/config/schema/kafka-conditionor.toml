@@ -1,0 +1,76 @@
+# Fake data schema for air_conditioner_v Kafka messages.
+# Generates JSON matching the parser rule: modelQualifier == "air_conditioner_v"
+
+type = "object"
+
+[properties.dataQualifier]
+type = "string"
+fixed = "jobInfo"
+
+[properties.deviceName]
+type = "string"
+samples = ["conditionor_alpha", "conditionor_beta", "conditionor_gamma"]
+
+[properties.deviceQualifier]
+type = "string"
+fixed = "conditionor_qual_001"
+
+[properties.factoryCode]
+type = "string"
+fixed = "FC002"
+
+[properties.factoryName]
+type = "string"
+fixed = "TestFactory"
+
+[properties.machineType]
+type = "number"
+fixed = 2
+
+[properties.machineTypeName]
+type = "string"
+fixed = "air_conditioner"
+
+[properties.modelQualifier]
+type = "string"
+fixed = "air_conditioner_v"
+
+[properties.uuid]
+type = "string"
+samples = ["dev004", "dev005", "dev006"]
+
+[properties.reportData]
+type = "object"
+
+[properties.reportData.properties.DeviceNo]
+type = "number"
+range = { min = 1, max = 100 }
+
+[properties.reportData.properties.originTime]
+type = "timestamp"
+start_time = 2026-01-01T00:00:00
+interval = "1ms"
+
+[properties.reportData.properties.HumiSet]
+type = "number"
+range = { min = 30, max = 70 }
+
+[properties.reportData.properties.Temp]
+type = "float"
+range = { min = 10.0, max = 40.0 }
+
+[properties.reportData.properties.RunMode]
+type = "number"
+range = { min = 0, max = 3 }
+
+[properties.reportData.properties.TempSet]
+type = "number"
+range = { min = 16, max = 30 }
+
+[properties.reportData.properties.DeviceStatus]
+type = "number"
+range = { min = 0, max = 7 }
+
+[properties.reportData.properties.Humi]
+type = "float"
+range = { min = 20.0, max = 90.0 }

@@ -1,0 +1,95 @@
+settings:
+  - name: taosd
+    fqdn: [v3cluster-0001]
+    spec:
+      version: 3.0.0.1  #
+      config: # common config for all dnodes
+        firstEP: v3cluster-0001:6030
+      dnodes:
+        - endpoint: v3cluster-0001:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        - endpoint: v3cluster-0002:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        - endpoint: v3cluster-0003:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        - endpoint: v3cluster-0004:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            asynclog: 0
+        
+  - name: taospy
+    fqdn: [v3cluster-0001]
+    spec:
+      version: 3.0.0.1
+      client_version: 3.0.0.1
+      config:
+        firstEP: v3cluster-0001:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+        asynclog: 0
+    
+  - name: taosBenchmark
+    fqdn: [v3cluster-0001]
+    spec:
+      version: 3.0.0.1
+      taos_version: 3.0.0.1
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: v3cluster-0001:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+  # - name: taosBenchmark
+  #   fqdn: [v3cluster-0001]
+  #   spec:
+  #     version: 3.0.0.1
+  #     taos_version: 3.0.0.1
+  #     config_dir: /etc/taos
+  #     taos_config:
+  #       firstEP: v3cluster-0001:6030
+  #       logDir: /var/log/taos
+  #       debugFlag: 131
+
+
+  - name: prometheus
+    fqdn: [v3cluster-0001]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [v3cluster-0001:9090]
+      node_exporter:
+        fqdn: [v3cluster-0001, v3cluster-0002, v3cluster-0003, v3cluster-0004]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [v3cluster-0001, v3cluster-0002, v3cluster-0003, v3cluster-0004]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark]
+          custom_process:
+            v3cluster-0001: [taosd, taosBenchmark]
+            v3cluster-0002: [taosd]
+

@@ -1,0 +1,30 @@
+[source.crates-io]
+replace-with = 'rsproxy-sparse'
+
+[source.rsproxy]
+registry = "https://rsproxy.cn/crates.io-index"
+
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+
+[registries.rsproxy]
+index = "https://rsproxy.cn/crates.io-index"
+
+[net]
+git-fetch-with-cli = true
+
+[build]
+incremental = false
+
+# GCC >= 12.1.0
+#[target.x86_64-unknown-linux-gnu]
+#rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold", "--cfg", "tokio_unstable"]
+#[target.aarch64-unknown-linux-gnu]
+#rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold", "--cfg", "tokio_unstable"]
+
+# GCC 10 for manylinux2014
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-B/usr/bin/mold", "--cfg", "tokio_unstable"]
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-B/usr/bin/mold", "--cfg", "tokio_unstable"]
+

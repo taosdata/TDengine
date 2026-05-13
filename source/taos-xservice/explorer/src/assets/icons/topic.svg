@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 23.1.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px"
+	y="0px" viewBox="0 0 155.9 155.9" style="enable-background:new 0 0 155.9 155.9;" xml:space="preserve">
+	<style type="text/css">
+		.st0 {
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 7;
+			stroke-linecap: round;
+			stroke-miterlimit: 10;
+		}
+
+		.st1 {
+			fill: #FFFFFF;
+			stroke: currentColor;
+			stroke-width: 7;
+			stroke-linecap: round;
+			stroke-miterlimit: 10;
+		}
+
+		.st2 {
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 7;
+			stroke-linecap: round;
+			stroke-linejoin: round;
+			stroke-miterlimit: 10;
+		}
+	</style>
+	<g>
+		<polyline class="st0" points="19.2,102.6 19.2,144 133.9,144 133.9,106 	" />
+		<line class="st0" x1="47.2" y1="11.9" x2="47.2" y2="122.3" />
+		<line class="st0" x1="76.5" y1="11.9" x2="76.5" y2="122.3" />
+		<line class="st0" x1="106.2" y1="11.9" x2="106.2" y2="122.3" />
+		<polygon class="st2" points="5.6,55.3 5.6,87.7 31,71.5 	" />
+		<polygon class="st2" points="124.9,55.3 124.9,87.7 150.3,71.5 	" />
+	</g>
+</svg>

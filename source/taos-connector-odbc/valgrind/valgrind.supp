@@ -1,0 +1,25 @@
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:__libc_alloc_buffer_allocate
+   fun:alloc_buffer_allocate
+   fun:__resolv_conf_allocate
+   fun:__resolv_conf_load
+   fun:__resolv_conf_get_current
+   fun:__res_vinit
+   fun:maybe_init
+   fun:context_get
+   fun:context_get
+   fun:__resolv_context_get
+   fun:get_nss_addresses
+   fun:gaih_inet
+   fun:getaddrinfo
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr1
+   fun:_stmt_param_get
+}
+

@@ -1,0 +1,24 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "vm130",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "databases": "testdb",
+    "query_times": 10,
+    "query_mode": "taosc",
+    "specified_table_query": {
+      "query_interval": 1,
+      "concurrent": 10,
+      "sqls": [
+        {
+          "sql": "select * from stb "
+        },
+        {
+          "sql": "select abs(c1) from stb "
+        }
+      ]
+    }
+}

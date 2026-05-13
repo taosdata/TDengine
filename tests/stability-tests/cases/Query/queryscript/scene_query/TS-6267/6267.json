@@ -1,0 +1,67 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "192.168.1.64",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 8,
+    "create_table_thread_count": 8,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 1000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "hhfk_ts_db",
+                "drop": "yes",
+                "replica": 1,
+                "BUFFER": 32,
+                "CACHESIZE": 1,
+                "PRECISION": "ms",
+                "WAL_RETENTION_PERIOD": 3600,
+                "vgroups": 2,
+                "S3_CHUNKPAGES": 262144,
+                "S3_COMPACT": 0,
+                "S3_KEEPLOCAL": "5256000m",
+                "STT_TRIGGER": 2
+            },
+            "super_tables": [
+                {
+                    "name": "st_quality",
+                    "childtable_count": 1000,
+                    "childtable_prefix": "ADY2R_RKSF",
+                    "data_source": "rand",
+                    "timestamp_step": 3000,
+                    "start_timestamp": "2025-04-01 15:56:13.071",
+                    "insert_mode": "stmt",
+                    "line_protocol": "line",
+                    "non_stop_mode": "no",
+                    "insert_rows": 1000,
+                    "interlace_rows": 1,
+                    "insert_interval": 10,
+                    "child_table_exists": "yes",
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "auto_create_table": "no",
+                    "columns": [
+                        {"name": "quality","type": "INT"},
+                        {"name": "val","type": "NCHAR", "len": 64, "values": [ "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"] },
+                        {"name": "rts","type": "TIMESTAMP"}
+                        ],
+                    "tags": [
+                        {"name": "cx","type": "VARCHAR", "len": 10 , "values": [ "A"] },
+                        {"name": "gyd","type": "VARCHAR", "len": 10 , "values": [ "DY"] },
+                        {"name": "gx","type": "VARCHAR", "len": 10 , "values": [ "2R"] },
+                        {"name": "lx","type": "VARCHAR", "len": 10 , "values": [ "GY"] }
+                        ]
+                }
+            ]
+        }
+    ]
+}

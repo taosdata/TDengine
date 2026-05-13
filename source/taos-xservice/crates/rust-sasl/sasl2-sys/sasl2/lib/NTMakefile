@@ -1,0 +1,126 @@
+!INCLUDE ..\win32\common.mak
+
+# WS2tcpip.h included in Visual Studio 7 provides getaddrinfo, ...
+# emulation on Windows, so there is no need to build getaddrinfo.c
+
+!IF "$(VCVER)" == "6"
+compat_objs = getaddrinfo.obj getnameinfo.obj
+!ENDIF
+
+plugin_objs =
+libsasl_objs = auxprop.obj canonusr.obj checkpw.obj client.obj common.obj config.obj external.obj md5.obj saslutil.obj server.obj seterror.obj windlopen.obj getsubopt.obj plugin_common.obj $(compat_objs) $(plugin_objs)
+libsasl_res = libsasl.res
+libsasl_out = libsasl.dll libsasl.exp libsasl.lib $(libsasl_res)
+
+CPPFLAGS = /wd4996 /D NEED_GETOPT /I "..\win32\include" /I "." /I "..\include" /I "..\common" /I "$(OPENSSL_INCLUDE)" /D "LIBSASL_EXPORTS" $(COMMON_CPPFLAGS)
+
+!IF "$(STATIC_PLAIN)" == "1"
+plugin_objs = $(plugin_objs) plain.obj
+CPPFLAGS = $(CPPFLAGS) /DSTATIC_PLAIN
+!ENDIF
+
+!IF "$(STATIC_SCRAM)" == "1"
+plugin_objs = $(plugin_objs) scram.obj
+CPPFLAGS = $(CPPFLAGS) /DSTATIC_SCRAM /DHAVE_SHA256
+!ENDIF
+
+!IF $(TARGET_WIN_SYSTEM) >= 51
+CPPFLAGS = /D TARGET_WIN_SYSTEM=$(TARGET_WIN_SYSTEM) $(CPPFLAGS)
+!ENDIF 
+
+all_objs = $(libsasl_objs)
+all_out = $(libsasl_out)
+
+libdir = $(prefix)\lib
+bindir = $(prefix)\bin
+exclude_list = binexclude.lst
+
+all: all-recursive
+
+#
+# /I flag to xcopy tells to treat the last parameter as directory and create all missing levels
+#
+# In order to force xcopy not to confirm if the second parameter is file or directory,
+# the first parameter has to contain a wildcard character. For example, we use libsasl.l*,
+# instead of libsasl.lib. Ugly, but works!
+#
+install: libsasl.dll
+	@xcopy libsasl.l* "$(libdir)" /I /F /Y
+
+all-recursive: libsasl.dll
+
+libsasl.dll: $(libsasl_objs) $(libsasl_res)
+	$(LINK32LIB) @<< /out:"libsasl.lib" /pdb:"libsasl.pdb" $(libsasl_objs) $(libsasl_res) /libpath:$(OPENSSL_LIBPATH) libcrypto.lib
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;2
+
+plain.c: ..\plugins\plain.c
+	xcopy /D /Y ..\plugins\plain.c .
+
+scram.c: ..\plugins\scram.c
+	xcopy /D /Y ..\plugins\scram.c .
+
+plugin_common.c: ..\common\plugin_common.c plugin_common.h
+	xcopy /D /Y ..\common\plugin_common.c .
+
+plugin_common.h: ..\common\plugin_common.h
+	xcopy /D /Y ..\common\plugin_common.h .
+
+auxprop.obj checkpw.obj client.obj common.obj external.obj plugin_common.obj server.obj seterror.obj: ..\include\saslplug.h
+
+auxprop.obj canonusr.obj checkpw.obj client.obj common.obj config.obj external.obj getsubopt.obj md5.obj plugin_common.obj server.obj seterror.obj windlopen.obj: ..\include\sasl.h ..\include\prop.h
+
+auxprop.obj canonusr.obj checkpw.obj client.obj common.obj config.obj dlopen.obj external.obj saslutil.obj server.obj seterror.obj windlopen.obj: saslint.h
+
+CLEAN :
+	-@erase $(all_objs)
+	-@erase "*.idb"
+	-@erase "*.pdb"
+	-@erase "*.manifest"
+	-@erase $(all_out)
+	-@erase plugin_common.h
+	-@erase plugin_common.c
+	-@erase $(exclude_list)
+
+$(libsasl_res): NTMakefile
+	rc /fo"$(libsasl_res)" <<
+#include "windows.h"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION $(SASL_VERSION_MAJOR),$(SASL_VERSION_MINOR),$(SASL_VERSION_STEP),0
+ PRODUCTVERSION $(SASL_VERSION_MAJOR),$(SASL_VERSION_MINOR),$(SASL_VERSION_STEP),0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Carnegie Mellon University\0"
+            VALUE "FileDescription", "CMU SASL API v2\0"
+            VALUE "FileVersion", "$(SASL_VERSION_MAJOR).$(SASL_VERSION_MINOR).$(SASL_VERSION_STEP).0\0"
+            VALUE "InternalName", "libsasl\0"
+            VALUE "LegalCopyright", "Copyright (c) Carnegie Mellon University 2002-2017\0"
+            VALUE "OriginalFilename", "libsasl.dll\0"
+            VALUE "ProductName", "Carnegie Mellon University SASL\0"
+            VALUE "ProductVersion", "$(SASL_VERSION_MAJOR).$(SASL_VERSION_MINOR).$(SASL_VERSION_STEP)-0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+<<
+
+.c.obj::
+   $(CPP) @<<
+   $(CPP_PROJ) $< 
+<<

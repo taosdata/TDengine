@@ -1,0 +1,609 @@
+name: Testing coverage on branch main
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/coverage-*
+    paths:
+      - ".github/workflows/3.0-qa-ci.yaml"
+
+env:
+  RELEASE_HOST: 192.168.1.45
+  CC: "clang-18"
+  CXX: "clang++-18"
+  CARGO_HOME: /data2/.cargo
+  RUSTFLAGS: "-Clink-arg=-fuse-ld=/usr/bin/mold -Clink-arg=-Wl,--no-rosegment --cfg tokio_unstable -C instrument-coverage --cfg=coverage --cfg=trybuild_no_target"
+  LLVM_PROFILE_DIR: "/data/coverage/llvm-cov-profile/"
+  LLVM_PROFILE_FILE: "/data/coverage/llvm-cov-profile/taosx-%p-%m.profraw"
+  ARTIFACT_BASE_DIR: /data/artifacts
+  COVERAGE_BASE_DIR: /data/coverage
+  DIR_PATH_3_0: "main"
+  RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
+  REPORT_BASE_URL: http://192.168.1.45:8788
+  COVERAGE_REPORT_BASE_DIR: /data/code_coverage_taosx
+  COVERAGE_DATABASE_URL: http://192.168.0.204:6041/rest/sql
+  WINDOWS_AGENT_TOKEN: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIwLCJpYXQiOjE3NjIxMjg1ODh9.mBRgWr7XiY2x5YhSn1pvmuGmjAlYfpkiQ7w1Q8ODFCc"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  set_env:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    outputs:
+      coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
+    steps:
+      - name: Set COVERAGE_REPORT_DIR
+        id: set_env
+        run: |
+          echo "coverage_report_dir=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_OUTPUT
+      - name: Print COVERAGE_REPORT_DIR
+        run: echo $COVERAGE_REPORT_DI
+
+  remove_artifacts:
+    needs: set_env
+    env:
+      COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name: Remove artifacts
+        continue-on-error: true
+        run: |
+          mkdir -p /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/
+          # find /data/code_coverage_taosx/ -mindepth 1 -mtime +10 -exec rm -rf {} + 2>/dev/null
+          rm -rf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/*-remove.info
+          rm -rf $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/
+      - name: Print COVERAGE_REPORT_DIR
+        run: echo $COVERAGE_REPORT_DIR
+
+      #部署前先把已经启动的进程都关闭，确保运行正常
+      - name: Stop taosx-agent & taosx
+        shell: bash {0}
+        run: |
+          systemctl stop taosx-agent
+          systemctl stop taosx
+          systemctl stop taos-explorer
+
+  build_rust:
+    needs: [remove_artifacts, set_env]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Print Env
+        run: |
+          pwd
+          rustup --version
+          cargo --version
+          rustup component add llvm-tools-preview
+          rustc --version
+
+      - name: Cache Explorer UI
+        id: cache-explorer-ui
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-explorer-ui
+        with:
+          # npm cache files are stored in `~/.npm`
+          path: explorer/dist
+          key: build-${{ env.cache-name }}-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/src/**/*.*', 'explorer/taos-ui/**/*.*') }}
+          restore-keys: |
+            build-${{ env.cache-name }}-
+
+      - if: ${{ steps.cache-explorer-ui.outputs.cache-hit != 'true' }}
+        name: Build Explorer UI
+        continue-on-error: true
+        run: cargo make explorer-ui-prod
+      - name: Build taosX
+        run: |
+          # build taosx and taosx-agent
+          commit=$(git --no-pager log -1 --format="%H")
+          echo "Current commit hash: $commit"
+          taosx_commit=$(./target/debug/taosx-build/debug/taosx --version |grep -E 'git:' |cut -f 2 -d ' ')
+          echo "taosx commit hash: $taosx_commit"
+          if [ "$commit" != "$taosx_commit" ]; then
+            rm -rf "$LLVM_PROFILE_DIR" || true
+            cargo build --target-dir ./target/debug/taosx-build/ --workspace
+          else
+            echo "Skip build taosx, the commit hash is the same as the last build."
+          fi
+      - name: Copy files
+        run: |
+          install target/debug/taosx-build/debug/taos-explorer /usr/bin/taos-explorer
+          install target/debug/taosx-build/debug/taosx /usr/bin/taosx
+          install target/debug/taosx-build/debug/taosx-agent /usr/bin/taosx-agent
+
+          rm -rf /$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx
+          mkdir -p /$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/ || true
+          rsync -av --exclude 'target' --exclude 'explorer/dist' --exclude '.git' --exclude 'explorer/.pnpm-store' --exclude 'explorer/node_modules' ./ /$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/
+
+  deploy_taosx_plugins:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [taosx_run_unit_test]
+    steps:
+      - name: Deploy plugins
+        run: cargo make install-plugins
+      - name: Restart Services
+        run: |
+          tee /etc/default/taosx <<-'EOF'
+          LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/qin/TDengine/dockerbuild/instantclient_19_24
+          LLVM_PROFILE_FILE=/data/coverage/llvm-cov-profile/taosx-%p-%m.profraw
+          EOF
+          tee /etc/default/taosx-agent <<-'EOF'
+          LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/qin/TDengine/dockerbuild/instantclient_19_24
+          LLVM_PROFILE_FILE=/data/coverage/llvm-cov-profile/taosx-agent-%p-%m.profraw
+          EOF
+          tee /etc/default/taos-explorer <<-'EOF'
+          LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/qin/TDengine/dockerbuild/instantclient_19_24
+          LLVM_PROFILE_FILE=/data/coverage/llvm-cov-profile/taos-explorer-%p-%m.profraw
+          EOF
+          cp /etc/default/taosx /etc/default/taosx-agent
+          cp /etc/default/taosx-agent /etc/default/taos-explorer
+          systemctl restart taosadapter
+          systemctl restart taosx
+          systemctl restart taosx-agent
+          systemctl restart taos-explorer
+      - name: Deploy windows agent
+        id: deploy_windows_agent
+        run: |
+          echo "Deploy windows agent"
+          # 等待 taosx 启动完成
+          sleep 5
+          echo "RPC_PORT: 6055"
+          # 调用 windows 远程服务拉起 windows-agent
+          echo $PATH
+          cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 ${WINDOWS_AGENT_TOKEN}
+  taosx_run_unit_test:
+    needs: [build_rust]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    steps:
+      - name: Cache Unit Test
+        id: cache-unit-test
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-unit-test
+        with:
+          path: target/llvm-cov-merged.lcov
+          key: ${{ env.cache-name }}-${{ hashFiles('Cargo.lock', 'crates/**/*.rs', 'explorer/server/**/*.rs', 'src/**/*.rs', 'taosx-*/**/*.rs') }}
+          restore-keys: |
+            ${{ env.cache-name }}
+      - name: taosX unit test
+        if: ${{ steps.cache-unit-test.outputs.cache-hit != 'true' }}
+        run: |
+          echo "run taosx unit test"
+          cargo llvm-cov nextest --workspace --ignore-run-fail -j 16 --lcov --output-path=target/llvm-cov-merged.lcov
+      - name: Copy taosx unit test coverage file
+        run: |
+          cp target/llvm-cov-merged.lcov $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+
+  build_go_run_unit_test:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [remove_artifacts, set_env, taosx_run_unit_test]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Print Env
+        run: |
+          pwd
+          go version
+      - name: Build opc
+        run: |
+          cd plugins/opc
+          go build -cover -o taosx-opc
+      - name: Run OPC Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/opc
+          # pip3 install opcua
+          # nohup python3 plugins/opc/test/ua_server.py & disown
+          go test -coverpkg=./... -coverprofile=opc_unit_report.txt -timeout=120s ./...
+      - name: Copy OPC Files
+        run: |
+          cd plugins/opc
+          echo "Copy OPC Unit Test Coverage Data"
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/
+          cp opc_unit_report.txt $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/
+          rm opc_unit_report.txt
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
+          cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
+  build_java_run_unit_test:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [remove_artifacts, set_env, build_go_run_unit_test]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Print Env
+        run: |
+          pwd
+          java -version
+      - name: Run InfluxDB Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/influxdb
+          # 这里只执行单元测试不做覆盖率统计，单元测试的覆盖率统计与端到端的覆盖率一起统计
+          mvn test
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/ || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/
+          mv ./target/jacoco.exec $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/influxdb_cover_data/influxdb_unit_test_jacoco.exec
+      - name: Package influxdb
+        run: |
+          cd plugins/influxdb
+          mvn clean package -Dmaven.test.skip=true
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/
+          cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/influxdb/
+      - name: Run OpenTSDB Unit Test
+        continue-on-error: true
+        run: |
+          cd plugins/opentsdb
+          mvn test
+          mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/
+          mv ./target/jacoco.exec $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/java_cover/opentsdb_cover_data/opentsdb_unit_test_jacoco.exec
+      - name: Package OpenTSDB
+        run: |
+          cd plugins/opentsdb
+          mvn clean package -Dmaven.test.skip=true
+          ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
+          cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
+  run_e2e_test:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [deploy_taosx_plugins, set_env]
+
+    steps:
+      - name: Run Test
+        continue-on-error: true
+        run: |
+          rm -rf $COVERAGE_BASE_DIR/opentsdb/
+          rm -rf $COVERAGE_BASE_DIR/influxdb/
+          ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
+          cd /data/github/TestNG_taosX
+          source ./setenv.sh
+          curl http://$TAOSX_HOST:$TAOSX_PORT/profile |jq .
+          poetry install
+          poetry run pytest -n 8 --reruns 2 --reruns-delay 1 --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 --tb=no --maxfail=0 -m sanity -k "not user_migration_test.py"
+
+  stop_taosx:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test]
+    # 没有用例失败时才会执行，用于在用例失败时查看任务状态
+    if: ${{ always() && needs.run_e2e_test.result == 'success' }}
+    steps:
+      - name: Stop taosx-agent & taosx
+        run: |
+          systemctl stop taosx
+          systemctl stop taosx-agent
+          systemctl stop taos-explorer
+  generate_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test, build_java_run_unit_test, stop_taosx, set_env]
+    if: ${{ always() }}
+    steps:
+      - name: allure report
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          allure generate $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_report/ --clean
+          echo "see report at $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/allure_report/"
+      - name: taosx & agent Report
+        run: |
+          # taosx merged report
+          pwd
+          grcov $LLVM_PROFILE_DIR -t lcov -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx.info --binary-path /usr/bin/taosx -s /data/actions-runner-coverage/_work/taosx/taosx --branch --ignore-not-existing --ignore build.rs
+          grcov $LLVM_PROFILE_DIR -t lcov -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-agent.info --binary-path /usr/bin/taosx-agent -s /data/actions-runner-coverage/_work/taosx/taosx --branch --ignore-not-existing --ignore build.rs
+          grcov $LLVM_PROFILE_DIR -t lcov -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taos-explorer.info --binary-path /usr/bin/taos-explorer -s /data/actions-runner-coverage/_work/taosx/taosx --branch --ignore-not-existing --ignore build.rs
+          echo "Generate taosx coverage report files done."
+
+          # 1.端到端测试报告合并
+          lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-agent.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taos-explorer.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-all.info --quiet
+          # 移除覆盖率附件中不属于源码的部分
+          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-all.info --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-clean.info --quiet "$CARGO_HOME/*" 'target/debug' 'registry/src' 'git/checkouts'
+          echo "Clean taosx e2e coverage report files done."
+          # 移除路径前缀，生成最终覆盖率文件
+          sed -i 's#SF:.*taosx/#SF:#' $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-clean.info
+          sed -i 's#SF:.*taosx/#SF:#' $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+
+          # 2.总的覆盖率文件合并
+          lcov -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info \
+              -a $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-clean.info \
+              -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-combined.info --quiet
+          echo "Combine taosx coverage report files done."
+          # 移除覆盖率附件中不属于源码的部分
+          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-taosx-clean.info --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-e2e-remove.info --quiet  'target/*'    # 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'crates/sink-kafka/*'
+          lcov --remove $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-combined.info --ignore-errors unused -o $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-combined-removed.info --quiet  'target/*' # 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'crates/sink-kafka/*'
+          echo "Remove unused taosx coverage report files done."
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-merged/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-combined-removed.info
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-unit/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-unit-test-lcov.info
+          genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov-e2e-remove.info
+          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/"
+      - name: opc Report
+        continue-on-error: true
+        run: |
+          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/mqtt/"
+          # opc report
+          mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/unit && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/e2e && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged
+          cd $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx/plugins/opc
+          mv $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/opc_unit_report.txt .
+          go tool covdata textfmt -i=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data -o=opc_e2e_report.txt
+          /root/go/bin/gocov convert opc_unit_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/unit/index.html
+          /root/go/bin/gocov convert opc_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/e2e/index.html
+          /root/go/bin/gocov convert opc_unit_report.txt opc_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged/index.html
+          echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/opc/"
+
+      - name: save report daily
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/
+          echo "see report at $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/"
+  feishu_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [generate_report, set_env, run_e2e_test]
+    if: ${{ always() && needs.run_e2e_test.result == 'success' }}
+    steps:
+      - name: get coverage percent for taosx and connecter
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          export TAOSX_COVERAGE_PERCENT=$(grep -oP '(?<=<td class="headerCovTableEntryLo">)[^&]+' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/taosx-report-merged/index.html | head -n 1)
+          # export INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/influxdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
+          # export OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$(grep -A 1 'Total' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opentsdb/merged/index.html | grep -oP '\d+%' | head -n 1 | tr -d '%')
+          export OPC_CONNECTOR_COVERAGE_PERCENT=$(grep -oP '(?<=<div id="totalcov">)[^%]+' $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/opc/merged/index.html)
+          echo "TAOSX_COVERAGE_PERCENT=$TAOSX_COVERAGE_PERCENT" >> $GITHUB_ENV
+          # echo "INFLUXDB_CONNECTOR_COVERAGE_PERCENT=$INFLUXDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+          # echo "OPENTSDB_CONNECTOR_COVERAGE_PERCENT=$OPENTSDB_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+          echo "OPC_CONNECTOR_COVERAGE_PERCENT=$OPC_CONNECTOR_COVERAGE_PERCENT" >> $GITHUB_ENV
+      - name: get last coverage data from TDengine
+        run: |
+          response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "select last(*) from coverage.taosx_coverage" $COVERAGE_DATABASE_URL)
+          echo "response=$response"
+          echo "taosx_coverage_last=$(echo $response | jq '.data[0][1]')" >> $GITHUB_ENV
+          # echo "influxdb_connector_coverage_last=$(echo $response | jq '.data[0][2]')" >> $GITHUB_ENV
+          # echo "opentsdb_connector_coverage_last=$(echo $response | jq '.data[0][3]')" >> $GITHUB_ENV
+          echo "opc_connector_coverage_last=$(echo $response | jq '.data[0][4]')" >> $GITHUB_ENV
+
+      - name: Get max coverage percent
+        run: |
+          taosx_coverage_response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "select max(taosx_coverage) from coverage.taosx_coverage" $COVERAGE_DATABASE_URL)
+          echo "taosx_coverage_max=$(echo $taosx_coverage_response | jq '.data[0][0]')" >> $GITHUB_ENV
+
+          # influxdb_connector_coverage_response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          # -d "select max(influxdb_connector_coverage) from coverage.taosx_coverage" $COVERAGE_DATABASE_URL)
+          # echo "influxdb_connector_coverage_max=$(echo $influxdb_connector_coverage_response | jq '.data[0][0]')" >> $GITHUB_ENV
+
+          # opentsdb_connector_coverage_response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          # -d "select max(opentsdb_connector_coverage) from coverage.taosx_coverage" $COVERAGE_DATABASE_URL)
+          # echo "opentsdb_connector_coverage_max=$(echo $opentsdb_connector_coverage_response | jq '.data[0][0]')" >> $GITHUB_ENV
+
+          opc_connector_coverage_response=$(curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "select max(opc_connector_coverage) from coverage.taosx_coverage" $COVERAGE_DATABASE_URL)
+          echo "opc_connector_coverage_max=$(echo $opc_connector_coverage_response | jq '.data[0][0]')" >> $GITHUB_ENV
+
+      - name: insert coverage percent into TDengine
+        run: |
+          curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
+          -d "insert into coverage.taosx_coverage values(now,$TAOSX_COVERAGE_PERCENT,null,null,$OPC_CONNECTOR_COVERAGE_PERCENT)" $COVERAGE_DATABASE_URL
+
+      - name: Calculate the difference between the results of two adjacent executions
+        run: |
+          taosX_coverage_diff=$(echo "scale=1;$TAOSX_COVERAGE_PERCENT - $taosx_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          # influxdb_connector_coverage_diff=$(echo "scale=1;$INFLUXDB_CONNECTOR_COVERAGE_PERCENT - $influxdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          # opentsdb_connector_coverage_diff=$(echo "scale=1;$OPENTSDB_CONNECTOR_COVERAGE_PERCENT - $opentsdb_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          opc_connector_coverage_diff=$(echo "scale=1;$OPC_CONNECTOR_COVERAGE_PERCENT - $opc_connector_coverage_last" | bc| awk '{printf "%+.1f", $1}')
+          echo "taosX_coverage_diff=$taosX_coverage_diff" >> $GITHUB_ENV
+          # echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
+          # echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
+          echo "opc_connector_coverage_diff=$opc_connector_coverage_diff" >> $GITHUB_ENV
+
+      - name: Change string to number
+        run: |
+          taosX_coverage_diff_numeric=$(echo "$taosX_coverage_diff" | bc)
+          echo "taosX_coverage_diff_numeric=$taosX_coverage_diff_numeric" >> $GITHUB_ENV
+          # influxdb_connector_coverage_diff_numeric=$(echo "$influxdb_connector_coverage_diff" | bc)
+          # echo "influxdb_connector_coverage_diff_numeric=$influxdb_connector_coverage_diff_numeric" >> $GITHUB_ENV
+          # opentsdb_connector_coverage_diff_numeric=$(echo "$opentsdb_connector_coverage_diff" | bc)
+          # echo "opentsdb_connector_coverage_diff_numeric=$opentsdb_connector_coverage_diff_numeric" >> $GITHUB_ENV
+          opc_connector_coverage_diff_numeric=$(echo "$opc_connector_coverage_diff" | bc)
+          echo "opc_connector_coverage_diff_numeric=$opc_connector_coverage_diff_numeric" >> $GITHUB_ENV
+
+      - name: Assemble Feishu messages
+        run: |
+          # declare -a the_result=($TAOSX_COVERAGE_PERCENT $INFLUXDB_CONNECTOR_COVERAGE_PERCENT $OPENTSDB_CONNECTOR_COVERAGE_PERCENT $OPC_CONNECTOR_COVERAGE_PERCENT)
+          # declare -a the_last=($taosx_coverage_last $influxdb_connector_coverage_last $opentsdb_connector_coverage_last $opc_connector_coverage_last)
+          # declare -a the_max=($taosx_coverage_max $influxdb_connector_coverage_max $opentsdb_connector_coverage_max $opc_connector_coverage_max)
+          declare -a the_result=($TAOSX_COVERAGE_PERCENT $OPC_CONNECTOR_COVERAGE_PERCENT)
+          declare -a the_last=($taosx_coverage_last $opc_connector_coverage_last)
+          declare -a the_max=($taosx_coverage_max $opc_connector_coverage_max)
+          results=""
+          for i in ${!the_result[@]}; do
+            the_value=${the_result[$i]}
+            last_value=${the_last[$i]}
+            max_value=${the_max[$i]}
+            if (( $(echo "$the_value >= $last_value" | bc -l) )); then
+              if (( $(echo "$the_value >= $max_value" | bc -l) )); then
+                result_str="由$last_value%上升到$the_value%,与最高值$max_value%相比上升$(printf "%.1f" $(echo "$the_value - $max_value" | bc))%"
+              else
+                result_str="由$last_value%上升到$the_value%,但与最高值$max_value%相比下降$(printf "%.1f" $(echo "$max_value - $the_value" | bc))%"
+              fi
+            elif (( $(echo "$the_value < $last_value" | bc -l) )); then
+              result_str="由$last_value%下降到$the_value%,与最高值$max_value%相比下降$(printf "%.1f" $(echo "$max_value - $the_value" | bc))%"
+            fi
+            results+="$result_str;"
+          done
+          echo "results=${results}" >> $GITHUB_ENV
+
+      - name: Get test case result
+        id: set-env-vars
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          # 提取 "Product defects" 的第二个字段
+          product_failed=$(awk -F',' '/"Product defects"/ {print $2}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+
+          # 提取 "Test defects" 的第三个字段
+          test_broken=$(awk -F',' '/"Test defects"/ {print $3}' /data/code_coverage_taosx/$COVERAGE_REPORT_DIR/3.0/allure_report/data/categories.csv | tr -d '"')
+
+          # 将值存储到环境变量
+          echo "PRODUCT_FAILED=$product_failed" >> $GITHUB_ENV
+          echo "TEST_BROKEN=$test_broken" >> $GITHUB_ENV
+      - name: Summarize failed cases
+        id: summarize
+        run: |
+          # 从环境变量中获取值并转换为整数
+          product_failed=$PRODUCT_FAILED
+          test_broken=$TEST_BROKEN
+
+          # 汇总失败案例
+          failed_cases=$((product_failed + test_broken))
+
+          # 将汇总结果存储到环境变量
+          echo "FAILED_CASES=$failed_cases" >> $GITHUB_ENV
+      - name: Send Feishu Message to taosX CI Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          IFS=$';' read -r -a result_array <<< "$results"
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          taosX 覆盖率${result_array[0]}\n
+          本次测试执行未通过用例数为 $FAILED_CASES 个\n
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          post_to_feishu "$PR_INFO"
+
+      - name: Send Feishu Message to Platform Alert Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        if: ${{ env.taosX_coverage_diff_numeric <0 || env.opc_connector_coverage_diff_numeric <0 }}
+        # if: ${{ env.taosX_coverage_diff_numeric <0 ||  env.influxdb_connector_coverage_diff_numeric <0 ||  env.opentsdb_connector_coverage_diff_numeric <0  ||  env.opc_connector_coverage_diff_numeric <0 }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          IFS=$';' read -r -a result_array <<< "$results"
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          taosX 覆盖率${result_array[0]}\n
+          本次测试执行未通过用例数为 $FAILED_CASES 个\n
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          post_to_feishu "$PR_INFO"
+
+      - name: Send Feishu Message to Platform Notifications Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          IFS=$';' read -r -a result_array <<< "$results"
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          taosX 覆盖率${result_array[0]}\n
+          本次测试执行未通过用例数为 $FAILED_CASES 个\n
+          测试用例及覆盖率报告 URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          post_to_feishu "$PR_INFO"
+
+  failed_report:
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test, set_env, taosx_run_unit_test, generate_report]
+    if: ${{ always() && (needs.run_e2e_test.result == 'failure' || needs.taosx_run_unit_test.result == 'failure') && needs.generate_report.result == 'success'}}
+    steps:
+      - name: Identify failed jobs
+        run: |
+          failed_jobs=""
+          if [ "${{ needs.run_e2e_test.result }}" == "failure" ]; then
+          failed_jobs+="run_e2e_test "
+          fi
+          if [ "${{ needs.taosx_run_unit_test.result }}" == "failure" ]; then
+          failed_jobs+="taosx_run_unit_test "
+          fi
+          echo "failed_jobs=$failed_jobs" >> $GITHUB_ENV
+
+      - name: Send Feishu Message to taosX CI Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/209e9aba-167a-49de-8d7b-15e12abd7922 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          本次测试执行失败，失败的job为 $failed_jobs\n
+          执行的workflow见：https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n"
+
+          post_to_feishu "$PR_INFO"
+
+      - name: Send Feishu Message to Platform Alert Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+
+          PR_INFO="taosX 仓库代码的测试覆盖率\n
+          本次测试执行失败，失败的job为 $failed_jobs\n
+          执行的workflow见：https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n"
+
+          post_to_feishu "$PR_INFO"

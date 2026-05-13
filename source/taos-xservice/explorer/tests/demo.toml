@@ -1,0 +1,7 @@
+port = 6070
+addr = "127.0.0.1"
+log_level = "info"
+cluster = "http://localhost:6041"
+x_api = "http://localhost:6050"
+grpc = "http://localhost:6055"
+cors = true

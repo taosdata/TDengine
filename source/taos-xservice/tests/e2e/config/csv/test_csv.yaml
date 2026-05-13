@@ -1,0 +1,13 @@
+task_name: csv
+task_type: csv
+
+from:
+  fromhost: "csv:{0}"
+  skip: 0
+  has_header: "true"
+
+to:
+  target_type: taos
+  target_dbname: ci_csv
+
+task_exec_time: 10

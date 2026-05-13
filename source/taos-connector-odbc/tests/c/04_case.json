@@ -1,0 +1,104 @@
+[
+  {
+    conn: {dsn: "TAOS_ODBC_DSN"},
+    sqls: [
+      "create database if not exists foo",
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp,name varchar(20))",
+      {
+        sql:"insert into foo.t (ts, name) values (?, ?)",
+        executes: [
+          {
+            params: [
+              [{timestamp:1662961548.650},             "great"]
+            ]
+          },{
+            params: [
+              [{timestamp:"2022-09-12 13:45:48.652"}, "wall"]
+            ]
+          },{
+            params: [
+              [1662961548.658,             "foo"]
+            ]
+          },{
+            params: [
+              ["2022-09-12 13:45:48.654", "bar"]
+            ]
+          }
+        ]
+      },{
+        sql:"select count(*) from foo.t",
+        rs: [[4]]
+      },{
+        sql:"select count(*) from foo.t where ts = 1662961548652",
+        rs: [[1]]
+      },{
+        sql:"select count(*) from foo.t where ts = 1662961548654",
+        rs: [[1]]
+      },{
+        sql:"select count(*) from foo.t where ts = 1662961548658",
+        rs: [[1]]
+      },{
+        sql:"select name from foo.t",
+        rs: [["great"],["wall"],["bar"],["foo"]]
+      },
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp,name varchar(20))",
+      {
+        sql:"insert into foo.t (ts, name) values (?, ?)",
+        executes: [
+          {
+            params: [
+              [1662961548.650,             "great"],
+              [1662961548.653,             {str:null}],
+              [1662961548.658,             "foo"]
+            ]
+          }
+        ]
+      },{
+        sql:"select count(*) from foo.t",
+        rs: [[3]]
+      },{
+        sql:"select name from foo.t where ts = 1662961548653",
+        rs: [[null]]
+      },{
+        sql:"select count(*) from foo.t where ts = 1662961548658",
+        rs: [[1]]
+      },
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp, utc timestamp, tz timestamp)",
+      {
+        sql:"insert into foo.t (ts, utc, tz) values (?, ?, ?)",
+        executes: [
+          {
+            params: [
+              [{timestamp:"2022-09-12 13:45:48.652"},
+               {timestamp:"2022-09-12 13:45:48.652Z"},
+               {timestamp:"2022-09-12 13:45:48.652+0700"}],
+              [{timestamp:"2022-09-12 13:45:48.653"},
+               {timestamp:"2022-08-12 13:45:48.653-05:00"},
+               {timestamp:"2022-08-12 13:45:48.653-0400"}],
+              [{timestamp:"2022-09-12 13:45:48.654"},
+               {timestamp:"2022-09-12 13:45:48.654-0501"},
+               {timestamp:"2022-09-12 13:45:48.654-04:39"}]
+            ]
+          }
+        ]
+      },{
+        sql:"select ts, utc, tz from foo.t",
+        rs: [
+              ["2022-09-12 13:45:48.652",
+               "2022-09-12 21:45:48.652",
+               "2022-09-12 14:45:48.652"],
+              ["2022-09-12 13:45:48.653",
+               "2022-08-13 02:45:48.653",
+               "2022-08-13 01:45:48.653"],
+              ["2022-09-12 13:45:48.654",
+               "2022-09-13 02:46:48.654",
+               "2022-09-13 02:24:48.654"]
+             ]
+      }
+    ]
+  }
+]
+

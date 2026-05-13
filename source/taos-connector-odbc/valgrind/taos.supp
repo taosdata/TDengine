@@ -1,0 +1,94 @@
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:rewriteDropTable
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Param
+   write(buf)
+   fun:__libc_write
+   fun:write
+   fun:uv__writev
+   fun:uv__try_write
+   fun:uv__write
+   fun:uv_write2
+   fun:uv_write
+   fun:cliBatchSend
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:taosMemMalloc
+   fun:parseOneRow
+   fun:parseValues
+   fun:parseValuesClause
+   fun:parseDataClause
+   fun:parseInsertTableClauseBottom
+   fun:parseInsertTableClause
+   fun:parseInsertBody
+   fun:parseInsertSqlFromStart
+   fun:parseInsertSqlImpl
+   fun:parseInsertSql
+   fun:qParseSql
+   fun:parseSql
+   fun:stmtParseSql
+   fun:stmtGetTagFields
+   fun:taos_stmt_get_tag_fields
+   fun:taos_stmt_get_tag_fields
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:taosMemMalloc
+   fun:setStmtInfo
+   fun:parseInsertBodyBottom
+   fun:parseInsertBody
+   fun:parseInsertSqlFromStart
+   fun:parseInsertSqlImpl
+   fun:parseInsertSql
+   fun:qParseSql
+   fun:parseSql
+   fun:stmtParseSql
+   fun:stmtGetTagFields
+   fun:taos_stmt_get_tag_fields
+   fun:taos_stmt_get_tag_fields
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:taosMemMalloc
+   fun:setStmtInfo
+   fun:parseInsertBodyBottom
+   fun:parseInsertBody
+   fun:parseInsertSqlFromStart
+   fun:parseInsertSqlImpl
+   fun:parseInsertSql
+   fun:qParseSql
+   fun:parseSql
+   fun:stmtParseSql
+   fun:stmtSetTbName
+   fun:taos_stmt_set_tbname
+   fun:taos_stmt_set_tbname
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Param
+   write(buf)
+   fun:__libc_write
+   fun:write
+   fun:uv__writev
+   fun:uv__try_write.isra.5
+   fun:uv__write
+   fun:uv__write
+   fun:uv_write2
+   fun:uv_write
+   fun:cliBatchSend
+}
+

@@ -1,0 +1,24 @@
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Poetry Setup
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.2
+
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip3 install --upgrade requests
+          poetry config pypi-token.pypi $PYPI_TOKEN
+          poetry publish --build

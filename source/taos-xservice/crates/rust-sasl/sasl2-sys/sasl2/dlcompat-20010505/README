@@ -1,0 +1,71 @@
+ dlcompat for Darwin
+=====================
+
+This is release 20010505 of dlcompat. dlcompat is a small library that
+emulates the dlopen() interface on top of Darwin's dyld API. It is
+based on a CVS snapshot of Apple's Darwin CVS repository, taken on
+Jan 16 2001 (and still current as of May 5 2001). Since it's based on
+Apple code, it is released under the terms of the Apple Public Source
+License; see the file APPLE_LICENSE for the text of the license.
+
+Changes were made to automatically search for the module in several
+directories (taken from the environment variables DYLD_LIBRARY_PATH
+and LD_LIBRARY_PATH, plus /usr/lib and /lib) when no absolute path is
+specified and the module is not found in the current directory. If you
+prefer to run unmodified Apple code, download release 20010116.
+
+
+ Installation
+--------------
+As root, type:
+
+  make install
+
+This will compile the source file, generate both a static and shared
+library called libdl and install it into /usr/local/lib. The header
+file dlfcn.h will be installed in /usr/local/include.
+
+If you want to place the files somewhere else, run
+
+  make clean
+  make install prefix=<prefix>
+
+where <prefix> is the hierarchy you want to install into, e.g. /usr
+for /usr/lib and /usr/include (_NOT_ recommended!).
+
+To enable debugging output, run
+
+  make clean
+  make DEBUG=1
+  make install
+
+Combinations of those commands are left as an excercise to the
+reader. :-)
+
+
+ Usage
+-------
+Software that uses GNU autoconf will likely check for a library called
+libdl, that's why I named it that way. For software that doesn't find
+the library on its own, you must add a '-ldl' to the appropriate
+Makefile (or environment) variable, usually LIBS.
+
+If you installed dlcompat into a directory other than /usr/local/lib,
+you must tell the compiler where to find it. Add '-L<prefix>/lib' to
+LDFLAGS (or CFLAGS) and '-I<prefix>/include' to CPPFLAGS (or CFLAGS).
+
+
+ Genesis
+---------
+The files dlfcn.h and dlopen.c are taken from the Darwin CVS,
+directory Commands/Apple/cctools/libdyld. For release 20010116, I
+removed an unneccessary include statement from dlopen.c and added the
+Makefile. For release 20010123, I added debugging output and library
+searching. The changes are clearly documented, as required by the
+Apple Public Source License. For release 20010505, I added wrappers to
+disable C++ name mangling. That allows the library to be used by C++
+code, but be aware that there are issues with C++ and bundles, like
+static initializers not being called.
+
+
+Christoph Pfisterer <cp@chrisp.de>

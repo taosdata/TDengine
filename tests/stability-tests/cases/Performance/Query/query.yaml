@@ -1,0 +1,462 @@
+case1:
+  json_file1:
+    sql: "select * from stb limit 10000"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case2:
+  json_file1:
+    sql: "select * from stb limit 10000"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case3:
+  json_file1:
+    sql: "select * from stb limit 10000"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100
+
+case4:
+  json_file1:
+    sql: "select first(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case5:
+  json_file1:
+    sql: "select first(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 8
+
+case6:
+  json_file1:
+    sql: "select first(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 16
+
+case7:
+  json_file1:
+    sql: "select first(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case8:
+  json_file1:
+    sql: "select last(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case9:
+  json_file1:
+    sql: "select last(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 8
+
+case10:
+  json_file1:
+    sql: "select last(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 16
+
+case11:
+  json_file1:
+    sql: "select last(*) from stb"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case12:
+  json_file1:
+    sql: "select avg(c0),  max(c4),min(c6) from stb interval (1d)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case13:
+  json_file1:
+    sql: "select avg(c0),  max(c4),min(c6) from stb interval (1d)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 8
+
+case14:
+  json_file1:
+    sql: "select avg(c0),  max(c4),min(c6) from stb interval (1d)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 16
+
+case15:
+  json_file1:
+    sql: "select avg(c0),  max(c4),min(c6) from stb interval (1d)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case16:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case17:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case18:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case19:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case20:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case21:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case22:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100
+
+case23:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100
+
+case24:
+  json_file1:
+    sql: "select * from stb where tbname in ('stb_0020','stb_0050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00'"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100
+
+case25:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00' interval(10s)"
+    json_info:
+
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case26:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case27:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-15 01:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100
+
+case28:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case29:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case30:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-16 00:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100
+
+case31:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 1
+
+case32:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 50
+
+case33:
+  json_file1:
+    sql: "select avg(c4),max(c0),min(c5) from stb where tbname in ('stb_020','stb_050') and ts > '2020-01-15 00:00:00' and ts< '2020-01-22 00:00:00' interval(10s)"
+    json_info:
+      confirm_parameter_prompt: "no"
+      databases: "query_db"
+      query_times: 100
+      query_mode: "taosc"
+      reset_query_cache: "yes"
+      connection_pool_size: 100
+    specify_query:
+      query_interval: 1
+      concurrent: 100

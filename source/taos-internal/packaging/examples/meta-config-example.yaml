@@ -1,0 +1,26 @@
+---
+name: TDengine Server for OEM_A
+type: meta
+configFiles:
+  tdengine_server_community: tdengine-server-community.yaml
+  tdengine_server_lite: tdengine-server-lite.yaml
+  tdengine_server_for_oema: tdengine-server-for-oem-a.yaml
+
+prepareAction:
+  - name: prepare action 1
+    script: ./prepare_env.sh
+    topdir: ../../..
+    install1: go
+    go_version: 1.19
+    install2: rust
+    rust_version: 1.63
+  - name: prepare action 2
+    script: ./prepare_action_2.sh
+
+postAction:
+  - name: post action 1
+    script: ./post_action.py
+    param1: $PASSWORD_TO_UPLOAD
+    communnity_dir: ../../../community
+  - name: post action 2
+    script: ./post_action_2.py

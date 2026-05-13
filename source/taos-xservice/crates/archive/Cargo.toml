@@ -1,0 +1,26 @@
+[package]
+name = "archive"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+flume = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+arrow = { workspace = true }
+regex = { workspace = true }
+rotate-file = { path = "../rotate-file" }
+parquet = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+
+[lints]
+workspace = true

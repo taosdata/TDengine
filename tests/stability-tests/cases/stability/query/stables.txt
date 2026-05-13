@@ -1,0 +1,5 @@
+#stable                   child_table_count        rows_per_child_table
+stable_1                   10000                   10000
+stable_2                   10000                   10000
+stable_null_data           10000                   10000
+stable_null_childtable     10000                   10000

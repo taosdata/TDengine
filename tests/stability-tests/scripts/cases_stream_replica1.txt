@@ -1,0 +1,2 @@
+taostest --setup=common_insert.yaml --case=stream_computing/stream_computing_test.py --keep --containers
+

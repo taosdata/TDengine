@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+set -e
+
+version=$1
+versionComp=2.0.0.0
+
+## master
+branchName=$2
+verType=stable
+dockerPass="tbase125!"
+tagVal=ver-${version}
+dockerinput=TDengine-server-${version}-Linux-x64.tar.gz
+
+## develop
+# branchName=develop
+# verType=beta
+# dockerPass="tbase125!"
+# tagVal=ver-${version}-beta
+# dockerinput=TDengine-server-${version}-Linux-x64-beta.tar.gz
+
+bash generate_community.sh  $version $versionComp $branchName $verType
+bash generate_enterprise.sh $version $versionComp $branchName $verType
+if [ "$3" = "yes" ];then
+    bash docker_generate.sh $version $dockerPass $dockerinput 
+fi
+if [ "$4" = "yes" ];then
+    bash tag.sh $tagVal $branchName 
+fi

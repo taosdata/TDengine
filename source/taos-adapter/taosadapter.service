@@ -1,0 +1,25 @@
+[Unit]
+Description=taosAdapter - RESTful and WebSocket gateway for accessing TDengine
+After=network-online.target
+Wants=network-online.target
+#Before=taosd.service
+#PartOf=taosd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/taosadapter
+TimeoutStopSec=1000000s
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+StandardOutput=null
+StandardError=journal
+Restart=always
+StartLimitBurst=3
+StartLimitInterval=60s
+EnvironmentFile=-/etc/default/taosadapter
+
+
+[Install]
+WantedBy=multi-user.target

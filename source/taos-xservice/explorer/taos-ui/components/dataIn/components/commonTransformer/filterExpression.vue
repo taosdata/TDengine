@@ -1,0 +1,313 @@
+<template>
+  <div class="filter-expression">
+    <div class="filter-input">
+      <el-form ref="filterFormRef" :model="ruleForm" :rules="rules" @submit.prevent>
+        <el-form-item prop="filter_name">
+          <el-input
+            v-model="ruleForm.filter_name"
+            size="default"
+            :placeholder="t('dataIn.transformer.filter_input')"
+            @keyup.enter="executeFilter"
+            @input="changeFilterCont"
+          ></el-input>
+        </el-form-item>
+      </el-form>
+
+      <div class="btns">
+        <el-button icon="Delete" @click="deleteFilter"></el-button>
+        <el-button @click="executeFilter">
+          <Icon name="PREVIEW" style="width: 16px; height: 16px"></Icon>
+        </el-button>
+      </div>
+    </div>
+  </div>
+</template>
+<script setup lang="ts">
+import { t } from 'locales';
+import type { ConditionExpr } from './type';
+import { getConditionExprText, updateConditionExprText } from './ruleAdapter';
+import {
+  transformerState,
+  supportTransform,
+  resetTransformerPreviewState,
+  isEmptyParserResult,
+  showEmptyTransformerPreview,
+  limitPreviewRows,
+  mapPreviewRows
+} from './util';
+import { getDataInProps } from 'components/dataIn/model/useDataIn';
+import { ElMessage } from 'element-plus';
+const dataInProps = getDataInProps();
+
+const props = defineProps<{
+  itemData: Recordable;
+  payload: string;
+  // inputparamsColumns: [];
+  identifiedColumns: Recordable[];
+  msgForm: Recordable;
+  datasourceType: string;
+  ruleId?: string;
+  /** When inside a rule block, pre-filter preview rows by this condition. */
+  matches?: ConditionExpr;
+}>();
+
+const isexecuted = ref(false);
+const maptypes = ['value', 'generator', 'join', 'format', 'sum', 'expr'];
+const ruleForm = reactive({
+  filter_name: ''
+});
+const rules = reactive({
+  filter_name: [
+    {
+      required: false,
+      trigger: 'blur',
+      message: t('dataIn.transformer.filter_input')
+    }
+  ]
+});
+const tableData = ref<any[]>([]);
+
+const filterFormRef = ref();
+
+const emit = defineEmits(['validate-msgbody', 'delete-filter', 'change-filter']);
+
+defineExpose({
+  submitFilter
+});
+
+watch(
+  () => props.itemData,
+  val => {
+    initData(val);
+  }
+);
+
+onMounted(() => {
+  if (props.itemData) {
+    initData(props.itemData);
+  }
+});
+
+function executeFilter() {
+  isexecuted.value = true;
+  submit();
+}
+function changeFilterCont() {
+  isexecuted.value = false;
+  transformerState.transformerFilterParseData = {
+    filter: updateConditionExprText(props.itemData.expression, ruleForm.filter_name)
+  };
+}
+function initData(val: Recordable) {
+  if (val) {
+    ruleForm.filter_name = getConditionExprText(val.expression);
+  }
+}
+function submit() {
+  emit('validate-msgbody');
+  if (!props.msgForm.msgbody) {
+    return;
+  }
+  filterFormRef.value?.validate((valid: boolean) => {
+    if (valid) {
+      submitFilter();
+      return true;
+    } else {
+      return false;
+    }
+  });
+}
+async function getParserData(data: any) {
+  try {
+    const result = await dataInProps.transform.api.getParser(data);
+    if (result.message) {
+      resetTransformerPreviewState();
+      ElMessage.error(result.message);
+      return;
+    }
+    if (isEmptyParserResult(result)) {
+      transformerState.transformerMapColumns = [];
+      tableData.value = [];
+      showEmptyTransformerPreview('filterResTb', 'filter');
+      return;
+    }
+    const tableColumns = result[0].fields.map((item: { name: any }) => item.name);
+    emit('change-filter', props.itemData.key, ruleForm.filter_name, props.ruleId);
+    result[0].columns?.length > 0
+      ? (tableData.value = limitPreviewRows(result[0].columns).map((data: { [x: string]: { toString: () => any } }) => {
+          return Object.fromEntries(
+            result[0].fields.map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+          );
+        }))
+      : (tableData.value = [
+          Object.fromEntries(
+            tableColumns.map((data: any) => {
+              return [[data], null];
+            })
+          )
+        ]);
+    transformerState.showResultTb = true;
+    transformerState.resultTbTitle = 'filterResTb';
+    transformerState.transformResultTable = supportTransform.is_sparkplugb
+      ? mapPreviewRows(result, (data: any, entry: any) => {
+          return Object.fromEntries(
+            entry.fields.map((item: { name: any }, index: string | number) => {
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
+            })
+          );
+        })
+      : tableData.value;
+
+    const transformerColumns = [
+      {
+        value: 'expression',
+        label: t('expression'),
+        children: maptypes.map(item => {
+          return {
+            value: item,
+            label: item
+          };
+        })
+      },
+      {
+        value: 'mapping',
+        label: t('mapping'),
+        children: result[0].fields.map((item: { name: any }) => {
+          return {
+            value: item.name,
+            label: item.name
+          };
+        })
+      }
+    ];
+    transformerState.transformerMapColumns = transformerColumns;
+    transformerState.transResultName = 'filter';
+  } catch (error) {
+    console.log(error);
+    resetTransformerPreviewState();
+  }
+}
+function filterEmpty(val: any) {
+  if (Object.is(val, undefined) || Object.is(val, '') || Object.is(val, null)) {
+    return '';
+  }
+  if (Object.is(val, 0) || Object.is(val, false) || Object.is(val, true) || typeof val == 'object') {
+    return val.toString();
+  }
+  return val;
+}
+
+//删除filter
+function deleteFilter() {
+  emit('delete-filter', props.itemData.key, props.ruleId);
+}
+
+const generateInput: any = inject('generateInput');
+//提交
+function submitFilter() {
+  const filterExpr = updateConditionExprText(props.itemData.expression, ruleForm.filter_name.trim());
+  let parser;
+  if (supportTransform.is_sparkplugb) {
+    parser = {
+      parser: {
+        parse: transformerState.topParse?.parser.parse,
+        mutate: transformerState.transformExtractParseData
+          ? [{ ...transformerState.transformExtractParseData }, { filter: filterExpr }]
+          : [{ filter: filterExpr }]
+      },
+      samples: Array.from(Object.values(generateInput()[0]))
+    };
+  } else {
+    parser = {
+      parser: {
+        parse: transformerState.topParse?.parser.parse,
+        mutate: transformerState.transformExtractParseData
+          ? [{ ...transformerState.transformExtractParseData }, { filter: filterExpr }]
+          : [{ filter: filterExpr }]
+      },
+      input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
+    };
+  }
+
+  // When inside a rule block, pre-filter rows by the rule's matches condition.
+  if (props.matches?.expr) {
+    parser['matches'] = props.matches;
+  }
+
+  transformerState.transformerFilterParseData = {
+    filter: filterExpr
+  };
+  isexecuted.value = true;
+  getParserData(parser);
+}
+</script>
+<style lang="scss" scoped>
+.filter-expression {
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.filter-input {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+
+  .el-form {
+    flex: 1;
+  }
+
+  .el-form-item {
+    margin-bottom: 0 !important;
+  }
+
+  .btns {
+    display: flex;
+    gap: 0;
+
+    .el-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 2px;
+      border-radius: 6px;
+      border: none;
+      box-shadow: none;
+      margin: 0;
+    }
+  }
+}
+
+.table {
+  margin-bottom: 20px;
+}
+
+.tip {
+  font-size: 12px;
+
+  .executetip {
+    color: red;
+
+    &.done {
+      color: #acaab2;
+    }
+  }
+}
+</style>

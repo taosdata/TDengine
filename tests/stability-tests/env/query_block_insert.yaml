@@ -1,0 +1,73 @@
+settings:
+  - name: taosd
+    fqdn: [u1-54,u1-56, u1-57, u1-58]
+    spec:
+      version: 3.0.1.8  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-54:6030
+      dnodes:
+        - endpoint: u1-54:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            numOfMnodes: 1
+            supportVnodes: 0
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            rpcDebugFlag: 0
+            tdbDebugFlag: 131
+            asynclog: 0
+        - endpoint: u1-56:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 256
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            rpcDebugFlag: 0
+            tdbDebugFlag: 131
+            asynclog: 0
+        - endpoint: u1-57:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 256
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            rpcDebugFlag: 0
+            tdbDebugFlag: 131
+            asynclog: 0
+        - endpoint: u1-58:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 256
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            rpcDebugFlag: 0
+            tdbDebugFlag: 131
+            asynclog: 0
+
+  - name: taospy
+    fqdn: [u1-54]
+    spec:
+      version: 3.0.1.8
+      client_version: 3.0.1.8
+      config:
+        firstEP: u1-54:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 131
+        asynclog: 0
+
+  - name: taosBenchmark
+    # fqdn: [u1-55, u1-55, u1-56, u1-56, u1-56, u1-57, u1-57, u1-57, u1-58, u1-58, u1-58, u1-59, u1-59]
+    fqdn: [u1-54]
+    spec:
+      version: 3.0.1.8
+      taos_version: 3.0.1.8
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: u1-54:6030
+        logDir: /var/log/taos
+        debugFlag: 131

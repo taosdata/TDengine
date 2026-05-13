@@ -1,0 +1,61 @@
+[package]
+name = "taos-optin"
+
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+exclude = ["tests/", "examples", "docker-compose.yml"]
+
+[dependencies]
+anyhow = "1"
+async-trait = "0.1"
+bytes = "1.11.1"
+cfg-if = "1.0.0"
+derive_more = { version = "1", features = [
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "into",
+] }
+dlopen2 = "0.7"
+flume = "0.11.1"
+itertools = "0.13.0"
+lazy_static = "1.4.0"
+num_enum = "0.7.0"
+once_cell = "1.10.0"
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = "1.0"
+serde_repr = { version = "0.1.7", optional = true }
+tracing = { version = "0.1", features = ["log"] }
+taos-macros = { version = "0.*", path = "../taos-macros" }
+taos-query = { version = "0.12.4", path = "../taos-query", default-features = false, features = [
+    "async",
+] }
+fun_time = "0.3.4"
+pin-project-lite = "0.2.16"
+crossbeam = "0.8.4"
+tokio = { version = "1", features = ["full", "sync"] }
+
+[dev-dependencies]
+anyhow = "1"
+pretty_env_logger = "0.5.0"
+serde = { version = "1", features = ["derive"] }
+taos-query = { version = "0.12.4", path = "../taos-query", default-features = false, features = [
+    "async",
+    "test",
+] }
+tokio = { version = "1", features = ["full"] }
+
+[features]
+default = ["backport"]
+backport = []
+serde1 = ["serde", "serde_repr"]
+test-new-feat = []
+test-enterprise = []

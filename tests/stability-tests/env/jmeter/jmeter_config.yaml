@@ -1,0 +1,79 @@
+settings:
+  - name: jmeter
+    fqdn: [node1]  # 替换为实际的JMeter执行节点
+    spec:
+      server:
+        version: "5.6.3"
+        offline: false
+        install_java: true
+        run_dir: "/opt"
+
+        # JMX模板配置
+        jmx_template: "performance_test_template.jmx"
+        sql_file: "test_sqls.sql"
+
+        # 全局变量配置
+        global_variables:
+          # 数据库连接配置
+          db_host: "192.168.1.55"
+          db_port: "6041"
+          username: "root"
+          password: "taosdata"
+
+          # 性能测试参数
+          thread_count: "50"
+          ramp_time: "3"
+          loop_count: "64"
+          query_timeout: "500"
+          pool_max: "64"
+          connection_timeout: "500000"
+
+          # 测试配置
+          test_name: "SQL_Performance_Test"
+
+        # 测试场景配置
+        test_scenarios:
+          # 轻量级测试
+          - name: "light_load"
+            thread_count: "10"
+            loop_count: "20"
+            ramp_time: "2"
+
+          # 中等负载测试
+          - name: "medium_load"
+            thread_count: "50"
+            loop_count: "64"
+            ramp_time: "3"
+
+          # 高负载测试
+          - name: "heavy_load"
+            thread_count: "100"
+            loop_count: "100"
+            ramp_time: "5"
+
+          # 压力测试
+          - name: "stress_test"
+            thread_count: "200"
+            loop_count: "200"
+            ramp_time: "10"
+
+        # 结果收集配置
+        result_config:
+          collect_jtl: true          # 收集JTL结果文件
+          collect_html_report: true  # 收集HTML报告
+          collect_logs: true         # 收集JMeter日志
+
+          # 结果分析配置
+          analyze_results: true
+          generate_summary: true
+          compare_with_baseline: false
+
+          # 性能指标阈值
+          performance_thresholds:
+            avg_response_time_ms: 1000    # 平均响应时间阈值(毫秒)
+            max_response_time_ms: 5000    # 最大响应时间阈值(毫秒)
+            error_rate_percent: 1.0       # 错误率阈值(百分比)
+            throughput_per_sec: 10.0      # 吞吐量阈值(每秒)
+
+      jdbc-driver:
+        version: "3.4.0"
