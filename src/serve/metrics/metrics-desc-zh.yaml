@@ -42,6 +42,7 @@ total_processed_batches: 已经成功处理的总批数
 total_failed_batches: 处理失败的总批数
 total_parsed_rows: 执行解析后的总行数
 total_filter_skipped_rows: 执行解析后过滤器筛掉的总行数
+total_unmatched_rows: 执行多路匹配后未命中任何规则的总行数
 total_check_skipped_rows: 执行解析后前置合法检查筛掉的行数
 total_write_ready_rows: 待写入的行数
 total_processed_rows: 已经成功处理的总行数（等于成功处理的 batch 包含的数据行数之和）
@@ -59,6 +60,7 @@ processed_batches: 本次运行此任务已经成功处理的批数
 failed_batches: 本次运行此任务处理失败的批数
 parsed_rows: 执行解析后的总行数
 filter_skipped_rows: 执行解析后过滤器筛掉的行数
+unmatched_rows: 本次运行执行多路匹配后未命中任何规则的行数
 check_skipped_rows: 执行解析后前置合法检查筛掉的行数
 write_ready_rows: 待写入的行数
 processed_rows: 本次成功处理的总行数（transform 之前的 Batch 行数之和）

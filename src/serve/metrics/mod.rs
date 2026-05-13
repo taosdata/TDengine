@@ -85,6 +85,20 @@ mod tests {
     }
 
     #[test]
+    fn metrics_desc_contains_unmatched_row_keys() {
+        for key in ["total_unmatched_rows", "unmatched_rows"] {
+            assert!(
+                METRICS_DESC_ZH.contains_key(key),
+                "missing zh metrics description for {key}"
+            );
+            assert!(
+                METRICS_DESC_EN.contains_key(key),
+                "missing en metrics description for {key}"
+            );
+        }
+    }
+
+    #[test]
     fn profile_contains_expected_keys() {
         let prof = get_profile();
         for key in [

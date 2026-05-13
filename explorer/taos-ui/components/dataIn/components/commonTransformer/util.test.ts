@@ -73,3 +73,37 @@ describe('mapPreviewRows', () => {
     expect(mappedIndexes).toEqual(Array.from({ length: PREVIEW_ROW_LIMIT }, (_, index) => index));
   });
 });
+
+describe('convert', () => {
+  it('keeps tag rows marked as TAG when tag definitions omit length', async () => {
+    const { convert } = await import('./util');
+
+    const rows = convert({
+      columns: [
+        { name: 'ts', type: 'TIMESTAMP' },
+        { name: 'val', type: 'FLOAT' }
+      ],
+      tags: [{ name: 'code', type: 'VARCHAR(50)' }]
+    });
+
+    expect(rows).toEqual([
+      ['ts', 'TIMESTAMP', ''],
+      ['val', 'FLOAT', ''],
+      ['code', 'VARCHAR(50)', '', 'TAG']
+    ]);
+  });
+
+  it('normalizes backticked tag names before marking them as TAG', async () => {
+    const { convert } = await import('./util');
+
+    const rows = convert({
+      columns: [{ name: 'ts', type: 'TIMESTAMP' }],
+      tags: [{ name: '`code`', type: 'VARCHAR(50)' }]
+    });
+
+    expect(rows).toEqual([
+      ['ts', 'TIMESTAMP', ''],
+      ['code', 'VARCHAR(50)', '', 'TAG']
+    ]);
+  });
+});
