@@ -2091,19 +2091,6 @@ static int restoreStreamsSql(const char *dbName) {
         return code;
     }
 
-    // set database context for stream DDL (%%trows needs it)
-    char useDb[256];
-    snprintf(useDb, sizeof(useDb), "USE `%s`", targetDb);
-    TAOS_RES *useRes = taos_query(conn, useDb);
-    if (taos_errno(useRes) != TSDB_CODE_SUCCESS) {
-        logError("use database failed for stream restore: %s", targetDb);
-        if (useRes) taos_free_result(useRes);
-        releaseConnection(conn);
-        taosMemoryFree(content);
-        return TSDB_CODE_FAILED;
-    }
-    if (useRes) taos_free_result(useRes);
-
     // stream.sql contains CREATE STREAM statements, one per line
     char *line = content;
     char *next = NULL;
@@ -2129,24 +2116,55 @@ static int restoreStreamsSql(const char *dbName) {
         }
 
         if (lineLen > 0) {
-            // if rename is configured, replace old db name with new in DDL
+            // Build final DDL in renamedBuf:
+            //  1) Ensure stream name is db-qualified (for WebSocket compatibility)
+            //  2) Replace old dbName with targetDb when -W rename is active
             char *execSql = line;
             char renamedBuf[TSDB_MAX_SQL_LEN];
+
+            // Step 1: qualify stream name with targetDb if not already db-qualified.
+            // DDL format: "create stream [IF NOT EXISTS] <name> ..."
+            // Find the stream name token after "create stream"
+            const char *csPrefix = "create stream ";
+            char *csPos = taosStrCaseStr(line, csPrefix);
+            if (csPos) {
+                int hdrLen = (int)(csPos - line) + strlen(csPrefix);
+                // skip optional "if not exists "
+                const char *afterCS = line + hdrLen;
+                const char *ifne = "if not exists ";
+                if (strncasecmp(afterCS, ifne, strlen(ifne)) == 0) {
+                    hdrLen += strlen(ifne);
+                    afterCS = line + hdrLen;
+                }
+                // Check if stream name already has a '.' (db-qualified)
+                const char *nameEnd = afterCS;
+                while (*nameEnd && *nameEnd != ' ' && *nameEnd != '\t') nameEnd++;
+                bool alreadyQualified = (memchr(afterCS, '.', nameEnd - afterCS) != NULL);
+                if (!alreadyQualified) {
+                    // Insert "targetDb." before stream name
+                    int n = snprintf(renamedBuf, sizeof(renamedBuf), "%.*s%s.%s",
+                                     hdrLen, line, targetDb, afterCS);
+                    if (n > 0 && n < (int)sizeof(renamedBuf)) {
+                        execSql = renamedBuf;
+                    }
+                }
+            }
+
+            // Step 2: if rename is configured, replace old dbName. with targetDb.
             if (strcmp(targetDb, dbName) != 0) {
-                // simple substring replacement: dbName. -> targetDb.
                 char oldPat[256], newPat[256];
                 snprintf(oldPat, sizeof(oldPat), "%s.", dbName);
                 snprintf(newPat, sizeof(newPat), "%s.", targetDb);
-                char *pos = strstr(line, oldPat);
-                if (pos) {
-                    int prefixLen = (int)(pos - line);
+                // work on whichever buffer is current
+                char *input = execSql;
+                char tmpBuf[TSDB_MAX_SQL_LEN];
+                if (strstr(input, oldPat)) {
+                    char *src = input;
+                    char *dst = tmpBuf;
+                    int dstLeft = sizeof(tmpBuf) - 1;
                     int oldPatLen = strlen(oldPat);
                     int newPatLen = strlen(newPat);
-                    int remaining = lineLen - prefixLen - oldPatLen;
-                    // Build renamed SQL iteratively
-                    char *src = line;
-                    char *dst = renamedBuf;
-                    int dstLeft = sizeof(renamedBuf) - 1;
+                    char *pos;
                     while ((pos = strstr(src, oldPat)) != NULL && dstLeft > 0) {
                         int chunk = (int)(pos - src);
                         if (chunk > dstLeft) chunk = dstLeft;
@@ -2157,11 +2175,13 @@ static int restoreStreamsSql(const char *dbName) {
                         dst += newPatLen; dstLeft -= newPatLen;
                         src = pos + oldPatLen;
                     }
-                    // copy remainder
                     int tailLen = strlen(src);
                     if (tailLen > dstLeft) tailLen = dstLeft;
                     memcpy(dst, src, tailLen);
                     dst[tailLen] = '\0';
+                    // copy to renamedBuf so execSql stays valid
+                    strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
+                    renamedBuf[sizeof(renamedBuf) - 1] = '\0';
                     execSql = renamedBuf;
                 }
             }

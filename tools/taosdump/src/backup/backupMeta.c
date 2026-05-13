@@ -573,22 +573,31 @@ int backVirtualTablesSql(const char *dbName) {
 int backStreamsSql(const char *dbName) {
     int code = TSDB_CODE_SUCCESS;
 
-    // get stream names
-    char **streamNames = getDBStreamNames(dbName, &code);
-    if (streamNames == NULL) {
-        if (code != TSDB_CODE_SUCCESS) return code;
-        return TSDB_CODE_SUCCESS; // no streams
+    // get connection
+    TAOS *conn = getConnection(&code);
+    if (!conn) return code;
+
+    // query all stream DDLs for this database in one shot
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT sql FROM information_schema.ins_streams "
+             "WHERE db_name='%s' ORDER BY stream_name", dbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    code = taos_errno(res);
+    if (!res || code != TSDB_CODE_SUCCESS) {
+        logError("query streams failed(0x%08X %s): %s", code, taos_errstr(res), sql);
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return code;
     }
 
-    // count
-    int streamCount = 0;
-    for (int i = 0; streamNames[i] != NULL; i++) streamCount++;
-    if (streamCount == 0) {
-        freeArrayPtr(streamNames);
+    // fetch rows; if none, no streams to back up
+    TAOS_ROW row = taos_fetch_row(res);
+    if (!row) {
+        taos_free_result(res);
+        releaseConnection(conn);
         return TSDB_CODE_SUCCESS;
     }
-
-    logInfo("backup %d stream(s) sql for db: %s", streamCount, dbName);
 
     // open stream.sql file
     char sqlFile[MAX_PATH_LEN] = {0};
@@ -597,69 +606,49 @@ int backStreamsSql(const char *dbName) {
     TdFilePtr fp = taosOpenFile(sqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
     if (!fp) {
         logError("open stream.sql failed: %s", sqlFile);
-        freeArrayPtr(streamNames);
+        taos_free_result(res);
+        releaseConnection(conn);
         return TSDB_CODE_BCK_CREATE_FILE_FAILED;
     }
 
-    // get connection
-    TAOS *conn = getConnection(&code);
-    if (!conn) {
-        taosCloseFile(&fp);
-        freeArrayPtr(streamNames);
-        return code;
-    }
-
-    // for each stream: query DDL from ins_streams.sql column
+    // write each stream DDL as one line
+    int streamCount = 0;
     code = TSDB_CODE_SUCCESS;
-    char sql[512];
-    for (int i = 0; streamNames[i] != NULL; i++) {
+    do {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
             break;
         }
+        if (!row[0]) continue;
 
-        snprintf(sql, sizeof(sql),
-                 "SELECT sql FROM information_schema.ins_streams WHERE stream_name='%s'",
-                 streamNames[i]);
-        TAOS_RES *res = taos_query(conn, sql);
-        code = taos_errno(res);
-        if (!res || code != TSDB_CODE_SUCCESS) {
-            logError("query stream sql failed(0x%08X %s): %s", code, taos_errstr(res), sql);
-            if (res) taos_free_result(res);
-            break;
-        }
+        int32_t *lens = taos_fetch_lengths(res);
+        int ddlLen = lens[0];
+        char *ddl = (char *)row[0];
 
-        TAOS_ROW row = taos_fetch_row(res);
-        if (row && row[0]) {
-            int32_t *lens = taos_fetch_lengths(res);
-            int ddlLen = lens[0];
-            char *ddl = (char *)row[0];
-
-            // DDL may contain embedded newlines, replace with spaces
-            // to ensure one statement per line
-            char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
-            if (buf) {
-                int n = 0;
-                for (int j = 0; j < ddlLen; j++) {
-                    buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
-                }
-                buf[n++] = '\n';
-                if (taosWriteFile(fp, buf, n) != n) {
-                    logError("write stream DDL to file failed: %s", sqlFile);
-                    code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
-                }
-                taosMemoryFree(buf);
-            } else {
-                code = TSDB_CODE_BCK_MALLOC_FAILED;
+        // replace embedded newlines with spaces to keep one DDL per line
+        char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
+        if (buf) {
+            int n = 0;
+            for (int j = 0; j < ddlLen; j++) {
+                buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
             }
+            buf[n++] = '\n';
+            if (taosWriteFile(fp, buf, n) != n) {
+                logError("write stream DDL to file failed: %s", sqlFile);
+                code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+            }
+            taosMemoryFree(buf);
+        } else {
+            code = TSDB_CODE_BCK_MALLOC_FAILED;
         }
-        taos_free_result(res);
-        if (code != TSDB_CODE_SUCCESS) break;
-    }
+        streamCount++;
+    } while (code == TSDB_CODE_SUCCESS && (row = taos_fetch_row(res)) != NULL);
 
-    releaseConnection(conn);
+    logInfo("backup %d stream(s) sql for db: %s", streamCount, dbName);
+
     taosCloseFile(&fp);
-    freeArrayPtr(streamNames);
+    taos_free_result(res);
+    releaseConnection(conn);
     return code;
 }
 
