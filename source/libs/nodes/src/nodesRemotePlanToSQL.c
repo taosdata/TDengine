@@ -273,7 +273,8 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
       break;
     }
     default:
-      break;  // unsupported; skip silently
+      s->err = TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      break;
   }
 }
 
@@ -469,6 +470,20 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     case OP_TYPE_LOWER_EQUAL:   opStr = " <= ";   break;
     case OP_TYPE_LIKE:          opStr = " LIKE ";     break;
     case OP_TYPE_NOT_LIKE:      opStr = " NOT LIKE "; break;
+    case OP_TYPE_ADD:           opStr = " + ";        break;
+    case OP_TYPE_SUB:           opStr = " - ";        break;
+    case OP_TYPE_MULTI:         opStr = " * ";        break;
+    case OP_TYPE_DIV:           opStr = " / ";        break;
+    case OP_TYPE_REM:           opStr = " % ";        break;
+    case OP_TYPE_MINUS:
+      // Unary minus: -(expr)
+      dynSQLAppendStr(s, "(-(");
+      {
+        int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        if (code) return code;
+      }
+      dynSQLAppendStr(s, "))");
+      return TSDB_CODE_SUCCESS;
     case OP_TYPE_MATCH:
       // TDengine MATCH → MySQL REGEXP / PostgreSQL ~ / InfluxDB(DataFusion) ~
       (void)dynSQLAppendChar(s, '(');
@@ -887,31 +902,11 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   // which would cause a mismatch between the remote result and the executor's
   // slot-based column indexing.
   dynSQLAppendStr(&s, "SELECT ");
-  // When a Project node exists, pProjections defines the SELECT column list.
-  // When eliminateProjOptimize removed the Project, pProjections is NULL.
-  // In that case, use pOutputTargets (the scan's output slot descriptors) which
-  // reflects exactly the columns the executor expects. pScanCols is only used
-  // as a last resort since it may list ALL table columns.
+  // The planner guarantees pProjections / pScanCols contain only COLUMN nodes
+  // in the correct order.  No runtime column filtering is needed here.
   const SNodeList* pCols = pParts->pProjections;
   if (!pCols) pCols = pParts->pScanCols;
   bool first = true;
-  // Build a set of output column names from pOutputTargets for filtering.
-  // When pOutputTargets has fewer columns than pCols, only emit the columns
-  // that appear in pOutputTargets.
-  SHashObj* pOutputSet = NULL;
-  if (pParts->pOutputTargets && pCols == pParts->pScanCols &&
-      LIST_LENGTH(pParts->pOutputTargets) < LIST_LENGTH(pCols)) {
-    pOutputSet = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    if (pOutputSet) {
-      SNode* pSlotNode = NULL;
-      FOREACH(pSlotNode, pParts->pOutputTargets) {
-        SSlotDescNode* pSlot = (SSlotDescNode*)pSlotNode;
-        if (pSlot->output) {
-          taosHashPut(pOutputSet, pSlot->name, strlen(pSlot->name), &pSlot, sizeof(void*));
-        }
-      }
-    }
-  }
   if (pCols) {
     SNode* pExpr = NULL;
     FOREACH(pExpr, pCols) {
@@ -920,11 +915,9 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
       if (nodeType(pCol) == QUERY_NODE_TARGET) {
         pCol = ((const STargetNode*)pCol)->pExpr;
       }
-      if (NULL == pCol || nodeType(pCol) != QUERY_NODE_COLUMN) continue;
-      // When filtering by output targets, skip columns not in the output set
-      if (pOutputSet && !taosHashGet(pOutputSet, ((const SColumnNode*)pCol)->colName,
-                                     strlen(((const SColumnNode*)pCol)->colName))) {
-        continue;
+      if (NULL == pCol || nodeType(pCol) != QUERY_NODE_COLUMN) {
+        dynSQLFree(&s);
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
       if (!first) dynSQLAppendStr(&s, ", ");
       const char* colName = resolveExtColName(pParts->pExtTable->pExtMeta,
@@ -933,7 +926,6 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
       first = false;
     }
   }
-  if (pOutputSet) taosHashCleanup(pOutputSet);
   if (first) {
     // No columns projected from external source — the query uses only constant expressions
     // (e.g. char(65), timezone(), st_touches(lit, lit)) that do not reference table columns.
@@ -951,108 +943,68 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   dynSQLAppendStr(&s, " FROM ");
   dynAppendTablePath(&s, pParts->pExtTable, dialect);
 
-  // WHERE clause. Best-effort: skip EXT_SYNTAX_UNSUPPORTED expressions (local Filter
-  // handles them), but propagate all other errors.
+  // WHERE clause — the planner guarantees pConditions only contains pushable
+  // expressions.  Any rendering failure is a hard error.
   if (pParts->pConditions) {
     const SExtTableMeta* pEffectiveMeta = pParts->pExtTable ? pParts->pExtTable->pExtMeta : NULL;
     SDynSQL cond;
     dynSQLInit(&cond);
     int32_t whereCode = dynAppendExpr(&cond, pParts->pConditions, dialect,
                                        pEffectiveMeta, pCtx);
-    if (whereCode == TSDB_CODE_SUCCESS && !cond.err && cond.pos > 0) {
-      dynSQLAppendStr(&s, " WHERE ");
-      dynSQLAppendLen(&s, cond.buf, cond.pos);
-    } else if (whereCode != TSDB_CODE_SUCCESS &&
-               whereCode != TSDB_CODE_EXT_SYNTAX_UNSUPPORTED) {
-      // Hard failure: propagate and abort SQL generation.
+    if (whereCode != TSDB_CODE_SUCCESS || cond.err) {
+      int32_t err = cond.err ? cond.err : whereCode;
       dynSQLFree(&cond);
       dynSQLFree(&s);
-      return whereCode;
+      return err;
+    }
+    if (cond.pos > 0) {
+      dynSQLAppendStr(&s, " WHERE ");
+      dynSQLAppendLen(&s, cond.buf, cond.pos);
     }
     dynSQLFree(&cond);
   }
 
-  // ORDER BY clause — only emit if ALL sort keys can be rendered.
-  // If any key contains a non-renderable expression (e.g. length(name)),
-  // skip the entire ORDER BY so the local Sort node handles the ordering.
-  qError("FQ-DIAG-ORDERBY: pSortKeys=%p len=%d", pParts->pSortKeys,
-         pParts->pSortKeys ? LIST_LENGTH(pParts->pSortKeys) : -1);
+  // ORDER BY clause — the planner guarantees only renderable sort keys are
+  // pushed.  Any rendering failure is a hard error.
   if (pParts->pSortKeys && LIST_LENGTH(pParts->pSortKeys) > 0) {
-    // First pass: render all sort key expressions into a temporary array.
-    // If any key fails, we will drop the entire ORDER BY.
-    int32_t  nKeys      = (int32_t)LIST_LENGTH(pParts->pSortKeys);
-    SArray*  pRendered  = taosArrayInit(nKeys, sizeof(SDynSQL));
-    bool     allOk      = (pRendered != NULL);
-    SNode*   pKey       = NULL;
+    bool firstKey = true;
+    SNode* pKey = NULL;
     FOREACH(pKey, pParts->pSortKeys) {
-      if (!allOk) break;
       const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey;
-      SDynSQL expr;
-      dynSQLInit(&expr);
-      int32_t code = dynAppendExpr(&expr, pOrd->pExpr, dialect, pParts->pExtTable->pExtMeta, pCtx);
-      qError("FQ-DIAG-ORDERBY: dynAppendExpr code=%d expr.err=%d expr.pos=%d exprType=%d colName=%s",
-             code, expr.err, expr.pos,
-             pOrd->pExpr ? nodeType(pOrd->pExpr) : -1,
-             (pOrd->pExpr && nodeType(pOrd->pExpr) == QUERY_NODE_COLUMN) ? ((SColumnNode*)pOrd->pExpr)->colName : "?");
-      if (code || expr.err) {
-        dynSQLFree(&expr);
-        allOk = false;  // un-renderable key — will skip entire ORDER BY
-        break;
-      }
-      if (!taosArrayPush(pRendered, &expr)) {
-        dynSQLFree(&expr);
-        allOk = false;
-        break;
-      }
-    }
-    if (allOk && pRendered && taosArrayGetSize(pRendered) == nKeys) {
-      // All keys rendered successfully — emit the full ORDER BY.
-      bool firstKey = true;
-      SNode* pKey2 = NULL;
-      int32_t ki = 0;
-      FOREACH(pKey2, pParts->pSortKeys) {
-        const SOrderByExprNode* pOrd = (const SOrderByExprNode*)pKey2;
-        SDynSQL* pExpr = (SDynSQL*)taosArrayGet(pRendered, ki++);
-        // For MySQL, NULLS FIRST/LAST must be emulated with an extra
-        // sort key: ORDER BY (expr IS NULL) {ASC|DESC}, expr ...
-        // MySQL default: NULLs first for ASC, NULLs last for DESC.
-        if (dialect == EXT_SQL_DIALECT_MYSQL) {
-          bool needNullKey = false;
-          bool nullKeyDesc = false;
-          if (pOrd->order == ORDER_ASC && pOrd->nullOrder == NULL_ORDER_LAST) {
-            needNullKey = true;   // prepend (expr IS NULL) ASC → push NULLs last
-            nullKeyDesc = false;
-          } else if (pOrd->order == ORDER_DESC && pOrd->nullOrder == NULL_ORDER_FIRST) {
-            needNullKey = true;   // prepend (expr IS NULL) DESC → pull NULLs first
-            nullKeyDesc = true;
-          }
-          if (needNullKey) {
-            dynSQLAppendStr(&s, firstKey ? " ORDER BY (" : ", (");
-            dynSQLAppendLen(&s, pExpr->buf, pExpr->pos);
-            dynSQLAppendStr(&s, nullKeyDesc ? " IS NULL) DESC" : " IS NULL) ASC");
-            firstKey = false;
-          }
+      // For MySQL, NULLS FIRST/LAST must be emulated with an extra
+      // sort key: ORDER BY (expr IS NULL) {ASC|DESC}, expr ...
+      // MySQL default: NULLs first for ASC, NULLs last for DESC.
+      if (dialect == EXT_SQL_DIALECT_MYSQL) {
+        bool needNullKey = false;
+        bool nullKeyDesc = false;
+        if (pOrd->order == ORDER_ASC && pOrd->nullOrder == NULL_ORDER_LAST) {
+          needNullKey = true;
+          nullKeyDesc = false;
+        } else if (pOrd->order == ORDER_DESC && pOrd->nullOrder == NULL_ORDER_FIRST) {
+          needNullKey = true;
+          nullKeyDesc = true;
         }
-        dynSQLAppendStr(&s, firstKey ? " ORDER BY " : ", ");
-        firstKey = false;
-        dynSQLAppendLen(&s, pExpr->buf, pExpr->pos);
-        dynSQLAppendStr(&s, (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
-        if (dialect != EXT_SQL_DIALECT_MYSQL) {
-          if (pOrd->nullOrder == NULL_ORDER_FIRST)
-            dynSQLAppendStr(&s, " NULLS FIRST");
-          else if (pOrd->nullOrder == NULL_ORDER_LAST)
-            dynSQLAppendStr(&s, " NULLS LAST");
+        if (needNullKey) {
+          dynSQLAppendStr(&s, firstKey ? " ORDER BY (" : ", (");
+          int32_t code = dynAppendExpr(&s, pOrd->pExpr, dialect, pParts->pExtTable->pExtMeta, pCtx);
+          if (code) { dynSQLFree(&s); return code; }
+          if (s.err) { int32_t err = s.err; dynSQLFree(&s); return err; }
+          dynSQLAppendStr(&s, nullKeyDesc ? " IS NULL) DESC" : " IS NULL) ASC");
+          firstKey = false;
         }
       }
-    } else {
-      qError("FQ-DIAG-ORDERBY: dropping ORDER BY (un-renderable key); local Sort will handle ordering");
-    }
-    // Free all rendered expressions.
-    if (pRendered) {
-      for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pRendered); i++) {
-        dynSQLFree((SDynSQL*)taosArrayGet(pRendered, i));
+      dynSQLAppendStr(&s, firstKey ? " ORDER BY " : ", ");
+      firstKey = false;
+      int32_t code = dynAppendExpr(&s, pOrd->pExpr, dialect, pParts->pExtTable->pExtMeta, pCtx);
+      if (code) { dynSQLFree(&s); return code; }
+      if (s.err) { int32_t err = s.err; dynSQLFree(&s); return err; }
+      dynSQLAppendStr(&s, (pOrd->order == ORDER_DESC) ? " DESC" : " ASC");
+      if (dialect != EXT_SQL_DIALECT_MYSQL) {
+        if (pOrd->nullOrder == NULL_ORDER_FIRST)
+          dynSQLAppendStr(&s, " NULLS FIRST");
+        else if (pOrd->nullOrder == NULL_ORDER_LAST)
+          dynSQLAppendStr(&s, " NULLS LAST");
       }
-      taosArrayDestroy(pRendered);
     }
   }
 
@@ -1072,8 +1024,6 @@ static int32_t assembleRemoteSQL(const SRemoteSQLParts* pParts, EExtSQLDialect d
   char* result = dynSQLDetach(&s);
   if (!result) return TSDB_CODE_OUT_OF_MEMORY;
   *ppSQL = result;
-  qError("assembleRemoteSQL: generated SQL=[%s] pProjections=%p pScanCols=%p usedCols=%p",
-         result, pParts->pProjections, pParts->pScanCols, pCols);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1125,13 +1075,15 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
     FOREACH(pProj, pInnerSelect->pProjectionList) {
       if (!first) dynSQLAppendStr(&s, ", ");
       first = false;
-      // Render projection expression; fall back to literal 1 on failure.
       int32_t code = dynAppendExpr(&s, pProj, dialect, NULL, &fullCtx);
       if (code != TSDB_CODE_SUCCESS) {
-        // Non-renderable projection (e.g. SELECT 1 constant is fine; complex
-        // expressions may not be needed).  Emit "1" as a safe fallback.
-        dynSQLAppendChar(&s, '1');
-        s.err = 0;  // clear the error and continue
+        dynSQLFree(&s);
+        return code;
+      }
+      if (s.err) {
+        int32_t err = s.err;
+        dynSQLFree(&s);
+        return err;
       }
     }
   }
@@ -1153,7 +1105,13 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
     SDynSQL condSql;
     dynSQLInit(&condSql);
     int32_t code = dynAppendExpr(&condSql, pInnerSelect->pWhere, dialect, NULL, &fullCtx);
-    if (code == TSDB_CODE_SUCCESS && !condSql.err && condSql.pos > 0) {
+    if (code != TSDB_CODE_SUCCESS || condSql.err) {
+      int32_t err = condSql.err ? condSql.err : code;
+      dynSQLFree(&condSql);
+      dynSQLFree(&s);
+      return err;
+    }
+    if (condSql.pos > 0) {
       dynSQLAppendStr(&s, " WHERE ");
       dynSQLAppendLen(&s, condSql.buf, condSql.pos);
     }

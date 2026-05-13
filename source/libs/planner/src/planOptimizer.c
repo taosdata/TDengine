@@ -11288,39 +11288,121 @@ static bool fqIsJsonbLikeOp(SNode* pCond, SScanLogicNode* pScan) {
   return false;
 }
 
-// Returns true if pCond (or any sub-condition) is a JSONB LIKE op that
-// cannot be pushed to the remote DB and must be executed locally.
-static bool fqCondHasNonPushable(SNode* pCond, SScanLogicNode* pScan) {
-  if (pCond == NULL) return false;
-  if (fqIsJsonbLikeOp(pCond, pScan)) return true;
-  if (nodeType(pCond) == QUERY_NODE_FUNCTION) {
-    SFunctionNode* pFunc = (SFunctionNode*)pCond;
-    // TDengine-specific scalar functions that cannot be rendered as MySQL/PostgreSQL SQL
-    if (pFunc->funcType == FUNCTION_TYPE_LIKE_IN_SET ||
-        pFunc->funcType == FUNCTION_TYPE_REGEXP_IN_SET) {
+// Check if an operator type is in the allowlist for pushdown to remote DB.
+// Only operators that nodesRemotePlanToSQL can translate are allowed.
+static bool fqOpTypeIsPushable(EOperatorType opType) {
+  switch (opType) {
+    // Comparison
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    // Pattern matching
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+    // Set
+    case OP_TYPE_IN:
+    case OP_TYPE_NOT_IN:
+    // Null check
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    // Existence (correlated subquery)
+    case OP_TYPE_EXISTS:
+    case OP_TYPE_NOT_EXISTS:
+    // Arithmetic (standard SQL, supported by all dialects)
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_REM:
+    case OP_TYPE_MINUS:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Returns true if the expression tree is fully pushable to the remote DB.
+// Uses an allowlist: only explicitly allowed node types and operator types
+// are considered pushable.  Everything else (FUNCTION, BIT_AND, JSON ops,
+// unknown node types) stays in local execution (node.pConditions).
+static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
+  if (pExpr == NULL) return true;
+
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+      return true;
+
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pExpr;
+      if (!fqOpTypeIsPushable(pOp->opType)) return false;
+      // EXISTS/NOT_EXISTS: only pushable when operand is RAW_SQL_FRAG
+      // (correlated same-source subquery pre-rendered by nodesRenderCorrelatedExistsBody).
+      // Non-RAW_SQL_FRAG EXISTS (e.g. TDengine internal subquery) must remain
+      // in node.pConditions for local evaluation by the executor.
+      if (pOp->opType == OP_TYPE_EXISTS || pOp->opType == OP_TYPE_NOT_EXISTS) {
+        return pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+               (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG);
+      }
+      // LIKE/NOT LIKE on JSONB column cannot be pushed (PG rejects LIKE on JSONB)
+      if (fqIsJsonbLikeOp(pExpr, pScan)) return false;
+      return fqExprIsPushable(pOp->pLeft, pScan) && fqExprIsPushable(pOp->pRight, pScan);
+    }
+
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pExpr;
+      SNode* pChild = NULL;
+      FOREACH(pChild, pLogic->pParameterList) {
+        if (!fqExprIsPushable(pChild, pScan)) return false;
+      }
       return true;
     }
-  }
-  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
-    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
-    SNode* pChild = NULL;
-    FOREACH(pChild, pLogic->pParameterList) {
-      if (fqCondHasNonPushable(pChild, pScan)) return true;
+
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCW = (SCaseWhenNode*)pExpr;
+      if (pCW->pCase && !fqExprIsPushable(pCW->pCase, pScan)) return false;
+      SNode* pItem = NULL;
+      FOREACH(pItem, pCW->pWhenThenList) {
+        SWhenThenNode* pWT = (SWhenThenNode*)pItem;
+        if (!fqExprIsPushable(pWT->pWhen, pScan)) return false;
+        if (!fqExprIsPushable(pWT->pThen, pScan)) return false;
+      }
+      if (pCW->pElse && !fqExprIsPushable(pCW->pElse, pScan)) return false;
+      return true;
     }
+
+    case QUERY_NODE_NODE_LIST: {
+      SNodeListNode* pList = (SNodeListNode*)pExpr;
+      SNode* pItem = NULL;
+      FOREACH(pItem, pList->pNodeList) {
+        if (!fqExprIsPushable(pItem, pScan)) return false;
+      }
+      return true;
+    }
+
+    // Executor-resolved nodes for subquery correlation
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_ROW:
+      return true;
+
+    default:
+      // FUNCTION, and any other unknown node type — not pushable
+      return false;
   }
-  if (nodeType(pCond) == QUERY_NODE_OPERATOR) {
-    SOperatorNode* pOp = (SOperatorNode*)pCond;
-    if (fqCondHasNonPushable(pOp->pLeft, pScan)) return true;
-    if (fqCondHasNonPushable(pOp->pRight, pScan)) return true;
-  }
-  return false;
 }
 
 // Harvest WHERE conditions that can be pushed to the remote source.
 // Classifies each condition:
 //   - EXISTS/NOT EXISTS with RAW_SQL_FRAG → always pushed (pPushedConditions)
-//   - LIKE / NOT LIKE on a JSONB column   → kept local (node.pConditions)
-//   - Everything else (simple comparisons, BETWEEN, IS NULL, etc.)
+//   - Non-pushable expression (FUNCTION, BIT ops, JSONB LIKE, unknown nodes)
+//                                         → kept local (node.pConditions)
+//   - Pushable expression (comparison, arithmetic, pattern, IN, CASE WHEN, etc.)
 //                                         → pushed to remote SQL (pPushedConditions)
 //
 // If a condition (or sub-condition) is non-pushable, the ENTIRE condition stays
@@ -11337,13 +11419,13 @@ static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // If any sub-condition is non-pushable (JSONB LIKE), keep the entire
-  // condition in node.pConditions for local execution.
-  if (fqCondHasNonPushable(pScan->node.pConditions, pScan)) {
+  // If any sub-expression is non-pushable (FUNCTION, BIT ops, JSONB LIKE,
+  // unknown operator types, etc.), keep the entire condition in
+  // node.pConditions for local execution.
+  if (!fqExprIsPushable(pScan->node.pConditions, pScan)) {
     // node.pConditions stays as-is; pPushedConditions remains NULL.
     return TSDB_CODE_SUCCESS;
   }
-
   // All sub-conditions are safe to push to the remote DB.
   pScan->pPushedConditions = pScan->node.pConditions;
   pScan->node.pConditions = NULL;
