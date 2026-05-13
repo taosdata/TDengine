@@ -74,7 +74,7 @@ PERIOD(period_time[, offset_time])
 
 A scheduled trigger is driven by a fixed interval based on the system time, essentially functioning as a scheduled task. It does not belong to the category of window triggers. Parameter definitions are as follows:
 
-- period_time: The scheduling interval. Supported time units include milliseconds (a), seconds (s), minutes (m), hours (h), days (d), weeks (w), months (n), and years (y). The supported range is [10a, 3650d].
+- period_time: The scheduling interval. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (supports milliseconds through years). The supported range is [10a, 3650d].
 - offset_time: (Optional) The scheduling offset. Supported units include milliseconds (a), seconds (s), minutes (m), hours (h), and days (d). For week/month/year units, the offset must be strictly less than the trigger period; for month units, validation is based on 28 days/month (e.g., `PERIOD(1n, 28d)` is invalid).
 
 Usage Notes:
@@ -167,7 +167,7 @@ A state window trigger divides the written data of the trigger table into window
   - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
   - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
 
-  Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
+  Where `duration_time` is a positive time value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
 
 Usage Notes:
 
@@ -232,7 +232,7 @@ An event window trigger partitions the incoming data of the trigger table into w
   - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
   - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
 
-  Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
+  Where `duration_time` is a positive time value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
 
 Usage Notes:
 
@@ -268,7 +268,7 @@ An event window trigger partitions the incoming data of the trigger table into w
   - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
   - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
 
-  Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
+  Where `duration_time` is a positive time value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
 
 Usage Notes:
 

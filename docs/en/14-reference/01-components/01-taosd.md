@@ -14,16 +14,19 @@ The command line parameters for taosd are as follows:
 - -s: Prints SDB information.
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
-- -r: Starts local repair mode. This option must be used together with `--mode force`, `--node-type vnode`, and at least one `--repair-target`.
+- -r: Starts repair mode. Two modes are supported: `--mode force` (in-place local repair) and `--mode copy` (copy vnode data from a healthy source node).
 - -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
 
 ## Repair Mode
 
-Use `taosd -r` to start local repair mode. In the current phase, repair mode only supports `--mode force` and `--node-type vnode`.
+Use `taosd -r` to start repair mode. Two modes are supported:
 
-### Syntax
+- **Force mode**: In-place repair of local vnodes with specified repair targets.
+- **Copy mode**: When the volume of corrupted data is too large for regular repair mode to handle within acceptable time, copy vnode files directly from a healthy source node to the target node.
+
+### Force Mode Syntax
 
 ```bash
 taosd -r --mode force --node-type vnode [--backup-path <path>] \
@@ -67,14 +70,14 @@ Additional notes:
   - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
   - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
 
-### Limitations
+### Force Mode Limitations
 
-- Only `--mode force` is supported.
 - Only `--node-type vnode` is supported.
-- `taosd -r` without `--mode`, `--node-type`, or `--repair-target` is invalid.
+- `taosd -r --mode force` without `--node-type` or `--repair-target` is invalid.
+- `--backup-path` and `--repair-target` cannot be used with `--mode copy`.
 - The older repair parameters `--file-type`, `--vnode-id`, and `--replica-node` have been removed from this interface.
 
-### Examples
+### Force Mode Examples
 
 Repair meta on one vnode and use the default strategy:
 
@@ -111,6 +114,59 @@ taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
   --repair-target meta:vnode=3 \
   --repair-target tsdb:vnode=5:fileid=1809 \
   --repair-target wal:vnode=6
+```
+
+### Copy Mode
+
+Copy mode copies files for specified vnodes directly from a healthy source node to the current (target) node. This is intended for scenarios where the volume of corrupted data is too large for regular repair mode to handle within acceptable time.
+
+#### Copy Mode Syntax
+
+```bash
+taosd -r --mode copy --node-type vnode --source-cfg <path> \
+  [--source-host <host>] --vnode <id>[,<id>|<id>-<id>]...
+```
+
+#### Copy Mode Options
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source-cfg` | Yes | Path to the source node's `taos.cfg` configuration file, or the directory containing it |
+| `--source-host` | No | SSH host of the source node; omit for local source |
+| `--vnode` | Yes | Comma-separated list of vnode IDs to copy; ranges with `-` are supported (e.g., `3,5-8,10`) |
+
+#### Copy Mode Limitations
+
+- Only `--node-type vnode` is supported.
+- Windows is not currently supported for copy mode.
+- `--backup-path` and `--repair-target` cannot be used with `--mode copy`.
+- Remote mode requires passwordless SSH access (BatchMode).
+
+#### Copy Mode Examples
+
+Copy a single vnode from a local source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /data/source-cluster/taos.cfg \
+  --vnode 3
+```
+
+Copy multiple vnodes from a local source node (specifying config directory):
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/ \
+  --vnode 3,5,8
+```
+
+Copy vnodes from a remote source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/taos.cfg \
+  --source-host 192.168.1.100 \
+  --vnode 3,5
 ```
 
 ## Configuration Parameters
@@ -498,6 +554,7 @@ The effective value of charset is UTF-8.
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compareAsStrInGreatest | After 3.4.0.0  | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
+| ignoreNullInGreatest   | After 3.4.2.0  | Supported, effective immediately   | Whether GREATEST and LEAST skip NULL arguments; 0 (default): MySQL-compatible, any NULL makes the result NULL; 1: skip NULL arguments and compare only non-NULL values |
 | showFullCreateTableColumn |  After 3.4.0.0 | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
 | multiResultFunctionStarReturnTags | After 3.4.0.0 | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
 

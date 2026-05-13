@@ -108,17 +108,17 @@ true_for_expr: {
 - from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
 - table_expr: 指定查询数据源，可以为表名，视图名，子查询。
-- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
+- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
-  - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
+  - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 3.4.2.0 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
-  - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 interval_val(2d)、SLIDING(1d)。
+  - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度参见[时间单位](./01-datatype.md#时间单位)，如 interval_val(2d)、SLIDING(1d)。
   - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
   - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
-  - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
-  - EVERY: 时间间隔范围，every_val 为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 EVERY(1s)。
+  - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
+  - EVERY: 时间间隔范围，every_val 为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
 - fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
@@ -325,7 +325,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 interp 子句是 [INTERP 函数](./22-function.md#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
 
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
-- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
+- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周，不支持月/季/年）。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。注意：插值时所使用的采样数据并非限制于 RANGE 字段的约束，而是满足 WHERE 子句条件的全部数据，如果没有指定 WHERE 子句，则为全表数据；FILL 子句的参数为 PREV/NEXT/NEAR 时，会使用相邻的有效数据进行插值，NULL 数据能否被认定为有效数据，取决于 INTERP 函数的 ignore_null_values 参数。若想限制采样数据的范围，可以使用 SURROUND 子句。
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
 - INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的有效数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
@@ -371,7 +371,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 
 用于限制 FILL 子句的填充范围，只能在 PREV、NEXT、NEAR（仅 INTERP 查询支持）模式下使用。
 
-SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、年（y）外的时间单位。
+SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、季度（q）、年（y）外的时间单位。
 在 INTERVAL 窗口查询中，其值必须大于等于 INTERVAL 窗口的时间长度。
 
 在 INTERP 查询中，当有效数据行与当前行的时间差超过该参数值时，不使用该行数据，转而使用 FILL_VALS 进行填充。

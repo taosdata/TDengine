@@ -1,43 +1,42 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """main service module"""
+
 import datetime
 from abc import abstractmethod, ABC
 
 
 class AnalyticsService(ABC):
-    """ Analytics root class with only one method"""
+    """Analytics root class with only one method"""
 
     READY = 0x01
     UNAVAILABLE = 0x02
 
-    _toStatusName = {
-        READY: 'READY',
-        UNAVAILABLE: 'UNAVAIL'
-    }
+    _toStatusName = {READY: "READY", UNAVAILABLE: "UNAVAIL"}
 
     @abstractmethod
     def execute(self):
-        """ the main execute method to perform forecast or anomaly detection """
+        """the main execute method to perform forecast or anomaly detection"""
 
     def get_desc(self) -> str:
         """algorithm description"""
         return ""
 
     def get_params(self) -> dict:
-        """return exist params """
+        """return exist params"""
         return {}
 
     def get_status(self) -> str:
-        """return model status """
+        """return model status"""
         return AnalyticsService._toStatusName[AnalyticsService.READY]
 
 
 class AbstractAnalyticsService(AnalyticsService, ABC):
-    """ abstract base analytics service class definition"""
-    name = ''
-    desc = ''
-    status = ''
+    """abstract base analytics service class definition"""
+
+    name = ""
+    desc = ""
+    status = ""
     _builtins = False
 
     def __init__(self):
@@ -45,29 +44,29 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
         self.ts_list = None
 
     def set_input_list(self, input_list: list, input_ts_list: list = None):
-        """ set the input list """
+        """set the input list"""
         self.list = input_list
         self.ts_list = input_ts_list
 
     def set_params(self, params: dict) -> None:
-        """set the parameters for current algo """
+        """set the parameters for current algo"""
         if params is None:
             return
 
         if not isinstance(params, dict):
-            raise ValueError('invalid parameter type, only dict allowed')
+            raise ValueError("invalid parameter type, only dict allowed")
 
     def get_desc(self) -> str:
         return self.desc
-    
+
     @property
     def is_builtins(self) -> bool:
         return self._builtins
 
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
-    """ abstract anomaly detection service, all anomaly detection algorithm class should be
-     inherent from this class"""
+    """abstract anomaly detection service, all anomaly detection algorithm class should
+    inherit from this class"""
 
     def __init__(self):
         self.valid_code = 1
@@ -76,7 +75,7 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
         self.input_data_lists = []
 
     def input_is_empty(self):
-        """ check if the input list is empty or None """
+        """check if the input list is empty or None"""
         return (self.list is None) or (len(self.list) == 0)
 
     def set_params(self, params: dict) -> None:
@@ -86,7 +85,7 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
             self.valid_code = int(params["valid_code"])
 
     def set_input_list(self, input_list: list, input_ts_list: list = None):
-        """ set the input list """
+        """set the input list"""
         self.ts_list = input_ts_list
 
         # let's check if the input list is 1-dimensional or 2-dimensional
@@ -96,13 +95,17 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
                 # check for the length of all items in the list
                 list_len = len(input_list[0])
                 if not all(len(x) == list_len for x in input_list):
-                    raise ValueError("multiple dimensions of data for anomaly detection are not equalled")
+                    raise ValueError(
+                        "multiple dimensions of data for anomaly detection are not equal"
+                    )
 
-                self.input_data_lists = list
-                self.list = input_list[0]  # keep the first element of the self.input_data_lists
+                self.input_data_lists = input_list
+                self.list = input_list[
+                    0
+                ]  # keep the first element of the self.input_data_lists
             else:
                 self.list = input_list
-                self.input_data_lists.append(input_list)
+                self.input_data_lists = [input_list]
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):
@@ -122,7 +125,7 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
 
         self.return_conf = 1
         self.conf = 0.95
-        self.precision = 'ms'
+        self.precision = "ms"
 
         # get the local timezone info, which will be used for forecast result ts list generation
         self.tz = datetime.datetime.now().astimezone().tzinfo
@@ -130,9 +133,14 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.past_dynamic_real = []
         self.dynamic_real = []
 
-    def set_input_data(self, input_list: list, input_ts_list: list = None, past_dynamic_real_list: list = None,
-                        dynamic_real_list: list = None):
-        """ set the input data """
+    def set_input_data(
+        self,
+        input_list: list,
+        input_ts_list: list = None,
+        past_dynamic_real_list: list = None,
+        dynamic_real_list: list = None,
+    ):
+        """set the input data"""
         if past_dynamic_real_list is not None:
             self.past_dynamic_real = past_dynamic_real_list
 
@@ -142,41 +150,48 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.set_input_list(input_list, input_ts_list)
 
     def set_params(self, params: dict) -> None:
-        if not {'start_ts', 'time_step', 'rows'}.issubset(params.keys()):
-            raise ValueError('params are missing, start_ts, time_step, rows are all required')
+        if not {"start_ts", "time_step", "rows"}.issubset(params.keys()):
+            raise ValueError(
+                "params are missing, start_ts, time_step, rows are all required"
+            )
 
-        self.start_ts = int(params['start_ts'])
+        self.start_ts = int(params["start_ts"])
 
-        self.time_step = int(params['time_step'])
+        self.time_step = int(params["time_step"])
 
         if self.time_step <= 0:
-            raise ValueError('time_step should be greater than 0')
+            raise ValueError("time_step should be greater than 0")
 
-        self.rows = int(params['rows'])
+        self.rows = int(params["rows"])
 
         if self.rows <= 0:
-            raise ValueError('forecast rows is not specified yet')
+            raise ValueError("forecast rows is not specified yet")
 
-        self.period = int(params['period']) if 'period' in params else 0
+        self.period = int(params["period"]) if "period" in params else 0
         if self.period < 0:
             raise ValueError("periods should be greater than 0")
 
-        self.conf = float(params['conf']) if 'conf' in params else 0.95
+        self.conf = float(params["conf"]) if "conf" in params else 0.95
 
         if self.conf < 0 or self.conf >= 1.0:
             raise ValueError("invalid value of conf, should between 0 and 1.0")
 
-        self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
-        self.precision = params.get('precision', 'ms')
+        self.return_conf = int(params["return_conf"]) if "return_conf" in params else 1
+        self.precision = params.get("precision", "ms")
 
-        if 'tz' in params:
-            self.tz = params['tz']
+        if "tz" in params:
+            self.tz = params["tz"]
 
     def get_params(self):
         return {
-            "period": self.period, "start": self.start_ts, "every": self.time_step,
-            "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf, 'tz': str(self.tz),
-            'precision': self.precision
+            "period": self.period,
+            "start": self.start_ts,
+            "every": self.time_step,
+            "forecast_rows": self.rows,
+            "return_conf": self.return_conf,
+            "conf": self.conf,
+            "tz": str(self.tz),
+            "precision": self.precision,
         }
 
 
@@ -191,20 +206,18 @@ class AbstractImputationService(AbstractAnalyticsService, ABC):
         self.type = "imputation"
 
     def set_input_data(self, input_list: list, input_ts_list: list = None):
-        """ set the input data """
+        """set the input data"""
         self.set_input_list(input_list, input_ts_list)
 
     def set_params(self, params: dict) -> None:
         pass
 
     def get_params(self):
-        return {
-            "dummy": "dummy"
-        }
+        return {"dummy": "dummy"}
 
 
 class AbstractCorrelationService(AbstractAnalyticsService, ABC):
-    """ abstract correlation analysis service"""
+    """abstract correlation analysis service"""
 
     def __init__(self):
         super().__init__()
@@ -218,6 +231,4 @@ class AbstractCorrelationService(AbstractAnalyticsService, ABC):
         pass
 
     def get_params(self):
-        return {
-            "dummy": "dummy"
-        }
+        return {"dummy": "dummy"}

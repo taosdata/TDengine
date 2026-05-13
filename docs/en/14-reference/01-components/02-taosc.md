@@ -47,6 +47,7 @@ The following configuration parameters only take effect for Native connections.
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
 |compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
+|ignoreNullInGreatest             | v3.4.2.0 |Supported, effective immediately  |Whether the GREATEST and LEAST functions skip NULL arguments. Integer; 0 (default): MySQL-compatible — any NULL argument makes the result NULL; 1: skip NULL arguments and compare only non-NULL values, returning NULL only when every argument is NULL. Orthogonal to compareAsStrInGreatest.|
 |showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.|
 
 ### Writing Related
