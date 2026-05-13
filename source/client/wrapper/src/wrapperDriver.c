@@ -32,6 +32,9 @@
   fptr = taosLoadDllFunc(tsDriver, funcName); \
   if (fptr == NULL) goto _OVER;
 
+#define LOAD_FUNC_OPT(fptr, fname)            \
+  fptr = taosLoadDllFunc(tsDriver, fname);
+
 #ifdef WEBSOCKET
 EDriverType tsDriverType = DRIVER_NATIVE;  // todo simon
 #else
@@ -113,9 +116,9 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_connect_with, "taos_connect_with");
   LOAD_FUNC(fp_taos_connect_with_dsn, "taos_connect_with_dsn");
   LOAD_FUNC(fp_taos_close, "taos_close");
-  LOAD_FUNC(fp_taos_txn_begin, "taos_txn_begin");
-  LOAD_FUNC(fp_taos_txn_commit, "taos_txn_commit");
-  LOAD_FUNC(fp_taos_txn_rollback, "taos_txn_rollback");
+  LOAD_FUNC_OPT(fp_taos_txn_begin, "taos_txn_begin"); // TODO: websocket
+  LOAD_FUNC_OPT(fp_taos_txn_commit, "taos_txn_commit"); // TODO: websocket
+  LOAD_FUNC_OPT(fp_taos_txn_rollback, "taos_txn_rollback"); // TODO: websocket
 
   LOAD_FUNC(fp_taos_data_type, "taos_data_type");
 
