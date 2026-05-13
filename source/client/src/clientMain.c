@@ -120,52 +120,6 @@ void tzCleanup() {
 }
 
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
-/*
- * Normalize fixed-offset timezone strings to POSIX TZ format so that
- * the IANA tzalloc() can accept them.  Handles: +HH:MM, -HH:MM,
- * +HHMM, -HHMM, +HH, -HH, Z. Returns true when buf was filled.
- */
-static bool normalizeOffsetTz(const char *val, char *buf, int32_t bufLen) {
-  if (val == NULL || val[0] == '\0') return false;
-
-  if ((val[0] == 'Z' || val[0] == 'z') && val[1] == '\0') {
-    tstrncpy(buf, "UTC", bufLen);
-    return true;
-  }
-
-  if (val[0] != '+' && val[0] != '-') return false;
-
-  char        sign = val[0];
-  const char *p = val + 1;
-
-  /* p always points into a NUL-terminated string, so p[1] reads the NUL sentinel at worst */
-  if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
-  int hours = (p[0] - '0') * 10 + (p[1] - '0');
-  p += 2;
-
-  int minutes = 0;
-  if (*p == ':') {
-    p++;
-    if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
-    minutes = (p[0] - '0') * 10 + (p[1] - '0');
-    p += 2;
-  } else if (p[0] >= '0' && p[0] <= '9' && p[1] >= '0' && p[1] <= '9') {
-    minutes = (p[0] - '0') * 10 + (p[1] - '0');
-    p += 2;
-  }
-  if (*p != '\0') return false;
-  if (hours > 14 || minutes > 59 || (hours == 14 && minutes > 0)) return false;
-
-  /* POSIX offset sign is inverted vs ISO-8601 */
-  char inv = (sign == '+') ? '-' : '+';
-  if (minutes == 0) {
-    snprintf(buf, bufLen, "<%s>%c%d", val, inv, hours);
-  } else {
-    snprintf(buf, bufLen, "<%s>%c%d:%02d", val, inv, hours, minutes);
-  }
-  return true;
-}
-
 static timezone_t setConnectionTz(const char *val) {
   timezone_t  tz = NULL;
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
@@ -176,79 +130,17 @@ static timezone_t setConnectionTz(const char *val) {
 
   tscDebug("set timezone to %s", val);
 
-  /* Reject empty string */
-  if (val[0] == '\0') {
-    tscError("%s empty timezone string", __func__);
-    terrno = TSDB_CODE_PAR_INVALID_TIMEZONE;
+  /* Validate and allocate via the shared implementation in ttime.c.
+   * This covers: empty string rejection, ambiguous abbreviation rejection,
+   * fixed-offset normalization, and tzalloc. */
+  int32_t code = taosValidateTimezone(val, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%s invalid timezone '%s', code:0x%x", __func__, val, code);
+    terrno = code;
     goto END;
   }
 
-  /*
-   * Reject ambiguous timezone abbreviations (e.g. CST, EST, PST).
-   * These are 2-6 uppercase-only letters with no slash.  They map to
-   * different zones on different platforms and must be refused.
-   * "UTC" is the sole unambiguous uppercase-only abbreviation we allow.
-   *
-   * Also reject pure-digit or obviously-garbage strings that have no slash
-   * and do not start with +/- (those are handled later as fixed offsets).
-   * A valid IANA name always contains a slash (e.g. "Asia/Shanghai") or is
-   * "UTC"; anything else that is not a recognized fixed-offset format is
-   * invalid.
-   */
-  {
-    const char *p = val;
-    bool        allUpper = true;
-    bool        hasSlash = false;
-    int32_t     len = 0;
-    while (*p) {
-      if (*p == '/') hasSlash = true;
-      if (*p < 'A' || *p > 'Z') allUpper = false;
-      p++; len++;
-    }
-    if (allUpper && len >= 2 && strcmp(val, "UTC") != 0) {
-      tscError("%s ambiguous timezone abbreviation '%s'", __func__, val);
-      terrno = TSDB_CODE_PAR_INVALID_TIMEZONE;
-      goto END;
-    }
-    /* Reject non-offset, non-IANA garbage (no slash, not +/-, not UTC/Z) */
-    if (!hasSlash && val[0] != '+' && val[0] != '-'
-        && strcmp(val, "UTC") != 0
-        && !(val[0] == 'Z' && val[1] == '\0')) {
-      tscError("%s invalid timezone '%s': not a valid IANA name or fixed-offset", __func__, val);
-      terrno = TSDB_CODE_PAR_INVALID_TIMEZONE;
-      goto END;
-    }
-  }
-
-  /* normalize fixed-offset formats before calling tzalloc.
-   * If the input starts with '+' or '-' but fails the fixed-offset format
-   * check, reject it immediately — do NOT pass raw offset strings to tzalloc
-   * because some platforms accept malformed forms like "+8" silently.
-   */
-  char posixBuf[TD_TIMEZONE_LEN] = {0};
-  const char *tzName = val;
-  if (val[0] == '+' || val[0] == '-') {
-    if (!normalizeOffsetTz(val, posixBuf, sizeof(posixBuf))) {
-      tscError("%s invalid fixed-offset timezone '%s'", __func__, val);
-      terrno = TSDB_CODE_PAR_INVALID_TIMEZONE;
-      goto END;
-    }
-    tzName = posixBuf;
-    tscDebug("normalized timezone '%s' -> '%s'", val, tzName);
-  } else if (normalizeOffsetTz(val, posixBuf, sizeof(posixBuf))) {
-    /* handles 'Z' */
-    tzName = posixBuf;
-    tscDebug("normalized timezone '%s' -> '%s'", val, tzName);
-  }
-
-  tz = tzalloc(tzName);
-  if (tz == NULL) {
-    tscError("%s invalid timezone '%s'", __func__, val);
-    terrno = TSDB_CODE_PAR_INVALID_TIMEZONE;
-    goto END;
-  }
-
-  int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
+  code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
   if (code != 0) {
     tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);

@@ -21,6 +21,7 @@
 #include "querynodes.h"
 #include "taoserror.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "ttime.h"
 #include "tjson.h"
 #include "tmsg.h"
@@ -2689,7 +2690,7 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanSmallDataTsSort, &pNode->smallDataTsSort);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    pNode->firstDayOfWeek = 4;
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
     if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanFirstDayOfWeek) != NULL) {
       code = tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
     }
@@ -3621,8 +3622,8 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
     code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanSlidingUnit, &pNode->slidingUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    /* field added in this branch; default to 4 (epoch-aligned) when absent */
-    pNode->firstDayOfWeek = 4;
+    /* field added in this branch; default to epoch alignment when absent */
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
     if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanFirstDayOfWeek) != NULL) {
       code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
     }

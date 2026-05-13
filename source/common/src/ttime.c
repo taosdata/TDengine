@@ -1216,7 +1216,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     } else {
       if (pInterval->intervalUnit == 'w') {
         /* Week interval: align to local week boundary using firstDayOfWeek (0-6).
-         * fdow=4 (Thursday, the Unix epoch start) is handled here too for DST safety. */
+         * The default keeps Unix epoch alignment and is shared via tsDefaultFirstDayOfWeek. */
         time_t    t = (time_t)(ts / (int64_t)TSDB_TICK_PER_SECOND(precision));
         struct tm tm;
         if (taosLocalTime(&t, &tm, NULL, 0, pInterval->timezone) != NULL) {

@@ -387,10 +387,11 @@ int32_t tsCompressMsgSize = -1;
 // count/hyperloglog function always return values in case of all NULL data or Empty data set.
 int32_t tsCountAlwaysReturnValue = 1;
 
-// first day of week for week-based functions and INTERVAL(w), 0=Sunday, ..., 4=Thursday(default), ..., 6=Saturday
-// default 4 matches legacy epoch-modulo alignment (1970-01-01 is Thursday)
+// first day of week for week-based functions and INTERVAL(w), 0=Sunday ... 6=Saturday
+// default matches legacy epoch-modulo alignment at Unix epoch
 // int32_t (not int8_t) because the config framework writes via *(int32_t*) pointer
-int32_t tsFirstDayOfWeek = 4;
+int32_t tsDefaultFirstDayOfWeek = 1 << 2;
+int32_t tsFirstDayOfWeek = 0;
 
 // 1 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 1;
@@ -956,7 +957,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSasl", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL,
                                CFG_PRIV_SECURITY));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "firstDayOfWeek", tsFirstDayOfWeek, 0, 6, CFG_SCOPE_CLIENT,
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "firstDayOfWeek", tsDefaultFirstDayOfWeek, 0, 6, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2809,6 +2810,8 @@ int32_t taosPreLoadCfg(const char *cfgDir, const char **envCmd, const char *envF
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
+
+  tsFirstDayOfWeek = tsDefaultFirstDayOfWeek;
 
   TAOS_CHECK_GOTO(cfgInitWrapper(&tsCfg), &lino, _exit);
 

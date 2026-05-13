@@ -2148,13 +2148,10 @@ TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 #### TIMEZONE
 
 ```sql
-TIMEZONE([0 | 1])
+TIMEZONE()
 ```
 
-**功能说明**：
-
-- `TIMEZONE()` 或 `TIMEZONE(0)`：返回客户端时区信息（兼容历史行为）。
-- `TIMEZONE(1)`：返回包含 `session`、`client`、`server` 三层时区信息的 JSON 字符串。
+**功能说明**：返回当前连接的时区信息字符串。
 
 **返回结果数据类型**：VARCHAR。
 

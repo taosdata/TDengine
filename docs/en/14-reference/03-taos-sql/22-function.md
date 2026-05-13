@@ -2022,13 +2022,10 @@ TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 #### TIMEZONE
 
 ```sql
-TIMEZONE([0 | 1])
+TIMEZONE()
 ```
 
-**Function Description**:
-
-- `TIMEZONE()` or `TIMEZONE(0)`: returns client timezone information (compatible with historical behavior).
-- `TIMEZONE(1)`: returns a JSON string with `session`, `client`, and `server` timezone information.
+**Function Description**: Returns the current connection's timezone information string.
 
 **Return Data Type**: VARCHAR.
 

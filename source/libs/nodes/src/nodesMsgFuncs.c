@@ -16,6 +16,7 @@
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 #include "ttime.h"
 
 #ifndef htonll
@@ -2882,14 +2883,14 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
   if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
     code = tlvDecodeValueI8(pDecoder, &pNode->firstDayOfWeek);
   } else {
-    pNode->firstDayOfWeek = 4;
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   }
   return code;
 }
 
 static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
-  pNode->firstDayOfWeek = 4;
+  pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -3884,7 +3885,7 @@ static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
   if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
     code = tlvDecodeValueI8(pDecoder, &pNode->firstDayOfWeek);
   } else {
-    pNode->firstDayOfWeek = 4;
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   }
 
   return code;
@@ -3892,7 +3893,7 @@ static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
 
 static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
   SIntervalPhysiNode* pNode = (SIntervalPhysiNode*)pObj;
-  pNode->firstDayOfWeek = 4;
+  pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
