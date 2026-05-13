@@ -7,8 +7,10 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
+import numpy as np
 import taosanalytics
 from flask import Flask, request
+from scipy.stats import pearsonr
 from taosanalytics.handlers.imputation import handle_imputation
 from taosanalytics.handlers.anomaly import handle_anomaly
 from taosanalytics.handlers.forecast import handle_forecast
@@ -19,6 +21,9 @@ from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
+from taosanalytics.util import (do_check_before_exec, get_more_data_list,
+                                 do_initial_check, SINGLE_COLUMN_ERROR_MSG)
+from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 
 from taosanalytics.handlers.dynamic_model import (do_handle_undeploy_model, do_handle_dynamic_model)
 
@@ -142,7 +147,7 @@ def handle_pearsonr(request, api_version):
         return {"msg": str(e), "rows": -1}
 
     if api_version != 'v1':
-        app_logger.log_inst.error('unsupported API version: %s', api_version)
+        AppLogger.error('unsupported API version: %s', api_version)
         return {"msg": f"unsupported API version: {api_version}", "rows": -1}
 
     try:
@@ -158,12 +163,12 @@ def handle_pearsonr(request, api_version):
         correlation = float(correlation)
         p_value = float(p_value)
 
-        app_logger.log_inst.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
+        AppLogger.debug(f"pearsonr correlation: {correlation}, p value: {p_value}")
         res = {"option": options, "rows": 1, "correlation_coefficient": correlation, "p_value": p_value}
 
         return res
     except Exception as e:
-        app_logger.log_inst.error('pearsonr correlation failed, %s', str(e))
+        AppLogger.error('pearsonr correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 def do_profile_search(request, api_version):
@@ -188,8 +193,8 @@ def do_profile_search(request, api_version):
     - Or return all profiles with distance below the threshold when using dtw.
     - Or return all profiles with similarity above the threshold when using cosine similarity.
     - "num" and "threshold" cannot be set at the same time.
-    - "exclude_contained" is only applicable for dtw and means whether to exclude the worse matched profile in a strict-containment pair, keeping the better one (the match with the smaller distance). For example, if there are two matched profiles with ts window [1, 5] and [2, 4], and one strictly contains the other, the worse match will be excluded if "exclude_contained" is set to true. 
     - "exclude_source" is applicable for all algorithms and means whether to exclude the matched profile that contains the source profile. For example, if the source profile has ts window [2, 4], the matched profile with ts window [2, 4] will be excluded if "exclude_source" is set to true.
+    - "exclude_overlap" is applicable for all algorithms and means whether to exclude any matched profile that overlaps with a better-ranked result. For example, if there are two matched profiles with ts window [1, 5] and [4, 6], the profile [4, 6] will be excluded if "exclude_overlap" is set to true. Endpoint-touching windows are treated as adjacent/non-overlapping, so windows such as [1, 5] and [5, 9] are not excluded by "exclude_overlap".    
     - Threshold-based results are capped at 500 matches.
     target_data.ts may be either:
     - a unix timestamp list, such as [1, 2, 3, 4, 5, 6]
@@ -208,8 +213,8 @@ def do_profile_search(request, api_version):
         },
         "result": {
             "num": 3,
-            "exclude_contained": true,
-            "exclude_source": true
+            "exclude_source": true,
+            "exclude_overlap": true
         },
         "source_data": {
             "ts": [1000, 2000, 3000, 4000, 5000],
@@ -251,7 +256,7 @@ def do_profile_search(request, api_version):
 
     """
     if api_version != 'v1':
-        app_logger.log_inst.error('unsupported API version: %s', api_version)
+        AppLogger.error('unsupported API version: %s', api_version)
         return {"msg": f"unsupported API version: {api_version}", "rows": -1}
 
     try:
@@ -261,25 +266,25 @@ def do_profile_search(request, api_version):
 
     try:
         result = do_profile_search_impl(req_json)
-        app_logger.log_inst.debug("profile-search result: %s", result)
+        AppLogger.debug("profile-search result: %s", result)
         return result
 
     except Exception as e:
-        app_logger.log_inst.error('profile search failed, %s', str(e))
+        AppLogger.error('profile search failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 
 @app.route('/api/v1/analysis/pearsonr', methods=['POST'])
 def handle_pearsonr_req():
     """handle the pearsonr correlation request """
-    app_logger.log_inst.info('recv pearsonr correlation request from %s', request.remote_addr)
+    AppLogger.info('recv pearsonr correlation request from %s', request.remote_addr)
     return handle_pearsonr(request, api_version='v1')
 
 
 @app.route('/api/v1/analysis/profile-search', methods=['POST'])
 def handle_profile_search_req():
     """handle the profile search request """
-    app_logger.log_inst.info('recv profile search request from %s', request.remote_addr)
+    AppLogger.info('recv profile search request from %s', request.remote_addr)
     return do_profile_search(request, api_version='v1')
 
 

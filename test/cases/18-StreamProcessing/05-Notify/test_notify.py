@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import inspect
@@ -11,6 +12,42 @@ from notify_check import expect_event, expect_event_count, expect_rows
 caller_file = os.path.realpath(__file__)
 caller_dir = os.path.dirname(caller_file)
 NOTIFY_RESULT_DIR = os.path.join(caller_dir, "notify_result_tmp")
+
+
+def _load_notify_events(path):
+    events = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            for stream in obj.get("streams", []):
+                events.extend(stream.get("events", []))
+    return events
+
+
+def _wait_notify_events(path, min_events, retries=30):
+    for _ in range(retries):
+        try:
+            events = _load_notify_events(path)
+            if len(events) >= min_events:
+                return events
+        except (FileNotFoundError, ValueError):
+            pass
+        time.sleep(1)
+    return _load_notify_events(path)
+
+
+def _subevent_key(event):
+    cond = event.get("triggerCondition", {})
+    return (
+        event.get("eventType"),
+        event.get("windowIndex"),
+        cond.get("conditionIndex"),
+        event.get("windowStart"),
+    )
+
 
 class TestStreamNotifyTrigger:
 
@@ -84,6 +121,7 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic15())
         streams.append(self.Basic16())
         streams.append(self.Basic17())
+        streams.append(self.Basic18())
 
         tdStream.checkAll(streams)      
         stop_notify_server_background()
@@ -2224,3 +2262,119 @@ class TestStreamNotifyTrigger:
                 eventType="WINDOW_CLOSE",
                 result_pred=lambda data: len(data) > 0,
             )
+
+    class Basic18(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb18"
+
+        def create(self):
+            tdLog.info("=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute("create table t_single (ts timestamp, c0 int, c1 int)")
+            tdSql.execute("create table t_order (ts timestamp, c0 int, c1 int)")
+            tdSql.execute("create table t_history (ts timestamp, c0 int, c1 int)")
+
+            tdSql.execute(
+                "create stream s_single "
+                "event_window(start with (c0 = 1, c1 = 1)) "
+                "from t_single "
+                "stream_options(DELETE_RECALC|event_type(window_open|window_close)) "
+                "notify('ws://localhost:12345/basic18_single') "
+                "on(window_open|window_close) notify_options(notify_history) "
+                "into r_single as "
+                "select _twstart, _twend, count(*) from t_single "
+                "where ts >= _twstart and ts <= _twend"
+            )
+            tdSql.execute(
+                "create stream s_order "
+                "event_window(start with (c0 = 1, c1 = 1)) "
+                "from t_order "
+                "stream_options(event_type(window_open|window_close)) "
+                "notify('ws://localhost:12345/basic18_order') "
+                "on(window_open|window_close) notify_options(notify_history) "
+                "into r_order as "
+                "select _twstart, _twend, count(*) from t_order "
+                "where ts >= _twstart and ts <= _twend"
+            )
+            tdSql.execute(
+                "create stream s_history "
+                "event_window(start with (c0 = 1, c1 = 1)) "
+                "from t_history "
+                "stream_options(event_type(window_open|window_close)) "
+                "notify('ws://localhost:12345/basic18_history') "
+                "on(window_open|window_close) notify_options(notify_history) "
+                "into r_history as "
+                "select _twstart, _twend, count(*) from t_history "
+                "where ts >= _twstart and ts <= _twend"
+            )
+
+        def insert1(self):
+            tdSql.execute("insert into t_single values ('2025-01-01 00:00:00.000', 1, 0)")
+            tdSql.execute("insert into t_single values ('2025-01-01 00:00:01.000', 0, 0)")
+            tdSql.execute("insert into t_order values ('2025-01-01 00:00:00.000', 1, 0)")
+            tdSql.execute("insert into t_history values ('2025-01-01 00:00:00.000', 1, 0)")
+
+        def check1(self):
+            single_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_single.log")
+            events = _wait_notify_events(single_log, 2)
+            actual = [_subevent_key(e) for e in events[:2]]
+            expected = [
+                ("WINDOW_OPEN", -1, 0, 1735660800000),
+                ("WINDOW_CLOSE", -1, 0, 1735660800000),
+            ]
+            assert actual == expected, events
+            assert len(events) == 2, events
+
+            order_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_order.log")
+            _wait_notify_events(order_log, 1)
+            time.sleep(1)
+            events = _load_notify_events(order_log)
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", -1, 0, 1735660800000)], events
+
+            history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
+            _wait_notify_events(history_log, 1)
+            time.sleep(1)
+            events = _load_notify_events(history_log)
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", -1, 0, 1735660800000)], events
+
+        def insert2(self):
+            tdSql.execute("insert into t_order values ('2025-01-01 00:00:01.000', 0, 1)")
+            tdSql.execute("insert into t_history values ('2025-01-01 00:00:01.000', 0, 1)")
+            tdSql.execute("delete from t_history where ts = '2025-01-01 00:00:01.000'")
+
+        def check2(self):
+            order_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_order.log")
+            events = _wait_notify_events(order_log, 4)
+            actual = [_subevent_key(e) for e in events[:4]]
+            expected = [
+                ("WINDOW_OPEN", -1, 0, 1735660800000),
+                ("WINDOW_OPEN", 0, 0, 1735660800000),
+                ("WINDOW_CLOSE", 0, 0, 1735660800000),
+                ("WINDOW_OPEN", 1, 1, 1735660801000),
+            ]
+            assert actual == expected, events
+            parent_open = events[0]
+            first_child_open = events[1]
+            first_child_close = events[2]
+            second_child_open = events[3]
+            parent_trigger_id = parent_open.get("triggerId")
+            assert parent_trigger_id, events
+            assert first_child_open.get("triggerId") != parent_trigger_id, events
+            assert first_child_close.get("triggerId") != parent_trigger_id, events
+            assert first_child_close.get("triggerId") == first_child_open.get("triggerId"), events
+            assert first_child_open.get("parentTriggerId") == parent_trigger_id, events
+            assert first_child_close.get("parentTriggerId") == parent_trigger_id, events
+            assert second_child_open.get("parentTriggerId") == parent_trigger_id, events
+
+            history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
+            events = _wait_notify_events(history_log, 4)
+            actual = [_subevent_key(e) for e in events[:4]]
+            assert actual == expected, events
+            parent_open = events[0]
+            parent_trigger_id = parent_open.get("triggerId")
+            assert parent_trigger_id, events
+            for child_event in events[1:4]:
+                assert child_event.get("triggerId") != parent_trigger_id, events
+                assert child_event.get("parentTriggerId") == parent_trigger_id, events

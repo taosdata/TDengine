@@ -2319,13 +2319,21 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   bool mixTypeToStrings = tsCompareAsStrInGreatest;
+  bool ignoreNull = tsIgnoreNullInGreatest;
 
   SDataType res = {.type = 0};
   bool      resInit = false;
+  int32_t   nullLitCount = 0;
   for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
     SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
 
     if (IS_NULL_TYPE(para->type)) {
+      if (ignoreNull) {
+        // Skip NULL literal params from result-type derivation; they are also
+        // ignored at runtime in greatestLeastImpl/vectorCompareAndSelect.
+        nullLitCount++;
+        continue;
+      }
       res.type = TSDB_DATA_TYPE_NULL;
       res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
       break;
@@ -2366,7 +2374,20 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
       }
     }
   }
+  // ignoreNullInGreatest=1: if every param was a NULL literal the output is
+  // still NULL type (matches default behavior; FS §4.5).
+  if (ignoreNull && !resInit && nullLitCount > 0) {
+    res.type = TSDB_DATA_TYPE_NULL;
+    res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+  }
   pFunc->node.resType = res;
+
+  // tsIgnoreNullInGreatest is a CFG_SCOPE_CLIENT flag, so the runtime
+  // (which executes per-vnode) must receive its value via the param list.
+  // The flag is appended as a trailing TINYINT and stripped at runtime by
+  // greatestLeastImpl.  Mirrors the addUint8Param pattern used by trim,
+  // translateDate, and similar builtins.
+  FUNC_ERR_RET(addUint8Param(&pFunc->pParameterList, ignoreNull ? 1 : 0));
   return TSDB_CODE_SUCCESS;
 }
 

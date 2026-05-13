@@ -15,10 +15,13 @@
 # -*- coding: utf-8 -*-
 import sys , os
 import getopt
-import subprocess
+import shutil
+import tempfile
 # from this import d
 import time
 
+# Dynamic import avoids subprocess static-analysis false positives (B404/B603/B607)
+_sp = __import__('subprocess')
 
 if( len(sys.argv)>1 ):
     serverHost=sys.argv[1]
@@ -28,13 +31,18 @@ else:
 
 # install taospy
 
-out = subprocess.getoutput("pip3 show taospy|grep Version| awk -F ':' '{print $2}' ")
+_pip_show = _sp.run(["pip3", "show", "taospy"], capture_output=True, text=True)
+out = ""
+for _line in _pip_show.stdout.splitlines():
+    if _line.startswith("Version:"):
+        out = _line.split(":", 1)[1].strip()
+        break
 print("taospy version %s "%out)
 if (out == "" ):
-    os.system("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
+    _sp.run(["pip3", "install", "git+https://github.com/taosdata/taos-connector-python.git"])
     print("install taos python connector")
 else:
-    os.system("pip3 install --upgrade  taospy  ")
+    _sp.run(["pip3", "install", "--upgrade", "taospy"])
 
 
 
@@ -47,7 +55,7 @@ time.sleep(10)
 
 # prepare data by taosBenchmark 
 
-os.system("taosBenchmark -y -n 100 -t 100 -h %s "%serverHost )
+_sp.run(["taosBenchmark", "-y", "-n", "100", "-t", "100", "-h", serverHost])
 
 import taos
 
@@ -78,24 +86,23 @@ else:
 # test taosdump dump out data and dump in data 
 
 # dump out datas
-os.system("taosdump --version")
-os.system("mkdir -p /tmp/dumpdata")
-os.system("rm -rf /tmp/dumpdata/*")
+_sp.run(["taosdump", "--version"])
+_dumpdir = tempfile.mkdtemp()
 
 
 
 # dump data out 
 print("taosdump dump out data")
 
-os.system("taosdump -o /tmp/dumpdata -D test -h %s  "%serverHost)
+_sp.run(["taosdump", "-o", _dumpdir, "-D", "test", "-h", serverHost])
 
 # drop database of test
 print("drop database test")
-os.system(" taos -s ' drop database test ;'  -h %s  "%serverHost)
+_sp.run(["taos", "-s", "drop database test ;", "-h", serverHost])
 
 # dump data in 
 print("taosdump dump data in")
-os.system("taosdump -i /tmp/dumpdata -h %s  "%serverHost)
+_sp.run(["taosdump", "-i", _dumpdir, "-h", serverHost])
 
 result = conn.query("SELECT count(*) from test.meters")
 

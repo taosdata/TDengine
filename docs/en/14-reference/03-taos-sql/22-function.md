@@ -144,13 +144,16 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
 
-- If any parameter is NULL, the comparison result is NULL.
+- If any parameter is NULL, the comparison result is NULL. (See `ignoreNullInGreatest` below to skip NULL arguments instead.)
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
 - If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
 - In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
 
-**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+**Related configuration items**:
+
+- `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
 
 #### LEAST
 
@@ -1939,8 +1942,7 @@ NOW()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units include:
-        b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 
 #### TIMEDIFF
@@ -1969,7 +1971,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - Returns NULL if `expr1` or `expr2` is NULL.
 - Returns NULL if the input contains strings that do not conform to any date-time format.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
-- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - If `time_unit` is NULL, it is equivalent to the time unit not being specified.
 
 **Example**:
@@ -2007,8 +2009,7 @@ use_current_timezone: {
 
 **Usage Instructions**:
 
-- Supported time units `time_unit` include:
-          1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
@@ -2050,8 +2051,7 @@ TODAY()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units include:
-                b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
 
 #### WEEK
