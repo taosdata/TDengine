@@ -1091,12 +1091,37 @@ class ExtSrcEnv:
 
     @classmethod
     def influx_drop_db_cfg(cls, cfg, bucket):
-        """Drop InfluxDB v3 database on a specific version instance (idempotent)."""
-        import requests
+        """Drop InfluxDB v3 database on a specific version instance (idempotent).
+
+        Note: InfluxDB 3.x (IOx) may exit shortly after responding to a
+        DELETE /api/v3/configure/database request.  This method detects such
+        crashes and automatically restarts InfluxDB so that subsequent tests
+        can continue without a cascade failure.
+        """
+        import requests, time
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
-        r = requests.delete(url, params={"db": bucket}, timeout=5)
-        if r.status_code not in (200, 204, 404):
-            r.raise_for_status()
+        _crashed = False
+        try:
+            r = requests.delete(url, params={"db": bucket}, timeout=5)
+            if r.status_code not in (200, 204, 404):
+                r.raise_for_status()
+        except requests.exceptions.ConnectionError:
+            _crashed = True  # already not responding when DELETE was sent
+        if not _crashed:
+            # InfluxDB 3.x (IOx) sometimes crashes *after* responding to the
+            # DELETE.  Give it a brief moment to settle, then verify health.
+            time.sleep(0.5)
+            try:
+                requests.get(f"http://{cfg.host}:{cfg.port}/health", timeout=3)
+            except requests.exceptions.ConnectionError:
+                _crashed = True
+        if _crashed:
+            # Restart InfluxDB in-place (quick restart, no data wipe) so that
+            # the next operation against InfluxDB succeeds.
+            try:
+                cls.start_influx_instance(cfg.version)
+            except Exception:
+                pass
 
     @classmethod
     def influx_write_cfg(cls, cfg, bucket, lines, precision='ns'):
