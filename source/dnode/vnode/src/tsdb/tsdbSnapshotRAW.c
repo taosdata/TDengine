@@ -47,7 +47,8 @@ typedef struct STsdbSnapRAWReader {
   SDataFileRAWReaderIter dataIter[1];
 
   // missing file filter
-  SHashObj* missingFileHash;  // key=fname — per-file filtering (not owned, do not free)
+  SHashObj* missingFileHash;  // key=(fid,ftype) — per-file filtering (not owned, do not free)
+  SHashObj* fidModeHash;      // key=fid, val=uint8_t mode (not owned, do not free)
   int32_t*  missingFids;      // FID set for FID-level pre-filtering (owned, copy)
   int32_t   missingFidCount;
 } STsdbSnapRAWReader;
@@ -66,7 +67,8 @@ static bool tsdbFidInMissingSet(int32_t fid, const int32_t* missingFids, int32_t
 }
 
 int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRanges, SHashObj* missingFileHash,
-                              const int32_t* missingFids, int32_t missingFidCount, STsdbSnapRAWReader** reader) {
+                              SHashObj* fidModeHash, const int32_t* missingFids, int32_t missingFidCount,
+                              STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -79,6 +81,7 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRan
 
   // set missing file filter (hash is borrowed, not owned)
   reader[0]->missingFileHash = missingFileHash;
+  reader[0]->fidModeHash = fidModeHash;
 
   // copy missing fid filter
   if (missingFids != NULL && missingFidCount > 0) {
@@ -136,22 +139,34 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  // determine sync mode for this fid
+  int32_t curFid = reader->ctx->fset->fid;
+  bool    fsetLevel = false;
+  if (reader->fidModeHash != NULL) {
+    uint8_t* pMode = taosHashGet(reader->fidModeHash, &curFid, sizeof(curFid));
+    if (pMode != NULL && *pMode == TSDB_SNAP_SYNC_FSET_LEVEL) {
+      fsetLevel = true;
+      tsdbInfo("vgId:%d, RAW fid:%d using FSET_LEVEL sync (send all files)", TD_VID(reader->tsdb->pVnode), curFid);
+    } else {
+      tsdbInfo("vgId:%d, RAW fid:%d using FILE_LEVEL sync (send only missing files)", TD_VID(reader->tsdb->pVnode),
+               curFid);
+    }
+  }
+
   // data
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
     if (reader->ctx->fset->farr[ftype] == NULL) {
       continue;
     }
     STFileObj*               fobj = reader->ctx->fset->farr[ftype];
-    // per-file filter: skip files not in missing set (use fid + ftype)
-    if (reader->missingFileHash != NULL) {
+    // per-file filter: skip files not in missing set (only when FILE_LEVEL mode)
+    if (!fsetLevel && reader->missingFileHash != NULL) {
       int64_t mfKey = tsdbMissingFileKey(reader->ctx->fset->fid, ftype);
       if (taosHashGet(reader->missingFileHash, &mfKey, sizeof(mfKey)) == NULL) {
         tsdbDebug("vgId:%d, RAW skip file fid:%d ftype:%d not in missing set", TD_VID(reader->tsdb->pVnode),
                   reader->ctx->fset->fid, ftype);
         continue;
       }
-      tsdbInfo("vgId:%d, RAW include file fid:%d ftype:%d in missing set", TD_VID(reader->tsdb->pVnode),
-               reader->ctx->fset->fid, ftype);
     }
     SDataFileRAWReader*      dataReader;
     SDataFileRAWReaderConfig config = {
@@ -163,6 +178,8 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = TARRAY2_APPEND(reader->dataReaderArr, dataReader);
+    tsdbInfo("vgId:%d, RAW include file fid:%d ftype:%d in missing set", TD_VID(reader->tsdb->pVnode),
+             reader->ctx->fset->fid, ftype);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -171,16 +188,14 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
   TARRAY2_FOREACH(reader->ctx->fset->lvlArr, lvl) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-      // per-file filter: skip stt files not in missing set (use fid + ftype)
-      if (reader->missingFileHash != NULL) {
+      // per-file filter: skip stt files not in missing set (only when FILE_LEVEL mode)
+      if (!fsetLevel && reader->missingFileHash != NULL) {
         int64_t mfKey = tsdbMissingFileKey(reader->ctx->fset->fid, TSDB_FTYPE_STT);
         if (taosHashGet(reader->missingFileHash, &mfKey, sizeof(mfKey)) == NULL) {
           tsdbDebug("vgId:%d, RAW skip stt file fid:%d not in missing set", TD_VID(reader->tsdb->pVnode),
                     reader->ctx->fset->fid);
           continue;
         }
-        tsdbInfo("vgId:%d, RAW include stt file fid:%d in missing set", TD_VID(reader->tsdb->pVnode),
-                 reader->ctx->fset->fid);
       }
       SDataFileRAWReader*      dataReader;
       SDataFileRAWReaderConfig config = {
@@ -192,6 +207,8 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(reader->dataReaderArr, dataReader);
+      tsdbInfo("vgId:%d, RAW include stt file fid:%d in missing set", TD_VID(reader->tsdb->pVnode),
+               reader->ctx->fset->fid);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
