@@ -115,14 +115,33 @@ prepare-workspace:
       else
         _BRANCH="${CI_COMMIT_BRANCH}"
       fi
+      # ── checkout 辅助函数 ──────────────────────────────────────────────────
+      # MR 触发时：fetch GitLab 服务端预合并的虚拟 merge commit
+      #   refs/merge-requests/<IID>/merge  ←→  GitHub 的 refs/pull/<N>/merge
+      #   该引用由 GitLab 在 MR 无冲突时自动维护，代表 source 已 merge 进 target 的结果。
+      #   CI 在合并后的代码上运行，与 GitHub prepare_test_env.py 行为一致。
+      # 非 MR 触发时（schedule/web/push）：直接 checkout 对应 commit。
+      _checkout_merged() {
+        local _dir="$1"
+        cd "${_dir}"
+        if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+          git fetch origin "refs/merge-requests/${CI_MERGE_REQUEST_IID}/merge"
+          git checkout -qf FETCH_HEAD
+          echo "[prepare] checked out MR !${CI_MERGE_REQUEST_IID} merged result: $(git rev-parse --short HEAD)"
+        else
+          git checkout -qf "${CI_COMMIT_SHA}"
+          echo "[prepare] checked out commit: $(git rev-parse --short HEAD)"
+        fi
+      }
+
       # NoSan 源码目录
       git clone --branch "${_BRANCH}" --depth 50 \
         git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC}"
-      cd "${TSDB_SRC}" && git checkout "${CI_COMMIT_SHA}"
+      _checkout_merged "${TSDB_SRC}"
       # San 独立源码目录（与 NoSan 并行构建，互不干扰）
       git clone --branch "${_BRANCH}" --depth 50 \
         git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC_SAN}"
-      cd "${TSDB_SRC_SAN}" && git checkout "${CI_COMMIT_SHA}"
+      _checkout_merged "${TSDB_SRC_SAN}"
 
     - |
       # 确保 platform 工具仓库存在并为最新；flock 防止多 MR 并发时同时 clone/pull
