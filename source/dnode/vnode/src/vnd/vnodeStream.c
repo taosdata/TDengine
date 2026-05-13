@@ -21,6 +21,8 @@
 #include "nodes.h"
 #include "osMemPool.h"
 #include "osMemory.h"
+#include "osSemaphore.h"
+#include "query.h"
 #include "scalar.h"
 #include "stream.h"
 #include "streamReader.h"
@@ -235,6 +237,10 @@ static int32_t  qTransformStreamTableList(SStreamTriggerReaderInfo* sStreamReade
   }
   return 0;
 }
+
+// Forward declaration: throttled vtable cache recheck hook used by WAL meta entry points.
+static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
+                                             int64_t walVer, SSTriggerWalNewRsp *pRsp);
 
 static int32_t generateTablistForStreamReader(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t                   code = 0;
@@ -3400,6 +3406,10 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   blockDataEmpty(sStreamReaderInfo->metaBlock);
   resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
   resultRsp.ver = req->walMetaNewReq.lastVer;
+  {
+    int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
+    if (hookRc == TSDB_CODE_STREAM_VTB_TAG_CHANGED) { code = hookRc; goto end; }
+  }
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo, req->walMetaNewReq.ctime));
 
   ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, resultRsp.ver, resultRsp.totalRows);
@@ -3452,6 +3462,10 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   resultRsp.checkAlter = true;
   resultRsp.indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   STREAM_CHECK_NULL_GOTO(resultRsp.indexHash, terrno);
+  {
+    int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
+    if (hookRc == TSDB_CODE_STREAM_VTB_TAG_CHANGED) { code = hookRc; goto end; }
+  }
 
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, &resultRsp));
 
@@ -3640,111 +3654,165 @@ end:
   return code;
 }
 
-static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_t uid, uint64_t gid, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo) {
-  int32_t              code = 0;
-  int32_t              lino = 0;
-  void* pTask = sStreamReaderInfo->pTask;
+// Extract tag-typed column ids from the reader's partition-cols node list.
+// On success returns a fresh SArray<col_id_t> (may be empty); caller frees it.
+static int32_t streamCollectTagCidsFromPartitionCols(SNodeList *partitionCols, SArray **ppTagCids) {
+  *ppTagCids = NULL;
+  SArray *tagCids = taosArrayInit(0, sizeof(col_id_t));
+  if (tagCids == NULL) return terrno;
+  SNode *pNode = NULL;
+  FOREACH(pNode, partitionCols) {
+    if (pNode == NULL || nodeType(pNode) != QUERY_NODE_COLUMN) continue;
+    SColumnNode *c = (SColumnNode *)pNode;
+    if (c->colType != COLUMN_TYPE_TAG) continue;
+    col_id_t cid = c->colId;
+    if (taosArrayPush(tagCids, &cid) == NULL) { taosArrayDestroy(tagCids); return terrno; }
+  }
+  *ppTagCids = tagCids;
+  return 0;
+}
 
-  VTableInfo* vTable = taosArrayReserve(infos, 1);
+// For a single resolved uid, fill one VTableInfo entry: copy each requested cid's
+// resolved terminal SColResolveItem into pColRef[i] (hasRef + ref{Db,Table,Col}Name);
+// id is the virtual cid itself. version is taken from metaReader if available.
+static int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInfo *sStreamReaderInfo,
+                                                int64_t uid, uint64_t gid, int64_t ver, SArray *cids,
+                                                SVTableResolveResult *pRes, SMetaReader *metaReader,
+                                                SArray *infos) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *pTask = sStreamReaderInfo->pTask;
+
+  VTableInfo *vTable = taosArrayReserve(infos, 1);
   STREAM_CHECK_NULL_GOTO(vTable, terrno);
   vTable->uid = uid;
   vTable->gId = gid;
 
-  ST_TASK_DLOG("vgId:%d %s put vtable uid:%"PRId64, TD_VID(pVnode), __func__, uid);
-
+  // Pull schema version + colRef from meta. cids==NULL means "all columns of
+  // this vtable", in which case we also need me.colRef.pColRef as the iteration
+  // source. Soft-fail (leave version=0 / nCols=0) if the entry is gone.
+  int32_t version  = 0;
+  bool    haveMeta = false;
   code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, ver, uid);
-  if (code != 0) {
-    ST_TASK_ELOG("vgId:%d %s get table entry by uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, uid, tstrerror(code));
-    goto end;
-  }
-  if (atomic_load_8(&sStreamReaderInfo->isVtableOnlyTs) == 1) {
-    vTable->cols.nCols = metaReader->me.colRef.nCols;
-    vTable->cols.version = metaReader->me.colRef.version;
-    vTable->cols.pColRef = taosMemoryCalloc(metaReader->me.colRef.nCols, sizeof(SColRef));
-    STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
-    for (size_t j = 0; j < metaReader->me.colRef.nCols; j++) {
-      memcpy(vTable->cols.pColRef + j, &metaReader->me.colRef.pColRef[j], sizeof(SColRef));
-    }
+  if (code == 0) {
+    version  = metaReader->me.colRef.version;
+    haveMeta = true;
   } else {
-    vTable->cols.nCols = taosArrayGetSize(cids);
-    vTable->cols.version = metaReader->me.colRef.version;
-    vTable->cols.pColRef = taosMemoryCalloc(taosArrayGetSize(cids), sizeof(SColRef));
-    STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
-    for (size_t i = 0; i < taosArrayGetSize(cids); i++) {
-      for (size_t j = 0; j < metaReader->me.colRef.nCols; j++) {
-        if (metaReader->me.colRef.pColRef[j].hasRef &&
-            metaReader->me.colRef.pColRef[j].id == *(col_id_t*)taosArrayGet(cids, i)) {
-          memcpy(vTable->cols.pColRef + i, &metaReader->me.colRef.pColRef[j], sizeof(SColRef));
-          break;
+    code = 0;
+  }
+
+  if (cids == NULL) {
+    // "All columns" mode: enumerate the vtable's own pColRef.
+    int32_t nAll = haveMeta ? metaReader->me.colRef.nCols : 0;
+    vTable->cols.nCols   = nAll;
+    vTable->cols.version = version;
+    if (nAll > 0) {
+      vTable->cols.pColRef = taosMemoryCalloc(nAll, sizeof(SColRef));
+      STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
+      for (int32_t j = 0; j < nAll; ++j) {
+        col_id_t cid = metaReader->me.colRef.pColRef[j].id;
+        vTable->cols.pColRef[j].id = cid;
+        if (pRes == NULL || pRes->colMap == NULL) continue;
+        SColResolveItem **pp = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &cid, sizeof(cid));
+        if (pp == NULL || *pp == NULL) continue;
+        SColResolveItem *item = *pp;
+        vTable->cols.pColRef[j].hasRef = item->hasRef;
+        if (item->hasRef) {
+          tstrncpy(vTable->cols.pColRef[j].refDbName,    item->refDbName,    TSDB_DB_NAME_LEN);
+          tstrncpy(vTable->cols.pColRef[j].refTableName, item->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(vTable->cols.pColRef[j].refColName,   item->refColName,   TSDB_COL_NAME_LEN);
         }
       }
     }
+  } else {
+    int32_t nCids = (int32_t)taosArrayGetSize(cids);
+    vTable->cols.nCols   = nCids;
+    vTable->cols.version = version;
+    vTable->cols.pColRef = taosMemoryCalloc(nCids, sizeof(SColRef));
+    STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
+
+    for (int32_t i = 0; i < nCids; ++i) {
+      col_id_t cid = *(col_id_t *)taosArrayGet(cids, i);
+      vTable->cols.pColRef[i].id = cid;
+      if (pRes == NULL || pRes->colMap == NULL) continue;
+      SColResolveItem **pp = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &cid, sizeof(cid));
+      if (pp == NULL || *pp == NULL) continue;
+      SColResolveItem *item = *pp;
+      vTable->cols.pColRef[i].hasRef = item->hasRef;
+      if (item->hasRef) {
+        tstrncpy(vTable->cols.pColRef[i].refDbName,    item->refDbName,    TSDB_DB_NAME_LEN);
+        tstrncpy(vTable->cols.pColRef[i].refTableName, item->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(vTable->cols.pColRef[i].refColName,   item->refColName,   TSDB_COL_NAME_LEN);
+      }
+    }
   }
-  tDecoderClear(&metaReader->coder);
+
+  if (haveMeta) {
+    tDecoderClear(&metaReader->coder);
+  }
 
 end:
   return code;
 }
 
-static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* cids, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
-  int32_t              code = 0;
-  int32_t              lino = 0;
-  void* pTask = sStreamReaderInfo->pTask;
-  SArray*              pTableListArray = NULL;
+// Commit chain-resolver output into the per-reader cache.
+// fullScan==true:   atomically swap in the new map (old map is destroyed).
+// fullScan==false:  per-uid overwrite (old entries destroyed and replaced).
+// On return, *ppUid2Result is set to NULL — ownership has moved into the cache.
+static int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fullScan,
+                                         SArray *cids, SArray *tagCids, SSHashObj **ppUid2Result) {
+  int32_t code = 0;
+  if (pCache == NULL || ppUid2Result == NULL || *ppUid2Result == NULL) return TSDB_CODE_INVALID_PARA;
+  SSHashObj *uid2Result = *ppUid2Result;
 
+  taosWLockLatch(&pCache->lock);
 
-  pTableListArray = qStreamGetTableArrayList(sStreamReaderInfo);
-  STREAM_CHECK_NULL_GOTO(pTableListArray, terrno);
-
-  vTableInfo->infos = taosArrayInit(taosArrayGetSize(pTableListArray), sizeof(VTableInfo));
-  STREAM_CHECK_NULL_GOTO(vTableInfo->infos, terrno);
-
-  for (size_t i = 0; i < taosArrayGetSize(pTableListArray); i++) {
-    SStreamTableKeyInfo* pKeyInfo = taosArrayGetP(pTableListArray, i);
-    if (pKeyInfo == NULL || pKeyInfo->markedDeleted) {
-      continue;
+  if (fullScan) {
+    // C2a: atomic full-map replacement.
+    SSHashObj *oldMap = pCache->uid2Result;
+    pCache->uid2Result = uid2Result;
+    if (oldMap) {
+      void *iter = NULL; int32_t it = 0;
+      while ((iter = tSimpleHashIterate(oldMap, iter, &it)) != NULL) {
+        SVTableResolveResult **pp = (SVTableResolveResult **)iter;
+        if (pp && *pp) streamVTableResolveResultDestroy(*pp);
+      }
+      tSimpleHashCleanup(oldMap);
     }
-    code = setVtableInfo(pVnode, vTableInfo->infos, cids, pKeyInfo->uid, pKeyInfo->groupId, ver, metaReader, sStreamReaderInfo);
-    if (code != 0) {
-      ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, pKeyInfo->uid, tstrerror(code));
-      code = 0;
-      continue;
+  } else {
+    // M1: per-uid overwrite.
+    if (pCache->uid2Result == NULL) {
+      pCache->uid2Result = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      if (pCache->uid2Result == NULL) { code = terrno; goto _exit; }
     }
+    void *iter = NULL; int32_t it = 0;
+    while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
+      int64_t uid = *(int64_t *)tSimpleHashGetKey(iter, NULL);
+      SVTableResolveResult *r = *(SVTableResolveResult **)iter;
+      SVTableResolveResult **pOld = (SVTableResolveResult **)tSimpleHashGet(pCache->uid2Result, &uid, sizeof(uid));
+      if (pOld && *pOld) streamVTableResolveResultDestroy(*pOld);
+      int32_t rc = tSimpleHashPut(pCache->uid2Result, &uid, sizeof(uid), &r, POINTER_BYTES);
+      if (rc != 0) { code = rc; goto _exit; }
+    }
+    // Detach values from uid2Result (they are now owned by the cache) and free the shell.
+    tSimpleHashCleanup(uid2Result);
   }
 
-end:
-  taosArrayDestroyP(pTableListArray, taosMemFree);
-  return code;
-}
-
-static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* uids, SArray* cids, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
-  int32_t              code = 0;
-  int32_t              lino = 0;
-  void* pTask = sStreamReaderInfo->pTask;
-
-  vTableInfo->infos = taosArrayInit(taosArrayGetSize(uids), sizeof(VTableInfo));
-  STREAM_CHECK_NULL_GOTO(vTableInfo->infos, terrno);
-
-  for (size_t i = 0; i < taosArrayGetSize(uids); i++) {
-    int64_t* uid = taosArrayGet(uids, i);
-    STREAM_CHECK_NULL_GOTO(uid, terrno);
-
-    taosRLockLatch(&sStreamReaderInfo->lock);
-    uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, *uid);
-    taosRUnLockLatch(&sStreamReaderInfo->lock);
-    if (groupId == -1) {
-      ST_TASK_WLOG("vgId:%d %s uid:%"PRId64" not found in stream group", TD_VID(pVnode), __func__, *uid);
-      continue;
-    }
-    code = setVtableInfo(pVnode, vTableInfo->infos, cids, *uid, groupId, ver, metaReader, sStreamReaderInfo);
-    if (code != 0) {
-      ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, *uid, tstrerror(code));
-      code = 0;
-      continue;
-    }
+  // Sync request col/tag cid arrays so refresh hook knows what to re-resolve.
+  if (cids != NULL) {
+    if (pCache->reqColCids != NULL) taosArrayDestroy(pCache->reqColCids);
+    pCache->reqColCids = taosArrayDup(cids, NULL);
   }
-  
-end:
+  if (tagCids != NULL) {
+    if (pCache->reqTagCids != NULL) taosArrayDestroy(pCache->reqTagCids);
+    pCache->reqTagCids = taosArrayDup(tagCids, NULL);
+  }
+  pCache->lastCheckMs = taosGetTimestampMs();
+  pCache->valid       = true;
+
+_exit:
+  taosWUnLockLatch(&pCache->lock);
+  *ppUid2Result = NULL;
   return code;
 }
 
@@ -3755,6 +3823,8 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   size_t               size = 0;
   SStreamMsgVTableInfo vTableInfo = {0};
   SMetaReader          metaReader = {0};
+  SArray              *tagCids   = NULL;
+  SSHashObj           *uid2Result = NULL;
 
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, version:%"PRId64, TD_VID(pVnode), __func__, req->virTableInfoReq.ver);
@@ -3767,15 +3837,78 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   }
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
 
-  if (req->virTableInfoReq.fetchAllTable || req->virTableInfoReq.uids == NULL || taosArrayGetSize(req->virTableInfoReq.uids) == 0) {
-    STREAM_CHECK_RET_GOTO(getAllVinfo(pVnode, &vTableInfo, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
-  } else {
-    STREAM_CHECK_RET_GOTO(getSpicificVinfo(pVnode, &vTableInfo, req->virTableInfoReq.uids, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
+  bool fullScan = req->virTableInfoReq.fetchAllTable
+                  || req->virTableInfoReq.uids == NULL
+                  || taosArrayGetSize(req->virTableInfoReq.uids) == 0;
+
+  // When the trigger only references the TS column, req->cids carries just the
+  // primary-key timestamp, but the response must still describe every column
+  // ref of each vtable. Pass cids=NULL into the chain-resolver / formatter to
+  // request "all columns of the vtable, per-uid".
+  if (atomic_load_8(&sStreamReaderInfo->isVtableOnlyTs) == 1) {
+    cids = NULL;
   }
+
+  // Chain-resolver path.
+  STREAM_CHECK_RET_GOTO(streamCollectTagCidsFromPartitionCols(sStreamReaderInfo->partitionCols, &tagCids));
+
+  SArray *uidList = fullScan ? NULL : req->virTableInfoReq.uids;
+  STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
+                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result));
+
+  // Encode response: iterate the resolved set.
+  int32_t expected = (int32_t)tSimpleHashGetSize(uid2Result);
+  vTableInfo.infos = taosArrayInit(expected, sizeof(VTableInfo));
+  STREAM_CHECK_NULL_GOTO(vTableInfo.infos, terrno);
+
+  if (fullScan) {
+    void *iter = NULL; int32_t it = 0;
+    while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
+      int64_t uid = *(int64_t *)tSimpleHashGetKey(iter, NULL);
+      SVTableResolveResult *r = *(SVTableResolveResult **)iter;
+      taosRLockLatch(&sStreamReaderInfo->lock);
+      uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
+      taosRUnLockLatch(&sStreamReaderInfo->lock);
+      if (groupId == (uint64_t)-1) continue;
+      int32_t rc = streamFillVTableInfoFromResolved(pVnode, sStreamReaderInfo, uid, groupId,
+                                                    req->virTableInfoReq.ver, cids, r, &metaReader, vTableInfo.infos);
+      if (rc != 0) { code = rc; goto end; }
+    }
+  } else {
+    int32_t nReq = (int32_t)taosArrayGetSize(req->virTableInfoReq.uids);
+    for (int32_t i = 0; i < nReq; ++i) {
+      int64_t uid = *(int64_t *)taosArrayGet(req->virTableInfoReq.uids, i);
+      SVTableResolveResult **pp = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
+      if (pp == NULL || *pp == NULL) continue;
+      taosRLockLatch(&sStreamReaderInfo->lock);
+      uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
+      taosRUnLockLatch(&sStreamReaderInfo->lock);
+      if (groupId == (uint64_t)-1) continue;
+      int32_t rc = streamFillVTableInfoFromResolved(pVnode, sStreamReaderInfo, uid, groupId,
+                                                    req->virTableInfoReq.ver, cids, *pp, &metaReader, vTableInfo.infos);
+      if (rc != 0) { code = rc; goto end; }
+    }
+  }
+
   ST_TASK_DLOG("vgId:%d %s end, size:%"PRIzu, TD_VID(pVnode), __func__, taosArrayGetSize(vTableInfo.infos));
   STREAM_CHECK_RET_GOTO(buildVTableInfoRsp(&vTableInfo, &buf, &size));
 
+  // Move ownership into cache (uid2Result becomes NULL on success).
+  if (sStreamReaderInfo->vtbCache != NULL) {
+    int32_t rc = streamCacheCommitResolved(sStreamReaderInfo->vtbCache, fullScan, cids, tagCids, &uid2Result);
+    if (rc != 0) { code = rc; goto end; }
+  }
+
 end:
+  if (tagCids != NULL) taosArrayDestroy(tagCids);
+  if (uid2Result != NULL) {
+    void *iter = NULL; int32_t it = 0;
+    while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
+      SVTableResolveResult **pp = (SVTableResolveResult **)iter;
+      if (pp && *pp) streamVTableResolveResultDestroy(*pp);
+    }
+    tSimpleHashCleanup(uid2Result);
+  }
   tDestroySStreamMsgVTableInfo(&vTableInfo);
   sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
@@ -3785,134 +3918,152 @@ end:
   return code;
 }
 
-// Resolve a physical table's cid from schema by column name.
-static int32_t resolvePhysicalTableCid(SMetaReader* pReader, const char* refColName, OTableInfoRsp* rsp, int64_t ver,
-                                        SStorageAPI* pApi) {
-  SSchemaWrapper* sSchemaWrapper = NULL;
-  if (pReader->me.type == TD_CHILD_TABLE) {
-    int64_t suid = pReader->me.ctbEntry.suid;
-    rsp->suid = suid;
-    tDecoderClear(&pReader->coder);
-    int32_t code = pApi->metaReaderFn.getTableEntryByVersionUid(pReader, ver, suid);
-    if (code != 0) return code;
-    sSchemaWrapper = &pReader->me.stbEntry.schemaRow;
-  } else if (pReader->me.type == TD_NORMAL_TABLE) {
-    rsp->suid = 0;
-    sSchemaWrapper = &pReader->me.ntbEntry.schemaRow;
-  } else {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
-    SSchema* s = sSchemaWrapper->pSchema + j;
-    if (strcmp(s->name, refColName) == 0) {
-      rsp->cid = s->colId;
-      break;
-    }
-  }
-  if (rsp->cid == 0) {
-    return TSDB_CODE_PAR_INVALID_COLUMN;
-  }
-  return 0;
+// Compare two SColResolveItem; returns true if they refer to the same terminal column.
+static bool colResolveItemEqual(const SColResolveItem *a, const SColResolveItem *b) {
+  if (a == NULL && b == NULL) return true;
+  if (a == NULL || b == NULL) return false;
+  if (a->hasRef != b->hasRef) return false;
+  if (!a->hasRef) return true;
+  return strcmp(a->refDbName, b->refDbName) == 0 &&
+         strcmp(a->refTableName, b->refTableName) == 0 &&
+         strcmp(a->refColName, b->refColName) == 0;
 }
 
-// Follow a virtual table's colRef chain locally as far as possible.
-// If the chain ends at a physical table on this VNode, fill resolved=1 with suid/uid/cid.
-// If the chain exits this VNode, fill resolved=0 with next-hop reference info.
-static int32_t resolveVtableOTableInfo(SVnode* pVnode, SMetaReader* pReader, OTableInfo* oInfo,
-                                        OTableInfoRsp* rsp, int64_t ver, SStorageAPI* pApi, void* pTask) {
-  int32_t depth = 0;
-  const int32_t maxDepth = 32;
-  char curRefCol[TSDB_COL_NAME_LEN];
-  tstrncpy(curRefCol, oInfo->refColName, TSDB_COL_NAME_LEN);
+static bool tagValueEqual(const STagValue *a, const STagValue *b) {
+  if (a == NULL && b == NULL) return true;
+  if (a == NULL || b == NULL) return false;
+  if (a->type != b->type) return false;
+  if (a->nLen != b->nLen) return false;
+  if (a->nLen == 0) return true;
+  if (a->pData == NULL || b->pData == NULL) return a->pData == b->pData;
+  return memcmp(a->pData, b->pData, a->nLen) == 0;
+}
 
-  while (depth < maxDepth) {
-    // Get vtable schema to look up column by name (colRef entries are positionally matched to schema)
-    SSchemaWrapper* pSchemaWrapper = NULL;
-    if (pReader->me.type == TD_VIRTUAL_NORMAL_TABLE) {
-      pSchemaWrapper = &pReader->me.ntbEntry.schemaRow;
-    } else if (pReader->me.type == TD_VIRTUAL_CHILD_TABLE) {
-      // For virtual child table, schema is on the parent super table
-      // The colRef is still on the child entry itself
-      pSchemaWrapper = NULL; // will fallback to colRef.colName matching
-    }
+// Re-resolve full uid set and diff against existing cache.
+// Returns 0 (col-only diffs collected into changedUids), TSDB_CODE_STREAM_VTB_TAG_CHANGED,
+// or other non-zero for technical errors. Cache lock must be held by caller (write).
+static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
+                                        int64_t walVer, SArray *changedUids) {
+  int32_t                code = 0;
+  SSHashObj             *uid2Result = NULL;
+  SStreamVTableInfoCache *pCache    = pInfo->vtbCache;
+  if (pCache == NULL) return 0;
 
-    SColRef* pFound = NULL;
-    SColRefWrapper* pColRef = &pReader->me.colRef;
-    ST_TASK_DLOG("vgId:%d resolveVtableOTableInfo: looking for col '%s' in vtable with %d colRefs (type=%d name=%s)",
-                 TD_VID(pVnode), curRefCol, pColRef->nCols, pReader->me.type,
-                 pReader->me.name ? pReader->me.name : "(null)");
+  code = streamResolveVTableRefChain(pVnode, NULL, pInfo, walVer, NULL,
+                                     pCache->reqColCids, pCache->reqTagCids, &uid2Result);
+  if (code != 0) return code;
 
-    if (pSchemaWrapper != NULL && pSchemaWrapper->nCols == pColRef->nCols) {
-      // Match by schema column name (positional correspondence with colRef)
-      for (int32_t j = 0; j < pSchemaWrapper->nCols; j++) {
-        if (strcmp(pSchemaWrapper->pSchema[j].name, curRefCol) == 0 &&
-            pColRef->pColRef[j].hasRef) {
-          pFound = &pColRef->pColRef[j];
-          break;
+  // Diff against existing cache.
+  if (pCache->uid2Result != NULL) {
+    void *iter = NULL; int32_t it = 0;
+    while ((iter = tSimpleHashIterate(pCache->uid2Result, iter, &it)) != NULL) {
+      int64_t uid = *(int64_t *)tSimpleHashGetKey(iter, NULL);
+      SVTableResolveResult *oldRes = *(SVTableResolveResult **)iter;
+      SVTableResolveResult **ppNew = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
+      if (ppNew == NULL || *ppNew == NULL) continue;
+      SVTableResolveResult *newRes = *ppNew;
+
+      // Tag diff first — any tag change is fatal.
+      if (oldRes->tagMap != NULL) {
+        void *it2 = NULL; int32_t i2 = 0;
+        while ((it2 = tSimpleHashIterate(oldRes->tagMap, it2, &i2)) != NULL) {
+          col_id_t cid = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
+          STagValue *oldV = *(STagValue **)it2;
+          STagValue **ppNewV = (newRes->tagMap == NULL) ? NULL :
+                               (STagValue **)tSimpleHashGet(newRes->tagMap, &cid, sizeof(cid));
+          STagValue *newV = (ppNewV == NULL) ? NULL : *ppNewV;
+          if (!tagValueEqual(oldV, newV)) {
+            code = TSDB_CODE_STREAM_VTB_TAG_CHANGED;
+            goto _exit;
+          }
         }
       }
-    } else {
-      // Fallback: match by colRef.colName (for virtual child tables or mismatched counts)
-      for (int32_t j = 0; j < pColRef->nCols; j++) {
-        if (pColRef->pColRef[j].hasRef &&
-            strcmp(pColRef->pColRef[j].colName, curRefCol) == 0) {
-          pFound = &pColRef->pColRef[j];
-          break;
+
+      // Col diff — only changed uids are appended to changedUids.
+      bool colChanged = false;
+      if (oldRes->colMap != NULL) {
+        void *it2 = NULL; int32_t i2 = 0;
+        while ((it2 = tSimpleHashIterate(oldRes->colMap, it2, &i2)) != NULL) {
+          col_id_t cid = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
+          SColResolveItem *oldI = *(SColResolveItem **)it2;
+          SColResolveItem **ppNewI = (newRes->colMap == NULL) ? NULL :
+                                     (SColResolveItem **)tSimpleHashGet(newRes->colMap, &cid, sizeof(cid));
+          SColResolveItem *newI = (ppNewI == NULL) ? NULL : *ppNewI;
+          if (!colResolveItemEqual(oldI, newI)) { colChanged = true; break; }
         }
       }
+      if (colChanged && changedUids != NULL) {
+        if (taosArrayPush(changedUids, &uid) == NULL) { code = terrno; goto _exit; }
+      }
     }
-    if (pFound == NULL) {
-      ST_TASK_ELOG("vgId:%d resolveVtableOTableInfo: col %s not found in vtable colRef", TD_VID(pVnode), curRefCol);
-      return TSDB_CODE_PAR_INVALID_COLUMN;
-    }
-
-    // Get next-hop reference
-    char nextDb[TSDB_DB_NAME_LEN];
-    char nextTable[TSDB_TABLE_NAME_LEN];
-    char nextCol[TSDB_COL_NAME_LEN];
-    tstrncpy(nextDb, pFound->refDbName, TSDB_DB_NAME_LEN);
-    tstrncpy(nextTable, pFound->refTableName, TSDB_TABLE_NAME_LEN);
-    tstrncpy(nextCol, pFound->refColName, TSDB_COL_NAME_LEN);
-    tDecoderClear(&pReader->coder);
-
-    // Try to look up next-hop locally
-    int32_t code = pApi->metaReaderFn.getTableEntryByVersionName(pReader, ver, nextTable);
-    if (code != 0) {
-      // Next-hop not on this VNode: return forwarded
-      rsp->resolved = 0;
-      rsp->suid = 0;
-      rsp->uid = 0;
-      rsp->cid = 0;
-      tstrncpy(rsp->nextRefDbName, nextDb, TSDB_DB_NAME_LEN);
-      tstrncpy(rsp->nextRefTableName, nextTable, TSDB_TABLE_NAME_LEN);
-      tstrncpy(rsp->nextRefColName, nextCol, TSDB_COL_NAME_LEN);
-      ST_TASK_DLOG("vgId:%d resolveVtableOTableInfo: forwarding to %s.%s.%s", TD_VID(pVnode), nextDb, nextTable, nextCol);
-      return 0;
-    }
-
-    if (pReader->me.type == TD_NORMAL_TABLE || pReader->me.type == TD_CHILD_TABLE) {
-      // Reached physical table: resolve suid/uid/cid
-      rsp->resolved = 1;
-      rsp->uid = pReader->me.uid;
-      code = resolvePhysicalTableCid(pReader, nextCol, rsp, ver, pApi);
-      if (code != 0) return code;
-      ST_TASK_DLOG("vgId:%d resolveVtableOTableInfo: resolved to physical uid:%" PRId64 " cid:%d",
-                   TD_VID(pVnode), rsp->uid, rsp->cid);
-      return 0;
-    }
-
-    if (pReader->me.type != TD_VIRTUAL_NORMAL_TABLE && pReader->me.type != TD_VIRTUAL_CHILD_TABLE) {
-      ST_TASK_ELOG("vgId:%d resolveVtableOTableInfo: unexpected table type:%d", TD_VID(pVnode), pReader->me.type);
-      return TSDB_CODE_INVALID_PARA;
-    }
-
-    // Still a virtual table: continue chasing locally
-    tstrncpy(curRefCol, nextCol, TSDB_COL_NAME_LEN);
-    depth++;
   }
 
-  return TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
+  // Atomic full replacement (C2a).
+  {
+    SSHashObj *oldMap = pCache->uid2Result;
+    pCache->uid2Result = uid2Result;
+    uid2Result = NULL;
+    if (oldMap != NULL) {
+      void *iter = NULL; int32_t it = 0;
+      while ((iter = tSimpleHashIterate(oldMap, iter, &it)) != NULL) {
+        SVTableResolveResult **pp = (SVTableResolveResult **)iter;
+        if (pp && *pp) streamVTableResolveResultDestroy(*pp);
+      }
+      tSimpleHashCleanup(oldMap);
+    }
+    pCache->valid = true;
+  }
+
+_exit:
+  if (uid2Result != NULL) {
+    void *iter = NULL; int32_t it = 0;
+    while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
+      SVTableResolveResult **pp = (SVTableResolveResult **)iter;
+      if (pp && *pp) streamVTableResolveResultDestroy(*pp);
+    }
+    tSimpleHashCleanup(uid2Result);
+  }
+  return code;
+}
+
+// Throttled hook called at the entry of every WAL meta request.
+// On tag change: returns TSDB_CODE_STREAM_VTB_TAG_CHANGED so caller bails out fast.
+// On col-only change: appends affected uids into rsp->tableBlock as TABLE_BLOCK_ADD.
+// All other cases: returns 0 and lets caller continue normal processing.
+static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
+                                             int64_t walVer, SSTriggerWalNewRsp *pRsp) {
+  if (pInfo == NULL || pInfo->vtbCache == NULL || !pInfo->vtbCache->valid) return 0;
+  SStreamVTableInfoCache *pCache = pInfo->vtbCache;
+  int64_t now = taosGetTimestampMs();
+  if (now - pCache->lastCheckMs < 10 * 1000) return 0;
+
+  int32_t code = 0;
+  SArray *changedUids = NULL;
+  taosWLockLatch(&pCache->lock);
+  if (now - pCache->lastCheckMs < 10 * 1000) {
+    taosWUnLockLatch(&pCache->lock);
+    return 0;
+  }
+  changedUids = taosArrayInit(0, sizeof(int64_t));
+  if (changedUids == NULL) { taosWUnLockLatch(&pCache->lock); return terrno; }
+  code = streamRecheckVTableCache(pVnode, pInfo, walVer, changedUids);
+  pCache->lastCheckMs = taosGetTimestampMs();
+  taosWUnLockLatch(&pCache->lock);
+
+  if (code == TSDB_CODE_STREAM_VTB_TAG_CHANGED) {
+    taosArrayDestroy(changedUids);
+    return code;
+  }
+  if (code != 0) {
+    taosArrayDestroy(changedUids);
+    return code;
+  }
+  if (pRsp != NULL && taosArrayGetSize(changedUids) > 0) {
+    int32_t rc = addUidListToBlock(changedUids, &pRsp->tableBlock, walVer, &pRsp->totalRows, TABLE_BLOCK_ADD);
+    if (rc != 0) { taosArrayDestroy(changedUids); return rc; }
+  }
+  taosArrayDestroy(changedUids);
+  return 0;
 }
 
 static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
@@ -3962,23 +4113,6 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     } else if (metaReader.me.type == TD_NORMAL_TABLE) {
       vTableInfo->suid = 0;
       sSchemaWrapper = &metaReader.me.ntbEntry.schemaRow;
-    } else if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE ||
-               metaReader.me.type == TD_VIRTUAL_CHILD_TABLE) {
-      // Virtual table: follow colRef chain locally, or forward to next VNode
-      code = resolveVtableOTableInfo(pVnode, &metaReader, oInfo, vTableInfo,
-                                      req->origTableInfoReq.ver,
-                                      &sStreamReaderInfo->storageApi, pTask);
-      if (code != 0) {
-        ST_TASK_ELOG("vgId:%d %s resolve vtable otable info failed: %s",
-                     TD_VID(pVnode), __func__, tstrerror(code));
-        vTableInfo->resolved = 0;
-        vTableInfo->uid = 0;
-        vTableInfo->suid = 0;
-        vTableInfo->cid = 0;
-      }
-      // resolveVtableOTableInfo sets resolved, suid/uid/cid or nextRef fields
-      tDecoderClear(&metaReader.coder);
-      continue;
     } else {
       ST_TASK_ELOG("invalid table type:%d", metaReader.me.type);
     }
@@ -4016,23 +4150,27 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   int32_t                   lino = 0;
   void*                     buf = NULL;
   size_t                    size = 0;
-  SSDataBlock* pBlock = NULL;
-
-  SMetaReader               metaReader = {0};
-  SMetaReader               metaReaderStable = {0};
+  SSDataBlock              *pBlock      = NULL;
+  SArray                   *singleUid   = NULL;
+  SArray                   *emptyCols   = NULL;
+  SSHashObj                *uid2Result  = NULL;
+  SVTableResolveResult     *pRes        = NULL;
+  SMetaReader               metaReader  = {0};
   int64_t streamId = req->base.streamId;
   stsDebug("vgId:%d %s start, ver:%"PRId64, TD_VID(pVnode), __func__, req->virTablePseudoColReq.ver);
 
   SArray* cols = req->virTablePseudoColReq.cids;
   STREAM_CHECK_NULL_GOTO(cols, terrno);
 
+  // We still need metaReader for vtable name (cid == -1) and to assert table type.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
   STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid));
-
   STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE && metaReader.me.type != TD_VIRTUAL_NORMAL_TABLE, TSDB_CODE_INVALID_PARA);
 
   STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
+
   if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE) {
+    // Normal vtable: caller only requests the table-name pseudo column.
     STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 || *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
@@ -4041,38 +4179,51 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, 0);
     STREAM_CHECK_NULL_GOTO(pDst, terrno);
     STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
-  } else if (metaReader.me.type == TD_VIRTUAL_CHILD_TABLE){
-    int64_t suid = metaReader.me.ctbEntry.suid;
-    sStreamReaderInfo->storageApi.metaReaderFn.readerReleaseLock(&metaReader);
-    sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReaderStable, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
+  } else {
+    // Virtual child table: resolve tags via chain resolver (single uid, cache-bypass).
+    singleUid = taosArrayInit(1, sizeof(int64_t));
+    STREAM_CHECK_NULL_GOTO(singleUid, terrno);
+    int64_t uidVal = req->virTablePseudoColReq.uid;
+    STREAM_CHECK_NULL_GOTO(taosArrayPush(singleUid, &uidVal), terrno);
 
-    STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReaderStable, req->virTablePseudoColReq.ver, suid));
-    SSchemaWrapper*  sSchemaWrapper = &metaReaderStable.me.stbEntry.schemaTag;
+    emptyCols = taosArrayInit(0, sizeof(col_id_t));
+    STREAM_CHECK_NULL_GOTO(emptyCols, terrno);
+
+    // PSEUDO_COL bypasses cache — pass NULL so resolver does not read/write it.
+    STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
+                                                     req->virTablePseudoColReq.ver,
+                                                     singleUid, emptyCols, cols, &uid2Result));
+
+    SVTableResolveResult **pp = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uidVal, sizeof(uidVal));
+    if (pp == NULL || *pp == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto end;
+    }
+    pRes = *pp;
+
+    // Append column metadata according to caller-requested cids.
     for (size_t i = 0; i < taosArrayGetSize(cols); i++){
-      col_id_t* id = taosArrayGet(cols, i);
-      STREAM_CHECK_NULL_GOTO(id, terrno);
-      if (*id == -1) {
+      col_id_t cid = *(col_id_t*)taosArrayGet(cols, i);
+      if (cid == -1) {
         SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
         continue;
       }
-      size_t j = 0;
-      for (; j < sSchemaWrapper->nCols; j++) {
-        SSchema* s = sSchemaWrapper->pSchema + j;
-        if (s->colId == *id) {
-          SColumnInfoData idata = createColumnInfoData(s->type, s->bytes, s->colId);
-          STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
-          break;
-        }
-      }
-      if (j == sSchemaWrapper->nCols) {
-        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, CHAR_BYTES, *id);
+      STagValue **ppv = (pRes->tagMap == NULL) ? NULL : (STagValue **)tSimpleHashGet(pRes->tagMap, &cid, sizeof(cid));
+      if (ppv == NULL || *ppv == NULL) {
+        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, CHAR_BYTES, cid);
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
+        continue;
       }
+      STagValue       *v     = *ppv;
+      int32_t          bytes = (v->nLen > 0 ? v->nLen : 1);
+      SColumnInfoData  idata = createColumnInfoData(v->type, bytes, cid);
+      STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
     }
+
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
     pBlock->info.rows = 1;
-    
+
     for (size_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++){
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       STREAM_CHECK_NULL_GOTO(pDst, terrno);
@@ -4086,31 +4237,15 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
         continue;
       }
 
-      STagVal val = {0};
-      val.cid = pDst->info.colId;
-      const char* p = sStreamReaderInfo->storageApi.metaFn.extractTagVal(metaReader.me.ctbEntry.pTags, pDst->info.type, &val);
-
-      char* data = NULL;
-      if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
-        data = tTagValToData((const STagVal*)p, false);
-      } else {
-        data = (char*)p;
+      STagValue **ppv = (STagValue **)tSimpleHashGet(pRes->tagMap, &pDst->info.colId, sizeof(pDst->info.colId));
+      if (ppv == NULL || *ppv == NULL || (*ppv)->pData == NULL) {
+        STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, NULL, true));
+        continue;
       }
-
-      STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, data,
-                            (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data))));
-
-      if ((pDst->info.type != TSDB_DATA_TYPE_JSON) && (p != NULL) && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
-          (data != NULL)) {
-        taosMemoryFree(data);
-      }
+      STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, (*ppv)->pData, false));
     }
-  } else {
-    stError("vgId:%d %s, invalid table type:%d", TD_VID(pVnode), __func__, metaReader.me.type);
-    code = TSDB_CODE_INVALID_PARA;
-    goto end;
   }
-  
+
   stsDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   printDataBlock(pBlock, __func__, "", streamId);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
@@ -4119,7 +4254,16 @@ end:
   if(size == 0){
     code = TSDB_CODE_STREAM_NO_DATA;
   }
-  sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReaderStable);
+  if (singleUid != NULL) taosArrayDestroy(singleUid);
+  if (emptyCols != NULL) taosArrayDestroy(emptyCols);
+  if (uid2Result != NULL) {
+    void *iter = NULL; int32_t it = 0;
+    while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
+      SVTableResolveResult **pp2 = (SVTableResolveResult **)iter;
+      if (pp2 && *pp2) streamVTableResolveResultDestroy(*pp2);
+    }
+    tSimpleHashCleanup(uid2Result);
+  }
   sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
   STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {
@@ -4385,6 +4529,1082 @@ end:
       .info = pMsg->info,
     };
     tmsgSendRsp(&rsp);
+  }
+  return code;
+}
+
+// ============================================================================
+// TDMT_VND_VTABLE_REF_RESOLVE — single-hop chain resolver for vtable references.
+//
+// Caller (driver A in stream-trigger reader info path) groups per-batch refs by
+// vgId and sends one request per vgId. Each item carries (kind, refDb, refTbl,
+// refCol). For every item we do exactly ONE hop:
+//   - table not on this vnode               -> r.code = STREAM_VTB_REF_TABLE_NOT_EXIST
+//   - column/tag name not found             -> r.code = STREAM_VTB_REF_COL_NOT_EXIST
+//   - vtable + COL + hasRef                 -> r.terminated = false, r.nextRef = stored ref
+//   - vtable + COL + !hasRef                -> r.terminated = true,  r.nextRef.hasRef = false
+//                                              (terminal triple is meaningless; signals NULL value)
+//   - vtable + TAG + hasRef                 -> r.terminated = false, r.nextRef = stored ref
+//   - vchild + TAG + !hasRef                -> r.terminated = true,  r.nextRef.hasRef = false,
+//                                              r.tagType/tagLen/tagData filled from local STag
+//   - vnormal+ TAG + !hasRef                -> r.code = STREAM_VTB_REF_COL_NOT_EXIST
+//                                              (normal vtable has no tag concept)
+//   - physical table  + COL kind            -> r.terminated = true,  r.nextRef = current triple
+//   - child table     + TAG kind            -> r.terminated = true,  r.tagType/tagLen/tagData filled
+//   - normal table    + TAG kind            -> r.code = STREAM_VTB_REF_COL_NOT_EXIST
+// Per-item errors never abort the batch — they are reported in r.code.
+// ============================================================================
+
+// Reads a tag's constant value from a (virtual or physical) child table entry.
+// The stable schema (for type/colId lookup) is fetched here under META_READER_LOCK;
+// the child entry is provided by the caller.
+//   pVnode      : owning vnode
+//   pChildEntry : decoded entry whose type is *_CHILD_TABLE (carries ctbEntry.suid/pTags)
+//   tagColName  : tag name on the stable (vchild's SColRef.colName matches stable tag name
+//                 by build-time convention)
+// Outputs:
+//   *outType    : tag SDataType
+//   *outLen     : payload length; 0 when tag absent on this child
+//   *outData    : newly allocated buffer (caller frees); NULL when *outLen==0
+// Returns:
+//   0                                          success (incl. "tag absent")
+//   TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST   suid not present on this vnode
+//   TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST     tag name not in stable schema
+//   terrno                                     OOM
+static int32_t streamReadChildTagConstValue(SVnode *pVnode, const SMetaEntry *pChildEntry,
+                                            const char *tagColName, int8_t *outType,
+                                            int32_t *outLen, char **outData) {
+  SMetaReader stb  = {0};
+  int32_t     code = 0;
+  *outType = 0;
+  *outLen  = 0;
+  *outData = NULL;
+
+  metaReaderDoInit(&stb, pVnode->pMeta, META_READER_LOCK);
+  if (metaReaderGetTableEntryByUid(&stb, pChildEntry->ctbEntry.suid) != 0) {
+    code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+    goto _end;
+  }
+
+  SSchemaWrapper *pSW = &stb.me.stbEntry.schemaTag;
+  SSchema        *pTagSchema = NULL;
+  for (int32_t i = 0; i < pSW->nCols; ++i) {
+    if (strncmp(pSW->pSchema[i].name, tagColName, TSDB_COL_NAME_LEN) == 0) {
+      pTagSchema = &pSW->pSchema[i];
+      break;
+    }
+  }
+  if (pTagSchema == NULL) {
+    code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+    goto _end;
+  }
+
+  *outType = pTagSchema->type;
+
+  STag   *pTag  = (STag *)pChildEntry->ctbEntry.pTags;
+  STagVal tv    = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+  bool    found = (pTag != NULL) && tTagGet(pTag, &tv);
+  if (!found) {
+    // tag has no value on this child: outLen=0 / outData=NULL
+    goto _end;
+  }
+
+  if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+    *outLen = (int32_t)tv.nData;
+    if (*outLen > 0) {
+      *outData = taosMemoryMalloc(*outLen);
+      if (*outData == NULL) { code = terrno; goto _end; }
+      memcpy(*outData, tv.pData, *outLen);
+    }
+  } else {
+    *outLen  = (int32_t)tDataTypes[pTagSchema->type].bytes;
+    *outData = taosMemoryMalloc(*outLen);
+    if (*outData == NULL) { code = terrno; goto _end; }
+    memcpy(*outData, &tv.i64, *outLen);
+  }
+
+_end:
+  metaReaderClear(&stb);
+  return code;
+}
+
+static int32_t vnodeFillTagValueFromChild(SVnode *pVnode, const SMetaEntry *pChildEntry,
+                                          const char *tagColName, SVTableRefResolveRspItem *r) {
+  r->terminated = true;
+  int32_t code = streamReadChildTagConstValue(pVnode, pChildEntry, tagColName,
+                                              &r->tagType, &r->tagLen, &r->tagData);
+  if (code == TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST ||
+      code == TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST) {
+    // per-item soft error: surface via r->code, do not abort the batch.
+    r->code = code;
+    return 0;
+  }
+  return code;
+}
+
+static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q,
+                                  SVTableRefResolveRspItem *r) {
+  SMetaReader mr   = {0};
+  int32_t     code = 0;
+
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+  if (metaGetTableEntryByName(&mr, q->refTableName) != 0) {
+    r->code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+    metaReaderClear(&mr);
+    return 0;
+  }
+
+  bool isVtable = (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE);
+
+  if (isVtable) {
+    SColRefWrapper *pWrap = &mr.me.colRef;
+    SColRef        *pArr  = (q->kind == STREAM_VREF_KIND_TAG) ? pWrap->pTagRef : pWrap->pColRef;
+    int32_t         nArr  = (q->kind == STREAM_VREF_KIND_TAG) ? pWrap->nTagRefs : pWrap->nCols;
+
+    SColRef *pFound = NULL;
+    for (int32_t j = 0; j < nArr && pArr != NULL; ++j) {
+      if (strncmp(pArr[j].colName, q->refColName, TSDB_COL_NAME_LEN) == 0) {
+        pFound = &pArr[j];
+        break;
+      }
+    }
+    if (pFound == NULL) {
+      r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+      metaReaderClear(&mr);
+      return 0;
+    }
+
+    if (pFound->hasRef) {
+      r->terminated     = false;
+      r->nextRef.kind   = q->kind;
+      r->nextRef.hasRef = true;
+      tstrncpy(r->nextRef.refDbName,    pFound->refDbName,    TSDB_DB_NAME_LEN);
+      tstrncpy(r->nextRef.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(r->nextRef.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
+      metaReaderClear(&mr);
+      return 0;
+    }
+
+    // !hasRef branch:
+    //   * COL on a vtable: NULL ref means terminal-empty (hasRef=false signals to caller).
+    //   * TAG on a virtual child table: tag value may be stored as a constant on the
+    //     vchild's own STag — read it locally and terminate with the value.
+    //   * TAG on a virtual normal table: tag concept does not apply, treat as missing.
+    if (q->kind == STREAM_VREF_KIND_TAG) {
+      if (mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+        r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+        metaReaderClear(&mr);
+        return 0;
+      }
+      r->nextRef.kind            = STREAM_VREF_KIND_TAG;
+      r->nextRef.hasRef          = false;
+      r->nextRef.refDbName[0]    = '\0';
+      r->nextRef.refTableName[0] = '\0';
+      r->nextRef.refColName[0]   = '\0';
+      code = vnodeFillTagValueFromChild(pVnode, &mr.me, q->refColName, r);
+      metaReaderClear(&mr);
+      return code;
+    }
+
+    // STREAM_VREF_KIND_COL on a vtable with NULL ref: terminate as empty.
+    r->terminated              = true;
+    r->nextRef.kind            = STREAM_VREF_KIND_COL;
+    r->nextRef.hasRef          = false;
+    r->nextRef.refDbName[0]    = '\0';
+    r->nextRef.refTableName[0] = '\0';
+    r->nextRef.refColName[0]   = '\0';
+    metaReaderClear(&mr);
+    return 0;
+  }
+
+  // Physical table reached: COL terminates with the current triple; TAG needs value.
+  if (q->kind == STREAM_VREF_KIND_COL) {
+    r->terminated     = true;
+    r->nextRef.kind   = STREAM_VREF_KIND_COL;
+    r->nextRef.hasRef = true;
+    tstrncpy(r->nextRef.refDbName,    q->refDbName,    TSDB_DB_NAME_LEN);
+    tstrncpy(r->nextRef.refTableName, q->refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(r->nextRef.refColName,   q->refColName,   TSDB_COL_NAME_LEN);
+    metaReaderClear(&mr);
+    return 0;
+  }
+
+  // STREAM_VREF_KIND_TAG on physical table: only child table carries tag values.
+  if (mr.me.type != TSDB_CHILD_TABLE) {
+    r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+    metaReaderClear(&mr);
+    return 0;
+  }
+
+  code = vnodeFillTagValueFromChild(pVnode, &mr.me, q->refColName, r);
+  metaReaderClear(&mr);
+  return code;
+}
+
+int32_t vnodeProcessVTableRefResolveReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t              code   = 0;
+  int32_t              rspLen = 0;
+  void                *pBuf   = NULL;
+  SVTableRefResolveReq req    = {0};
+  SVTableRefResolveRsp rsp    = {0};
+
+  if (tDeserializeSVTableRefResolveReq((char *)pMsg->pCont + sizeof(SMsgHead),
+                                       pMsg->contLen - (int32_t)sizeof(SMsgHead), &req) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _end;
+  }
+
+  int32_t n = (req.items != NULL) ? (int32_t)taosArrayGetSize(req.items) : 0;
+  rsp.items = taosArrayInit(n, sizeof(SVTableRefResolveRspItem));
+  if (rsp.items == NULL) {
+    code = terrno;
+    goto _end;
+  }
+
+  for (int32_t i = 0; i < n; ++i) {
+    SVTableRefResolveItem    *q = (SVTableRefResolveItem *)taosArrayGet(req.items, i);
+    SVTableRefResolveRspItem  r = {0};
+    int32_t                   rc = vnodeResolveOneHop(pVnode, q, &r);
+    if (rc != 0) {
+      // Hard failure (e.g. OOM): record and continue, do not abort batch.
+      r.code = rc;
+    }
+    if (taosArrayPush(rsp.items, &r) == NULL) {
+      taosMemoryFreeClear(r.tagData);
+      code = terrno;
+      goto _end;
+    }
+  }
+
+  rspLen = tSerializeSVTableRefResolveRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  pBuf = rpcMallocCont(rspLen);
+  if (pBuf == NULL) {
+    code = terrno;
+    goto _end;
+  }
+  if (tSerializeSVTableRefResolveRsp(pBuf, rspLen, &rsp) < 0) {
+    rpcFreeCont(pBuf);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  pMsg->info.rsp    = pBuf;
+  pMsg->info.rspLen = rspLen;
+
+_end:
+  tFreeSVTableRefResolveReq(&req);
+  tFreeSVTableRefResolveRsp(&rsp);
+  return code;
+}
+
+// ============================================================================
+// Task 6: chain resolution loop (single-vgId / local-vnode simplified version)
+// ============================================================================
+
+#define STREAM_VTB_MAX_HOPS 32
+
+typedef struct SResolveWorkItem {
+  int64_t  originVtbUid;                          // origin vtable uid this chain belongs to
+  col_id_t originCid;                             // origin virtual cid (col or tag)
+  int8_t   kind;                                  // EStreamVRefKind: COL or TAG
+  char     refDbName   [TSDB_DB_NAME_LEN];
+  char     refTableName[TSDB_TABLE_NAME_LEN];
+  char     refColName  [TSDB_COL_NAME_LEN];
+} SResolveWorkItem;
+
+static SVTableResolveResult *streamGetOrCreateUidResult(SSHashObj *uid2Result, int64_t uid) {
+  SVTableResolveResult **ppRes = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
+  if (ppRes != NULL && *ppRes != NULL) return *ppRes;
+
+  SVTableResolveResult *pRes = taosMemoryCalloc(1, sizeof(*pRes));
+  if (pRes == NULL) return NULL;
+  pRes->colMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+  pRes->tagMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+  if (pRes->colMap == NULL || pRes->tagMap == NULL) {
+    streamVTableResolveResultDestroy(pRes);
+    return NULL;
+  }
+  if (tSimpleHashPut(uid2Result, &uid, sizeof(uid), &pRes, sizeof(pRes)) != 0) {
+    streamVTableResolveResultDestroy(pRes);
+    return NULL;
+  }
+  return pRes;
+}
+
+// Push initial work-items for a single vtable uid. Each requested cid (col or tag)
+// is resolved against the local vtable entry's pColRef / pTagRef:
+//   - COL hasRef=true   -> push next-hop work-item
+//   - COL hasRef=false  -> directly write terminal SColResolveItem{hasRef=false} into colMap
+//   - TAG hasRef=true   -> push next-hop work-item
+//   - TAG hasRef=false  -> on a virtual child table the tag may be stored as a
+//                          constant value on the vchild's own STag; read it locally
+//                          and write a terminal STagValue into tagMap (no work-item).
+//                          Virtual normal tables have no tag concept and fail.
+//
+// colCids == NULL means "all columns of this vtable" (used by the only-ts trigger
+// path where the request carries just the primary-key TS but the response must
+// describe every column ref). tagCids == NULL is treated as "no tag".
+// Returns 0 on success; non-zero means whole-uid skip (table missing / cid missing / OOM).
+static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SArray *colCids, SArray *tagCids,
+                                                SArray *workList, SSHashObj *uid2Result) {
+  int32_t     code = 0;
+  SMetaReader mr   = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+
+  if (metaReaderGetTableEntryByUid(&mr, uid) != 0) {
+    code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+    goto _end;
+  }
+  if (mr.me.type != TSDB_VIRTUAL_NORMAL_TABLE && mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+    goto _end;
+  }
+
+  SVTableResolveResult *pRes = streamGetOrCreateUidResult(uid2Result, uid);
+  if (pRes == NULL) {
+    code = terrno;
+    goto _end;
+  }
+
+  // Resolve column cids against pColRef. When colCids==NULL, iterate every
+  // entry of this vtable's pColRef directly (no per-cid lookup needed).
+  if (colCids == NULL) {
+    for (int32_t j = 0; j < mr.me.colRef.nCols; ++j) {
+      SColRef *pRef = &mr.me.colRef.pColRef[j];
+      col_id_t cid  = pRef->id;
+      if (!pRef->hasRef) {
+        SColResolveItem *item = taosMemoryCalloc(1, sizeof(*item));
+        if (item == NULL) { code = terrno; goto _end; }
+        item->hasRef = false;
+        if (tSimpleHashPut(pRes->colMap, &cid, sizeof(cid), &item, sizeof(item)) != 0) {
+          taosMemoryFree(item);
+          code = terrno;
+          goto _end;
+        }
+        continue;
+      }
+      SResolveWorkItem w = {0};
+      w.originVtbUid = uid;
+      w.originCid    = cid;
+      w.kind         = STREAM_VREF_KIND_COL;
+      tstrncpy(w.refDbName,    pRef->refDbName,    TSDB_DB_NAME_LEN);
+      tstrncpy(w.refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(w.refColName,   pRef->refColName,   TSDB_COL_NAME_LEN);
+      if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+    }
+  } else {
+    int32_t nCol = (int32_t)taosArrayGetSize(colCids);
+    for (int32_t i = 0; i < nCol; ++i) {
+      col_id_t cid    = *(col_id_t *)taosArrayGet(colCids, i);
+      SColRef *pFound = NULL;
+      for (int32_t j = 0; j < mr.me.colRef.nCols; ++j) {
+        if (mr.me.colRef.pColRef[j].id == cid) {
+          pFound = &mr.me.colRef.pColRef[j];
+          break;
+        }
+      }
+      if (pFound == NULL) {
+        code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+        goto _end;
+      }
+      if (!pFound->hasRef) {
+        SColResolveItem *item = taosMemoryCalloc(1, sizeof(*item));
+        if (item == NULL) { code = terrno; goto _end; }
+        item->hasRef = false;
+        if (tSimpleHashPut(pRes->colMap, &cid, sizeof(cid), &item, sizeof(item)) != 0) {
+          taosMemoryFree(item);
+          code = terrno;
+          goto _end;
+        }
+        continue;
+      }
+      SResolveWorkItem w = {0};
+      w.originVtbUid = uid;
+      w.originCid    = cid;
+      w.kind         = STREAM_VREF_KIND_COL;
+      tstrncpy(w.refDbName,    pFound->refDbName,    TSDB_DB_NAME_LEN);
+      tstrncpy(w.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(w.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
+      if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+    }
+  }
+
+  // resolve tag cids against pTagRef
+  int32_t nTag = (tagCids != NULL) ? (int32_t)taosArrayGetSize(tagCids) : 0;
+  for (int32_t i = 0; i < nTag; ++i) {
+    col_id_t cid    = *(col_id_t *)taosArrayGet(tagCids, i);
+    SColRef *pFound = NULL;
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; ++j) {
+      if (mr.me.colRef.pTagRef[j].id == cid) {
+        pFound = &mr.me.colRef.pTagRef[j];
+        break;
+      }
+    }
+    if (pFound == NULL) {
+      code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+      goto _end;
+    }
+
+    if (!pFound->hasRef) {
+      // Constant tag on a virtual child table: read locally, write terminal STagValue.
+      // Virtual normal tables have no tag concept, so reject.
+      if (mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+        code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
+        goto _end;
+      }
+      STagValue *tv = taosMemoryCalloc(1, sizeof(*tv));
+      if (tv == NULL) { code = terrno; goto _end; }
+      int32_t rc = streamReadChildTagConstValue(pVnode, &mr.me, pFound->colName,
+                                                &tv->type, &tv->nLen, &tv->pData);
+      if (rc != 0) {
+        taosMemoryFreeClear(tv->pData);
+        taosMemoryFree(tv);
+        code = rc;
+        goto _end;
+      }
+      if (tSimpleHashPut(pRes->tagMap, &cid, sizeof(cid), &tv, sizeof(tv)) != 0) {
+        taosMemoryFreeClear(tv->pData);
+        taosMemoryFree(tv);
+        code = terrno;
+        goto _end;
+      }
+      continue;
+    }
+
+    SResolveWorkItem w = {0};
+    w.originVtbUid = uid;
+    w.originCid    = cid;
+    w.kind         = STREAM_VREF_KIND_TAG;
+    tstrncpy(w.refDbName,    pFound->refDbName,    TSDB_DB_NAME_LEN);
+    tstrncpy(w.refTableName, pFound->refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(w.refColName,   pFound->refColName,   TSDB_COL_NAME_LEN);
+    if (taosArrayPush(workList, &w) == NULL) { code = terrno; goto _end; }
+  }
+
+_end:
+  metaReaderClear(&mr);
+  return code;
+}
+
+// Local hash comparator: search a hash value in a sorted SArray<SVgroupInfo>.
+// Mirrors catalog/ctgUtil.c:ctgHashValueComp; keep them in sync.
+static int32_t streamVgHashValueComp(void const *lp, void const *rp) {
+  uint32_t    *key = (uint32_t *)lp;
+  SVgroupInfo *pVg = (SVgroupInfo *)rp;
+  if (*key < pVg->hashBegin) return -1;
+  if (*key > pVg->hashEnd)   return 1;
+  return 0;
+}
+
+static int32_t streamVgInfoBeginComp(void const *lp, void const *rp) {
+  SVgroupInfo *pLeft  = (SVgroupInfo *)lp;
+  SVgroupInfo *pRight = (SVgroupInfo *)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) return -1;
+  if (pLeft->hashBegin > pRight->hashBegin) return 1;
+  return 0;
+}
+
+// Async-callback context used by streamFetchDbVgInfo to receive SUseDbRsp.
+typedef struct SStreamFetchDbVgCtx {
+  tsem_t     ready;
+  SUseDbRsp *pRsp;
+  int32_t    code;
+} SStreamFetchDbVgCtx;
+
+static int32_t streamProcessFetchDbVgRsp(void *param, SDataBuf *pMsg, int32_t code) {
+  SStreamFetchDbVgCtx *pCtx = (SStreamFetchDbVgCtx *)param;
+  if (code == TSDB_CODE_SUCCESS && pMsg != NULL && pMsg->pData != NULL && pMsg->len > 0) {
+    pCtx->pRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
+    if (pCtx->pRsp == NULL) {
+      code = terrno;
+    } else if (tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pCtx->pRsp) != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+    }
+  } else if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_INVALID_MSG;
+  }
+  pCtx->code = code;
+
+  if (pMsg != NULL) {
+    taosMemoryFreeClear(pMsg->pData);
+    taosMemoryFreeClear(pMsg->pEpSet);
+  }
+  TAOS_UNUSED(tsem_post(&pCtx->ready));
+  return code;
+}
+
+// Fetch SUseDbRsp asynchronously from mnode for dbFName ("acctId.dbName").
+// Caller owns *ppOut on success and must call tFreeSUsedbRsp + free the pointer.
+static int32_t streamFetchDbVgInfo(SVnode *pVnode, const char *dbFName, SUseDbRsp **ppOut) {
+  int32_t              code     = 0;
+  SUseDbReq            req      = {0};
+  void                *pReqBuf  = NULL;
+  SMsgSendInfo        *pSendInfo = NULL;
+  SStreamFetchDbVgCtx  ctx       = {0};
+  bool                 semInited = false;
+  SEpSet               epSet     = {0};
+
+  *ppOut = NULL;
+  tstrncpy(req.db, dbFName, sizeof(req.db));
+  req.vgVersion  = -1;
+  req.dbId       = 0;
+  req.numOfTable = 0;
+  req.stateTs    = 0;
+
+  void *clientRpc = pVnode->msgCb.clientRpc;
+  if (clientRpc == NULL) { code = TSDB_CODE_INVALID_PARA; goto _end; }
+
+  if (tsem_init(&ctx.ready, 0, 0) != 0) { code = terrno; goto _end; }
+  semInited = true;
+
+  int32_t reqLen = tSerializeSUseDbReq(NULL, 0, &req);
+  if (reqLen < 0) { code = terrno; goto _end; }
+  pReqBuf = taosMemoryCalloc(1, reqLen);
+  if (pReqBuf == NULL) { code = terrno; goto _end; }
+  if (tSerializeSUseDbReq(pReqBuf, reqLen, &req) < 0) { code = terrno; goto _end; }
+
+  pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (pSendInfo == NULL) { code = terrno; goto _end; }
+
+  pSendInfo->param          = &ctx;
+  pSendInfo->msgInfo.pData  = pReqBuf;
+  pSendInfo->msgInfo.len    = reqLen;
+  pSendInfo->msgType        = TDMT_MND_GET_DB_INFO;
+  pSendInfo->fp             = streamProcessFetchDbVgRsp;
+  pReqBuf = NULL;  // ownership transferred to pSendInfo
+
+  streamGetMnodeEpset(&epSet);
+
+  code = asyncSendMsgToServer(clientRpc, &epSet, NULL, pSendInfo);
+  pSendInfo = NULL;  // ownership transferred on success path
+  if (code != 0) goto _end;
+
+  if (tsem_wait(&ctx.ready) != 0) { code = terrno; goto _end; }
+
+  if (ctx.code != 0) { code = ctx.code; goto _end; }
+  if (ctx.pRsp == NULL) { code = TSDB_CODE_INVALID_MSG; goto _end; }
+
+  // Sort vgroup array by hashBegin so we can binary-search for routing.
+  if (ctx.pRsp->pVgroupInfos != NULL) {
+    taosArraySort(ctx.pRsp->pVgroupInfos, streamVgInfoBeginComp);
+  }
+
+  *ppOut  = ctx.pRsp;
+  ctx.pRsp = NULL;
+
+_end:
+  if (pReqBuf != NULL) taosMemoryFree(pReqBuf);
+  if (pSendInfo != NULL) taosMemoryFree(pSendInfo);
+  if (ctx.pRsp != NULL) {
+    tFreeSUsedbRsp(ctx.pRsp);
+    taosMemoryFree(ctx.pRsp);
+  }
+  if (semInited) TAOS_UNUSED(tsem_destroy(&ctx.ready));
+  return code;
+}
+
+// Get SUseDbRsp for dbFName, using cache if available; otherwise fetch and insert.
+// Returned *ppOut is owned by the cache (when pCache != NULL) or by the caller
+// (when pCache == NULL); caller never frees the cached entry.
+static int32_t streamGetOrFetchDbVgInfo(SVnode *pVnode, SStreamVTableInfoCache *pCache,
+                                        const char *dbFName, SUseDbRsp **ppOut, bool *pCached) {
+  *ppOut = NULL;
+  if (pCached) *pCached = false;
+
+  if (pCache != NULL && pCache->dbVgInfo != NULL) {
+    SUseDbRsp *pHit = (SUseDbRsp *)taosHashGet(pCache->dbVgInfo, dbFName, strlen(dbFName));
+    if (pHit != NULL) {
+      *ppOut = pHit;
+      if (pCached) *pCached = true;
+      return 0;
+    }
+  }
+
+  SUseDbRsp *pNew = NULL;
+  int32_t    code = streamFetchDbVgInfo(pVnode, dbFName, &pNew);
+  if (code != 0) return code;
+  // return 0;
+
+  if (pCache != NULL && pCache->dbVgInfo != NULL) {
+    // taosHashPut copies the value bytes; we must still keep the inner array
+    // alive (pVgroupInfos is a heap pointer the cached entry now owns).
+    if (taosHashPut(pCache->dbVgInfo, dbFName, strlen(dbFName), pNew, sizeof(*pNew)) != 0) {
+      tFreeSUsedbRsp(pNew);
+      taosMemoryFree(pNew);
+      return terrno;
+    }
+    // Hash now owns pVgroupInfos via the copied struct; drop our outer wrapper
+    // without freeing the array (cleanup uses tFreeSUsedbRsp on hash entries).
+    taosMemoryFree(pNew);
+    *ppOut = (SUseDbRsp *)taosHashGet(pCache->dbVgInfo, dbFName, strlen(dbFName));
+    return 0;
+  }
+
+  *ppOut = pNew;
+  return 0;
+}
+
+// Resolve target vgId/epSet for a (db, table) using cached SUseDbRsp routing info.
+// dbFName is "acctId.dbName" (matches SUseDbRsp->db); tableName is the child name.
+static int32_t streamRouteTableToVg(SUseDbRsp *pRsp, const char *dbFName, const char *tableName,
+                                    int32_t *pVgId, SEpSet *pEpSet) {
+  if (pRsp == NULL || pRsp->pVgroupInfos == NULL) return TSDB_CODE_INVALID_PARA;
+  int32_t vgNum = (int32_t)taosArrayGetSize(pRsp->pVgroupInfos);
+  if (vgNum <= 0) return TSDB_CODE_MND_DB_NOT_EXIST;
+
+  char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+  int32_t n = tsnprintf(fullName, sizeof(fullName), "%s.%s", dbFName, tableName);
+  if (n <= 0) return TSDB_CODE_INVALID_PARA;
+
+  uint32_t hashValue = (uint32_t)taosGetTbHashVal(fullName, n, pRsp->hashMethod,
+                                                  pRsp->hashPrefix, pRsp->hashSuffix);
+  SVgroupInfo *pVg = (SVgroupInfo *)taosArraySearch(pRsp->pVgroupInfos, &hashValue,
+                                                    streamVgHashValueComp, TD_EQ);
+  if (pVg == NULL) return TSDB_CODE_MND_DB_NOT_EXIST;
+  *pVgId  = pVg->vgId;
+  *pEpSet = pVg->epSet;
+  vDebug("stream route table:%s to vgId:%d, epSet inUse:%d numOfEps:%d",
+        fullName, pVg->vgId, pVg->epSet.inUse, pVg->epSet.numOfEps);
+  for (int32_t i = 0; i < pVg->epSet.numOfEps; ++i) {
+    vDebug("stream route table:%s vgId:%d ep[%d]: %s:%u",
+          fullName, pVg->vgId, i, pVg->epSet.eps[i].fqdn, pVg->epSet.eps[i].port);
+  }
+  return 0;
+}
+
+// Send one TDMT_VND_VTABLE_REF_RESOLVE RPC for a subset of work-items targeting
+// the same vgId. indexList[] holds positions inside the parent batch/outRspItems
+// arrays so we can reorder responses back to the caller's original layout.
+//
+// Return value: 0 -> all items in this group filled successfully;
+//              != 0 -> RPC failed; whole-group failure handled by the caller
+//              (mark every uid in indexList as skipped).
+static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, int32_t vgId,
+                                         int64_t ver, SArray *batch, SArray *indexList,
+                                         SArray *outRspItems) {
+  int32_t              code     = 0;
+  SVTableRefResolveReq req      = {0};
+  SVTableRefResolveRsp rsp      = {0};
+  SRpcMsg              rpcMsg   = {0};
+  SRpcMsg              rpcRsp   = {0};
+  void                *pReqBuf  = NULL;
+
+  int32_t cnt = (int32_t)taosArrayGetSize(indexList);
+  req.ver   = ver;
+  req.items = taosArrayInit(cnt, sizeof(SVTableRefResolveItem));
+  if (req.items == NULL) { code = terrno; goto _end; }
+
+  for (int32_t i = 0; i < cnt; ++i) {
+    int32_t           pos = *(int32_t *)taosArrayGet(indexList, i);
+    SResolveWorkItem *w   = taosArrayGet(batch, pos);
+    SVTableRefResolveItem it = {0};
+    it.kind   = w->kind;
+    it.hasRef = true;
+    tstrncpy(it.refDbName,    w->refDbName,    TSDB_DB_NAME_LEN);
+    tstrncpy(it.refTableName, w->refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(it.refColName,   w->refColName,   TSDB_COL_NAME_LEN);
+    if (taosArrayPush(req.items, &it) == NULL) { code = terrno; goto _end; }
+  }
+
+  int32_t reqLen = tSerializeSVTableRefResolveReq(NULL, 0, &req);
+  if (reqLen < 0) { code = terrno; goto _end; }
+  // Prepend SMsgHead so dnode dispatcher (vmPutMsgToQueue) can route by vgId.
+  int32_t totalLen = reqLen + (int32_t)sizeof(SMsgHead);
+  pReqBuf = rpcMallocCont(totalLen);
+  if (pReqBuf == NULL) { code = terrno; goto _end; }
+  if (tSerializeSVTableRefResolveReq((char *)pReqBuf + sizeof(SMsgHead), reqLen, &req) < 0) {
+    code = terrno;
+    goto _end;
+  }
+  ((SMsgHead *)pReqBuf)->vgId    = htonl(vgId);
+  ((SMsgHead *)pReqBuf)->contLen = htonl(totalLen);
+
+  rpcMsg.msgType            = TDMT_VND_VTABLE_REF_RESOLVE;
+  rpcMsg.pCont              = pReqBuf;
+  rpcMsg.contLen            = totalLen;
+  rpcMsg.info.ahandle       = (void *)0x9527;
+  rpcMsg.info.notFreeAhandle = 1;
+
+  void *clientRpc = pVnode->msgCb.clientRpc;
+  if (clientRpc == NULL) { code = TSDB_CODE_INVALID_PARA; goto _end; }
+
+  code = rpcSendRecv(clientRpc, (SEpSet *)pEpSet, &rpcMsg, &rpcRsp);
+  pReqBuf = NULL;
+  if (code != 0) goto _end;
+  if (rpcRsp.code != 0) { code = rpcRsp.code; goto _end; }
+  if (rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) { code = TSDB_CODE_INVALID_MSG; goto _end; }
+
+  if (tDeserializeSVTableRefResolveRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp) < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+  int32_t m = (rsp.items != NULL) ? (int32_t)taosArrayGetSize(rsp.items) : 0;
+  if (m != cnt) { code = TSDB_CODE_INVALID_MSG; goto _end; }
+
+  // Move each rsp item to its original position in outRspItems (pre-sized).
+  for (int32_t i = 0; i < m; ++i) {
+    int32_t pos = *(int32_t *)taosArrayGet(indexList, i);
+    SVTableRefResolveRspItem *src = taosArrayGet(rsp.items, i);
+    SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, pos);
+    *dst = *src;
+    src->tagData = NULL;
+    src->tagLen  = 0;
+  }
+
+_end:
+  if (pReqBuf != NULL) rpcFreeCont(pReqBuf);
+  if (rpcRsp.pCont != NULL) rpcFreeCont(rpcRsp.pCont);
+  tFreeSVTableRefResolveReq(&req);
+  tFreeSVTableRefResolveRsp(&rsp);
+  return code;
+}
+
+// Drive one resolution round for a heterogeneous batch: group work-items by the
+// target vgId of (refDbName, refTableName), issue one RPC per vg, and write
+// responses back to outRspItems in batch order.
+//
+// pCache (optional): caches db routing info across hops/uids to avoid hammering
+// mnode. NULL means no cache (every miss goes to mnode).
+//
+// outRspItems must be pre-sized with batch.size() default-zero entries; this
+// function fills them in place. Per-group RPC failure (non-OOM) marks every uid
+// in that group as skipped via *pPerVgFail; callers translate that into the
+// existing skipped-uid bookkeeping.
+//
+// Returns 0 on success (per-group failures are reported via pPerVgFail/skipped),
+// non-zero only on OOM/structural errors that abort the whole resolution.
+static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *pCache,
+                                        int64_t ver, SArray *batch, SArray *outRspItems,
+                                        SHashObj *skipped) {
+  int32_t   code     = 0;
+  SHashObj *vg2Idx   = NULL;  // key: int32_t vgId, value: SArray<int32_t>* (positions)
+  SHashObj *vg2Ep    = NULL;  // key: int32_t vgId, value: SEpSet
+
+  int32_t n = (int32_t)taosArrayGetSize(batch);
+  // Pre-size outRspItems with n zero entries so positional writes are safe.
+  for (int32_t i = (int32_t)taosArrayGetSize(outRspItems); i < n; ++i) {
+    SVTableRefResolveRspItem zero = {0};
+    if (taosArrayPush(outRspItems, &zero) == NULL) { code = terrno; goto _end; }
+  }
+
+  vg2Idx = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  vg2Ep  = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (vg2Idx == NULL || vg2Ep == NULL) { code = terrno; goto _end; }
+
+  // pVnode->config.dbname is always "acctId.dbName"; parse acctId once.
+  int32_t acctId = 0;
+  if (sscanf(pVnode->config.dbname, "%d.", &acctId) != 1) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
+
+  // 1. Route each work-item to its target vgId (skip on routing failure).
+  for (int32_t i = 0; i < n; ++i) {
+    SResolveWorkItem *w = taosArrayGet(batch, i);
+
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    (void)tsnprintf(dbFName, sizeof(dbFName), "%d.%s", acctId, w->refDbName);
+
+    SUseDbRsp *pRsp = NULL;
+    bool       fromCache = false;
+    int32_t    rc = streamGetOrFetchDbVgInfo(pVnode, pCache, dbFName, &pRsp, &fromCache);
+    if (rc != 0) {
+      if (rc == TSDB_CODE_OUT_OF_MEMORY) { code = rc; goto _end; }
+      (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid),
+                        &w->originVtbUid, sizeof(w->originVtbUid));
+      continue;
+    }
+
+    int32_t vgId  = 0;
+    SEpSet  epSet = {0};
+    rc = streamRouteTableToVg(pRsp, dbFName, w->refTableName, &vgId, &epSet);
+    if (!fromCache && pCache == NULL) {
+      tFreeSUsedbRsp(pRsp);
+      taosMemoryFree(pRsp);
+    }
+    if (rc != 0) {
+      (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid),
+                        &w->originVtbUid, sizeof(w->originVtbUid));
+      continue;
+    }
+
+    SArray **ppList = (SArray **)taosHashGet(vg2Idx, &vgId, sizeof(vgId));
+    SArray  *pList  = NULL;
+    if (ppList == NULL) {
+      pList = taosArrayInit(4, sizeof(int32_t));
+      if (pList == NULL) { code = terrno; goto _end; }
+      if (taosHashPut(vg2Idx, &vgId, sizeof(vgId), &pList, sizeof(pList)) != 0) {
+        taosArrayDestroy(pList);
+        code = terrno; goto _end;
+      }
+      if (taosHashPut(vg2Ep, &vgId, sizeof(vgId), &epSet, sizeof(epSet)) != 0) {
+        code = terrno; goto _end;
+      }
+    } else {
+      pList = *ppList;
+    }
+    if (taosArrayPush(pList, &i) == NULL) { code = terrno; goto _end; }
+  }
+
+  // 2. Issue one RPC per vg group.
+  void *pIter = taosHashIterate(vg2Idx, NULL);
+  while (pIter != NULL) {
+    SArray  *pList   = *(SArray **)pIter;
+    size_t   keyLen  = 0;
+    int32_t *pVgKey  = (int32_t *)taosHashGetKey(pIter, &keyLen);
+    int32_t  vgId    = *pVgKey;
+    SEpSet  *pEpSet  = (SEpSet *)taosHashGet(vg2Ep, &vgId, sizeof(vgId));
+
+    int32_t rc = streamSendOneVgResolveRpc(pVnode, pEpSet, vgId, ver, batch, pList, outRspItems);
+    if (rc != 0) {
+      if (rc == TSDB_CODE_OUT_OF_MEMORY) {
+        taosHashCancelIterate(vg2Idx, pIter);
+        code = rc;
+        goto _end;
+      }
+      // Whole-group RPC failure: mark every uid in this group as skipped.
+      int32_t cnt = (int32_t)taosArrayGetSize(pList);
+      for (int32_t j = 0; j < cnt; ++j) {
+        int32_t           pos = *(int32_t *)taosArrayGet(pList, j);
+        SResolveWorkItem *w   = taosArrayGet(batch, pos);
+        (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid),
+                          &w->originVtbUid, sizeof(w->originVtbUid));
+      }
+    }
+    pIter = taosHashIterate(vg2Idx, pIter);
+  }
+
+_end:
+  if (vg2Idx != NULL) {
+    void *p = taosHashIterate(vg2Idx, NULL);
+    while (p != NULL) {
+      taosArrayDestroy(*(SArray **)p);
+      p = taosHashIterate(vg2Idx, p);
+    }
+    taosHashCleanup(vg2Idx);
+  }
+  if (vg2Ep != NULL) taosHashCleanup(vg2Ep);
+  return code;
+}
+
+// Function A: drive multi-hop chain resolution for a batch of vtable uids on the
+// triggering vnode. Cross-vgId version: groups each batch by target vgId, then
+// dispatches one TDMT_VND_VTABLE_REF_RESOLVE RPC per group via streamCallResolveBatched.
+//   - per-uid local failure (table missing / cid missing / chain too deep) -> uid skipped
+//   - per-item failure inside response (r->code != 0) -> whole-uid skipped
+//   - per-vg RPC failure -> all uids in that vg group skipped (only OOM bubbles up)
+// pCache (optional): caches db routing info (SUseDbRsp) across calls.
+// pReaderInfo (optional): when vtbUids is NULL/empty, all live uids are pulled from
+//                          qStreamGetTableArrayList(pReaderInfo). If both are NULL/empty
+//                          this function returns INVALID_PARA.
+// Output: *ppUid2Result is a fresh SSHashObj<uid -> SVTableResolveResult*>;
+// caller owns it and must use streamVTableResolveResultDestroy + tSimpleHashCleanup.
+int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCache,
+                                    SStreamTriggerReaderInfo *pReaderInfo, int64_t ver,
+                                    SArray *vtbUids, SArray *virtColCids, SArray *virtTagCids,
+                                    SSHashObj **ppUid2Result) {
+  int32_t    code         = 0;
+  SArray    *workList     = NULL;
+  SArray    *nextWorkList = NULL;
+  SArray    *batch        = NULL;
+  SArray    *rspItems     = NULL;
+  SSHashObj *uid2Result   = NULL;
+  SHashObj  *skipped      = NULL;
+  SArray    *fullUids     = NULL;
+  SArray    *pTableListArray = NULL;
+
+  if (pVnode == NULL || ppUid2Result == NULL) return TSDB_CODE_INVALID_PARA;
+  *ppUid2Result = NULL;
+
+  // Full-uid branch: pull live uids from the reader's table list.
+  if (vtbUids == NULL || taosArrayGetSize(vtbUids) == 0) {
+    if (pReaderInfo == NULL) return TSDB_CODE_INVALID_PARA;
+    pTableListArray = qStreamGetTableArrayList(pReaderInfo);
+    if (pTableListArray == NULL) { code = terrno; goto _end; }
+
+    int32_t nAll = (int32_t)taosArrayGetSize(pTableListArray);
+    fullUids = taosArrayInit(nAll, sizeof(int64_t));
+    if (fullUids == NULL) { code = terrno; goto _end; }
+    for (int32_t i = 0; i < nAll; ++i) {
+      SStreamTableKeyInfo *pKey = taosArrayGetP(pTableListArray, i);
+      if (pKey == NULL || pKey->markedDeleted) continue;
+      if (taosArrayPush(fullUids, &pKey->uid) == NULL) { code = terrno; goto _end; }
+    }
+    vtbUids = fullUids;
+  }
+
+  uid2Result = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (uid2Result == NULL) { code = terrno; goto _end; }
+
+  skipped = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (skipped == NULL) { code = terrno; goto _end; }
+
+  workList = taosArrayInit(64, sizeof(SResolveWorkItem));
+  if (workList == NULL) { code = terrno; goto _end; }
+
+  // 1. seed work-list
+  int32_t nUid = (int32_t)taosArrayGetSize(vtbUids);
+  for (int32_t i = 0; i < nUid; ++i) {
+    int64_t uid = *(int64_t *)taosArrayGet(vtbUids, i);
+    int32_t rc  = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, workList, uid2Result);
+    if (rc != 0) {
+      if (rc == TSDB_CODE_OUT_OF_MEMORY) { code = rc; goto _end; }
+      (void)taosHashPut(skipped, &uid, sizeof(uid), &uid, sizeof(uid));
+    }
+  }
+
+  // 2. main hop loop
+  for (int32_t hop = 0; hop < STREAM_VTB_MAX_HOPS; ++hop) {
+    int32_t cur = (int32_t)taosArrayGetSize(workList);
+    if (cur == 0) break;
+
+    batch = taosArrayInit(cur, sizeof(SResolveWorkItem));
+    if (batch == NULL) { code = terrno; goto _end; }
+    for (int32_t i = 0; i < cur; ++i) {
+      SResolveWorkItem *w = taosArrayGet(workList, i);
+      if (taosHashGet(skipped, &w->originVtbUid, sizeof(w->originVtbUid)) != NULL) continue;
+      if (taosArrayPush(batch, w) == NULL) { code = terrno; goto _end; }
+    }
+    if (taosArrayGetSize(batch) == 0) {
+      taosArrayDestroy(batch); batch = NULL;
+      taosArrayClear(workList);
+      break;
+    }
+
+    rspItems = taosArrayInit(taosArrayGetSize(batch), sizeof(SVTableRefResolveRspItem));
+    if (rspItems == NULL) { code = terrno; goto _end; }
+
+    int32_t rc = streamCallResolveBatched(pVnode, pCache, ver, batch, rspItems, skipped);
+    if (rc != 0) {
+      // Only OOM/structural errors bubble up; per-vg RPC failures already mark
+      // their uids in `skipped` inside streamCallResolveBatched.
+      code = rc;
+      goto _end;
+    }
+
+    nextWorkList = taosArrayInit(taosArrayGetSize(batch), sizeof(SResolveWorkItem));
+    if (nextWorkList == NULL) { code = terrno; goto _end; }
+
+    int32_t bn = (int32_t)taosArrayGetSize(batch);
+    for (int32_t i = 0; i < bn; ++i) {
+      SResolveWorkItem         *w = taosArrayGet(batch, i);
+      SVTableRefResolveRspItem *r = taosArrayGet(rspItems, i);
+
+      if (r->code != 0) {
+        (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid), &w->originVtbUid, sizeof(w->originVtbUid));
+        taosMemoryFreeClear(r->tagData);
+        continue;
+      }
+      // already in skip list (race from earlier failure on same uid)
+      if (taosHashGet(skipped, &w->originVtbUid, sizeof(w->originVtbUid)) != NULL) {
+        taosMemoryFreeClear(r->tagData);
+        continue;
+      }
+
+      if (r->terminated) {
+        SVTableResolveResult *pRes = streamGetOrCreateUidResult(uid2Result, w->originVtbUid);
+        if (pRes == NULL) { taosMemoryFreeClear(r->tagData); code = terrno; goto _end; }
+
+        if (w->kind == STREAM_VREF_KIND_COL) {
+          SColResolveItem *item = taosMemoryCalloc(1, sizeof(*item));
+          if (item == NULL) { taosMemoryFreeClear(r->tagData); code = terrno; goto _end; }
+          item->hasRef = r->nextRef.hasRef;
+          if (item->hasRef) {
+            tstrncpy(item->refDbName,    r->nextRef.refDbName,    TSDB_DB_NAME_LEN);
+            tstrncpy(item->refTableName, r->nextRef.refTableName, TSDB_TABLE_NAME_LEN);
+            tstrncpy(item->refColName,   r->nextRef.refColName,   TSDB_COL_NAME_LEN);
+          }
+          if (tSimpleHashPut(pRes->colMap, &w->originCid, sizeof(w->originCid), &item, sizeof(item)) != 0) {
+            taosMemoryFree(item);
+            taosMemoryFreeClear(r->tagData);
+            code = terrno; goto _end;
+          }
+          taosMemoryFreeClear(r->tagData);
+        } else {
+          STagValue *tv = taosMemoryCalloc(1, sizeof(*tv));
+          if (tv == NULL) { taosMemoryFreeClear(r->tagData); code = terrno; goto _end; }
+          tv->type  = r->tagType;
+          tv->nLen  = r->tagLen;
+          tv->pData = r->tagData;
+          r->tagData = NULL;
+          if (tSimpleHashPut(pRes->tagMap, &w->originCid, sizeof(w->originCid), &tv, sizeof(tv)) != 0) {
+            taosMemoryFreeClear(tv->pData);
+            taosMemoryFree(tv);
+            code = terrno; goto _end;
+          }
+        }
+      } else {
+        SResolveWorkItem next = {0};
+        next.originVtbUid = w->originVtbUid;
+        next.originCid    = w->originCid;
+        next.kind         = r->nextRef.kind;
+        tstrncpy(next.refDbName,    r->nextRef.refDbName,    TSDB_DB_NAME_LEN);
+        tstrncpy(next.refTableName, r->nextRef.refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(next.refColName,   r->nextRef.refColName,   TSDB_COL_NAME_LEN);
+        if (taosArrayPush(nextWorkList, &next) == NULL) {
+          taosMemoryFreeClear(r->tagData);
+          code = terrno; goto _end;
+        }
+        taosMemoryFreeClear(r->tagData);
+      }
+    }
+
+    taosArrayDestroy(rspItems); rspItems = NULL;
+    taosArrayDestroy(batch);    batch    = NULL;
+    taosArrayDestroy(workList);
+    workList     = nextWorkList;
+    nextWorkList = NULL;
+  }
+
+  // 3. hop overflow: any leftover work-items belong to chains that exceeded MAX_HOPS
+  if (workList != NULL) {
+    int32_t leftover = (int32_t)taosArrayGetSize(workList);
+    for (int32_t i = 0; i < leftover; ++i) {
+      SResolveWorkItem *w = taosArrayGet(workList, i);
+      (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid), &w->originVtbUid, sizeof(w->originVtbUid));
+    }
+  }
+
+  // 4. drop partial entries for any skipped uid
+  void *pIter = taosHashIterate(skipped, NULL);
+  while (pIter != NULL) {
+    int64_t                uid    = *(int64_t *)pIter;
+    SVTableResolveResult **ppRes  = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
+    if (ppRes != NULL && *ppRes != NULL) {
+      streamVTableResolveResultDestroy(*ppRes);
+      (void)tSimpleHashRemove(uid2Result, &uid, sizeof(uid));
+    }
+    pIter = taosHashIterate(skipped, pIter);
+  }
+
+  *ppUid2Result = uid2Result;
+  uid2Result    = NULL;
+
+_end:
+  if (fullUids        != NULL) taosArrayDestroy(fullUids);
+  if (pTableListArray != NULL) taosArrayDestroyP(pTableListArray, taosMemFree);
+  if (workList     != NULL) taosArrayDestroy(workList);
+  if (nextWorkList != NULL) taosArrayDestroy(nextWorkList);
+  if (batch        != NULL) taosArrayDestroy(batch);
+  if (rspItems     != NULL) {
+    int32_t m = (int32_t)taosArrayGetSize(rspItems);
+    for (int32_t i = 0; i < m; ++i) {
+      SVTableRefResolveRspItem *r = taosArrayGet(rspItems, i);
+      taosMemoryFreeClear(r->tagData);
+    }
+    taosArrayDestroy(rspItems);
+  }
+  if (skipped != NULL) taosHashCleanup(skipped);
+  if (uid2Result != NULL) {
+    void *p = NULL; int32_t it = 0;
+    while ((p = tSimpleHashIterate(uid2Result, p, &it)) != NULL) {
+      SVTableResolveResult **pp = (SVTableResolveResult **)p;
+      if (pp != NULL && *pp != NULL) streamVTableResolveResultDestroy(*pp);
+    }
+    tSimpleHashCleanup(uid2Result);
   }
   return code;
 }

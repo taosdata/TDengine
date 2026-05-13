@@ -19,6 +19,7 @@
 #include "os.h"
 #include "thash.h"
 #include "tmsgcb.h"
+#include "tsimplehash.h"
 #include "tqueue.h"
 #include "trpc.h"
 
@@ -119,6 +120,26 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
+
+// Forward declaration: SStreamVTableInfoCache and SStreamTriggerReaderInfo are
+// defined in streamReader.h. We avoid a hard include here to keep vnode.h's
+// existing include set untouched; the only consumer (vnodeStream.c) includes
+// streamReader.h itself.
+struct SStreamVTableInfoCache;
+struct SStreamTriggerReaderInfo;
+
+// Drive multi-hop resolution of vtable column/tag refs on the triggering vnode.
+// Each batch is grouped by target vgId and dispatched via one RPC per vg group.
+// pCache (optional): caches db routing info (SUseDbRsp) across calls.
+// pReaderInfo (optional): when vtbUids is NULL/empty, all live uids are pulled
+//                          from qStreamGetTableArrayList(pReaderInfo).
+// Output ownership is transferred to caller (free via streamVTableResolveResultDestroy
+// + tSimpleHashCleanup in stream lib).
+int32_t streamResolveVTableRefChain(SVnode *pVnode, struct SStreamVTableInfoCache *pCache,
+                                    struct SStreamTriggerReaderInfo *pReaderInfo, int64_t ver,
+                                    SArray *vtbUids, SArray *virtColCids, SArray *virtTagCids,
+                                    SSHashObj **ppUid2Result);
+
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);

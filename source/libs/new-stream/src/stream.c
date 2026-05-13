@@ -23,6 +23,15 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
+void streamGetMnodeEpset(SEpSet *pEpSet) {
+  if (pEpSet == NULL) return;
+  if (gStreamMgmt.getMnode != NULL) {
+    (*gStreamMgmt.getMnode)(gStreamMgmt.dnode, pEpSet);
+  } else {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+  }
+}
+
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
   if (tsDisableStream) {
     return;
