@@ -1,9 +1,9 @@
 # TDengine GitLab CI 快速入门
 
 
-## 1. CI 是什么
+## 1. CI 流水线概览
 
-每次向 `main`、`3.3.6` 或 `3.0` 分支提 MR，GitLab 会自动触发一条流水线：
+每次向 `main`、`3.0` 或 `3.3.6` 分支提 MR，GitLab 会自动触发一条流水线：
 
 1. **构建** — 编译 TDengine（普通 + ASAN 两份）
 2. **检查** — 代码质量检查 + 单元测试
@@ -16,8 +16,8 @@
 ## 2. 提交 MR
 
 ```bash
-# 1. 基于目标分支创建开发分支（以 main 为例，3.3.6 / 3.0 同理）
-git checkout main && git pull
+# 1. 基于目标分支创建开发分支
+git checkout 3.3.6 && git pull
 git checkout -b feat/my-feature
 
 # 2. 开发完成后推送
@@ -25,12 +25,20 @@ git add -A && git commit -m "feat: xxx"
 git push origin feat/my-feature
 
 # 3. 在 GitLab 创建 MR
-#    Source: feat/my-feature → Target: main（或 3.3.6 / 3.0）
+#    Source: feat/my-feature → Target: 3.3.6
 #    MR 创建后 CI 自动启动，无需手动操作
 ```
 
-> **触发条件**：目标分支为 `main`、`3.3.6`（含子版本）或 `3.0`（含子版本）的 MR 都会触发 CI。
-> 仅修改文档、注释等非代码内容时，build/test 阶段会自动跳过，流水线快速结束。
+> **触发条件**：只有目标分支为 `main`、`3.0`（及子版本）、`3.3.6`（及子版本）的 MR 才会触发 CI。
+>
+> **build/test 阶段的实际执行条件**：即使触发了流水线，build 和 test 阶段也只在以下文件有变更时才会运行，否则 job 会被跳过，流水线快速结束：
+> - C/C++/CMake 源码：`**/*.{c,h,cpp,cmake}`、`CMakeLists.txt`
+> - 源码目录：`source/**`
+> - CI 脚本：`scripts/**`
+> - CI 配置：`.gitlab/.gitlab-ci.yml`
+> - **用例列表**：`source/**/test/ci/cases.task`（修改用例列表也会触发完整流水线）
+>
+> 仅修改文档、注释等其他文件时，build/test 阶段会自动跳过。
 
 ---
 
@@ -72,7 +80,7 @@ git push gitlab feat/my-feature
 
 1. 打开 GitLab 项目页面
 2. **Merge Requests → New merge request**
-3. Source branch 选 `feat/my-feature`，Target branch 选 `main`（或 `3.3.6` / `3.0`）
+3. Source branch 选 `feat/my-feature`，Target branch 选目标分支（`main`、`3.0` 或 `3.3.6`）
 4. 填写标题和描述，点击 **Create merge request**
 5. MR 创建后 CI 自动启动
 
@@ -156,7 +164,7 @@ ${comm_dir}/test/ci/rerun.sh --case "$slug"
 ## 7. 常见问题
 
 **Q: Pipeline 没触发？**
-检查 MR 目标分支是否为 `main`、`3.3.6` 或 `3.0`（含子版本），是否处于 Draft 状态。也可手动触发：Build → Pipelines → Run Pipeline。
+检查 MR 目标分支是否为 `main`、`3.0` 或 `3.3.6`，是否处于 Draft 状态。也可手动触发：Build → Pipelines → Run Pipeline。
 
 **Q: build 失败了？**
 点开 `build-noasan` 或 `build-asan` job 日志，通常是编译报错，按错误信息修复代码即可。
