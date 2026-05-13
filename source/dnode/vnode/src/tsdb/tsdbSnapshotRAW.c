@@ -142,15 +142,16 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
       continue;
     }
     STFileObj*               fobj = reader->ctx->fset->farr[ftype];
-    // per-file filter: skip files not in missing set (use basename only)
+    // per-file filter: skip files not in missing set (use fid + ftype)
     if (reader->missingFileHash != NULL) {
-      const char* base = strrchr(fobj->fname, TD_DIRSEP_CHAR);
-      base = (base != NULL) ? base + 1 : fobj->fname;
-      if (taosHashGet(reader->missingFileHash, base, strlen(base)) == NULL) {
-        tsdbDebug("vgId:%d, RAW skip file:%s not in missing set", TD_VID(reader->tsdb->pVnode), fobj->fname);
+      int64_t mfKey = tsdbMissingFileKey(reader->ctx->fset->fid, ftype);
+      if (taosHashGet(reader->missingFileHash, &mfKey, sizeof(mfKey)) == NULL) {
+        tsdbDebug("vgId:%d, RAW skip file fid:%d ftype:%d not in missing set", TD_VID(reader->tsdb->pVnode),
+                  reader->ctx->fset->fid, ftype);
         continue;
       }
-      tsdbInfo("vgId:%d, RAW include file:%s in missing set", TD_VID(reader->tsdb->pVnode), base);
+      tsdbInfo("vgId:%d, RAW include file fid:%d ftype:%d in missing set", TD_VID(reader->tsdb->pVnode),
+               reader->ctx->fset->fid, ftype);
     }
     SDataFileRAWReader*      dataReader;
     SDataFileRAWReaderConfig config = {
@@ -170,15 +171,16 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
   TARRAY2_FOREACH(reader->ctx->fset->lvlArr, lvl) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-      // per-file filter: skip stt files not in missing set (use basename only)
+      // per-file filter: skip stt files not in missing set (use fid + ftype)
       if (reader->missingFileHash != NULL) {
-        const char* base = strrchr(fobj->fname, TD_DIRSEP_CHAR);
-        base = (base != NULL) ? base + 1 : fobj->fname;
-        if (taosHashGet(reader->missingFileHash, base, strlen(base)) == NULL) {
-          tsdbDebug("vgId:%d, RAW skip stt file:%s not in missing set", TD_VID(reader->tsdb->pVnode), fobj->fname);
+        int64_t mfKey = tsdbMissingFileKey(reader->ctx->fset->fid, TSDB_FTYPE_STT);
+        if (taosHashGet(reader->missingFileHash, &mfKey, sizeof(mfKey)) == NULL) {
+          tsdbDebug("vgId:%d, RAW skip stt file fid:%d not in missing set", TD_VID(reader->tsdb->pVnode),
+                    reader->ctx->fset->fid);
           continue;
         }
-        tsdbInfo("vgId:%d, RAW include stt file:%s in missing set", TD_VID(reader->tsdb->pVnode), base);
+        tsdbInfo("vgId:%d, RAW include stt file fid:%d in missing set", TD_VID(reader->tsdb->pVnode),
+                 reader->ctx->fset->fid);
       }
       SDataFileRAWReader*      dataReader;
       SDataFileRAWReaderConfig config = {
