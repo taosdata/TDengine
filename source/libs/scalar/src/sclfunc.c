@@ -4117,20 +4117,24 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       }
     } else {
       /* IANA timezone (explicit or connection) — DST-aware */
+      int64_t gmtoff = 0;
+
       if (taosLocalTime((const time_t *)&quot, &tmInfo, NULL, 0, activeTz) == NULL) {
+        goto _end;
+      }
+      if (taosGetTimezoneOffsetAtSeconds((time_t)quot, activeTz, &gmtoff) != TSDB_CODE_SUCCESS) {
         goto _end;
       }
       len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
       len += snprintf(buf + len, fractionLen, format, mod);
-      /* build offset suffix from tm_gmtoff */
-      long gmtoff = tmInfo.tm_gmtoff;
+      /* build offset suffix from the target instant's UTC offset */
       if (gmtoff == 0) {
         buf[len++] = 'Z';
       } else {
-        char   sign = (gmtoff >= 0) ? '+' : '-';
-        long   absOff = (gmtoff >= 0) ? gmtoff : -gmtoff;
-        int    offH = (int)(absOff / 3600);
-        int    offM = (int)((absOff % 3600) / 60);
+        char    sign = (gmtoff >= 0) ? '+' : '-';
+        int64_t absOff = (gmtoff >= 0) ? gmtoff : -gmtoff;
+        int     offH = (int)(absOff / 3600);
+        int     offM = (int)((absOff % 3600) / 60);
         len += snprintf(buf + len, sizeof(buf) - len, "%c%02d:%02d", sign, offH, offM);
       }
     }
@@ -4394,14 +4398,20 @@ int64_t offsetFromTz(char *timezoneStr, int64_t factor) {
 }
 
 static int32_t offsetFromTimezoneHandle(timezone_t tz, int64_t timeVal, int32_t timePrec, int64_t *pOffset) {
-  time_t    t = timeVal / TSDB_TICK_PER_SECOND(timePrec);
-  struct tm tmInfo;
+  int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
+  int64_t tSec = timeVal / factor;
 
-  if (taosLocalTime(&t, &tmInfo, NULL, 0, tz) == NULL) {
-    return TSDB_CODE_FAILED;
+  if (timeVal < 0 && timeVal % factor != 0) {
+    tSec -= 1;
   }
 
-  *pOffset = (int64_t)tmInfo.tm_gmtoff * TSDB_TICK_PER_SECOND(timePrec);
+  int64_t offsetSeconds = 0;
+  int32_t code = taosGetTimezoneOffsetAtSeconds((time_t)tSec, tz, &offsetSeconds);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  *pOffset = offsetSeconds * factor;
   return TSDB_CODE_SUCCESS;
 }
 

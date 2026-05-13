@@ -80,6 +80,15 @@ int32_t taosParseShortWeekday(const char* str);
 int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, timezone_t tz);
 char    getPrecisionUnit(int32_t precision);
 
+/*
+ * Resolve the UTC offset that is in effect at the specified timestamp.
+ *
+ * Unlike taosGetTZOffsetSeconds(), this API is target-instant aware and must
+ * be used when DST or historical timezone rules can affect the result.
+ * Result convention is east-positive (tm_gmtoff style).
+ */
+int32_t taosGetTimezoneOffsetAtSeconds(time_t timeSec, timezone_t tz, int64_t *pOffsetSeconds);
+
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
 int32_t convertCalendarTimeFromUnitToPrecision(int64_t time,  char fromUnit, int32_t toPrecision,int64_t* pRes);
 int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);

@@ -45,7 +45,17 @@ void       truncateTimezoneString(char *tz);
 #endif
 
 int32_t taosGetLocalTimezoneOffset(int32_t *code);
-int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code);   // east-positive (tm_gmtoff convention); tz=NULL uses global default
+/*
+ * Return the timezone's current/default UTC offset in seconds.
+ *
+ * This API has no target timestamp parameter, so callers must not use it for
+ * historical or DST-sensitive instant calculations.  For "offset at a given
+ * timestamp", use taosGetTimezoneOffsetAtSeconds() from ttime.h instead.
+ *
+ * Result convention is east-positive (tm_gmtoff style); tz == NULL uses the
+ * global default timezone.
+ */
+int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code);
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
 int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *outTimezoneStr);

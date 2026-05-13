@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <bits/stdint-intn.h>
 #ifdef DARWIN
 #define _XOPEN_SOURCE
 #else
@@ -1091,14 +1092,39 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
 }
 
 /*
+ * Resolve the east-positive UTC offset that is in effect at `timeSec`.
+ *
+ * This is intentionally different from taosGetTZOffsetSeconds(), which has no
+ * timestamp input and therefore returns only the timezone's current/default
+ * offset.  Use this helper whenever the caller needs the offset for a target
+ * instant and DST/history can change the answer.
+ */
+int32_t taosGetTimezoneOffsetAtSeconds(time_t timeSec, timezone_t tz,
+                                       int64_t *pOffsetSeconds) {
+  if (pOffsetSeconds == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  struct tm tmLocal;
+
+  if (taosLocalTime(&timeSec, &tmLocal, NULL, 0, tz) == NULL) {
+    uError("%s failed to get local time for ts:%" PRId64 ", code:%d",
+           __FUNCTION__, (int64_t)timeSec, ERRNO);
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  *pOffsetSeconds = (int64_t)(taosTimeGm(&tmLocal) - timeSec);
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
   getTZOffsetAtTicks - return the east-positive UTC offset (in ticks) that is
   in effect at the given timestamp.
- 
+
   Unlike taosGetTZOffsetSeconds() which queries the offset for "now", this
-  function converts `ticks` to local time via taosLocalTime() and then
-  derives the offset as (taosTimeGm(local) - t_sec), so it correctly
-  resolves DST for the *target* instant.
- 
+  function resolves the offset for the *target* instant, so DST-sensitive
+  callers do not accidentally reuse the current offset.
+
   On conversion failure 0 is returned (UTC fallback).
  */
 static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t tz) {
@@ -1108,13 +1134,15 @@ static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t t
     t_sec_ticks -= 1;
   }
   time_t    t_sec = (time_t)t_sec_ticks;
-  struct tm tm_local;
-  if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
+  int64_t   offsetSec = 0;
+
+  if (taosGetTimezoneOffsetAtSeconds(t_sec, tz, &offsetSec) != TSDB_CODE_SUCCESS) {
     uWarn("%s failed to convert ticks:%" PRId64 " to local time, code:%d",
           __FUNCTION__, ticks, ERRNO);
     return 0;
   }
-  return (int64_t)(taosTimeGm(&tm_local) - t_sec) * factor;
+
+  return offsetSec * factor;
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
