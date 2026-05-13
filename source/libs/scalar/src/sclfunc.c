@@ -4113,13 +4113,13 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
        */
       {
         if (fixedOffset == 0) {
-          buf[len++] = 'Z';
+          len += snprintf(buf + len, sizeof(buf) - len, "+0000");
         } else {
           char sign = (fixedOffset <= 0) ? '+' : '-';
           long absOff = (fixedOffset <= 0) ? -fixedOffset : fixedOffset;
           int  offH = (int)(absOff / 3600);
           int  offM = (int)((absOff % 3600) / 60);
-          len += snprintf(buf + len, sizeof(buf) - len, "%c%02d:%02d", sign, offH, offM);
+          len += snprintf(buf + len, sizeof(buf) - len, "%c%02d%02d", sign, offH, offM);
         }
       }
     } else {
@@ -4136,13 +4136,13 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       len += snprintf(buf + len, fractionLen, format, mod);
       /* build offset suffix from the target instant's UTC offset */
       if (gmtoff == 0) {
-        buf[len++] = 'Z';
+        len += snprintf(buf + len, sizeof(buf) - len, "+0000");
       } else {
         char    sign = (gmtoff >= 0) ? '+' : '-';
         int64_t absOff = (gmtoff >= 0) ? gmtoff : -gmtoff;
         int     offH = (int)(absOff / 3600);
         int     offM = (int)((absOff % 3600) / 60);
-        len += snprintf(buf + len, sizeof(buf) - len, "%c%02d:%02d", sign, offH, offM);
+        len += snprintf(buf + len, sizeof(buf) - len, "%c%02d%02d", sign, offH, offM);
       }
     }
 
@@ -4968,23 +4968,9 @@ int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   int64_t timePrec;
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
-  /*
-   * MySQL WEEK() supports only Sun-start (mode 2) and Mon-start (mode 3).
-   * firstDayOfWeek 0 (Sun) → mode 2; 1 (Mon) → mode 3.
-   * Values 2-6 (Tue-Sat) have no MySQL equivalent — warn and fall back to
-   * Sun-start (mode 2) so the result is at least defined.
-   */
-  int32_t mode;
-  switch (pInput->firstDayOfWeek) {
-    case 0:   mode = 2; break;
-    case 1:   mode = 3; break;
-    default:
-      sclWarn("WEEKOFYEAR: firstDayOfWeek=%d has no MySQL WEEK-mode equivalent, falling back to Sun-start (mode 2)",
-              (int32_t)pInput->firstDayOfWeek);
-      mode = 2;
-      break;
-  }
-  return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, mode);
+  /* WEEKOFYEAR is always equivalent to MySQL WEEK(date,3): Monday-first, ISO
+   * week numbering.  It must not be affected by the firstDayOfWeek setting. */
+  return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, 3);
 }
 
 int32_t atanFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

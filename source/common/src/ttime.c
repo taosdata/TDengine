@@ -860,6 +860,7 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
         tm.tm_mon = alignedMonths % 12;
       }
 
+      tm.tm_isdst = -1;
       aligned = (int64_t)taosMktime(&tm, tz) * precisionFactor;
       break;
     }
@@ -879,6 +880,7 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
         tm.tm_year = 70 + alignedYears;
       }
 
+      tm.tm_isdst = -1;
       aligned = (int64_t)taosMktime(&tm, tz) * precisionFactor;
       break;
     }
@@ -999,6 +1001,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   if (tm.tm_mday > daysOfMonth[tm.tm_mon]) {
     tm.tm_mday = daysOfMonth[tm.tm_mon];
   }
+  tm.tm_isdst = -1;
 
   tt = taosMktime(&tm, tz);
   if (tt == -1){
@@ -1178,6 +1181,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       tm.tm_mon = mon % 12;
     }
 
+    tm.tm_isdst = -1;
     tt = taosMktime(&tm, pInterval->timezone);
     if (tt == -1){
       uError("%s failed to convert local time to time, code:%d", __FUNCTION__, ERRNO);
