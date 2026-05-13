@@ -1149,38 +1149,72 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
     return 0;
   }
 
-  (void)taosThreadMutexLock(&pVnode->txnMutex);
-
-  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
-  while (pIter != NULL && totalProcessed < maxOps) {
-    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-
-    if (pEntry->finalStatus == TXN_FINAL_NONE) {
-      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
-      continue;
-    }
-
-    // Process a batch for this txn
-    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
-    int32_t processed = vnodeTxnVacuumOneTxn(pVnode, pEntry, maxOps - totalProcessed);
-    (void)taosThreadMutexLock(&pVnode->txnMutex);
-
-    totalProcessed += processed;
-
-    // Check if this txn is fully vacuumed
-    if (pEntry->vacuumIdx >= pEntry->numVacuumUids) {
-      if (taosArrayPush(pCompletedTxns, &pEntry->txnId) == NULL) {
-        // OOM: txnId not recorded, entry will not be cleaned this round.
-        // Next vacuum cycle will retry. Log so the condition is observable.
-        vWarn("vgId:%d, out of memory recording completed txnId:%" PRId64 " in vacuum batch", TD_VID(pVnode),
-              pEntry->txnId);
-      }
-    }
-
-    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+  // Q-1 fix: snapshot finalized txnIds while holding the lock, then process each
+  // by re-looking-up the entry under the lock-release/re-acquire boundary that
+  // vnodeTxnVacuumOneTxn needs. Iterating with the iterator across an unlock
+  // window would leave pEntry vulnerable to UAF if a future code path were to
+  // delete entries from another thread.
+  SArray *pPendingTxns = taosArrayInit(16, sizeof(int64_t));
+  if (pPendingTxns == NULL) {
+    vError("vgId:%d, out of memory allocating pending-txns array in vacuum batch", TD_VID(pVnode));
+    taosArrayDestroy(pCompletedTxns);
+    return 0;
   }
 
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
+  {
+    void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+    while (pIter != NULL) {
+      SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+      if (pEntry->finalStatus != TXN_FINAL_NONE) {
+        if (taosArrayPush(pPendingTxns, &pEntry->txnId) == NULL) {
+          vWarn("vgId:%d, out of memory snapshotting txnId:%" PRId64 " in vacuum batch", TD_VID(pVnode), pEntry->txnId);
+          // Continue: process whatever fit in the snapshot.
+          taosHashCancelIterate(pVnode->pTxnHash, pIter);
+          break;
+        }
+      }
+      pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+    }
+  }
   (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+
+  int32_t numPending = taosArrayGetSize(pPendingTxns);
+  for (int32_t i = 0; i < numPending && totalProcessed < maxOps; i++) {
+    int64_t txnId = *(int64_t *)taosArrayGet(pPendingTxns, i);
+
+    // Re-resolve the entry under the lock; another thread (e.g. inline finalize)
+    // could in principle have removed it. If gone, skip.
+    (void)taosThreadMutexLock(&pVnode->txnMutex);
+    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)taosHashGet(pVnode->pTxnHash, &txnId, sizeof(int64_t));
+    if (pEntry == NULL || pEntry->finalStatus == TXN_FINAL_NONE) {
+      (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+      continue;
+    }
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    // vnodeTxnVacuumOneTxn currently mutates pEntry->vacuumIdx without holding
+    // txnMutex. Safe today because only the vacuum thread touches FINALIZED
+    // entries, but if this invariant changes the snapshot+re-lookup pattern
+    // here will already be in place. See comment block above.
+    int32_t processed = vnodeTxnVacuumOneTxn(pVnode, pEntry, maxOps - totalProcessed);
+    totalProcessed += processed;
+
+    // Re-check completion under the lock.
+    (void)taosThreadMutexLock(&pVnode->txnMutex);
+    pEntry = (SVnodeTxnEntry *)taosHashGet(pVnode->pTxnHash, &txnId, sizeof(int64_t));
+    bool fullyVacuumed = (pEntry != NULL) && (pEntry->vacuumIdx >= pEntry->numVacuumUids);
+    (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+
+    if (fullyVacuumed) {
+      if (taosArrayPush(pCompletedTxns, &txnId) == NULL) {
+        // OOM: txnId not recorded, entry will not be cleaned this round.
+        // Next vacuum cycle will retry. Log so the condition is observable.
+        vWarn("vgId:%d, out of memory recording completed txnId:%" PRId64 " in vacuum batch", TD_VID(pVnode), txnId);
+      }
+    }
+  }
+  taosArrayDestroy(pPendingTxns);
 
   // Remove fully-vacuumed txns (outside iteration)
   int32_t numCompleted = taosArrayGetSize(pCompletedTxns);

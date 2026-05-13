@@ -138,7 +138,8 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
 
     // §43 Absolute lifetime limit: rollback if total lifetime exceeds max regardless of activity
     int64_t lifetime = now - pTxn->createTime;
-    if (pTxn->stage == UTXN_STAGE_ACTIVE && lifetime > (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000) {
+    if ((pTxn->stage == UTXN_STAGE_ACTIVE || pTxn->stage == UTXN_STAGE_PREPARING) &&
+        lifetime > (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000) {
       mWarn("txn:%" PRIi64 ", stage=%s, lifetime=%" PRId64 "ms > max=%" PRId64
             "ms, triggering ROLLBACK due to exceeded lifetime",
             pTxn->id, mndUtxnStageStr(pTxn->stage), lifetime, (int64_t)TSDB_META_TXN_MAX_LIFETIME_SEC * 1000);
@@ -156,7 +157,7 @@ static void mndTxnTimeoutScanImpl(SMnode *pMnode) {
       continue;
     }
 
-    if (pTxn->stage == UTXN_STAGE_ACTIVE && elapsed > timeout) {
+    if ((pTxn->stage == UTXN_STAGE_ACTIVE || pTxn->stage == UTXN_STAGE_PREPARING) && elapsed > timeout) {
       mWarn("txn:%" PRIi64 ", stage=%s, elapsed=%" PRId64 "ms > timeout=%" PRId64 "ms, triggering ROLLBACK", pTxn->id,
             mndUtxnStageStr(pTxn->stage), elapsed, timeout);
 
@@ -206,7 +207,9 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
     synReq.info.node = pMnode;
 
     switch (pTxn->stage) {
-      case UTXN_STAGE_ACTIVE: {
+      case UTXN_STAGE_ACTIVE:
+      case UTXN_STAGE_PREPARING: {
+        // PREPARING is currently unused (no code path sets it), but handle defensively.
         // Refresh lastActiveTime; client can reconnect and resume this txn.
         // Rebuild shadow ops from SStbObj markers (txnId, txnStatus, pTxnAlterReqs).
         mInfo("txn:%" PRIi64 ", restored in ACTIVE stage, rebuilding shadow ops and resetting lastActiveTime",
