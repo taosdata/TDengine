@@ -267,8 +267,8 @@ function setup_env() {
     mode_desc="root (system-wide)"
   fi
 
-  # 3. check existing taosd installation
-  taosd_bin=$(command -v taosd 2>/dev/null || true)
+  # 3. check existing server installation
+  taosd_bin=$(command -v "${serverName}" 2>/dev/null || true)
   if [ -n "${taosd_bin}" ]; then
       # mac will skip this check
       echo "Welcome to ${productName} Update ..."
@@ -438,11 +438,11 @@ function setup_env() {
 
 function get_config_file() {
     case "$1" in
-      taosd) echo "taos.cfg" ;;
-      taosadapter) echo "taosadapter.toml" ;;
-      taosx) echo "taosx.toml" ;;
-      taoskeeper) echo "taoskeeper.toml" ;;
-      taos-explorer) echo "explorer.toml" ;;
+      "${serverName}") echo "${configFile}" ;;
+      "${adapterName}") echo "${adapterName}.toml" ;;
+      "${xname}") echo "${xname}.toml" ;;
+      "${keeperName}") echo "${keeperName}.toml" ;;
+      "${explorerName}") echo "explorer.toml" ;;
       *) echo "" ;;
     esac
 }
@@ -917,11 +917,13 @@ function install_taosx_config() {
 function install_explorer_config() {
   local only_client=${1:-}
   [ -n "${only_client}" ] && return 0
+  local explorer_config_file
+  explorer_config_file=$(get_config_file "${explorerName}")
 
   if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
-    file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
+    file_name="${script_dir}/${xname}/etc/${PREFIX}/${explorer_config_file}"
   else
-    file_name="${script_dir}/cfg/explorer.toml"
+    file_name="${script_dir}/cfg/${explorer_config_file}"
   fi
   if [ $taos_dir_set -eq 1 ]; then
     mkdir -p "${dataDir}/explorer"
@@ -936,10 +938,10 @@ function install_explorer_config() {
     # replace log path
     sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
-    if [ -f "${configDir}/explorer.toml" ]; then
-      cp "${file_name}" "${configDir}/explorer.toml.new"
+    if [ -f "${configDir}/${explorer_config_file}" ]; then
+      cp "${file_name}" "${configDir}/${explorer_config_file}.new"
     else
-      cp "${file_name}" "${configDir}/explorer.toml"
+      cp "${file_name}" "${configDir}/${explorer_config_file}"
     fi
   fi
 }
@@ -1326,6 +1328,8 @@ function rpm_erase() {
 
 function finished_install_info(){
     local entries=()
+    local explorer_config_file
+    explorer_config_file=$(get_config_file "${explorerName}")
     # header
     echo
     log info_color "${productName} has been installed successfully!"
@@ -1342,41 +1346,41 @@ function finished_install_info(){
 
     # collect pairs "label|value"
     if [ "${pkgMode}" != "lite" ]; then
-      entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
+      entries+=("To configure ${serverName}:|edit ${configDir}/${configFile}")
       if [[ -f "${configDir}/${adapterName}.toml" && -f "${installDir}/bin/${adapterName}" ]]; then
-        entries+=("To configure ${clientName}Adapter:|edit ${configDir}/${adapterName}.toml")
+        entries+=("To configure ${adapterName}:|edit ${configDir}/${adapterName}.toml")
       fi
       
-      entries+=("To configure ${clientName}Keeper:|edit ${configDir}/${keeperName}.toml")
-      entries+=("To configure ${clientName}X:|edit ${configDir}/${xname}.toml")
-      entries+=("To configure ${clientName}Explorer:|edit ${configDir}/explorer.toml")
+      entries+=("To configure ${keeperName}:|edit ${configDir}/${keeperName}.toml")
+      entries+=("To configure ${xname}:|edit ${configDir}/${xname}.toml")
+      entries+=("To configure ${explorerName}:|edit ${configDir}/${explorer_config_file}")
 
       # insert a blank line between config and start
       entries+=("|")
       
       if ((service_mod == 0)); then
-        entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
-        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
-          entries+=("To start ${clientName}Adapter:|${sysctl_cmd} start ${clientName}adapter")
+        entries+=("To start ${serverName}:|${sysctl_cmd} start ${serverName}")
+        if [[ -f "${service_config_dir}/${adapterName}.service" && -f "${installDir}/bin/${adapterName}" ]]; then
+          entries+=("To start ${adapterName}:|${sysctl_cmd} start ${adapterName}")
         fi
       elif ((service_mod == 1)); then
         entries+=("To start ${productName} server:|service ${serverName} start")
-        if [[ -f "${service_config_dir}/${clientName}adapter.service" && -f "${installDir}/bin/${clientName}adapter" ]]; then
-          entries+=("To start ${clientName}Adapter:|service ${clientName}adapter start")
+        if [[ -f "${service_config_dir}/${adapterName}.service" && -f "${installDir}/bin/${adapterName}" ]]; then
+          entries+=("To start ${adapterName}:|service ${adapterName} start")
         fi
       else
         entries+=("To start ${productName} server:|${serverName}")
-        if [ -f "${installDir}/bin/${clientName}adapter" ]; then
-          entries+=("To start ${clientName}Adapter:|${clientName}adapter")
+        if [ -f "${installDir}/bin/${adapterName}" ]; then
+          entries+=("To start ${adapterName}:|${adapterName}")
         fi
       fi
 
-      entries+=("To start ${clientName}Keeper:|${sysctl_cmd} start ${clientName}keeper")
+      entries+=("To start ${keeperName}:|${sysctl_cmd} start ${keeperName}")
 
       if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
-        entries+=("To start ${clientName}X:|${sysctl_cmd} start ${clientName}x")
+        entries+=("To start ${xname}:|${sysctl_cmd} start ${xname}")
       fi
-      entries+=("To start ${clientName}Explorer:|${sysctl_cmd} start ${clientName}-explorer")
+      entries+=("To start ${explorerName}:|${sysctl_cmd} start ${explorerName}")
       entries+=("To start all the components:|start-all.sh")
       entries+=("|")
       if [[ ${user_mode} -eq 1 ]]; then
@@ -1398,8 +1402,8 @@ function finished_install_info(){
         entries+=("|")
       fi
     else
-      entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
-      entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
+      entries+=("To configure ${serverName}:|edit ${configDir}/${configFile}")
+      entries+=("To start ${serverName}:|${sysctl_cmd} start ${serverName}")
       entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
       entries+=("To read the user manual:|https://docs.tdengine.com")
       entries+=("|")
