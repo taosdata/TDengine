@@ -12,6 +12,10 @@ toc_max_heading_level: 4
 
 ## 聚合下推
 
+:::note
+本节及后续章节中，执行计划示意图中的算子名称（如 Agg、ColsMerge、AggA 等）为概念化标识，用于说明优化思路，并非 TDengine EXPLAIN 输出中的实际算子名称。
+:::
+
 ### 问题背景
 
 虚拟表的查询可以抽象为如下模型：

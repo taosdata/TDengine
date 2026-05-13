@@ -12,6 +12,10 @@ This document describes two core optimizations: **Pushdown Aggregation** and **T
 
 ## Pushdown Aggregation
 
+:::note
+In this section and subsequent sections, the operator names used in execution plan diagrams (such as Agg, ColsMerge, AggA, etc.) are conceptual labels intended to illustrate the optimization approach. They do not correspond to actual operator names in TDengine's EXPLAIN output.
+:::
+
 ### Background
 
 Querying a virtual table can be abstracted into the following model:
