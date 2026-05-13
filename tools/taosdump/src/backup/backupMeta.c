@@ -568,6 +568,91 @@ int backVirtualTablesSql(const char *dbName) {
 }
 
 //
+// stream create sql
+//
+int backStreamsSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    // get connection
+    TAOS *conn = getConnection(&code);
+    if (!conn) return code;
+
+    // query all stream DDLs for this database in one shot
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT sql FROM information_schema.ins_streams "
+             "WHERE db_name='%s' ORDER BY stream_name", dbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    code = taos_errno(res);
+    if (!res || code != TSDB_CODE_SUCCESS) {
+        logError("query streams failed(0x%08X %s): %s", code, taos_errstr(res), sql);
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return code;
+    }
+
+    // fetch rows; if none, no streams to back up
+    TAOS_ROW row = taos_fetch_row(res);
+    if (!row) {
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    // open stream.sql file
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_STREAMSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    TdFilePtr fp = taosOpenFile(sqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    if (!fp) {
+        logError("open stream.sql failed: %s", sqlFile);
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+    }
+
+    // write each stream DDL as one line
+    int streamCount = 0;
+    code = TSDB_CODE_SUCCESS;
+    do {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+        if (!row[0]) continue;
+
+        int32_t *lens = taos_fetch_lengths(res);
+        int ddlLen = lens[0];
+        char *ddl = (char *)row[0];
+
+        // replace embedded newlines with spaces to keep one DDL per line
+        char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
+        if (buf) {
+            int n = 0;
+            for (int j = 0; j < ddlLen; j++) {
+                buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
+            }
+            buf[n++] = '\n';
+            if (taosWriteFile(fp, buf, n) != n) {
+                logError("write stream DDL to file failed: %s", sqlFile);
+                code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+            }
+            taosMemoryFree(buf);
+        } else {
+            code = TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+        streamCount++;
+    } while (code == TSDB_CODE_SUCCESS && (row = taos_fetch_row(res)) != NULL);
+
+    logInfo("backup %d stream(s) sql for db: %s", streamCount, dbName);
+
+    taosCloseFile(&fp);
+    taos_free_result(res);
+    releaseConnection(conn);
+    return code;
+}
+
+//
 // backup database meta
 //
 int backDatabaseMeta(DBInfo *dbInfo) {
@@ -711,6 +796,14 @@ int backDatabaseMeta(DBInfo *dbInfo) {
     // virtual tables DDL sql (vtb.sql): virtual normal tables + virtual child tables
     //
     code = backVirtualTablesSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+
+    //
+    // stream sql
+    //
+    code = backStreamsSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
