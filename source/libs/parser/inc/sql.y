@@ -1173,8 +1173,6 @@ full_table_name(A) ::= table_name(B).                                           
 full_table_name(A) ::= db_name(B) NK_DOT table_name(C).                           { A = createRealTableNode(pCxt, &B, &C, NULL); }
 full_table_name(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D).
                                                                                   { A = createRealTableNodeExt3(pCxt, &B, &C, &D, NULL); }
-full_table_name(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E).
-                                                                                  { A = createRealTableNodeExt4(pCxt, &B, &C, &D, &E, NULL); }
 
 %type tag_def_list                                                                { SNodeList* }
 %destructor tag_def_list                                                          { nodesDestroyList($$); }
@@ -2541,8 +2539,6 @@ table_primary(A) ::= table_name(B) alias_opt(C).                                
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
 table_primary(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) alias_opt(E).
                                                                                   { A = createRealTableNodeExt3(pCxt, &B, &C, &D, &E); }
-table_primary(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E) alias_opt(F).
-                                                                                  { A = createRealTableNodeExt4(pCxt, &B, &C, &D, &E, &F); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }

@@ -3726,7 +3726,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.execute(
                 f"create external source {src_p} "
                 f"type='postgresql' host='{cfg_p.host}' port={cfg_p.port} "
-                f"user='{cfg_p.user}' password='{cfg_p.password}'"
+                f"user='{cfg_p.user}' password='{cfg_p.password}' database='testdb'"
             )
             tdSql.execute(
                 f"create external source {src_i} "

@@ -583,7 +583,7 @@ SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const ST
 SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue);
 SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType, SNodeList* pOpts, const SToken* pVal);
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias);
-SNode* createRealTableNodeExt4(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pSeg3, SToken* pTableName, SToken* pAlias);
+
 
 #ifdef __cplusplus
 }

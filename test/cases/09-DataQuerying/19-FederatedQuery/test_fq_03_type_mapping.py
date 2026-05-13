@@ -366,6 +366,14 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             "CREATE TABLE tbl_dt_pk (dt DATETIME PRIMARY KEY, val INT)",
             "INSERT INTO tbl_dt_pk VALUES ('2024-01-01 10:00:00', 1)",
             "CREATE TABLE tbl_ts_pk (ts TIMESTAMP PRIMARY KEY, val INT)",
+            # Force UTC session so MySQL stores this literal value as UTC.
+            # The FQ connector also uses a UTC session when reading, so it
+            # gets back the same UTC string '2024-06-15 12:30:00'.
+            # taosParseTime re-interprets that string in taosd local TZ and
+            # stores the corresponding epoch; taosd then displays the same
+            # string back regardless of what local TZ is configured.
+            # This makes the expected value timezone-independent.
+            "SET time_zone = '+00:00'",
             "INSERT INTO tbl_ts_pk VALUES ('2024-06-15 12:30:00', 2)",
         ])
         self._cleanup_src(src)
@@ -378,18 +386,13 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, '2024-01-01 10:00:00')
             tdSql.checkData(0, 1, 1)
 
-            # (b) TIMESTAMP pk — ts column maps correctly, value preserved
-            # MySQL TIMESTAMP stores as UTC; server is +08:00, so
-            # '2024-06-15 12:30:00' (MySQL local) → 04:30:00 UTC stored.
-            # TDengine displays in taosd system TZ (matches test-runner TZ),
-            # so convert the MySQL-local time via explicit +08:00 tz.
+            # (b) TIMESTAMP pk — ts column maps correctly, value preserved.
+            # Inserted as UTC '2024-06-15 12:30:00'; FQ reads the UTC string
+            # back unchanged, so the displayed value is always '2024-06-15 12:30:00'
+            # regardless of taosd or MySQL server timezone.
             tdSql.query(f"select ts, val from {src}.tbl_ts_pk")
             tdSql.checkRows(1)
-            import datetime as _dt
-            _mysql_tz = _dt.timezone(_dt.timedelta(hours=8))
-            _inserted = _dt.datetime(2024, 6, 15, 12, 30, 0, tzinfo=_mysql_tz)
-            _local_dt = _inserted.astimezone()   # convert to local (taosd) TZ
-            tdSql.checkData(0, 0, _local_dt.strftime('%Y-%m-%d %H:%M:%S'))
+            tdSql.checkData(0, 0, '2024-06-15 12:30:00')
             tdSql.checkData(0, 1, 2)
         finally:
             self._cleanup_src(src)

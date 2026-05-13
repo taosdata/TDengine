@@ -6397,7 +6397,7 @@ static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSele
   }
 
   SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
-  // External source tables have pExtTableNode set (or numPathSegments >= 3 for explicit 3/4-segment paths).
+  // External source tables have pExtTableNode set (or numPathSegments >= 3 for explicit 3-segment paths).
   // These have no TDengine DB config; skip cacheLastMode setup.
   if (pTable->pExtTableNode != NULL || pTable->numPathSegments >= 3) {
     return TSDB_CODE_SUCCESS;
@@ -7631,14 +7631,8 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       const SParseContext* pParCxt = pCxt->pParseCxt;
       tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
       tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
-      if (pParCxt->currentExtNs2[0] != '\0') {
-        // PG 3-seg: source.db.schema.table → nSeg=4
-        tstrncpy(pRealTable->table.dbName, pParCxt->currentExtNs2, sizeof(pRealTable->table.dbName));
-        pRealTable->numPathSegments = 4;
-      } else {
-        pRealTable->table.dbName[0] = '\0';
-        pRealTable->numPathSegments = 3;
-      }
+      pRealTable->table.dbName[0] = '\0';
+      pRealTable->numPathSegments = 3;
       code = translateExternalTableImpl(pCxt, pRealTable);
       if (TSDB_CODE_SUCCESS != code) goto _return;
       pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
@@ -7703,14 +7697,8 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         // extSeg[0] = sourceName, extSeg[1] = ns1, table.dbName = ns2 (PG 4-seg), tableName unchanged
         tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
         tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
-        if (pParCxt->currentExtNs2[0] != '\0') {
-          // PG 3-seg (source.db.schema.table → nSeg=4)
-          tstrncpy(pRealTable->table.dbName, pParCxt->currentExtNs2, sizeof(pRealTable->table.dbName));
-          pRealTable->numPathSegments = 4;
-        } else {
-          tstrncpy(pRealTable->table.dbName, "", sizeof(pRealTable->table.dbName));
-          pRealTable->numPathSegments = 3;
-        }
+        tstrncpy(pRealTable->table.dbName, "", sizeof(pRealTable->table.dbName));
+        pRealTable->numPathSegments = 3;
 
         code = translateExternalTableImpl(pCxt, pRealTable);
         if (TSDB_CODE_SUCCESS != code) {
@@ -23106,6 +23094,11 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pStmt->schemaName[0] != '\0' && pStmt->sourceType == EXT_SOURCE_MYSQL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "SCHEMA is not supported for MySQL sources");
+  }
+  // PostgreSQL requires DATABASE to be specified (it scopes the connection).
+  if (pStmt->sourceType == EXT_SOURCE_POSTGRESQL && pStmt->database[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "DATABASE is required for PostgreSQL external sources");
   }
   // Name length check: external source names follow database name rules (max 64 chars).
   if (strlen(pStmt->sourceName) >= TSDB_EXT_SOURCE_NAME_LEN) {

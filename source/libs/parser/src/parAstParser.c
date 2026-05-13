@@ -310,7 +310,7 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
       if (TSDB_CODE_SUCCESS != pCxt->errCode) return DEAL_RES_ERROR;
       // Register ext table meta request for this path
       const char* mid0       = (nSeg >= 3) ? pRealTable->extSeg[1] : "";
-      const char* mid1       = (nSeg >= 4) ? pRealTable->table.dbName : "";
+      const char* mid1       = "";
       pCxt->errCode = reserveExtTableMetaInCache(sourceName, mid0, mid1,
                                                   pRealTable->table.tableName,
                                                   pCxt->pComCxt->pMetaCache);
@@ -1049,7 +1049,7 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
       code = reserveExtSourceInCache(srcName, pCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS == code) {
         const char* mid0 = (pStmt->numPathSegments >= 3) ? pStmt->extSeg[1] : "";
-        const char* mid1 = (pStmt->numPathSegments >= 4) ? pStmt->dbName    : "";
+        const char* mid1 = "";
         code = reserveExtTableMetaInCache(srcName, mid0, mid1, pStmt->tableName, pCxt->pMetaCache);
       }
     }

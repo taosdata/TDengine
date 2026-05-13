@@ -1513,20 +1513,22 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_path_019(self):
-        """FQ-PATH-019: USE external source — PG 3-segment form
+        """FQ-PATH-019: USE external source — 3-segment form rejected for all types
 
-        FS §3.5.7: ``USE source_name.database.schema`` is only supported for
-        PostgreSQL.  For non-PG types, this form should produce an error.
+        FS §3.5.7: ``USE source_name.database.schema`` (3-segment) is no longer
+        supported for any TYPE.  PostgreSQL DATABASE is fixed at source-creation
+        time; the only variable namespace is SCHEMA.  Non-PG types never
+        supported 3-segment USE.
 
         Verification: PG data in analytics.t019 (val=901) vs public.t019 (val=902).
-        USE pg.db.analytics → 1-seg returns 901.
+        USE pg.analytics (2-seg schema override) → single-seg returns 901.
 
         Dimensions:
-          a) PG: USE source.database.schema → succeeds, verify external data
-          b) After USE, single-seg resolves in database.schema context
-          c) MySQL: USE source.database.schema → error
-          d) InfluxDB: USE source.database.schema → error
-          e) PG: Multiple USE with different database.schema combinations
+          a) PG: USE source.database.schema (3-seg) → syntax error
+          b) MySQL: USE source.database.schema (3-seg) → syntax error
+          c) InfluxDB: USE source.database.schema (3-seg) → syntax error
+          d) PG: USE source.schema (2-seg) → succeeds, single-seg resolves in that schema
+          e) PG: switch between two schemas via 2-seg USE
 
         Catalog: - Query:FederatedPathResolution
 
@@ -1536,6 +1538,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-05-13 wpan 3-seg USE removed; PG DATABASE fixed in source definition
 
         """
         p = "fq_019_pg"
@@ -1560,46 +1563,44 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("create table t019 (ts timestamp, val int)")
             tdSql.execute("insert into t019 values (1704067200000, 42)")
 
-            # (a) PG: USE source.database.schema → verify external data
+            # (a) PG: 3-seg USE → syntax error (DATABASE fixed in source definition)
             self._mk_pg_real(p, database=PG_DB, schema="public")
-            tdSql.execute(f"use {p}.{PG_DB}.analytics")
-            tdSql.query("select val from t019 limit 1")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 901)  # analytics.t019
-
-            # (b) After USE, single-seg resolves in analytics context
-            tdSql.query("select val from t019 limit 1")
-            tdSql.checkData(0, 0, 901)
-
-            # Switch back to local
-            tdSql.execute(f"use {db}")
+            tdSql.error(f"use {p}.{PG_DB}.analytics",
+                        expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+            # Context unchanged (still local)
             tdSql.query("select val from t019 order by ts limit 1")
             tdSql.checkData(0, 0, 42)
 
-            # (c) MySQL: 3-seg USE → error
+            # (b) MySQL: 3-seg USE → syntax error
             self._mk_mysql_real(m, database=MYSQL_DB)
             tdSql.error(f"use {m}.{MYSQL_DB}.extra",
                         expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
-            # Context remains local
             tdSql.query("select val from t019 order by ts limit 1")
             tdSql.checkData(0, 0, 42)
 
-            # (d) InfluxDB: 3-seg USE → error
+            # (c) InfluxDB: 3-seg USE → syntax error
             self._mk_influx_real(i, database=INFLUX_BUCKET)
             tdSql.error(f"use {i}.{INFLUX_BUCKET}.extra",
                         expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
             tdSql.query("select val from t019 order by ts limit 1")
             tdSql.checkData(0, 0, 42)
 
-            # (e) PG: Multiple USE with different combinations
-            tdSql.execute(f"use {p}.{PG_DB}.analytics")
+            # (d) PG: USE source.schema (2-seg) → schema override succeeds
+            tdSql.execute(f"use {p}.analytics")
             tdSql.query("select val from t019 limit 1")
-            tdSql.checkData(0, 0, 901)
-            tdSql.execute(f"use {p}.{PG_DB}.public")
-            tdSql.query("select val from t019 limit 1")
-            tdSql.checkData(0, 0, 902)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 901)  # analytics.t019
 
-            # Restore
+            # (e) PG: switch between two schemas via 2-seg USE
+            tdSql.execute(f"use {p}.public")
+            tdSql.query("select val from t019 limit 1")
+            tdSql.checkData(0, 0, 902)  # public.t019
+
+            tdSql.execute(f"use {p}.analytics")
+            tdSql.query("select val from t019 limit 1")
+            tdSql.checkData(0, 0, 901)  # back to analytics.t019
+
+            # Restore local context
             tdSql.execute(f"use {db}")
             tdSql.query("select val from t019 order by ts limit 1")
             tdSql.checkData(0, 0, 42)
@@ -2067,15 +2068,17 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.execute("create database fq_s05_local")
             tdSql.execute("use fq_s05_local")
             tdSql.execute("create table local_t (ts timestamp, dummy int)")
-            # 1704067201000 = '2024-01-01 00:00:01' UTC. The test container runs in UTC,
-            # so taosParseTime(..., NULL) parses MySQL DATETIME values as UTC, giving
-            # epoch 1704067201000 ms.  local_t.ts must use the same epoch to match.
-            tdSql.execute("insert into local_t values (1704067201000, 0)")
+            # Use the same timezone-naive string that MySQL DATETIME stores.
+            # Both this INSERT and the MySQL DATETIME '2024-01-01 00:00:01' are
+            # parsed by taosd with its local timezone, so the resulting epochs
+            # are identical regardless of what timezone taosd runs in.
+            tdSql.execute("insert into local_t values ('2024-01-01 00:00:01', 0)")
 
             # (a) Local table JOIN external 2-seg — FederatedScan runs on the local vnode.
             # hasScan=true means HYBRID override is skipped; VNODE strategy routes both the
             # local TableScan and the FederatedScan sub-plan to the same vnode.
-            # local_t has ts=1704067201000 (= 2024-01-01 00:00:01 UTC), matching remote_orders id.
+            # local_t.ts and remote_orders.id share the same epoch because both are
+            # parsed from the same timezone-naive string '2024-01-01 00:00:01' by taosd.
             tdSql.query(
                 f"select r.amount from local_t l "
                 f"join {m}.remote_orders r on l.ts = r.id")
@@ -2395,17 +2398,15 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
             )
 
-            # (b) FROM exactly 4-seg on PG source — PG supports 4-seg (src.db.schema.table),
-            # so this is NOT a syntax error. The path src.db.schema.tbl maps db='public';
-            # PG has no database named 'public' (it's a schema name, not a database).
-            # The connector detects "database does not exist" (SQLSTATE 3D000) and
-            # returns EXT_TABLE_NOT_EXIST (the specified path/table cannot be found).
+            # (b) FROM exactly 4-seg on PG source — PG DATABASE is fixed in source
+            # definition, so the max path depth is 3-seg (source.schema.table).
+            # A 4-seg path is now a syntax error for ALL types including PG.
             pg = "fq_s09_pg"
             self._cleanup_src(pg)
             self._mk_pg_real(pg, database=PG_DB, schema="public")
             tdSql.error(
                 f"select * from {pg}.public.schema2.tbl",
-                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
             self._cleanup_src(pg)
 
             # (c) 1-seg FROM matching source name → local table lookup
@@ -2834,9 +2835,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         3-seg override when no default SCHEMA.
 
         Dimensions:
-          a) PG without DATABASE and without SCHEMA → 2-seg error
+          a) PG without DATABASE and without SCHEMA → CREATE fails (DATABASE required)
           b) PG with DATABASE only, no SCHEMA → may use 'public', verify data
-          c) PG with SCHEMA only, no DATABASE → 2-seg works (uses default schema)
+          c) PG with SCHEMA only, no DATABASE → CREATE fails (DATABASE required)
           d) ALTER to clear SCHEMA → 2-seg fails; 3-seg still works
           e) ALTER to set SCHEMA back → 2-seg works again
 
@@ -2863,17 +2864,13 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ])
         self._cleanup_src(src)
         try:
-            # (a) PG without DATABASE and without SCHEMA
-            self._mk_pg_real(src)  # no database, no schema
-            tdSql.error(f"select * from {src}.t_s14",
-                        expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
-            # USE succeeds for PG even without a configured namespace
-            # (PG defers namespace resolution to query time, unlike MySQL/InfluxDB)
-            tdSql.execute(f"use {src}")
-            # 3-seg explicit schema → fails (PG without database has no connection basis)
+            # (a) PG without DATABASE and without SCHEMA → CREATE fails (DATABASE required)
+            cfg = self._pg_cfg()
             tdSql.error(
-                f"select * from {src}.public.t_s14 limit 1",
-                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+                f"create external source {src} "
+                f"type='postgresql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
 
             # (b) PG with DATABASE only, no SCHEMA → may use 'public'
             self._cleanup_src(src)
@@ -2886,17 +2883,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1402)
 
-            # (c) PG with SCHEMA only, no DATABASE
+            # (c) PG with SCHEMA only, no DATABASE → CREATE fails (DATABASE required)
             self._cleanup_src(src)
-            self._mk_pg_real(src, schema="public")  # schema but no database
-            # Behavior depends on implementation: schema might implicitly set DB
+            cfg = self._pg_cfg()
             tdSql.error(
-                f"select * from {src}.t_s14 limit 1",
-                expectedErrno=TSDB_CODE_EXT_DEFAULT_NS_MISSING)
-            # 3-seg override schema
-            tdSql.error(
-                f"select * from {src}.analytics.t_s14 limit 1",
-                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+                f"create external source {src} "
+                f"type='postgresql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' schema=public",
+                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
 
             # (d) ALTER to clear SCHEMA → 2-seg fails
             self._cleanup_src(src)

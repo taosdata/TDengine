@@ -8866,30 +8866,4 @@ _err:
   return NULL;
 }
 
-SNode* createRealTableNodeExt4(SAstCreateContext* pCxt,
-    SToken* pSeg1, SToken* pSeg2, SToken* pSeg3, SToken* pTableName, SToken* pAlias) {
-  CHECK_PARSER_STATUS(pCxt);
-  // Strip backtick/quote escapes from all path segments
-  trimEscape(pCxt, pSeg1, true);
-  trimEscape(pCxt, pSeg2, true);
-  trimEscape(pCxt, pSeg3, true);
-  trimEscape(pCxt, pTableName, true);
-  if (NULL != pAlias && TK_NK_NIL != pAlias->type) trimEscape(pCxt, pAlias, true);
-  SRealTableNode* pNode = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
-  CHECK_MAKE_NODE(pNode);
-  pNode->numPathSegments = 4;
-  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[0], pSeg1);
-  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[1], pSeg2);
-  COPY_STRING_FORM_ID_TOKEN(pNode->table.dbName, pSeg3);  // seg3 temporarily stored in dbName
-  COPY_STRING_FORM_ID_TOKEN(pNode->table.tableName, pTableName);
-  if (NULL != pAlias && TK_NK_NIL != pAlias->type) {
-    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pAlias);
-  } else {
-    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
-  }
-  return (SNode*)pNode;
-_err:
-  nodesDestroyNode((SNode*)pNode);
-  return NULL;
-}
+

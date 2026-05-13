@@ -325,15 +325,14 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self._cleanup(name_min, name_opts, name_tls, name_sp)
 
     def test_fq_ext_002(self):
-        """FQ-EXT-002: Create PG external source - with DATABASE+SCHEMA and all 9 OPTIONS
+        """FQ-EXT-002: Create PG external source - DATABASE required; SCHEMA optional
 
-        PG supports 9 OPTIONS (FS §3.4.1.4):
-          Common (6) + PG-specific (3): sslmode, application_name, search_path
+        PostgreSQL connections are database-scoped; DATABASE must be specified
+        at source creation time (FS §3.4.1.2).  SCHEMA remains optional.
 
         Dimensions:
-          a) DATABASE + SCHEMA; b) DATABASE-only; c) SCHEMA-only;
-          d) All 9 OPTIONS; e) DESCRIBE per sub-case; f) create_time check;
-          g) Verify empty SCHEMA/DATABASE is None
+          a) DATABASE + SCHEMA; b) DATABASE-only; c) SCHEMA-only → error (DATABASE required);
+          d) Neither DATABASE nor SCHEMA → error; e) All 9 OPTIONS; f) DESCRIBE; g) create_time
 
         Catalog:
             - Query:FederatedExternalSource
@@ -346,6 +345,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
         History:
             - 2026-04-13 wpan Initial implementation
+            - 2026-05-13 wpan DATABASE is now required for PostgreSQL
 
         """
         name_ds = "fq_src_002_ds"
@@ -382,20 +382,23 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             f"SCHEMA must be empty/None when not specified, got '{schema_val}'"
         )
 
-        # ── (c) SCHEMA-only → DATABASE should be empty/None ──
-        tdSql.execute(
+        # ── (c) SCHEMA-only → error (DATABASE is required for PostgreSQL) ──
+        tdSql.error(
             f"create external source {name_s} "
             f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
-            "user='reader' password='pg_pwd' schema=reporting"
-        )
-        self._assert_show_field(name_s, _COL_SCHEMA, "reporting")
-        row = self._find_show_row(name_s)
-        db_val = tdSql.queryResult[row][_COL_DATABASE]
-        assert db_val is None or str(db_val).strip() == "", (
-            f"DATABASE must be empty/None when not specified, got '{db_val}'"
+            "user='reader' password='pg_pwd' schema=reporting",
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
         )
 
-        # ── (d) All 9 PG OPTIONS ──
+        # ── (d) Neither DATABASE nor SCHEMA → error (DATABASE is required for PostgreSQL) ──
+        tdSql.error(
+            f"create external source {name_s} "
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
+            "user='reader' password='pg_pwd'",
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+        )
+
+        # ── (e) All 9 PG OPTIONS ──
         tdSql.execute(
             f"create external source {name_opts} "
             f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} "
@@ -583,7 +586,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # IF NOT EXISTS with different TYPE — must succeed, TYPE unchanged
         tdSql.execute(
             f"create external source if not exists {name} "
-            f"type='postgresql' host='10.0.0.3' port={self._pg_cfg().port} user='u3' password='p3'"
+            f"type='postgresql' host='10.0.0.3' port={self._pg_cfg().port} user='u3' password='p3' database=testdb"
         )
         self._assert_show_field(name, _COL_TYPE, "mysql")
 
@@ -733,7 +736,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         )
         tdSql.execute(
             f"create external source {name_b} "
-            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}'"
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' database='testdb'"
         )
 
         tdSql.query("show external sources")
@@ -1228,7 +1231,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         # ── (d) Re-create with different params ──
         tdSql.execute(
             f"create external source {name} "
-            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='pg' password='pgpwd'"
+            f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='pg' password='pgpwd' database=postgres"
         )
         self._assert_show_field(name, _COL_TYPE, "postgresql")
         self._assert_show_field(name, _COL_HOST, self._pg_cfg().host)
@@ -1525,7 +1528,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         all_names = [bad, ok1, ok2, ok3, ok4, ok5, ok6]
         self._cleanup(*all_names)
 
-        base = f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}'"
+        base = f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' database=postgres"
 
         # ── (a) CONFLICT ──
         tdSql.error(
@@ -1651,6 +1654,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         tdSql.execute(
             f"create external source {name} "
             f"type='postgresql' host='{self._pg_cfg().host}' port={self._pg_cfg().port} user='{self._pg_cfg().user}' password='{self._pg_cfg().password}' "
+            "database=postgres "
             "options("
             "  'sslmode'='prefer',"
             "  'application_name'='TDengine-Federation',"

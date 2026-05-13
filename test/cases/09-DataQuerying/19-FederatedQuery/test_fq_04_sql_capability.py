@@ -1347,7 +1347,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             self._mk_influx_real(src_i, database=i_db)
 
             m_users = f"{src_m}.{m_db}.users"
-            p_users = f"{src_p}.{p_db}.public.users"
+            p_users = f"{src_p}.public.users"
             i_users = f"{src_i}.{i_db}.users"
 
             # M+P UNION → dedup → 3 rows
@@ -1458,7 +1458,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             tdSql.query(
                 f"select u.id, u.name from {src_m}.{m_db}.users u "
                 f"where u.id in "
-                f"(select o.user_id from {src_p}.{p_db}.public.orders o) "
+                f"(select o.user_id from {src_p}.public.orders o) "
                 f"order by u.id")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, "Alice")
@@ -1976,7 +1976,7 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
 
             # 079: query view
             tdSql.query(
-                f"select * from {src_p}.{p_db}.public.v_summary order by status")
+                f"select * from {src_p}.public.v_summary order by status")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1); tdSql.checkData(0, 1, 100)
             tdSql.checkData(1, 0, 2); tdSql.checkData(1, 1, 200)
@@ -1985,14 +1985,14 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             #      timestamp column in ON condition; non-ts JOIN → error
             tdSql.error(
                 f"select v.id, v.name, sum(o.amount) as total "
-                f"from {src_p}.{p_db}.public.v_users v "
-                f"join {src_p}.{p_db}.public.orders o on v.id = o.user_id "
+                f"from {src_p}.public.v_users v "
+                f"join {src_p}.public.orders o on v.id = o.user_id "
                 f"group by v.id, v.name order by v.id",
                 expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
 
             # 081: REFRESH
             tdSql.execute(f"refresh external source {src_p}")
-            tdSql.query(f"select count(*) from {src_p}.{p_db}.public.v_summary")
+            tdSql.query(f"select count(*) from {src_p}.public.v_summary")
             tdSql.checkRows(1); tdSql.checkData(0, 0, 2)
         finally:
             self._cleanup_src(src_p)

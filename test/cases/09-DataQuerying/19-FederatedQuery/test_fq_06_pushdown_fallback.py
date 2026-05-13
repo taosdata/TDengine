@@ -255,14 +255,25 @@ _PG_TS_JOIN_SQLS = [
 ]
 
 # InfluxDB two measurements for ts-pk JOIN
-# ta: va=10,20,30 at _BASE_TS, _BASE_TS+60s, _BASE_TS+120s
-# tb: vb=100,200 at _BASE_TS, _BASE_TS+60s  (first 2 match ta)
+# ta: va=10,20,30 at local-TZ interpretation of '2024-01-01 00:00:00.000'
+# tb: vb=100,200 at same base (+60s)  (first 2 timestamps match ta)
+#
+# Timestamps are computed from the timezone-naive string '2024-01-01 00:00:00'
+# interpreted in the Python process local timezone (which matches taosd's TZ).
+# This ensures MySQL DATETIME strings and InfluxDB epochs refer to the same
+# instant regardless of whether the host runs UTC, UTC+8, or any other TZ.
+import datetime as _dt_mod
+_BASE_TS_LOCAL = int(
+    _dt_mod.datetime(2024, 1, 1, 0, 0, 0)
+    .astimezone(_dt_mod.timezone.utc)
+    .timestamp() * 1000
+)
 _INFLUX_TS_JOIN_LINES = [
-    f"ta va=10i {_BASE_TS}000000",
-    f"ta va=20i {_BASE_TS + 60000}000000",
-    f"ta va=30i {_BASE_TS + 120000}000000",
-    f"tb vb=100i {_BASE_TS}000000",
-    f"tb vb=200i {_BASE_TS + 60000}000000",
+    f"ta va=10i {_BASE_TS_LOCAL * 1_000_000}",
+    f"ta va=20i {(_BASE_TS_LOCAL + 60_000) * 1_000_000}",
+    f"ta va=30i {(_BASE_TS_LOCAL + 120_000) * 1_000_000}",
+    f"tb vb=100i {_BASE_TS_LOCAL * 1_000_000}",
+    f"tb vb=200i {(_BASE_TS_LOCAL + 60_000) * 1_000_000}",
 ]
 
 # InfluxDB orders measurement for diagnostic log tests
@@ -1166,8 +1177,9 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 expectedErrno=TSDB_CODE_PAR_NOT_SUPPORT_JOIN)
             # Dimension d) Ts-pk: MySQL.ta × InfluxDB.tb on ts = ts
             # MySQL DATETIME '2024-01-01 00:00:00' is timezone-naive; taosParseTime
-            # interprets it as taosd system time.  Container timezone is UTC, so
-            # '2024-01-01 00:00:00' → 1704067200000 ms = _BASE_TS → matches InfluxDB → 2 rows.
+            # interprets it using taosd's local TZ.  _INFLUX_TS_JOIN_LINES uses
+            # _BASE_TS_LOCAL which is computed the same way (local TZ epoch of
+            # '2024-01-01 00:00:00'), so the two sides always match → 2 rows.
             tdSql.query(
                 f"select a.va, b.vb from {m2}.ta a "
                 f"join {i}.tb b on a.ts = b.ts")
@@ -3679,10 +3691,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
                 f"create external source {p_src} "
                 f"type='postgresql' host='{bad_host}' port={p_cfg.port} "
                 f"user='{p_cfg.user}' password='{p_cfg.password}' "
+                f"database='{p_db}' "
                 f"options('connect_timeout_ms'='500')"
             )
             tdSql.error(
-                f"select id, val from {p_src}.{p_db}.public.push_s08_t",
+                f"select id, val from {p_src}.public.push_s08_t",
                 expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
             )
             tdSql.execute(f"alter external source {p_src} set host='{p_cfg.host}'")
@@ -3694,7 +3707,7 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, p_cfg.host)
             tdSql.query(
-                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id"
+                f"select id, val from {p_src}.public.push_s08_t order by id"
             )
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, 1)
@@ -3702,11 +3715,11 @@ class TestFq06PushdownFallback(FederatedQueryVersionedMixin):
             tdSql.checkData(2, 0, 3)
             tdSql.checkData(2, 1, 30)
             self._verify_pushdown_explain(
-                f"select id, val from {p_src}.{p_db}.public.push_s08_t order by id",
+                f"select id, val from {p_src}.public.push_s08_t order by id",
                 "ORDER BY")
             for _ in range(3):
                 tdSql.query(
-                    f"select count(*) from {p_src}.{p_db}.public.push_s08_t")
+                    f"select count(*) from {p_src}.public.push_s08_t")
                 tdSql.checkData(0, 0, 3)
         finally:
             self._cleanup_src(p_src)
