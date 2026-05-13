@@ -384,6 +384,17 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   return (*fp_taos_stmt2_bind_param_a)(stmt, bindv, col_idx, fp, param);
 }
 
+int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv) {
+  CHECK_INT(fp_taos_stmt2_bind_param_column);
+  return (*fp_taos_stmt2_bind_param_column)(stmt, bindv);
+}
+
+int taos_stmt2_bind_param_column_a(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp,
+                                   void *param) {
+  CHECK_INT(fp_taos_stmt2_bind_param_column_a);
+  return (*fp_taos_stmt2_bind_param_column_a)(stmt, bindv, fp, param);
+}
+
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
   CHECK_INT(fp_taos_stmt2_exec);
   return (*fp_taos_stmt2_exec)(stmt, affected_rows);
