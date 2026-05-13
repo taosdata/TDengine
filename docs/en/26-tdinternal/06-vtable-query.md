@@ -16,7 +16,7 @@ This document describes two core optimizations: **Pushdown Aggregation** and **T
 
 Querying a virtual table can be abstracted into the following model:
 
-```
+```text
 User Query → Virtual Table → [Source Table A, Source Table B, Source Table C, ...]
 ```
 
@@ -49,18 +49,18 @@ Based on the analysis above, TDengine implements Pushdown Aggregation optimizati
 
 **Execution plan before optimization:**
 
-```
+```text
 Agg[count(a), sum(b)]
     └── VirtualTableScan (merge full data from A and B)
             ├── ScanA (1 million rows)
             └── ScanB (1 million rows)
 ```
 
-The engine scans 1 million rows each from A and B, the merge operator performs row-by-row timestamp comparison and column concatenation to produce a 1-million-row result set, and then executes count and sum on it. The merged result set carries no SMA information, so aggregation can only proceed row by row.
+The engine scans 1 million rows each from A and B, the merge operator performs row-by-row timestamp comparison and column concatenation to produce a result set of approximately 1 million rows (the actual count depends on timestamp alignment), and then executes count and sum on it. The merged result set carries no SMA information, so aggregation can only proceed row by row.
 
 **Execution plan after optimization:**
 
-```
+```text
 ColsMerge (combine by column)
     ├── AggA[count(a)] → ScanA
     └── AggB[sum(b)] → ScanB
@@ -83,7 +83,7 @@ SELECT count(a), avg(a), sum(b), max(b) FROM vtable;
 
 The optimized execution plan is:
 
-```
+```text
 ColsMerge
     ├── AggA[count(a), avg(a)] → ScanA
     └── AggB[sum(b), max(b)] → ScanB
@@ -111,9 +111,9 @@ The challenge is that column `a` (the state column) resides in source table A, w
 
 In time-series data scenarios, state columns are typically sparse — device states are written only when changes occur, resulting in very small data volumes. Measurement columns, on the other hand, are very dense — sensors continuously collect at high frequencies, potentially accumulating millions of rows. Consider a typical scenario: the state column `a` has 50 rows, while the aggregation column `b` has 5 million rows. The naive execution plan is:
 
-```
+```text
 WindowAgg[avg(b), STATE_WINDOW(a)]
-    └── VirtualScan (merge full data from A and B)
+    └── VirtualTableScan (merge full data from A and B)
             ├── ScanA (50 rows, sparse state changes)
             └── ScanB (5 million rows, dense measurements)
 ```
@@ -137,7 +137,7 @@ Based on the unidirectional dependency characteristic, TDengine splits window qu
 
 Execute window partitioning on the source table A where the state column resides. No actual aggregation is performed — only the start and end timestamps of each window are output:
 
-```
+```text
 WindowSplit(STATE_WINDOW(a)) → ScanA
 Output: [(_wstart₁, _wend₁), (_wstart₂, _wend₂), ...]
 ```
@@ -148,7 +148,7 @@ Since the state column itself is sparse, the scanning cost of this phase is extr
 
 The window boundaries produced in Phase 1 are distributed to source tables that need to perform aggregation. Each source table independently executes range scans and aggregation within the window time ranges:
 
-```
+```text
 ExtWindowAgg[avg(b)] → ScanB (scans only data within window ranges)
 ```
 
@@ -158,7 +158,7 @@ Source table B does not need to understand the window partitioning logic. It onl
 
 The two phases are coordinated by a scheduling node (DynQueryCtrl). The complete execution plan is:
 
-```
+```text
 DynQueryCtrl (scheduling node)
     │
     ├── Phase 1: WindowSplit(a) → ScanA
@@ -179,7 +179,7 @@ Using the typical scenario described above: state column `a` has 50 rows, aggreg
 **Before optimization (full merge):**
 
 - ScanA reads 50 rows, ScanB reads 5 million rows
-- Window partitioning and aggregation are performed on the 5-million-row merged result
+- Window partitioning and aggregation are performed on the merged result of approximately 5 million rows
 - Total processing: full merge of 5 million rows plus the sorting overhead of the merge itself
 
 **After optimization (two-phase splitting):**
@@ -198,7 +198,7 @@ SELECT _wstart, avg(b), max(c) FROM vtable STATE_WINDOW(a);
 
 Where column `a` is in source table A, column `b` is in source table B, and column `c` is in source table C. The optimized execution plan is:
 
-```
+```text
 DynQueryCtrl
     ├── Phase 1: WindowSplit(a) → ScanA → Output window boundaries
     └── Phase 2:

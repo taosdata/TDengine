@@ -16,7 +16,7 @@ toc_max_heading_level: 4
 
 虚拟表的查询可以抽象为如下模型：
 
-```
+```text
 用户查询 → 虚拟表 → [源表A, 源表B, 源表C, ...]
 ```
 
@@ -49,18 +49,18 @@ SELECT count(a), sum(b) FROM vtable;
 
 **优化前的执行计划：**
 
-```
+```text
 Agg[count(a), sum(b)]
     └── VirtualTableScan（归并 A、B 全量数据）
             ├── ScanA（100 万行）
             └── ScanB（100 万行）
 ```
 
-引擎先从 A 和 B 各扫描 100 万行，归并算子逐行比对时间戳并拼接列，产生 100 万行结果集，再在其上执行 count 和 sum。归并后的结果集不携带 SMA 信息，聚合只能逐行计算。
+引擎先从 A 和 B 各扫描 100 万行，归并算子逐行比对时间戳并拼接列，产生约 100 万行的结果集（实际行数取决于时间戳对齐程度），再在其上执行 count 和 sum。归并后的结果集不携带 SMA 信息，聚合只能逐行计算。
 
 **优化后的执行计划：**
 
-```
+```text
 ColsMerge（按列拼合）
     ├── AggA[count(a)] → ScanA
     └── AggB[sum(b)] → ScanB
@@ -83,7 +83,7 @@ SELECT count(a), avg(a), sum(b), max(b) FROM vtable;
 
 对应的优化后执行计划为：
 
-```
+```text
 ColsMerge
     ├── AggA[count(a), avg(a)] → ScanA
     └── AggB[sum(b), max(b)] → ScanB
@@ -111,9 +111,9 @@ SELECT _wstart, _wend, avg(b) FROM vtable STATE_WINDOW(a);
 
 在时序数据场景中，状态列通常较为稀疏——设备状态仅在变化时写入，数据量往往很小；而测量列则非常密集——传感器以较高频率持续采集，数据量可达数百万行。以一个典型场景为例：假设状态列 `a` 有 50 行，聚合列 `b` 有 500 万行。朴素方案的执行计划如下：
 
-```
+```text
 WindowAgg[avg(b), STATE_WINDOW(a)]
-    └── VirtualScan（归并 A、B 全量数据）
+    └── VirtualTableScan（归并 A、B 全量数据）
             ├── ScanA（50 行，稀疏的状态变化）
             └── ScanB（500 万行，密集的测量数据）
 ```
@@ -137,7 +137,7 @@ WindowAgg[avg(b), STATE_WINDOW(a)]
 
 在状态列所在的源表 A 上执行窗口划分，不执行聚合计算，仅输出每个窗口的起止时间：
 
-```
+```text
 WindowSplit(STATE_WINDOW(a)) → ScanA
 输出：[(_wstart₁, _wend₁), (_wstart₂, _wend₂), ...]
 ```
@@ -148,7 +148,7 @@ WindowSplit(STATE_WINDOW(a)) → ScanA
 
 将第一阶段产出的窗口边界下发给需要执行聚合的源表。各源表根据窗口的时间范围，独立执行范围扫描和聚合计算：
 
-```
+```text
 ExtWindowAgg[avg(b)] → ScanB（仅扫描窗口范围内的数据）
 ```
 
@@ -158,7 +158,7 @@ ExtWindowAgg[avg(b)] → ScanB（仅扫描窗口范围内的数据）
 
 两个阶段通过调度节点（DynQueryCtrl）协调，完整的执行计划如下：
 
-```
+```text
 DynQueryCtrl（调度节点）
     │
     ├── 第一阶段：WindowSplit(a) → ScanA
@@ -179,7 +179,7 @@ DynQueryCtrl（调度节点）
 **优化前（全量归并）：**
 
 - ScanA 读取 50 行，ScanB 读取 500 万行
-- 归并后在 500 万行上执行窗口划分与聚合
+- 归并后在约 500 万行的数据上执行窗口划分与聚合
 - 总处理量：全量归并 500 万行，附加归并本身的排序开销
 
 **优化后（两阶段拆分）：**
@@ -198,7 +198,7 @@ SELECT _wstart, avg(b), max(c) FROM vtable STATE_WINDOW(a);
 
 其中列 `a` 在源表 A，列 `b` 在源表 B，列 `c` 在源表 C。优化后的执行计划为：
 
-```
+```text
 DynQueryCtrl
     ├── 第一阶段：WindowSplit(a) → ScanA → 输出窗口边界
     └── 第二阶段：
