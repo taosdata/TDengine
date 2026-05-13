@@ -39,8 +39,7 @@ include(cmake/options.cmake)
 include(cmake/check_env.cmake)
 include(cmake/define.cmake)
 include(cmake/version.cmake)
-# Support for Conan package manager
-option(USE_CONAN "Use Conan for dependency management" OFF)
+
 if(USE_CONAN)
   message(STATUS "Using Conan for dependency management")
   include(cmake/conan.cmake)
@@ -50,7 +49,6 @@ else()
 endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
-add_subdirectory(contrib)
 
 if(BUILD_TEST)
   include(CTest)
@@ -60,9 +58,7 @@ endif()
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
 
-add_subdirectory(contrib/TSZ)
-add_subdirectory(contrib/libaes)
-add_subdirectory(contrib/libmqtt)
+add_subdirectory(contrib)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)

@@ -79,6 +79,10 @@ IF(${BUILD_SHARED_STORAGE})
   ENDIF ()
 ENDIF ()
 
+if(BUILD_WITH_COS)
+    message(FATAL_ERROR "freemine: not implemented yet")
+endif()
+
 # Enable advanced security features
 IF(BUILD_ADVANCED_SECURITY)
     ADD_DEFINITIONS(-DTD_ENABLE_ADVANCED_SECURITY)
@@ -299,10 +303,6 @@ ELSE()
         ENDIF()
     ENDIF()
 
-    # build mode
-    SET(CMAKE_C_FLAGS_REL "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-    SET(CMAKE_CXX_FLAGS_REL "${CMAKE_CXX_FLAGS} -Werror -Wno-reserved-user-defined-literal -Wno-literal-suffix -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-
     IF(BUILD_SANITIZER)
         # Note: -fsanitize=undefined is intentionally omitted from C_FLAGS.
         # The manylinux2014 (CentOS 7) build container ships GCC 7 which generates
@@ -311,12 +311,11 @@ ELSE()
         # (__ubsan_handle_type_mismatch_v1), causing an unresolvable link error
         # with the mold linker.  ASan (-fsanitize=address) works correctly.
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
-
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
         MESSAGE(STATUS "Compile with Address Sanitizer!")
     ELSEIF(BUILD_RELEASE)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g0 -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wno-reserved-user-defined-literal -Wno-literal-suffix -Werror=return-type -fPIC -g0 -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
     elseif(TD_LINUX)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
