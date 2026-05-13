@@ -270,8 +270,8 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     if (pReq->txnId != 0) {
       code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_CREATE, 0);
       if (code != TSDB_CODE_SUCCESS) {
-        metaError("vgId:%d, failed to upsert txn.idx for stb:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
-                  pReq->suid);
+        metaError("vgId:%d, failed to upsert txn.idx for stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
+                  pReq->name, pReq->suid, tstrerror(code));
       }
     }
   } else {
@@ -3597,10 +3597,10 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
              pReq->name, pReq->suid, version, pReq->txnId);
     // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
     if (pReq->txnId != 0) {
-      int32_t idxCode = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, pEntry->version);
-      if (idxCode != TSDB_CODE_SUCCESS) {
-        metaError("vgId:%d, failed to upsert txn.idx for ALTER stb:%s uid:%" PRId64, TD_VID(pMeta->pVnode), pReq->name,
-                  pReq->suid);
+      code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, pEntry->version);
+      if (code != TSDB_CODE_SUCCESS) {
+        metaError("vgId:%d, failed to upsert txn.idx for ALTER stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
+                  pReq->name, pReq->suid, tstrerror(code));
       }
     }
   }

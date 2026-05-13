@@ -1117,8 +1117,12 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
       }
     }
 
-    // Remove from txn.idx
-    (void)metaTxnIdxDelete(pVnode->pMeta, uid);
+    // Remove from txn.idx (vacuum is idempotent — next cycle will retry on failure)
+    int32_t vacIdxCode = metaTxnIdxDelete(pVnode->pMeta, uid);
+    if (vacIdxCode != 0) {
+      vWarn("vgId:%d, vacuum: failed to delete txn.idx for uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid,
+            vacIdxCode);
+    }
 
     metaFetchEntryFree(&pME);
     pEntry->vacuumIdx++;

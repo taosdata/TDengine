@@ -1928,13 +1928,21 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
             if (childTxnId == 0 && childStatus == META_TXN_NORMAL) {
               int32_t markCode = metaMarkTableTxnStatus(pVnode->pMeta, childUid, req.txnId, META_TXN_PRE_DROP, -1);
               if (markCode == 0) {
-                (void)metaTxnIdxUpsert(pVnode->pMeta, childUid, req.txnId, META_TXN_PRE_DROP, -1);
-                (void)vnodeTxnTrackTable(pVnode, req.txnId, childUid);
+                int32_t idxCode2 = metaTxnIdxUpsert(pVnode->pMeta, childUid, req.txnId, META_TXN_PRE_DROP, -1);
+                if (idxCode2 != 0) {
+                  vError("vgId:%d, stb:%s child uid:%" PRId64 " metaTxnIdxUpsert failed since %s", TD_VID(pVnode),
+                         req.name, childUid, tstrerror(idxCode2));
+                }
+                int32_t trackCode = vnodeTxnTrackTable(pVnode, req.txnId, childUid);
+                if (trackCode != 0) {
+                  vError("vgId:%d, stb:%s child uid:%" PRId64 " vnodeTxnTrackTable failed since %s", TD_VID(pVnode),
+                         req.name, childUid, tstrerror(trackCode));
+                }
                 vInfo("vgId:%d, stb:%s child uid:%" PRId64 " cascade PRE_DROP under txn %" PRIu64, TD_VID(pVnode),
                       req.name, childUid, req.txnId);
               } else {
-                vError("vgId:%d, stb:%s child uid:%" PRId64 " cascade PRE_DROP failed code:0x%x", TD_VID(pVnode),
-                       req.name, childUid, markCode);
+                vError("vgId:%d, stb:%s child uid:%" PRId64 " cascade PRE_DROP failed since %s", TD_VID(pVnode),
+                       req.name, childUid, tstrerror(markCode));
               }
             }
           }
