@@ -24,7 +24,7 @@ export default {
     taosx404: "The TaosX API is not configured. Please check the explorer configuration",
     taosx500: "The TaosX API cannot be accessed. Please check the taosx service status",
     changepwdtip: "Password is successfully changed, please log in again",
-    copyright: "Copyright (c) 2025 by TDengine, All Rights Reserved.",
+    copyright: "Copyright (c) 2026 by TDengine, All Rights Reserved.",
     systemTitle: "Explorer",
     emailError: "Please enter a valid email address.",
     phoneError: "Malformed phone number!",
