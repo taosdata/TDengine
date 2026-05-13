@@ -47,7 +47,7 @@
 - `TO_ISO8601` 第二参数仅接受固定偏移格式，不支持 IANA
 - `TO_CHAR` 仅双参数，不支持时区参数
 - `TIMETRUNCATE` 第三参数仅支持 `0/1`，且单位校验仍限定 `1[b|u|a|s|m|h|d|w]`
-- `TIMEZONE()` 仅返回单字符串，不支持 `TIMEZONE(1)`
+- `TIMEZONE()` 仅返回单字符串，不支持参数化扩展
 
 3. 现有错误码：
 - `0x2600` / `0x2601` 目前是 parser 语法相关错误码（非“Invalid timezone/firstDayOfWeek”语义）
@@ -256,28 +256,21 @@ int8_t firstDayOfWeek;  // -1: unset, 0..6: session override
 
 ```sql
 TIMEZONE()
-TIMEZONE(0)
-TIMEZONE(1)
 ```
 
 #### 5.9.2 行为与执行位置
 
-**无参数或参数为 0**：
-- `TIMEZONE()` / `TIMEZONE(0)`：保持现有单字符串兼容
-- 可在客户端执行，直接返回客户端时区字符串
+`TIMEZONE()` 保持单字符串返回值，并继续在客户端执行。
 
-**参数为 1**：
-- `TIMEZONE(1)`：返回 JSON 字符串，包含三层时区信息 (`session/client/server`)
-- **需下发服务端执行**（新增）：原因是需要访问服务端的 `tsTimezoneStr` 配置等信息
-- 服务端收集三层数据后组装 JSON 返回
+- 连接已设置 `SET TIMEZONE` 时，返回当前连接级时区（L2）
+- 未设置 L2 时，回退到连接创建时快照的客户端时区（L3→L5）
+- 不扩展参数化变体，也不引入服务端 JSON 返回
 
 #### 5.9.3 实现点
 
-- builtins 参数从 0 参改为可选 1 参（取值 0/1）
-- scalar `timezoneFunction` 按参数分支：
-  - 参数 `0` 或无参：客户端执行，返回客户端时区字符串
-  - 参数 `1`：标记为需服务端执行的函数，通过服务端 scalar 函数收集并输出三层信息
-- 服务端对应的 scalar 函数可访问 `tsTimezoneStr` 全局配置与请求上下文中的时区信息
+- builtins 保持 0 参数签名
+- translator 继续将 `TIMEZONE()` 重写为当前连接可见的时区字符串
+- 连接初始化时快照 L3，`SET TIMEZONE` 只覆盖当前连接的 L2
 
 ## 6. 数据结构与接口变更
 
@@ -292,7 +285,6 @@ TIMEZONE(1)
 在查询请求/执行上下文中保证可携带：
 - `timezone_t tz`（已存在）
 - `int8_t firstDayOfWeek`（新增）
-- 必要时附带 client tz 字符串用于 `TIMEZONE(1)`
 
 ### 6.3 SQL 与函数签名
 
@@ -303,7 +295,7 @@ TIMEZONE(1)
 扩展：
 - `TO_CHAR(ts, fmt [, tz])`
 - `TIMETRUNCATE(ts, unit [, tz_or_flag])`
-- `TIMEZONE([all])`
+- `TIMEZONE()`
 
 ## 7. 错误码设计
 
@@ -332,13 +324,12 @@ FS 最终对齐实现：
 
 `TIMEZONE()` 函数执行位置变化：
 
-- `TIMEZONE()` / `TIMEZONE(0)`：可在客户端执行，返回客户端时区字符串
-- `TIMEZONE(1)`：**需下发服务端执行**，以访问服务端的 `tsTimezoneStr` 和其他全局配置
+- `TIMEZONE()`：保持客户端执行，返回当前连接可见的时区字符串
 
 这要求：
-1. Planner 识别 `TIMEZONE(1)` 为"需服务端参与"的表达式
-2. Server-side scalar 函数 `timezoneFunction` 支持参数 `1` 的分支逻辑
-3. 确保请求路径可携带必要的时区与周起始日信息下发到服务端
+1. 连接初始化阶段正确快照客户端时区
+2. `SET TIMEZONE` 仅更新当前连接 L2，不影响其他连接
+3. translator/scalar 不再引入任何参数化分支
 
 ## 9. 实施顺序（建议）
 
@@ -362,9 +353,6 @@ FS 最终对齐实现：
 - rebase 合并 `q` PR
 - 与 parser/translator/executor 联调验收
 
-6. P6：`TIMEZONE(1)` 服务端扩展
-- 因涉及服务端执行路径，排在后期并与 P2 协同完成
-
 ## 10. 验收要点
 
 1. 语法：`SET TIMEZONE` / `SET FIRST_DAY_OF_WEEK` 可解析并生效。
@@ -372,14 +360,13 @@ FS 最终对齐实现：
 3. 函数：
 - `TO_ISO8601/TO_CHAR` 支持 IANA
 - `TIMETRUNCATE` 支持字符串时区与自然单位
-- `TIMEZONE()` / `TIMEZONE(0)` 返回单字符串（客户端执行）
-- `TIMEZONE(1)` 返回三层信息 JSON（服务端执行，正确收集 session/client/server 数据）
+- `TIMEZONE()` 返回单字符串，并正确反映 L2→L3→L5 回退
 4. 周/季度：
 - `1w` 对齐符合 `firstDayOfWeek`
 - `INTERVAL(1q)` 与 `INTERVAL(3n)` 等价（按 FS 语义）
 5. 执行路径：
 - 服务端可访问连接级时区与 `firstDayOfWeek`（由客户端透传）
-- 必要时下发请求到服务端（如 `TIMEZONE(1)`、`TIMETRUNCATE` 带 IANA 等）
+- `TIMEZONE()` 保持客户端执行；`TIMETRUNCATE` 带 IANA 等路径按现有需求透传
 
 ## 11. 参考文件
 

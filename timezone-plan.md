@@ -6,12 +6,12 @@
 | --- | --- | --- | --- |
 | 2026-05-06 | 0.1 | AI | 初稿，基于 FS v0.1 与 DS v0.2 |
 | 2026-05-06 | 0.2 | AI | 对齐 FS/DS 评审：修正错误码已占用说明；补充 CST/单数字小时拒绝机制；Task 1.1 验收标准节归位；Task 3.3 统一 use_current_timezone 命名；Task 4.4 明确 DAYOFWEEK/WEEKDAY 不变及 WEEK mode L1 优先级；新增 Task 2.5 TODAY() 回退链；测试计划补 test_interval_natural / test_today_tz；Task 6.1 补 L2 未设置时 session 字段验收 |
-| 2026-05-06 | 0.3 | AI | Review 修正：明确错误码推荐范围 0x26B2+；补充 Task 1.5 涉及结构体名称；Task 2.1 补充涉及文件；Task 3.1/3.2 补充当前代码缺陷说明；Task 3.3 补充内部参数索引映射说明；Task 4.1 限定 validateTimeUnitParam 修改范围；Task 4.2 补充 Nw 计算示例；Task 4.3 拆分 d 单位子步骤并补充涉及文件；Task 4.4 补充 MySQL week mode 说明；Task 6.1 明确 TIMEZONE(0) 执行位置；测试计划补充 DAYOFWEEK/WEEKDAY/NOW 回归组与 TIMETRUNCATE 多倍数组；风险表补充执行位置风险 |
+| 2026-05-06 | 0.3 | AI | Review 修正：明确错误码推荐范围 0x26B2+；补充 Task 1.5 涉及结构体名称；Task 2.1 补充涉及文件；Task 3.1/3.2 补充当前代码缺陷说明；Task 3.3 补充内部参数索引映射说明；Task 4.1 限定 validateTimeUnitParam 修改范围；Task 4.2 补充 Nw 计算示例；Task 4.3 拆分 d 单位子步骤并补充涉及文件；Task 4.4 补充 MySQL week mode 说明；Task 6.1 明确 TIMEZONE() 执行位置；测试计划补充 DAYOFWEEK/WEEKDAY/NOW 回归组与 TIMETRUNCATE 多倍数组；风险表补充执行位置风险 |
 | 2026-05-06 | 0.4 | AI | 统一 TO_ISO8601/TO_CHAR 无参回退链为 `L2→L3→L5`：这两个函数始终在客户端执行，无需访问服务端 L4；移除服务端执行方案说明；同步修改 FS/DS/Plan 三处文档 |
 | 2026-05-06 | 0.5 | AI | 评审收口：确认 TO_ISO8601/TO_CHAR/TODAY 为客户端执行函数；修正 TO_ISO8601 当前缺陷为 translator 默认折叠固定偏移；明确 `d/w` 不纳入 `IS_CALENDAR_TIME_DURATION`，改走专用日历分支 |
 | 2026-05-06 | 0.6 | AI | 代码比照修正：Task 3.1 明确 `validateTimezoneFormat` 实为纯格式校验（不含 tzalloc）及 scalar inputNum 死代码问题；Task 3.3 修正内部参数顺序（precision 在 timezoneStr 之前），补充 translator 也需停止注入固定偏移；Task 3.2 补充 `toCharFunction` 无 translator 注入问题，明确第三参数的 scalar 分支实现路径 |
 | 2026-05-06 | 0.7 | AI | 增补测试优先执行节奏：先生成单元/pytest 测试清单与测试代码，待人工评审通过后再进入功能开发与全量回归 |
-| 2026-05-07 | 0.8 | AI | 补充 9.1 当前可编译单元测试与阻塞项说明：增强 common 自然单位/周边界断言；记录 parser 新语法、共享 timezone helper、TIMEZONE(1) 组装与消息透传因功能未落地暂无法补充 |
+| 2026-05-07 | 0.8 | AI | 补充 9.1 当前可编译单元测试与阻塞项说明：增强 common 自然单位/周边界断言；记录 parser 新语法、共享 timezone helper；移除过期的参数化 TIMEZONE 预研项 |
 | 2026-05-09 | 0.9 | AI | 同步最新落地状态：P3 已完成并通过 scalar 回归；P4 维持部分 skip，恢复最小 1w 回归与 1w+DST 一致性回归；移除过期阻塞描述 |
 | 2026-05-09 | 0.10 | AI | `firstDayOfWeek` 从服务端参数改为客户端参数：Task 1.3 改为客户端 `CFG_SCOPE_CLIENT` 注册，`ALTER LOCAL` 替代 `ALTER ALL DNODES`；Task 1.5 回退链解析改为客户端完成后透传；默认值从 1（周一）改为 4（周四），与 epoch 取模旧行为兼容；用户手册指引同步修正 |
 
@@ -777,7 +777,7 @@ SELECT TIMEZONE();
 | 文档类型 | 必改内容 |
 | --- | --- |
 | SQL 语法手册 | `SET TIMEZONE`、`SET FIRST_DAY_OF_WEEK` 新语法、参数约束、错误码 |
-| 函数手册 | `TIMEZONE([0|1])`、`TO_ISO8601`、`TO_CHAR`、`TIMETRUNCATE` 的新增参数、回退链、DST 语义 |
+| 函数手册 | `TIMEZONE()`、`TO_ISO8601`、`TO_CHAR`、`TIMETRUNCATE` 的新增参数、回退链、DST 语义 |
 | 查询/窗口函数手册 | `INTERVAL(w/n/q/y)`、`TIMETRUNCATE(..., w/n/q/y)`、`WEEK` / `WEEKOFYEAR` 与 `firstDayOfWeek` 的关系 |
 | 配置手册 | 客户端 `firstDayOfWeek` 配置项、默认值、动态修改方式与限制 |
 | 错误码文档 | `TSDB_CODE_PAR_INVALID_TIMEZONE`、`TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK` |
