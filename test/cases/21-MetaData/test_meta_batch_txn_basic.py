@@ -34,12 +34,30 @@ class TestBatchMetaTxnBasic:
 
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
+        # Create the database once here.  s0_reset_env() only drops objects.
+        # create database vgroups 2 under ASAN takes ~5s; doing it 44× would
+        # waste ~220s just on resets.  A single up-front create avoids that.
+        tdSql.execute("drop database if exists txn_db")
+        tdSql.execute("create database txn_db vgroups 2")
 
 
     def s0_reset_env(self):
-        tdSql.execute("drop database if exists txn_db")
-        tdSql.execute("create database txn_db vgroups 2")
+        # Fast cleanup: cancel any open transaction, then drop all user objects
+        # in-place.  Avoids drop+create database (~8s each under ASAN × 44
+        # sub-scenarios = ~350s of wasted reset overhead).
+        try:
+            tdSql.execute("ROLLBACK")   # no-op if no active txn
+        except Exception:
+            pass
         tdSql.execute("use txn_db")
+        tdSql.query("show stables")
+        stables = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        for stb in stables:
+            tdSql.execute(f"drop stable if exists {stb}")
+        tdSql.query("show tables")
+        tables = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        for tbl in tables:
+            tdSql.execute(f"drop table if exists {tbl}")
 
 
     # =========================================================================

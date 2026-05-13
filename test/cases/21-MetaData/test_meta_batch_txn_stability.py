@@ -184,8 +184,13 @@ class TestBatchMetaTxnStability:
 
         tdLog.info(f"Creating {num_tables} tables in single transaction...")
         tdSql.execute("begin")
-        for i in range(num_tables):
-            tdSql.execute(f"create table ct_mem_{i} using stb_mem tags({i})")
+        # Use batches of 100 to avoid 500 individual DDL round-trips.
+        # The B+tree shadow entry count is what's under test, not round-trips.
+        BATCH_SIZE = 100
+        for batch_start in range(0, num_tables, BATCH_SIZE):
+            parts = [f"ct_mem_{batch_start + j} using stb_mem tags({batch_start + j})"
+                     for j in range(min(BATCH_SIZE, num_tables - batch_start))]
+            tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("commit")
 
         time.sleep(3)  # Allow vacuum
@@ -212,8 +217,12 @@ class TestBatchMetaTxnStability:
         tdLog.info(f"Running {num_txns} rapid transactions...")
         for txn_idx in range(num_txns):
             tdSql.execute("begin")
-            for i in range(tables_per_txn):
-                tdSql.execute(f"create table ct_rapid_{txn_idx}_{i} using stb_rapid tags({txn_idx * 100 + i})")
+            # Batch all tables in one create-table statement per txn.
+            # We are testing 50 rapid COMMIT events stressing the vacuum queue;
+            # the individual DDL count within each txn is irrelevant.
+            parts = [f"ct_rapid_{txn_idx}_{i} using stb_rapid tags({txn_idx * 100 + i})"
+                     for i in range(tables_per_txn)]
+            tdSql.execute("create table " + " ".join(parts))
             tdSql.execute("commit")
 
         time.sleep(5)  # Allow all vacuum operations to complete

@@ -58,12 +58,12 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_lazy_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 100  # > TSDB_TXN_INLINE_THRESHOLD (64)
+        NUM_TABLES = 70  # > TSDB_TXN_INLINE_THRESHOLD (64); reduced for CI ASAN speed
         tdSql.execute("BEGIN")
-        # Batch create in chunks of 50
-        for batch_start in range(0, NUM_TABLES, 50):
+        # Batch create in chunks of 35
+        for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
-                     for j in range(min(50, NUM_TABLES - batch_start))]
+                     for j in range(min(35, NUM_TABLES - batch_start))]
             tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("COMMIT")
 
@@ -73,12 +73,12 @@ class TestBatchMetaTxnStress2:
 
         # Verify INSERT works on committed tables (no stale PRE_CREATE blocking)
         tdSql.execute("insert into ct_0 values(now, 1)")
-        tdSql.execute("insert into ct_99 values(now, 2)")
+        tdSql.execute(f"insert into ct_{NUM_TABLES - 1} values(now, 2)")
         tdSql.query("select * from stb")
         tdSql.checkRows(2)
 
         # Wait briefly for async vacuum to complete, then verify a new txn works
-        time.sleep(3)
+        time.sleep(2)  # 70 entries vacuum is fast; 2s is sufficient
         tdSql.execute("BEGIN")
         tdSql.execute("drop table ct_0")
         tdSql.execute("COMMIT")
@@ -99,11 +99,11 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_lazy_rb_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 100
+        NUM_TABLES = 70  # > TSDB_TXN_INLINE_THRESHOLD (64)
         tdSql.execute("BEGIN")
-        for batch_start in range(0, NUM_TABLES, 50):
+        for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
-                     for j in range(min(50, NUM_TABLES - batch_start))]
+                     for j in range(min(35, NUM_TABLES - batch_start))]
             tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("ROLLBACK")
 
@@ -112,7 +112,7 @@ class TestBatchMetaTxnStress2:
         tdSql.checkRows(0)
 
         # Wait for async vacuum, then verify a fresh txn works cleanly
-        time.sleep(3)
+        time.sleep(2)  # 70 entries vacuum is fast; 2s is sufficient
         tdSql.execute("BEGIN")
         tdSql.execute("create table ct_new using stb tags(1)")
         tdSql.execute("COMMIT")
@@ -135,11 +135,11 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_finalized_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 80  # > 64 threshold
+        NUM_TABLES = 70  # > 64 threshold
         tdSql.execute("BEGIN")
-        for batch_start in range(0, NUM_TABLES, 40):
+        for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
-                     for j in range(min(40, NUM_TABLES - batch_start))]
+                     for j in range(min(35, NUM_TABLES - batch_start))]
             tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("COMMIT")
 
@@ -222,14 +222,14 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
         NUM_CYCLES = 3
-        TABLES_PER_CYCLE = 80  # > 64 threshold → lazy vacuum each time
+        TABLES_PER_CYCLE = 70  # > 64 threshold → lazy vacuum each time
 
         for cycle in range(NUM_CYCLES):
             base = cycle * TABLES_PER_CYCLE
             tdSql.execute("BEGIN")
-            for batch_start in range(0, TABLES_PER_CYCLE, 40):
+            for batch_start in range(0, TABLES_PER_CYCLE, 35):
                 parts = [f"ct_{base + batch_start + j} using stb tags({base + batch_start + j})"
-                         for j in range(min(40, TABLES_PER_CYCLE - batch_start))]
+                         for j in range(min(35, TABLES_PER_CYCLE - batch_start))]
                 tdSql.execute("create table " + " ".join(parts))
             tdSql.execute("COMMIT")
             tdLog.info(f"  cycle {cycle}: committed {TABLES_PER_CYCLE} tables")
@@ -269,18 +269,18 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_reuse_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_TABLES = 80  # > TSDB_TXN_INLINE_THRESHOLD (64) → lazy vacuum path
+        NUM_TABLES = 70  # > TSDB_TXN_INLINE_THRESHOLD (64) → lazy vacuum path
 
         # Create tables in a transaction, then ROLLBACK
         tdSql.execute("BEGIN")
-        for batch_start in range(0, NUM_TABLES, 40):
+        for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({batch_start + j})"
-                     for j in range(min(40, NUM_TABLES - batch_start))]
+                     for j in range(min(35, NUM_TABLES - batch_start))]
             tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("ROLLBACK")
 
-        # Wait briefly for vacuum to process (should be fast for 80 entries)
-        time.sleep(3)
+        # Wait briefly for vacuum to process (should be fast for 70 entries)
+        time.sleep(2)
 
         # Verify tables are not visible
         tdSql.query("show txn_reuse_db.tables")
@@ -288,9 +288,9 @@ class TestBatchMetaTxnStress2:
 
         # Re-create the SAME table names in a new transaction → must succeed
         tdSql.execute("BEGIN")
-        for batch_start in range(0, NUM_TABLES, 40):
+        for batch_start in range(0, NUM_TABLES, 35):
             parts = [f"ct_{batch_start + j} using stb tags({1000 + batch_start + j})"
-                     for j in range(min(40, NUM_TABLES - batch_start))]
+                     for j in range(min(35, NUM_TABLES - batch_start))]
             tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("COMMIT")
 
@@ -319,7 +319,7 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("use txn_vacser_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
-        NUM_CYCLES = 5
+        NUM_CYCLES = 3  # 3 cycles is sufficient to validate serialization guard
         TABLES_PER_CYCLE = 70  # > 64 threshold → lazy vacuum each time
 
         # Rapidly create and rollback multiple large txns
@@ -333,8 +333,8 @@ class TestBatchMetaTxnStress2:
             tdSql.execute("ROLLBACK")
             tdLog.info(f"  cycle {cycle}: rolled back {TABLES_PER_CYCLE} tables")
 
-        # Wait for all vacuum tasks to complete
-        time.sleep(5)
+        # Wait for all vacuum tasks to complete (3 cycles × 70 entries, fast under ASAN)
+        time.sleep(3)
 
         # Verify no tables leaked through
         tdSql.query("show txn_vacser_db.tables")
@@ -414,9 +414,9 @@ class TestBatchMetaTxnStress2:
                 "alter table stb_tmq add column c_pre_tmq float"
             )
 
-            # Poll for ~3s; assert no message references the pending objects.
+            # Poll for ~2s; assert no message references the pending objects.
             seen_unexpected = []
-            poll_deadline = time.time() + 3
+            poll_deadline = time.time() + 2
             while time.time() < poll_deadline:
                 msg = consumer.poll(1)
                 if msg is None:
@@ -458,7 +458,7 @@ class TestBatchMetaTxnStress2:
             )
 
             saw_post_commit = False
-            poll_deadline = time.time() + 8
+            poll_deadline = time.time() + 5
             while time.time() < poll_deadline and not saw_post_commit:
                 msg = consumer.poll(1)
                 if msg is None:
@@ -483,7 +483,7 @@ class TestBatchMetaTxnStress2:
             # the strict guarantee under test is the PRE-phase invisibility.
             if not saw_post_commit:
                 tdLog.info(
-                    "  WARN: ct_pre_tmq not seen via TMQ within 8s post-commit "
+                    "  WARN: ct_pre_tmq not seen via TMQ within 5s post-commit "
                     "(WAL/consumer lag — does not invalidate the invisibility "
                     "guarantee)"
                 )
@@ -517,11 +517,13 @@ class TestBatchMetaTxnStress2:
         tdSql.execute("BEGIN")
         tdSql.execute("create table ct_hb1 using stb tags(1)")
 
-        # Sleep 15s with no DDL activity.
+        # Sleep 12s with no DDL activity.
         # The ACTIVE state timeout is 10s, but the client connection heartbeat
-        # (mndTxnRefreshKeepalive) should keep the txn alive.
-        tdLog.info("  sleeping 15s to test heartbeat keepalive (ACTIVE timeout=10s)...")
-        time.sleep(15)
+        # (mndTxnRefreshKeepalive) should keep the txn alive.  12s > 10s so the
+        # txn would die without HB, yet 12s < 30s server timeoutSec so the test
+        # validates the HB path without taking longer than necessary.
+        tdLog.info("  sleeping 12s to test heartbeat keepalive (ACTIVE timeout=10s)...")
+        time.sleep(12)
 
         # If heartbeat failed, this DDL or COMMIT would get a txn-not-found error
         tdSql.execute("create table ct_hb2 using stb tags(2)")

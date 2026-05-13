@@ -685,6 +685,14 @@ class TestBatchMetaTxnClusterBasic:
         Labels: common,ci
         Jira: TD-XXXXX
         """
+        # Wait for MNode leader election before starting tests.
+        # The framework starts the cluster and calls the test immediately;
+        # under ASAN the 3-node Raft election may not be done yet, causing
+        # TSDB_CODE_SYN_RESTORING (0x0914) on the first SQL.  30 s is a
+        # principled upper bound: normal election takes 5-15 s, ASAN 3x
+        # slower = 15-25 s, 30 s leaves a clear margin without masking
+        # a genuine failure.
+        self._wait_mnode_leader_elected()
         self.s40_mnode_leader_switch_commit()
         self.s41_mnode_leader_switch_rollback()
         self.s42_client_disconnect_auto_rollback()

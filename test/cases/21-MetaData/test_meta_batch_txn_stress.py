@@ -704,8 +704,10 @@ class TestBatchMetaTxnStress:
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
         tdSql.execute("BEGIN")
-        for i in range(100):
-            tdSql.execute(f"create table ct_batch{i} using stb tags({i})")
+        # Use a single batch create-table statement instead of 100 individual
+        # round-trips: under ASAN each DDL round-trip is expensive.
+        parts = [f"ct_batch{i} using stb tags({i})" for i in range(100)]
+        tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("COMMIT")
 
         tdSql.query("show tables")
@@ -730,8 +732,9 @@ class TestBatchMetaTxnStress:
         tdSql.execute("insert into ct_survive values(now, 42)")
 
         tdSql.execute("BEGIN")
-        for i in range(100):
-            tdSql.execute(f"create table ct_ghost{i} using stb tags({i + 1})")
+        # Single batch create-table statement (avoids 100 individual DDL round-trips).
+        parts = [f"ct_ghost{i} using stb tags({i + 1})" for i in range(100)]
+        tdSql.execute("create table " + " ".join(parts))
         tdSql.execute("ROLLBACK")
 
         # Only ct_survive remains
