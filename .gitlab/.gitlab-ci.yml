@@ -59,9 +59,10 @@ variables:
         - "CMakeLists.txt"
         - "source/**"
         - "source/**/*"
-        - "tests/ci/scripts/**"
-        - "tests/ci/scripts/**/*"
+        - "scripts/**"
+        - "scripts/**/*"
         - ".gitlab/.gitlab-ci.yml"
+        - "source/**/test/ci/cases.task"
     - if: $CI_PIPELINE_SOURCE != "merge_request_event"
 
 # =============================================================================
