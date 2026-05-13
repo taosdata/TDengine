@@ -1642,7 +1642,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
  * tsMetaTxnQuietSec are returned for MNode to confirm liveness.
  */
 int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
-  if (pVnode->pTxnHash == NULL) {
+  if (pVnode->pTxnHash == NULL || taosHashGetSize(pVnode->pTxnHash) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1681,7 +1681,7 @@ int32_t vnodeCollectIdleTxns(SVnode *pVnode, SArray *pQueries) {
  * Orphan transactions are rolled back to prevent permanent intermediate state.
  */
 int32_t vnodeTxnTimeoutScan(SVnode *pVnode) {
-  if (pVnode->pTxnHash == NULL) return TSDB_CODE_SUCCESS;
+  if (pVnode->pTxnHash == NULL || taosHashGetSize(pVnode->pTxnHash) == 0) return TSDB_CODE_SUCCESS;
 
   // Only leader should execute timeout rollback — local (non-Raft) operation.
   // This is a safety net for orphan txns that MNode keepalive missed (e.g. taosX disconnect).
