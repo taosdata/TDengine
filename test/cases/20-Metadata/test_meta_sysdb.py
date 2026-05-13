@@ -73,7 +73,7 @@ class TestDdlInSysdb:
         ## 1.1 check count result
         tdSql.query("select count(*) cnt from information_schema.ins_tables", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 43) # 42 sys tables + 1 user table
+        tdSql.checkData(0, 0, 45) # 42 sys tables + 1 user table
 
         ## 2. check plan with group by
         ### 2.1 check plan with group by db_name
@@ -87,7 +87,7 @@ class TestDdlInSysdb:
         tdSql.query("select db_name, count(*) cnt from information_schema.ins_tables \
                     group by db_name order by cnt desc", show=1)
         tdSql.checkRows(4)
-        tdSql.checkData(0, 1, 37) # 37 tables in information_schema
+        tdSql.checkData(0, 1, 39) # 39 tables in information_schema
         tdSql.checkData(1, 1, 5)  # 5  tables in sys
         tdSql.checkData(2, 1, 1)  # 1  table in test_meta_sysdb
         tdSql.checkData(3, 1, 0)  # 0  table in empty_db_for_count_test
@@ -104,7 +104,7 @@ class TestDdlInSysdb:
                     group by stable_name order by cnt desc", show=1)
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(0, 1, 42) # 42 normal tables in system databases
+        tdSql.checkData(0, 1, 44) # 42 normal tables in system databases
         tdSql.checkData(1, 0, "stb")
         tdSql.checkData(1, 1, 1)  # 1  table in test_meta_sysdb.stb
         tdSql.checkData(2, 0, "stb_empty")
@@ -123,7 +123,7 @@ class TestDdlInSysdb:
         tdSql.query("select count(*) cnt from information_schema.ins_tables \
                     where db_name='information_schema'", show=1)
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 37) # 37 tables in information_schema
+        tdSql.checkData(0, 0, 39) # 39 tables in information_schema
 
         ### 3.3 check plan with where stable_name
         tdSql.query("explain select count(*) cnt from information_schema.ins_tables \
