@@ -12,6 +12,8 @@ add_executable(taosmqtt ${MQTT_SRC})
 
 DEP_ext_cjson(taosmqtt)
 DEP_ext_libuv(taosmqtt)
+DEP_ext_geos_INC(taosmqtt)
+DEP_ext_pcre2_INC(taosmqtt)
 
 target_compile_definitions(taosmqtt PRIVATE WITH_BROKER)
 
@@ -26,6 +28,7 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
+    "${TD_SOURCE_DIR}/include/libs/decimal"
     "${TD_SOURCE_DIR}/include/client"
     "${TD_SOURCE_DIR}/include/dnode/bnode"
     "${TD_SOURCE_DIR}/contrib/libmqtt/inc"
@@ -36,10 +39,17 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ttq/inc"
 )
 
-target_link_libraries(
-    taosmqtt
-    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
-)
+if(TD_WINDOWS)
+    target_link_libraries(
+        taosmqtt
+        PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
+    )
+else()
+    target_link_libraries(
+        taosmqtt
+        PRIVATE ${TAOS_NATIVE_LIB} mqtt
+    )
+endif()
 
 # topic tool
 add_subdirectory(tools)
