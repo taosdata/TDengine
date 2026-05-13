@@ -55,6 +55,10 @@ struct SVSnapReader {
   // tsdb raw
   int8_t              tsdbRAWDone;
   STsdbSnapRAWReader *pTsdbRAWReader;
+  // missing file filter
+  SHashObj *missingFileHash;  // key=fname, val=dummy — for RAW mode per-file filtering
+  int32_t  *missingFids;      // FID set extracted from file names — for Normal mode FID filtering
+  int32_t   missingFidCount;
 
   // tq
   int8_t         tqHandleDone;
@@ -86,6 +90,11 @@ static TFileSetRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, 
     default:
       return NULL;
   }
+}
+
+static int32_t vnodeExtractMissingFids(SVSnapReader *pReader) {
+  return tsdbExtractMissingFids(pReader->pVnode->pTsdb, pReader->missingFileHash, &pReader->missingFids,
+                                &pReader->missingFidCount);
 }
 
 static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
@@ -134,10 +143,27 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
             goto _out;
           }
         } break;
+        case SNAP_DATA_MISSING_FIDS: {
+          code = tDeserializeMissingFileList(buf, bufLen, &pReader->missingFileHash);
+          if (code) {
+            vError("vgId:%d, failed to deserialize missing file list since %s", TD_VID(pVnode), tstrerror(code));
+            goto _out;
+          }
+          int32_t fileCount = pReader->missingFileHash ? (int32_t)taosHashGetSize(pReader->missingFileHash) : 0;
+          vInfo("vgId:%d, received %d missing files from follower", TD_VID(pVnode), fileCount);
+        } break;
         default:
-          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
-          code = TSDB_CODE_INVALID_DATA_FMT;
-          goto _out;
+          vWarn("vgId:%d, unknown subfield type in snap info, skipping. typ:%d", TD_VID(pVnode), subField->typ);
+          break;
+      }
+    }
+
+    // extract FID set from missing file hash for normal mode filtering
+    if (pReader->missingFileHash && taosHashGetSize(pReader->missingFileHash) > 0) {
+      code = vnodeExtractMissingFids(pReader);
+      if (code) {
+        vError("vgId:%d, failed to extract missing fids from file hash since %s", TD_VID(pVnode), tstrerror(code));
+        goto _out;
       }
     }
 
@@ -179,7 +205,8 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
-    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->pRanges, &pReader->pTsdbRAWReader);
+    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->pRanges, pReader->missingFileHash, pReader->missingFids,
+                                 pReader->missingFidCount, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
 
@@ -248,6 +275,10 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
   if (pReader->pBseReader) {
     bseSnapReaderClose(&pReader->pBseReader);
   }
+  if (pReader->missingFileHash) {
+    taosHashCleanup(pReader->missingFileHash);
+  }
+  taosMemoryFree(pReader->missingFids);
   taosMemoryFree(pReader);
 }
 
@@ -333,7 +364,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     // open if not
     if (pReader->pTsdbReader == NULL) {
       code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pRanges,
-                                &pReader->pTsdbReader);
+                                pReader->missingFids, pReader->missingFidCount, &pReader->pTsdbReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -351,7 +382,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
       code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, pReader->pRanges,
-                                   &pReader->pTsdbRAWReader);
+                                   pReader->missingFileHash,
+                                   pReader->missingFids, pReader->missingFidCount, &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -537,10 +569,12 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
           code = tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts);
           TSDB_CHECK_CODE(code, lino, _exit);
         } break;
+        case SNAP_DATA_MISSING_FIDS: {
+          vInfo("vgId:%d, snap writer received missing fids subfield, skipping (handled by reader)", TD_VID(pVnode));
+        } break;
         default:
-          vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
-          TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_DATA_FMT, lino, _exit);
-          goto _exit;
+          vWarn("vgId:%d, unknown subfield type in snap info, skipping. typ:%d", TD_VID(pVnode), subField->typ);
+          break;
       }
     }
 
