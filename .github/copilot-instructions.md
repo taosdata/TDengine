@@ -643,6 +643,69 @@ creates maintenance burden and inconsistencies.
 
 ---
 
+## 13. Transitive Header Dependencies Must Be Declared Explicitly
+
+| Applies to | main ✅ | 3.3.6 — verify if applicable |
+|----------|---------|----------|
+
+### Rule
+
+When a target includes a header that transitively pulls in ExternalProject
+headers (e.g. `geos_c.h`, `pcre2.h`), the target **MUST** declare the
+include dependency via `DEP_ext_*_INC()`, even if it does not directly
+link the library.
+
+Relying on transitive `PUBLIC` include propagation through shared library
+targets (`target_link_libraries(... PRIVATE <shared_lib>)`) does **NOT**
+forward include directories — only static library or `PUBLIC` link
+propagation does.
+
+### Anti-patterns — DO NOT
+
+```cmake
+# ❌ WRONG: taosmqtt includes geos_c.h transitively via geosWrapper.h → tgeosctx.h
+# but doesn't declare geos include dependency — fails with BUILD_CONTRIB=ON
+add_executable(taosmqtt ${MQTT_SRC})
+target_link_libraries(taosmqtt PRIVATE ${TAOS_NATIVE_LIB} mqtt)
+# Missing: DEP_ext_geos_INC(taosmqtt)
+# Missing: DEP_ext_pcre2_INC(taosmqtt)
+```
+
+### Correct pattern
+
+```cmake
+# ✅ CORRECT: Declare all transitively-included ExternalProject headers
+add_executable(taosmqtt ${MQTT_SRC})
+DEP_ext_cjson(taosmqtt)
+DEP_ext_libuv(taosmqtt)
+DEP_ext_geos_INC(taosmqtt)     # for geos_c.h via tgeosctx.h
+DEP_ext_pcre2_INC(taosmqtt)    # for pcre2.h via tpcre2.h
+target_link_libraries(taosmqtt PRIVATE ${TAOS_NATIVE_LIB} mqtt)
+```
+
+### How to diagnose
+
+1. Build fails with `fatal error: <header>.h: No such file or directory`
+2. The header exists in `.externals/install/ext_*/Release/include/`
+3. `compile_commands.json` for the failing target does NOT contain the
+   `-I.../ext_*/Release/include` path
+4. **Fix**: add `DEP_ext_*_INC(<target>)` for each missing ExternalProject include
+
+### Why
+
+The include chain `tmqttCtx.c → geosWrapper.h → tgeosctx.h` pulls in
+both `geos_c.h` and `tpcre2.h → pcre2.h`. These headers live in
+ExternalProject install directories, not system paths. On Linux,
+`taosmqtt` links `taosnative` as `PRIVATE`, so even though `taosnative`
+→ `util` → `DEP_ext_geos(util)` sets PUBLIC includes, the PRIVATE link
+boundary blocks propagation to `taosmqtt`.
+
+### Reference Commits
+
+- `93c553967f3` — add `DEP_ext_geos_INC` and `DEP_ext_pcre2_INC` for taosmqtt
+
+---
+
 ## Quick Reference: Branch Comparison
 
 | Rule | main | 3.3.6 | Key Difference |
@@ -659,3 +722,4 @@ creates maintenance burden and inconsistencies.
 | 10. Conan macro overrides | ✅ Fixed | Verify | May differ in conan.cmake |
 | 11. Build option defaults | ✅ insight/odbc/dotnet=OFF | Verify | May differ |
 | 12. `DEP_td_rocksdb` uniform | ✅ Always via macro | ✅ Same | Identical logic |
+| 13. Transitive header deps | ✅ `DEP_ext_*_INC()` | Verify | taosmqtt needs geos+pcre2 INC |
