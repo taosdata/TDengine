@@ -441,7 +441,7 @@ static const SSysDbTableSchema snapSendVnodesSchema[] = {
     {.name = "total_file_sets",    .bytes = 4,                         .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
     {.name = "finished_file_sets", .bytes = 4,                         .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
     {.name = "start_time",         .bytes = 8,                         .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "elapsed",            .bytes = 16 + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "elapsed",            .bytes = 32 + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
 };
 
 static const SSysDbTableSchema snapSendFilesetsSchema[] = {
@@ -452,7 +452,7 @@ static const SSysDbTableSchema snapSendFilesetsSchema[] = {
     {.name = "total_size",           .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
     {.name = "read_size",            .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
     {.name = "start_time",    .bytes = 8,                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "elapsed",       .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "elapsed",       .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
     {.name = "start_index",   .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
     {.name = "end_index",     .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
     {.name = "transfer_type", .bytes = 4 + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},

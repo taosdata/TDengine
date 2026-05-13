@@ -946,9 +946,10 @@ _exit:
  * the tsdb layer into an SSnapSendVnodeInfo for the mnode progress query.
  *
  * Returns:
- *   0               — progress data available, *pInfo populated (caller
- *                     must taosMemoryFree(pInfo->pFileSetInfos))
- *   TSDB_CODE_NOT_FOUND — no active snapshot send on this vnode
+ *   0                        — progress data available, *pInfo populated (caller
+ *                              must taosMemoryFree(pInfo->pFileSetInfos))
+ *   TSDB_CODE_NOT_FOUND      — no active snapshot send on this vnode
+ *   TSDB_CODE_OUT_OF_MEMORY  — failed to allocate pFileSetInfos copy
  * ====================================================================== */
 int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo) {
   STsdb *pTsdb = pVnode->pTsdb;

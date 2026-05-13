@@ -121,6 +121,13 @@ void tsdbClose(STsdb **pTsdb) {
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
 #endif
+    (void)taosThreadRwlockWrlock(&(*pTsdb)->snapStatLock);
+    if ((*pTsdb)->pSnapStat != NULL) {
+      taosMemoryFree((*pTsdb)->pSnapStat->pFileSetStats);
+      taosMemoryFree((*pTsdb)->pSnapStat);
+      (*pTsdb)->pSnapStat = NULL;
+    }
+    (void)taosThreadRwlockUnlock(&(*pTsdb)->snapStatLock);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     (void)taosThreadRwlockDestroy(&(*pTsdb)->snapStatLock);
     taosMemoryFreeClear(*pTsdb);

@@ -404,7 +404,7 @@ class TDTestCase:
         for col in ['vgroup_id', 'dnode_id', 'total_file_sets', 'finished_file_sets', 'start_time', 'elapsed']:
             tdSql.checkEqual(True, col in col_names)
 
-        # ins_snap_send_filesets: table must exist and have the expected 10 columns.
+        # ins_snap_send_filesets: table must exist and have the expected 11 columns.
         tdSql.query('select * from information_schema.ins_snap_send_filesets')
         tdSql.checkRows(0)
         tdSql.query('describe information_schema.ins_snap_send_filesets')

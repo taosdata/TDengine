@@ -1043,8 +1043,11 @@ int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg)
     if (vnodeGetSnapSendProgress(pVnode->pImpl, pMgmt->pData->dnodeId, &info) == 0) {
       if (taosArrayPush(pInfoArray, &info) == NULL) {
         taosMemoryFree(info.pFileSetInfos);
-        dError("dnode:%d, vgId:%d, failed to push snap-send-progress info",
+        dError("dnode:%d, vgId:%d, failed to push snap-send-progress info (OOM)",
                pMgmt->pData->dnodeId, pVnode->vgId);
+        vmReleaseVnode(pMgmt, pVnode);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
       }
     }
 

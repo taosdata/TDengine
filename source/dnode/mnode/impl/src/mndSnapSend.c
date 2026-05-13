@@ -19,7 +19,7 @@
  *   ins_snap_send_filesets (one row per fileset of an active snapshot send)
  *
  * Design overview:
- *   1. mndSnapSendPullup() is called every tsCompactPullupInterval seconds from
+ *   1. mndSnapSendPullup() is called every tsSnapSendPullupInterval seconds from
  *      mndDoTimerPullupTask(). It scans all SVgObj in SDB, finds those whose
  *      snapRestoring==1 (set by the dnode heartbeat), and sends
  *      TDMT_DND_QUERY_SNAP_SEND_PROGRESS to the leader dnode.
@@ -39,6 +39,9 @@
 #include "tmisce.h"
 #include "tmsgcb.h"
 
+/* transferType constant — matches SNAP_DATA_RAW in vnodeInt.h */
+#define SNAP_TRANSFER_TYPE_RAW 14
+
 /* ====================================================================
  * Module-level state (singleton, protected by snapSendMutex)
  * ==================================================================== */
@@ -54,6 +57,10 @@ static SSnapSendMgmt gSnapSendMgmt = {0};
  * Helper: elapsed string  "HH:MM:SS"
  * ==================================================================== */
 static void snapSendFmtElapsed(int64_t startTimeMs, char *buf, int32_t bufLen) {
+  if (startTimeMs <= 0) {
+    tsnprintf(buf, bufLen, "0:00:00");
+    return;
+  }
   int64_t elapsedSec = (taosGetTimestampMs() - startTimeMs) / 1000;
   if (elapsedSec < 0) elapsedSec = 0;
   int64_t h = elapsedSec / 3600;
@@ -381,7 +388,7 @@ int32_t mndRetrieveSnapSendFilesets(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       }
 
       // transfer_type: "raw" or "row"
-      const char *typeStr = (pFs->transferType == 14) ? "raw" : "row";
+      const char *typeStr = (pFs->transferType == SNAP_TRANSFER_TYPE_RAW) ? "raw" : "row";
       char        varType[8 + VARSTR_HEADER_SIZE];
       STR_TO_VARSTR(varType, typeStr);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

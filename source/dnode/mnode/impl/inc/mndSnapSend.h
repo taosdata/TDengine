@@ -25,7 +25,7 @@ extern "C" {
 int32_t mndInitSnapSend(SMnode *pMnode);
 void    mndCleanupSnapSend(SMnode *pMnode);
 
-/* Called by mndDoTimerPullupTask every tsCompactPullupInterval seconds */
+/* Called by mndDoTimerPullupTask every tsSnapSendPullupInterval seconds */
 void mndSnapSendPullup(SMnode *pMnode);
 
 #ifdef __cplusplus

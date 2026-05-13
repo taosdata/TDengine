@@ -585,7 +585,6 @@ bool syncIsReadyForRead(int64_t rid) {
   return ready;
 }
 
-#ifdef BUILD_NO_CALL
 bool syncSnapshotRecving(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -596,7 +595,6 @@ bool syncSnapshotRecving(int64_t rid) {
   syncNodeRelease(pSyncNode);
   return b;
 }
-#endif
 
 bool syncSnapshotSending(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
