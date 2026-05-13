@@ -24,9 +24,17 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ttq/inc"
 )
-target_link_libraries(
-    mqtt
-    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC}
-)
+if(TD_WINDOWS)
+    target_link_libraries(
+        mqtt
+        PRIVATE util common ${TAOS_NATIVE_LIB_STATIC}
+    )
+else()
+    target_link_libraries(
+        mqtt
+        PRIVATE util common ${TAOS_NATIVE_LIB}
+    )
+    DEP_ext_libuv(mqtt)
+endif()
 
 endif()
