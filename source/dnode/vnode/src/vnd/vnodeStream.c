@@ -4090,17 +4090,13 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     OTableInfoRsp* vTableInfo = taosArrayReserve(oTableInfo.cols, 1);
     STREAM_CHECK_NULL_GOTO(oInfo, terrno);
     STREAM_CHECK_NULL_GOTO(vTableInfo, terrno);
-    ST_TASK_DLOG("vgId:%d %s i=%zu refTableName='%s' refColName='%s'",
-                 TD_VID(pVnode), __func__, i, oInfo->refTableName, oInfo->refColName);
     code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionName(&metaReader, req->origTableInfoReq.ver, oInfo->refTableName);
     if (code != 0) {
-      int32_t origCode = code;
       code = 0;
-      ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(origCode));
+      ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(code));
       continue;
     }
     vTableInfo->uid = metaReader.me.uid;
-    vTableInfo->resolved = 1;  // default: resolved
     ST_TASK_DLOG("vgId:%d %s get original uid:%"PRId64, TD_VID(pVnode), __func__, vTableInfo->uid);
 
     SSchemaWrapper* sSchemaWrapper = NULL;
@@ -4117,18 +4113,16 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
       ST_TASK_ELOG("invalid table type:%d", metaReader.me.type);
     }
 
-    if (sSchemaWrapper != NULL) {
-      for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
-        SSchema* s = sSchemaWrapper->pSchema + j;
-        if (strcmp(s->name, oInfo->refColName) == 0) {
-          vTableInfo->cid = s->colId;
-          break;
-        }
+    for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
+      SSchema* s = sSchemaWrapper->pSchema + j;
+      if (strcmp(s->name, oInfo->refColName) == 0) {
+        vTableInfo->cid = s->colId;
+        break;
       }
-      if (vTableInfo->cid == 0) {
-        stError("vgId:%d %s, not found col %s in table %s", TD_VID(pVnode), __func__, oInfo->refColName,
-                oInfo->refTableName);
-      }
+    }
+    if (vTableInfo->cid == 0) {
+      stError("vgId:%d %s, not found col %s in table %s", TD_VID(pVnode), __func__, oInfo->refColName,
+              oInfo->refTableName);
     }
     tDecoderClear(&metaReader.coder);
   }

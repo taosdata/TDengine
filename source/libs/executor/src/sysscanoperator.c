@@ -1274,16 +1274,14 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       continue;
     }
 
-    {
-      int32_t nTagRefs = (colRef != NULL) ? colRef->nTagRefs : 0;
-      if ((numOfRows + schemaRow->nCols + nTagRefs) > pOperator->resultInfo.capacity) {
-        relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
-        numOfRows = 0;
+    int32_t nTagRefs = (colRef != NULL) ? colRef->nTagRefs : 0;
+    if ((numOfRows + schemaRow->nCols + nTagRefs) > pOperator->resultInfo.capacity) {
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
+      numOfRows = 0;
 
-        if (pInfo->pRes->info.rows > 0) {
-          pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
-          break;
-        }
+      if (pInfo->pRes->info.rows > 0) {
+        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+        break;
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
@@ -1845,19 +1843,21 @@ static int32_t sysTagsExtractFromTagData(const STag* pTag, const SSchema* pSrcSc
   if (IS_VAR_DATA_TYPE(pSrcSchema->type)) {
     if (srcVal.pData != NULL && srcVal.nData > 0) {
       *ppTagData = taosMemoryMalloc(srcVal.nData);
-      if (*ppTagData) {
-        memcpy(*ppTagData, srcVal.pData, srcVal.nData);
-        *pTagLen = srcVal.nData;
-        *pResolved = true;
+      if (*ppTagData == NULL) {
+        return terrno;
       }
+      memcpy(*ppTagData, srcVal.pData, srcVal.nData);
+      *pTagLen = srcVal.nData;
+      *pResolved = true;
     }
   } else {
     *ppTagData = taosMemoryMalloc(tDataTypes[pSrcSchema->type].bytes);
-    if (*ppTagData) {
-      memcpy(*ppTagData, &srcVal.i64, tDataTypes[pSrcSchema->type].bytes);
-      *pTagLen = tDataTypes[pSrcSchema->type].bytes;
-      *pResolved = true;
+    if (*ppTagData == NULL) {
+      return terrno;
     }
+    memcpy(*ppTagData, &srcVal.i64, tDataTypes[pSrcSchema->type].bytes);
+    *pTagLen = tDataTypes[pSrcSchema->type].bytes;
+    *pResolved = true;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1871,8 +1871,9 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
 
   code = vtbRefGetDbVgInfo(clientRpc, (SEpSet*)&pInfo->epSet, acctId, refDbName, reqId, pTaskInfo, &pDbVgInfo);
   if (code != TSDB_CODE_SUCCESS || pDbVgInfo == NULL) {
+    code = (code != TSDB_CODE_SUCCESS) ? code : terrno;
     qDebug("sysTagsFetchRemoteCfg: failed to get db vg info for %s, code=%s", refDbName, tstrerror(code));
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   char    dbFName[TSDB_DB_FNAME_LEN] = {0};
@@ -1884,7 +1885,7 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("sysTagsFetchRemoteCfg: failed to get vgId for %s.%s, code=%s", refDbName, refTableName, tstrerror(code));
     freeVgInfo(pDbVgInfo);
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
   freeVgInfo(pDbVgInfo);
 
@@ -1895,10 +1896,11 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
 
   int32_t contLen = tSerializeSTableCfgReq(NULL, 0, &req);
   char*   buf = rpcMallocCont(contLen);
-  if (buf == NULL) return TSDB_CODE_SUCCESS;
+  if (buf == NULL) return terrno;
   if (tSerializeSTableCfgReq(buf, contLen, &req) < 0) {
+    code = terrno;
     rpcFreeCont(buf);
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   SRpcMsg rpcMsg = {
@@ -1914,21 +1916,28 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("sysTagsFetchRemoteCfg: rpcSendRecv failed for %s.%s vgId %d, code=%s",
            refDbName, refTableName, vgId, tstrerror(code));
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
-  if (rpcRsp.code != TSDB_CODE_SUCCESS || rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
+  if (rpcRsp.code != TSDB_CODE_SUCCESS) {
     qDebug("sysTagsFetchRemoteCfg: table %s.%s vgId %d returned %s",
            refDbName, refTableName, vgId, tstrerror(rpcRsp.code));
     rpcFreeCont(rpcRsp.pCont);
-    return TSDB_CODE_SUCCESS;
+    return rpcRsp.code;
+  }
+
+  if (rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
+    qDebug("sysTagsFetchRemoteCfg: invalid rpc response for %s.%s vgId %d",
+           refDbName, refTableName, vgId);
+    rpcFreeCont(rpcRsp.pCont);
+    return TSDB_CODE_APP_ERROR;
   }
 
   code = tDeserializeSTableCfgRsp(rpcRsp.pCont, rpcRsp.contLen, pCfgRsp);
   rpcFreeCont(rpcRsp.pCont);
   if (code != TSDB_CODE_SUCCESS) {
     qDebug("sysTagsFetchRemoteCfg: deserialize failed for %s.%s vgId %d", refDbName, refTableName, vgId);
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
 
   qDebug("sysTagsFetchRemoteCfg: got cfg for %s.%s from vgId %d, numOfTags=%d",
@@ -1975,9 +1984,16 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
     pAPI->metaReaderFn.clearReader(&srcSuper);
     pAPI->metaReaderFn.clearReader(&srcTable);
     if (*pResolved) return TSDB_CODE_SUCCESS;
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      return code;
+    }
     code = TSDB_CODE_SUCCESS;
   } else {
     pAPI->metaReaderFn.clearReader(&srcTable);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      return code;
+    }
+    code = TSDB_CODE_SUCCESS;
   }
 
   // Step 2: Source table not on local vnode - try remote fetch via RPC
@@ -1990,7 +2006,11 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
   STableCfgRsp cfgRsp = {0};
   code = sysTagsFetchRemoteCfg(pInfo, pInfo->accountId,
                                pRef->refDbName, pRef->refTableName, reqId, pTaskInfo, &cfgRsp);
-  if (code != TSDB_CODE_SUCCESS || cfgRsp.pTags == NULL) {
+  if (code != TSDB_CODE_SUCCESS) {
+    tFreeSTableCfgRsp(&cfgRsp);
+    return code;
+  }
+  if (cfgRsp.pTags == NULL) {
     tFreeSTableCfgRsp(&cfgRsp);
     return TSDB_CODE_SUCCESS;
   }
@@ -2107,10 +2127,14 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     if (pMatchedRef != NULL && pMatchedRef->hasRef) {
       bool resolved = false;
       code = sysTagsResolveRefTagVal(pInfo, pMatchedRef, tagType, &tagData, &tagLen, &resolved, reqId, pTaskInfo);
-      if (code == TSDB_CODE_SUCCESS && resolved) {
-        tagDataFromRemote = true;
+      if (code == TSDB_CODE_OUT_OF_MEMORY || code == TSDB_CODE_QRY_REACH_QMEM_THRESHOLD ||
+          code == TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
+        QUERY_CHECK_CODE(code, lino, _end);
       }
       code = TSDB_CODE_SUCCESS;
+      if (resolved) {
+        tagDataFromRemote = true;
+      }
     } else {
       if (tagType == TSDB_DATA_TYPE_JSON) {
         tagData = (char*)smrChildTable->me.ctbEntry.pTags;
@@ -2140,6 +2164,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     if (tagData != NULL) {
       if (IS_STR_DATA_BLOB(tagType)) {
         code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+        if (tagDataFromRemote) taosMemoryFreeClear(tagData);
         goto _end;
       }
 
@@ -2148,6 +2173,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
         parseTagDatatoJson(tagData, &tagJson, NULL);
         if (tagJson == NULL) {
           code = terrno;
+          if (tagDataFromRemote) taosMemoryFreeClear(tagData);
           goto _end;
         }
         tagVarChar = taosMemoryMalloc(strlen(tagJson) + VARSTR_HEADER_SIZE);

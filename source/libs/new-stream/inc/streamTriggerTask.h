@@ -57,6 +57,7 @@ typedef struct SSTriggerWindow {
 typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
+  bool        forceWinOpen;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
@@ -100,6 +101,7 @@ typedef struct SSTriggerRealtimeGroup {
     SStateDeferredState ds;  /* for state window trigger */
     struct {  // for event window trigger with sub-event
       SSTriggerNotifyWindow parentWindow;
+      char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
     };
@@ -282,9 +284,6 @@ typedef struct SSTriggerRealtimeContext {
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
-
-  // vtable-ref-vtable iterative resolution
-  int32_t    resolveDepth;     // current iteration round for multi-hop vtable ref resolution
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {

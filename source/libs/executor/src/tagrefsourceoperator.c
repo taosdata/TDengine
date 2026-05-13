@@ -15,11 +15,8 @@
 
 #include "executor.h"
 #include "executorInt.h"
-#include "filter.h"
-#include "function.h"
 #include "os.h"
 #include "querynodes.h"
-#include "systable.h"
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
@@ -27,13 +24,10 @@
 
 #include "tdatablock.h"
 #include "tmsg.h"
-#include "ttime.h"
 
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
-#include "tcompare.h"
-#include "thash.h"
 #include "ttypes.h"
 
 #include "storageapi.h"
@@ -104,8 +98,7 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
   // Get table entry from vnode
   code = pAPI->metaReaderFn.getTableEntryByUid(mr, pItem->uid);
   if (code != TSDB_CODE_SUCCESS) {
-    qDebug("%s: failed to get table meta for uid:0x%" PRIx64 ", code:%s", __func__, pItem->uid, tstrerror(code));
-    // Continue to next table instead of failing completely
+    qError("%s: failed to get table meta for uid:0x%" PRIx64 ", code:%s", __func__, pItem->uid, tstrerror(code));
     goto _end;
   }
   // Iterate through each referenced column and extract tag value
@@ -152,6 +145,11 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
       if (code != TSDB_CODE_SUCCESS) {
         qWarn("%s: failed to set col value, slotIndex:%d, row:%d, code:%s", __func__, slotIndex, rowIndex,
                tstrerror(code));
+        if ((pColInfo->info.type != TSDB_DATA_TYPE_JSON) && (pTagVal != NULL) &&
+            IS_VAR_DATA_TYPE(((const STagVal*)pTagVal)->type) && (data != NULL)) {
+          taosMemoryFree(data);
+        }
+        goto _end;
       }
 
       // Free allocated data for var types
@@ -223,16 +221,6 @@ static int32_t tagRefSourceGetNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   // Scan tables until result block is full or no more tables
   while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
     code = tagRefSourceScanOneTable(pOperator, pRes, &mr, pRes->info.rows);
-
-    // Ignore certain errors and continue to next table
-    if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
-        code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
-      if (code != TSDB_CODE_SUCCESS) {
-        qWarn("%s: tagRefSourceScanOneTable failed, pos:%d, code:%s, skipping", __func__, pInfo->curPos,
-               tstrerror(code));
-      }
-      code = TSDB_CODE_SUCCESS;
-    }
     QUERY_CHECK_CODE(code, lino, _end);
 
     pInfo->curPos++;

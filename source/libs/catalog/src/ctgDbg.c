@@ -459,12 +459,10 @@ void ctgdShowTableMeta(SCatalog *pCtg, const char *tbName, STableMeta *p) {
   }
 
   STableComInfo *c = &p->tableInfo;
-  {
-    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64
-             ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
-             tbName, p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision,
-             c->numOfColumns, c->rowSize);
-  }
+  ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64
+           ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+           tbName, p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision,
+           c->numOfColumns, c->rowSize);
 
   int32_t colNum = c->numOfColumns + c->numOfTags;
   for (int32_t i = 0; i < colNum; ++i) {
