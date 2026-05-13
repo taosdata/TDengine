@@ -2690,12 +2690,16 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     pNode->firstDayOfWeek = 4;
-    (void)tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+    if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanFirstDayOfWeek) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     char tzBuf[TD_TIMEZONE_LEN] = {0};
-    (void)tjsonGetStringValue(pJson, jkTableScanPhysiPlanTimezoneName, tzBuf);
-    if (tzBuf[0] != '\0') {
+    if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanTimezoneName) != NULL) {
+      code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanTimezoneName, tzBuf);
+    }
+    if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
       code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
                                     &pNode->ownsTimezone);
     }
@@ -3617,14 +3621,18 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
     code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanSlidingUnit, &pNode->slidingUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    /* field added in this branch; no old plans exist — default to 4 (epoch-aligned) */
+    /* field added in this branch; default to 4 (epoch-aligned) when absent */
     pNode->firstDayOfWeek = 4;
-    (void)tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+    if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanFirstDayOfWeek) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     char tzBuf[TD_TIMEZONE_LEN] = {0};
-    (void)tjsonGetStringValue(pJson, jkIntervalPhysiPlanTimezoneName, tzBuf);
-    if (tzBuf[0] != '\0') {
+    if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanTimezoneName) != NULL) {
+      code = tjsonGetStringValue(pJson, jkIntervalPhysiPlanTimezoneName, tzBuf);
+    }
+    if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
       code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
                                     &pNode->ownsTimezone);
     }
