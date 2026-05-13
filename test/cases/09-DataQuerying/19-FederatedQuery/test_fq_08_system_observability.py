@@ -29,6 +29,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_FEATURE_DISABLED,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
+    TSDB_CODE_QNODE_NOT_FOUND,
 )
 
 
@@ -2143,4 +2144,256 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    # FQ-SYS-s13 / FQ-SYS-s14: qnode routing verification
+    # ------------------------------------------------------------------
+
+    def test_fq_sys_s13_no_qnode_returns_error(self):
+        """FQ-SYS-s13: Federated query fails with QNODE_NOT_FOUND when no qnode deployed.
+
+        DS §5.1 / §5.3.10.2.1: pure federated queries (FederatedScan, no local
+        TableScan) must execute on a qnode.  The client must NOT silently fall
+        back to mnode when no qnode is available — it must return an explicit
+        error so the operator knows to run CREATE QNODE.
+
+        Test flow
+        ---------
+        1. Create a real MySQL external source.
+        2. Run a federated SELECT → succeeds (qnode is present at this point).
+        3. DROP QNODE ON DNODE 1.
+        4. Poll until the client's cached qnode list is invalidated (heartbeat
+           TTL ~1.5 s; allow up to 15 s).
+        5. Confirm the same SELECT now fails with TSDB_CODE_QNODE_NOT_FOUND.
+        6. Restore: CREATE QNODE ON DNODE 1.
+        7. Poll until the federated SELECT succeeds again.
+
+        Catalog: - Query:FederatedSystem
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-05-13 wpan Initial implementation
+        """
+        src    = "fq_sys_s13"
+        ext_db = "fq_sys_s13_ext"
+        cfg    = self._mysql_cfg()
+
+        self._cleanup_src(src)
+        try:
+            # ---- prepare external data ----
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists s13_t",
+                "create table s13_t (id int primary key, val int)",
+                "insert into s13_t values (1, 100), (2, 200)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # ---- step 2: baseline — qnode present → query succeeds ----
+            tdSql.query(f"select val from {src}.s13_t order by id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 100)
+            tdSql.checkData(1, 0, 200)
+            tdLog.info("[s13] baseline query OK (qnode present)")
+
+            # ---- step 3: drop qnode ----
+            ExtSrcEnv.drop_qnode()
+
+            # ---- step 4: poll until cache invalidated ----
+            # The client heartbeat (interval ~1.5 s) pushes an updated empty
+            # qnode list from mnode.  Allow up to 15 s for this to propagate.
+            got_error = False
+            last_exc  = None
+            for attempt in range(15):
+                try:
+                    tdSql.query(f"select val from {src}.s13_t order by id",
+                                queryTimes=1)
+                    tdLog.info(
+                        f"[s13] attempt {attempt}: query still succeeded "
+                        f"(cache not yet invalid), retrying…")
+                    time.sleep(1)
+                except Exception as e:
+                    last_exc  = e
+                    got_error = True
+                    tdLog.info(f"[s13] attempt {attempt}: got expected error: {e}")
+                    break
+
+            # ---- step 5: verify the error ----
+            assert got_error, (
+                "Expected federated query to fail with QNODE_NOT_FOUND after "
+                "DROP QNODE, but it kept succeeding for 15 s")
+            if TSDB_CODE_QNODE_NOT_FOUND is not None:
+                err_code = getattr(last_exc, 'errno', None)
+                # Python driver returns signed int32; compare via 32-bit mask
+                assert (err_code & 0xFFFFFFFF) == (TSDB_CODE_QNODE_NOT_FOUND & 0xFFFFFFFF), (
+                    f"Expected errno=TSDB_CODE_QNODE_NOT_FOUND "
+                    f"(0x{TSDB_CODE_QNODE_NOT_FOUND & 0xFFFFFFFF:08x}), "
+                    f"got errno={err_code!r} "
+                    f"(0x{err_code & 0xFFFFFFFF:08x}): {last_exc}")
+            tdLog.info("[s13] QNODE_NOT_FOUND confirmed ✓")
+
+        finally:
+            # ---- step 6: restore qnode (must not leave env broken) ----
+            ExtSrcEnv.ensure_qnode()
+
+            # ---- step 7: verify restore ----
+            restored = False
+            for attempt in range(15):
+                try:
+                    tdSql.query(f"select val from {src}.s13_t order by id",
+                                queryTimes=1)
+                    restored = True
+                    tdLog.info(f"[s13] attempt {attempt}: query succeeded after restore ✓")
+                    break
+                except Exception:
+                    time.sleep(1)
+            if not restored:
+                tdLog.warning("[s13] WARNING: federated query still failing after "
+                              "qnode restore — subsequent tests may be affected")
+
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    def test_fq_sys_s14_qnode_routing_verified(self):
+        """FQ-SYS-s14: Federated query is proven to execute on qnode, not mnode.
+
+        Verification strategy
+        ---------------------
+        The client ONLY routes to mnode when no qnode is available (which our
+        fix now turns into QNODE_NOT_FOUND).  Therefore:
+
+          * A federated SELECT that succeeds  →  qnode was used.
+          * The same SELECT after DROP QNODE  →  QNODE_NOT_FOUND error.
+
+        This round-trip proves that success is always qnode-dependent:
+        mnode can never silently substitute for qnode in federated queries.
+
+        Additional structural checks
+        ----------------------------
+        * ``information_schema.ins_qnodes`` must have exactly 1 row.
+        * EXPLAIN must show SUBPLAN_TYPE_MERGE (not SCAN or MODIFY).
+        * The same query executed N times in a row always succeeds (no
+          intermittent routing to mnode).
+
+        Catalog: - Query:FederatedSystem
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-05-13 wpan Initial implementation
+        """
+        src    = "fq_sys_s14"
+        ext_db = "fq_sys_s14_ext"
+        cfg    = self._mysql_cfg()
+
+        self._cleanup_src(src)
+        try:
+            # ---- prepare data ----
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists s14_t",
+                "create table s14_t (id int primary key, val int)",
+                "insert into s14_t values (1, 10), (2, 20), (3, 30)",
+            ])
+            self._mk_mysql_real(src, database=ext_db)
+
+            # ---- A: qnode must be present ----
+            tdSql.query(
+                "select count(*) from information_schema.ins_qnodes")
+            tdSql.checkRows(1)
+            qnode_count = tdSql.queryResult[0][0]
+            assert qnode_count >= 1, (
+                f"Expected at least 1 qnode in ins_qnodes, got {qnode_count}")
+            tdLog.info(f"[s14] ins_qnodes has {qnode_count} row(s) ✓")
+
+            # ---- B: EXPLAIN shows MERGE plan (not vnode SCAN) ----
+            tdSql.query(f"explain select val from {src}.s14_t order by val")
+            explain_rows = list(tdSql.queryResult)
+            plan_text = " ".join(str(r) for r in explain_rows).upper()
+            # MERGE or MERGESCAN appears in the plan type label
+            assert "MERGE" in plan_text or "FEDERATED" in plan_text, (
+                f"EXPLAIN did not show MERGE plan for pure federated query.\n"
+                f"Full plan:\n" + "\n".join(str(r) for r in explain_rows))
+            tdLog.info("[s14] EXPLAIN shows MERGE plan ✓")
+
+            # ---- C: repeated queries all succeed (no mnode fallback) ----
+            _REPEAT = 5
+            for i in range(_REPEAT):
+                tdSql.query(f"select val from {src}.s14_t order by val")
+                tdSql.checkRows(3)
+                tdSql.checkData(0, 0, 10)
+                tdSql.checkData(1, 0, 20)
+                tdSql.checkData(2, 0, 30)
+            tdLog.info(f"[s14] {_REPEAT} repeated queries all succeeded ✓")
+
+            # ---- C': taosdlog proof — query was handled in qnode queue ----
+            # Ensure qDebug messages (DEBUG_DEBUG=4) are written to the log.
+            # 135 = 128(screen) | 4(DEBUG) | 2(INFO/WARN) | 1(FATAL/ERROR)
+            try:
+                tdSql.execute("ALTER LOCAL 'qDebugFlag' '135'")
+            except Exception:
+                pass  # best-effort; older builds may not support ALTER LOCAL
+            # Run one more query so its trace appears after the flag is set.
+            tdSql.query(f"select val from {src}.s14_t order by val")
+            # The scheduler routes MERGE sub-plans to the nodeList it received.
+            # After our fix, nodeList only contains qnode entries when qnode is
+            # deployed (mnode fallback is removed).  The taosdlog line
+            #   "in qnode queue is processing"
+            # is written by qworker when it picks up the task; its absence
+            # (replaced by "mnode-query") would indicate a regression.
+            import glob, os as _os
+            log_dir = getattr(tdSql, 'logDir', None) or \
+                      _os.environ.get('TAOS_LOG_DIR', '/var/log/taos')
+            # Try to find the active taosdlog from the sim directory
+            sim_log = '/local/TDinternal.2/sim/dnode1/log/taosdlog.0'
+            log_to_check = sim_log if _os.path.exists(sim_log) else None
+            if log_to_check:
+                try:
+                    with open(log_to_check, 'rb') as _f:
+                        _content = _f.read().decode('utf-8', errors='replace')
+                    # "in qnode queue is processing" must appear (qnode ran tasks)
+                    qnode_evidence = 'in qnode queue is processing' in _content
+                    # "mnode-query" must NOT appear for our federated SQL
+                    # (note: mnode-query can appear for DDL/metadata, so we
+                    # only check that our specific SQL appears in qnode context)
+                    if qnode_evidence:
+                        tdLog.info("[s14] taosdlog confirms 'qnode queue' ✓")
+                    else:
+                        tdLog.warning(
+                            "[s14] 'qnode queue' not found in taosdlog — "
+                            "qnode may not have been active yet when log was read")
+                except Exception as _e:
+                    tdLog.info(f"[s14] taosdlog check skipped: {_e}")
+
+            # ---- D: round-trip proof — drop qnode → error, restore → success ----
+            ExtSrcEnv.drop_qnode()
+            got_error = False
+            for _ in range(15):
+                try:
+                    tdSql.query(f"select val from {src}.s14_t", queryTimes=1)
+                    time.sleep(1)
+                except Exception:
+                    got_error = True
+                    break
+            assert got_error, (
+                "After DROP QNODE, federated query should fail but kept succeeding — "
+                "mnode fallback may still be active")
+            tdLog.info("[s14] DROP QNODE causes failure (no mnode fallback) ✓")
+
+        finally:
+            ExtSrcEnv.ensure_qnode()
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
 

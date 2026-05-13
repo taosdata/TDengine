@@ -228,6 +228,10 @@ TSDB_CODE_MND_DB_ALREADY_EXIST                 = _code('TSDB_CODE_MND_DB_ALREADY
 TSDB_CODE_MND_FUNC_NOT_EXIST                   = _code('TSDB_CODE_MND_FUNC_NOT_EXIST')
 TSDB_CODE_EXT_SOURCE_EXISTS                    = _code('TSDB_CODE_EXT_SOURCE_EXISTS')
 
+# --- Qnode scheduling ---
+TSDB_CODE_QNODE_NOT_FOUND                      = _code('TSDB_CODE_QNODE_NOT_FOUND')
+TSDB_CODE_QNODE_ALREADY_DEPLOYED               = _code('TSDB_CODE_QNODE_ALREADY_DEPLOYED')
+
 # --- Function errors ---
 TSDB_CODE_FUNC_FUNTION_PARA_TYPE               = _code('TSDB_CODE_FUNC_FUNTION_PARA_TYPE')
 TSDB_CODE_FUNC_FUNTION_PARA_NUM                = _code('TSDB_CODE_FUNC_FUNTION_PARA_NUM')
@@ -489,6 +493,48 @@ class ExtSrcEnv:
                 "(Override hosts/ports via FQ_MYSQL_HOST/FQ_PG_HOST/"
                 "FQ_INFLUX_HOST env vars)\n"
                 + "\n".join(errors))
+
+        # ------------------------------------------------------------------
+        # Step 3: ensure a qnode is deployed on dnode 1.
+        # Pure federated queries require qnode for MERGE plan execution;
+        # without one the client returns TSDB_CODE_QNODE_NOT_FOUND.
+        # This step is idempotent — repeated CREATE QNODE is silently ignored.
+        # ------------------------------------------------------------------
+        cls.ensure_qnode()
+
+    @classmethod
+    def ensure_qnode(cls):
+        """Idempotently create a qnode on dnode 1.
+
+        Pure federated queries (SUBPLAN_TYPE_MERGE) must execute on a qnode.
+        The scheduler picks qnode from the nodeList; if no qnode is deployed,
+        the client returns TSDB_CODE_QNODE_NOT_FOUND (by design — mnode
+        fallback is explicitly blocked for federated queries).
+
+        This method is called automatically from ensure_env() and may also
+        be called directly to restore qnode after a no-qnode negative test.
+        """
+        try:
+            tdSql.execute("CREATE QNODE ON DNODE 1")
+            tdLog.info("[FQ env] created qnode on dnode 1")
+        except Exception as e:
+            # QNODE_ALREADY_DEPLOYED is expected on repeated calls — ignore.
+            tdLog.info(f"[FQ env] qnode already exists or create skipped: {e}")
+
+    @classmethod
+    def drop_qnode(cls):
+        """Drop the qnode on dnode 1 (for negative-test teardown).
+
+        After DROP, the qnode cache in connected clients is invalidated via
+        heartbeat (within ~1-3 s).  Callers must wait for invalidation before
+        querying.  Always follow with ensure_qnode() in a finally block to
+        restore the environment for subsequent tests.
+        """
+        try:
+            tdSql.execute("DROP QNODE ON DNODE 1")
+            tdLog.info("[FQ env] dropped qnode on dnode 1")
+        except Exception as e:
+            tdLog.info(f"[FQ env] qnode drop skipped: {e}")
 
     # ---- Version iteration helpers ----
 

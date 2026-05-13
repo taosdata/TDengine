@@ -974,6 +974,16 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
         TSC_ERR_JRET(taosThreadMutexUnlock(&pInst->qnodeMutex));
       }
 
+      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
+          taosArrayGetSize(pQnodeList) == 0) {
+        tscError("req:0x%" PRIx64 " pure-federated query requires qnode but none deployed, "
+                 "run 'CREATE QNODE ON DNODE <id>' first, QID:0x%" PRIx64,
+                 pRequest->requestId, pRequest->requestId);
+        code = TSDB_CODE_QNODE_NOT_FOUND;
+        goto _return;
+      }
+
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
     }
@@ -1050,6 +1060,16 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
     case QUERY_POLICY_HYBRID:
     case QUERY_POLICY_QNODE: {
       TSC_ERR_JRET(getQnodeList(pRequest, &pQnodeList));
+
+      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
+          taosArrayGetSize(pQnodeList) == 0) {
+        tscError("req:0x%" PRIx64 " pure-federated query requires qnode but none deployed, "
+                 "run 'CREATE QNODE ON DNODE <id>' first, QID:0x%" PRIx64,
+                 pRequest->requestId, pRequest->requestId);
+        code = TSDB_CODE_QNODE_NOT_FOUND;
+        goto _return;
+      }
 
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
