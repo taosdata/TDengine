@@ -4727,3 +4727,215 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+// ========== SVTableRefResolve serde ==========
+
+int32_t tSerializeSVTableRefResolveReq(void *buf, int32_t bufLen, const SVTableRefResolveReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ver));
+
+  int32_t n = (pReq->items != NULL) ? taosArrayGetSize(pReq->items) : 0;
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, n));
+  for (int32_t i = 0; i < n; ++i) {
+    SVTableRefResolveItem *p = taosArrayGet(pReq->items, i);
+    TAOS_CHECK_EXIT(tEncodeI8 (&encoder, p->kind));
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, p->hasRef));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->refDbName));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->refTableName));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->refColName));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tEncoderClear(&encoder);
+    return -1;
+  } else {
+    int32_t tlen = encoder.pos;
+    tEncoderClear(&encoder);
+    return tlen;
+  }
+}
+
+int32_t tDeserializeSVTableRefResolveReq(void *buf, int32_t bufLen, SVTableRefResolveReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->ver));
+
+  int32_t n = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &n));
+  if (n > 0) {
+    pReq->items = taosArrayInit(n, sizeof(SVTableRefResolveItem));
+    if (pReq->items == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < n; ++i) {
+    SVTableRefResolveItem item = {0};
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &item.kind));
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &item.hasRef));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.refDbName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.refTableName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.refColName));
+    if (taosArrayPush(pReq->items, &item) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  if (code) {
+    if (pReq->items != NULL) {
+      taosArrayDestroy(pReq->items);
+      pReq->items = NULL;
+    }
+    tDecoderClear(&decoder);
+    return -1;
+  }
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVTableRefResolveReq(SVTableRefResolveReq *pReq) {
+  if (pReq == NULL) return;
+  taosArrayDestroy(pReq->items);
+  pReq->items = NULL;
+}
+
+int32_t tSerializeSVTableRefResolveRsp(void *buf, int32_t bufLen, const SVTableRefResolveRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  int32_t n = (pRsp->items != NULL) ? taosArrayGetSize(pRsp->items) : 0;
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, n));
+
+  for (int32_t i = 0; i < n; ++i) {
+    SVTableRefResolveRspItem *p = taosArrayGet(pRsp->items, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->code));
+    TAOS_CHECK_EXIT(tEncodeI8 (&encoder, p->terminated));
+    TAOS_CHECK_EXIT(tEncodeI8 (&encoder, p->nextRef.kind));
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, p->nextRef.hasRef));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->nextRef.refDbName));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->nextRef.refTableName));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->nextRef.refColName));
+    TAOS_CHECK_EXIT(tEncodeI8 (&encoder, p->tagType));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->tagLen));
+
+    // Only write tagData when terminated=true AND kind=TAG
+    if (p->terminated && p->nextRef.kind == STREAM_VREF_KIND_TAG && p->tagLen > 0) {
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t*)p->tagData, p->tagLen));
+    }
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tEncoderClear(&encoder);
+    return -1;
+  } else {
+    int32_t tlen = encoder.pos;
+    tEncoderClear(&encoder);
+    return tlen;
+  }
+}
+
+int32_t tDeserializeSVTableRefResolveRsp(void *buf, int32_t bufLen, SVTableRefResolveRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t n = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &n));
+  if (n > 0) {
+    pRsp->items = taosArrayInit(n, sizeof(SVTableRefResolveRspItem));
+    if (pRsp->items == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < n; ++i) {
+    SVTableRefResolveRspItem item = {0};
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &item.code));
+    TAOS_CHECK_EXIT(tDecodeI8 (&decoder, (int8_t*)&item.terminated));
+    TAOS_CHECK_EXIT(tDecodeI8 (&decoder, &item.nextRef.kind));
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &item.nextRef.hasRef));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.nextRef.refDbName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.nextRef.refTableName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.nextRef.refColName));
+    TAOS_CHECK_EXIT(tDecodeI8 (&decoder, &item.tagType));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &item.tagLen));
+
+    // Only read tagData when terminated=true AND kind=TAG AND tagLen>0
+    if (item.terminated && item.nextRef.kind == STREAM_VREF_KIND_TAG && item.tagLen > 0) {
+      item.tagData = taosMemoryMalloc(item.tagLen);
+      if (item.tagData == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+      TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, (uint8_t*)item.tagData, item.tagLen));
+    } else {
+      item.tagData = NULL;
+    }
+
+    if (taosArrayPush(pRsp->items, &item) == NULL) {
+      if (item.tagData != NULL) {
+        taosMemoryFree(item.tagData);
+      }
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  tEndDecode(&decoder);
+
+_exit:
+  if (code) {
+    if (pRsp->items != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pRsp->items); ++i) {
+        SVTableRefResolveRspItem *p = taosArrayGet(pRsp->items, i);
+        taosMemoryFreeClear(p->tagData);
+      }
+      taosArrayDestroy(pRsp->items);
+      pRsp->items = NULL;
+    }
+    tDecoderClear(&decoder);
+    return -1;
+  }
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSVTableRefResolveRsp(SVTableRefResolveRsp *pRsp) {
+  if (pRsp == NULL) return;
+  if (pRsp->items != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pRsp->items); ++i) {
+      SVTableRefResolveRspItem *p = taosArrayGet(pRsp->items, i);
+      taosMemoryFreeClear(p->tagData);
+    }
+    taosArrayDestroy(pRsp->items);
+    pRsp->items = NULL;
+  }
+}

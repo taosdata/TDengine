@@ -7,12 +7,50 @@
 #include "plannodes.h"
 #include "stream.h"
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
+#include "tlockfree.h"
+#include "tsimplehash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Resolved column reference terminal item.
+// kind=COL: chain ends at a physical table column.
+// kind=TAG: chain ends at a child table tag value (carried by STagValue elsewhere).
+typedef struct SColResolveItem {
+  bool    hasRef;
+  char    refDbName   [TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName  [TSDB_COL_NAME_LEN];
+} SColResolveItem;
+
+typedef struct STagValue {
+  int8_t   type;
+  int32_t  nLen;
+  char    *pData;       // owned, freed by destroy helper
+} STagValue;
+
+typedef struct SVTableResolveResult {
+  SSHashObj *colMap;    // key: virtual col cid (col_id_t), value: SColResolveItem*
+  SSHashObj *tagMap;    // key: virtual tag cid (col_id_t), value: STagValue*
+} SVTableResolveResult;
+
+typedef struct SStreamVTableInfoCache {
+  SRWLatch    lock;
+  SArray     *reqColCids;     // SArray<col_id_t>
+  SArray     *reqTagCids;     // SArray<col_id_t>
+  SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
+  SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
+  int64_t     lastCheckMs;
+  bool        valid;
+} SStreamVTableInfoCache;
+
+int32_t streamVTableInfoCacheInit   (SStreamVTableInfoCache *pCache);
+void    streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache);
+void    streamVTableResolveResultDestroy(SVTableResolveResult *pRes);
 
 typedef struct SStreamTableKeyInfo {
   int64_t uid;
@@ -88,6 +126,8 @@ typedef struct SStreamTriggerReaderInfo {
 
   StreamTableListInfo        tableList;
   StreamTableListInfo        vSetTableList;
+
+  SStreamVTableInfoCache *vtbCache;
 
 } SStreamTriggerReaderInfo;
 
