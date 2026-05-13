@@ -169,15 +169,21 @@ void mndSnapSendPullup(SMnode *pMnode) {
     if (pVgroup->snapRestoring) {
       mDebug("snap-send-progress pullup: found snapRestoring vgroup vgId:%d", pVgroup->vgId);
 
-      (void)taosHashPut(pActiveVgIds, &pVgroup->vgId, sizeof(int32_t),
-                        &pVgroup->vgId, sizeof(int32_t));
+      if (taosHashPut(pActiveVgIds, &pVgroup->vgId, sizeof(int32_t), &pVgroup->vgId, sizeof(int32_t)) != 0) {
+        // Must skip: without this entry in pActiveVgIds the cleanup pass would
+        // incorrectly treat the vgroup as stale and evict its progress cache entry.
+        mError("snap-send-progress pullup: failed to track active vgId:%d, skipping", pVgroup->vgId);
+        sdbRelease(pSdb, pVgroup);
+        continue;
+      }
 
       // Find the current leader dnode for this vgroup
       for (int8_t r = 0; r < pVgroup->replica; r++) {
         if (pVgroup->vnodeGid[r].syncState == TAOS_SYNC_STATE_LEADER) {
           int32_t leaderId = pVgroup->vnodeGid[r].dnodeId;
-          (void)taosHashPut(pDnodesToQuery, &leaderId, sizeof(int32_t),
-                            &leaderId, sizeof(int32_t));
+          if (taosHashPut(pDnodesToQuery, &leaderId, sizeof(int32_t), &leaderId, sizeof(int32_t)) != 0) {
+            mError("snap-send-progress pullup: failed to track dnode:%d", leaderId);
+          }
           break;
         }
       }
@@ -197,7 +203,9 @@ void mndSnapSendPullup(SMnode *pMnode) {
     while (pHashIter != NULL) {
       SSnapSendVnodeInfo *pInfo = (SSnapSendVnodeInfo *)pHashIter;
       if (taosHashGet(pActiveVgIds, &pInfo->vgId, sizeof(int32_t)) == NULL) {
-        (void)taosArrayPush(pStaleVgIds, &pInfo->vgId);
+        if (taosArrayPush(pStaleVgIds, &pInfo->vgId) == NULL) {
+          mError("snap-send-progress pullup: failed to collect stale vgId:%d", pInfo->vgId);
+        }
       }
       pHashIter = taosHashIterate(gSnapSendMgmt.pHash, pHashIter);
     }
