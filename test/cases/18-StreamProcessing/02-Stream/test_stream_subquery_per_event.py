@@ -212,6 +212,53 @@ class TestStreamSubqueryPerEvent:
                 and tdSql.compareData(2, 1, 1),
             )
 
+        def insert4(self):
+            # Empty inicio_descarga, then trigger event 4. The subquery
+            # now returns ZERO rows. Without the qFetchRemoteNode stream
+            # branch clearing the per-subquery slot before refetch,
+            # handleRemoteValueRes would fall into its "EOF after data"
+            # branch and silently retain event 3's lower bound (00:00:02),
+            # so event 4 would emit acumulado_cumple=1 just like event 3.
+            tdLog.info(
+                "=== empty inicio_descarga, then trigger event 4 ==="
+            )
+            tdSql.execute("delete from inicio_descarga")
+            tdSql.execute(
+                "insert into linea_descarga values ('2026-05-01 00:00:03', 1)"
+            )
+
+        def check4(self):
+            tdLog.info(
+                "=== check after event 4: 4th row must NOT be stale (1,1) ==="
+            )
+            # The fix means event 4 sees an empty subquery -> placeholder
+            # is NULL -> WHERE evaluates to NULL -> aggregate over empty
+            # input. The exact emitted shape (NULL row vs no row) is not
+            # the contract we pin here; what we MUST guarantee is that
+            # event 4 does not silently reuse event 3's value of 1.
+            #
+            # Without checkResultsByFunc's "wait for True" semantics
+            # (which would short-circuit before event 4 can land), give
+            # the stream a fixed budget to materialize event 4, then
+            # snapshot once and assert.
+            time.sleep(60)
+            tdSql.query(
+                f"select acumulado_cumple, acumulado_total "
+                f"from {self.db}.resultado_descarga order by ts"
+            )
+            rows = tdSql.getRows()
+            assert rows in (3, 4), (
+                f"unexpected row count {rows} after event 4"
+            )
+            if rows == 4:
+                v0 = tdSql.getData(3, 0)
+                v1 = tdSql.getData(3, 1)
+                assert not (v0 == 1 and v1 == 1), (
+                    "event 4 reused event 3's stale subquery value (1,1); "
+                    "qFetchRemoteNode stream branch is not clearing the "
+                    "subResNodes slot before refetch"
+                )
+
     class SubqueryWorkaround(StreamCheckItem):
         def __init__(self):
             self.db = "test_subq_workaround"

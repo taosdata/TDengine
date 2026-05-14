@@ -5269,6 +5269,13 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
   // the AST node.
   SNode** ppRes = taosArrayGet(ctx->subResNodes, subQIdx);
   if (ctx->isStream) {
+    // Clear the slot before refetching so that an empty result from this
+    // event takes handleRemoteValueRes's first-call branch (which marks
+    // the placeholder NULL) instead of the "EOF after data" branch
+    // (which would silently retain the previous event's value).
+    if (ppRes) {
+      *ppRes = NULL;
+    }
     TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
   } else if (NULL == *ppRes) {
     TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
