@@ -132,7 +132,23 @@ class TestStreamSubqueryPerEvent:
                 "insert into inicio_descarga values ('2026-05-01 00:00:00', 1)"
             )
 
-            time.sleep(10)
+            expected_ts = "2026-05-01 00:00:00"
+            deadline = time.time() + 10
+            while True:
+                tdSql.query("select last_row(ts) from inicio_descarga")
+                if (
+                    tdSql.queryResult
+                    and tdSql.queryResult[0]
+                    and str(tdSql.queryResult[0][0]).startswith(expected_ts)
+                ):
+                    break
+                if time.time() >= deadline:
+                    raise AssertionError(
+                        "Timed out waiting for inicio_descarga seed row to become "
+                        "visible to stream subquery resolution"
+                    )
+                time.sleep(0.5)
+
             tdLog.info("=== create stream analisis_68 ===")
             tdSql.execute(
                 f"create stream analisis_68 count_window(1, 1, pressure) "
