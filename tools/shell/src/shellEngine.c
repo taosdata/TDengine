@@ -524,7 +524,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   TAOS_FIELD *fields = taos_fetch_fields(tres);
   int32_t     num_fields = taos_num_fields(tres);
   int32_t     precision = taos_result_precision(tres);
-  timezone_t  tz = shell.conn ? (timezone_t)taos_get_conn_tz(shell.conn) : NULL;
+  timezone_t  tz = (timezone_t)taos_get_result_tz(tres);
 
   for (int32_t col = 0; col < num_fields; col++) {
     if (col > 0) {
@@ -885,7 +885,7 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
   dump_info->numFields = taos_num_fields(tres);
   dump_info->fields = taos_fetch_fields(tres);
   dump_info->precision = taos_result_precision(tres);
-  dump_info->tz = shell.conn ? (timezone_t)taos_get_conn_tz(shell.conn) : NULL;
+  dump_info->tz = (timezone_t)taos_get_result_tz(tres);
 
   dump_info->resShowMaxNum = UINT64_MAX;
 

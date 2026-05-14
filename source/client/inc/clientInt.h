@@ -287,6 +287,7 @@ typedef struct SReqResultInfo {
   int32_t        payloadLen;
   char*          convertJson;
   void*          charsetCxt;
+  void*          timezone;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {

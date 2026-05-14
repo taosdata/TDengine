@@ -201,18 +201,24 @@ int32_t tscInitSessionTimezone(STscObj *pObj) {
 
 // Get connection's session timezone (opaque handle for C API bindings).
 // Returns an opaque pointer to internal timezone_t.
-// WARNING: The returned pointer is valid only for the current session timezone state.
-//   If SET TIMEZONE is executed on this connection, the returned pointer may become
-//   invalid. Callers must not hold or dereference the pointer past the next
-//   SET TIMEZONE call. For thread-safety critical code, capture this immediately
-//   before reading results and do not cache across command boundaries.
-void *taos_get_conn_tz(TAOS *taos) {
-  if (taos == NULL) return NULL;
-  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
-  if (pObj == NULL) return NULL;
-  timezone_t tz = pObj->optionInfo.timezone;
-  releaseTscObj(*(int64_t *)taos);
-  return (void *)tz;
+/*
+ * Return the timezone snapshot captured when the result was created.
+ * The returned handle is owned by pTimezoneMap; caller must NOT tzfree().
+ * Returns NULL for META/RAW/BATCH_META results or NULL input.
+ */
+void *taos_get_result_tz(TAOS_RES *res) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return NULL;
+  }
+
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    return pRequest->body.resInfo.timezone;
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
+    SReqResultInfo *info = tmqGetCurResInfo(res);
+    return info->timezone;
+  }
+  return NULL;
 }
 
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char *val) {

@@ -716,7 +716,7 @@ class TestTimetruncateWeek:
         self.check_timetruncate_1w_dst_spring()
 
 class TestWeekFunctions:
-    """WEEK/WEEKOFYEAR respect firstDayOfWeek; DAYOFWEEK/WEEKDAY unchanged."""
+    """WEEK respects firstDayOfWeek; WEEKOFYEAR/DAYOFWEEK/WEEKDAY are fdow-independent."""
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -730,15 +730,22 @@ class TestWeekFunctions:
         tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
         tdSql.execute(f'insert into {self.ntbname} values (1735689600000, 1)')
 
-    def check_weekofyear_respects_fdow(self):
-        """WEEKOFYEAR with different firstDayOfWeek should succeed."""
+    def check_weekofyear_not_affected_by_fdow(self):
+        """WEEKOFYEAR is equivalent to WEEK(ts,3) (ISO 8601, Monday-first).
+
+        It must NOT change with FIRST_DAY_OF_WEEK, and must return the correct
+        ISO week number: 2026-01-01 (Thursday) is ISO week 1.
+        """
         self.prepare_data()
         results = {}
-        for fdow in [0, 1]:
+        for fdow in range(7):
             tdSql.execute(f"SET FIRST_DAY_OF_WEEK {fdow}")
             tdSql.query("select weekofyear('2026-01-01 12:00:00')")
             results[fdow] = tdSql.queryResult[0][0]
-        assert results[0] != results[1], f"WEEKOFYEAR should respect fdow: {results}"
+        assert all(r == results[0] for r in results.values()), \
+            f"WEEKOFYEAR should NOT change with fdow: {results}"
+        assert results[0] == 1, \
+            f"WEEKOFYEAR('2026-01-01') should be ISO week 1, got {results[0]}"
 
     def check_week_mode_all_valid(self):
         """WEEK(ts, mode) for mode 0-7 should all succeed."""
@@ -834,7 +841,7 @@ class TestWeekFunctions:
             - 2026-05-12: Tony Zhang created
 
         """
-        self.check_weekofyear_respects_fdow()
+        self.check_weekofyear_not_affected_by_fdow()
         self.check_week_mode_all_valid()
         self.check_week_mode_8_invalid()
         self.check_dayofweek_not_affected_by_fdow()
