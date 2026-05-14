@@ -696,13 +696,15 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     }
     case QUERY_NODE_REMOTE_VALUE: {
       // After handleRemoteValueRes settles the inner SValueNode, treat the
-      // node as a plain value for parameter setup: temporarily flip the
-      // type so the QUERY_NODE_VALUE case runs, then restore so subsequent
-      // walker passes (in stream mode) keep re-dispatching sclWalkRemoteValue.
+      // node as a plain value for parameter setup. Pass the inner val and
+      // temporarily flip its type so the QUERY_NODE_VALUE branch runs;
+      // restore so subsequent walker passes (in stream mode) keep
+      // re-dispatching sclWalkRemoteValue.
       SRemoteValueNode *pRemote = (SRemoteValueNode *)node;
+      ENodeType         oldType = pRemote->val.node.type;
       pRemote->val.node.type = QUERY_NODE_VALUE;
-      int32_t code = sclInitParam(node, param, ctx, rowNum);
-      pRemote->val.node.type = QUERY_NODE_REMOTE_VALUE;
+      int32_t code = sclInitParam((SNode *)&pRemote->val, param, ctx, rowNum);
+      pRemote->val.node.type = oldType;
       SCL_ERR_RET(code);
       break;
     }
