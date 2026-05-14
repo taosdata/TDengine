@@ -237,19 +237,26 @@ class TestStreamSubqueryPerEvent:
             # the contract we pin here; what we MUST guarantee is that
             # event 4 does not silently reuse event 3's value of 1.
             #
-            # Poll up to the original 60-second budget, but stop as soon
-            # as the fourth event is visible so CI does not always pay the
-            # full minute when the stream output is ready immediately.
-            deadline = time.monotonic() + 60
-            while True:
-                tdSql.query(
-                    f"select acumulado_cumple, acumulado_total "
-                    f"from {self.db}.resultado_descarga order by ts"
-                )
-                rows = tdSql.getRows()
-                if rows >= 4 or time.monotonic() >= deadline:
-                    break
-                time.sleep(0.5)
+            # Use the existing polling helper instead of an open-coded
+            # sleep loop so CI only waits as long as needed for the stream
+            # output query to reach an acceptable stable shape.
+            sql = (
+                f"select acumulado_cumple, acumulado_total "
+                f"from {self.db}.resultado_descarga order by ts"
+            )
+            tdSql.checkResultsByFunc(
+                sql=sql,
+                func=lambda: tdSql.getRows() == 3
+                or (
+                    tdSql.getRows() == 4
+                    and not (
+                        tdSql.getData(3, 0) == 1
+                        and tdSql.getData(3, 1) == 1
+                    )
+                ),
+            )
+            tdSql.query(sql)
+            rows = tdSql.getRows()
             assert rows in (3, 4), (
                 f"unexpected row count {rows} after event 4"
             )
