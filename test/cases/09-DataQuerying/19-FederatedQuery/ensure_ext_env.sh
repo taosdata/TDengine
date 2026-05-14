@@ -231,22 +231,79 @@ _start_daemon() {
     echo "$!" > "$pidfile"
 }
 
-# Stop a daemon by pidfile; fall back to pattern kill
+# Stop a daemon by pidfile; fall back to pattern kill.
+# Polls every 0.1 s for graceful exit instead of sleeping a fixed duration.
 _stop_daemon() {
     local pidfile="$1" pattern="$2"
+    local pid=""
     if [[ -f "$pidfile" ]]; then
-        local pid
-        pid=$(cat "$pidfile")
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            kill -TERM "$pid" 2>/dev/null || true
-            sleep 2
-            kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
-        fi
-        rm -f "$pidfile"
-        return
+        pid=$(cat "$pidfile" 2>/dev/null || true)
     fi
-    _kill_matching "$pattern" TERM
-    sleep 2
+
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        kill -TERM "$pid" 2>/dev/null || true
+        # Poll for graceful exit (up to 5 s = 50 × 0.1 s)
+        local _di=0
+        while kill -0 "$pid" 2>/dev/null && [[ $_di -lt 50 ]]; do
+            sleep 0.1; _di=$((_di+1))
+        done
+        kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pidfile" 2>/dev/null || true
+
+    # Sweep any stragglers matched by pattern
+    if pgrep -f "$pattern" >/dev/null 2>&1; then
+        _kill_matching "$pattern" TERM
+        local _di=0
+        while pgrep -f "$pattern" >/dev/null 2>&1 && [[ $_di -lt 50 ]]; do
+            sleep 0.1; _di=$((_di+1))
+        done
+        _kill_matching "$pattern" KILL 2>/dev/null || true
+    fi
+}
+
+# ── Verified-exit helpers ──────────────────────────────────────────────────────
+# Wait until no process matching PATTERN exists.
+# SIGKILL takes effect within milliseconds; this normally exits on the first
+# check.  Polls every 0.1 s; returns 0 if gone within MAX checks, 1 otherwise.
+_wait_procs_gone() {
+    local pattern="$1" max="${2:-100}" i=0
+    while pgrep -f "$pattern" >/dev/null 2>&1; do
+        i=$((i+1))
+        if [[ $i -ge $max ]]; then
+            warn "Processes still alive after $((max/10))s: $pattern"
+            return 1
+        fi
+        sleep 0.1
+    done
+    return 0
+}
+
+# Assert PATH does not exist; log an error and return 1 if it does.
+# Used to confirm rm -rf succeeded before re-initialising data directories.
+_verify_absent() {
+    local path="$1" label="${2:-$path}"
+    if [[ -e "$path" ]]; then
+        err "Expected absent but still present: $label"
+        return 1
+    fi
+    return 0
+}
+
+# Wait until a TCP port is no longer open (released by the killed process).
+# nc -z returns immediately (0 ms) when the port IS open, so without a sleep
+# the loop would busy-spin.  We add 0.2 s between probes.
+_wait_port_free() {
+    local port="$1" max="${2:-30}" i=0
+    while port_open "$port"; do
+        i=$((i+1))
+        if [[ $i -ge $max ]]; then
+            warn "Port ${port} still open after ${max}×0.2 s"
+            return 1
+        fi
+        sleep 0.2
+    done
+    return 0
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -475,20 +532,37 @@ ensure_mysql() {
         info "MySQL ${ver}: quick restart (existing data preserved) ..."
         pkill -9 -f "mysqld.*port=${port}" 2>/dev/null || true
         pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
+        # Verify: all mysqld processes for this port are gone before touching files
+        _wait_procs_gone "mysqld.*port=${port}" 100 \
+            || warn "MySQL ${ver}: some processes may linger; continuing..."
         rm -f "${base}/run/mysqld.sock" "${base}/run/mysqld.sock.lock"
         rm -f /tmp/mysqlx.sock /tmp/mysqlx.sock.lock
-        local _pi=0
-        while [[ $_pi -lt 15 ]] && port_open "$port"; do
-            _pi=$((_pi + 1))
-        done
+        # Verify: socket files are gone (they must be absent before new start)
+        [[ ! -e "${base}/run/mysqld.sock" ]] \
+            || warn "MySQL ${ver}: socket file may linger; mysqld will try to remove it"
+        # Wait for TCP port to be released (probe-based, no busy-spin)
+        _wait_port_free "$port" 30 \
+            || warn "MySQL ${ver}: port ${port} still open; continuing..."
         _mysql_start "$ver" "$port" "$base"
         if ! wait_port "$port" 90; then
             err "MySQL ${ver}: timed out on port ${port} after quick restart."
             OVERALL_OK=1; return 1
         fi
         _mysql_setup_auth "$ver" "$port" "$base" || true
-        info "MySQL ${ver}: quick restart complete."
-        return 0
+        # Connectivity probe: confirm MySQL is actually ready for queries
+        local _qpi=0
+        local _mysql_qcmd=("${base}/bin/mysql" -h 127.0.0.1 -P "$port"
+            -u "${MYSQL_USER}" -p"${MYSQL_PASS}" --connect-timeout=5)
+        while [[ $_qpi -lt 20 ]]; do
+            if "${_mysql_qcmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+                info "MySQL ${ver}: quick restart complete."
+                return 0
+            fi
+            _qpi=$((_qpi + 1))
+            sleep 1
+        done
+        err "MySQL ${ver}: connectivity probe failed after quick restart."
+        OVERALL_OK=1; return 1
     fi
 
     # ── hard reset: kill-9 → wipe data → reinit → start → probe ─────────────
@@ -688,10 +762,27 @@ ssl_key=${cert_dst}/server-key.pem
 MYCNF
         local pidfile="${base}/run/mysqld.pid"
         _stop_daemon "$pidfile" "mysqld.*port=${port}"
-        sleep 1
+        # Verify: wait until mysqld is truly gone (no fixed sleep)
+        _wait_procs_gone "mysqld.*${base}" 100 || true
+        rm -f "${base}/run/mysqld.sock" "${base}/run/mysqld.sock.lock"
+        _wait_port_free "$port" 30 || true
         _mysql_start "$ver" "$port" "$base"
-        wait_port "$port" 30 \
-            || warn "MySQL ${ver}: did not come back after TLS restart."
+        if wait_port "$port" 30; then
+            local _tls_pi=0
+            local _tls_cmd=("${base}/bin/mysql" -h 127.0.0.1 -P "$port"
+                -u "${MYSQL_USER}" -p"${MYSQL_PASS}" --connect-timeout=5)
+            while [[ $_tls_pi -lt 20 ]]; do
+                if "${_tls_cmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+                    info "MySQL ${ver}: TLS restart complete."
+                    return 0
+                fi
+                _tls_pi=$((_tls_pi + 1))
+                sleep 1
+            done
+            warn "MySQL ${ver}: connectivity probe failed after TLS restart."
+        else
+            warn "MySQL ${ver}: did not come back after TLS restart."
+        fi
     fi
 }
 
@@ -712,6 +803,9 @@ _mysql_reset_env() {
     pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
     pkill -9 -f "mysqld.*initialize-insecure.*${base}" 2>/dev/null || true
     pkill -9 -f "mysqld.*${base}.*initialize-insecure" 2>/dev/null || true
+    # Verify: wait until all mysqld processes for this base are truly gone
+    _wait_procs_gone "mysqld.*${base}" 100 \
+        || warn "MySQL ${ver}: some processes may linger; continuing..."
     # Truncate init.log now so stale open file handles cannot keep consuming disk
     mkdir -p "${log}"
     : > "${log}/init.log"
@@ -721,15 +815,18 @@ _mysql_reset_env() {
     rm -f "${base}/run/mysqld.sock" "${base}/run/mysqld.sock.lock"
     # mysqlx plugin default socket is /tmp/mysqlx.sock; clean it too
     rm -f /tmp/mysqlx.sock /tmp/mysqlx.sock.lock 2>/dev/null || true
+    # Verify: socket files must be absent before new mysqld starts
+    [[ ! -e "${base}/run/mysqld.sock" ]] \
+        || { err "MySQL ${ver}: cannot remove socket file"; return 1; }
 
-    # Wait for port to be released (probe-based, no sleep)
-    local _probe_i=0
-    while [[ $_probe_i -lt 15 ]] && port_open "$port"; do
-        _probe_i=$((_probe_i + 1))
-    done
+    # Wait for TCP port to be released (probe-based, no busy-spin)
+    _wait_port_free "$port" 30 \
+        || warn "MySQL ${ver}: port ${port} still open; continuing..."
 
     # 2. Wipe data dir + reinit
     rm -rf "${base}/data"
+    # Verify: data directory must be gone before initdb runs
+    _verify_absent "${base}/data" "MySQL ${ver} data dir" || return 1
     _mysql_init "$ver" "$base" || return 1
 
     # 3. Start
@@ -760,7 +857,7 @@ FLUSH PRIVILEGES;" \
         | "${mysql_cmd[@]}" 2>/dev/null \
         || warn "MySQL ${ver}: test user setup had warnings."
 
-    # 6. Connectivity probe (actual SQL connection)
+    # 6. Connectivity probe (actual SQL connection, with pause between retries)
     local _pi=0
     while [[ $_pi -lt 30 ]]; do
         if "${mysql_cmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
@@ -768,6 +865,7 @@ FLUSH PRIVILEGES;" \
             return 0
         fi
         _pi=$((_pi + 1))
+        sleep 1
     done
     err "MySQL ${ver}: connectivity probe failed after reset."
     OVERALL_OK=1; return 1
@@ -795,25 +893,38 @@ ensure_pg() {
         # Kill any stale postgres process before starting fresh
         pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
         pkill -9 -f "postgres.*${base}" 2>/dev/null || true
+        # Verify: wait until all postgres processes for this base are truly gone
+        _wait_procs_gone "postgres.*${base}" 100 \
+            || warn "PostgreSQL ${ver}: some processes may linger; continuing..."
         # Remove socket/lock files and stale pid file (left by SIGKILL)
         rm -f "/tmp/.s.PGSQL.${port}" "/tmp/.s.PGSQL.${port}.lock"
         rm -f "${base}/data/postmaster.pid"
         # Remove POSIX shared memory segments left by SIGKILL (prevents
         # "another server might be running" error on restart)
         rm -f /dev/shm/PostgreSQL.* 2>/dev/null || true
-        # Brief pause to let the kernel reclaim the port
-        sleep 1
-        local _pi=0
-        while [[ $_pi -lt 15 ]] && port_open "$port"; do
-            sleep 1; _pi=$((_pi + 1))
-        done
+        # Wait for TCP port to be released (probe-based, no busy-spin)
+        _wait_port_free "$port" 30 \
+            || warn "PostgreSQL ${ver}: port ${port} still open; continuing..."
         _pg_start "$ver" "$port" "$base"
         if ! wait_port "$port" 90; then
             err "PostgreSQL ${ver}: timed out on port ${port} after quick restart."
             OVERALL_OK=1; return 1
         fi
-        info "PostgreSQL ${ver}: quick restart complete."
-        return 0
+        # Connectivity probe: confirm PG is actually ready for queries
+        local _qpi=0
+        local _qpsql="${base}/bin/psql"
+        while [[ $_qpi -lt 20 ]]; do
+            if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$_qpsql" \
+                    -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
+                    -c "SELECT 1;" >/dev/null 2>&1; then
+                info "PostgreSQL ${ver}: quick restart complete."
+                return 0
+            fi
+            _qpi=$((_qpi + 1))
+            sleep 1
+        done
+        err "PostgreSQL ${ver}: connectivity probe failed after quick restart."
+        OVERALL_OK=1; return 1
     fi
 
     # ── hard reset: kill-9 → clean locks → wipe data → reinit → start → probe
@@ -1018,21 +1129,28 @@ _pg_reset_env() {
     pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
     pkill -9 -f "postgres.*${base}" 2>/dev/null || true
     pkill -9 -f "initdb.*${base}" 2>/dev/null || true
+    # Verify: wait until all postgres/initdb processes for this base are truly gone
+    _wait_procs_gone "postgres.*${base}" 100 \
+        || warn "PostgreSQL ${ver}: some processes may linger; continuing..."
+    _wait_procs_gone "initdb.*${base}" 50 || true
     # Truncate initdb.log now so stale open file handles cannot keep consuming disk
     mkdir -p "${log}"
     : > "${log}/initdb.log"
 
     # Remove socket/lock files to prevent "lock file already exists" on restart
     rm -f "/tmp/.s.PGSQL.${port}" "/tmp/.s.PGSQL.${port}.lock"
+    # Verify: socket files must be absent before new postgres starts
+    [[ ! -e "/tmp/.s.PGSQL.${port}" ]] \
+        || { err "PostgreSQL ${ver}: cannot remove socket file"; return 1; }
 
-    # Wait for port to be released (probe-based, no sleep)
-    local _probe_i=0
-    while [[ $_probe_i -lt 15 ]] && port_open "$port"; do
-        _probe_i=$((_probe_i + 1))
-    done
+    # Wait for TCP port to be released (probe-based, no busy-spin)
+    _wait_port_free "$port" 30 \
+        || warn "PostgreSQL ${ver}: port ${port} still open; continuing..."
 
     # 2. Wipe data dir + reinit
     rm -rf "$data"
+    # Verify: data directory must be gone before initdb runs
+    _verify_absent "$data" "PostgreSQL ${ver} data dir" || return 1
     mkdir -p "$log"
     _pg_init "$ver" "$base" || return 1
 
@@ -1058,7 +1176,7 @@ _pg_reset_env() {
     PGPASSWORD="$PG_PASS" "$psql" -h 127.0.0.1 -p "$port" -U "$PG_USER" \
         -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
 
-    # 5. Connectivity probe (actual psql connection)
+    # 5. Connectivity probe (actual psql connection, with pause between retries)
     local _pi=0
     while [[ $_pi -lt 30 ]]; do
         if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$psql" \
@@ -1068,6 +1186,7 @@ _pg_reset_env() {
             return 0
         fi
         _pi=$((_pi + 1))
+        sleep 1
     done
     err "PostgreSQL ${ver}: connectivity probe failed after reset."
     OVERALL_OK=1; return 1
@@ -1148,16 +1267,30 @@ ensure_influx() {
             rm -f "$pidfile"
         fi
         pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
-        # Wait for the port to be released
-        local _qi=0
-        while [[ $_qi -lt 15 ]] && port_open "$port"; do
-            sleep 1; _qi=$((_qi + 1))
-        done
+        # Verify: wait until all influxdb3 processes for this port are truly gone
+        _wait_procs_gone "influxdb3 serve.*${port}" 100 \
+            || warn "InfluxDB ${ver}: process may linger; continuing..."
+        # Wait for TCP port to be released (probe-based, no busy-spin)
+        _wait_port_free "$port" 30 \
+            || warn "InfluxDB ${ver}: port ${port} still open; continuing..."
         _influx_start "$ver" "$port" "$base"
         if ! wait_port "$port" 90; then
             err "InfluxDB ${ver}: timed out on port ${port} after quick restart."
             OVERALL_OK=1; return 1
         fi
+        # HTTP health probe: confirm InfluxDB is actually serving requests
+        local _qi2=0
+        while [[ $_qi2 -lt 30 ]]; do
+            if curl -sf --max-time 3 "http://127.0.0.1:${port}/health" 2>/dev/null \
+                    | grep -qE '"status":"(pass|ok)"'; then
+                info "InfluxDB ${ver}: quick restart complete."
+                return 0
+            fi
+            _qi2=$((_qi2+1))
+            sleep 1
+        done
+        # Health endpoint may not exist on all InfluxDB 3 builds; port open is sufficient
+        warn "InfluxDB ${ver}: /health did not return pass/ok after quick restart (non-fatal)."
         info "InfluxDB ${ver}: quick restart complete."
         return 0
     fi
@@ -1175,7 +1308,9 @@ ensure_influx() {
             _pids="$(lsof -ti :${port} 2>/dev/null || ss -tlnp "sport = :${port}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' || true)"
             if [[ -n "$_pids" ]]; then
                 kill -9 $_pids 2>/dev/null || true
-                sleep 2
+                # Verify: wait until the process is truly gone (no fixed sleep)
+                _wait_procs_gone "influxdb3 serve.*${port}" 100 || true
+                _wait_port_free "$port" 30 || true
             fi
             rm -f "${base}/run/influxd.pid" 2>/dev/null || true
         else
@@ -1344,17 +1479,17 @@ _influx_reset_env() {
     fi
     # Also kill any stale instances that may have been started by earlier sessions
     pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
-
-    # Wait for the port to be released — probe-based, no fixed sleep.
-    # port_open uses "nc -w 2" so each probe takes up to 2 s; SIGKILL should
-    # release the port almost immediately, so this normally exits on the first try.
-    local _probe_i=0
-    while [[ $_probe_i -lt 15 ]] && port_open "$port"; do
-        _probe_i=$((_probe_i + 1))
-    done
+    # Verify: wait until all influxdb3 processes for this port are truly gone
+    _wait_procs_gone "influxdb3 serve.*${port}" 100 \
+        || warn "InfluxDB ${ver}: process may linger; continuing..."
+    # Wait for TCP port to be released (probe-based, no busy-spin).
+    _wait_port_free "$port" 30 \
+        || warn "InfluxDB ${ver}: port ${port} still open; continuing..."
 
     # 2. Wipe the data directory (removes catalog + all test data)
     rm -rf "${base}/data"
+    # Verify: data directory must be absent before restarting InfluxDB
+    _verify_absent "${base}/data" "InfluxDB ${ver} data dir" || return 1
     mkdir -p "${base}/data"
 
     # 3. Restart InfluxDB
@@ -1364,6 +1499,19 @@ _influx_reset_env() {
         OVERALL_OK=1; return 1
     fi
 
+    # 4. HTTP health probe: confirm InfluxDB is actually serving requests
+    local _hi=0
+    while [[ $_hi -lt 30 ]]; do
+        if curl -sf --max-time 3 "http://127.0.0.1:${port}/health" 2>/dev/null \
+                | grep -qE '"status":"(pass|ok)"'; then
+            info "InfluxDB ${ver} @ ${port}: reset complete (data wiped, restarted)."
+            return 0
+        fi
+        _hi=$((_hi+1))
+        sleep 1
+    done
+    # Health endpoint may not exist on all InfluxDB 3 builds; port open is sufficient
+    warn "InfluxDB ${ver}: /health did not return pass/ok after reset (non-fatal)."
     info "InfluxDB ${ver} @ ${port}: reset complete (data wiped, restarted)."
 }
 
@@ -1411,8 +1559,9 @@ _teardown_pg() {
     fi
     # Fallback: kill by port pattern
     pkill -TERM -f "postgres.*-p ${port}" 2>/dev/null || true
-    sleep 1
-    pkill -KILL -f "postgres.*-p ${port}" 2>/dev/null || true
+    # Wait for graceful shutdown before escalating to SIGKILL
+    _wait_procs_gone "postgres.*-p ${port}" 50 \
+        || pkill -KILL -f "postgres.*-p ${port}" 2>/dev/null || true
     # Remove all files in the log directory (keep the directory itself).
     find "${base}/log" -maxdepth 1 -type f -delete 2>/dev/null || true
     info "PostgreSQL ${ver}: stopped and logs cleared."
