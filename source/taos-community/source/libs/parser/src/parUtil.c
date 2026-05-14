@@ -1009,6 +1009,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   snprintf(select->stmtName, TSDB_TABLE_NAME_LEN, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
+  select->windowMode = WINDOW_MODE_NONE;
   select->onlyHasKeepOrderFunc = true;
   TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;

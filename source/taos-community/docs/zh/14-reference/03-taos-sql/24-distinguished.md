@@ -72,6 +72,7 @@ window_clause: {
   - 聚集函数（包括选择函数、可以由参数确定输出行数的时序特有函数，以及时序函数中的窗口计算和时间加权统计函数）。
   - 包含上面表达式的表达式。
   - 且至少包含一个聚集函数 (3.4.0.0 之后不再有该限制)。
+  - 列表达式和不定行函数（3.4.2.0 版本开始支持），此时查询将进入[窗口投影模式](#窗口投影模式)，每个窗口输出全部原始行而非一行聚合结果。
 - 窗口子句不可以和 GROUP BY 子句一起使用。
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
 
@@ -425,9 +426,11 @@ EXTERNAL_WINDOW (
 
 2. **窗口内聚合和计算：** 外部查询在每个窗口范围内独立计算，支持聚合和标量运算。
 
-3. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
+3. **窗口查询模式：** 外部窗口支持 `SCALAR` / `AGG` 关键字。与其他窗口不同，外部窗口在歧义场景下默认使用**投影模式**（每窗口输出全部原始行），可使用 `AGG` 切换为聚合模式（每窗口输出一行）。详见[窗口投影模式](#窗口投影模式)。
 
-4. **分组和对齐：**
+4. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
+
+5. **分组和对齐：**
     - 子查询可以使用 `PARTITION BY` 或 `GROUP BY` 进行分组，外部查询只能使用 `PARTITION BY` 进行分组。
     - 当子查询与外部查询都使用了分组时，按分组键对齐：同组数据只匹配同组窗口。
     - 若某个分组在某个窗口内没有匹配数据，则该分组在该窗口下不会产出结果行（会被自然忽略）。
@@ -435,7 +438,7 @@ EXTERNAL_WINDOW (
     - 当子查询使用了分组，但外部查询未使用分组时，语法禁止。
     - **当前限制与注意事项**：当内外查询都使用了分组，且窗口子查询中再使用 `ORDER BY` 时，排序可能打乱各分组窗口流的原有组织方式；外部查询可能作用于合并后的窗口流，表现为内部分组语义失效（等同未分组），不再按内外分组一一对齐。
 
-5. **嵌套调用支持：** 支持多层外部窗口嵌套，即外部窗口的子查询本身也可以使用 EXTERNAL_WINDOW，从而实现分层聚合。例如：先用第一层外部窗口按事件划定时间范围并聚合出中间指标，再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。
+6. **嵌套调用支持：** 支持多层外部窗口嵌套，即外部窗口的子查询本身也可以使用 EXTERNAL_WINDOW，从而实现分层聚合。例如：先用第一层外部窗口按事件划定时间范围并聚合出中间指标，再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。
 
 #### 窗口属性列引用规则
 
@@ -552,6 +555,72 @@ ORDER BY _wstart;
 - 子查询返回的窗口行需要保持有序：未分组场景按窗口开始时间（即第一列）升序；分组场景在各分组内按窗口开始时间升序；如果不满足条件执行时报错。
 - 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错。
 - 不支持窗口作用域内的不定行函数（如 DIFF、INTERP）。
+
+### 窗口投影模式
+
+从 3.4.2.0 版本开始，窗口查询支持投影模式。在传统的窗口聚合模式下，每个窗口输出一行聚合结果；而在窗口投影模式下，每个窗口输出其包含的全部原始行，并可附带窗口伪列（如 `_wstart`、`_wend`）。
+
+#### 模式推断
+
+系统根据 SELECT 列表的内容自动推断查询模式：
+
+- **聚合模式**：SELECT 列表中包含聚合函数，每个窗口输出一行。
+- **投影模式**：SELECT 列表中包含列表达式或不定行函数（如 DIFF、CSUM 等），每个窗口输出全部原始行。
+- **歧义场景**：SELECT 列表仅包含伪列（`_wstart`、`_wend` 等）、标签列、tbname、常量、分组键（group key）和/或状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。
+
+#### SCALAR / AGG 关键字
+
+当查询处于歧义场景时，可使用 `SCALAR` 或 `AGG` 关键字显式指定模式：
+
+- `SCALAR`：强制使用投影模式。
+- `AGG`：强制使用聚合模式。
+
+注意：对于 EXTERNAL_WINDOW，歧义场景的默认模式是投影模式（与其他窗口相反）。此时 `AGG` 可将其切换为聚合模式。
+
+这两个关键字位于 `SELECT` 与选择列表之间，在 `TAGS` 之后。语法如下：
+
+```sql
+SELECT [SCALAR | AGG] select_list FROM ... INTERVAL(...) ...
+```
+
+示例：
+
+```sql
+-- 歧义场景：仅伪列 + 标签 + 常量，默认聚合模式（每窗口 1 行）
+SELECT _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+
+-- 使用 SCALAR 强制投影模式（每窗口 N 行）
+SELECT SCALAR _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+
+-- 非歧义场景：包含列表达式，自动进入投影模式（三种写法等价）
+SELECT _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT SCALAR _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT AGG _wstart, ts, current FROM d1001 INTERVAL(3s);
+```
+
+EXTERNAL_WINDOW 歧义场景默认为投影模式，使用 `AGG` 切换为聚合模式：
+
+```sql
+-- 歧义场景：仅伪列 + 标签，EXTERNAL_WINDOW 默认投影模式（每窗口 N 行）
+SELECT _wstart, _wend, location FROM d1001
+  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+
+-- 使用 AGG 强制聚合模式（每窗口 1 行）
+SELECT AGG _wstart, _wend, location FROM d1001
+  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+```
+
+#### FILL 支持
+
+窗口投影模式支持 FILL 子句，但仅支持以下模式：`NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`。不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
+
+```sql
+SELECT _wstart, ts, current FROM meters
+  WHERE ts >= '2024-01-01' AND ts < '2024-01-02'
+  PARTITION BY tbname
+  INTERVAL(10m)
+  FILL(NULL);
+```
 
 ### 时间戳伪列
 

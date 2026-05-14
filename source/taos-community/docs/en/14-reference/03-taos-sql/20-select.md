@@ -7,7 +7,7 @@ title: Data Querying
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] [TAGS] select_list
+SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -117,6 +117,7 @@ true_for_expr: {
 - interp_clause: Interp clause, used in conjunction with the interp function, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
   - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type. surrounding_time_val is optional, specifying the time range for valid data, as a positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (months/quarters/years not supported). Such as ```RANGE('2023-10-01T00:00:00.000')``` or ```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```.
   - EVERY: Time interval range, with every_val being a positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only), such as EVERY (1s).
+- SCALAR | AGG: Window query mode keywords (supported from version 3.4.2.0). When the SELECT list in a window query contains column expressions or indefinite-row functions, the query automatically enters **window projection mode**, where each window outputs all its original rows; when the SELECT list contains only aggregate functions, it enters **window aggregation mode**, where each window outputs one aggregated row. When the SELECT list contains only pseudocolumns, tag columns, tbname, constants, group keys, and state keys, INTERVAL, SESSION, STATE_WINDOW, EVENT_WINDOW, and COUNT_WINDOW default to aggregation mode, while EXTERNAL_WINDOW defaults to projection mode. Use the `SCALAR` or `AGG` keyword to explicitly specify the mode. See [TDengine Distinctive Queries](24-distinguished.md#window-projection-mode) for details.
 - fill_clause: Fill clause, can be used with the interp function, INTERVAL window, or EXTERNAL_WINDOW to specify the data filling method when data is missing. The supported modes differ by context.
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
@@ -356,6 +357,8 @@ The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different
 - INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
 
 For EXTERNAL_WINDOW queries, the supported modes are `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`, `PREV`, and `NEXT`. `LINEAR`, `NEAR`, and `SURROUND` are not supported in EXTERNAL_WINDOW.
+
+For window projection mode (when the SELECT list contains column expressions or indefinite-row functions), FILL only supports `NONE`, `NULL`, `NULL_F`, `VALUE`, and `VALUE_F`. `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported in projection mode.
 
 :::info
 
