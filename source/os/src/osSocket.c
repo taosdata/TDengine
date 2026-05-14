@@ -603,11 +603,13 @@ int32_t taosGetFqdn(char *fqdn) {
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
+  bool inRetry = false;
 
   while (true) {
     int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
     if (ret) {
-      if (EAI_AGAIN == ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
         continue;
       } else if (EAI_SYSTEM == ret) {
         terrno = TAOS_SYSTEM_ERROR(ERRNO);
