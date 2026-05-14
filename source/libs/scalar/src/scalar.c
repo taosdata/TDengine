@@ -710,6 +710,19 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
+      // In stream mode the IN-list subquery must be re-evaluated for every
+      // trigger event; otherwise the cached hash filter from event 1 would
+      // be reused indefinitely.  Free the prior hash and force a refetch.
+      if (ctx->isStream && !(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
+        if (pRemote->hashAllocated) {
+          taosHashCleanup(pRemote->pHashFilter);
+          taosHashCleanup(pRemote->pHashFilterOthers);
+          pRemote->pHashFilter = NULL;
+          pRemote->pHashFilterOthers = NULL;
+          pRemote->hashAllocated = false;
+        }
+        pRemote->flag |= VALUELIST_FLAG_VAL_UNSET;
+      }
       if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
         sclDebug("remoteValueList already got res, node:%p, hasValue:%d, hasNull:%d, hasNotNull:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
           node, pRemote->hasValue, pRemote->hasNull, pRemote->hasNotNull, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
@@ -759,6 +772,12 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       if (NULL == ctx->pSubJobCtx) {
         sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
         return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
+
+      // Force per-event refetch in stream mode so a value/flags cached on
+      // a previous event isn't replayed for the current trigger.
+      if (ctx->isStream) {
+        pRemote->valSet = false;
       }
 
       if (!pRemote->valSet) {

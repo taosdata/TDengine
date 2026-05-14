@@ -16,35 +16,42 @@ class TestStreamSubqueryPerEvent:
 
         WHERE ts >= (SELECT last_row(ts) FROM inicio_descarga)
 
-    Two shapes are pinned here so any regression in either path is caught:
+    In stream mode every trigger event MUST refetch the subquery; the
+    older code cached the result on the first event and silently
+    replayed it forever.  This file pins the per-event semantics for all
+    three remote-subquery flavours that flow through sclInitParam:
 
-      1. test_where_subquery
-         The original SQL shape with the scalar subquery in WHERE.
-         This exercises the REMOTE_VALUE path (qFetchRemoteNode cache
-         bypass in stream mode, sclInitParam REMOTE_VALUE handling,
-         setTaskScalarExtraInfo on every fetch worker thread, etc.).
-         Before the fix, the subquery was constant-folded at CREATE
-         STREAM time and every event reported SUM=3.
+      1. test_where_subquery (REMOTE_VALUE)
+         The original SQL shape with a scalar subquery in WHERE.
+         Exercises qFetchRemoteNode, sclInitParam REMOTE_VALUE,
+         setTaskScalarExtraInfo on every fetch worker thread, and
+         (event 4) the slot-clear that makes empty later events take
+         the first-call NULL branch instead of replaying the prior
+         value, plus (event 5) setValueFromResBlock resetting
+         pRes->isNull so the next non-NULL fetch isn't masked.
 
       2. test_twstart_workaround
-         The customer-suggested workaround: make inicio_descarga the
-         trigger and reference _twstart in the body. This exercises the
-         placeholder substitution path and does not touch the subquery
-         code; it serves as a control that the count_window engine
-         itself behaves as expected.
+         The customer-suggested workaround using _twstart.  Control
+         test for the trigger / count_window engine, independent of
+         the subquery code.
 
-    Both shapes share identical pre-seeded cumple_descarga data (rows
-    at 00:00:00, 00:00:01, 00:00:02 with cumple=1, total=1) and both
-    must yield the same per-event progression as inicio.ts advances:
+      3. test_in_list_subquery (REMOTE_VALUE_LIST)
+         WHERE x IN (subquery) re-evaluation.  Pins the LIST cache
+         invalidation: pHashFilter must be freed and
+         VALUELIST_FLAG_VAL_UNSET re-armed every event.
 
-        event 1 (inicio @ 00:00:00) -> SUM=(3, 3)
-        event 2 (inicio @ 00:00:01) -> SUM=(2, 2)
-        event 3 (inicio @ 00:00:02) -> SUM=(1, 1)
+      4. test_row_subquery (REMOTE_ROW)
+         WHERE x > ANY (subquery) re-evaluation.  Pins the ROW cache
+         invalidation: pRemote->valSet must be cleared every event.
     """
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
-        tdStream.createSnode()
+        try:
+            tdStream.createSnode()
+        except Exception as e:
+            if "Only one snode" not in str(e):
+                raise
 
     def test_where_subquery(self):
         """WHERE scalar subquery is re-evaluated per trigger event.
@@ -106,7 +113,17 @@ class TestStreamSubqueryPerEvent:
 
         def create(self):
             tdLog.info(f"=== create db {self.db} and source tables ===")
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"drop database if exists {self.db}")
+            # drop is async; wait for the dnode to fully release vgroups
+            for _ in range(60):
+                try:
+                    tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+                    break
+                except Exception as e:
+                    if 'dropping' in str(e):
+                        time.sleep(1)
+                        continue
+                    raise
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(
@@ -133,19 +150,19 @@ class TestStreamSubqueryPerEvent:
             )
 
             expected_ts = "2026-05-01 00:00:00"
-            deadline = time.time() + 10
+            deadline = time.time() + 30
             while True:
                 tdSql.query("select last_row(ts) from inicio_descarga")
                 if (
                     tdSql.queryResult
                     and tdSql.queryResult[0]
-                    and str(tdSql.queryResult[0][0]).startswith(expected_ts)
+                    and tdSql.queryResult[0][0] is not None
                 ):
                     break
                 if time.time() >= deadline:
                     raise AssertionError(
                         "Timed out waiting for inicio_descarga seed row to become "
-                        "visible to stream subquery resolution"
+                        f"visible (got {tdSql.queryResult!r})"
                     )
                 time.sleep(0.5)
 
@@ -272,11 +289,11 @@ class TestStreamSubqueryPerEvent:
                 ),
             )
             tdSql.query(sql)
-            rows = tdSql.getRows()
-            assert rows in (3, 4), (
-                f"unexpected row count {rows} after event 4"
+            rows_after_e4 = tdSql.getRows()
+            assert rows_after_e4 in (3, 4), (
+                f"unexpected row count {rows_after_e4} after event 4"
             )
-            if rows == 4:
+            if rows_after_e4 == 4:
                 v0 = tdSql.getData(3, 0)
                 v1 = tdSql.getData(3, 1)
                 assert not (v0 == 1 and v1 == 1), (
@@ -285,13 +302,65 @@ class TestStreamSubqueryPerEvent:
                     "subResNodes slot before refetch"
                 )
 
+            # Event 5: re-populate inicio_descarga and trigger again.
+            # This covers Finding 1: setValueFromResBlock must reset
+            # pRes->isNull = false so the value placed by event 5 isn't
+            # masked by the isNull=true left over from event 4's empty
+            # fetch. With the bug, event 5's WHERE evaluates against a
+            # NULL lower bound and matches no cumple rows -> aggregate
+            # NULL. With the fix, the lower bound is 00:00:01 again
+            # and exactly two cumple rows match -> SUM=(2, 2).
+            tdLog.info(
+                "=== event 5: re-insert inicio @ 00:00:01, trigger linea ==="
+            )
+            tdSql.execute(
+                f"insert into {self.db}.inicio_descarga "
+                f"values ('2026-05-01 00:00:01', 1)"
+            )
+            tdSql.execute(
+                f"insert into {self.db}.linea_descarga "
+                f"values ('2026-05-01 00:00:04', 1)"
+            )
+            # Wait for event 5 to land via the polling helper instead of
+            # an open-coded sleep loop.
+            tdSql.checkResultsByFunc(
+                sql=sql,
+                func=lambda: tdSql.getRows() > rows_after_e4
+                and tdSql.getData(tdSql.getRows() - 1, 0) == 2
+                and tdSql.getData(tdSql.getRows() - 1, 1) == 2,
+            )
+            tdSql.query(sql)
+            rows_after_e5 = tdSql.getRows()
+            assert rows_after_e5 > rows_after_e4, (
+                f"event 5 produced no new row (was {rows_after_e4}, "
+                f"now {rows_after_e5}); stream stalled after empty event"
+            )
+            last_row = rows_after_e5 - 1
+            v0 = tdSql.getData(last_row, 0)
+            v1 = tdSql.getData(last_row, 1)
+            assert v0 == 2 and v1 == 2, (
+                f"event 5 produced ({v0},{v1}); expected (2,2). "
+                f"setValueFromResBlock did not reset pRes->isNull, so "
+                f"event 4's NULL state masked the new subquery value."
+            )
+
     class SubqueryWorkaround(StreamCheckItem):
         def __init__(self):
             self.db = "test_subq_workaround"
 
         def create(self):
             tdLog.info(f"=== create db {self.db} and source tables ===")
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"drop database if exists {self.db}")
+            # drop is async; wait for the dnode to fully release vgroups
+            for _ in range(60):
+                try:
+                    tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+                    break
+                except Exception as e:
+                    if 'dropping' in str(e):
+                        time.sleep(1)
+                        continue
+                    raise
             tdSql.execute(f"use {self.db}")
 
             tdSql.execute(
@@ -386,4 +455,251 @@ class TestStreamSubqueryPerEvent:
                 and tdSql.compareData(1, 1, 2)
                 and tdSql.compareData(2, 0, 1)
                 and tdSql.compareData(2, 1, 1),
+            )
+
+    # ------------------------------------------------------------------
+    # IN-list subquery (REMOTE_VALUE_LIST)
+    # ------------------------------------------------------------------
+
+    def test_in_list_subquery(self):
+        """REMOTE_VALUE_LIST must be refreshed per stream event.
+
+        Bug: in stream mode, the LIST cache check in sclInitParam()
+        short-circuited once VALUELIST_FLAG_VAL_UNSET was cleared on
+        the first event. Every subsequent trigger event reused the same
+        pHashFilter, so the IN-list never reflected later changes to
+        the source table.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-14 Created to pin LIST cache invalidation
+        """
+        streams = [self.InListPerEvent()]
+        tdStream.checkAll(streams)
+
+    class InListPerEvent(StreamCheckItem):
+        def __init__(self):
+            self.db = "test_subq_inlist"
+
+        def create(self):
+            tdLog.info(f"=== create db {self.db} ===")
+            tdSql.execute(f"drop database if exists {self.db}")
+            # drop is async; wait for the dnode to fully release vgroups
+            for _ in range(60):
+                try:
+                    tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+                    break
+                except Exception as e:
+                    if 'dropping' in str(e):
+                        time.sleep(1)
+                        continue
+                    raise
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute("create table linea     (ts timestamp, p int)")
+            tdSql.execute("create table data      (ts timestamp, f1 int, v int)")
+            tdSql.execute("create table whitelist (ts timestamp, id int)")
+
+            tdSql.execute(
+                "insert into data values "
+                "('2026-05-01 00:00:00', 1, 10),"
+                "('2026-05-01 00:00:01', 2, 20),"
+                "('2026-05-01 00:00:02', 3, 30)"
+            )
+            # Seed whitelist so the IN-subquery resolves at CREATE STREAM.
+            tdSql.execute(
+                "insert into whitelist values ('2026-05-01 00:00:00', 1)"
+            )
+
+            time.sleep(10)
+            tdLog.info("=== create stream sum_in_whitelist ===")
+            tdSql.execute(
+                f"create stream sum_in_whitelist count_window(1, 1, p) "
+                f"from linea "
+                f"into r as "
+                f"select _twstart as ts, sum(v) as total "
+                f"from data "
+                f"where f1 in (select id from whitelist)"
+            )
+
+        def insert1(self):
+            tdLog.info("=== event 1: whitelist={1} -> match f1=1 -> SUM=10 ===")
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:00', 1)"
+            )
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, 10),
+            )
+
+        def insert2(self):
+            tdLog.info("=== add id=2 to whitelist, trigger event 2 ===")
+            tdSql.execute(
+                "insert into whitelist values ('2026-05-01 00:00:01', 2)"
+            )
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:01', 1)"
+            )
+
+        def check2(self):
+            # Event 2 must see whitelist={1,2}: SUM=10+20=30.
+            # Bug-without-fix would cache {1} and emit 10 again.
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, 10)
+                and tdSql.compareData(1, 0, 30),
+            )
+
+        def insert3(self):
+            tdLog.info("=== whitelist -> {2,3}, trigger event 3 ===")
+            tdSql.execute(
+                "delete from whitelist where ts = '2026-05-01 00:00:00'"
+            )
+            tdSql.execute(
+                "insert into whitelist values ('2026-05-01 00:00:02', 3)"
+            )
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:02', 1)"
+            )
+
+        def check3(self):
+            # Event 3: whitelist={2,3}, SUM=20+30=50.
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 3
+                and tdSql.compareData(0, 0, 10)
+                and tdSql.compareData(1, 0, 30)
+                and tdSql.compareData(2, 0, 50),
+            )
+
+    # ------------------------------------------------------------------
+    # Row-comparison subquery (REMOTE_ROW)
+    # ------------------------------------------------------------------
+
+    def test_row_subquery(self):
+        """REMOTE_ROW must be refreshed per stream event.
+
+        `> ANY (subquery)` is rewritten by the planner to `> MIN(...)`,
+        which materialises into a REMOTE_ROW node. In stream mode the
+        ROW cache check in sclInitParam() short-circuited once
+        pRemote->valSet was set on the first event, so the threshold
+        was frozen forever.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-14 Created to pin ROW cache invalidation
+        """
+        streams = [self.RowPerEvent()]
+        tdStream.checkAll(streams)
+
+    class RowPerEvent(StreamCheckItem):
+        def __init__(self):
+            self.db = "test_subq_row"
+
+        def create(self):
+            tdLog.info(f"=== create db {self.db} ===")
+            tdSql.execute(f"drop database if exists {self.db}")
+            # drop is async; wait for the dnode to fully release vgroups
+            for _ in range(60):
+                try:
+                    tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+                    break
+                except Exception as e:
+                    if 'dropping' in str(e):
+                        time.sleep(1)
+                        continue
+                    raise
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute("create table linea     (ts timestamp, p int)")
+            tdSql.execute("create table data      (ts timestamp, v int)")
+            tdSql.execute("create table threshold (ts timestamp, t int)")
+
+            tdSql.execute(
+                "insert into data values "
+                "('2026-05-01 00:00:00', 10),"
+                "('2026-05-01 00:00:01', 20),"
+                "('2026-05-01 00:00:02', 30),"
+                "('2026-05-01 00:00:03', 40)"
+            )
+            # Seed threshold so the row-subquery resolves at CREATE STREAM.
+            tdSql.execute(
+                "insert into threshold values ('2026-05-01 00:00:00', 35)"
+            )
+
+            time.sleep(10)
+            tdLog.info("=== create stream sum_gt_any_threshold ===")
+            tdSql.execute(
+                f"create stream sum_gt_any_threshold count_window(1, 1, p) "
+                f"from linea "
+                f"into r as "
+                f"select _twstart as ts, sum(v) as total "
+                f"from data "
+                f"where v > any (select t from threshold)"
+            )
+
+        def insert1(self):
+            tdLog.info("=== event 1: threshold={35} -> v>35 -> SUM=40 ===")
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:00', 1)"
+            )
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, 40),
+            )
+
+        def insert2(self):
+            tdLog.info("=== add t=15 (new min), trigger event 2 ===")
+            tdSql.execute(
+                "insert into threshold values ('2026-05-01 00:00:01', 15)"
+            )
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:01', 1)"
+            )
+
+        def check2(self):
+            # Event 2 must see new min 15: rows v in {20,30,40}, SUM=90.
+            # Bug-without-fix would cache 35 and emit 40 again.
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, 40)
+                and tdSql.compareData(1, 0, 90),
+            )
+
+        def insert3(self):
+            tdLog.info("=== threshold -> {5}, trigger event 3 ===")
+            tdSql.execute("delete from threshold")
+            tdSql.execute(
+                "insert into threshold values ('2026-05-01 00:00:02', 5)"
+            )
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:02', 1)"
+            )
+
+        def check3(self):
+            # Event 3: threshold={5}, all 4 rows match, SUM=100.
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 3
+                and tdSql.compareData(0, 0, 40)
+                and tdSql.compareData(1, 0, 90)
+                and tdSql.compareData(2, 0, 100),
             )

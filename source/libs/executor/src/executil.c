@@ -4486,7 +4486,11 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SValueNode* pRes, SSDataBlock*
   
   pRes->flag &= (~VALUE_FLAG_VAL_UNSET);
   pRes->translate = true;
-  
+  // Reset isNull so a previously-NULL placeholder (e.g. from an earlier
+  // stream event whose subquery returned no rows) isn't re-emitted as
+  // NULL when this fetch produced a real value.
+  pRes->isNull = false;
+
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
   if (colDataIsNull_s(pCol, 0)) {
     pRes->isNull = true;
