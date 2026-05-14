@@ -2096,7 +2096,11 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
     // Pass 1: collect virtual child names to invalidate
     SArray *staleVctbs = taosArrayInit(4, TSDB_TABLE_NAME_LEN);
-    if (staleVctbs) {
+    if (staleVctbs == NULL) {
+      ctgError("taosArrayInit failed for staleVctbs, db:%s", dbFName);
+      CTG_ERR_RET(terrno);
+    }
+    {
       SCtgTbCache *pIter = taosHashIterate(dbCache->tbCache, NULL);
       while (pIter) {
         if (pIter->pMeta && pIter->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE &&
