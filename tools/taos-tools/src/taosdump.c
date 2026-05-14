@@ -1841,6 +1841,155 @@ int getTableDes(TAOS *taos,
     return getTableTagValue(taos, dbName, table, &tableDes);
 }
 
+// check if type needs length suffix in CREATE SQL
+static bool typeNeedsLength(int type) {
+    return (type == TSDB_DATA_TYPE_BINARY ||
+            type == TSDB_DATA_TYPE_NCHAR ||
+            type == TSDB_DATA_TYPE_VARBINARY ||
+            type == TSDB_DATA_TYPE_GEOMETRY);
+}
+
+// build CREATE TABLE/STABLE SQL from DESCRIBE result
+// used as fallback when SHOW CREATE TABLE is truncated or fails
+static char *buildCreateSqlFromDescribe(void** taos_v, const char *dbName, char *tbName) {
+    char command[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 128] = "";
+    snprintf(command, sizeof(command), "DESCRIBE `%s`.`%s`", dbName, tbName);
+
+    void *res = openQuery(taos_v, command);
+    if (res == NULL) {
+        errorPrint("%s() LN%d, DESCRIBE `%s`.`%s` failed\n",
+                __func__, __LINE__, dbName, tbName);
+        return NULL;
+    }
+
+    // collect columns and tags from DESCRIBE result
+    // DESCRIBE returns: field, type, length, note
+    // note == "TAG" for tag columns, empty for normal columns
+    typedef struct {
+        char name[TSDB_COL_NAME_LEN];
+        int  type;
+        int  length;
+        bool isTag;
+    } DescCol;
+
+    int capacity = 4096 + 128;  // max columns + tags
+    DescCol *descs = (DescCol *)calloc(capacity, sizeof(DescCol));
+    if (NULL == descs) {
+        errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
+        closeQuery(res);
+        return NULL;
+    }
+
+    int totalCols = 0;
+    int tagCount = 0;
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res)) != NULL && totalCols < capacity) {
+        int32_t *lengths = taos_fetch_lengths(res);
+        char typeStr[32] = {0};
+        strncpy(descs[totalCols].name,
+                (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
+                min((int)lengths[TSDB_DESCRIBE_METRIC_FIELD_INDEX], TSDB_COL_NAME_LEN - 1));
+        strncpy(typeStr, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
+                min((int)lengths[TSDB_DESCRIBE_METRIC_TYPE_INDEX], (int)sizeof(typeStr) - 1));
+        descs[totalCols].type = typeStrToType(typeStr);
+        descs[totalCols].length = *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
+
+        if (lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX] > 0) {
+            char note[COL_NOTE_LEN] = {0};
+            strncpy(note, (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
+                    min((int)lengths[TSDB_DESCRIBE_METRIC_NOTE_INDEX], COL_NOTE_LEN - 1));
+            descs[totalCols].isTag = (strcmp(note, "TAG") == 0);
+            if (descs[totalCols].isTag) tagCount++;
+        }
+        totalCols++;
+    }
+    closeQuery(res);
+
+    if (totalCols == 0) {
+        errorPrint("%s() LN%d, DESCRIBE returned no columns for `%s`.`%s`\n",
+                __func__, __LINE__, dbName, tbName);
+        free(descs);
+        return NULL;
+    }
+
+    // tb is output to file table name
+    char *tb = tbName;
+    char tableName[TSDB_TABLE_NAME_LEN + 1];
+    if (g_args.dotReplace && replaceCopy(tableName, tbName)) {
+        tb = tableName;
+    }
+
+    // estimate buffer size: header + per-column ~(65 name + 20 type + 10 length + 3 punctuation)
+    int bufSize = 256 + totalCols * 100;
+    char *csql = (char *)calloc(1, bufSize);
+    if (NULL == csql) {
+        errorPrint("%s() LN%d, memory allocation failed\n", __func__, __LINE__);
+        free(descs);
+        return NULL;
+    }
+
+    int pos = 0;
+    bool isStable = (tagCount > 0);
+
+    // header
+    if (isStable) {
+        pos += snprintf(csql + pos, bufSize - pos,
+                "CREATE STABLE IF NOT EXISTS `%s`.`%s` (", dbName, tb);
+    } else {
+        pos += snprintf(csql + pos, bufSize - pos,
+                "CREATE TABLE IF NOT EXISTS `%s`.`%s` (", dbName, tb);
+    }
+
+    // columns (non-tag)
+    bool firstCol = true;
+    for (int i = 0; i < totalCols; i++) {
+        if (descs[i].isTag) continue;
+        if (!firstCol) {
+            pos += snprintf(csql + pos, bufSize - pos, ", ");
+        }
+        if (typeNeedsLength(descs[i].type)) {
+            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s(%d)",
+                    descs[i].name, typeToStr(descs[i].type), descs[i].length);
+        } else {
+            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
+                    descs[i].name, typeToStr(descs[i].type));
+        }
+        firstCol = false;
+    }
+    pos += snprintf(csql + pos, bufSize - pos, ")");
+
+    // tags
+    if (isStable) {
+        pos += snprintf(csql + pos, bufSize - pos, " TAGS (");
+        bool firstTag = true;
+        for (int i = 0; i < totalCols; i++) {
+            if (!descs[i].isTag) continue;
+            if (!firstTag) {
+                pos += snprintf(csql + pos, bufSize - pos, ", ");
+            }
+            if (typeNeedsLength(descs[i].type)) {
+                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s(%d)",
+                        descs[i].name, typeToStr(descs[i].type), descs[i].length);
+            } else {
+                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
+                        descs[i].name, typeToStr(descs[i].type));
+            }
+            firstTag = false;
+        }
+        pos += snprintf(csql + pos, bufSize - pos, ")");
+    }
+
+    free(descs);
+
+    warnPrint("Used DESCRIBE fallback to build CREATE %s SQL for `%s`.`%s` "
+              "(SHOW CREATE TABLE was truncated or failed)\n",
+              isStable ? "STABLE" : "TABLE", dbName, tbName);
+
+    debugPrint("%s() LN%d, fallback create sql: %s\n", __func__, __LINE__, csql);
+
+    return csql;
+}
+
 // query from server
 char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     // combine sql
@@ -1851,7 +2000,9 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     // query
     void* res = openQuery(taos_v, sql);
     if (res == NULL) {
-        return NULL;
+        warnPrint("SHOW CREATE TABLE failed for `%s`.`%s`, "
+                  "trying DESCRIBE fallback\n", dbName, tbName);
+        return buildCreateSqlFromDescribe(taos_v, dbName, tbName);
     }
 
     // read
@@ -1861,7 +2012,18 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     int32_t ret = readRow(res, 0, 1, &len, &data);    
     if (ret != 0) {
         closeQuery(res);
-        return NULL;
+        warnPrint("SHOW CREATE TABLE read failed for `%s`.`%s`, "
+                  "trying DESCRIBE fallback\n", dbName, tbName);
+        return buildCreateSqlFromDescribe(taos_v, dbName, tbName);
+    }
+
+    // check if result is truncated (VARCHAR max is 65535)
+    if (len >= 64000) {
+        warnPrint("SHOW CREATE TABLE result for `%s`.`%s` is %u bytes "
+                  "(likely truncated at 65535), using DESCRIBE fallback\n",
+                  dbName, tbName, len);
+        closeQuery(res);
+        return buildCreateSqlFromDescribe(taos_v, dbName, tbName);
     }
 
     // prefix check
@@ -2254,6 +2416,9 @@ avro_value_iface_t* prepareAvroWface(
          * Bypass avro_file_writer_create_with_codec() by manually
          * writing the avro file header, then open in append mode.
          */
+        infoPrint("Schema length %zu bytes exceeds 60KB, "
+                  "writing avro header manually for: %s\n",
+                  schemaLen, avroFilename);
         uint8_t sync[16];
         const char *codecName = g_avro_codec[g_args.avro_codec];
         if (writeAvroHeaderRaw(avroFilename, jsonSchema,
@@ -2263,7 +2428,7 @@ avro_value_iface_t* prepareAvroWface(
             exit(EXIT_FAILURE);
         }
 
-        rval = avro_file_writer_open_bs(avroFilename, writer, 70*1024);
+        rval = avro_file_writer_open_bs(avroFilename, writer, 512*1024);
         if (rval) {
             errorPrint("There was an error opening %s for append. reason: %s\n",
                     avroFilename, avro_strerror());
@@ -2272,7 +2437,7 @@ avro_value_iface_t* prepareAvroWface(
         }
     } else {
         rval = avro_file_writer_create_with_codec
-            (avroFilename, *schema, writer, g_avro_codec[g_args.avro_codec], 70*1024);
+            (avroFilename, *schema, writer, g_avro_codec[g_args.avro_codec], 512*1024);
         if (rval) {
             errorPrint("There was an error creating %s. reason: %s\n",
                     avroFilename, avro_strerror());
@@ -4984,6 +5149,7 @@ static void dumpInAvroDataBinary(FieldStruct *field,
             debugPrint2("%s | ", (char *)buf);
             if (size > 0 && buf[size - 1] == '\0') size -= 1;
             if (bind->length) *bind->length = (int32_t)size;
+            bind->buffer_length = (int32_t)size;
             bind->buffer = buf;
         }
     }
