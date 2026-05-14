@@ -140,6 +140,12 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, struct SStreamVTableInfoCach
                                     SArray *vtbUids, SArray *virtColCids, SArray *virtTagCids,
                                     SSHashObj **ppUid2Result);
 
+// Resolve virtual child table tag chains for a list of STUidTagInfo. If suid is not
+// a virtual super table this is a no-op. For each vchild uid that resolves, the
+// existing pTagVal is freed and replaced by a freshly built STag carrying the
+// chain-resolved literal tag values (in stable schemaTag order).
+int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagList);
+
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
