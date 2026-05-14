@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { wsExport } from '../wsexporter';
+import { localExport, wsExport } from '../wsexporter';
+import { UTF8_BOM } from '../files';
 import streamSaver from 'streamsaver';
 import { connect, TaosResult } from '@tdengine/websocket';
+import FileSaver from 'file-saver';
 
 // jsdom ships an incomplete Blob: no arrayBuffer(), no stream().
 // Replace the global with a minimal implementation that supports stream() so the
@@ -28,6 +30,10 @@ class MockBlob {
       }
     });
   }
+
+  async text() {
+    return this.parts.join('');
+  }
 }
 
 vi.mock('streamsaver', () => ({
@@ -49,6 +55,12 @@ vi.mock('@tdengine/websocket', () => ({
 // Return non-empty CSV so the Blob has bytes and writer.write is actually invoked.
 vi.mock('json-2-csv', () => ({
   json2csv: vi.fn().mockReturnValue('ts,value\n2024-01-01,42')
+}));
+
+vi.mock('file-saver', () => ({
+  default: {
+    saveAs: vi.fn()
+  }
 }));
 
 vi.mock('config', () => ({
@@ -116,8 +128,10 @@ describe('wsExport', () => {
     // Two fetch calls: one before the loop and one at the end of the single iteration.
     expect(mockWsInterface.fetch).toHaveBeenCalledTimes(2);
     expect(mockWsInterface.fetchBlock).toHaveBeenCalledTimes(1);
-    // The core assertion: bytes from the CSV Blob must have been written.
-    expect(mockWriter.write).toHaveBeenCalled();
+    expect(mockWriter.write).toHaveBeenCalledTimes(2);
+    expect(Array.from(mockWriter.write.mock.calls[0][0] as Uint8Array)).toEqual(
+      Array.from(new TextEncoder().encode(UTF8_BOM))
+    );
     expect(mockWriter.close).toHaveBeenCalled();
     expect(connect).toHaveBeenCalledWith(expect.stringContaining('/rest/ws?token=mock-token'));
     expect(mockWs.connect).toHaveBeenCalled();
@@ -126,5 +140,18 @@ describe('wsExport', () => {
     expect(mockWsInterface.fetchBlock).toHaveBeenCalled();
     expect(mockWsInterface.freeResult).toHaveBeenCalledWith(queryResult);
     expect(mockWs.close).toHaveBeenCalled();
+  });
+
+  it('exports local query results with a UTF-8 BOM', async () => {
+    const queryResult = {
+      head: [{ field: 'ts' }, { field: 'value' }],
+      data: [['2024-01-01', '中文']]
+    };
+
+    localExport(queryResult);
+
+    expect(FileSaver.saveAs).toHaveBeenCalled();
+    const blob = vi.mocked(FileSaver.saveAs).mock.calls[0][0] as unknown as MockBlob;
+    await expect(blob.text()).resolves.toBe(`${UTF8_BOM}ts,value\n2024-01-01,中文`);
   });
 });
