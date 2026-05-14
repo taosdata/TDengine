@@ -2392,7 +2392,8 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
 
   pInfo->indefRowsMode = pPhyNode->window.indefRowsFunc;
   if (pInfo->indefRowsMode) {
-    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity);
+    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity,
+                               pPhyNode->window.pProjs, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
@@ -2819,7 +2820,8 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
 
   pInfo->indefRowsMode = pStateNode->window.indefRowsFunc;
   if (pInfo->indefRowsMode) {
-    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity);
+    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, num, pOperator->resultInfo.capacity,
+                               pStateNode->window.pProjs, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
@@ -2954,7 +2956,8 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
 
   pInfo->indefRowsMode = pSessionNode->window.indefRowsFunc;
   if (pInfo->indefRowsMode) {
-    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, numOfCols, pOperator->resultInfo.capacity);
+    code = initIndefRowsRuntime(&pInfo->indefRows, pOperator->exprSupp.pCtx, numOfCols, pOperator->resultInfo.capacity,
+                               pSessionNode->window.pProjs, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 

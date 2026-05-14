@@ -22,6 +22,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | AES_ENCRYPT          | 3.4.0.3+ |
 | AFTER                | |
 | AGGREGATE            | |
+| AGG                  | 3.4.2.0+ |
 | ALIAS                | |
 | ALIVE                | |
 | ALL                  | |
@@ -459,6 +460,7 @@ description: TDengine TSDB 保留关键字的详细列表
 |关键字 | 说明|
 |----------------------|-|
 | S3MIGRATE            | |
+| SCALAR               | 3.4.2.0+ |
 | SCHEMALESS           | |
 | SCORES               | |
 | SECURITY_LEVEL       | 3.4.1.6+ |

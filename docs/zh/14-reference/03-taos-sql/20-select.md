@@ -9,7 +9,7 @@ description: 查询数据的详细语法
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] [TAGS] select_list
+SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -119,6 +119,7 @@ true_for_expr: {
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
   - EVERY: 时间间隔范围，every_val 为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
+- SCALAR | AGG：窗口查询模式关键字（3.4.2.0 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [TDengine TSDB 特色查询](../distinguished#窗口投影模式)。
 - fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
@@ -358,6 +359,8 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 - INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
 
 对于 EXTERNAL_WINDOW 查询，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`，暂不支持 `LINEAR`、`NEAR` 和 `SURROUND`。
+
+对于窗口投影模式（SELECT 列表包含列表达式或不定行函数），FILL 仅支持 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`，不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
 
 :::info
 

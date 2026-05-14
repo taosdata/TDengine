@@ -278,6 +278,7 @@ SNode* addWindowOffsetClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pWinO
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable,
                         SNodeList* pHint);
 SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags);
+SNode* setSelectStmtWindowMode(SAstCreateContext* pCxt, SNode* pStmt, EWindowMode windowMode);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
 SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pAlias, SNode* pFill);

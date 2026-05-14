@@ -533,7 +533,9 @@ class TestStateWindow:
         tdSql.checkRows(4)
         
         sql = "select _wstart, _wduration, _wend, v from ntb state_window(s) extend(2)"
-        tdSql.error(sql, show=True)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(14)
+
     
     def test_state_window_group(self):
         """summary: test state window on multiple groups
