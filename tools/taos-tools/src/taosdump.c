@@ -2129,6 +2129,89 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
     return recordSchema;
 }
 
+/* Write a zigzag-encoded variable-length long to FILE */
+static int avro_zigzag_write_long(FILE *fp, int64_t l) {
+    uint8_t buf[10];
+    int n = 0;
+    uint64_t v = (uint64_t)((l << 1) ^ (l >> 63));
+    while (v & ~0x7FULL) {
+        buf[n++] = (uint8_t)((v & 0x7F) | 0x80);
+        v >>= 7;
+    }
+    buf[n++] = (uint8_t)v;
+    return (fwrite(buf, 1, n, fp) == (size_t)n) ? 0 : -1;
+}
+
+/* Write an avro "bytes" value: zigzag length + raw bytes */
+static int avro_raw_write_bytes(FILE *fp, const char *data, int64_t len) {
+    if (avro_zigzag_write_long(fp, len) != 0) return -1;
+    if (len > 0 && fwrite(data, 1, len, fp) != (size_t)len) return -1;
+    return 0;
+}
+
+/* Write an avro "string" value (same encoding as bytes) */
+static int avro_raw_write_string(FILE *fp, const char *s) {
+    return avro_raw_write_bytes(fp, s, (int64_t)strlen(s));
+}
+
+/*
+ * Write a complete avro file header manually, bypassing the 64KB
+ * schema_buf limitation in avro-c's write_header().
+ *
+ * Avro Object Container File header format:
+ *   magic:    "Obj" 0x01
+ *   metadata: avro map {count, (key,value)..., 0}
+ *             - "avro.codec" => codec name (bytes)
+ *             - "avro.schema" => schema JSON (bytes)
+ *   sync:     16 random bytes
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+static int writeAvroHeaderRaw(const char *path, const char *schemaJson,
+                              const char *codecName, uint8_t *syncOut) {
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        errorPrint("Cannot create avro file: %s\n", path);
+        return -1;
+    }
+
+    /* Magic */
+    uint8_t magic[4] = {'O', 'b', 'j', 0x01};
+    if (fwrite(magic, 1, 4, fp) != 4) goto fail;
+
+    /* Metadata map: 2 entries */
+    if (avro_zigzag_write_long(fp, 2) != 0) goto fail;
+
+    /* Entry 1: avro.codec */
+    if (avro_raw_write_string(fp, "avro.codec") != 0) goto fail;
+    if (avro_raw_write_bytes(fp, codecName, (int64_t)strlen(codecName)) != 0)
+        goto fail;
+
+    /* Entry 2: avro.schema */
+    if (avro_raw_write_string(fp, "avro.schema") != 0) goto fail;
+    if (avro_raw_write_bytes(fp, schemaJson, (int64_t)strlen(schemaJson)) != 0)
+        goto fail;
+
+    /* End of map */
+    if (avro_zigzag_write_long(fp, 0) != 0) goto fail;
+
+    /* Sync marker: 16 random bytes */
+    srand((unsigned)time(NULL));
+    for (int i = 0; i < 16; i++) {
+        syncOut[i] = (uint8_t)(((double)rand() / (RAND_MAX + 1.0)) * 255);
+    }
+    if (fwrite(syncOut, 1, 16, fp) != 16) goto fail;
+
+    fclose(fp);
+    return 0;
+
+fail:
+    errorPrint("Failed to write avro header for: %s\n", path);
+    fclose(fp);
+    remove(path);
+    return -1;
+}
+
 avro_value_iface_t* prepareAvroWface(
         const char *avroFilename,
         char *jsonSchema,
@@ -2163,12 +2246,39 @@ avro_value_iface_t* prepareAvroWface(
         exit(EXIT_FAILURE);
     }
 
-    int rval = avro_file_writer_create_with_codec
-        (avroFilename, *schema, writer, g_avro_codec[g_args.avro_codec], 70*1024);
-    if (rval) {
-        errorPrint("There was an error creating %s. reason: %s\n",
-                avroFilename, avro_strerror());
-        exit(EXIT_FAILURE);
+    int rval;
+    size_t schemaLen = strlen(jsonSchema);
+
+    if (schemaLen >= 60 * 1024) {
+        /*
+         * Schema JSON exceeds avro-c's internal 64KB schema_buf.
+         * Bypass avro_file_writer_create_with_codec() by manually
+         * writing the avro file header, then open in append mode.
+         */
+        uint8_t sync[16];
+        const char *codecName = g_avro_codec[g_args.avro_codec];
+        if (writeAvroHeaderRaw(avroFilename, jsonSchema,
+                               codecName, sync) != 0) {
+            errorPrint("There was an error creating %s header\n",
+                    avroFilename);
+            exit(EXIT_FAILURE);
+        }
+
+        rval = avro_file_writer_open_bs(avroFilename, writer, 70*1024);
+        if (rval) {
+            errorPrint("There was an error opening %s for append. reason: %s\n",
+                    avroFilename, avro_strerror());
+            remove(avroFilename);
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        rval = avro_file_writer_create_with_codec
+            (avroFilename, *schema, writer, g_avro_codec[g_args.avro_codec], 70*1024);
+        if (rval) {
+            errorPrint("There was an error creating %s. reason: %s\n",
+                    avroFilename, avro_strerror());
+            exit(EXIT_FAILURE);
+        }
     }
 
     avro_value_iface_t* wface =
@@ -3721,40 +3831,50 @@ static int32_t dumpInAvroTagBinary(FieldStruct *field, avro_value_t *value,
     avro_value_get_current_branch(
         value, &branch);
 
-    char *buf = NULL;
-    size_t bin_size;
-
-    avro_value_get_string(&branch,
-        (const char **)&buf, &bin_size);
-
-    if (NULL == buf) {
+    if (0 == avro_value_get_null(&branch)) {
         debugPrint2("%s | ", "NULL");
         curr_sqlstr_len += sprintf(
             sqlstr+curr_sqlstr_len, "NULL,");
     } else {
-        debugPrint2("%s | ", (char *)buf);
-        curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, buf);
+        char *buf = NULL;
+        size_t bin_size;
+
+        avro_value_get_string(&branch,
+            (const char **)&buf, &bin_size);
+
+        if (NULL == buf) {
+            debugPrint2("%s | ", "NULL");
+            curr_sqlstr_len += sprintf(
+                sqlstr+curr_sqlstr_len, "NULL,");
+        } else {
+            debugPrint2("%s | ", (char *)buf);
+            curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, buf);
+        }    
     }
     return curr_sqlstr_len;
 }
 
 static int32_t dumpInAvroTagNChar(FieldStruct *field, avro_value_t *value,
                               char *sqlstr, int32_t curr_sqlstr_len) {
-    size_t bytessize;
-    void *bytesbuf = NULL;
-
     avro_value_t nchar_branch;
     avro_value_get_current_branch(value, &nchar_branch);
 
-    avro_value_get_bytes(&nchar_branch,
-        (const void **)&bytesbuf, &bytessize);
-
-    if (NULL == bytesbuf) {
+    if (0 == avro_value_get_null(&nchar_branch)) {
         debugPrint2("%s | ", "NULL");
         curr_sqlstr_len += sprintf(sqlstr+curr_sqlstr_len, "NULL,");
     } else {
-        debugPrint2("%s | ", (char *)bytesbuf);
-        curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, (char *)bytesbuf);
+        size_t bytessize;
+        void *bytesbuf = NULL;
+        avro_value_get_bytes(&nchar_branch,
+            (const void **)&bytesbuf, &bytessize);
+
+        if (NULL == bytesbuf) {
+            debugPrint2("%s | ", "NULL");
+            curr_sqlstr_len += sprintf(sqlstr+curr_sqlstr_len, "NULL,");
+        } else {
+            debugPrint2("%s | ", (char *)bytesbuf);
+            curr_sqlstr_len += appendValues(sqlstr + curr_sqlstr_len, (char *)bytesbuf);
+        }
     }
     return curr_sqlstr_len;
 }
@@ -4820,21 +4940,26 @@ static void dumpInAvroDataBytes(FieldStruct *field,
                               avro_value_t *value,
                               TAOS_MULTI_BIND *bind,
                               char *is_null) {
-    size_t bytessize = 0;
-    void *bytesbuf = NULL;
-
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
 
-    avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
-    if (NULL == bytesbuf || bytessize == 0) {
+    if (0 == avro_value_get_null(&branch)) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        debugPrint2("bytes len =%ld | ", bytessize);
-        bind->buffer_length = bytessize;
+        size_t bytessize = 0;
+        void *bytesbuf = NULL;
+
+        avro_value_get_bytes(&branch, (const void **)&bytesbuf, &bytessize);
+        if (NULL == bytesbuf) {
+            debugPrint2("%s | ", "NULL");
+            bind->is_null = is_null;
+        } else {
+            debugPrint2("bytes len =%ld | ", bytessize);
+            if (bind->length) *bind->length = (int32_t)bytessize;
+            bind->buffer = bytesbuf;
+        }
     }
-    bind->buffer = bytesbuf;
 }
 
 static void dumpInAvroDataBinary(FieldStruct *field,
@@ -4844,18 +4969,24 @@ static void dumpInAvroDataBinary(FieldStruct *field,
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
 
-    char *buf = NULL;
-    size_t size;
-    avro_value_get_string(&branch, (const char **)&buf, &size);
-
-    if (NULL == buf || size == 0) {
+    if (0 == avro_value_get_null(&branch)) {
         debugPrint2("%s | ", "NULL");
         bind->is_null = is_null;
     } else {
-        debugPrint2("%s | ", (char *)buf);
-        bind->buffer_length = strlen(buf);
+        char *buf = NULL;
+        size_t size;
+        avro_value_get_string(&branch, (const char **)&buf, &size);
+
+        if (NULL == buf || size == 0) {
+            debugPrint2("%s | ", "NULL");
+            bind->is_null = is_null;
+        } else {
+            debugPrint2("%s | ", (char *)buf);
+            if (size > 0 && buf[size - 1] == '\0') size -= 1;
+            if (bind->length) *bind->length = (int32_t)size;
+            bind->buffer = buf;
+        }
     }
-    bind->buffer = buf;
 }
 
 static void dumpInAvroDataDouble(FieldStruct *field,
