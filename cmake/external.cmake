@@ -227,22 +227,13 @@ set(LOCAL_URL "" CACHE STRING "local archives storage to use")
 # is for local storage of externals only
 macro(get_from_local_repo_if_exists git_url)              # {
   # if LOCAL_REPO is set as: -DLOCAL_REPO:STRING=ssh://host/path-to-local-repo
-  # then _git_url would be: {ssh|https}://host/path-to-local-repo/<user>/<repo>.git
+  # then _git_url would be: ssh://host/path-to-local-repo/<git_url-name>.git
   if("z${LOCAL_REPO}" STREQUAL "z")
     set(_git_url "${git_url}")
   else()
-    # Only redirect github.com URLs; leave other hosts (e.g. gitee.com) as-is
-    string(FIND ${git_url} "github.com" _gh_pos)
-    if(_gh_pos EQUAL -1)
-      set(_git_url "${git_url}")
-    else()
-      # Extract the last two path components: /<user>/<repo>.git
-      string(FIND ${git_url} "/" _pos2 REVERSE)
-      string(SUBSTRING ${git_url} 0 ${_pos2} _prefix)
-      string(FIND ${_prefix} "/" _pos1 REVERSE)
-      string(SUBSTRING ${git_url} ${_pos1} -1 _name)
-      set(_git_url "${LOCAL_REPO}${_name}")
-    endif()
+    string(FIND ${git_url} "/" _pos REVERSE)
+    string(SUBSTRING ${git_url} ${_pos} -1 _name)
+    set(_git_url "${LOCAL_REPO}/${_name}")
   endif()
 endmacro()                                                # }
 
@@ -274,7 +265,7 @@ INIT_EXT(ext_zlib
 get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
 ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v1.3.1
+    GIT_TAG v1.3.1 
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
@@ -1779,7 +1770,7 @@ if(${BUILD_LIBSASL})      # {
     get_from_local_repo_if_exists("https://github.com/cyrusimap/cyrus-sasl.git")
     ExternalProject_Add(ext_sasl2
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG cyrus-sasl-2.1.27
+        GIT_TAG cyrus-sasl-2.1.27 
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1795,7 +1786,7 @@ if(${BUILD_LIBSASL})      # {
                 CXXFLAGS=-Wno-missing-braces
                 ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
-            COMMAND make
+            COMMAND make 
         INSTALL_COMMAND
             COMMAND make install
         EXCLUDE_FROM_ALL TRUE
