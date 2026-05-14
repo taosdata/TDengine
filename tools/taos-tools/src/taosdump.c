@@ -2133,7 +2133,7 @@ static RecordSchema *parse_json_to_recordschema(json_t *element) {
 static int avro_zigzag_write_long(FILE *fp, int64_t l) {
     uint8_t buf[10];
     int n = 0;
-    uint64_t v = (uint64_t)((l << 1) ^ (l >> 63));
+    uint64_t v = (l >= 0) ? ((uint64_t)l << 1) : ((uint64_t)(~l) << 1 | 1);
     while (v & ~0x7FULL) {
         buf[n++] = (uint8_t)((v & 0x7F) | 0x80);
         v >>= 7;
@@ -2196,9 +2196,8 @@ static int writeAvroHeaderRaw(const char *path, const char *schemaJson,
     if (avro_zigzag_write_long(fp, 0) != 0) goto fail;
 
     /* Sync marker: 16 random bytes */
-    srand((unsigned)time(NULL));
     for (int i = 0; i < 16; i++) {
-        syncOut[i] = (uint8_t)(((double)rand() / (RAND_MAX + 1.0)) * 255);
+        syncOut[i] = (uint8_t)(rand() & 0xFF);
     }
     if (fwrite(syncOut, 1, 16, fp) != 16) goto fail;
 
@@ -4957,6 +4956,7 @@ static void dumpInAvroDataBytes(FieldStruct *field,
         } else {
             debugPrint2("bytes len =%ld | ", bytessize);
             if (bind->length) *bind->length = (int32_t)bytessize;
+            bind->buffer_length = (int32_t)bytessize;
             bind->buffer = bytesbuf;
         }
     }
