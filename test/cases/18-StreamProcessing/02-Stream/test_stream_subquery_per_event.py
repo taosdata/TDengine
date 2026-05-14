@@ -277,17 +277,21 @@ class TestStreamSubqueryPerEvent:
                 f"select acumulado_cumple, acumulado_total "
                 f"from {self.db}.resultado_descarga order by ts"
             )
-            tdSql.checkResultsByFunc(
-                sql=sql,
-                func=lambda: tdSql.getRows() == 3
-                or (
-                    tdSql.getRows() == 4
-                    and not (
-                        tdSql.getData(3, 0) == 1
-                        and tdSql.getData(3, 1) == 1
-                    )
-                ),
-            )
+            # Wait long enough for event 4 to be processed by the stream.
+            # We must NOT return early on the pre-event 3-row snapshot —
+            # that would falsely accept the bug where event 4 emits a
+            # stale (1,1) row a few seconds later. Poll for either:
+            #   - rows == 4 (event 4 produced a row; verify below it
+            #     isn't the stale (1,1)); or
+            #   - the full timeout elapsed with rows still == 3 (event 4
+            #     was correctly suppressed because the subquery was
+            #     empty / WHERE evaluated to NULL).
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                tdSql.query(sql)
+                if tdSql.getRows() >= 4:
+                    break
+                time.sleep(2)
             tdSql.query(sql)
             rows_after_e4 = tdSql.getRows()
             assert rows_after_e4 in (3, 4), (
