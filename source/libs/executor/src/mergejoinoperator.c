@@ -28,6 +28,7 @@
 #include "ttypes.h"
 #include "functionMgt.h"
 #include "mergejoin.h"
+#include "ttime.h"
 // clang-format on
 
 int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp) {
@@ -990,8 +991,21 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
   pCtx->truncateUnit = pUnit->typeData;
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) &&
       pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
-    pCtx->timezoneUnit =
-        offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
+    char    *tzStr = varDataVal(pTimeZone->datum.p);
+    int64_t  factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
+
+    if (strchr(tzStr, '/') != NULL || strcmp(tzStr, "UTC") == 0) {
+      timezone_t tz = NULL;
+      if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
+        int64_t offsetSeconds = 0;
+        if (taosGetTimezoneOffsetAtSeconds((time_t)0, tz, &offsetSeconds) == TSDB_CODE_SUCCESS) {
+          pCtx->timezoneUnit = offsetSeconds * factor;
+        }
+        tzfree(tz);
+      }
+    } else {
+      pCtx->timezoneUnit = offsetFromTz(tzStr, factor);
+    }
   }
 
   qDebug("%s literal:%s, pCurrTz:%p", __func__, varDataVal(pTimeZone->datum.p), pCurrTz);

@@ -2784,6 +2784,11 @@ class TestJoinFull:
             f"select count(*) from sta1 left window join sta2 on timetruncate(sta1.ts, 1h) = timetruncate(sta2.ts, 1h) window_offset(-1s, 1s);"
         )
 
+        # hash join does not support timetruncate on primary key condition (planner rejects it)
+        tdSql.error(
+            f"select /*+ hash_join() */ sta1.ts, sta2.ts from sta1 join sta2 on timetruncate(sta1.ts, 1d) = timetruncate(sta2.ts, 1d, 0);"
+        )
+
         ##### conditions
         tdSql.execute(f"use test0;")
 

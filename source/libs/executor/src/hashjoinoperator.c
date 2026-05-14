@@ -24,6 +24,7 @@
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "ttime.h"
 #include "ttypes.h"
 #include "hashjoin.h"
 #include "functionMgt.h"
@@ -326,7 +327,23 @@ static int32_t hJoinInitPrimExprCtx(SNode* pNode, SHJoinPrimExprCtx* pCtx, SHJoi
 
   pCtx->truncateUnit = pUnit->typeData;
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
-    pCtx->timezoneUnit = offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
+    char    *tzStr = varDataVal(pTimeZone->datum.p);
+    int64_t  factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
+    /* offsetFromTz() can only parse fixed-offset strings like "+0800".
+     * IANA names ("Asia/Shanghai") and "UTC" must be resolved via the
+     * timezone library to get the correct UTC offset. */
+    if (strchr(tzStr, '/') != NULL || strcmp(tzStr, "UTC") == 0) {
+      timezone_t tz = NULL;
+      if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
+        int64_t offsetSeconds = 0;
+        if (taosGetTimezoneOffsetAtSeconds((time_t)0, tz, &offsetSeconds) == TSDB_CODE_SUCCESS) {
+          pCtx->timezoneUnit = offsetSeconds * factor;
+        }
+        tzfree(tz);
+      }
+    } else {
+      pCtx->timezoneUnit = offsetFromTz(tzStr, factor);
+    }
   }
 
   pCtx->targetSlotId = pTarget->slotId;
@@ -360,8 +377,6 @@ static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
   }
 
   TAOS_MEMCPY(&pTable->inputStat, pStat, sizeof(*pStat));
-
-  HJ_ERR_RET(hJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx, pTable));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1264,7 +1279,10 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]));
 
   hJoinSetBuildAndProbeTable(pInfo, pJoinNode);
-  
+
+  HJ_ERR_JRET(hJoinInitPrimExprCtx(pInfo->pBuild->primExpr, &pInfo->pBuild->primCtx, pInfo->pBuild));
+  HJ_ERR_JRET(hJoinInitPrimExprCtx(pInfo->pProbe->primExpr, &pInfo->pProbe->primCtx, pInfo->pProbe));
+
   HJ_ERR_JRET(hJoinBuildResColsMap(pInfo, pJoinNode));
 
   HJ_ERR_JRET(hJoinInitBufPages(pInfo));
