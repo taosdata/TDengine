@@ -77,3 +77,13 @@ target_link_libraries(TestRowSerializer
     insert_writer
 )
 add_test(NAME TestRowSerializer COMMAND TestRowSerializer)
+
+# Test StmtV2Data
+add_executable(TestStmtV2Data
+  TestStmtV2Data.cpp
+)
+target_link_libraries(TestStmtV2Data
+  PRIVATE
+    components_formatter
+)
+add_test(NAME TestStmtV2Data COMMAND TestStmtV2Data)

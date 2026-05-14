@@ -98,14 +98,18 @@ FormatResult KafkaInsertDataFormatter::format_influx(MemoryPool::MemoryBlock* ba
         auto& table_block = batch->tables[table_idx];
 
         for (size_t row_idx = 0; row_idx < table_block.used_rows; ++row_idx) {
+            size_t pos_before = line_buffer.size();
             if (records_in_current_message == 0) {
                 first_record_key = key_generator.generate(table_block, row_idx);
             } else {
                 line_buffer.push_back('\n');
             }
 
-            RowSerializer::to_influx_inplace(*col_instances_, *tag_instances_, table_block, row_idx,
-                                              config().schema.name, "", line_buffer);
+            if (!RowSerializer::to_influx_inplace(*col_instances_, *tag_instances_, table_block, row_idx,
+                                              config().schema.name, "", line_buffer)) {
+                line_buffer.resize(pos_before);
+                continue;
+            }
             records_in_current_message++;
 
             // If the message is full, push it to the batch and reset

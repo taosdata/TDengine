@@ -301,9 +301,9 @@ void test_generate_with_numeric_null_literals() {
     (void)table;
     assert(table.rows.size() == 3 && "Expected 3 rows");
 
-    assert(std::holds_alternative<std::monostate>(table.rows[0][1]));
-    assert(std::holds_alternative<std::monostate>(table.rows[1][1]));
-    assert(std::holds_alternative<std::monostate>(table.rows[2][1]));
+    assert(std::holds_alternative<NullValue>(table.rows[0][1]));
+    assert(std::holds_alternative<NullValue>(table.rows[1][1]));
+    assert(std::holds_alternative<NullValue>(table.rows[2][1]));
 
     assert(std::get<std::string>(table.rows[0][0]) == "Alice");
     assert(std::get<std::string>(table.rows[0][2]) == "Shenzhen");
@@ -339,9 +339,9 @@ void test_generate_with_bool_null_literals() {
     (void)table;
     assert(table.rows.size() == 3 && "Expected 3 rows");
 
-    assert(std::holds_alternative<std::monostate>(table.rows[0][1]));
-    assert(std::holds_alternative<std::monostate>(table.rows[1][1]));
-    assert(std::holds_alternative<std::monostate>(table.rows[2][1]));
+    assert(std::holds_alternative<NullValue>(table.rows[0][1]));
+    assert(std::holds_alternative<NullValue>(table.rows[1][1]));
+    assert(std::holds_alternative<NullValue>(table.rows[2][1]));
 
     std::remove("bool_null_literals.csv");
     std::cout << "test_generate_with_bool_null_literals passed\n";

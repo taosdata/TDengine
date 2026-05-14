@@ -102,7 +102,7 @@ std::vector<ColumnTypeVector> TagsCSVReader::generate() const {
             for (const auto& [col_idx, type] : column_type_map_) {
                 if ((ColumnTypeTraits::is_numeric(type) || type == ColumnTypeTag::BOOL)
                     && CsvNullUtils::is_null_text(row[col_idx])) {
-                    tag_row.push_back(std::monostate{});
+                    tag_row.push_back(NullValue{});
                 } else {
                     tag_row.push_back(convert_to_type(row[col_idx], type));
                 }

@@ -619,6 +619,134 @@ corpus: ""
     }
 }
 
+void test_ColumnConfig_null_none_ratio_valid() {
+    std::string yaml = R"(
+name: temp
+type: float
+null_ratio: 0.2
+none_ratio: 0.3
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.null_ratio.has_value() && std::abs(*col.null_ratio - 0.2f) < 1e-5f);
+    assert(col.none_ratio.has_value() && std::abs(*col.none_ratio - 0.3f) < 1e-5f);
+}
+
+void test_ColumnConfig_null_ratio_only() {
+    std::string yaml = R"(
+name: temp
+type: int
+null_ratio: 0.5
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.null_ratio.has_value() && std::abs(*col.null_ratio - 0.5f) < 1e-5f);
+    assert(!col.none_ratio.has_value());
+}
+
+void test_ColumnConfig_null_ratio_negative() {
+    std::string yaml = R"(
+name: temp
+type: float
+null_ratio: -0.1
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for negative null_ratio");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("null_ratio must be a finite value in [0.0, 1.0]") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_none_ratio_negative() {
+    std::string yaml = R"(
+name: temp
+type: float
+none_ratio: -0.1
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for negative none_ratio");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("none_ratio must be a finite value in [0.0, 1.0]") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_null_ratio_nan() {
+    std::string yaml = R"(
+name: temp
+type: float
+null_ratio: .nan
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for NaN null_ratio");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("null_ratio must be a finite value in [0.0, 1.0]") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_none_ratio_inf() {
+    std::string yaml = R"(
+name: temp
+type: float
+none_ratio: .inf
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for Inf none_ratio");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("none_ratio must be a finite value in [0.0, 1.0]") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_null_ratio_above_one() {
+    std::string yaml = R"(
+name: temp
+type: float
+null_ratio: 1.5
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for null_ratio > 1.0");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("null_ratio must be a finite value in [0.0, 1.0]") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_null_none_ratio_sum_exceeds() {
+    std::string yaml = R"(
+name: temp
+type: float
+null_ratio: 0.6
+none_ratio: 0.5
+)";
+    YAML::Node node = YAML::Load(yaml);
+    try {
+        node.as<ColumnConfig>();
+        assert(false && "Should throw for sum > 1.0");
+    } catch (const std::runtime_error& e) {
+        assert(std::string(e.what()).find("null_ratio + none_ratio must be <= 1.0") != std::string::npos);
+    }
+}
+
+void test_ColumnConfig_null_none_ratio_sum_equals_one() {
+    std::string yaml = R"(
+name: temp
+type: double
+null_ratio: 0.5
+none_ratio: 0.5
+)";
+    YAML::Node node = YAML::Load(yaml);
+    ColumnConfig col = node.as<ColumnConfig>();
+    assert(col.null_ratio.has_value() && col.none_ratio.has_value());
+}
+
 void test_ColumnConfig_expression() {
     std::string yaml = R"(
 name: value
@@ -1377,6 +1505,15 @@ int main() {
     test_ColumnConfig_corpus_exceeds_len();
     test_ColumnConfig_corpus_exact_len();
     test_ColumnConfig_corpus_empty();
+    test_ColumnConfig_null_none_ratio_valid();
+    test_ColumnConfig_null_ratio_only();
+    test_ColumnConfig_null_ratio_negative();
+    test_ColumnConfig_none_ratio_negative();
+    test_ColumnConfig_null_ratio_nan();
+    test_ColumnConfig_none_ratio_inf();
+    test_ColumnConfig_null_ratio_above_one();
+    test_ColumnConfig_null_none_ratio_sum_exceeds();
+    test_ColumnConfig_null_none_ratio_sum_equals_one();
     test_ColumnConfig_strip_backticks_plain();
     test_ColumnConfig_strip_backticks_unmatched();
     test_ColumnConfig_strip_backticks_none();

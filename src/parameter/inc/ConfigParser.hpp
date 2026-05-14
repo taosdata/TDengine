@@ -7,6 +7,7 @@
 #include <vector>
 #include <optional>
 #include <variant>
+#include <cmath>
 #include <yaml-cpp/yaml.h>
 
 namespace YAML {
@@ -512,6 +513,21 @@ namespace YAML {
             if (node["props"]) rhs.properties = node["props"].as<std::string>();
             if (node["null_ratio"]) rhs.null_ratio = node["null_ratio"].as<float>();
             if (node["none_ratio"]) rhs.none_ratio = node["none_ratio"].as<float>();
+
+            // Validate null_ratio and none_ratio
+            {
+                float nr = rhs.null_ratio.value_or(0.0f);
+                float no = rhs.none_ratio.value_or(0.0f);
+                if (!std::isfinite(nr) || nr < 0.0f || nr > 1.0f) {
+                    throw std::runtime_error("null_ratio must be a finite value in [0.0, 1.0] for column: " + rhs.name);
+                }
+                if (!std::isfinite(no) || no < 0.0f || no > 1.0f) {
+                    throw std::runtime_error("none_ratio must be a finite value in [0.0, 1.0] for column: " + rhs.name);
+                }
+                if (nr + no > 1.0f) {
+                    throw std::runtime_error("null_ratio + none_ratio must be <= 1.0 for column: " + rhs.name);
+                }
+            }
 
             // Inference generation method
             if (node["gen_type"]) {

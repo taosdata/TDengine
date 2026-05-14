@@ -28,7 +28,8 @@ public:
         nlohmann::ordered_json& out
     );
 
-    static void to_influx_inplace(
+    // Returns false if the row was skipped (all fields are NULL/NONE).
+    static bool to_influx_inplace(
         const ColumnConfigInstanceVector& col_instances,
         const ColumnConfigInstanceVector& tag_instances,
         const MemoryPool::TableBlock& table,

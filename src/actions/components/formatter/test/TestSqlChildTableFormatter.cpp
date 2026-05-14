@@ -109,7 +109,7 @@ void test_format_null_tag_literal() {
     config.schema.name = "test_super_table";
 
     std::string table_name = "child_table_null";
-    RowType tags = {std::monostate{}, std::string("111")};
+    RowType tags = {NullValue{}, std::string("111")};
 
     SqlChildTableFormatter formatter(format);
     std::string result = formatter.format(config, table_name, tags);
