@@ -136,17 +136,24 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   options.exit_cb = udfUdfdExit;
 
-  // ipc=0: this is a one-way control pipe used only to detect parent
-  // death via read EOF. No handle-passing is needed. ipc=1 forces a
-  // libuv pid-handshake on Windows that fails for child-stdio pipes.
-  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0));
-
+  // Stdio container references &pData->ctrlPipe by pointer; the pointer is
+  // stable across this function regardless of when the handle is initialized.
+  // We defer uv_pipe_init until just before uv_spawn (below) so that none of
+  // the env-construction failure paths above can goto _OVER with an
+  // already-initialized loop handle that would later trip uv_loop_close.
   uv_stdio_container_t child_stdio[3];
   // UV_OVERLAPPED_PIPE is required on Windows: without it libuv uses
   // CreatePipe() which yields a non-overlapped anonymous pipe, and the
   // child's uv_pipe_open(fd 0) fails because libuv's IOCP machinery
-  // requires FILE_FLAG_OVERLAPPED. The flag is a no-op on POSIX.
+  // requires FILE_FLAG_OVERLAPPED.  On POSIX the same flag is aliased to
+  // UV_NONBLOCK_PIPE in libuv >=1.49 -- adding it would put the child's
+  // stdin into non-blocking mode and risk data loss for an unaware child,
+  // so we only set it on Windows.
+#ifdef WINDOWS
   child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE | UV_OVERLAPPED_PIPE;
+#else
+  child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
+#endif
   child_stdio[0].data.stream = (uv_stream_t *)&pData->ctrlPipe;
   child_stdio[1].flags = UV_IGNORE;
   child_stdio[2].flags = UV_INHERIT_FD;
@@ -322,6 +329,17 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     goto _OVER;
   }
 
+  // ipc=0: this is a one-way control pipe used only to detect parent death
+  // via read EOF.  ipc=1 forces a libuv pid-handshake on Windows that fails
+  // for child-stdio pipes.  Initialized here, after env construction, so any
+  // failure path above can goto _OVER without a stranded loop handle.
+  int32_t pipeInitErr = uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0);
+  if (pipeInitErr != 0) {
+    fnError("uv_pipe_init failed: %s", uv_strerror(pipeInitErr));
+    err = TSDB_CODE_UDF_UV_EXEC_FAILURE;
+    goto _OVER;
+  }
+
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
 
@@ -413,6 +431,12 @@ _exit:
   if (terrno != 0) {
     (void)uv_barrier_wait(&pData->barrier);
     atomic_store_32(&pData->spawnErr, terrno);
+    // Any handle initialized before failure (stopAsync, ctrlPipe from a
+    // partial udfSpawnUdfd) must be closed and drained, otherwise
+    // uv_loop_close fails and leaks the loop's internal state.
+    uv_walk(&pData->loop, udfUdfdCloseWalkCb, NULL);
+    int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
+    fnInfo("udfd loop exit with %d active handles, line:%d", num, __LINE__);
     if (uv_loop_close(&pData->loop) != 0) {
       fnError("udfd loop close failed, lino:%d", __LINE__);
     }
