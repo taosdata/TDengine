@@ -473,13 +473,12 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
   }
 
 _check_stb:
-  // check super table existence
-  metaRLock(pMeta);
-  code = metaFetchEntryByName(pMeta, pReq->ctb.stbName, &pStbEntry);
-  metaULock(pMeta);
+  // check super table existence — use UID-based lookup (cheaper than name→UID→entry chain)
+  // Caller already holds metaRLock, so no additional locking needed.
+  code = metaFetchEntryByUid(pMeta, pReq->ctb.suid, &pStbEntry);
   if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since super table %s does not exist, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, version);
+    metaError("vgId:%d, %s failed at %s:%d since super table %s (suid %" PRId64 ") does not exist, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, pReq->ctb.suid, version);
     return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
@@ -488,15 +487,6 @@ _check_stb:
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, version);
     metaFetchEntryFree(&pStbEntry);
     return TSDB_CODE_INVALID_MSG;
-  }
-
-  if (pStbEntry->uid != pReq->ctb.suid) {
-    metaError("vgId:%d, %s failed at %s:%d since super table %s uid %" PRId64 " does not match request uid %" PRId64
-              ", version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->ctb.stbName, pStbEntry->uid, pReq->ctb.suid,
-              version);
-    metaFetchEntryFree(&pStbEntry);
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   // Check tag value
