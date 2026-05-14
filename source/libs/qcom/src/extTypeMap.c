@@ -780,7 +780,7 @@ static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
           return TSDB_CODE_SUCCESS;
         case 10:  // Decimal128 / Decimal256 / Dictionary
           if (strncasecmp(typeName, "dict", 4) == 0) {
-            SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+            SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
           } else {  // Decimal128 / Decimal256
             setDecimalMapping(typeName, pTd);
           }

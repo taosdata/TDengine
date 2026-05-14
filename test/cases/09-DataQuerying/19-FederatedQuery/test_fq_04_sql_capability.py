@@ -26,6 +26,7 @@ from federated_query_common import (
     FederatedQueryVersionedMixin,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+    TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_FUNC_FUNTION_PARA_NUM,
     TSDB_CODE_FUNC_FUNTION_PARA_TYPE,
@@ -375,37 +376,55 @@ class TestFq04SqlCapability(FederatedQueryVersionedMixin):
             assert str(tdSql.getData(0, 0)) == "eu"
             assert str(tdSql.getData(1, 0)) == "us"
 
-            # --- 073: EXISTS / NOT EXISTS ---
-            # Correlated subqueries execute successfully on external sources
-            tdSql.query(
+            # --- 073: Correlated EXISTS / NOT EXISTS (unsupported) ---
+            tdSql.error(
                 f"select u.id from {src}.users u "
                 f"where exists (select 1 from {src}.orders o "
-                f"where o.user_id = u.id) order by u.id")
+                f"where o.user_id = u.id) order by u.id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
+
+            tdSql.error(
+                f"select u.id from {src}.users u "
+                f"where not exists (select 1 from {src}.orders o "
+                f"where o.user_id = u.id and o.status = 2) order by u.id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
+
+            tdSql.error(
+                f"select u.id from {src}.users u "
+                f"where exists (select 1 from {src}.orders_solo o "
+                f"where o.user_id = u.id) order by u.id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
+
+            tdSql.error(
+                f"select u.id from {src}.users u "
+                f"where not exists (select 1 from {src}.orders_solo o "
+                f"where o.user_id = u.id) order by u.id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
+
+            # --- 073b: Uncorrelated EXISTS / NOT EXISTS ---
+            # Subquery does NOT reference outer table columns.
+            tdSql.query(
+                f"select u.id from {src}.users u "
+                f"where exists (select 1 from {src}.orders "
+                f"where status = 1) order by u.id")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
 
             tdSql.query(
                 f"select u.id from {src}.users u "
-                f"where not exists (select 1 from {src}.orders o "
-                f"where o.user_id = u.id and o.status = 2) order by u.id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
-
-            # --- 073b: Pure EXISTS / NOT EXISTS ---
-            tdSql.query(
-                f"select u.id from {src}.users u "
-                f"where exists (select 1 from {src}.orders_solo o "
-                f"where o.user_id = u.id) order by u.id")
-            tdSql.checkRows(1)
+                f"where not exists (select 1 from {src}.orders "
+                f"where status = 999) order by u.id")
+            tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
 
+            # NOT EXISTS with a subquery that DOES return rows → outer returns nothing
             tdSql.query(
                 f"select u.id from {src}.users u "
-                f"where not exists (select 1 from {src}.orders_solo o "
-                f"where o.user_id = u.id) order by u.id")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, 2)
+                f"where not exists (select 1 from {src}.orders "
+                f"where status = 1) order by u.id")
+            tdSql.checkRows(0)
 
         self._with_custom_sources(
             "fq04_cust", body,

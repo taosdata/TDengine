@@ -366,7 +366,60 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
   return TSDB_CODE_SUCCESS;
 }
 
+/* ── Phase-1 correlated-EXISTS detection ─────────────────────────────────────
+ * Walk an expression looking for SColumnNode whose tableAlias matches the
+ * outer query's FROM table alias (while excluding the inner SELECT's own alias).
+ * This is used to detect correlated EXISTS/NOT EXISTS during the metadata-key
+ * collection phase so that the rejection error is raised before any external
+ * source metadata fetch — ensuring all FQ sources (including InfluxDB) return
+ * the same errno (PAR_INVALID_EXPR_SUBQ) instead of connector-level errors.
+ */
+typedef struct SPhase1CorrelCxt {
+  const char* pOuterAlias;
+  const char* pInnerAlias;
+  bool        found;
+} SPhase1CorrelCxt;
+
+static EDealRes walkPhase1CorrelCheck(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
+  SPhase1CorrelCxt* pCxt = (SPhase1CorrelCxt*)pContext;
+  SColumnNode*      pCol = (SColumnNode*)pNode;
+  if ('\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
+  if (pCxt->pInnerAlias && pCxt->pInnerAlias[0] != '\0' &&
+      0 == strcmp(pCxt->pInnerAlias, pCol->tableAlias))
+    return DEAL_RES_CONTINUE;
+  if (0 == strcmp(pCxt->pOuterAlias, pCol->tableAlias)) {
+    pCxt->found = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool phaseOneIsCorrelatedExists(SSelectStmt* pOuter, SSelectStmt* pInner) {
+  if (!pInner->pWhere || !pOuter->pFromTable) return false;
+  if (QUERY_NODE_REAL_TABLE != nodeType(pOuter->pFromTable)) return false;
+  const char* pOuterAlias = ((SRealTableNode*)pOuter->pFromTable)->table.tableAlias;
+  if ('\0' == pOuterAlias[0]) return false;
+  const char* pInnerAlias = NULL;
+  if (pInner->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pInner->pFromTable)) {
+    pInnerAlias = ((SRealTableNode*)pInner->pFromTable)->table.tableAlias;
+  }
+  SPhase1CorrelCxt cxt = {.pOuterAlias = pOuterAlias, .pInnerAlias = pInnerAlias, .found = false};
+  nodesWalkExpr(pInner->pWhere, walkPhase1CorrelCheck, &cxt);
+  return cxt.found;
+}
+
 static EDealRes collectMetaKeyFromOperator(SCollectMetaKeyFromExprCxt* pCxt, SOperatorNode* pOpNode) {
+  /* Reject correlated EXISTS/NOT EXISTS in Phase 1 so all FQ sources (including
+   * InfluxDB whose connector-level error would differ) return the same errno. */
+  if ((OP_TYPE_EXISTS == pOpNode->opType || OP_TYPE_NOT_EXISTS == pOpNode->opType) &&
+      NULL != pOpNode->pLeft && QUERY_NODE_SELECT_STMT == nodeType(pOpNode->pLeft) &&
+      NULL != pCxt->pComCxt->pStmt && QUERY_NODE_SELECT_STMT == nodeType(pCxt->pComCxt->pStmt) &&
+      phaseOneIsCorrelatedExists((SSelectStmt*)pCxt->pComCxt->pStmt,
+                                 (SSelectStmt*)pOpNode->pLeft)) {
+    pCxt->errCode = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+    return DEAL_RES_ERROR;
+  }
   if (!pCxt->tbnameCollect) {
     return DEAL_RES_CONTINUE;
   }

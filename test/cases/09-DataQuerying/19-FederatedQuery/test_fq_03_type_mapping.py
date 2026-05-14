@@ -3321,11 +3321,11 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             ])
 
     def test_fq_type_057(self):
-        """FQ-TYPE-057: InfluxDB Dictionary → VARCHAR
+        """FQ-TYPE-057: InfluxDB Dictionary → NCHAR
 
         Note: InfluxDB v3 Dictionary encoding is an internal Arrow
-        optimization. Line protocol string fields may use Dictionary
-        encoding. We verify string retrieval is correct.
+        optimization. Dictionary(Int32, Utf8) values are Utf8 strings,
+        unified with Utf8 mapping to NCHAR. We verify string retrieval is correct.
 
         Catalog: - Query:FederatedTypeMapping
 

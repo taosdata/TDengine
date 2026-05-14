@@ -23,6 +23,7 @@ from federated_query_common import (
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
     TSDB_CODE_PAR_SYNTAX_ERROR,
+    TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_WRITE_DENIED,
@@ -48,6 +49,7 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq_local_db")
         except Exception:
             pass
+        ExtSrcEnv.teardown_env()
 
     # ------------------------------------------------------------------
     # helpers (shared helpers inherited from FederatedQueryTestMixin)
@@ -875,29 +877,31 @@ class TestFq05LocalUnsupported(FederatedQueryVersionedMixin):
 
             # ── Path 1: 完全下推 (Fully-Pushed-to-External-DB) ──────────────────
             # Correlated EXISTS: external DB handles per-row subquery evaluation.
-            # TDengine parser currently rejects external source refs in subquery context.
+            # TDengine parser does not yet support external source cross-table references
+            # inside a correlated subquery context, so these currently fail with
+            # TSDB_CODE_PAR_INVALID_EXPR_SUBQ (0x800026A6).
 
-            # (a) PG correlated EXISTS: all 3 orders have matching users → 3 rows
-            tdSql.query(
+            # (a) PG correlated EXISTS: rejected by parser (unsupported)
+            tdSql.error(
                 f"select id from {p}.orders o "
                 f"where exists (select 1 from {p}.users u where u.id = o.user_id) "
-                f"order by id")
-            tdSql.checkRows(3)
+                f"order by id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
 
-            # (b) PG NOT EXISTS correlated: all orders have matching users → 0 rows
-            tdSql.query(
+            # (b) PG NOT EXISTS correlated: rejected by parser (unsupported)
+            tdSql.error(
                 f"select id from {p}.orders o "
                 f"where not exists (select 1 from {p}.users u where u.id = o.user_id) "
-                f"order by id")
-            tdSql.checkRows(0)
+                f"order by id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
 
-            # (c) MySQL correlated EXISTS: orders for active users (alice:2 orders) → 2 rows
-            tdSql.query(
+            # (c) MySQL correlated EXISTS: rejected by parser (unsupported)
+            tdSql.error(
                 f"select id from {m}.orders o "
                 f"where exists "
                 f"(select 1 from {m}.users u where u.id = o.user_id and u.active = 1) "
-                f"order by id")
-            tdSql.checkRows(2)
+                f"order by id",
+                expectedErrno=TSDB_CODE_PAR_INVALID_EXPR_SUBQ)
 
             # ── Path 2: TDengine子查询 (TDengine-Orchestrated, non-correlated) ───
             # TDengine evaluates EXISTS against an internal table.

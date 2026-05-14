@@ -2272,7 +2272,8 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
 
     uint32_t digestLen = SHA512_DIGEST_SIZE;
-    GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
+    int32_t  digestIdx = (pInput[1].numOfRows == 1) ? 0 : i;
+    GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, digestIdx),
                    typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
     int32_t len = taosCreateSHA2Hash(varDataVal(output), varDataLen(input), digestLen, bufLen - VARSTR_HEADER_SIZE);

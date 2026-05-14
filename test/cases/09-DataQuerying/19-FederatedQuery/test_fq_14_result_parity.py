@@ -18,18 +18,14 @@ All other features — including functions, operators, window queries,
 JOINs, UNION, subqueries, NULLS FIRST/LAST, etc. — are tested on every
 supported source.
 
-Schema:
-  Local TDengine:  ts TIMESTAMP PK, id INT, val INT, score DOUBLE, label NCHAR(32)
-  MySQL:           ts DATETIME(3) NOT NULL PK  (enables TDengine window queries)
-  PostgreSQL:      ts TIMESTAMP NOT NULL PK
-  InfluxDB:        native _time column; region tag = label; id/val/score fields
+Schema (all four sources identical):
+  Local TDengine:  time TIMESTAMP PK, id INT, val INT, score DOUBLE, label NCHAR(32)
+  MySQL:           time DATETIME(3) NOT NULL PK  (enables TDengine window queries)
+  PostgreSQL:      time TIMESTAMP NOT NULL PK
+  InfluxDB:        time (built-in timestamp); label tag; id/val/score fields
 
-InfluxDB query adaptations:
-  - label column → region tag
-  - ORDER BY ts  → ORDER BY time
-  - SESSION(ts,  → SESSION(time,
-  - PARTITION BY label → PARTITION BY region
-  Non-native functions fall back to TDengine local compute after fetch.
+All four sources share the same column names (time, id, val, score, label),
+so every SQL statement is identical across all sources with no per-source adaptation.
 
 Environment:
   Enterprise edition, federatedQueryEnable=1
@@ -38,9 +34,30 @@ Environment:
 """
 
 import math
+import os
+import re
+import time
 import pytest
 
 from new_test_framework.utils import tdLog, tdSql
+
+
+class QueryError(AssertionError):
+    """Carries structured error information from a failed query."""
+    def __init__(self, errno: int | None, err_info: str | None, sql: str, raw: Exception):
+        self.qerrno   = errno      # raw integer errno, e.g. -2147473820
+        self.err_info = err_info
+        self.sql      = sql
+        detail = ""
+        if errno is not None:
+            detail += f"\n  errno:      {errno:#010x}"
+        if err_info:
+            detail += f"\n  error_info: {err_info}"
+        super().__init__(
+            f"Query execution failed{detail}\n"
+            f"  sql: {sql}\n"
+            f"  raw exception: {raw}"
+        )
 
 from federated_query_common import (
     ExtSrcEnv,
@@ -54,6 +71,200 @@ _INFLUX_BUCKET = "fq_parity_i"
 _LOCAL_DB      = "fq_parity_local"
 _LOCAL_TBL     = "parity_t"
 _FLOAT_TOL     = 1e-4
+
+# Each entry: (sql_template, opts)
+# opts keys: positive (bool, default True), reason (str, default ""),
+#             float_cols, ordered, source_expected, skip_sources
+# positive=True  → results must match local reference (正向用例)
+# positive=False → all sources must error with the same errno (负向用例，reason必填)
+_PARITY_CASES = [
+    # ── WHERE 比较条件（=  <>  <  <=  >  >=  BETWEEN  NOT BETWEEN）
+    ("SELECT id, val FROM {tbl} WHERE val > 20 ORDER BY time",),  # #1
+    ("SELECT id, val FROM {tbl} WHERE val = 30 ORDER BY time",),  # #2
+    ("SELECT id FROM {tbl} WHERE val <> 30 ORDER BY time",),  # #3
+    ("SELECT id, val FROM {tbl} WHERE val <= 30 ORDER BY time",),  # #4
+    ("SELECT id, val FROM {tbl} WHERE val >= 30 ORDER BY time",),  # #5
+    ("SELECT id, val FROM {tbl} WHERE val BETWEEN 20 AND 40 ORDER BY time",),  # #6
+    ("SELECT id FROM {tbl} WHERE val NOT BETWEEN 20 AND 40 ORDER BY time",),  # #7
+    # ── WHERE 字符串条件（IN  NOT IN  LIKE  NOT LIKE  IS NULL  IS NOT NULL）
+    ("SELECT id FROM {tbl} WHERE label IN ('north', 'east') ORDER BY time",),  # #8
+    ("SELECT id FROM {tbl} WHERE label NOT IN ('east') ORDER BY time",),  # #9
+    ("SELECT id FROM {tbl} WHERE label LIKE 'n%' ORDER BY time",),  # #10
+    ("SELECT id FROM {tbl} WHERE label LIKE '%th' ORDER BY time",),  # #11
+    ("SELECT id FROM {tbl} WHERE label NOT LIKE 'n%' ORDER BY time",),  # #12
+    ("SELECT id FROM {tbl} WHERE label IS NOT NULL ORDER BY time",),  # #13
+    ("SELECT id FROM {tbl} WHERE label IS NULL ORDER BY time",),  # #14
+    # ── WHERE 逻辑组合（AND  OR  NOT）
+    ("SELECT id, val FROM {tbl} WHERE val > 20 AND val < 50 ORDER BY time",),  # #15
+    ("SELECT id, val FROM {tbl} WHERE val < 15 OR val > 45 ORDER BY time",),  # #16
+    ("SELECT id FROM {tbl} WHERE NOT (val > 30) ORDER BY time",),  # #17
+    ("SELECT id FROM {tbl} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id",),  # #18
+    # ── 条件表达式（COALESCE  NULLIF  IF  IFNULL  NVL2  CASE WHEN）
+    ("SELECT id, COALESCE(label, 'unknown') FROM {tbl} ORDER BY time",),  # #19
+    ("SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time",),  # #20
+    ("SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {tbl} ORDER BY time",),  # #21
+    ("SELECT id, IFNULL(label, 'none') FROM {tbl} ORDER BY time",),  # #22
+    ("SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {tbl} ORDER BY time",),  # #23
+    ("SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {tbl} ORDER BY time",),  # #24
+    ("SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time",),  # #25
+    ("SELECT id, COALESCE(NULL, val) FROM {tbl} ORDER BY time",),  # #26
+    ("SELECT id, NVL2(label, 'has_val', 'no_val') AS nv FROM {tbl} ORDER BY time",),  # #27
+    ("SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v ASC NULLS FIRST",),  # #28
+    ("SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v DESC NULLS LAST",),  # #29
+    # ── 算术运算符（一元 -  +  -  *  /  %  &  |）
+    ("SELECT id, val * 2 + 1 FROM {tbl} ORDER BY time",),  # #30
+    ("SELECT id, val * 3 FROM {tbl} ORDER BY time",),  # #31
+    ("SELECT id, val / 4.0 FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #32
+    ("SELECT id, val % 3 FROM {tbl} ORDER BY time",),  # #33
+    ("SELECT id, val & 3 FROM {tbl} ORDER BY time",),  # #34
+    ("SELECT id, val | 1 FROM {tbl} ORDER BY time",),  # #35
+    ("SELECT id, val * 2 AS dbl FROM {tbl} ORDER BY dbl",),  # #36
+    # ── 数学函数（ABS  CEIL  FLOOR  ROUND  SQRT  POW  MOD  SIGN  GREATEST  LEAST  PI  TRUNCATE  DEGREES  RADIANS  EXP  LN  LOG）
+    ("SELECT id, GREATEST(id, val) FROM {tbl} ORDER BY time",),  # #37
+    ("SELECT id, LEAST(id, val) FROM {tbl} ORDER BY time",),  # #38
+    ("SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #39
+    ("SELECT id, ABS(20 - val) FROM {tbl} ORDER BY time",),  # #40
+    ("SELECT id, CEIL(score) FROM {tbl} ORDER BY time",),  # #41
+    ("SELECT id, FLOOR(score) FROM {tbl} ORDER BY time",),  # #42
+    ("SELECT id, ROUND(score, 1) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #43
+    ("SELECT id, ROUND(score, 0) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #44
+    ("SELECT id, SQRT(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #45
+    ("SELECT id, POW(id, 2) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #46
+    ("SELECT id, MOD(val, 3) FROM {tbl} ORDER BY time",),  # #47
+    ("SELECT id, SIGN(val - 25) FROM {tbl} ORDER BY time",),  # #48
+    ("SELECT id, EXP(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #49
+    ("SELECT id, LN(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #50
+    ("SELECT id, LOG(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #51
+    ("SELECT id, LOG(val, 10) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #52
+    ("SELECT id, TRUNCATE(score, 1) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #53
+    ("SELECT id, DEGREES(score) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #54
+    ("SELECT id, RADIANS(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #55
+    # ── 三角函数（SIN  COS  TAN  ASIN  ACOS  ATAN）
+    ("SELECT id, SIN(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #56
+    ("SELECT id, COS(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #57
+    ("SELECT id, TAN(score) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #58
+    ("SELECT id, ASIN(score / 10.0) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #59
+    ("SELECT id, ACOS(score / 10.0) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #60
+    ("SELECT id, ATAN(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #61
+    # ── 字符串函数（LOWER  UPPER  LENGTH  TRIM  CONCAT  SUBSTRING  REPLACE  POSITION  REPEAT  ASCII  CHAR  FIND_IN_SET）
+    ("SELECT id, LOWER(label) FROM {tbl} ORDER BY time",),  # #62
+    ("SELECT id, UPPER(label) FROM {tbl} ORDER BY time",),  # #63
+    ("SELECT id, CHAR_LENGTH(label) FROM {tbl} ORDER BY time",),  # #64
+    ("SELECT id, LENGTH(label) FROM {tbl} ORDER BY time",),  # #65
+    ("SELECT id, LTRIM(CONCAT(' ', label)) FROM {tbl} ORDER BY time",),  # #66
+    ("SELECT id, RTRIM(CONCAT(label, ' ')) FROM {tbl} ORDER BY time",),  # #67
+    ("SELECT id, TRIM(CONCAT(' ', label, ' ')) FROM {tbl} ORDER BY time",),  # #68
+    ("SELECT id, CONCAT(label, '-', LOWER(label)) FROM {tbl} ORDER BY time",),  # #69
+    ("SELECT id, CONCAT_WS('-', label, LOWER(label)) FROM {tbl} ORDER BY time",),  # #70
+    ("SELECT id, SUBSTRING(label, 1, 3) FROM {tbl} ORDER BY time",),  # #71
+    ("SELECT id, SUBSTR(label, -3, 3) FROM {tbl} ORDER BY time",),  # #72
+    ("SELECT id, REPLACE(label, 'north', 'n') FROM {tbl} ORDER BY time",),  # #73
+    ("SELECT id, POSITION('o' IN label) FROM {tbl} ORDER BY time",),  # #74
+    ("SELECT id, REPEAT('x', id) FROM {tbl} ORDER BY time",),  # #75
+    ("SELECT id, ASCII(label) FROM {tbl} ORDER BY time",),  # #76
+    ("SELECT id, CHAR(65) FROM {tbl} ORDER BY time",),  # #77
+    ("SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {tbl} ORDER BY time",),  # #78
+    ("SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {tbl} ORDER BY time",),  # #79
+    # ── 哈希 / 编码函数（MD5  SHA1  SHA2  CRC32  TO_BASE64  FROM_BASE64）
+    ("SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time",),  # #80
+    ("SELECT id, TO_BASE64(label) FROM {tbl} ORDER BY time",),  # #81
+    ("SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {tbl} ORDER BY time",),  # #82
+    ("SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time",),  # #83
+    ("SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {tbl} ORDER BY time",),  # #84
+    ("SELECT id, CRC32(label) FROM {tbl} ORDER BY time",),  # #85
+    # ── 聚合函数（COUNT  SUM  MIN  MAX  AVG  STDDEV  VARIANCE  COUNT DISTINCT）
+    ("SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {tbl}", dict(ordered=False)),  # #86
+    ("SELECT AVG(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #87
+    ("SELECT STDDEV(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #88
+    ("SELECT VARIANCE(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #89
+    ("SELECT STDDEV_SAMP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #90
+    ("SELECT VAR_SAMP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #91
+    ("SELECT COUNT(DISTINCT val) FROM {tbl}",
+     dict(ordered=False, positive=False, reason="COUNT(DISTINCT col) syntax not supported (0x80002600); use a subquery workaround")),  # #92
+    ("SELECT COUNT(label) FROM {tbl}", dict(ordered=False)),  # #93
+    ("SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {tbl}", dict(ordered=False)),  # #94
+    # ── GROUP BY / HAVING
+    ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label ORDER BY label",),  # #95
+    ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label",),  # #96
+    ("SELECT label, SUM(val) FROM {tbl} GROUP BY label ORDER BY label",),  # #97
+    ("SELECT label, AVG(val) FROM {tbl} GROUP BY label ORDER BY label", dict(float_cols={1})),  # #98
+    ("SELECT label, MAX(val) FROM {tbl} GROUP BY label ORDER BY label",),  # #99
+    ("SELECT label, MIN(val) FROM {tbl} GROUP BY label ORDER BY label",),  # #100
+    ("SELECT label, COUNT(id) FROM {tbl} GROUP BY label ORDER BY label",),  # #101
+    ("SELECT label, SUM(val) FROM {tbl} GROUP BY label HAVING SUM(val) > 30 ORDER BY label",),  # #102
+    ("SELECT label, AVG(score) FROM {tbl} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label", dict(float_cols={1})),  # #103
+    ("SELECT val / 20 AS bucket, COUNT(*) FROM {tbl} GROUP BY val / 20 ORDER BY bucket",),  # #104
+    ("SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC",),  # #105
+    ("SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label", dict(float_cols={3})),  # #106
+    # ── 类型转换（CAST）
+    ("SELECT id, CAST(val AS DOUBLE) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #107
+    ("SELECT id, CHAR_LENGTH(CAST(val AS VARCHAR(10))) FROM {tbl} ORDER BY time",),  # #108
+    ("SELECT id, CAST(score AS BIGINT) FROM {tbl} ORDER BY time",),  # #109
+    # ── ORDER BY / LIMIT / OFFSET / DISTINCT / NULLS FIRST/LAST
+    ("SELECT id, val - 5 FROM {tbl} ORDER BY time",),  # #110
+    ("SELECT id, val, score, label FROM {tbl} ORDER BY time", dict(float_cols={2})),  # #111
+    ("SELECT id, val FROM {tbl} ORDER BY time LIMIT 3 OFFSET 1",),  # #112
+    ("SELECT DISTINCT label FROM {tbl} ORDER BY label",),  # #113
+    ("SELECT id, val FROM {tbl} ORDER BY val DESC",),  # #114
+    ("SELECT id, -val FROM {tbl} ORDER BY time",),  # #115
+    ("SELECT id, label, val FROM {tbl} ORDER BY label, val",),  # #116
+    ("SELECT DISTINCT label, val FROM {tbl} ORDER BY label, val",),  # #117
+    # ── 子查询（IN  NOT IN  EXISTS  ALL  ANY  SOME  标量子查询  派生表）
+    ("SELECT id FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time",),  # #118
+    ("SELECT id FROM {tbl} WHERE val NOT IN (SELECT val FROM {tbl} WHERE label = 'east') ORDER BY time",),  # #119
+    ("SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY time",
+     dict(positive=False, reason="correlated EXISTS subquery as expr not supported (0x800026A6)")),  # #120
+    ("SELECT id FROM {tbl} t1 WHERE NOT EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY time",
+     dict(positive=False, reason="correlated NOT EXISTS subquery as expr not supported (0x800026A6)")),  # #121
+    ("SELECT id FROM {tbl} WHERE val > ALL (SELECT val FROM {tbl} WHERE val < 20) ORDER BY time",),  # #122
+    ("SELECT id FROM {tbl} WHERE val > ANY (SELECT val FROM {tbl} WHERE val < 30) ORDER BY time",),  # #123
+    ("SELECT id FROM {tbl} WHERE val >= SOME (SELECT val FROM {tbl} WHERE val >= 30) ORDER BY time",),  # #124
+    ("SELECT id, val, (SELECT AVG(val) FROM {tbl}) AS avg_val FROM {tbl} ORDER BY time", dict(float_cols={2})),  # #125
+    ("SELECT id, val FROM {tbl} WHERE val > (SELECT AVG(val) FROM {tbl}) ORDER BY time",),  # #126
+    ("SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {tbl} GROUP BY label) sub", dict(float_cols={0}, ordered=False)),  # #127
+    ("SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {tbl}) sub ORDER BY id",),  # #128
+    ("SELECT id FROM {tbl} WHERE id IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id",),  # #129
+    ("SELECT id FROM {tbl} WHERE id NOT IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id",),  # #130
+    # ── UNION / UNION ALL
+    ("SELECT val FROM {tbl} WHERE id <= 2 UNION ALL SELECT val FROM {tbl} WHERE id <= 2 ORDER BY val",),  # #131
+    ("SELECT label FROM {tbl} WHERE id IN (1,3) UNION SELECT label FROM {tbl} WHERE id IN (1,4) ORDER BY label",),  # #132
+    # ── JOIN（INNER  LEFT  RIGHT  FULL OUTER  CROSS  3-way）
+    ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
+     dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),  # #133
+    ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
+     dict(positive=False, reason="LEFT JOIN without primary timestamp equal condition in ON clause not supported")),  # #134
+    ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
+     dict(positive=False, reason="RIGHT JOIN without primary timestamp equal condition in ON clause not supported")),  # #135
+    ("SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
+     dict(positive=False, reason="FULL OUTER JOIN without primary timestamp equal condition in ON clause not supported")),  # #136
+    ("SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id",
+     dict(positive=False, reason="CROSS JOIN syntax not supported (0x80002600)")),  # #137
+    ("SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
+     dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),  # #138
+    ("SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
+     dict(positive=False, reason="3-way INNER JOIN without primary timestamp equal condition not supported")),  # #139
+    # ── 时间窗口（INTERVAL  FILL  PARTITION BY  SESSION  STATE_WINDOW  EVENT_WINDOW  COUNT_WINDOW）
+    ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),  # #140
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),  # #141
+    ("SELECT AVG(score) AS avg_s FROM {tbl} INTERVAL(1m) ORDER BY _wstart", dict(float_cols={0})),  # #142
+    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} INTERVAL(2m) ORDER BY _wstart",),  # #143
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",),  # #144
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",),  # #145
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",),  # #146
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",),  # #147
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart", dict(float_cols={0})),  # #148
+    ("SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart",),  # #149
+    ("SELECT COUNT(*) AS cnt FROM {tbl} SESSION(time, 30s) ORDER BY _wstart",),  # #150
+    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} SESSION(time, 2m) ORDER BY _wstart",),  # #151
+    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} STATE_WINDOW(val >= 30) ORDER BY _wstart",),  # #152
+    ("SELECT COUNT(*) AS cnt FROM {tbl} STATE_WINDOW(label) ORDER BY _wstart",),  # #153
+    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} EVENT_WINDOW START WITH val >= 30 END WITH val >= 50 ORDER BY _wstart",),  # #154
+    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(2) ORDER BY _wstart",),  # #155
+    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(3) ORDER BY _wstart",),  # #156
+    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",),  # #157
+    ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),  # #158
+]
+
 
 # 5 rows, 2024-01-01 00:00-04:00 UTC, 1-minute spacing
 _ROWS = [
@@ -76,8 +287,8 @@ _ROWS_DT = [
 _MYSQL_SETUP = [
     "DROP TABLE IF EXISTS parity_t",
     "CREATE TABLE parity_t ("
-    "  ts DATETIME(3) NOT NULL, id INT, val INT, score DOUBLE, label VARCHAR(32),"
-    "  PRIMARY KEY (ts)"
+    "  time DATETIME(3) NOT NULL, id INT, val INT, score DOUBLE, label VARCHAR(32),"
+    "  PRIMARY KEY (time)"
     ")",
 ] + [
     f"INSERT INTO parity_t VALUES ('{ts}', {i}, {v}, {s}, '{l}')"
@@ -88,7 +299,7 @@ _MYSQL_SETUP = [
 _PG_SETUP = [
     "DROP TABLE IF EXISTS public.parity_t",
     "CREATE TABLE public.parity_t ("
-    "  ts TIMESTAMP NOT NULL PRIMARY KEY,"
+    "  time TIMESTAMP NOT NULL PRIMARY KEY,"
     "  id INT, val INT, score DOUBLE PRECISION, label VARCHAR(32)"
     ")",
 ] + [
@@ -96,9 +307,9 @@ _PG_SETUP = [
     for ts, i, v, s, l in _ROWS_DT
 ]
 
-# InfluxDB line-protocol: region tag = label; id/val/score fields; ts in ns
+# InfluxDB line-protocol: label tag; id/val/score fields; timestamp in ns
 _INFLUX_LINES = [
-    f"parity_t,region={l} id={i}i,val={v}i,score={s} {ts}000000"
+    f"parity_t,label={l} id={i}i,val={v}i,score={s} {ts}000000"
     for ts, i, v, s, l in _ROWS
 ]
 
@@ -107,7 +318,7 @@ _LOCAL_SETUP = [
     f"CREATE DATABASE {_LOCAL_DB}",
     f"USE {_LOCAL_DB}",
     f"CREATE TABLE {_LOCAL_TBL} ("
-    f"  ts TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32)"
+    f"  time TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32)"
     f")",
 ] + [
     f"INSERT INTO {_LOCAL_TBL} VALUES ({ts}, {i}, {v}, {s}, '{l}')"
@@ -126,6 +337,38 @@ def _float_eq(a, b):
         return str(a) == str(b)
 
 
+_BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_result_parity.txt")
+
+
+def _serialize_cell(val, col_idx, float_cols):
+    """Serialize a single cell value to a stable string representation."""
+    if val is None:
+        return "NULL"
+    if col_idx in float_cols:
+        try:
+            return f"{float(str(val)):.6g}"
+        except (TypeError, ValueError):
+            pass
+    return str(val)
+
+
+def _serialize_case(idx, total, sql_template, positive, ref_rows, local_qerr, float_cols, ordered):
+    """Serialize local result of one parity case to a canonical text block."""
+    kind_tag = "POS" if positive else "NEG"
+    lines = [f"### #{idx:03d} {kind_tag}", f"SQL: {sql_template}"]
+    if local_qerr is not None:
+        errno = local_qerr.qerrno
+        err_info = local_qerr.err_info or ""
+        lines.append(f"ERROR {errno if errno is not None else 0:#010x}: {err_info}")
+    else:
+        lines.append("RESULT")
+        for row in ref_rows:
+            cells = [_serialize_cell(v, ci, float_cols) for ci, v in enumerate(row)]
+            lines.append("|".join(cells))
+    lines.append("---")
+    return "\n".join(lines)
+
+
 class TestFq14ResultParity(FederatedQueryTestMixin):
     """Result-parity: local TDengine == MySQL == PostgreSQL == InfluxDB.
 
@@ -137,6 +380,7 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
     _SRC_MYSQL  = "fq_parity_src_m"
     _SRC_PG     = "fq_parity_src_p"
     _SRC_INFLUX = "fq_parity_src_i"
+    _class_setup_done = False
 
     @property
     def _L(self):
@@ -144,17 +388,19 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
 
     @property
     def _M(self):
-        return f"{self._SRC_MYSQL}.{_MYSQL_DB}.parity_t"
+        return f"{self._SRC_MYSQL}.parity_t"
 
     @property
     def _P(self):
-        return f"{self._SRC_PG}.{_PG_DB}.parity_t"
+        return f"{self._SRC_PG}.parity_t"
 
     @property
     def _I(self):
-        return f"{self._SRC_INFLUX}.{_INFLUX_BUCKET}.parity_t"
+        return f"{self._SRC_INFLUX}.parity_t"
 
-    def setup_class(self):
+    def setup_method(self, method):
+        if TestFq14ResultParity._class_setup_done:
+            return
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
@@ -177,41 +423,64 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
         self._cleanup_src(self._SRC_INFLUX)
         self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
+        TestFq14ResultParity._class_setup_done = True
+
     def teardown_class(self):
-        self._cleanup_src(self._SRC_MYSQL, self._SRC_PG, self._SRC_INFLUX)
+        tmp = TestFq14ResultParity()
+        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         for drop in [
-            lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), _MYSQL_DB),
-            lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), _PG_DB),
-            lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET),
+            lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
+            lambda: ExtSrcEnv.pg_drop_db_cfg(tmp._pg_cfg(), _PG_DB),
+            lambda: ExtSrcEnv.influx_drop_db_cfg(tmp._influx_cfg(), _INFLUX_BUCKET),
         ]:
             try:
                 drop()
             except Exception:
                 pass
+        TestFq14ResultParity._class_setup_done = False
+        ExtSrcEnv.teardown_env()
 
-    def _get_rows(self, sql):
+    def _get_rows(self, sql, no_retry=False):
         """Execute *sql* and return results as a list of tuples.
 
-        On failure raises AssertionError that includes the SQL text,
+        On failure raises QueryError that includes the SQL text,
         errno, and error_info so the failing query is immediately
         identifiable in the test report without re-running.
+
+        Pass no_retry=True (for negative cases) to skip the 10-attempt
+        retry loop and fail immediately, saving ~9 seconds per source.
+        When no_retry=True the cursor is called directly to avoid the
+        tdLog.error() that tdSql.query() emits on failure — expected
+        failures should be debug info, not errors.
         """
         try:
-            tdSql.query(sql)
+            if no_retry:
+                # Bypass tdSql.query() so that expected SQL failures are logged
+                # at DEBUG level instead of ERROR level.
+                tdSql.cursor.execute(sql)
+                tdSql.queryResult = tdSql.cursor.fetchall()
+                tdSql.queryRows = len(tdSql.queryResult)
+                tdSql.queryCols = len(tdSql.cursor.description)
+            else:
+                tdSql.query(sql, queryTimes=10)
         except Exception as e:
-            errno    = getattr(tdSql, 'errno',      None)
-            err_info = getattr(tdSql, 'error_info', None)
-            detail = ""
-            if errno is not None:
-                detail += f"\n  errno:      {errno:#010x}"
-            if err_info:
-                detail += f"\n  error_info: {err_info}"
-            raise AssertionError(
-                f"Query execution failed{detail}\n"
-                f"  sql: {sql}\n"
-                f"  raw exception: {e}"
-            ) from e
+            # Extract errno directly from the exception.  tdSql.query() does NOT
+            # update tdSql.errno on failure, so tdSql.errno may hold a stale value
+            # from a prior tdSql.error() call in a different test class (e.g. the
+            # preceding fq_05 class sets tdSql.errno = TSDB_CODE_EXT_TABLE_NOT_EXIST
+            # and that value persists into this class, corrupting baseline comparisons).
+            _eargs = getattr(e, 'args', ())
+            errno = None
+            if len(_eargs) >= 2 and isinstance(_eargs[-1], int):
+                errno = _eargs[-1]
+            if errno is None:
+                errno = getattr(e, 'errno', None)
+            err_info = None
+            if _eargs:
+                err_info = str(_eargs[0])
+            tdLog.debug(f"expected SQL failure: {sql!r} → {err_info!r} (errno={errno})")
+            raise QueryError(errno, err_info, sql, e) from e
         return list(tdSql.queryResult)
 
     @staticmethod
@@ -272,3235 +541,305 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
 
     def _assert_parity_all(
         self,
-        local_sql,
-        mysql_sql=None,
-        pg_sql=None,
-        influx_sql=None,
+        sql_template,
         *,
         float_cols=None,
         ordered=True,
     ):
-        """Compare local TDengine result against MySQL, PG and InfluxDB.
+        """Execute *sql_template* against all four sources and compare results.
 
-        Pass None to skip a source.  Any non-None source must return
-        identical results to the local reference.
+        *sql_template* must contain ``{tbl}`` as the table-name placeholder.
+        The same template is instantiated for Local TDengine, MySQL, PG and
+        InfluxDB; results from each external source are compared row-by-row
+        against the local reference.
         """
         float_cols = float_cols or set()
+        local_sql = sql_template.format(tbl=self._L)
         ref = self._get_rows(local_sql)
         if not ordered:
             ref = sorted(ref, key=lambda r: [str(x) for x in r])
-        for lbl, sql in [
-            ("MySQL",    mysql_sql),
-            ("PG",       pg_sql),
-            ("InfluxDB", influx_sql),
+        for lbl, tbl in [
+            ("MySQL",    self._M),
+            ("PG",       self._P),
+            ("InfluxDB", self._I),
         ]:
-            if sql is None:
-                continue
+            sql = sql_template.format(tbl=tbl)
             rows = self._get_rows(sql)
             if not ordered:
                 rows = sorted(rows, key=lambda r: [str(x) for x in r])
             self._compare_rows(ref, rows, local_sql, sql, lbl, float_cols)
 
-
-    def test_fq_parity_001_basic_select_id_val_score_label_order_by_ts(self):
-        """basic SELECT id val score label ORDER BY ts
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val, score, label FROM {L} ORDER BY ts",
-            f"SELECT id, val, score, label FROM {M} ORDER BY ts",
-            f"SELECT id, val, score, label FROM {P} ORDER BY ts",
-            f"SELECT id, val, score, region AS label FROM {I} ORDER BY time",
-            float_cols={2},
-        )
-
-    def test_fq_parity_002_where_val_20_order_by_ts(self):
-        """WHERE val > 20 ORDER BY ts
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val > 20 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val > 20 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val > 20 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val > 20 ORDER BY time",
-        )
-
-    def test_fq_parity_003_count_sum_min_max_aggregate(self):
-        """COUNT SUM MIN MAX aggregate
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {L}",
-            f"SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {M}",
-            f"SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {P}",
-            f"SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {I}",
-            ordered=False,
-        )
-
-    def test_fq_parity_004_avg_val_float(self):
-        """AVG val float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT AVG(val) FROM {L}",
-            f"SELECT AVG(val) FROM {M}",
-            f"SELECT AVG(val) FROM {P}",
-            f"SELECT AVG(val) FROM {I}",
-            float_cols={0},
-            ordered=False,
-        )
-
-    def test_fq_parity_005_group_by_label_count(self):
-        """GROUP BY label COUNT
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, COUNT(*) FROM {L} GROUP BY label ORDER BY label",
-            f"SELECT label, COUNT(*) FROM {M} GROUP BY label ORDER BY label",
-            f"SELECT label, COUNT(*) FROM {P} GROUP BY label ORDER BY label",
-            f"SELECT region AS label, COUNT(*) FROM {I} GROUP BY region ORDER BY region",
-        )
-
-    def test_fq_parity_006_group_by_having_count_gt_1(self):
-        """GROUP BY HAVING COUNT gt 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, COUNT(*) FROM {L} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label",
-            f"SELECT label, COUNT(*) FROM {M} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label",
-            f"SELECT label, COUNT(*) FROM {P} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label",
-            f"SELECT region AS label, COUNT(*) FROM {I} GROUP BY region HAVING COUNT(*) > 1 ORDER BY region",
-        )
-
-    def test_fq_parity_007_limit_3_offset_1(self):
-        """LIMIT 3 OFFSET 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} ORDER BY ts LIMIT 3 OFFSET 1",
-            f"SELECT id, val FROM {M} ORDER BY ts LIMIT 3 OFFSET 1",
-            f"SELECT id, val FROM {P} ORDER BY ts LIMIT 3 OFFSET 1",
-            f"SELECT id, val FROM {I} ORDER BY time LIMIT 3 OFFSET 1",
-        )
-
-    def test_fq_parity_008_distinct_label(self):
-        """DISTINCT label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT DISTINCT label FROM {L} ORDER BY label",
-            f"SELECT DISTINCT label FROM {M} ORDER BY label",
-            f"SELECT DISTINCT label FROM {P} ORDER BY label",
-            f"SELECT DISTINCT region FROM {I} ORDER BY region",
-        )
-
-    def test_fq_parity_009_arithmetic_val_2_1(self):
-        """arithmetic val * 2 + 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val * 2 + 1 FROM {L} ORDER BY ts",
-            f"SELECT id, val * 2 + 1 FROM {M} ORDER BY ts",
-            f"SELECT id, val * 2 + 1 FROM {P} ORDER BY ts",
-            f"SELECT id, val * 2 + 1 FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_010_order_by_val_desc(self):
-        """ORDER BY val DESC
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} ORDER BY val DESC",
-            f"SELECT id, val FROM {M} ORDER BY val DESC",
-            f"SELECT id, val FROM {P} ORDER BY val DESC",
-            f"SELECT id, val FROM {I} ORDER BY val DESC",
-        )
-
-    def test_fq_parity_011_where_val_30_equality(self):
-        """WHERE val = 30 equality
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val = 30 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val = 30 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val = 30 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val = 30 ORDER BY time",
-        )
-
-    def test_fq_parity_012_where_val_30_inequality(self):
-        """WHERE val <> 30 inequality
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val <> 30 ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val <> 30 ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val <> 30 ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val <> 30 ORDER BY time",
-        )
-
-    def test_fq_parity_013_where_val_30(self):
-        """WHERE val <= 30
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val <= 30 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val <= 30 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val <= 30 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val <= 30 ORDER BY time",
-        )
-
-    def test_fq_parity_014_where_val_30(self):
-        """WHERE val >= 30
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val >= 30 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val >= 30 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val >= 30 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val >= 30 ORDER BY time",
-        )
-
-    def test_fq_parity_015_where_val_between_20_and_40(self):
-        """WHERE val BETWEEN 20 AND 40
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val BETWEEN 20 AND 40 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val BETWEEN 20 AND 40 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val BETWEEN 20 AND 40 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val BETWEEN 20 AND 40 ORDER BY time",
-        )
-
-    def test_fq_parity_016_where_val_not_between_20_and_40(self):
-        """WHERE val NOT BETWEEN 20 AND 40
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val NOT BETWEEN 20 AND 40 ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val NOT BETWEEN 20 AND 40 ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val NOT BETWEEN 20 AND 40 ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val NOT BETWEEN 20 AND 40 ORDER BY time",
-        )
-
-    def test_fq_parity_017_where_label_in_list(self):
-        """WHERE label IN list
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label IN ('north', 'east') ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label IN ('north', 'east') ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label IN ('north', 'east') ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region IN ('north', 'east') ORDER BY time",
-        )
-
-    def test_fq_parity_018_where_label_not_in_list(self):
-        """WHERE label NOT IN list
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label NOT IN ('east') ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label NOT IN ('east') ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label NOT IN ('east') ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region NOT IN ('east') ORDER BY time",
-        )
-
-    def test_fq_parity_019_where_label_like_prefix(self):
-        """WHERE label LIKE prefix
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label LIKE 'n%' ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label LIKE 'n%' ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label LIKE 'n%' ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region LIKE 'n%' ORDER BY time",
-        )
-
-    def test_fq_parity_020_where_label_like_suffix(self):
-        """WHERE label LIKE suffix
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label LIKE '%th' ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label LIKE '%th' ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label LIKE '%th' ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region LIKE '%th' ORDER BY time",
-        )
-
-    def test_fq_parity_021_where_label_not_like(self):
-        """WHERE label NOT LIKE
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label NOT LIKE 'n%' ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label NOT LIKE 'n%' ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label NOT LIKE 'n%' ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region NOT LIKE 'n%' ORDER BY time",
-        )
-
-    def test_fq_parity_022_label_is_not_null(self):
-        """label IS NOT NULL
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label IS NOT NULL ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label IS NOT NULL ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label IS NOT NULL ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region IS NOT NULL ORDER BY time",
-        )
-
-    def test_fq_parity_023_label_is_null_returns_zero_rows(self):
-        """label IS NULL returns zero rows
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE label IS NULL ORDER BY ts",
-            f"SELECT id FROM {M} WHERE label IS NULL ORDER BY ts",
-            f"SELECT id FROM {P} WHERE label IS NULL ORDER BY ts",
-            f"SELECT id FROM {I} WHERE region IS NULL ORDER BY time",
-        )
-
-    def test_fq_parity_024_where_val_20_and_val_50(self):
-        """WHERE val > 20 AND val < 50
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val > 20 AND val < 50 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val > 20 AND val < 50 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val > 20 AND val < 50 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val > 20 AND val < 50 ORDER BY time",
-        )
-
-    def test_fq_parity_025_where_val_15_or_val_45(self):
-        """WHERE val < 15 OR val > 45
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val < 15 OR val > 45 ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val < 15 OR val > 45 ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val < 15 OR val > 45 ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val < 15 OR val > 45 ORDER BY time",
-        )
-
-    def test_fq_parity_026_where_not_val_30(self):
-        """WHERE NOT val > 30
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE NOT (val > 30) ORDER BY ts",
-            f"SELECT id FROM {M} WHERE NOT (val > 30) ORDER BY ts",
-            f"SELECT id FROM {P} WHERE NOT (val > 30) ORDER BY ts",
-            f"SELECT id FROM {I} WHERE NOT (val > 30) ORDER BY time",
-        )
-
-    def test_fq_parity_027_coalesce_label_fallback(self):
-        """COALESCE label fallback
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, COALESCE(label, 'unknown') FROM {L} ORDER BY ts",
-            f"SELECT id, COALESCE(label, 'unknown') FROM {M} ORDER BY ts",
-            f"SELECT id, COALESCE(label, 'unknown') FROM {P} ORDER BY ts",
-            f"SELECT id, COALESCE(region, 'unknown') FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_028_nullif_val_30(self):
-        """NULLIF val 30
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, NULLIF(val, 30) FROM {L} ORDER BY ts",
-            f"SELECT id, NULLIF(val, 30) FROM {M} ORDER BY ts",
-            f"SELECT id, NULLIF(val, 30) FROM {P} ORDER BY ts",
-            f"SELECT id, NULLIF(val, 30) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_029_if_case_conditional_val(self):
-        """IF CASE conditional val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {L} ORDER BY ts",
-            f"SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {M} ORDER BY ts",
-            f"SELECT id, CASE WHEN val > 30 THEN 'high' ELSE 'low' END AS cat FROM {P} ORDER BY ts",
-            f"SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_030_ifnull_coalesce_null_substitution(self):
-        """IFNULL COALESCE null substitution
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, IFNULL(label, 'none') FROM {L} ORDER BY ts",
-            f"SELECT id, IFNULL(label, 'none') FROM {M} ORDER BY ts",
-            f"SELECT id, COALESCE(label, 'none') FROM {P} ORDER BY ts",
-            f"SELECT id, IFNULL(region, 'none') FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_031_unary_minus_val(self):
-        """unary minus -val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, -val FROM {L} ORDER BY ts",
-            f"SELECT id, -val FROM {M} ORDER BY ts",
-            f"SELECT id, -val FROM {P} ORDER BY ts",
-            f"SELECT id, -val FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_032_subtraction_val_5(self):
-        """subtraction val - 5
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val - 5 FROM {L} ORDER BY ts",
-            f"SELECT id, val - 5 FROM {M} ORDER BY ts",
-            f"SELECT id, val - 5 FROM {P} ORDER BY ts",
-            f"SELECT id, val - 5 FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_033_multiplication_val_3(self):
-        """multiplication val * 3
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val * 3 FROM {L} ORDER BY ts",
-            f"SELECT id, val * 3 FROM {M} ORDER BY ts",
-            f"SELECT id, val * 3 FROM {P} ORDER BY ts",
-            f"SELECT id, val * 3 FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_034_division_val_4_0_float(self):
-        """division val / 4.0 float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val / 4.0 FROM {L} ORDER BY ts",
-            f"SELECT id, val / 4.0 FROM {M} ORDER BY ts",
-            f"SELECT id, val / 4.0 FROM {P} ORDER BY ts",
-            f"SELECT id, val / 4.0 FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_035_modulo_val_3(self):
-        """modulo val % 3
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val % 3 FROM {L} ORDER BY ts",
-            f"SELECT id, val % 3 FROM {M} ORDER BY ts",
-            f"SELECT id, val % 3 FROM {P} ORDER BY ts",
-            f"SELECT id, val % 3 FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_036_bitwise_and_val_3(self):
-        """bitwise AND val & 3
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val & 3 FROM {L} ORDER BY ts",
-            f"SELECT id, val & 3 FROM {M} ORDER BY ts",
-            f"SELECT id, val & 3 FROM {P} ORDER BY ts",
-            f"SELECT id, val & 3 FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_037_bitwise_or_val_1(self):
-        """bitwise OR val | 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val | 1 FROM {L} ORDER BY ts",
-            f"SELECT id, val | 1 FROM {M} ORDER BY ts",
-            f"SELECT id, val | 1 FROM {P} ORDER BY ts",
-            f"SELECT id, val | 1 FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_038_greatest_id_val(self):
-        """GREATEST id val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, GREATEST(id, val) FROM {L} ORDER BY ts",
-            f"SELECT id, GREATEST(id, val) FROM {M} ORDER BY ts",
-            f"SELECT id, GREATEST(id, val) FROM {P} ORDER BY ts",
-            f"SELECT id, GREATEST(id, val) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_039_least_id_val(self):
-        """LEAST id val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LEAST(id, val) FROM {L} ORDER BY ts",
-            f"SELECT id, LEAST(id, val) FROM {M} ORDER BY ts",
-            f"SELECT id, LEAST(id, val) FROM {P} ORDER BY ts",
-            f"SELECT id, LEAST(id, val) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_040_pi_constant(self):
-        """PI constant
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {L} ORDER BY ts",
-            f"SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {M} ORDER BY ts",
-            f"SELECT id, TRUNC(PI()::NUMERIC, 5) AS pi5 FROM {P} ORDER BY ts",
-            f"SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_041_abs_20_val(self):
-        """ABS 20 - val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ABS(20 - val) FROM {L} ORDER BY ts",
-            f"SELECT id, ABS(20 - val) FROM {M} ORDER BY ts",
-            f"SELECT id, ABS(20 - val) FROM {P} ORDER BY ts",
-            f"SELECT id, ABS(20 - val) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_042_ceil_score(self):
-        """CEIL score
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CEIL(score) FROM {L} ORDER BY ts",
-            f"SELECT id, CEIL(score) FROM {M} ORDER BY ts",
-            f"SELECT id, CEIL(score) FROM {P} ORDER BY ts",
-            f"SELECT id, CEIL(score) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_043_floor_score(self):
-        """FLOOR score
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, FLOOR(score) FROM {L} ORDER BY ts",
-            f"SELECT id, FLOOR(score) FROM {M} ORDER BY ts",
-            f"SELECT id, FLOOR(score) FROM {P} ORDER BY ts",
-            f"SELECT id, FLOOR(score) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_044_round_score_1_decimal(self):
-        """ROUND score 1 decimal
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ROUND(score, 1) FROM {L} ORDER BY ts",
-            f"SELECT id, ROUND(score, 1) FROM {M} ORDER BY ts",
-            f"SELECT id, ROUND(score::NUMERIC, 1) FROM {P} ORDER BY ts",
-            f"SELECT id, ROUND(score, 1) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_045_round_score_integer(self):
-        """ROUND score integer
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ROUND(score, 0) FROM {L} ORDER BY ts",
-            f"SELECT id, ROUND(score, 0) FROM {M} ORDER BY ts",
-            f"SELECT id, ROUND(score::NUMERIC, 0) FROM {P} ORDER BY ts",
-            f"SELECT id, ROUND(score, 0) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_046_sqrt_val_float(self):
-        """SQRT val float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SQRT(val) FROM {L} ORDER BY ts",
-            f"SELECT id, SQRT(val) FROM {M} ORDER BY ts",
-            f"SELECT id, SQRT(val::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, SQRT(val) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_047_pow_power_id_squared(self):
-        """POW POWER id squared
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, POW(id, 2) FROM {L} ORDER BY ts",
-            f"SELECT id, POW(id, 2) FROM {M} ORDER BY ts",
-            f"SELECT id, POWER(id, 2) FROM {P} ORDER BY ts",
-            f"SELECT id, POW(id, 2) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_048_mod_function_val_3(self):
-        """MOD function val 3
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, MOD(val, 3) FROM {L} ORDER BY ts",
-            f"SELECT id, MOD(val, 3) FROM {M} ORDER BY ts",
-            f"SELECT id, MOD(val, 3) FROM {P} ORDER BY ts",
-            f"SELECT id, MOD(val, 3) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_049_sign_val_25(self):
-        """SIGN val - 25
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SIGN(val - 25) FROM {L} ORDER BY ts",
-            f"SELECT id, SIGN(val - 25) FROM {M} ORDER BY ts",
-            f"SELECT id, SIGN(val - 25) FROM {P} ORDER BY ts",
-            f"SELECT id, SIGN(val - 25) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_050_sin_id_float(self):
-        """SIN id float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SIN(id) FROM {L} ORDER BY ts",
-            f"SELECT id, SIN(id) FROM {M} ORDER BY ts",
-            f"SELECT id, SIN(id::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, SIN(id) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_051_cos_id_float(self):
-        """COS id float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, COS(id) FROM {L} ORDER BY ts",
-            f"SELECT id, COS(id) FROM {M} ORDER BY ts",
-            f"SELECT id, COS(id::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, COS(id) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_052_tan_score_float(self):
-        """TAN score float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, TAN(score) FROM {L} ORDER BY ts",
-            f"SELECT id, TAN(score) FROM {M} ORDER BY ts",
-            f"SELECT id, TAN(score::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, TAN(score) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_053_asin_score_10_float(self):
-        """ASIN score / 10 float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ASIN(score / 10.0) FROM {L} ORDER BY ts",
-            f"SELECT id, ASIN(score / 10.0) FROM {M} ORDER BY ts",
-            f"SELECT id, ASIN((score / 10.0)::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, ASIN(score / 10.0) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_054_acos_score_10_float(self):
-        """ACOS score / 10 float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ACOS(score / 10.0) FROM {L} ORDER BY ts",
-            f"SELECT id, ACOS(score / 10.0) FROM {M} ORDER BY ts",
-            f"SELECT id, ACOS((score / 10.0)::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, ACOS(score / 10.0) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_055_atan_id_float(self):
-        """ATAN id float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ATAN(id) FROM {L} ORDER BY ts",
-            f"SELECT id, ATAN(id) FROM {M} ORDER BY ts",
-            f"SELECT id, ATAN(id::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, ATAN(id) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_056_exp_id_float(self):
-        """EXP id float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, EXP(id) FROM {L} ORDER BY ts",
-            f"SELECT id, EXP(id) FROM {M} ORDER BY ts",
-            f"SELECT id, EXP(id::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, EXP(id) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_057_ln_val_natural_log_float(self):
-        """LN val natural log float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LN(val) FROM {L} ORDER BY ts",
-            f"SELECT id, LN(val) FROM {M} ORDER BY ts",
-            f"SELECT id, LN(val::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, LN(val) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_058_log_single_arg_natural_log(self):
-        """LOG single arg natural log
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LOG(val) FROM {L} ORDER BY ts",
-            f"SELECT id, LOG(val) FROM {M} ORDER BY ts",
-            f"SELECT id, LN(val::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, LOG(val) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_059_log_base_10(self):
-        """LOG base-10
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LOG(val, 10) FROM {L} ORDER BY ts",
-            f"SELECT id, LOG(10, val) FROM {M} ORDER BY ts",
-            f"SELECT id, LOG(val::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, LOG(val, 10) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_060_truncate_trunc_score_1(self):
-        """TRUNCATE TRUNC score 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, TRUNCATE(score, 1) FROM {L} ORDER BY ts",
-            f"SELECT id, TRUNCATE(score, 1) FROM {M} ORDER BY ts",
-            f"SELECT id, TRUNC(score::NUMERIC, 1) FROM {P} ORDER BY ts",
-            f"SELECT id, TRUNCATE(score, 1) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_061_degrees_score_float(self):
-        """DEGREES score float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, DEGREES(score) FROM {L} ORDER BY ts",
-            f"SELECT id, DEGREES(score) FROM {M} ORDER BY ts",
-            f"SELECT id, DEGREES(score::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, DEGREES(score) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_062_radians_val_float(self):
-        """RADIANS val float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, RADIANS(val) FROM {L} ORDER BY ts",
-            f"SELECT id, RADIANS(val) FROM {M} ORDER BY ts",
-            f"SELECT id, RADIANS(val::DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, RADIANS(val) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_063_lower_label(self):
-        """LOWER label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LOWER(label) FROM {L} ORDER BY ts",
-            f"SELECT id, LOWER(label) FROM {M} ORDER BY ts",
-            f"SELECT id, LOWER(label) FROM {P} ORDER BY ts",
-            f"SELECT id, LOWER(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_064_upper_label(self):
-        """UPPER label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, UPPER(label) FROM {L} ORDER BY ts",
-            f"SELECT id, UPPER(label) FROM {M} ORDER BY ts",
-            f"SELECT id, UPPER(label) FROM {P} ORDER BY ts",
-            f"SELECT id, UPPER(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_065_char_length_label(self):
-        """CHAR_LENGTH label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CHAR_LENGTH(label) FROM {L} ORDER BY ts",
-            f"SELECT id, CHAR_LENGTH(label) FROM {M} ORDER BY ts",
-            f"SELECT id, CHAR_LENGTH(label) FROM {P} ORDER BY ts",
-            f"SELECT id, CHAR_LENGTH(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_066_length_label(self):
-        """LENGTH label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LENGTH(label) FROM {L} ORDER BY ts",
-            f"SELECT id, LENGTH(label) FROM {M} ORDER BY ts",
-            f"SELECT id, LENGTH(label) FROM {P} ORDER BY ts",
-            f"SELECT id, LENGTH(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_067_ltrim_leading_spaces(self):
-        """LTRIM leading spaces
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, LTRIM(CONCAT(' ', label)) FROM {L} ORDER BY ts",
-            f"SELECT id, LTRIM(CONCAT(' ', label)) FROM {M} ORDER BY ts",
-            f"SELECT id, LTRIM(' ' || label) FROM {P} ORDER BY ts",
-            f"SELECT id, LTRIM(CONCAT(' ', region)) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_068_rtrim_trailing_spaces(self):
-        """RTRIM trailing spaces
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, RTRIM(CONCAT(label, ' ')) FROM {L} ORDER BY ts",
-            f"SELECT id, RTRIM(CONCAT(label, ' ')) FROM {M} ORDER BY ts",
-            f"SELECT id, RTRIM(label || ' ') FROM {P} ORDER BY ts",
-            f"SELECT id, RTRIM(CONCAT(region, ' ')) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_069_trim_both_sides(self):
-        """TRIM both sides
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, TRIM(CONCAT(' ', label, ' ')) FROM {L} ORDER BY ts",
-            f"SELECT id, TRIM(CONCAT(' ', label, ' ')) FROM {M} ORDER BY ts",
-            f"SELECT id, TRIM(' ' || label || ' ') FROM {P} ORDER BY ts",
-            f"SELECT id, TRIM(CONCAT(' ', region, ' ')) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_070_concat_label_and_id(self):
-        """CONCAT label and id
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CONCAT(label, '-', id) FROM {L} ORDER BY ts",
-            f"SELECT id, CONCAT(label, '-', id) FROM {M} ORDER BY ts",
-            f"SELECT id, label || '-' || id::TEXT FROM {P} ORDER BY ts",
-            f"SELECT id, CONCAT(region, '-', id) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_071_concat_ws_sep_id_val(self):
-        """CONCAT_WS sep id val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CONCAT_WS('-', id, val) FROM {L} ORDER BY ts",
-            f"SELECT id, CONCAT_WS('-', id, val) FROM {M} ORDER BY ts",
-            f"SELECT id, CONCAT_WS('-', id::TEXT, val::TEXT) FROM {P} ORDER BY ts",
-            f"SELECT id, CONCAT_WS('-', id, val) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_072_substring_label_1_3(self):
-        """SUBSTRING label 1 3
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SUBSTRING(label, 1, 3) FROM {L} ORDER BY ts",
-            f"SELECT id, SUBSTRING(label, 1, 3) FROM {M} ORDER BY ts",
-            f"SELECT id, SUBSTRING(label FROM 1 FOR 3) FROM {P} ORDER BY ts",
-            f"SELECT id, SUBSTRING(region, 1, 3) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_073_substr_negative_offset(self):
-        """SUBSTR negative offset
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SUBSTR(label, -3, 3) FROM {L} ORDER BY ts",
-            f"SELECT id, SUBSTR(label, -3, 3) FROM {M} ORDER BY ts",
-            f"SELECT id, SUBSTR(label, -3, 3) FROM {P} ORDER BY ts",
-            f"SELECT id, SUBSTR(region, -3, 3) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_074_replace_label_north_n(self):
-        """REPLACE label north n
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, REPLACE(label, 'north', 'n') FROM {L} ORDER BY ts",
-            f"SELECT id, REPLACE(label, 'north', 'n') FROM {M} ORDER BY ts",
-            f"SELECT id, REPLACE(label, 'north', 'n') FROM {P} ORDER BY ts",
-            f"SELECT id, REPLACE(region, 'north', 'n') FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_075_position_o_in_label(self):
-        """POSITION o IN label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, POSITION('o' IN label) FROM {L} ORDER BY ts",
-            f"SELECT id, POSITION('o' IN label) FROM {M} ORDER BY ts",
-            f"SELECT id, POSITION('o' IN label) FROM {P} ORDER BY ts",
-            f"SELECT id, POSITION('o' IN region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_076_repeat_x_id_times(self):
-        """REPEAT x id times
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, REPEAT('x', id) FROM {L} ORDER BY ts",
-            f"SELECT id, REPEAT('x', id) FROM {M} ORDER BY ts",
-            f"SELECT id, REPEAT('x', id) FROM {P} ORDER BY ts",
-            f"SELECT id, REPEAT('x', id) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_077_ascii_first_char_of_label(self):
-        """ASCII first char of label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, ASCII(label) FROM {L} ORDER BY ts",
-            f"SELECT id, ASCII(label) FROM {M} ORDER BY ts",
-            f"SELECT id, ASCII(label) FROM {P} ORDER BY ts",
-            f"SELECT id, ASCII(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_078_char_chr_65_returns_a(self):
-        """CHAR CHR 65 returns A
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CHAR(65) FROM {L} ORDER BY ts",
-            f"SELECT id, CHAR(65) FROM {M} ORDER BY ts",
-            f"SELECT id, CHR(65) FROM {P} ORDER BY ts",
-            f"SELECT id, CHAR(65) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_079_find_in_set_label(self):
-        """FIND_IN_SET label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {L} ORDER BY ts",
-            f"SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {M} ORDER BY ts",
-            f"SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {P} ORDER BY ts",
-            f"SELECT id, FIND_IN_SET(region, 'north,south,east') AS pos FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_080_substring_index_label_o_1(self):
-        """SUBSTRING_INDEX label o 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {L} ORDER BY ts",
-            f"SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {M} ORDER BY ts",
-            f"SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {P} ORDER BY ts",
-            f"SELECT id, SUBSTRING_INDEX(region, 'o', 1) AS si FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_081_md5_label_hash(self):
-        """MD5 label hash
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {L} ORDER BY ts",
-            f"SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {M} ORDER BY ts",
-            f"SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {P} ORDER BY ts",
-            f"SELECT id, MD5(CAST(region AS VARCHAR(32))) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_082_to_base64_label(self):
-        """TO_BASE64 label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, TO_BASE64(label) FROM {L} ORDER BY ts",
-            f"SELECT id, TO_BASE64(label) FROM {M} ORDER BY ts",
-            f"SELECT id, TO_BASE64(label) FROM {P} ORDER BY ts",
-            f"SELECT id, TO_BASE64(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_083_from_base64_round_trip(self):
-        """FROM_BASE64 round trip
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {L} ORDER BY ts",
-            f"SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {M} ORDER BY ts",
-            f"SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {P} ORDER BY ts",
-            f"SELECT id, FROM_BASE64(TO_BASE64(region)) AS decoded FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_084_sha1_label_hash(self):
-        """SHA1 label hash
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {L} ORDER BY ts",
-            f"SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {M} ORDER BY ts",
-            f"SELECT id, encode(sha1(label::bytea), 'hex') FROM {P} ORDER BY ts",
-            f"SELECT id, SHA1(CAST(region AS VARCHAR(32))) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_085_sha2_256_label_hash(self):
-        """SHA2 256 label hash
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {L} ORDER BY ts",
-            f"SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {M} ORDER BY ts",
-            f"SELECT id, encode(sha256(label::bytea), 'hex') FROM {P} ORDER BY ts",
-            f"SELECT id, SHA2(CAST(region AS VARCHAR(32)), 256) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_086_crc32_label(self):
-        """CRC32 label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CRC32(label) FROM {L} ORDER BY ts",
-            f"SELECT id, CRC32(label) FROM {M} ORDER BY ts",
-            f"SELECT id, CRC32(label) FROM {P} ORDER BY ts",
-            f"SELECT id, CRC32(region) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_087_stddev_population_val(self):
-        """STDDEV population val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT STDDEV(val) FROM {L}",
-            f"SELECT STDDEV(val) FROM {M}",
-            f"SELECT STDDEV_POP(val) FROM {P}",
-            f"SELECT STDDEV(val) FROM {I}",
-            float_cols={0},
-            ordered=False,
-        )
-
-    def test_fq_parity_088_variance_population_val(self):
-        """VARIANCE population val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT VARIANCE(val) FROM {L}",
-            f"SELECT VARIANCE(val) FROM {M}",
-            f"SELECT VAR_POP(val) FROM {P}",
-            f"SELECT VARIANCE(val) FROM {I}",
-            float_cols={0},
-            ordered=False,
-        )
-
-    def test_fq_parity_089_stddev_samp_sample_val(self):
-        """STDDEV_SAMP sample val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT STDDEV_SAMP(val) FROM {L}",
-            f"SELECT STDDEV_SAMP(val) FROM {M}",
-            f"SELECT STDDEV_SAMP(val) FROM {P}",
-            f"SELECT STDDEV_SAMP(val) FROM {I}",
-            float_cols={0},
-            ordered=False,
-        )
-
-    def test_fq_parity_090_var_samp_sample_val(self):
-        """VAR_SAMP sample val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT VAR_SAMP(val) FROM {L}",
-            f"SELECT VAR_SAMP(val) FROM {M}",
-            f"SELECT VAR_SAMP(val) FROM {P}",
-            f"SELECT VAR_SAMP(val) FROM {I}",
-            float_cols={0},
-            ordered=False,
-        )
-
-    def test_fq_parity_091_count_distinct_val(self):
-        """COUNT DISTINCT val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(DISTINCT val) FROM {L}",
-            f"SELECT COUNT(DISTINCT val) FROM {M}",
-            f"SELECT COUNT(DISTINCT val) FROM {P}",
-            f"SELECT COUNT(DISTINCT val) FROM {I}",
-            ordered=False,
-        )
-
-    def test_fq_parity_092_group_by_label_sum_val(self):
-        """GROUP BY label SUM val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, SUM(val) FROM {L} GROUP BY label ORDER BY label",
-            f"SELECT label, SUM(val) FROM {M} GROUP BY label ORDER BY label",
-            f"SELECT label, SUM(val) FROM {P} GROUP BY label ORDER BY label",
-            f"SELECT region AS label, SUM(val) FROM {I} GROUP BY region ORDER BY region",
-        )
-
-    def test_fq_parity_093_group_by_label_avg_val_float(self):
-        """GROUP BY label AVG val float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, AVG(val) FROM {L} GROUP BY label ORDER BY label",
-            f"SELECT label, AVG(val) FROM {M} GROUP BY label ORDER BY label",
-            f"SELECT label, AVG(val) FROM {P} GROUP BY label ORDER BY label",
-            f"SELECT region AS label, AVG(val) FROM {I} GROUP BY region ORDER BY region",
-            float_cols={1},
-        )
-
-    def test_fq_parity_094_group_by_label_max_val(self):
-        """GROUP BY label MAX val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, MAX(val) FROM {L} GROUP BY label ORDER BY label",
-            f"SELECT label, MAX(val) FROM {M} GROUP BY label ORDER BY label",
-            f"SELECT label, MAX(val) FROM {P} GROUP BY label ORDER BY label",
-            f"SELECT region AS label, MAX(val) FROM {I} GROUP BY region ORDER BY region",
-        )
-
-    def test_fq_parity_095_group_by_label_min_val(self):
-        """GROUP BY label MIN val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, MIN(val) FROM {L} GROUP BY label ORDER BY label",
-            f"SELECT label, MIN(val) FROM {M} GROUP BY label ORDER BY label",
-            f"SELECT label, MIN(val) FROM {P} GROUP BY label ORDER BY label",
-            f"SELECT region AS label, MIN(val) FROM {I} GROUP BY region ORDER BY region",
-        )
-
-    def test_fq_parity_096_group_by_label_count_id(self):
-        """GROUP BY label COUNT id
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, COUNT(id) FROM {L} GROUP BY label ORDER BY label",
-            f"SELECT label, COUNT(id) FROM {M} GROUP BY label ORDER BY label",
-            f"SELECT label, COUNT(id) FROM {P} GROUP BY label ORDER BY label",
-            f"SELECT region AS label, COUNT(id) FROM {I} GROUP BY region ORDER BY region",
-        )
-
-    def test_fq_parity_097_having_sum_val_30(self):
-        """HAVING SUM val > 30
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, SUM(val) FROM {L} GROUP BY label HAVING SUM(val) > 30 ORDER BY label",
-            f"SELECT label, SUM(val) FROM {M} GROUP BY label HAVING SUM(val) > 30 ORDER BY label",
-            f"SELECT label, SUM(val) FROM {P} GROUP BY label HAVING SUM(val) > 30 ORDER BY label",
-            f"SELECT region AS label, SUM(val) FROM {I} GROUP BY region HAVING SUM(val) > 30 ORDER BY region",
-        )
-
-    def test_fq_parity_098_having_avg_score_float(self):
-        """HAVING AVG score float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, AVG(score) FROM {L} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label",
-            f"SELECT label, AVG(score) FROM {M} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label",
-            f"SELECT label, AVG(score) FROM {P} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label",
-            f"SELECT region AS label, AVG(score) FROM {I} GROUP BY region HAVING AVG(score) > 2.0 ORDER BY region",
-            float_cols={1},
-        )
-
-    def test_fq_parity_099_count_non_null_label(self):
-        """COUNT non-null label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(label) FROM {L}",
-            f"SELECT COUNT(label) FROM {M}",
-            f"SELECT COUNT(label) FROM {P}",
-            f"SELECT COUNT(region) FROM {I}",
-            ordered=False,
-        )
-
-    def test_fq_parity_100_sum_case_conditional_aggregation(self):
-        """SUM CASE conditional aggregation
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {L}",
-            f"SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {M}",
-            f"SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {P}",
-            f"SELECT SUM(CASE WHEN region = 'north' THEN val ELSE 0 END) FROM {I}",
-            ordered=False,
-        )
-
-    def test_fq_parity_101_case_when_multi_branch_classification(self):
-        """CASE WHEN multi-branch classification
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {L} ORDER BY ts",
-            f"SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {M} ORDER BY ts",
-            f"SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {P} ORDER BY ts",
-            f"SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_102_case_value_form_val_10_then_ten(self):
-        """CASE value form val 10 THEN ten
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {L} ORDER BY ts",
-            f"SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {M} ORDER BY ts",
-            f"SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {P} ORDER BY ts",
-            f"SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_103_nullif_val_30_returns_null(self):
-        """NULLIF val 30 returns NULL
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, NULLIF(val, 30) FROM {L} ORDER BY ts",
-            f"SELECT id, NULLIF(val, 30) FROM {M} ORDER BY ts",
-            f"SELECT id, NULLIF(val, 30) FROM {P} ORDER BY ts",
-            f"SELECT id, NULLIF(val, 30) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_104_coalesce_null_val_fallback(self):
-        """COALESCE NULL val fallback
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, COALESCE(NULL, val) FROM {L} ORDER BY ts",
-            f"SELECT id, COALESCE(NULL, val) FROM {M} ORDER BY ts",
-            f"SELECT id, COALESCE(NULL, val) FROM {P} ORDER BY ts",
-            f"SELECT id, COALESCE(NULL, val) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_105_nvl2_label_not_null_and_null_branches(self):
-        """NVL2 label not-null and null branches
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, NVL2(label, 'has_val', 'no_val') AS nv FROM {L} ORDER BY ts",
-            f"SELECT id, CASE WHEN label IS NOT NULL THEN 'has_val' ELSE 'no_val' END AS nv FROM {M} ORDER BY ts",
-            f"SELECT id, CASE WHEN label IS NOT NULL THEN 'has_val' ELSE 'no_val' END AS nv FROM {P} ORDER BY ts",
-            f"SELECT id, NVL2(region, 'has_val', 'no_val') AS nv FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_106_cast_val_as_double_float(self):
-        """CAST val AS DOUBLE float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CAST(val AS DOUBLE) FROM {L} ORDER BY ts",
-            f"SELECT id, CAST(val AS DOUBLE) FROM {M} ORDER BY ts",
-            f"SELECT id, CAST(val AS DOUBLE PRECISION) FROM {P} ORDER BY ts",
-            f"SELECT id, CAST(val AS DOUBLE) FROM {I} ORDER BY time",
-            float_cols={1},
-        )
-
-    def test_fq_parity_107_char_length_cast_val_as_varchar(self):
-        """CHAR_LENGTH CAST val AS VARCHAR
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CHAR_LENGTH(CAST(val AS VARCHAR(10))) FROM {L} ORDER BY ts",
-            f"SELECT id, CHAR_LENGTH(CAST(val AS CHAR(10))) FROM {M} ORDER BY ts",
-            f"SELECT id, CHAR_LENGTH(val::TEXT) FROM {P} ORDER BY ts",
-            f"SELECT id, CHAR_LENGTH(CAST(val AS VARCHAR(10))) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_108_cast_score_as_bigint_truncates_decimal(self):
-        """CAST score AS BIGINT truncates decimal
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, CAST(score AS BIGINT) FROM {L} ORDER BY ts",
-            f"SELECT id, CAST(score AS SIGNED) FROM {M} ORDER BY ts",
-            f"SELECT id, CAST(score AS BIGINT) FROM {P} ORDER BY ts",
-            f"SELECT id, CAST(score AS BIGINT) FROM {I} ORDER BY time",
-        )
-
-    def test_fq_parity_109_in_subquery_val_in_north_vals(self):
-        """IN subquery val in north vals
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val IN (SELECT val FROM {L} WHERE label = 'north') ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val IN (SELECT val FROM {M} WHERE label = 'north') ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val IN (SELECT val FROM {P} WHERE label = 'north') ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val IN (SELECT val FROM {I} WHERE region = 'north') ORDER BY time",
-        )
-
-    def test_fq_parity_110_not_in_subquery_exclude_east_vals(self):
-        """NOT IN subquery exclude east vals
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val NOT IN (SELECT val FROM {L} WHERE label = 'east') ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val NOT IN (SELECT val FROM {M} WHERE label = 'east') ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val NOT IN (SELECT val FROM {P} WHERE label = 'east') ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val NOT IN (SELECT val FROM {I} WHERE region = 'east') ORDER BY time",
-        )
-
-    def test_fq_parity_111_exists_subquery_north_rows(self):
-        """EXISTS subquery north rows
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} t1 WHERE EXISTS (SELECT 1 FROM {L} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY ts",
-            f"SELECT id FROM {M} t1 WHERE EXISTS (SELECT 1 FROM {M} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY ts",
-            f"SELECT id FROM {P} t1 WHERE EXISTS (SELECT 1 FROM {P} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY ts",
-            f"SELECT id FROM {I} t1 WHERE EXISTS (SELECT 1 FROM {I} t2 WHERE t2.id = t1.id AND t2.region = 'north') ORDER BY time",
-        )
-
-    def test_fq_parity_112_not_exists_subquery_exclude_south_rows(self):
-        """NOT EXISTS subquery exclude south rows
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} t1 WHERE NOT EXISTS (SELECT 1 FROM {L} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY ts",
-            f"SELECT id FROM {M} t1 WHERE NOT EXISTS (SELECT 1 FROM {M} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY ts",
-            f"SELECT id FROM {P} t1 WHERE NOT EXISTS (SELECT 1 FROM {P} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY ts",
-            f"SELECT id FROM {I} t1 WHERE NOT EXISTS (SELECT 1 FROM {I} t2 WHERE t2.id = t1.id AND t2.region = 'south') ORDER BY time",
-        )
-
-    def test_fq_parity_113_all_subquery_val_all_low_vals(self):
-        """ALL subquery val > ALL low vals
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val > ALL (SELECT val FROM {L} WHERE val < 20) ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val > ALL (SELECT val FROM {M} WHERE val < 20) ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val > ALL (SELECT val FROM {P} WHERE val < 20) ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val > ALL (SELECT val FROM {I} WHERE val < 20) ORDER BY time",
-        )
-
-    def test_fq_parity_114_any_subquery_val_any_low_vals(self):
-        """ANY subquery val > ANY low vals
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val > ANY (SELECT val FROM {L} WHERE val < 30) ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val > ANY (SELECT val FROM {M} WHERE val < 30) ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val > ANY (SELECT val FROM {P} WHERE val < 30) ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val > ANY (SELECT val FROM {I} WHERE val < 30) ORDER BY time",
-        )
-
-    def test_fq_parity_115_some_subquery_val_some_mid_vals(self):
-        """SOME subquery val >= SOME mid vals
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE val >= SOME (SELECT val FROM {L} WHERE val >= 30) ORDER BY ts",
-            f"SELECT id FROM {M} WHERE val >= SOME (SELECT val FROM {M} WHERE val >= 30) ORDER BY ts",
-            f"SELECT id FROM {P} WHERE val >= SOME (SELECT val FROM {P} WHERE val >= 30) ORDER BY ts",
-            f"SELECT id FROM {I} WHERE val >= SOME (SELECT val FROM {I} WHERE val >= 30) ORDER BY time",
-        )
-
-    def test_fq_parity_116_scalar_subquery_avg_in_select(self):
-        """scalar subquery AVG in SELECT
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val, (SELECT AVG(val) FROM {L}) AS avg_val FROM {L} ORDER BY ts",
-            f"SELECT id, val, (SELECT AVG(val) FROM {M}) AS avg_val FROM {M} ORDER BY ts",
-            f"SELECT id, val, (SELECT AVG(val) FROM {P}) AS avg_val FROM {P} ORDER BY ts",
-            f"SELECT id, val, (SELECT AVG(val) FROM {I}) AS avg_val FROM {I} ORDER BY time",
-            float_cols={2},
-        )
-
-    def test_fq_parity_117_scalar_subquery_avg_in_where_above_avg(self):
-        """scalar subquery AVG in WHERE above avg
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val FROM {L} WHERE val > (SELECT AVG(val) FROM {L}) ORDER BY ts",
-            f"SELECT id, val FROM {M} WHERE val > (SELECT AVG(val) FROM {M}) ORDER BY ts",
-            f"SELECT id, val FROM {P} WHERE val > (SELECT AVG(val) FROM {P}) ORDER BY ts",
-            f"SELECT id, val FROM {I} WHERE val > (SELECT AVG(val) FROM {I}) ORDER BY time",
-        )
-
-    def test_fq_parity_118_nested_subquery_avg_of_label_sums(self):
-        """nested subquery AVG of label sums
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {L} GROUP BY label) sub",
-            f"SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {M} GROUP BY label) sub",
-            f"SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {P} GROUP BY label) sub",
-            f"SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {I} GROUP BY region) sub",
-            float_cols={0},
-            ordered=False,
-        )
-
-    def test_fq_parity_119_order_by_multiple_cols_label_val(self):
-        """ORDER BY multiple cols label val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, label, val FROM {L} ORDER BY label, val",
-            f"SELECT id, label, val FROM {M} ORDER BY label, val",
-            f"SELECT id, label, val FROM {P} ORDER BY label, val",
-            f"SELECT id, region AS label, val FROM {I} ORDER BY region, val",
-        )
-
-    def test_fq_parity_120_group_by_expression_val_div_20(self):
-        """GROUP BY expression val div 20
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT val / 20 AS bucket, COUNT(*) FROM {L} GROUP BY val / 20 ORDER BY bucket",
-            f"SELECT val / 20 AS bucket, COUNT(*) FROM {M} GROUP BY val / 20 ORDER BY bucket",
-            f"SELECT val / 20 AS bucket, COUNT(*) FROM {P} GROUP BY val / 20 ORDER BY bucket",
-            f"SELECT val / 20 AS bucket, COUNT(*) FROM {I} GROUP BY val / 20 ORDER BY bucket",
-        )
-
-    def test_fq_parity_121_union_all_duplicates_preserved(self):
-        """UNION ALL duplicates preserved
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT val FROM {L} WHERE id <= 2 UNION ALL SELECT val FROM {L} WHERE id <= 2 ORDER BY val",
-            f"SELECT val FROM {M} WHERE id <= 2 UNION ALL SELECT val FROM {M} WHERE id <= 2 ORDER BY val",
-            f"SELECT val FROM {P} WHERE id <= 2 UNION ALL SELECT val FROM {P} WHERE id <= 2 ORDER BY val",
-            f"SELECT val FROM {I} WHERE id <= 2 UNION ALL SELECT val FROM {I} WHERE id <= 2 ORDER BY val",
-        )
-
-    def test_fq_parity_122_union_deduplicated(self):
-        """UNION deduplicated
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label FROM {L} WHERE id IN (1,3) UNION SELECT label FROM {L} WHERE id IN (1,4) ORDER BY label",
-            f"SELECT label FROM {M} WHERE id IN (1,3) UNION SELECT label FROM {M} WHERE id IN (1,4) ORDER BY label",
-            f"SELECT label FROM {P} WHERE id IN (1,3) UNION SELECT label FROM {P} WHERE id IN (1,4) ORDER BY label",
-            f"SELECT region FROM {I} WHERE id IN (1,3) UNION SELECT region FROM {I} WHERE id IN (1,4) ORDER BY region",
-        )
-
-    def test_fq_parity_123_distinct_multi_col_label_val(self):
-        """DISTINCT multi-col label val
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT DISTINCT label, val FROM {L} ORDER BY label, val",
-            f"SELECT DISTINCT label, val FROM {M} ORDER BY label, val",
-            f"SELECT DISTINCT label, val FROM {P} ORDER BY label, val",
-            f"SELECT DISTINCT region, val FROM {I} ORDER BY region, val",
-        )
-
-    def test_fq_parity_124_column_alias_in_order_by(self):
-        """column alias in ORDER BY
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, val * 2 AS dbl FROM {L} ORDER BY dbl",
-            f"SELECT id, val * 2 AS dbl FROM {M} ORDER BY dbl",
-            f"SELECT id, val * 2 AS dbl FROM {P} ORDER BY dbl",
-            f"SELECT id, val * 2 AS dbl FROM {I} ORDER BY dbl",
-        )
-
-    def test_fq_parity_125_order_by_nulls_first(self):
-        """ORDER BY NULLS FIRST
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, NULLIF(val, 30) AS v FROM {L} ORDER BY v ASC NULLS FIRST",
-            f"SELECT id, NULLIF(val, 30) AS v FROM {M} ORDER BY v ASC NULLS FIRST",
-            f"SELECT id, NULLIF(val, 30) AS v FROM {P} ORDER BY v ASC NULLS FIRST",
-            f"SELECT id, NULLIF(val, 30) AS v FROM {I} ORDER BY v ASC NULLS FIRST",
-        )
-
-    def test_fq_parity_126_order_by_nulls_last(self):
-        """ORDER BY NULLS LAST
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, NULLIF(val, 30) AS v FROM {L} ORDER BY v DESC NULLS LAST",
-            f"SELECT id, NULLIF(val, 30) AS v FROM {M} ORDER BY v DESC NULLS LAST",
-            f"SELECT id, NULLIF(val, 30) AS v FROM {P} ORDER BY v DESC NULLS LAST",
-            f"SELECT id, NULLIF(val, 30) AS v FROM {I} ORDER BY v DESC NULLS LAST",
-        )
-
-    def test_fq_parity_127_subquery_in_from_derived_table(self):
-        """subquery in FROM derived table
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {L}) sub ORDER BY id",
-            f"SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {M}) sub ORDER BY id",
-            f"SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {P}) sub ORDER BY id",
-            f"SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {I}) sub ORDER BY id",
-        )
-
-    def test_fq_parity_128_order_by_ordinal_position_1(self):
-        """ORDER BY ordinal position 1
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, COUNT(*) AS cnt FROM {L} GROUP BY label ORDER BY 2 DESC",
-            f"SELECT label, COUNT(*) AS cnt FROM {M} GROUP BY label ORDER BY 2 DESC",
-            f"SELECT label, COUNT(*) AS cnt FROM {P} GROUP BY label ORDER BY 2 DESC",
-            f"SELECT region AS label, COUNT(*) AS cnt FROM {I} GROUP BY region ORDER BY 2 DESC",
-        )
-
-    def test_fq_parity_129_inner_join_same_table_on_id(self):
-        """INNER JOIN same table on id
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.id, a.val, b.label FROM {L} a INNER JOIN {L} b ON a.id = b.id ORDER BY a.id",
-            f"SELECT a.id, a.val, b.label FROM {M} a INNER JOIN {M} b ON a.id = b.id ORDER BY a.id",
-            f"SELECT a.id, a.val, b.label FROM {P} a INNER JOIN {P} b ON a.id = b.id ORDER BY a.id",
-            f"SELECT a.id, a.val, b.region AS label FROM {I} a INNER JOIN {I} b ON a.id = b.id ORDER BY a.id",
-        )
-
-    def test_fq_parity_130_left_join_filtered(self):
-        """LEFT JOIN filtered
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.id, b.val FROM {L} a LEFT JOIN {L} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
-            f"SELECT a.id, b.val FROM {M} a LEFT JOIN {M} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
-            f"SELECT a.id, b.val FROM {P} a LEFT JOIN {P} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
-            f"SELECT a.id, b.val FROM {I} a LEFT JOIN {I} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
-        )
-
-    def test_fq_parity_131_right_join_filtered(self):
-        """RIGHT JOIN filtered
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.id, b.val FROM {L} a RIGHT JOIN {L} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
-            f"SELECT a.id, b.val FROM {M} a RIGHT JOIN {M} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
-            f"SELECT a.id, b.val FROM {P} a RIGHT JOIN {P} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
-            f"SELECT a.id, b.val FROM {I} a RIGHT JOIN {I} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
-        )
-
-    def test_fq_parity_132_full_outer_join(self):
-        """FULL OUTER JOIN
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.id AS aid, b.id AS bid FROM {L} a FULL OUTER JOIN {L} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
-            f"SELECT a.id AS aid, b.id AS bid FROM {M} a FULL OUTER JOIN {M} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
-            f"SELECT a.id AS aid, b.id AS bid FROM {P} a FULL OUTER JOIN {P} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
-            f"SELECT a.id AS aid, b.id AS bid FROM {I} a FULL OUTER JOIN {I} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
-        )
-
-    def test_fq_parity_133_cross_join(self):
-        """CROSS JOIN
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {L} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {L} WHERE id >= 4) b ORDER BY a.id, b.id",
-            f"SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {M} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {M} WHERE id >= 4) b ORDER BY a.id, b.id",
-            f"SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {P} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {P} WHERE id >= 4) b ORDER BY a.id, b.id",
-            f"SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {I} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {I} WHERE id >= 4) b ORDER BY a.id, b.id",
-        )
-
-    def test_fq_parity_134_join_with_group_by_aggregate(self):
-        """JOIN with GROUP BY aggregate
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {L} a INNER JOIN {L} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
-            f"SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {M} a INNER JOIN {M} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
-            f"SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {P} a INNER JOIN {P} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
-            f"SELECT a.region AS label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {I} a INNER JOIN {I} b ON a.id = b.id GROUP BY a.region ORDER BY a.region",
-        )
-
-    def test_fq_parity_135_semi_join_via_in_subquery(self):
-        """SEMI JOIN via IN subquery
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE id IN (SELECT id FROM {L} WHERE val > 30) ORDER BY id",
-            f"SELECT id FROM {M} WHERE id IN (SELECT id FROM {M} WHERE val > 30) ORDER BY id",
-            f"SELECT id FROM {P} WHERE id IN (SELECT id FROM {P} WHERE val > 30) ORDER BY id",
-            f"SELECT id FROM {I} WHERE id IN (SELECT id FROM {I} WHERE val > 30) ORDER BY time",
-        )
-
-    def test_fq_parity_136_anti_join_via_not_in_subquery(self):
-        """ANTI JOIN via NOT IN subquery
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE id NOT IN (SELECT id FROM {L} WHERE val > 30) ORDER BY id",
-            f"SELECT id FROM {M} WHERE id NOT IN (SELECT id FROM {M} WHERE val > 30) ORDER BY id",
-            f"SELECT id FROM {P} WHERE id NOT IN (SELECT id FROM {P} WHERE val > 30) ORDER BY id",
-            f"SELECT id FROM {I} WHERE id NOT IN (SELECT id FROM {I} WHERE val > 30) ORDER BY time",
-        )
-
-    def test_fq_parity_137_3_way_join_self_triple(self):
-        """3-way JOIN self triple
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT a.id, b.val, c.label FROM {L} a INNER JOIN {L} b ON a.id = b.id INNER JOIN {L} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
-            f"SELECT a.id, b.val, c.label FROM {M} a INNER JOIN {M} b ON a.id = b.id INNER JOIN {M} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
-            f"SELECT a.id, b.val, c.label FROM {P} a INNER JOIN {P} b ON a.id = b.id INNER JOIN {P} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
-            f"SELECT a.id, b.val, c.region AS label FROM {I} a INNER JOIN {I} b ON a.id = b.id INNER JOIN {I} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
-        )
-
-    def test_fq_parity_138_interval_1m_count_per_window(self):
-        """INTERVAL 1m COUNT per window
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt FROM {L} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {M} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {P} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {I} INTERVAL(1m) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_139_interval_1m_sum_val_per_window(self):
-        """INTERVAL 1m SUM val per window
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(1m) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_140_interval_1m_avg_score_per_window_float(self):
-        """INTERVAL 1m AVG score per window float
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT AVG(score) AS asc FROM {L} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT AVG(score) AS asc FROM {M} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT AVG(score) AS asc FROM {P} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT AVG(score) AS asc FROM {I} INTERVAL(1m) ORDER BY _wstart",
-            float_cols={0},
-        )
-
-    def test_fq_parity_141_interval_2m_count_and_sum(self):
-        """INTERVAL 2m COUNT and SUM
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {L} INTERVAL(2m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {M} INTERVAL(2m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {P} INTERVAL(2m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {I} INTERVAL(2m) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_142_interval_30s_fill_null_shows_gaps(self):
-        """INTERVAL 30s FILL NULL shows gaps
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_143_interval_30s_fill_value_0_fills_with_zero(self):
-        """INTERVAL 30s FILL VALUE 0 fills with zero
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_144_interval_30s_fill_prev_forward_fill(self):
-        """INTERVAL 30s FILL PREV forward fill
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_145_interval_30s_fill_next_backward_fill(self):
-        """INTERVAL 30s FILL NEXT backward fill
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_146_interval_30s_fill_linear_interpolation(self):
-        """INTERVAL 30s FILL LINEAR interpolation
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart",
-            float_cols={0},
-        )
-
-    def test_fq_parity_147_interval_1m_partition_by_label(self):
-        """INTERVAL 1m PARTITION BY label
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, COUNT(*) AS cnt FROM {L} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart",
-            f"SELECT label, COUNT(*) AS cnt FROM {M} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart",
-            f"SELECT label, COUNT(*) AS cnt FROM {P} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart",
-            f"SELECT region AS label, COUNT(*) AS cnt FROM {I} PARTITION BY region INTERVAL(1m) ORDER BY region, _wstart",
-        )
-
-    def test_fq_parity_148_session_window_30s_gap_5_sessions(self):
-        """SESSION_WINDOW 30s gap 5 sessions
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt FROM {L} SESSION(ts, 30s) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {M} SESSION(ts, 30s) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {P} SESSION(ts, 30s) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {I} SESSION(time, 30s) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_149_session_window_2m_gap_1_session(self):
-        """SESSION_WINDOW 2m gap 1 session
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {L} SESSION(ts, 2m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {M} SESSION(ts, 2m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {P} SESSION(ts, 2m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {I} SESSION(time, 2m) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_150_state_window_val_gte_30_two_states(self):
-        """STATE_WINDOW val gte 30 two states
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {L} STATE_WINDOW(val >= 30) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {M} STATE_WINDOW(val >= 30) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {P} STATE_WINDOW(val >= 30) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {I} STATE_WINDOW(val >= 30) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_151_state_window_label_per_label_group(self):
-        """STATE_WINDOW label per label group
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt FROM {L} STATE_WINDOW(label) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {M} STATE_WINDOW(label) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {P} STATE_WINDOW(label) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {I} STATE_WINDOW(region) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_152_event_window_start_val_gte_30_close_gte_50(self):
-        """EVENT_WINDOW start val gte 30 close gte 50
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {L} EVENT_WINDOW START WHEN val >= 30 CLOSE WHEN val >= 50 ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {M} EVENT_WINDOW START WHEN val >= 30 CLOSE WHEN val >= 50 ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {P} EVENT_WINDOW START WHEN val >= 30 CLOSE WHEN val >= 50 ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {I} EVENT_WINDOW START WHEN val >= 30 CLOSE WHEN val >= 50 ORDER BY _wstart",
-        )
-
-    def test_fq_parity_153_count_window_2_rows_per_window(self):
-        """COUNT_WINDOW 2 rows per window
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {L} COUNT_WINDOW(2) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {M} COUNT_WINDOW(2) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {P} COUNT_WINDOW(2) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {I} COUNT_WINDOW(2) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_154_count_window_3_rows_per_window(self):
-        """COUNT_WINDOW 3 rows per window
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {L} COUNT_WINDOW(3) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {M} COUNT_WINDOW(3) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {P} COUNT_WINDOW(3) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {I} COUNT_WINDOW(3) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_155_interval_1m_having_sum_filter(self):
-        """INTERVAL 1m HAVING SUM filter
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT SUM(val) AS sv FROM {L} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {M} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {P} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",
-            f"SELECT SUM(val) AS sv FROM {I} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",
-        )
-
-    def test_fq_parity_156_interval_1m_wstart_wend_present_correct_count(self):
-        """INTERVAL 1m wstart wend present correct count
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT COUNT(*) AS cnt FROM {L} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {M} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {P} INTERVAL(1m) ORDER BY _wstart",
-            f"SELECT COUNT(*) AS cnt FROM {I} INTERVAL(1m) ORDER BY _wstart",
-        )
-
-    def test_fq_parity_157_combined_and_or_precedence(self):
-        """combined AND OR precedence
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT id FROM {L} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id",
-            f"SELECT id FROM {M} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id",
-            f"SELECT id FROM {P} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id",
-            f"SELECT id FROM {I} WHERE (val < 20 OR val > 40) AND region <> 'east' ORDER BY id",
-        )
-
-    def test_fq_parity_158_aggregate_with_where_filter_and_order(self):
-        """aggregate with WHERE filter and ORDER
-
-        Catalog: - Query:FederatedResultParity
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2026-04-21 wpan Initial implementation
-        """
-        L, M, P, I = self._L, self._M, self._P, self._I
-        self._assert_parity_all(
-            f"SELECT label, COUNT(*), SUM(val), AVG(score) FROM {L} WHERE val >= 20 GROUP BY label ORDER BY label",
-            f"SELECT label, COUNT(*), SUM(val), AVG(score) FROM {M} WHERE val >= 20 GROUP BY label ORDER BY label",
-            f"SELECT label, COUNT(*), SUM(val), AVG(score) FROM {P} WHERE val >= 20 GROUP BY label ORDER BY label",
-            f"SELECT region AS label, COUNT(*), SUM(val), AVG(score) FROM {I} WHERE val >= 20 GROUP BY region ORDER BY region",
-            float_cols={3},
-        )
+    def _run_one_case(self, idx: int, total: int, sql_template: str, **kwargs) -> tuple:
+        """Run one parity case and return ``(passed, details, serialized)``.
+
+        Returns a 3-tuple:
+          - passed (bool): whether this case passed
+          - details (str): one-line failure summary (empty on pass)
+          - serialized (str): canonical text block of the local result
+            for regression baseline comparison
+        """
+        positive        = kwargs.get("positive", True)
+        reason          = kwargs.get("reason", "")
+        float_cols      = kwargs.get("float_cols") or set()
+        ordered         = kwargs.get("ordered", True)
+        # source_expected: dict[str, list[tuple]] — for sources whose results
+        # legitimately differ from local (e.g. type-mapping semantic differences),
+        # supply the *exact* expected rows instead of comparing against local.
+        # Sources absent from this dict (and not in skip_sources) are compared
+        # against local as usual.  skip_sources is still supported for sources
+        # where no meaningful assertion is possible at all.
+        source_expected = kwargs.get("source_expected") or {}
+        skip_sources    = kwargs.get("skip_sources") or set()
+        kind_tag   = "POS" if positive else "NEG"
+        sql_short  = sql_template if len(sql_template) <= 90 else sql_template[:87] + "..."
+        prefix     = f"[{kind_tag} #{idx:03d}/{total}]"
+        t0 = time.monotonic()
+        if not positive and reason:
+            tdLog.info(f"{prefix}  reason: {reason}")
+
+        # ── local reference ──────────────────────────────────────────────────
+        local_sql        = sql_template.format(tbl=self._L)
+        local_qerr: QueryError | None = None   # non-None when local query errors out
+        ref = None
+        try:
+            ref = self._get_rows(local_sql, no_retry=not positive)
+            if not ordered:
+                ref = sorted(ref, key=lambda r: [str(x) for x in r])
+        except QueryError as exc:
+            local_qerr = exc
+
+        # ── serialize local result for baseline comparison ────────────────
+        serialized = _serialize_case(idx, total, sql_template, positive, ref, local_qerr, float_cols, ordered)
+
+        # ── negative-case early-fail: if local succeeded but we expected error ─
+        if not positive and local_qerr is None:
+            elapsed = time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            tdLog.info(f"  [neg-expected] local unexpectedly succeeded (expected error)")
+            if reason:
+                tdLog.info(f"  reason: {reason}")
+            return False, "local unexpectedly succeeded", serialized
+
+        # ── compare each external source ─────────────────────────────────────
+        # When local errors we still run all external sources:
+        #   • external source also errors with same errno → parity OK
+        #   • external source errors with different errno → BUG (wrong error code)
+        #   • external source succeeds                   → BUG (should have errored)
+        src_failures: list[tuple[str, str]] = []   # (label, full_error_str)
+        for lbl, tbl in [("MySQL", self._M), ("PG", self._P), ("InfluxDB", self._I)]:
+            if lbl in skip_sources:
+                continue
+            sql = sql_template.format(tbl=tbl)
+            ext_qerr: QueryError | None = None
+            rows = None
+            try:
+                rows = self._get_rows(sql, no_retry=not positive)
+                if not ordered:
+                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
+            except QueryError as exc:
+                ext_qerr = exc
+
+            if local_qerr is not None:
+                if ext_qerr is None:
+                    # External succeeded but local errored — that's a bug.
+                    _le = local_qerr.qerrno
+                    src_failures.append((
+                        lbl,
+                        f"BUG: local errored but [{lbl}] succeeded\n"
+                        f"  local errno : {_le if _le is not None else 0:#010x} — {local_qerr.err_info}\n"
+                        f"  {lbl} sql   : {sql}",
+                    ))
+                elif ext_qerr.qerrno != local_qerr.qerrno:
+                    # Both errored but with different errno — that's a bug.
+                    _le = local_qerr.qerrno
+                    _ee = ext_qerr.qerrno
+                    src_failures.append((
+                        lbl,
+                        f"BUG: errno mismatch\n"
+                        f"  local  errno: {_le if _le is not None else 0:#010x} — {local_qerr.err_info}\n"
+                        f"  {lbl}   errno: {_ee if _ee is not None else 0:#010x} — {ext_qerr.err_info}\n"
+                        f"  {lbl} sql   : {sql}",
+                    ))
+                # else: both errored with same errno — parity satisfied
+            else:
+                # Local succeeded — compare results normally.
+                if ext_qerr is not None:
+                    src_failures.append((lbl, str(ext_qerr)))
+                    continue
+                try:
+                    if lbl in source_expected:
+                        expected_rows = list(source_expected[lbl])
+                        self._compare_rows(expected_rows, rows, f"expected({lbl})", sql, lbl, float_cols)
+                    else:
+                        self._compare_rows(ref, rows, local_sql, sql, lbl, float_cols)
+                except AssertionError as exc:
+                    src_failures.append((lbl, str(exc)))
+
+        if local_qerr is not None and not src_failures:
+            # All sources errored with same errno — parity OK.
+            # For positive cases this is unexpected but still consistent (err-parity).
+            # For negative cases this is the expected outcome → PASS.
+            elapsed = time.monotonic() - t0
+            _le = local_qerr.qerrno
+            tag = "PASS" if not positive else "PASS(err-parity)"
+            tdLog.info(f"{prefix} {tag}  {sql_short}  errno={_le if _le is not None else 0:#010x}  [{elapsed:.2f}s]")
+            return True, "", serialized
+
+        if local_qerr is not None and src_failures:
+            # Some external sources had wrong errno or succeeded — bug.
+            elapsed = time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            if not positive and reason:
+                tdLog.info(f"  [neg-expected] {reason}")
+            _le = local_qerr.qerrno
+            tdLog.info(f"  [local] errno={_le if _le is not None else 0:#010x} — {local_qerr.err_info}")
+            for lbl, err in src_failures:
+                for line in err.splitlines()[:5]:
+                    tdLog.info(f"  {line}")
+            summary = "; ".join(f"[{lbl}] {err.splitlines()[0]}" for lbl, err in src_failures)
+            return False, summary, serialized
+
+        if src_failures:
+            elapsed = time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            if not positive and reason:
+                tdLog.info(f"  [neg-expected] {reason}")
+            for lbl, err in src_failures:
+                err_lines = err.split("\n")
+                tdLog.info(f"  [{lbl}] {err_lines[0]}")
+                for line in err_lines[1:10]:        # up to 9 detail lines
+                    tdLog.info(f"    {line}")
+            summary = "; ".join(
+                f"[{lbl}] {err.split(chr(10))[0]}" for lbl, err in src_failures
+            )
+            return False, summary, serialized
+
+        elapsed = time.monotonic() - t0
+        tdLog.info(f"{prefix} PASS  {sql_short}  [{elapsed:.2f}s]")
+        return True, "", serialized
+
+    def test_fq_parity_all_cases(self):
+        """All result-parity cases (parametrized via _PARITY_CASES).
+
+        By default every entry in _PARITY_CASES is executed.  Set the
+        environment variable ``PARITY_IDX`` to a comma-separated list of
+        1-based indices to run only those entries, e.g.::
+
+            PARITY_IDX=1 pytest test_fq_14_result_parity.py::...::test_fq_parity_all_cases
+            PARITY_IDX=1,3,5-8 pytest ...
+
+        Ranges (``a-b``) are inclusive on both ends.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-21 wpan Initial implementation
+        """
+
+        raw = os.environ.get("PARITY_IDX", "").strip()
+        if raw:
+            selected: set[int] = set()
+            for part in raw.split(","):
+                part = part.strip()
+                if "-" in part:
+                    lo, hi = part.split("-", 1)
+                    selected.update(range(int(lo), int(hi) + 1))
+                else:
+                    selected.add(int(part))
+            indices = sorted(selected)
+        else:
+            indices = list(range(1, len(_PARITY_CASES) + 1))
+
+        total  = len(_PARITY_CASES)
+        n_run  = len(indices)
+        n_pos  = sum(1 for i in indices if (_PARITY_CASES[i - 1][1] if len(_PARITY_CASES[i - 1]) > 1 else {}).get("positive", True))
+        n_neg  = n_run - n_pos
+        tdLog.info(f"\nParity run: {n_run} case(s) of {total} total  (pos={n_pos} neg={n_neg})")
+
+        failed: list[tuple[int, str, str]] = []   # (idx, sql_template, details)
+        serialized_blocks: list[str] = []          # per-case baseline text
+
+        for idx in indices:
+            if idx < 1 or idx > total:
+                raise ValueError(f"PARITY_IDX {idx} out of range 1..{total}")
+            entry        = _PARITY_CASES[idx - 1]
+            sql_template = entry[0]
+            kwargs       = entry[1] if len(entry) > 1 else {}
+            passed, details, serialized = self._run_one_case(idx, total, sql_template, **kwargs)
+            serialized_blocks.append(serialized)
+            if not passed:
+                failed.append((idx, sql_template, details))
+
+        # ── write temp result file and compare with static baseline ────────
+        run_all = (not raw) or (set(indices) == set(range(1, total + 1)))
+        if run_all:
+            tmp_file = _BASELINE_FILE + ".tmp"
+            tmp_content = "\n".join(serialized_blocks) + "\n"
+            with open(tmp_file, "w") as f:
+                f.write(tmp_content)
+            tdLog.info(f"Temp result file written: {tmp_file}")
+
+            if os.path.isfile(_BASELINE_FILE):
+                with open(_BASELINE_FILE, "r") as f:
+                    baseline_content = f.read()
+                if tmp_content != baseline_content:
+                    # Find first diff line for diagnostic
+                    tmp_lines = tmp_content.splitlines()
+                    base_lines = baseline_content.splitlines()
+                    diff_line = -1
+                    for li in range(max(len(tmp_lines), len(base_lines))):
+                        tl = tmp_lines[li] if li < len(tmp_lines) else "<EOF>"
+                        bl = base_lines[li] if li < len(base_lines) else "<EOF>"
+                        if tl != bl:
+                            diff_line = li + 1
+                            break
+                    baseline_err = (
+                        f"Regression baseline mismatch!\n"
+                        f"  baseline: {_BASELINE_FILE}\n"
+                        f"  actual  : {tmp_file}\n"
+                        f"  first diff at line {diff_line}:\n"
+                        f"    baseline: {bl!r}\n"
+                        f"    actual  : {tl!r}\n"
+                        f"  Run: diff {_BASELINE_FILE} {tmp_file}"
+                    )
+                    tdLog.info(f"BASELINE MISMATCH: {baseline_err}")
+                    failed.append((0, "<baseline>", baseline_err))
+                else:
+                    tdLog.info("Baseline comparison: OK (matches static baseline)")
+            else:
+                tdLog.info(f"No baseline file found at {_BASELINE_FILE}, skipping baseline comparison")
+
+        # ── summary ────────────────────────────────────────────────────────
+        n_pass = n_run - len(failed)
+        sep    = "─" * 72
+        tdLog.info(f"\n{sep}")
+        tdLog.info(f"  Parity summary: {n_pass}/{n_run} passed  |  {len(failed)} failed  (pos={n_pos} neg={n_neg})")
+        if failed:
+            tdLog.info("  Failed cases:")
+            for i, sql, det in failed:
+                opts     = _PARITY_CASES[i - 1][1] if i > 0 and len(_PARITY_CASES[i - 1]) > 1 else {}
+                kind_tag = "POS" if opts.get("positive", True) else "NEG"
+                tdLog.info(f"    [{kind_tag} #{i:03d}]  {sql[:70]}")
+                tdLog.info(f"           {det[:130]}")
+        tdLog.info(sep)
+
+        # ── cleanup temp file: keep on failure, remove on success ─────────
+        if run_all:
+            tmp_file_path = _BASELINE_FILE + ".tmp"
+            if failed:
+                tdLog.info(f"Temp result file kept for debugging: {tmp_file_path}")
+            elif os.path.isfile(tmp_file_path):
+                os.remove(tmp_file_path)
+                tdLog.info(f"Temp result file removed (all passed).")
+
+        if failed:
+            all_errors = "\n".join(
+                f"\n[#{i:03d}] {sql}\n  {det}" for i, sql, det in failed
+            )
+            raise AssertionError(
+                f"{len(failed)} of {n_run} case(s) failed:\n{all_errors}"
+            )

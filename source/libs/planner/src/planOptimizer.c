@@ -12834,12 +12834,16 @@ _chain_done:
         }
         if ((at == QUERY_NODE_LOGIC_PLAN_SORT || at == QUERY_NODE_LOGIC_PLAN_PROJECT) &&
             pAnc->pTargets != NULL && LIST_LENGTH(pAnc->pTargets) > 0) {
-          // Skip a Project whose pTargets contain non-column entries (e.g.
-          // function aliases like "truncate(val,2)").  Using such names to
-          // overwrite pScanCols would produce column names absent from the
-          // external table schema, causing 0x2704 slot-key-not-found.
+          // Stop at a Project whose pTargets contain non-column entries (e.g.
+          // function aliases like "val*2 AS doubled").  Any ancestor above such
+          // a Project references DERIVED columns, not real table columns.  Using
+          // those derived column names to overwrite pScanCols would produce names
+          // absent from the external table schema, causing 0x2704 slot-key-not-found
+          // in the InnerProject's slot-id resolution step.
           if (at == QUERY_NODE_LOGIC_PLAN_PROJECT && !fqProjectIsPushdownable(pAnc)) {
-            continue;
+            planDebug("FqPushdown empty-chain: stopping at non-pushdownable Project (has expressions), "
+                      "pOutputSpec stays NULL, pScan->pTargets unchanged");
+            break;
           }
           // Skip if an Agg/Window node was found between Scan and this ancestor;
           // its pTargets carry derived column names, not real table columns.

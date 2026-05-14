@@ -3383,7 +3383,11 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
           SExtTableNode* pInnerExt =
               (SExtTableNode*)((SRealTableNode*)pInnerStmt->pFromTable)->pExtTableNode;
           if (pOuterExt && pInnerExt && pOuterExt->sourceName[0] != '\0' &&
-              0 == strcmp(pOuterExt->sourceName, pInnerExt->sourceName)) {
+              0 == strcmp(pOuterExt->sourceName, pInnerExt->sourceName) &&
+              pOuterExt->sourceType != EXT_SOURCE_INFLUXDB) {
+            // InfluxDB (DataFusion) does not support EXISTS subquery syntax.
+            // Skip the same-source EXISTS pushdown; let the normal rewrite path
+            // handle it (converts EXISTS to COUNT(*) > 0 evaluated TDengine-side).
             sameExtSourceCorrelatedExists = true;
           }
         }
@@ -9413,7 +9417,9 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   }
 
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pFill->pTimeRange) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+    // No explicit WHERE time range: allow the query to proceed.
+    // The fill executor will bound the fill range to the actual data timestamps.
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pFill->pTimeRange &&
@@ -23875,7 +23881,77 @@ static void getFromTableExtSourceName(SNode* pFromTable, char outSrc[TSDB_EXT_SO
   }
 }
 
+/* ── Correlated-subquery pre-scan ─────────────────────────────────────────────
+ * Walk an expression tree and look for SColumnNode references whose tableAlias
+ * matches an entry in the outer namespace but NOT in the inner FROM table.
+ * This lets us detect correlation BEFORE attempting to translate the inner
+ * SELECT, so we can reject it with a consistent error code even when the inner
+ * SELECT's table-metadata lookup would fail first (e.g. InfluxDB flight_sql).
+ */
+typedef struct SOuterRefCheckCxt {
+  SArray* pOuterNs;    /* outer namespace level (array of STableNode*)     */
+  SNode*  pInnerFrom;  /* inner FROM table (to exclude inner aliases)       */
+  bool    found;
+} SOuterRefCheckCxt;
+
+static EDealRes walkCheckOuterRef(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
+  SOuterRefCheckCxt* pCtx = (SOuterRefCheckCxt*)pContext;
+  SColumnNode*       pCol = (SColumnNode*)pNode;
+  if ('\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
+
+  /* Skip if the alias belongs to the inner FROM (not an outer reference). */
+  if (pCtx->pInnerFrom) {
+    if (QUERY_NODE_REAL_TABLE == nodeType(pCtx->pInnerFrom)) {
+      SRealTableNode* pInnerTable = (SRealTableNode*)pCtx->pInnerFrom;
+      if (0 == strcmp(pInnerTable->table.tableAlias, pCol->tableAlias)) {
+        return DEAL_RES_CONTINUE;
+      }
+    }
+  }
+
+  /* Check whether the alias matches any outer table. */
+  int32_t n = (int32_t)taosArrayGetSize(pCtx->pOuterNs);
+  for (int32_t i = 0; i < n; ++i) {
+    STableNode* pTable = (STableNode*)taosArrayGetP(pCtx->pOuterNs, i);
+    if (pTable && 0 == strcmp(pTable->tableAlias, pCol->tableAlias)) {
+      pCtx->found = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/* Returns true if the inner SELECT's WHERE clause contains a column reference
+ * to an outer-query table alias (i.e. the subquery is correlated). */
+static bool innerSelectIsCorrelated(STranslateContext* pCxt, SSelectStmt* pInner) {
+  if (!pInner->pWhere) return false;
+  int32_t levelNum = (int32_t)taosArrayGetSize(pCxt->pNsLevel);
+  if (levelNum == 0 || pCxt->currLevel >= levelNum) return false;
+  SArray* pOuterNs = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
+  if (!pOuterNs || taosArrayGetSize(pOuterNs) == 0) return false;
+
+  SOuterRefCheckCxt cxt = {
+      .pOuterNs   = pOuterNs,
+      .pInnerFrom = pInner->pFromTable,
+      .found      = false,
+  };
+  nodesWalkExpr(pInner->pWhere, walkCheckOuterRef, &cxt);
+  return cxt.found;
+}
+
 static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) {
+  /* Pre-check: if the inner SELECT's WHERE references an outer table alias,
+   * the subquery is correlated.  Reject it immediately with a consistent
+   * error code before any metadata lookup so that all sources (including
+   * those whose metadata fetch may fail earlier, e.g. InfluxDB/flight_sql)
+   * return the same errno as local TDengine. */
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode) &&
+      innerSelectIsCorrelated(pCxt, (SSelectStmt*)pNode)) {
+    parserError("Correlated subQuery (pre-detected): not supported");
+    return TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+  }
+
   int32_t           code = TSDB_CODE_SUCCESS;
   STranslateContext cxt = {0};
   cxt.isExprSubQ = true;
@@ -23906,27 +23982,11 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     code = nodesListAppend(pCxt->pSubQueries, pNode);
   }
   if (pCxt->isCorrelatedSubQ) {
-    // Exception: if the outer query and inner subquery both reference the same
-    // external source exclusively, the whole correlated EXISTS/IN query is pushed
-    // down to that external DB which natively supports correlated subqueries.
-    bool allowCorrelated = false;
-    if (QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt) &&
-        QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
-      char outerSrc[TSDB_EXT_SOURCE_NAME_LEN];
-      char innerSrc[TSDB_EXT_SOURCE_NAME_LEN];
-      getFromTableExtSourceName(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable, outerSrc);
-      getFromTableExtSourceName(((SSelectStmt*)pNode)->pFromTable, innerSrc);
-      if (outerSrc[0] != '\0' && strcmp(outerSrc, innerSrc) == 0) {
-        allowCorrelated = true;
-        // Signal rewriteExprSubQuery to pre-render the EXISTS SQL for pushdown.
-        pCxt->sameExtSourceCorrelatedExists = true;
-        parserDebug("correlated subQ allowed: outer and inner both from external source '%s'", outerSrc);
-      }
-    }
-    if (!allowCorrelated) {
-      parserError("Correlated subQuery not supported now");
-      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
-    }
+    // Correlated subqueries are not supported in TDengine (including FQ external
+    // sources).  Reject unconditionally so that behavior is identical whether the
+    // FROM table is a local TDengine table or an FQ external source.
+    parserError("Correlated subQuery not supported now");
+    code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
   }
   /*
     if (pCxt->hasLocalSubQ) {

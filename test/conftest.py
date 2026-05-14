@@ -4,6 +4,8 @@ import json
 import os
 import random
 import shutil
+import signal
+import subprocess
 import tempfile
 import time
 import uuid
@@ -18,6 +20,50 @@ from new_test_framework.utils import (
     tdSql,
     tdStmt2,
 )
+
+
+def _kill_stale_taosd(work_dir: str) -> None:
+    """Kill taosd processes whose command line references *work_dir*.
+
+    Called before a --clean run wipes the data directory so that stale
+    processes cannot hold onto ports or write into the directory that is
+    about to be deleted.  Errors are intentionally swallowed – if we
+    cannot kill the process we log the issue and let the subsequent
+    deploy fail with a clear port-in-use error rather than silently
+    corrupting data.
+    """
+    if not work_dir:
+        return
+    try:
+        result = subprocess.run(
+            ["ps", "-efww"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception as exc:
+        tdLog.info(f"[clean] ps failed: {exc} – skipping stale-taosd check")
+        return
+
+    killed = []
+    for line in result.stdout.splitlines():
+        if "taosd" not in line:
+            continue
+        if work_dir not in line:
+            continue
+        if " grep " in line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        try:
+            pid = int(parts[1])
+            os.kill(pid, signal.SIGKILL)
+            killed.append(pid)
+        except (ValueError, ProcessLookupError, PermissionError) as exc:
+            tdLog.info(f"[clean] could not kill pid from line '{line}': {exc}")
+
+    if killed:
+        tdLog.info(f"[clean] killed stale taosd pids: {killed} (work_dir={work_dir})")
+        time.sleep(0.5)  # brief wait for processes to actually exit
 
 
 def pytest_addoption(parser):
@@ -203,9 +249,17 @@ def before_test_session(request):
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(
         request.session.work_dir
     )
-    if request.session.clean and os.path.exists(request.session.work_dir):
-        tdLog.info(f"rm {request.session.work_dir} before deploy")
-        shutil.rmtree(request.session.work_dir)
+    if request.session.clean and request.session.work_dir:
+        # Kill any taosd processes that are still using this work_dir.
+        # A previous test run may have left taosd running (e.g. after a
+        # failure) and not called destroy().  Without this kill step the
+        # old process keeps the port open, and the new deployment will
+        # either fail to bind or write into a directory we are about to
+        # delete.
+        _kill_stale_taosd(request.session.work_dir)
+        if os.path.exists(request.session.work_dir):
+            tdLog.info(f"rm {request.session.work_dir} before deploy")
+            shutil.rmtree(request.session.work_dir)
 
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
@@ -464,9 +518,26 @@ def before_test_class(request):
                 if hasattr(item, "rep_setup") and item.rep_setup.outcome == "error":
                     tdLog.debug(f"    错误原因: {str(item.rep_setup.longrepr)}")
                     if_success = False
-        if if_success and not request.session.skip_stop:
+        if if_success:
             tdLog.info(f"successfully executed")
+        else:
+            tdLog.info(f"test completed with failures; taosd will still be stopped")
+        if not request.session.skip_stop:
             request.session.before_test.destroy(request.cls.yaml_file)
+            # After destroying taosd, wipe the taosd data/log directories so
+            # the next test class always starts with a completely clean taosd
+            # state (no leftover WAL, metadata, or external-source definitions).
+            # Without this, taosd restarts with the previous class's metadata
+            # which can cause crashes when queries are executed.
+            work_dir = request.session.work_dir
+            if work_dir and os.path.isdir(work_dir):
+                import glob as _glob
+                for _dnode_dir in _glob.glob(os.path.join(work_dir, "dnode*")):
+                    for _sub in ("data", "log"):
+                        _target = os.path.join(_dnode_dir, _sub)
+                        if os.path.exists(_target):
+                            shutil.rmtree(_target, ignore_errors=True)
+                            tdLog.info(f"[teardown] wiped {_target}")
 
 
 @pytest.fixture(scope="class", autouse=True)

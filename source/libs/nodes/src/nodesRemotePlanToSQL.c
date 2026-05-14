@@ -728,6 +728,20 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
       dynAppendValueLiteral(s, &pVal->val, dialect);
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
+      // EXISTS/NOT EXISTS subquery row-count — resolve and emit as literal integer.
+      // Used when EXISTS cannot be pushed to the remote source (e.g. InfluxDB).
+      // The inner subquery is executed by TDengine; the row count becomes a constant
+      // in the remote SQL (e.g. WHERE (3 > 0) instead of WHERE EXISTS (...)).
+      const SRemoteZeroRowsNode* pRows = (const SRemoteZeroRowsNode*)pExpr;
+      if (IS_VAL_UNSET(pRows->val.flag)) {
+        if (!pCtx || !pCtx->fp) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        int32_t rowCode = pCtx->fp(pCtx->pCtx, pRows->subQIdx, (SNode*)pRows);
+        if (rowCode != TSDB_CODE_SUCCESS) return rowCode;
+      }
+      dynAppendValueLiteral(s, &pRows->val, dialect);
+      return TSDB_CODE_SUCCESS;
+    }
     case QUERY_NODE_REMOTE_ROW: {
       // Scalar subquery result (ANY/ALL/scalar) — resolve and emit as literal value.
       const SRemoteRowNode* pRow = (const SRemoteRowNode*)pExpr;

@@ -1,5 +1,7 @@
 import os
 import re
+import sys
+import subprocess
 import datetime as _datetime
 import pytest
 from collections import namedtuple
@@ -207,6 +209,7 @@ TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED          = _code('TSDB_CODE_EXT_SUBSCRIBE_
 TSDB_CODE_EXT_REMOTE_INTERNAL                  = _code('TSDB_CODE_EXT_REMOTE_INTERNAL')
 TSDB_CODE_PAR_NOT_SUPPORT_JOIN                 = _code('TSDB_CODE_PAR_NOT_SUPPORT_JOIN')
 TSDB_CODE_PAR_INVALID_COL_JSON                 = _code('TSDB_CODE_PAR_INVALID_COL_JSON')
+TSDB_CODE_PAR_INVALID_EXPR_SUBQ                = _code('TSDB_CODE_PAR_INVALID_EXPR_SUBQ')
 TSDB_CODE_OPS_NOT_SUPPORT                      = _code('TSDB_CODE_OPS_NOT_SUPPORT')
 TSDB_CODE_TSC_NO_EXEC_NODE                     = _code('TSDB_CODE_TSC_NO_EXEC_NODE')
 TSDB_CODE_INVALID_PARA                         = _code('TSDB_CODE_INVALID_PARA')
@@ -398,7 +401,6 @@ class ExtSrcEnv:
         # Step 1: run platform-appropriate setup script
         # ------------------------------------------------------------------
         import subprocess
-        import sys
 
         here = os.path.dirname(os.path.abspath(__file__))
         env = os.environ.copy()
@@ -535,6 +537,32 @@ class ExtSrcEnv:
             tdLog.info("[FQ env] dropped qnode on dnode 1")
         except Exception as e:
             tdLog.info(f"[FQ env] qnode drop skipped: {e}")
+
+    @classmethod
+    def teardown_env(cls):
+        """Stop all external DB processes and rotate oversized log files.
+
+        Must be called unconditionally at the end of every FQ test class
+        (teardown_class / fixture teardown), regardless of pass/fail.
+        Uses ensure_ext_env.sh --teardown which is a no-op if processes are
+        already stopped.
+        """
+        here = os.path.dirname(os.path.abspath(__file__))
+        env = os.environ.copy()
+        env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
+        env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
+        env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+
+        if sys.platform != "win32":
+            sh = os.path.join(here, "ensure_ext_env.sh")
+            if os.path.exists(sh):
+                ret = subprocess.call(["bash", sh, "--teardown"], env=env)
+                if ret != 0:
+                    # Non-fatal: log but do not raise — teardown must not mask
+                    # the original test failure.
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "ensure_ext_env.sh --teardown exited with %d", ret)
 
     # ---- Version iteration helpers ----
 

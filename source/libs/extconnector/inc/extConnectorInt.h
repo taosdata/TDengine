@@ -97,7 +97,7 @@ typedef enum {
 // on idleList while eviction modifies freeNext (or vice-versa).
 // Each entry belongs to exactly one logical owner at a time
 // (freeList, idleList, or a caller), enforced by CAS on state.
-// ============================================================
+// =============================================================
 
 typedef struct SExtPoolEntry {
   struct SExtPoolEntry *idleNext;       // idleList Treiber stack link
@@ -153,7 +153,7 @@ typedef struct SExtConnPool {
   volatile int32_t inUseCount;      // accurate count of IN_USE entries
   int32_t          slabSize;        // entries per expansion slab (= maxPoolSize initially)
   int32_t          maxPoolSize;     // soft cap on (idleCount + inUseCount)
-  volatile int32_t destroying;      // 1 = pool shutting down
+  volatile int32_t destroying;      // 1 = pool shutting down (set by destroyPool)
 } SExtConnPool;
 // ============================================================
 // Opaque handle types (declared in extConnector.h, defined here)
@@ -162,6 +162,7 @@ typedef struct SExtConnPool {
 struct SExtConnectorHandle {
   SExtConnPool  *pPool;
   SExtPoolEntry *pEntry;
+  void          *pAcquiredData;  // value returned by taosHashAcquire; passed to taosHashRelease in Close
 };
 
 struct SExtQueryHandle {

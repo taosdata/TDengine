@@ -206,12 +206,27 @@ _write_pidfile() {
     echo "$!" > "$1"
 }
 
+# Rotate a log file if it exceeds LOG_ROTATE_MAX_BYTES (default 50 MiB).
+# Keeps at most 1 rotated copy (.1); silently does nothing if file is absent.
+: "${LOG_ROTATE_MAX_BYTES:=$((50 * 1024 * 1024))}"
+_rotate_log() {
+    local f="$1"
+    [[ -f "$f" ]] || return 0
+    local size
+    size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+    if (( size > LOG_ROTATE_MAX_BYTES )); then
+        mv -f "$f" "${f}.1" 2>/dev/null || true
+        : > "$f"
+    fi
+}
+
 # Start a daemon via nohup, record PID in pidfile, return immediately
 # Usage: _start_daemon <pidfile> <logfile> <cmd> [args...]
 _start_daemon() {
     local pidfile="$1" logfile="$2"
     shift 2
     mkdir -p "$(dirname "$pidfile")" "$(dirname "$logfile")"
+    _rotate_log "$logfile"
     nohup "$@" >> "$logfile" 2>&1 &
     echo "$!" > "$pidfile"
 }
@@ -496,21 +511,25 @@ _mysql_init() {
     local user_opt="--user=${CURRENT_USER}"
     [[ "$CURRENT_USER" == "root" ]] && user_opt="--user=root"
 
+    # Truncate (not append) init.log so a previous stuck run cannot fill disk.
+    : > "${log}/init.log"
+
     # --initialize-insecure: root@localhost with empty password
+    # timeout 120s: if mysqld hangs during init, abort and return an error.
     if [[ -n "$_ldlp_prefix" ]]; then
-        LD_LIBRARY_PATH="$_ldlp_prefix" "$mysqld" --initialize-insecure \
+        LD_LIBRARY_PATH="$_ldlp_prefix" timeout 120 "$mysqld" --initialize-insecure \
             --basedir="$base" \
             --datadir="$data" \
             $user_opt \
-            2>>"${log}/init.log" \
-            || { err "MySQL ${ver}: initdb failed; check ${log}/init.log"; OVERALL_OK=1; return 1; }
+            2>"${log}/init.log" \
+            || { err "MySQL ${ver}: initdb failed (exit=$?); check ${log}/init.log"; OVERALL_OK=1; return 1; }
     else
-        "$mysqld" --initialize-insecure \
+        timeout 120 "$mysqld" --initialize-insecure \
             --basedir="$base" \
             --datadir="$data" \
             $user_opt \
-            2>>"${log}/init.log" \
-            || { err "MySQL ${ver}: initdb failed; check ${log}/init.log"; OVERALL_OK=1; return 1; }
+            2>"${log}/init.log" \
+            || { err "MySQL ${ver}: initdb failed (exit=$?); check ${log}/init.log"; OVERALL_OK=1; return 1; }
     fi
 }
 
@@ -684,13 +703,18 @@ _mysql_reset_env() {
 
     info "MySQL ${ver} @ ${port}: hard reset (kill-9 → wipe data → reinit → restart) ..."
 
-    # 1. Kill -9 all mysqld processes on this port
+    # 1. Kill -9 all mysqld processes on this port, including any stuck --initialize-insecure
     if [[ -f "$pidfile" ]]; then
         kill -9 "$(cat "$pidfile")" 2>/dev/null || true
         rm -f "$pidfile"
     fi
     pkill -9 -f "mysqld.*port=${port}" 2>/dev/null || true
     pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
+    pkill -9 -f "mysqld.*initialize-insecure.*${base}" 2>/dev/null || true
+    pkill -9 -f "mysqld.*${base}.*initialize-insecure" 2>/dev/null || true
+    # Truncate init.log now so stale open file handles cannot keep consuming disk
+    mkdir -p "${log}"
+    : > "${log}/init.log"
 
     # Remove socket and lock files so mysqld does not refuse to start
     # ("Another process with pid N is using unix socket file")
@@ -917,15 +941,19 @@ _pg_init() {
     echo "$PG_PASS" > "$pwfile"
     chmod 644 "$pwfile"
 
+    # Truncate (not append) initdb.log so a previous stuck run cannot fill disk.
+    : > "${log}/initdb.log"
+
     local initdb_cmd=("$initdb" -D "$data" -U "$PG_USER" --pwfile="$pwfile" --encoding=UTF8 --locale=C)
+    # timeout 120s: if initdb hangs, abort and return an error.
     if [[ "$CURRENT_USER" == "root" ]]; then
-        su -s /bin/sh "$pg_os_user" -c "${initdb_cmd[*]}" \
-            2>>"${log}/initdb.log" \
-            || { err "PostgreSQL ${ver}: initdb failed; check ${log}/initdb.log"; rm -f "$pwfile"; OVERALL_OK=1; return 1; }
+        su -s /bin/sh "$pg_os_user" -c "timeout 120 ${initdb_cmd[*]}" \
+            2>"${log}/initdb.log" \
+            || { err "PostgreSQL ${ver}: initdb failed (exit=$?); check ${log}/initdb.log"; rm -f "$pwfile"; OVERALL_OK=1; return 1; }
     else
-        "${initdb_cmd[@]}" \
-            2>>"${log}/initdb.log" \
-            || { err "PostgreSQL ${ver}: initdb failed; check ${log}/initdb.log"; rm -f "$pwfile"; OVERALL_OK=1; return 1; }
+        timeout 120 "${initdb_cmd[@]}" \
+            2>"${log}/initdb.log" \
+            || { err "PostgreSQL ${ver}: initdb failed (exit=$?); check ${log}/initdb.log"; rm -f "$pwfile"; OVERALL_OK=1; return 1; }
     fi
     rm -f "$pwfile"
 }
@@ -981,13 +1009,18 @@ _pg_reset_env() {
 
     info "PostgreSQL ${ver} @ ${port}: hard reset (kill-9 → wipe data → reinit → restart) ..."
 
-    # 1. Kill -9 all postgres processes on this port / data dir
+    # 1. Kill -9 all postgres processes on this port / data dir,
+    #    including any stuck initdb process from a previous failed reset.
     if [[ -f "${data}/postmaster.pid" ]]; then
         local _pg_pid; _pg_pid="$(head -1 "${data}/postmaster.pid" 2>/dev/null || true)"
         [[ -n "$_pg_pid" ]] && kill -9 "$_pg_pid" 2>/dev/null || true
     fi
     pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
     pkill -9 -f "postgres.*${base}" 2>/dev/null || true
+    pkill -9 -f "initdb.*${base}" 2>/dev/null || true
+    # Truncate initdb.log now so stale open file handles cannot keep consuming disk
+    mkdir -p "${log}"
+    : > "${log}/initdb.log"
 
     # Remove socket/lock files to prevent "lock file already exists" on restart
     rm -f "/tmp/.s.PGSQL.${port}" "/tmp/.s.PGSQL.${port}.lock"
@@ -1130,9 +1163,26 @@ ensure_influx() {
     fi
 
     if port_open "$port"; then
-        info "InfluxDB ${ver}: port ${port} open — already running, resetting test env."
-        _influx_reset_env "$ver" "$port" "$base"
-        return 0
+        # Port open — but verify the instance is actually healthy (not returning 401).
+        # An InfluxDB started without --without-auth will listen but reject with 401.
+        local _http_code
+        _http_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+                       "http://127.0.0.1:${port}/health" 2>/dev/null || echo "000")"
+        if [[ "$_http_code" == "401" ]]; then
+            warn "InfluxDB ${ver}: port ${port} open but health returned HTTP 401 — restarting with correct flags."
+            # Kill any influxdb3/influxd process bound to this port
+            local _pids
+            _pids="$(lsof -ti :${port} 2>/dev/null || ss -tlnp "sport = :${port}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' || true)"
+            if [[ -n "$_pids" ]]; then
+                kill -9 $_pids 2>/dev/null || true
+                sleep 2
+            fi
+            rm -f "${base}/run/influxd.pid" 2>/dev/null || true
+        else
+            info "InfluxDB ${ver}: port ${port} open — already running, resetting test env."
+            _influx_reset_env "$ver" "$port" "$base"
+            return 0
+        fi
     fi
 
     if [[ -x "${bin}/influxdb3" ]] || [[ -x "${bin}/influxd" ]]; then
@@ -1318,7 +1368,81 @@ _influx_reset_env() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 12.  Main
+# 12.  Teardown: stop all external DBs and rotate oversized log files.
+#      Called at the END of each FQ test class (not at init time).
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Rotate (truncate) a single log file if it exceeds LOG_ROTATE_MAX_BYTES.
+# Keeps exactly one rotated copy (.1); replaces any existing .1.
+_teardown_rotate_log() {
+    local f="$1"
+    [[ -f "$f" ]] || return 0
+    local size
+    size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+    if (( size > LOG_ROTATE_MAX_BYTES )); then
+        mv -f "$f" "${f}.1" 2>/dev/null || true
+        : > "$f"
+        info "log rotated: $f (was ${size} bytes)"
+    fi
+}
+
+_teardown_mysql() {
+    local ver="$1"
+    local port; port=$(mysql_port "$ver")
+    local base="${FQ_BASE_DIR}/mysql/${ver}"
+    local pidfile="${base}/run/mysqld.pid"
+    info "MySQL ${ver} @ ${port}: stopping ..."
+    _stop_daemon "$pidfile" "mysqld.*port=${port}"
+    # Remove all files in the log directory (keep the directory itself).
+    # Enumerate nothing by name so future log files are also covered.
+    find "${base}/log" -maxdepth 1 -type f -delete 2>/dev/null || true
+    info "MySQL ${ver}: stopped and logs cleared."
+}
+
+_teardown_pg() {
+    local ver="$1"
+    local port; port=$(pg_port "$ver")
+    local base="${FQ_BASE_DIR}/pg/${ver}"
+    local datadir="${base}/data"
+    local pg_ctl_bin="${base}/bin/pg_ctl"
+    info "PostgreSQL ${ver} @ ${port}: stopping ..."
+    if [[ -x "$pg_ctl_bin" && -d "$datadir" ]]; then
+        "$pg_ctl_bin" stop -D "$datadir" -m fast -w 2>/dev/null || true
+    fi
+    # Fallback: kill by port pattern
+    pkill -TERM -f "postgres.*-p ${port}" 2>/dev/null || true
+    sleep 1
+    pkill -KILL -f "postgres.*-p ${port}" 2>/dev/null || true
+    # Remove all files in the log directory (keep the directory itself).
+    find "${base}/log" -maxdepth 1 -type f -delete 2>/dev/null || true
+    info "PostgreSQL ${ver}: stopped and logs cleared."
+}
+
+_teardown_influx() {
+    local ver="$1"
+    local port; port=$(influx_port "$ver")
+    local base="${FQ_BASE_DIR}/influxdb/${ver}"
+    local pidfile="${base}/run/influxd.pid"
+    info "InfluxDB ${ver} @ ${port}: stopping ..."
+    _stop_daemon "$pidfile" "influxdb3.*${base}"
+    # Remove all files in the log directory (keep the directory itself).
+    find "${base}/log" -maxdepth 1 -type f -delete 2>/dev/null || true
+    info "InfluxDB ${ver}: stopped and logs cleared."
+}
+
+teardown_all() {
+    log "========================================================"
+    log "FederatedQuery external-source teardown (stop + rotate logs)"
+    log "========================================================"
+    local ver
+    for ver in "${MYSQL_VERSIONS[@]}";  do _teardown_mysql  "$ver" || true; done
+    for ver in "${PG_VERSIONS[@]}";     do _teardown_pg     "$ver" || true; done
+    for ver in "${INFLUX_VERSIONS[@]}"; do _teardown_influx "$ver" || true; done
+    log "Teardown complete."
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 13.  Main
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Allow the script to be sourced by test harnesses without running main.
@@ -1354,5 +1478,8 @@ main() {
 
 # Run main only when executed directly (not when sourced)
 if [[ "${FQ_SOURCE_ONLY:-0}" != "1" && "${BASH_SOURCE[0]}" == "$0" ]]; then
-    main "$@"
+    case "${1:-}" in
+        --teardown) teardown_all ;;
+        *)          main "$@"    ;;
+    esac
 fi
