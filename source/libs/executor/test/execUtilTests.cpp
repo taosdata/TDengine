@@ -17,6 +17,7 @@ struct StableTagFilterWarmupMock {
   int32_t warmupCalls = 0;
   int32_t getTableTagsCalls = 0;
   bool    warmed = false;
+  bool    cacheHitAfterWarmup = true;
 };
 
 int32_t mockGetStableCachedTableList(void *pVnode, tb_uid_t suid, const uint8_t *pTagCondKey, int32_t tagCondKeyLen,
@@ -30,7 +31,7 @@ int32_t mockGetStableCachedTableList(void *pVnode, tb_uid_t suid, const uint8_t 
   pMock->getCacheCalls += 1;
   *acquired = false;
 
-  if (pMock->warmed) {
+  if (pMock->warmed && pMock->cacheHitAfterWarmup) {
     uint64_t uid = 1001;
     if (taosArrayPush(pList, &uid) == nullptr) {
       return terrno;
@@ -62,6 +63,19 @@ int32_t mockGetTableTags(void *pVnode, uint64_t suid, SArray *uidList) {
   (void)uidList;
   StableTagFilterWarmupMock *pMock = static_cast<StableTagFilterWarmupMock *>(pVnode);
   pMock->getTableTagsCalls += 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockPutStableCachedTableList(void *pVnode, uint64_t suid, const void *pTagCondKey, int32_t tagCondKeyLen,
+                                     const void *pKey, int32_t keyLen, SArray *pUidList, SArray **pTagColIds) {
+  (void)pVnode;
+  (void)suid;
+  (void)pTagCondKey;
+  (void)tagCondKeyLen;
+  (void)pKey;
+  (void)keyLen;
+  (void)pUidList;
+  (void)pTagColIds;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -160,6 +174,7 @@ TEST(execUtilTest, stableTagFilterCacheWarmsAllEqualTagGroupsOnMiss) {
   api.metaFn.getStableCachedTableList = mockGetStableCachedTableList;
   api.metaFn.warmupStableCachedTableList = mockWarmupStableCachedTableList;
   api.metaFn.getTableTags = mockGetTableTags;
+  api.metaFn.putStableCachedTableList = mockPutStableCachedTableList;
 
   SScanPhysiNode scan;
   memset(&scan, 0, sizeof(scan));
@@ -185,6 +200,46 @@ TEST(execUtilTest, stableTagFilterCacheWarmsAllEqualTagGroupsOnMiss) {
   EXPECT_EQ(mock.getCacheCalls, 2);
   EXPECT_EQ(mock.warmupCalls, 1);
   EXPECT_EQ(mock.getTableTagsCalls, 0);
+
+  nodesDestroyNode(pTagCond);
+  taosArrayDestroy(tableListInfo.pTableList);
+  tsStableTagFilterCache = oldStableTagFilterCache;
+}
+
+TEST(execUtilTest, stableTagFilterCacheFallsBackWhenWarmupMissesDigest) {
+  char oldStableTagFilterCache = tsStableTagFilterCache;
+  tsStableTagFilterCache = 1;
+
+  StableTagFilterWarmupMock mock;
+  mock.cacheHitAfterWarmup = false;
+
+  SStorageAPI api = {0};
+  api.metaFn.getStableCachedTableList = mockGetStableCachedTableList;
+  api.metaFn.warmupStableCachedTableList = mockWarmupStableCachedTableList;
+  api.metaFn.getTableTags = mockGetTableTags;
+  api.metaFn.putStableCachedTableList = mockPutStableCachedTableList;
+
+  SScanPhysiNode scan;
+  memset(&scan, 0, sizeof(scan));
+  scan.suid = 42;
+  scan.uid = 42;
+  scan.tableType = TSDB_SUPER_TABLE;
+
+  SStreamRuntimeFuncInfo streamInfo = {0};
+  STableListInfo         tableListInfo = {0};
+  tableListInfo.pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
+  ASSERT_NE(tableListInfo.pTableList, nullptr);
+
+  SNode *pTagCond = makeEqualCond(makeTagColumn(3, TSDB_DATA_TYPE_INT, sizeof(int32_t)), makeIntValue(7));
+
+  ASSERT_EQ(
+      getTableList(&mock, &scan, pTagCond, nullptr, &tableListInfo, nullptr, "stable-cache-warmup-miss", &api,
+                   &streamInfo),
+      TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosArrayGetSize(tableListInfo.pTableList), 0);
+  EXPECT_EQ(mock.getCacheCalls, 2);
+  EXPECT_EQ(mock.warmupCalls, 1);
+  EXPECT_EQ(mock.getTableTagsCalls, 1);
 
   nodesDestroyNode(pTagCond);
   taosArrayDestroy(tableListInfo.pTableList);

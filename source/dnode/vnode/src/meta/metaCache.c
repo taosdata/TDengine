@@ -1170,30 +1170,6 @@ static int32_t getTagColSize(
   return 0;
 }
 
-// when encode nchar tag into tag data entry key, need to convert it to var type
-static FORCE_INLINE int32_t ncharToVar(char *pData, int32_t nData, char **ppOut) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  char *t = taosMemoryCalloc(1, nData + VARSTR_HEADER_SIZE);
-  if (NULL == t) {
-    return terrno;
-  }
-  int32_t len = taosUcs4ToMbs(
-    (TdUcs4 *)pData, nData, varDataVal(t), NULL);
-  if (len < 0) {
-    taosMemoryFree(t);
-    return TSDB_CODE_SCALAR_CONVERT_ERROR;
-  }
-  varDataSetLen(t, len);
-
-  *ppOut = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
-  memcpy(*ppOut, t, len + VARSTR_HEADER_SIZE);
-
-_return:
-  taosMemoryFree(t);
-  return code;
-}
-
 static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag,
   const SSchemaWrapper* pTagScheam, T_MD5_CTX* pContext) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1237,18 +1213,8 @@ static int32_t buildTagDataEntryKey(const SArray* pColIds, const STag* pTag,
       pStart += sizeof(col_id_t);
       // copy value
       if (IS_VAR_DATA_TYPE(pTagValue.type) && pTagValue.pData != NULL) {
-        if (TSDB_DATA_TYPE_NCHAR == pTagValue.type) {
-          // need to convert nchar to var
-          char *pVar = NULL;
-          code = ncharToVar((char *)pTagValue.pData, pTagValue.nData, &pVar);
-          QUERY_CHECK_CODE(code, lino, _end);
-          memcpy(pStart, varDataVal(pVar), varDataLen(pVar));
-          pStart += varDataLen(pVar);
-          taosMemoryFree(pVar);
-        } else {
-          memcpy(pStart, pTagValue.pData, pTagValue.nData);
-          pStart += pTagValue.nData;
-        }
+        memcpy(pStart, pTagValue.pData, pTagValue.nData);
+        pStart += pTagValue.nData;
       } else {
         memcpy(pStart, &pTagValue.i64, tDataTypes[pTagValue.type].bytes);
         pStart += tDataTypes[pTagValue.type].bytes;

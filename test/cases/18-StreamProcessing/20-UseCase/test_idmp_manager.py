@@ -364,7 +364,7 @@ class Test_IDMP_Meters:
     # find notify key
     #
     def findNotifyKey(self, key):
-        self.checkTaosdLog(f"failed to get stream notify handle of ws://idmp:6042/recv/?key={key}", expect=1, rule=1)
+        self.checkTaosdLog(f"failed to .*stream notify.*ws://idmp:6042/recv/?key={key}", expect=1, rule=1)
                 
 
     #

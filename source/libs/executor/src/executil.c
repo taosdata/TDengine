@@ -2205,10 +2205,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
                                                               context.digest, tListLen(context.digest), pUidList,
                                                               &acquired);
           QUERY_CHECK_CODE(code, lino, end);
-
-          if (!acquired) {
-            acquired = true;
-          }
         }
       }
     } else if (tsTagFilterCache) {
@@ -2247,8 +2243,13 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         memcpy(digest + 1, context.digest, tListLen(context.digest));
       }
       
-      qDebug("suid:%" PRIu64 ", %s retrieve table uid list from cache, numOfTables:%d", 
-        pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
+      if (canCacheTagEqCondFilter) {
+        qDebug("suid:%" PRIu64 ", %s retrieve table uid list from stable tag filter cache, numOfTables:%d",
+               pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
+      } else {
+        qDebug("suid:%" PRIu64 ", %s retrieve table uid list from cache, numOfTables:%d", pScanNode->suid, idstr,
+               (int32_t)taosArrayGetSize(pUidList));
+      }
       goto end;
     } else {
       qDebug("suid:%" PRIu64 
