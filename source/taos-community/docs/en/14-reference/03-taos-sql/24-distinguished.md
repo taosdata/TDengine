@@ -70,6 +70,7 @@ The following rules apply to the five window types SESSION, STATE_WINDOW, INTERV
   - Aggregate functions (including selection functions, time-series specific functions whose output row count is determined by parameters, and window calculation / time-weighted statistics functions among the time-series specific functions).
   - Expressions containing the above expressions.
   - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
+  - Column expressions and indefinite-row functions (supported from version 3.4.2.0). In this case, the query enters [window projection mode](#window-projection-mode), where each window outputs all its original rows instead of one aggregated row.
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
@@ -432,9 +433,11 @@ Where:
 
 2. **Aggregation and computation within windows:** The outer query calculates independently within each window range and supports aggregation and scalar expressions.
 
-3. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
+3. **Window query mode:** External windows support the `SCALAR` / `AGG` keywords. Unlike other windows, external windows default to **projection mode** (each window outputs all original rows) in the ambiguous case. Use `AGG` to switch to aggregation mode (one row per window). See [Window Projection Mode](#window-projection-mode) for details.
 
-4. **Grouping and alignment**
+4. **Pseudo-column support:** `_wstart` (window start time), `_wend` (window end time), and `_wduration` (window duration) can be used in the SELECT, HAVING, and ORDER BY clauses.
+
+5. **Grouping and alignment**
 
 - The subquery can use `PARTITION BY` or `GROUP BY` for grouping, while the outer query can only use `PARTITION BY` for grouping.
 - When both the subquery and the outer query use grouping, matching is aligned by grouping key: data from the same group only matches windows from the same group.
@@ -443,7 +446,7 @@ Where:
 - When the subquery uses grouping but the outer query does not, the syntax is invalid.
 - **Current limitation and caveat:** When both inner and outer queries use grouping, and the window subquery also uses `ORDER BY`, the sorting may disturb the original organization of each grouped window stream. The outer query may then operate on a merged window stream, causing the inner grouping semantics to become ineffective, as if there were no grouping, and the one-to-one alignment between inner and outer groups is lost.
 
-5. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
+6. **Nested calls support:** Multiple layers of external window nesting are supported. That is, the subquery of an external window can itself use EXTERNAL_WINDOW, enabling layered aggregation. For example, a first-level external window can define event-based time ranges and aggregate intermediate metrics, then a second-level external window can aggregate those intermediate metrics again within a new set of time ranges.
 
 #### Rules for Referencing Window Attribute Columns
 
@@ -560,6 +563,72 @@ The SQL above defines three one-minute external windows. If a window contains no
 - The window rows returned by the subquery must remain ordered: in the ungrouped case, they must be sorted by window start time, that is, the first column, in ascending order; in the grouped case, they must be sorted by window start time in ascending order within each group. If this requirement is not met, execution fails with an error.
 - If the external window, meaning the inner subquery, uses grouping, the outer query must also use PARTITION BY; otherwise, a syntax error is raised.
 - Variable-row functions such as DIFF and INTERP are not supported within window scope.
+
+### Window Projection Mode
+
+Starting from version 3.4.2.0, window queries support projection mode. In traditional window aggregation mode, each window outputs one aggregated row. In window projection mode, each window outputs all its original rows, along with window pseudocolumns (such as `_wstart` and `_wend`).
+
+#### Mode Detection
+
+The system automatically detects the query mode based on the SELECT list:
+
+- **Aggregation mode**: The SELECT list contains aggregate functions; each window outputs one row.
+- **Projection mode**: The SELECT list contains column expressions or indefinite-row functions (such as DIFF, CSUM, etc.); each window outputs all original rows.
+- **Ambiguous case**: When the SELECT list contains only pseudocolumns (`_wstart`, `_wend`, etc.), tag columns, tbname, constants, group keys, and/or state keys, INTERVAL, SESSION, STATE_WINDOW, EVENT_WINDOW, and COUNT_WINDOW default to aggregation mode, while EXTERNAL_WINDOW defaults to projection mode.
+
+#### SCALAR / AGG Keywords
+
+In ambiguous cases, the `SCALAR` or `AGG` keyword can be used to explicitly specify the mode:
+
+- `SCALAR`: Forces projection mode.
+- `AGG`: Forces aggregation mode.
+
+Note: For EXTERNAL_WINDOW, the default mode in the ambiguous case is projection mode (opposite to other windows). Use `AGG` to switch it to aggregation mode.
+
+These keywords are placed between `SELECT` and the select list, after `TAGS`. The syntax is:
+
+```sql
+SELECT [SCALAR | AGG] select_list FROM ... INTERVAL(...) ...
+```
+
+Examples:
+
+```sql
+-- Ambiguous case: only pseudocolumns + tags + constants, defaults to aggregation mode (1 row per window)
+SELECT _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+
+-- Use SCALAR to force projection mode (N rows per window)
+SELECT SCALAR _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+
+-- Non-ambiguous case: contains column expressions, automatically enters projection mode (all three are equivalent)
+SELECT _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT SCALAR _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT AGG _wstart, ts, current FROM d1001 INTERVAL(3s);
+```
+
+EXTERNAL_WINDOW defaults to projection mode in the ambiguous case. Use `AGG` to switch to aggregation mode:
+
+```sql
+-- Ambiguous case: only pseudocolumns + tags, EXTERNAL_WINDOW defaults to projection mode (N rows per window)
+SELECT _wstart, _wend, location FROM d1001
+  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+
+-- Use AGG to force aggregation mode (1 row per window)
+SELECT AGG _wstart, _wend, location FROM d1001
+  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+```
+
+#### FILL Support
+
+Window projection mode supports the FILL clause, but only the following modes: `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`. The modes `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported.
+
+```sql
+SELECT _wstart, ts, current FROM meters
+  WHERE ts >= '2024-01-01' AND ts < '2024-01-02'
+  PARTITION BY tbname
+  INTERVAL(10m)
+  FILL(NULL);
+```
 
 ### Timestamp Pseudo Columns
 

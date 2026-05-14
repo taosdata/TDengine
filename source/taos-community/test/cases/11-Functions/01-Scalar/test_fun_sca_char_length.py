@@ -90,7 +90,6 @@ class TestCharLength:
         sqls.extend( f"select char_length( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
         sqls.extend( f"select char_length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
         sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-        sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
                 f"select char_length() from {tbname} ",

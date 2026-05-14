@@ -1208,6 +1208,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
   COPY_SCALAR_FIELD(timeLineCurMode);
+  COPY_SCALAR_FIELD(windowMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   COPY_SCALAR_FIELD(hasIndefiniteRowsFunc);
@@ -1232,6 +1233,8 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(tagScan);
   COPY_SCALAR_FIELD(joinContains);
+  COPY_SCALAR_FIELD(hasScalarExpr);
+  COPY_SCALAR_FIELD(windowScalarMode);
   COPY_SCALAR_FIELD(mixSysTableAndActualTable);
 
   CLONE_NODE_LIST_FIELD(pHint);

@@ -1,0 +1,201 @@
+use test_wp_small;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null_f) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null_f) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null_f) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(none) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(none) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(none) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 1) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 1) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 1) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value_f, 1, 2) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value_f, 1, 2) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value_f, 1, 2) order by 1;
+
+select _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3, 4) order by 1;
+select SCALAR _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3, 4)  order by 1;
+select AGG _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3, 4)  order by 1;
+
+select _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null_f) order by 1;
+select SCALAR _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null_f) order by 1;
+select AGG _wstart, ts, current, voltage, phase from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null_f) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(null) order by 1, 2;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(null) order by 1, 2;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(null) order by 1, 2;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(null_f) order by 1, 2;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(null_f) order by 1, 2;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(null_f) order by 1, 2;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(value, 1, 2) order by 1, 2;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(value, 1, 2) order by 1, 2;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(value, 1, 2) order by 1, 2;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(value_f, 1, 2) order by 1, 2;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(value_f, 1, 2) order by 1, 2;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(value_f, 1, 2) order by 1, 2;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(none) order by 1, 2;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(none) order by 1, 2;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:15' interval(2s) fill(none) order by 1, 2;
+
+select _wstart, ts, current * 2 + 1, voltage - 100 from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current * 2 + 1, voltage - 100 from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current * 2 + 1, voltage - 100 from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, floor(current), abs(voltage - 220) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3) order by 1;
+select SCALAR _wstart, ts, floor(current), abs(voltage - 220) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3) order by 1;
+select AGG _wstart, ts, floor(current), abs(voltage - 220) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3) order by 1;
+
+select _wstart, _wend, _wduration, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) order by 1, 4;
+select SCALAR _wstart, _wend, _wduration, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) order by 1, 4;
+select AGG _wstart, _wend, _wduration, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) order by 1, 4;
+
+select _wstart, _wend, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value, 1, 2) order by 1, 3;
+select SCALAR _wstart, _wend, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value, 1, 2) order by 1, 3;
+select AGG _wstart, _wend, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value, 1, 2) order by 1, 3;
+
+select _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null) order by 2, 1, 3;
+select SCALAR _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null) order by 2, 1, 3;
+select AGG _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null) order by 2, 1, 3;
+
+select _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(value, 1, 2) order by 2, 1, 3;
+select SCALAR _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(value, 1, 2) order by 2, 1, 3;
+select AGG _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(value, 1, 2) order by 2, 1, 3;
+
+select _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null_f) order by 2, 1, 3;
+select SCALAR _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null_f) order by 2, 1, 3;
+select AGG _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null_f) order by 2, 1, 3;
+
+select _wstart, groupid, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by groupid interval(2s) fill(null) order by 2, 1, 3;
+select SCALAR _wstart, groupid, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by groupid interval(2s) fill(null) order by 2, 1, 3;
+select AGG _wstart, groupid, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by groupid interval(2s) fill(null) order by 2, 1, 3;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 desc;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 desc;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 desc;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 limit 5;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 limit 5;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 limit 5;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 limit 5 offset 4;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 limit 5 offset 4;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1 limit 5 offset 4;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2) order by 1 limit 8;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2) order by 1 limit 8;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2) order by 1 limit 8;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) having current > 1.0 order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) having current > 1.0 order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) having current > 1.0 order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) having _wstart >= '2024-01-01 00:00:06' order by 1, 2;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) having _wstart >= '2024-01-01 00:00:06' order by 1, 2;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) having _wstart >= '2024-01-01 00:00:06' order by 1, 2;
+
+select _wstart, ts, current, voltage from d_null where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:05' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current, voltage from d_null where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:05' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current, voltage from d_null where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:05' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current, voltage from d_null where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:05' interval(1s) fill(value, 1, 2, 3) order by 1;
+select SCALAR _wstart, ts, current, voltage from d_null where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:05' interval(1s) fill(value, 1, 2, 3) order by 1;
+select AGG _wstart, ts, current, voltage from d_null where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:05' interval(1s) fill(value, 1, 2, 3) order by 1;
+
+select _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) order by 1, 2;
+select SCALAR _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) order by 1, 2;
+select AGG _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null) order by 1, 2;
+
+select _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value, 0, 0.0) order by 1, 2;
+select SCALAR _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value, 0, 0.0) order by 1, 2;
+select AGG _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value, 0, 0.0) order by 1, 2;
+
+select _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null_f) order by 1, 2;
+select SCALAR _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null_f) order by 1, 2;
+select AGG _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(null_f) order by 1, 2;
+
+select _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value_f, 0, 0.0) order by 1, 2;
+select SCALAR _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value_f, 0, 0.0) order by 1, 2;
+select AGG _wstart, ts, csum(current) from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(2s) fill(value_f, 0, 0.0) order by 1, 2;
+
+select _wstart, ts, current, voltage from d1002 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current, voltage from d1002 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current, voltage from d1002 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current, voltage from d1003 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3) order by 1;
+select SCALAR _wstart, ts, current, voltage from d1003 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3) order by 1;
+select AGG _wstart, ts, current, voltage from d1003 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' interval(1s) fill(value, 1, 2, 3) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2023-12-31 23:59:57' and ts < '2024-01-01 00:00:05' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2023-12-31 23:59:57' and ts < '2024-01-01 00:00:05' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2023-12-31 23:59:57' and ts < '2024-01-01 00:00:05' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:10' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:10' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:00:10' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:01:00' and ts < '2024-01-01 00:01:05' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:01:00' and ts < '2024-01-01 00:01:05' interval(1s) fill(null) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:01:00' and ts < '2024-01-01 00:01:05' interval(1s) fill(null) order by 1;
+
+select _wstart, ts, current from d1001 where ts >= '2024-01-01 00:01:00' and ts < '2024-01-01 00:01:05' interval(1s) fill(value, 1, 2) order by 1;
+select SCALAR _wstart, ts, current from d1001 where ts >= '2024-01-01 00:01:00' and ts < '2024-01-01 00:01:05' interval(1s) fill(value, 1, 2) order by 1;
+select AGG _wstart, ts, current from d1001 where ts >= '2024-01-01 00:01:00' and ts < '2024-01-01 00:01:05' interval(1s) fill(value, 1, 2) order by 1;
+
+select _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null) having current > 1.0 order by 2, 1, 3;
+select SCALAR _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null) having current > 1.0 order by 2, 1, 3;
+select AGG _wstart, tbname, ts, current from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:13' partition by tbname interval(2s) fill(null) having current > 1.0 order by 2, 1, 3;
+
+select _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+select SCALAR _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+select AGG _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+
+select _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null_f) order by 1;
+select SCALAR _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null_f) order by 1;
+select AGG _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null_f) order by 1;
+
+select _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(none) order by 1;
+select SCALAR _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(none) order by 1;
+select AGG _wstart from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(none) order by 1;
+
+select _wstart, _wend, _wduration from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+select SCALAR _wstart, _wend, _wduration from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+select AGG _wstart, _wend, _wduration from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(null) order by 1;
+
+select _wstart, _wend, _wduration from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(none) order by 1;
+select SCALAR _wstart, _wend, _wduration from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(none) order by 1;
+select AGG _wstart, _wend, _wduration from d1001 where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' interval(1s) fill(none) order by 1;
+
+select _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null) order by 2, 1;
+select SCALAR _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null) order by 2, 1;
+select AGG _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null) order by 2, 1;
+
+select _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null_f) order by 2, 1;
+select SCALAR _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null_f) order by 2, 1;
+select AGG _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null_f) order by 2, 1;
+
+select _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(none) order by 2, 1;
+select SCALAR _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(none) order by 2, 1;
+select AGG _wstart, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(none) order by 2, 1;
+
+select _wstart, _wend, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null) order by 3, 1;
+select SCALAR _wstart, _wend, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null) order by 3, 1;
+select AGG _wstart, _wend, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null) order by 3, 1;
+
+select _wstart, _wend, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null_f) order by 3, 1;
+select SCALAR _wstart, _wend, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null_f) order by 3, 1;
+select AGG _wstart, _wend, tbname from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-01-01 00:00:18' partition by tbname interval(1s) fill(null_f) order by 3, 1;
