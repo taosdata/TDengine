@@ -238,6 +238,8 @@ taosgen -h 127.0.0.1 -c config.yaml
   - random：随机方式生成。
   - order：按自然数顺序增长，仅适用整数类型。
   - expression：根据表达式生成。适用整数类型、浮点数类型 float、double 和字符类型。
+- null_ratio（浮点数）：指定生成 NULL 值的比例，取值范围 [0.0, 1.0]，默认值为 0.0。NULL 表示空值，写入后替换该列的最新值为空。
+- none_ratio（浮点数）：指定生成 NONE 值的比例，取值范围 [0.0, 1.0]，默认值为 0.0。NONE 表示数据缺失，写入后不替换该列的最新值，保留原有值。null_ratio 与 none_ratio 之和不得超过 1.0。
 
 ##### 数据生成方式详解
 
