@@ -36,8 +36,9 @@ workflow:
 
 stages:
   - prepare
+  - check      # check-void + check-enum（并行，任意失败立即终止后续构建）
   - build
-  - quality    # check-assert + check-void（并行，任意失败终止后续所有流程）
+  - quality    # check-assert（代码质量检查）
   - verify     # unit-test
   - upload
   - test
@@ -189,7 +190,7 @@ build-externals:
   tags: [tsdb-builder]
   timeout: 60 minutes
   interruptible: true
-  needs: [prepare-workspace]
+  needs: [prepare-workspace, check-void, check-enum]
   extends: .rules-code-change
 
   script:
@@ -367,7 +368,7 @@ build-asan:
     expire_in: 7 days
 
 # =============================================================================
-# Stage: quality — 代码质量检查（两个并行 job，任意失败终止后续所有流程）
+# Stage: quality — 代码质量检查
 # =============================================================================
 check-assert:
   stage: quality
@@ -400,11 +401,11 @@ check-assert:
     expire_in: 7 days
 
 check-void:
-  stage: quality
+  stage: check
   tags: [tsdb-builder]
   timeout: 10 minutes
   interruptible: true
-  needs: [prepare-workspace, build-noasan]
+  needs: [prepare-workspace]
   extends: .rules-code-change
 
   script:
@@ -426,6 +427,62 @@ check-void:
     paths:
       - build-logs/check-void.log
     expire_in: 7 days
+
+check-enum:
+  stage: check
+  tags: [tsdb-builder]
+  timeout: 15 minutes
+  interruptible: true
+  needs: []
+  extends: .rules-code-change
+
+  script:
+    - |
+      # 仅 MR 触发时有 diff 上下文；schedule/web 跳过
+      if [ "${CI_PIPELINE_SOURCE}" != "merge_request_event" ]; then
+        echo "[check-enum] Non-MR pipeline, skipping."
+        exit 0
+      fi
+      TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+      echo "[check-enum] Target branch: ${TARGET_BRANCH}"
+
+      # 使用 CI_PROJECT_DIR（GitLab runner 直接 checkout 的 source branch HEAD）
+      # 而不是 TSDB_SRC（_checkout_merged 得到的合并结果），原因：
+      #   refs/merge-requests/<IID>/merge 由 GitLab 异步计算，pipeline 启动后可能
+      #   尚未更新到最新 commit，导致 TSDB_SRC 拿到旧的合并结果，漏检。
+      #   CI_PROJECT_DIR 由 runner 直接 checkout source branch HEAD，无竞态。
+      cd "${CI_PROJECT_DIR}"
+      git fetch origin "${TARGET_BRANCH}" --depth=1
+
+      # FETCH_HEAD = target branch tip；HEAD = source branch HEAD（CI_COMMIT_SHA）
+      # 两点 diff：不依赖 merge-base，浅克隆安全
+      CHANGED_FILES=$(git diff --name-only FETCH_HEAD HEAD \
+        | grep -E '\.(c|h)$' || true)
+
+      if [ -z "${CHANGED_FILES}" ]; then
+        echo "[check-enum] No changed C/H files, skipping."
+        exit 0
+      fi
+
+      echo "[check-enum] Changed C/H files:"
+      echo "${CHANGED_FILES}"
+
+      # 写入临时文件供容器内 readarray 使用
+      echo "${CHANGED_FILES}" > "${CI_PROJECT_DIR}/.enum_check_files"
+
+      docker run --rm \
+        -v "${CI_PROJECT_DIR}":/mnt \
+        ${BUILDER_IMAGE} bash -c "
+          pip3 install libclang -q 2>&1 | tail -1
+          cd /mnt
+          readarray -t FILES < .enum_check_files
+          python3 source/taos-community/.github/scripts/check_enum_append_only.py \
+            --base-branch origin/${TARGET_BRANCH} \
+            \"\${FILES[@]}\"
+        "
+
+  after_script:
+    - rm -f "${CI_PROJECT_DIR}/.enum_check_files" 2>/dev/null || true
 
 # =============================================================================
 # Stage: verify — 单元测试（code-quality 通过后才执行）
@@ -807,9 +864,9 @@ upload-nexus:
     - bash "${CI_PROJECT_DIR}/tests/ci/scripts/run-test-dynamic.sh"
 
   artifacts:
-    when: always
+    when: on_failure   # reports.junit 不受 when 限制，始终上传；paths 仅在失败时上传，避免 413
     reports:
-      junit: "results/junit-${CI_NODE_INDEX}.xml"
+      junit: "results/junit-*.xml"
     paths:
       - "results/"
     expire_in: 7 days
@@ -926,7 +983,7 @@ coordinator:
     - python3 "${CI_PROJECT_DIR}/tests/ci/scripts/coordinator.py"
 
   artifacts:
-    when: always
+    when: on_failure   # reports.junit 不受 when 限制，始终上传；paths 仅在失败时上传，避免 413
     reports:
       junit: "results/junit-aggregate.xml"
     paths:
