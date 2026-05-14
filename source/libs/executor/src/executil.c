@@ -3213,7 +3213,38 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
-static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* isStrict) {
+static EDealRes condHasRemoteValueWalker(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) == QUERY_NODE_REMOTE_VALUE ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_VALUE_LIST ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_ROW ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_TABLE ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_ZERO_ROWS) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool condHasRemoteValue(SNode* pNode) {
+  bool found = false;
+  nodesWalkExpr(pNode, condHasRemoteValueWalker, &found);
+  return found;
+}
+
+static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* isStrict, bool isStream) {
+  // In stream mode, a WHERE primary-key cond that references a remote
+  // subquery (e.g. WHERE ts >= (SELECT last_row(ts) FROM ref)) must not be
+  // folded to a literal time range here; doing so freezes the bound at
+  // task-build time and the same range is reused for every trigger event.
+  // Leave the cond intact so the caller merges it into pConditions and the
+  // runtime filter re-evaluates the RemoteValueNode per fetch.  Combined
+  // with qFetchRemoteNode's stream-mode cache bypass, this re-fires the
+  // wire request (req.reset=true) for each event.
+  if (isStream && condHasRemoteValue(*pPrimaryKeyCond)) {
+    *isStrict = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   SNode*  pNew = NULL;
   int32_t code = scalarCalculateRemoteConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3292,7 +3323,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* 
 
   if (pTableScanNode->pPrimaryCond) {
     bool isStrict = false;
-    code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict);
+    bool isStream = (readHandle != NULL && readHandle->streamRtInfo != NULL);
+    code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict, isStream);
     if (code || !isStrict) {
       code = nodesMergeNode((SNode**)&pTableScanNode->scan.node.pConditions, &pTableScanNode->pPrimaryCond);
     }
@@ -4479,7 +4511,8 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   if (IS_STREAM_MODE(pTaskInfo)) {
     SNode** ppRes = taosArrayGet(ctx->subResNodes, pParam->subQIdx);
     if (NULL == *ppRes && 0 == pRsp->numOfRows) {
-      pRemote->val.node.type = QUERY_NODE_VALUE;
+      // First-call empty result: keep node type as REMOTE_VALUE so the
+      // scalar walker re-dispatches sclWalkRemoteValue per evaluation.
       pRemote->val.isNull = true;
       pRemote->val.translate = true;
       pRemote->val.flag &= (~VALUE_FLAG_VAL_UNSET);
@@ -4502,7 +4535,11 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 
       blockDataDestroy(pResBlock);
     } else if (NULL != *ppRes && 0 == pRsp->numOfRows) {
-      pRemote->val.node.type = QUERY_NODE_VALUE;
+      // Completion sentinel after a data row: do NOT mutate the AST node
+      // type to QUERY_NODE_VALUE.  In stream mode the node must remain
+      // REMOTE_VALUE so the next per-event walker pass re-fires the fetch
+      // (otherwise every subsequent trigger event replays the literal
+      // captured on the first event).
       pRsp->completed = true;
     }
 
@@ -5218,8 +5255,22 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
     return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
   }
 
+  // In stream mode the subquery must be re-evaluated for every trigger event;
+  // a cached SNode from an earlier event would replay a stale value and turn
+  // dynamic subqueries (e.g. WHERE ts >= (SELECT last_row(ts) FROM ref))
+  // into constants.  Always go to the wire so req.reset=true reaches the
+  // vnode reader and rebuilds its task with the current ranges.
+  //
+  // Note: pRes here is a pointer into the operator's AST (the SRemoteValueNode
+  // placeholder), not a heap-owned node.  In non-stream mode we still cache
+  // that borrowed pointer in subResNodes[] so subsequent calls memcpy from it,
+  // but in stream mode we must NOT touch the slot: writing pRes would create
+  // a dangling alias once the AST is rebuilt, and freeing it would double-free
+  // the AST node.
   SNode** ppRes = taosArrayGet(ctx->subResNodes, subQIdx);
-  if (NULL == *ppRes) {
+  if (ctx->isStream) {
+    TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
+  } else if (NULL == *ppRes) {
     TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
     *ppRes = pRes;
   } else {

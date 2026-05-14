@@ -31,6 +31,7 @@ typedef struct SScalarExtraInfo {
   void*   pStreamInfo;
   void*   pStreamRange;
   void*   pSubJobCtx;
+  bool    isStream;
   sclFetchFromRemote fp;
 } SScalarExtraInfo;
 

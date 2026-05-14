@@ -54,6 +54,7 @@ typedef struct SScalarCtx {
   SOperatorValueType type;
   SScalarStreamCtx   stream;
   void*              pSubJobCtx;
+  bool               isStream;
   sclFetchFromRemote fetchFp;
 } SScalarCtx;
 

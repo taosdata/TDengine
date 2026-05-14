@@ -4063,6 +4063,12 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
   uint64_t ts = 0;
+  // Stream fetches enter via vnode worker threads that may not have
+  // initialized the thread_local gTaskScalarExtra for this task.  Without
+  // this, scalar subqueries embedded in the operator (e.g. WHERE ts >=
+  // (SELECT last_row(ts) FROM ref)) fail with "no subJob ctx" on whichever
+  // event happens to land on a fresh worker thread.
+  setTaskScalarExtraInfo(sStreamReaderCalcInfo->pTaskInfo);
   STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
 
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){

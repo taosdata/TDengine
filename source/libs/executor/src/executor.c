@@ -44,6 +44,8 @@ SGlobalExecInfo     gExecInfo = {0};
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   gTaskScalarExtra.pSubJobCtx = pTaskInfo->pSubJobCtx;
+  gTaskScalarExtra.isStream =
+      (pTaskInfo->pSubJobCtx != NULL) && ((STaskSubJobCtx*)pTaskInfo->pSubJobCtx)->isStream;
   gTaskScalarExtra.fp = qFetchRemoteNode;
 }
 

@@ -694,9 +694,18 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->colAlloced = false;
       break;
     }
-    case QUERY_NODE_REMOTE_VALUE:
-      SCL_ERR_RET(TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+    case QUERY_NODE_REMOTE_VALUE: {
+      // After handleRemoteValueRes settles the inner SValueNode, treat the
+      // node as a plain value for parameter setup: temporarily flip the
+      // type so the QUERY_NODE_VALUE case runs, then restore so subsequent
+      // walker passes (in stream mode) keep re-dispatching sclWalkRemoteValue.
+      SRemoteValueNode *pRemote = (SRemoteValueNode *)node;
+      pRemote->val.node.type = QUERY_NODE_VALUE;
+      int32_t code = sclInitParam(node, param, ctx, rowNum);
+      pRemote->val.node.type = QUERY_NODE_REMOTE_VALUE;
+      SCL_ERR_RET(code);
       break;
+    }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
       if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
@@ -2655,6 +2664,7 @@ int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, bool null
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
+    ctx.isStream = pExtra->isStream;
     ctx.fetchFp = pExtra->fp;
   }
   
@@ -2837,6 +2847,7 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
+    ctx.isStream = pExtra->isStream;
     ctx.fetchFp = pExtra->fp;
   }
   
