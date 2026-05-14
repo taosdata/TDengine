@@ -41,7 +41,9 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "trpc.h"
+#include "ttimer.h"
 #include "tvariant.h"
 
 namespace {
@@ -1397,6 +1399,64 @@ TEST(rcTest, dropTest) {
   taosSsleep(3);
 
   qWorkerDestroy(&mgmt);
+}
+
+// Mock helpers for qWorkerInit error-path tests.
+// These are placed outside the anonymous namespace so their addresses can be
+// taken by Stub::set() directly (statically-linked targets).
+
+static SHashObj *qwtMockHashInitNull(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return NULL;
+}
+
+static void *qwtMockTmrInitNull(int32_t maxTmr, int32_t resolution, int32_t longest, const char *label) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return NULL;
+}
+
+// Regression test: before the fix, qWorkerInit crashed with SIGSEGV when
+// taosHashInit returned NULL because taosMemoryFreeClear(mgmt) was called
+// before the qError() that dereferenced mgmt.
+TEST(initErrorTest, schHashAllocFail) {
+  void   *mgmt = NULL;
+  int32_t code = 0;
+
+  qwtInitLogFile();
+
+  Stub stub;
+  stub.set(taosHashInit, qwtMockHashInitNull);
+
+  SMsgCb msgCb = {0};
+  msgCb.mgmt = (void *)0x1;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
+
+  // Must not crash; must return a non-zero error code.
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
+  ASSERT_NE(code, TSDB_CODE_SUCCESS);
+  // mgmt must remain NULL — init failed, nothing was handed out.
+  ASSERT_EQ(mgmt, (void *)NULL);
+}
+
+// Regression test: when taosTmrInit fails the _return block must take the
+// else-branch (correct cleanup) rather than calling qwRelease(0) which silently
+// ignores the error and leaks schHash / ctxHash / mgmt.
+TEST(initErrorTest, timerInitFail) {
+  void   *mgmt = NULL;
+  int32_t code = 0;
+
+  qwtInitLogFile();
+
+  Stub stub;
+  stub.set(taosTmrInit, qwtMockTmrInitNull);
+
+  SMsgCb msgCb = {0};
+  msgCb.mgmt = (void *)0x1;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
+
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
+  ASSERT_NE(code, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mgmt, (void *)NULL);
 }
 
 int main(int argc, char **argv) {
