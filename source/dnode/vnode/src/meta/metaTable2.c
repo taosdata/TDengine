@@ -138,7 +138,8 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
   // Batch meta txn: check if the entry is a finalized shadow that should be treated as non-existent.
   // Skip for internal operations (version == -1, e.g., vacuum cleanup) which need to physically
   // delete these entries.
-  if (version >= 0) {
+  // Fast path: skip expensive fetch when no txns are active.
+  if (version >= 0 && metaHasPendingTxnEntries(pMeta)) {
     SMetaEntry *pExist = NULL;
     if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
       if (pExist->txnId != 0) {
@@ -443,7 +444,8 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
     // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
     // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
     // Also: if the entry is PRE_DROP+COMMITTED, table is logically gone (allow CREATE)
-    {
+    // Fast path: skip expensive fetch when no txns are active.
+    if (metaHasPendingTxnEntries(pMeta)) {
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
         if (pExist->txnId != 0) {
@@ -641,7 +643,8 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     // return TXN_CONFLICT instead of TABLE_ALREADY_EXIST
     // Also: if the owning txn is ROLLEDBACK, treat entry as non-existent (allow CREATE)
     // Also: if the entry is PRE_DROP+COMMITTED, table is logically gone (allow CREATE)
-    {
+    // Fast path: skip expensive fetch when no txns are active.
+    if (metaHasPendingTxnEntries(pMeta)) {
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
         if (pExist->txnId != 0) {

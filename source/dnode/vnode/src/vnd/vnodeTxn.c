@@ -1878,6 +1878,11 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
     return TSDB_CODE_SUCCESS;
   }
 
+  // Fast path: no active or finalized txns → no conflict possible
+  if (!metaHasPendingTxnEntries(pVnode->pMeta)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   // Read the table entry from B+ tree to check txnStatus
   SMetaEntry *pME = NULL;
   int32_t     code = metaFetchEntryByName(pVnode->pMeta, tableName, &pME);
@@ -1949,6 +1954,11 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
  */
 int32_t vnodeTxnCheckDeleteConflict(SVnode *pVnode, tb_uid_t uid) {
   if (pVnode->pTxnHash == NULL || uid == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Fast path: no active or finalized txns → no conflict possible
+  if (!metaHasPendingTxnEntries(pVnode->pMeta)) {
     return TSDB_CODE_SUCCESS;
   }
 
