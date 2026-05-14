@@ -4549,10 +4549,13 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
   code = dynResolveColRefArrayBySysScan(pOperator, pSystableScanOp, pInfo->vtbScan.colRefInfo);
   QUERY_CHECK_CODE(code, line, _return);
 
-  if (rversion != pVtbScan->rversion || pVtbScan->existOrgTbVg == NULL) {
-    code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
-    QUERY_CHECK_CODE(code, line, _return);
-  }
+  // Always rebuild curOrgTbVg from runtime chain resolution so that
+  // processOrgTbVg can diff it against the plan-time baseline existOrgTbVg
+  // and trigger redeploy when the chain terminal vg differs from the static
+  // OrgVgIds carried by the plan (e.g. multi-hop vtable chain whose terminal
+  // table cannot be statically resolved at plan time).
+  code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
+  QUERY_CHECK_CODE(code, line, _return);
   code = processOrgTbVg(pVtbScan, pTaskInfo, rversion);
   QUERY_CHECK_CODE(code, line, _return);
 

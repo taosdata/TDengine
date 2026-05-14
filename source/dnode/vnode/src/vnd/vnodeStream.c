@@ -4648,9 +4648,13 @@ end:
 //   TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST   suid not present on this vnode
 //   TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST     tag name not in stable schema
 //   terrno                                     OOM
-static int32_t streamReadChildTagConstValue(SVnode *pVnode, const SMetaEntry *pChildEntry,
-                                            const char *tagColName, int8_t *outType,
-                                            int32_t *outLen, char **outData) {
+// Internal helper: read a constant tag value from a virtual child table.
+// Tag is located in the parent stable's schemaTag by either colId (preferred when > 0)
+// or by colName (fallback). vtable on-disk SColRef does not persist colName, so callers
+// holding only a SColRef entry must pass the cid.
+static int32_t streamReadChildTagConstValueImpl(SVnode *pVnode, const SMetaEntry *pChildEntry,
+                                                col_id_t tagColId, const char *tagColName,
+                                                int8_t *outType, int32_t *outLen, char **outData) {
   SMetaReader stb  = {0};
   int32_t     code = 0;
   *outType = 0;
@@ -4666,7 +4670,13 @@ static int32_t streamReadChildTagConstValue(SVnode *pVnode, const SMetaEntry *pC
   SSchemaWrapper *pSW = &stb.me.stbEntry.schemaTag;
   SSchema        *pTagSchema = NULL;
   for (int32_t i = 0; i < pSW->nCols; ++i) {
-    if (strncmp(pSW->pSchema[i].name, tagColName, TSDB_COL_NAME_LEN) == 0) {
+    if (tagColId > 0) {
+      if (pSW->pSchema[i].colId == tagColId) {
+        pTagSchema = &pSW->pSchema[i];
+        break;
+      }
+    } else if (tagColName != NULL &&
+               strncmp(pSW->pSchema[i].name, tagColName, TSDB_COL_NAME_LEN) == 0) {
       pTagSchema = &pSW->pSchema[i];
       break;
     }
@@ -4703,6 +4713,22 @@ static int32_t streamReadChildTagConstValue(SVnode *pVnode, const SMetaEntry *pC
 _end:
   metaReaderClear(&stb);
   return code;
+}
+
+// Look up by name (used by request-driven path where wire holds refColName).
+static int32_t streamReadChildTagConstValue(SVnode *pVnode, const SMetaEntry *pChildEntry,
+                                            const char *tagColName, int8_t *outType,
+                                            int32_t *outLen, char **outData) {
+  return streamReadChildTagConstValueImpl(pVnode, pChildEntry, 0, tagColName,
+                                          outType, outLen, outData);
+}
+
+// Look up by cid (used by local seed where SColRef.colName is not persisted).
+static int32_t streamReadChildTagConstValueByCid(SVnode *pVnode, const SMetaEntry *pChildEntry,
+                                                 col_id_t tagColId, int8_t *outType,
+                                                 int32_t *outLen, char **outData) {
+  return streamReadChildTagConstValueImpl(pVnode, pChildEntry, tagColId, NULL,
+                                          outType, outLen, outData);
 }
 
 static int32_t vnodeFillTagValueFromChild(SVnode *pVnode, const SMetaEntry *pChildEntry,
@@ -4746,16 +4772,52 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
     SColRef        *pArr  = (q->kind == STREAM_VREF_KIND_TAG) ? pWrap->pTagRef : pWrap->pColRef;
     int32_t         nArr  = (q->kind == STREAM_VREF_KIND_TAG) ? pWrap->nTagRefs : pWrap->nCols;
 
-    SColRef *pFound = NULL;
-    for (int32_t j = 0; j < nArr && pArr != NULL; ++j) {
-      if (strncmp(pArr[j].colName, q->refColName, TSDB_COL_NAME_LEN) == 0) {
-        pFound = &pArr[j];
+    // SColRef.colName is not populated for vtable storage, so resolve the schema
+    // cid for refColName first and then look up pArr[] by id.
+    col_id_t        targetCid = 0;
+    bool            cidFound  = false;
+    SSchemaWrapper *pSW       = NULL;
+    SMetaReader     stbReader = {0};
+
+    if (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      pSW = &mr.me.ntbEntry.schemaRow;
+    } else {
+      // VIRTUAL_CHILD_TABLE: col schema on parent stable's schemaRow,
+      // tag schema on parent stable's schemaTag.
+      metaReaderDoInit(&stbReader, pVnode->pMeta, META_READER_LOCK);
+      if (metaReaderGetTableEntryByUid(&stbReader, mr.me.ctbEntry.suid) != 0) {
+        vDebug("vgId:%d %s parent stable not found: suid=%" PRId64, TD_VID(pVnode), __func__,
+               mr.me.ctbEntry.suid);
+        metaReaderClear(&stbReader);
+        r->code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+        metaReaderClear(&mr);
+        return 0;
+      }
+      pSW = (q->kind == STREAM_VREF_KIND_TAG) ? &stbReader.me.stbEntry.schemaTag
+                                              : &stbReader.me.stbEntry.schemaRow;
+    }
+
+    for (int32_t k = 0; pSW != NULL && k < pSW->nCols; ++k) {
+      if (strncmp(pSW->pSchema[k].name, q->refColName, TSDB_COL_NAME_LEN) == 0) {
+        targetCid = pSW->pSchema[k].colId;
+        cidFound  = true;
         break;
       }
     }
+    if (stbReader.pMeta != NULL) metaReaderClear(&stbReader);
+
+    SColRef *pFound = NULL;
+    if (cidFound) {
+      for (int32_t j = 0; j < nArr && pArr != NULL; ++j) {
+        if (pArr[j].id == targetCid) {
+          pFound = &pArr[j];
+          break;
+        }
+      }
+    }
     if (pFound == NULL) {
-      vDebug("vgId:%d %s ref col not found in vtable: col=%s", TD_VID(pVnode), __func__,
-             q->refColName);
+      vDebug("vgId:%d %s ref col not found in vtable: col=%s cidFound=%d cid=%d kind=%d nArr=%d",
+             TD_VID(pVnode), __func__, q->refColName, cidFound, targetCid, q->kind, nArr);
       r->code = TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST;
       metaReaderClear(&mr);
       return 0;
@@ -5102,8 +5164,10 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
       }
       STagValue *tv = taosMemoryCalloc(1, sizeof(*tv));
       if (tv == NULL) { code = terrno; goto _end; }
-      int32_t rc = streamReadChildTagConstValue(pVnode, &mr.me, pFound->colName,
-                                                &tv->type, &tv->nLen, &tv->pData);
+      // Use cid: SColRef.colName is not persisted for vtable on disk
+      // (the field is "for tmq get json" only). Resolve tag by colId in stable schemaTag.
+      int32_t rc = streamReadChildTagConstValueByCid(pVnode, &mr.me, pFound->id,
+                                                    &tv->type, &tv->nLen, &tv->pData);
       if (rc != 0) {
         stDebug("vgId:%d %s uid=%" PRId64 " TAG cid=%d const-read err=0x%x -> uid skip",
                 TD_VID(pVnode), __func__, uid, cid, rc);
