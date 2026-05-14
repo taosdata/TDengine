@@ -1,4 +1,4 @@
-char td_version[64] = "${BUILD_VER_NUMBER}";
+char td_version[64] = "${BUILD_VER_NUMBER}.${TD_EDITION}";
 char td_compatible_version[12] = "${BUILD_VER_COMPATIBLE}";
 char td_gitinfo[48] = "${BUILD_GITINFO}";
 char td_gitinfoOfInternal[48] = "${BUILD_GITINFOI}";
