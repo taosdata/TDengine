@@ -28,8 +28,8 @@ Download the [taosgen](https://github.com/taosdata/taosgen/releases) tool as nee
 Download the binary release package locally and extract it. For convenient access, you can create a symbolic link in the system executable directory. For example, on Linux:
 
 ```shell
-tar zxvf tsgen-v0.3.0-linux-amd64.tar.gz
-cd tsgen
+tar zxvf taosgen-v0.8.6-linux-x64.tar.gz
+cd taosgen
 ln -sf `pwd`/taosgen /usr/bin/taosgen
 ```
 
@@ -58,8 +58,9 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -c/--config-file       | Path to the YAML configuration file |
 | -d/--log-dir           | Specify log output directory, default is ./log |
 | -o/--log-file          | Specify complete log file path (overrides --log-dir), -f is deprecated |
-| -?/--help              | Show help information and exit |
+| -v/--verbose           | Increase output verbosity |
 | -V/--version           | Show version information and exit. Cannot be used with other parameters |
+| -?/--help              | Show help information and exit |
 
 Tip: If no parameters are specified when running taosgen, taosgen will create the TDengine database tsbench, the super table meters, 10,000 child tables, and batch write 10,000 rows of data to each child table.
 
@@ -320,6 +321,7 @@ The `tdengine/insert` action writes data to specified child tables. Supports obt
   - stmt: Write data using parameterized write (Prepared Statement), suitable for high-performance batch writing.
   - schemaless: Write data using Line Protocol format, without requiring pre-creation of super tables and child tables. Suitable for simulating data collection agents like Telegraf sending data to TDengine.
 - auto_create_table (bool): Whether to enable TDengine's auto-create-table feature to create tables on the fly when writing data; default: false.
+- tbname_key (string): Only effective in schemaless format. Specifies the tag key for the child table name in line protocol output. If set to an empty string (""), the child table name tag is not included in the line protocol. Default is "".
 - concurrency (int): Number of threads for concurrent data writing, default: 8.
 - failure_handling (optional): Failure handling strategy:
   - max_retries (int): Maximum retries, default: 0.
@@ -360,7 +362,7 @@ The `mqtt/publish` action publishes data to the specified topic. Supports obtain
   - `{column}`: Column data, where column is the column field name
 - qos (int): QoS level, values: 0, 1, 2, default: 0.
 - retain (bool): Whether MQTT Broker retains the last message, default: false.
-- tbname_key (string): Specifies the field name for the table name in the JSON output. If set to an empty string (""), the table name is not included. Default is "table".
+- tbname_key (string): Specifies the field name for the table name in the output. If set to an empty string (""), the table name is not included. Default is "".
 - records_per_message (int): Number of records per message, default: 1.
 
 ### Format for Publishing Kafka Data Action
@@ -383,7 +385,7 @@ The `kafka/produce` action publishes data to the specified topic. It supports ob
   - "1": The producer waits only for the leader replica to acknowledge the message.
   - "0": The producer does not wait for any acknowledgment.
 - compression (string): Message compression type. Supported values: "none", "gzip", "snappy", "lz4", "zstd". Default is "none".
-- tbname_key (string): Specifies the field name for the table name in the JSON output. If set to an empty string (""), the table name is not included. Default is "table".
+- tbname_key (string): Specifies the field name for the table name in the output. In JSON format, it serves as the JSON field name; in influx format, it serves as the tag key in line protocol. If set to an empty string (""), the table name is not included. Default is "".
 - records_per_message (int): Number of records per message, default: 1.
 
 ### Format for Writing Data to InfluxDB Action
@@ -397,6 +399,7 @@ The `influxdb/write` action writes data to the specified InfluxDB Bucket via the
 - precision (string): Timestamp precision for writing. Options: "ns", "us", "ms", "s". Default is "ns".
 - batch_size (int): Number of line protocol rows per HTTP request, default: 5000. InfluxDB officially recommends a value of 5000.
 - gzip (bool): Whether to enable gzip compression. Default is false. Enabling gzip significantly reduces bandwidth usage and is recommended for large-batch writes.
+- tbname_key (string): Specifies the tag key for the table name in line protocol output. If set to an empty string (""), the table name tag is not included in the line protocol. Default is "".
 
 ## Configuration File Examples
 
