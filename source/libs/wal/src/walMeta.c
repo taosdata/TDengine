@@ -266,7 +266,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
   pFileInfo->fileSize = lastEntryEndOffset;
 
 _err:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     wError("vgId:%d, failed at line %d to scan log file %s since %s", pWal->cfg.vgId, lino, fnameStr, tstrerror(code));
   }
   TAOS_UNUSED(taosCloseFile(&pFile));
@@ -598,10 +598,12 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
       totSize += pFileInfo->fileSize;
       continue;
     }
-    wWarn("vgId:%d, going to repair file %s, fileSize:%" PRId64 ", fileSize in meta:%" PRId64 ", LastVer:%" PRId64
-          ", firstVer:%" PRId64 ", forceRepair:%d",
-          pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
-          tsWalForceRepair);
+    if (fileSize != 0) {
+      wWarn("vgId:%d, going to repair file %s, fileSize:%" PRId64 ", fileSize in meta:%" PRId64 ", LastVer:%" PRId64
+            ", firstVer:%" PRId64 ", forceRepair:%d",
+            pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
+            tsWalForceRepair);
+    }
     updateMeta = true;
 
     TAOS_CHECK_EXIT(walTrimIdxFile(pWal, fileIdx));
