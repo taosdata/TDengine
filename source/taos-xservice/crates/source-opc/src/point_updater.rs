@@ -255,6 +255,24 @@ fn diff(s1: &[DataSet], s2: &[DataSet]) -> Vec<DataSet> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{fs, str::FromStr};
+    use taosx_core::runners::opc::config::collect::{CollectConfig, da::DaCollectConfig};
+
+    fn opcda_updater_config() -> (Dsn, OPCConfig) {
+        let dsn = Dsn::from_str("opcda://127.0.0.1/server?da.tags=old_tag::old_table").unwrap();
+        let mut config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
+        config.points_mode = Some(PointsMode::ByCommand);
+        config.collect = Some(CollectConfig {
+            interval: None,
+            contains_bad: None,
+            dump: None,
+            ua: None,
+            da: Some(DaCollectConfig { tags: vec![] }),
+            limit: None,
+            persist_data: None,
+        });
+        (dsn, config)
+    }
 
     #[test]
     fn test_diff() {
@@ -277,5 +295,94 @@ mod tests {
 
         let d2 = diff(&s2, &s1);
         assert_eq!(d2, vec![DataSet::new("6"), DataSet::new("7")]);
+    }
+
+    #[test]
+    fn diff_uses_dataset_id_equality_and_preserves_left_order() {
+        let left = vec![
+            DataSet {
+                id: "shared".to_string(),
+                name: Some("left name differs".to_string()),
+                category: None,
+                r#type: None,
+                options: None,
+                format: None,
+            },
+            DataSet::new("left-only"),
+            DataSet::new("another-left-only"),
+        ];
+        let right = vec![
+            DataSet {
+                id: "shared".to_string(),
+                name: Some("right name differs".to_string()),
+                category: Some("category differs".to_string()),
+                r#type: None,
+                options: None,
+                format: None,
+            },
+            DataSet::new("right-only"),
+        ];
+
+        let result = diff(&left, &right);
+
+        assert_eq!(
+            result,
+            vec![DataSet::new("left-only"), DataSet::new("another-left-only")]
+        );
+    }
+
+    #[test]
+    fn try_new_uses_command_update_source_and_default_update_settings() {
+        let (dsn, config) = opcda_updater_config();
+
+        let updater = PointsUpdater::try_new(
+            dsn,
+            config,
+            "target/source_opc_point_updater_tests/defaults.toml".to_string(),
+            CancellationToken::new(),
+        )
+        .unwrap();
+
+        assert!(matches!(updater.update_by, UpdateBy::Command));
+        assert_eq!(updater.update_mode, UpdateMode::None);
+        assert_eq!(updater.update_interval, 600);
+        assert!(updater.cur_list.is_empty());
+    }
+
+    #[test]
+    fn update_config_file_replaces_opcda_tags_and_writes_toml() {
+        let (dsn, config) = opcda_updater_config();
+        let tmp_dir = tempfile::Builder::new()
+            .prefix("source-opc-point-updater-")
+            .tempdir()
+            .unwrap();
+        let path = tmp_dir.path().join("opcda_tags.toml");
+        let path_string = path.to_str().unwrap().to_string();
+        let mut updater =
+            PointsUpdater::try_new(dsn, config, path_string.clone(), CancellationToken::new())
+                .unwrap();
+        let data_sets = vec![DataSet::new("tag-a"), DataSet::new("tag-b")];
+
+        updater.update_config_file(data_sets).unwrap();
+
+        let tags = &updater
+            .opc_config
+            .collect
+            .as_ref()
+            .unwrap()
+            .da
+            .as_ref()
+            .unwrap()
+            .tags;
+        assert_eq!(
+            tags.iter().map(|tag| tag.tag.as_str()).collect::<Vec<_>>(),
+            vec!["tag-a", "tag-b"]
+        );
+
+        let toml = fs::read_to_string(&path).unwrap();
+        let value: toml::Value = toml::from_str(&toml).unwrap();
+        let serialized_tags = value["collect"]["da"]["tags"].as_array().unwrap();
+        assert_eq!(serialized_tags[0]["tag"].as_str(), Some("tag-a"));
+        assert_eq!(serialized_tags[1]["tag"].as_str(), Some("tag-b"));
     }
 }

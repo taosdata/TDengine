@@ -4482,7 +4482,7 @@ packages:
     engines: {node: '>=4'}
 
   decompress@https://codeload.github.com/kevva/decompress/tar.gz/967146e70f48be32ed1a69daa3941d681944d513:
-    resolution: {tarball: https://codeload.github.com/kevva/decompress/tar.gz/967146e70f48be32ed1a69daa3941d681944d513}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/kevva/decompress/tar.gz/967146e70f48be32ed1a69daa3941d681944d513}
     version: 4.2.0
     engines: {node: '>=7.6.0'}
 

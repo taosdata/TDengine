@@ -93,6 +93,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_sample_limit_prefers_get_sample_limit_over_legacy_key() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=7&sample_data_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 7);
+    }
+
+    #[test]
+    fn parse_sample_limit_accepts_zero_and_max_values() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=0").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 0);
+
+        let dsn = Dsn::from_str(&format!("taos://?get_sample_limit={}", usize::MAX)).unwrap();
+        assert_eq!(parse_sample_limit(&dsn), usize::MAX);
+    }
+
+    #[test]
     fn test_parse_sample_timeout() {
         let dsn = Dsn::from_str("taos://?get_sample_timeout=123").unwrap();
         assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(123));
@@ -105,5 +120,23 @@ mod tests {
 
         let dsn = Dsn::from_str("taos://?get_sample_timeout=abc").unwrap();
         assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn parse_sample_timeout_accepts_zero_and_ignores_legacy_limit_key() {
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=0").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(0));
+
+        let dsn = Dsn::from_str("taos://?sample_data_timeout=9").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+    }
+
+    #[tokio::test]
+    async fn get_sample_rejects_unsupported_driver_without_external_services() {
+        let err = get_sample("unsupported://localhost").await.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("get sample from data source unsupported is unsupported")
+        );
     }
 }

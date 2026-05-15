@@ -1,5 +1,18 @@
 import { json2csv, Json2CsvOptions } from 'json-2-csv';
 
+export const UTF8_BOM = '\ufeff';
+export const CSV_MIME_TYPE = 'text/csv;charset=utf-8';
+
+export function withCsvUtf8Bom(csv: string) {
+  return csv.startsWith(UTF8_BOM) ? csv : UTF8_BOM + csv;
+}
+
+export function createUtf8CsvBlob(csv: string) {
+  return new Blob(csv.startsWith(UTF8_BOM) ? [csv] : [UTF8_BOM, csv], {
+    type: CSV_MIME_TYPE
+  });
+}
+
 let pageHead: null | HTMLHeadElement = null;
 function getPageHead() {
   return (pageHead = pageHead || document.getElementsByTagName('head')[0] || document.documentElement || document.body);
@@ -220,5 +233,5 @@ export function blobToText(blob: Blob): Promise<string> {
  * @return {*}
  */
 export function exportCsv(data: any[], options?: Json2CsvOptions, filename = 'data') {
-  downloadByUrl('data:text/csv;charset=utf-8,\ufeff' + encodeURIComponent(json2csv(data, options)), filename + '.csv');
+  downloadByData(json2csv(data, options), filename + '.csv', CSV_MIME_TYPE, UTF8_BOM);
 }

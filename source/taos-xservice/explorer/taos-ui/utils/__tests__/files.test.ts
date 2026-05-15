@@ -11,7 +11,9 @@ import {
   downloadByBase64,
   downloadByUrl,
   blobToText,
-  exportCsv
+  exportCsv,
+  UTF8_BOM,
+  withCsvUtf8Bom
 } from '../files';
 
 const originalImage = globalThis.Image;
@@ -31,6 +33,15 @@ class MockImage {
   get src() {
     return this.currentSrc;
   }
+}
+
+function blobToBytes(blob: Blob): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(blob);
+  });
 }
 
 describe('files.ts', () => {
@@ -165,13 +176,28 @@ describe('files.ts', () => {
     expect(text).toBe('Hello, World!');
   });
 
-  it('should export data as CSV', () => {
+  it('should prepend CSV UTF-8 BOM only once', () => {
+    const csv = 'name,age\nJohn,30';
+    expect(withCsvUtf8Bom(csv)).toBe(UTF8_BOM + csv);
+    expect(withCsvUtf8Bom(UTF8_BOM + csv)).toBe(UTF8_BOM + csv);
+  });
+
+  it('should export data as CSV with a UTF-8 BOM blob', async () => {
     const data = [{ name: 'John', age: 30 }];
-    const filename = 'data.csv';
+    const filename = 'data';
+    const createObjectURLMock = vi.mocked(URL.createObjectURL);
     const appendChildMock = vi.spyOn(document.body, 'appendChild').mockImplementation((node: Node) => node);
     const removeChildMock = vi.spyOn(document.body, 'removeChild').mockImplementation((node: Node) => node);
     exportCsv(data, undefined, filename);
+    expect(createObjectURLMock).toHaveBeenCalled();
     expect(appendChildMock).toHaveBeenCalled();
     expect(removeChildMock).toHaveBeenCalled();
+    const blob = createObjectURLMock.mock.calls[0][0] as Blob;
+    const bytes = await blobToBytes(blob);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+    await expect(blobToText(blob)).resolves.toBe('name,age\nJohn,30');
+    const link = appendChildMock.mock.calls[0][0] as HTMLAnchorElement;
+    expect(link.href).toBe('blob:url');
+    expect(link.download).toBe('data.csv');
   });
 });
