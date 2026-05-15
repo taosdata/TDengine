@@ -16,6 +16,19 @@
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+/* Free any existing siInfo.dbname and replace with a heap copy of src.
+ * src may be NULL or empty — in either case dbname is left NULL. */
+static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
+  taosMemoryFreeClear(pSi->dbname);
+  if (src != NULL && src[0] != '\0') {
+    pSi->dbname = taosStrdup(src);
+    if (pSi->dbname == NULL) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
     *pBuf = (char*)pTblBuf->pCurBuff + pTblBuf->buffOffset;
@@ -527,6 +540,26 @@ static void resetRequest(STscStmt2* pStmt) {
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
   }
+  pStmt->asyncResultAvailable = false;
+}
+
+// Soft-reset for retry: keep the same SRequestObj (and therefore its tableList/dbList/pDb,
+// which refreshMeta needs) and only clear the per-execution state set by the previous launch.
+// Mirrors restartAsyncQuery + destroyCtxInRequest in clientMain.c.
+static void stmtSoftResetRequestForRetry(STscStmt2* pStmt) {
+  SRequestObj* pReq = pStmt->exec.pRequest;
+  if (pReq == NULL) {
+    return;
+  }
+
+  destroyCtxInRequest(pReq);
+
+  pReq->code = 0;
+  pReq->body.resInfo.numOfRows = 0;
+  if (pReq->msgBuf != NULL) {
+    pReq->msgBuf[0] = '\0';
+  }
+
   pStmt->asyncResultAvailable = false;
 }
 
@@ -1149,7 +1182,6 @@ static bool stmtRetryTbMetaIsSuperTable(const STableMeta* pMeta) {
   return (pMeta != NULL && pMeta->tableType == TSDB_SUPER_TABLE);
 }
 
-// Resolve uid/suid/sver for one SSubmitTbData after catalog refresh. tbIdx is the index within this submit req.
 static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequest, SSubmitTbData* pTb, int32_t tbIdx,
                                             int32_t nSubmitTb, SStmtRetryTbPatch* pPatch) {
   if (NULL == pStmt->pCatalog) {
@@ -1163,6 +1195,113 @@ static int32_t stmtFetchOneRetryTbMetaPatch(STscStmt2* pStmt, SRequestObj* pRequ
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp)};
+
+  // 0) stb-interlace mode without USING: only the first child table is fully parsed into pRequest->tableList;
+  // subsequent tables only exist in siInfo.pTableHash (key=name, value=STableVgUid). Iterate the hash to find
+  // the table name whose cached (possibly stale) uid matches pTb->uid, then fetch fresh meta by name.
+  // NOTE: stmtInvalidateStbInterlaceTableUidCache is called AFTER this function, so pTableHash is still intact.
+  if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pTableHash != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pStmt->sql.siInfo.pTableHash, pIter, &iter)) != NULL) {
+      STableVgUid* pVgUid = (STableVgUid*)pIter;
+      if (pVgUid->uid != pTb->uid) {
+        continue;
+      }
+      size_t keyLen = 0;
+      char*  tbName = (char*)tSimpleHashGetKey(pIter, &keyLen);
+      if (tbName == NULL || keyLen == 0 || keyLen >= TSDB_TABLE_NAME_LEN) {
+        break;
+      }
+      char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+      (void)memcpy(nameBuf, tbName, keyLen);
+      SName       nm = {0};
+      const char* dbname = (pRequest->pDb != NULL) ? pRequest->pDb : pStmt->taos->db;
+      int32_t     nc = qCreateSName2(&nm, nameBuf, pStmt->taos->acctId, (char*)dbname, NULL, 0);
+      if (nc != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      // Force-evict the stale catalog entry first: stb-interlace child tables are not in pRequest->tableList,
+      // so refreshMeta does not refresh them. Without this, catalogGetTableMeta below would return the stale
+      // cached uid and the retry would patch the submit with the same wrong uid.
+      nc = catalogRemoveTableMeta(pStmt->pCatalog, &nm);
+      if (nc != TSDB_CODE_SUCCESS) {
+        return nc;
+      }
+      STableMeta* pMeta = NULL;
+      nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pMeta);
+      if (nc == TSDB_CODE_SUCCESS && pMeta != NULL) {
+        if (!stmtRetryTbMetaIsSuperTable(pMeta)) {
+          pPatch->uid = pMeta->uid;
+          pPatch->suid = pMeta->suid;
+          pPatch->sver = pMeta->sversion;
+          taosMemoryFree(pMeta);
+          return TSDB_CODE_SUCCESS;
+        }
+        taosMemoryFree(pMeta);
+      } else {
+        taosMemoryFreeClear(pMeta);
+        if (nc != TSDB_CODE_SUCCESS) {
+          return nc;
+        }
+      }
+      break;
+    }
+  }
+
+  // 0b) Non-interlace multi-VG TABLE_NOT_EXIST retry: scan exec.pBlockHash for the entry whose bind-time
+  // pMeta->uid matches pTb->uid (the stale uid in the serialized submit block). exec.pBlockHash is built at
+  // bind time and its pMeta->uid values are NOT changed by DROP+CREATE DDL between bind and exec, so they
+  // correctly identify which table name belongs to each stale uid. Fetch fresh meta by name post-refresh.
+  if (!pStmt->sql.stbInterlaceMode && pStmt->exec.pBlockHash != NULL) {
+    void* pIter = taosHashIterate(pStmt->exec.pBlockHash, NULL);
+    while (pIter) {
+      STableDataCxt* pBlocks = *(STableDataCxt**)pIter;
+      STableMeta*    pMeta2 = qGetTableMetaInDataBlock(pBlocks);
+      if (pMeta2 != NULL && !stmtRetryTbMetaIsSuperTable(pMeta2) && (uint64_t)pMeta2->uid == (uint64_t)pTb->uid) {
+        size_t      keyLen = 0;
+        const char* key = taosHashGetKey(pIter, &keyLen);
+        taosHashCancelIterate(pStmt->exec.pBlockHash, pIter);
+        if (key == NULL || keyLen == 0) break;
+        // key is "acctId.dbname.tname"; extract the short name after the last '.'.
+        const char* tname = key;
+        size_t      tnLen = keyLen;
+        for (size_t i = 0; i < keyLen; ++i) {
+          if (key[i] == '.') {
+            tname = key + i + 1;
+            tnLen = keyLen - i - 1;
+          }
+        }
+        if (tnLen == 0 || tnLen >= TSDB_TABLE_NAME_LEN) break;
+        char tnBuf[TSDB_TABLE_NAME_LEN] = {0};
+        (void)memcpy(tnBuf, tname, tnLen);
+        SName       nm = {0};
+        const char* dbname = (pRequest->pDb != NULL) ? pRequest->pDb : pStmt->taos->db;
+        int32_t     nc = qCreateSName2(&nm, tnBuf, pStmt->taos->acctId, (char*)dbname, NULL, 0);
+        if (nc != TSDB_CODE_SUCCESS) break;
+        // Force-evict the stale catalog entry: refreshMeta only refreshes pRequest->tableList which may
+        // not cover every table touched by a multi-VG submit. Removing the cache entry guarantees the
+        // fetch below goes to mnode and brings back the freshly created table's uid.
+        nc = catalogRemoveTableMeta(pStmt->pCatalog, &nm);
+        if (nc != TSDB_CODE_SUCCESS) {
+          return nc;
+        }
+        STableMeta* pFresh = NULL;
+        nc = catalogGetTableMeta(pStmt->pCatalog, &conn, &nm, &pFresh);
+        if (nc == TSDB_CODE_SUCCESS && pFresh != NULL && !stmtRetryTbMetaIsSuperTable(pFresh)) {
+          pPatch->uid = pFresh->uid;
+          pPatch->suid = pFresh->suid;
+          pPatch->sver = pFresh->sversion;
+          taosMemoryFree(pFresh);
+          return TSDB_CODE_SUCCESS;
+        }
+        taosMemoryFreeClear(pFresh);
+        if (nc != TSDB_CODE_SUCCESS) return nc;
+        break;
+      }
+      pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
+    }
+  }
 
   // 1) Auto-create child: look up by child table name (never use STB-only name without child name).
   if (pTb->pCreateTbReq != NULL && pTb->pCreateTbReq->name != NULL) {
@@ -1409,6 +1548,8 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
   pStmt->sql.siInfo.pTableCols = NULL;
 
+  taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
+
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -1469,6 +1610,13 @@ int32_t stmtGetTableMetaAndValidate(STscStmt2* pStmt, uint64_t* uid, uint64_t* s
   }
 
   STMT_ERR_RET(code);
+
+  if (pStmt->bInfo.tbSuid != pTableMeta->suid) {
+    STMT2_ELOG("table %s is in other stable, suid:0x%" PRIx64 " != 0x%" PRIx64, pStmt->bInfo.tbFName,
+               pStmt->bInfo.tbSuid, pTableMeta->suid);
+    taosMemoryFree(pTableMeta);
+    STMT_ERR_RET(TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
+  }
 
   *uid = pTableMeta->uid;
   *suid = pTableMeta->suid;
@@ -1784,7 +1932,13 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->stbInterlaceMode) {
     pStmt->sql.siInfo.transport = taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = taos->acctId;
-    pStmt->sql.siInfo.dbname = taos->db;
+    const char* siDbSrc = (pStmt->db != NULL && pStmt->db[0] != '\0') ? pStmt->db : taos->db;
+    code = stmtDupSiInfoDbname(&pStmt->sql.siInfo, siDbSrc);
+    if (TSDB_CODE_SUCCESS != code) {
+      STMT2_ELOG("fail to dup siInfo dbname in stmtInit2:%s", tstrerror(code));
+      (void)stmtClose2(pStmt);
+      return NULL;
+    }
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
 
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -1875,7 +2029,7 @@ static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
     return terrno;
   }
   if (pStmt->sql.stbInterlaceMode) {
-    pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
+    STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, pStmt->exec.pRequest->pDb));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1961,7 +2115,8 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   if (stbInterlaceMode) {
     pStmt->sql.siInfo.transport = pStmt->taos->pAppInfo->pTransporter;
     pStmt->sql.siInfo.acctId = pStmt->taos->acctId;
-    pStmt->sql.siInfo.dbname = pStmt->taos->db;
+    const char* siDbSrc = (db != NULL && db[0] != '\0') ? db : pStmt->taos->db;
+    STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, siDbSrc));
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
 
     if (NULL == pStmt->pCatalog) {
@@ -2047,7 +2202,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       (void)strdequote(pStmt->exec.pRequest->pDb);
 
       if (pStmt->sql.stbInterlaceMode) {
-        pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
+        STMT_ERR_RET(stmtDupSiInfoDbname(&pStmt->sql.siInfo, pStmt->exec.pRequest->pDb));
       }
     }
 
@@ -3120,22 +3275,25 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   // NEED_CLIENT_HANDLE_ERROR: retry internally without notifying user; retry completion uses this same cb + fp once.
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pStmt->pVgDataBlocksForRetry != NULL) {
     int32_t origExecCode = code;
-    STMT2_ELOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
+    STMT2_WLOG("async exec got NEED_CLIENT_HANDLE_ERROR (code:%s), retrying internally", tstrerror(code));
 
     // Try to retry internally; completion uses asyncQueryCb so user fp runs once with the final result.
     int32_t retryCode = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
     if (retryCode == TSDB_CODE_SUCCESS) {
-      stmtInvalidateStbInterlaceTableUidCache(pStmt);
       if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
         retryCode = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
       } else if (stmtIsSchemaVersionRetryError(origExecCode)) {
         retryCode = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
       }
     }
+    stmtInvalidateStbInterlaceTableUidCache(pStmt);
     if (retryCode == TSDB_CODE_SUCCESS) {
       (void)stmtRestoreVgDataBlocksForRetry(pStmt);
-      resetRequest(pStmt);
-      pStmt->asyncResultAvailable = false;
+      // Reuse the same pRequest so its tableList/dbList (set during initial parse) survive for
+      // any subsequent refreshMeta calls. Building a fresh request here would leave those arrays
+      // empty and break all future internal retries (refreshMeta returns TSDB_CODE_APP_ERROR
+      // when both lists are empty).
+      stmtSoftResetRequestForRetry(pStmt);
       retryCode = stmtCreateRequest(pStmt);
       if (retryCode == TSDB_CODE_SUCCESS) {
         SRequestObj*         pNewReq = pStmt->exec.pRequest;
@@ -3160,6 +3318,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
           // Do not taosMemoryFree(pWrapper): destroyRequest frees it via destorySqlCallbackWrapper.
           resetRequest(pStmt);
         }
+      }
+      if (retryCode != TSDB_CODE_SUCCESS) {
+        STMT2_ELOG("retry failed, code:%d, will notify user with original error code:%d", retryCode, origExecCode);
       }
     }
     // Retry setup failed (did not return above): notify user once with the original error, then cleanup + post sem.
@@ -3257,9 +3418,6 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
       int32_t origExecCode = pStmt->exec.pRequest->code;
       STMT2_WLOG_E("exec failed errorcode:NEED_CLIENT_HANDLE_ERROR, refresh meta and retry internally");
       code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
-      if (code == TSDB_CODE_SUCCESS) {
-        stmtInvalidateStbInterlaceTableUidCache(pStmt);
-      }
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
         if (origExecCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
           code = stmtUpdateVgDataBlocksTbMetaFromCatalog(pStmt, pStmt->exec.pRequest);
@@ -3267,10 +3425,13 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
           code = stmtUpdateVgDataBlocksSchemaVer(pStmt, pStmt->exec.pRequest);
         }
       }
+      stmtInvalidateStbInterlaceTableUidCache(pStmt);
       if (code == TSDB_CODE_SUCCESS && pStmt->pVgDataBlocksForRetry != NULL) {
         // Restore saved serialized data blocks and re-execute with refreshed meta.
         STMT_ERR_JRET(stmtRestoreVgDataBlocksForRetry(pStmt));
-        resetRequest(pStmt);
+        // Reuse the same pRequest so its tableList/dbList survive for any subsequent
+        // refreshMeta calls; building a fresh request would leave them empty.
+        stmtSoftResetRequestForRetry(pStmt);
         STMT_ERR_JRET(stmtCreateRequest(pStmt));
         launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, true, NULL);
         code = pStmt->exec.pRequest->code;
@@ -3278,6 +3439,8 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
         code = pStmt->exec.pRequest->code;
       } else {
         pStmt->exec.pRequest->code = code;
+        STMT2_ELOG("refresh meta and retry internally failed, code:%d, will notify user with original error code:%d",
+                   code, origExecCode);
       }
     }
 

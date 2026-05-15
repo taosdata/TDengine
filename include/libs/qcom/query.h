@@ -367,7 +367,7 @@ typedef struct SStbInterlaceInfo {
   void*          pCatalog;
   void*          pQuery;
   int32_t        acctId;
-  char*          dbname;
+  char*          dbname; /* heap copy; TAOS client frees with stmt siInfo cleanup (stmtCleanSQLInfo) */
   void*          transport;
   SEpSet         mgmtEpSet;
   void*          pRequest;

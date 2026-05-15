@@ -13,7 +13,7 @@ This section follows the conventions below for SQL syntax:
 
 - Keywords are represented in uppercase letters, but SQL itself does not distinguish between the case of keywords and identifiers
 - Lowercase letters indicate content that needs to be entered by the user
-- \[ \] indicates optional content, but you cannot enter [] itself
+- Square brackets [ ] indicate optional content, but you cannot enter [] itself
 - | indicates a choice among multiple options, choose one, but you cannot enter | itself
 - ... indicates that the previous item can be repeated multiple times
 

@@ -79,7 +79,7 @@ void* MndTestSma::BuildDropDbReq(const char* dbname, int32_t* pContLen) {
 }
 
 void MndTestSma::PushField(SArray* pArray, int32_t bytes, int8_t type, const char* name) {
-  SField field = {0};
+  SFieldWithOptions field = {0};
   field.bytes = bytes;
   field.type = type;
   strcpy(field.name, name);
@@ -91,7 +91,7 @@ void* MndTestSma::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   createReq.numOfColumns = 3;
   createReq.numOfTags = 1;
   createReq.igExists = 0;
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions));
   createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
   strcpy(createReq.name, stbname);
 
@@ -113,7 +113,7 @@ void* MndTestSma::BuildCreateBSmaStbReq(const char* stbname, int32_t* pContLen) 
   createReq.numOfColumns = 3;
   createReq.numOfTags = 1;
   createReq.igExists = 0;
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions));
   createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
   strcpy(createReq.name, stbname);
 

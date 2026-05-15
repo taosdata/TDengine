@@ -427,10 +427,6 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSCreateFuncReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
-#ifdef WINDOWS
-  code = TSDB_CODE_MND_INVALID_PLATFORM;
-  goto _OVER;
-#endif
   mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_FUNC), NULL, _OVER);
 
