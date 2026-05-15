@@ -44,9 +44,7 @@ pub async fn validate(
 
     let cancel = CancellationToken::new();
     let _guard = cancel.drop_guard_ref();
-    let client = get_one_client(&args, &dsn, param.via, cancel.clone())
-        .await?
-        .context("no available xnode found")?;
+    let client = get_one_client(&args, &dsn, param.via, cancel.clone()).await?;
 
     match client.check_valid(&param.try_into()?).await {
         Ok(res) => Ok(Json(res)),
@@ -68,9 +66,7 @@ pub async fn get_sample(
     let dsn = get_dsn(&args, &req).await?;
     let cancel = CancellationToken::new();
     let _guard = cancel.drop_guard_ref();
-    let client = get_one_client(&args, &dsn, via, cancel.clone())
-        .await?
-        .context("no available xnode found")?;
+    let client = get_one_client(&args, &dsn, via, cancel.clone()).await?;
     let from = json_to_dsn(&param.dsn).context("invalid `from` param")?;
     let samples = client
         .get_samples(&GetSamplesParam {
