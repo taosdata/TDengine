@@ -6,10 +6,11 @@
 #include <plog/Initializers/RollingFileInitializer.h>
 #include <plog/Log.h>
 
-#ifndef WINDOWS
+#ifndef _WIN32
 #include <dlfcn.h>
 #endif
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 
@@ -579,7 +580,13 @@ int32_t doPyOpen(SScriptUdfEnvItem *items, int numItems) {
     py::module_ pySys = py::module_::import("sys");
     for (int i = 0; i < numItems; ++i) {
       if (std::string_view(items[i].name) == std::string_view("PYTHONPATH")) {
-        auto paths = resplit(std::string(items[i].value), std::regex("[;:]"));
+        if (items[i].value == nullptr) continue;
+#ifdef _WIN32
+        static const std::regex pathSep(";");
+#else
+        static const std::regex pathSep(":");
+#endif
+        auto paths = resplit(std::string(items[i].value), pathSep);
         for (auto &path : paths) {
           pySys.attr("path").attr("append")(path);
         }
@@ -720,23 +727,72 @@ int32_t pyUdfAggFinish(SUdfInterBuf *buf, SUdfInterBuf *resultData, void *udfCtx
   return f.get();
 }
 
-int32_t pyOpen(SScriptUdfEnvItem *items, int numItems) {
-  #ifndef WINDOWS
-  dlopen("libtaospyudf.so", RTLD_LAZY | RTLD_GLOBAL);
-  #endif
+// Self-dlopen with RTLD_GLOBAL is required on Linux so symbols exported
+// by this library are visible to Python C-extensions imported later.
+// macOS uses two-level namespace and a different filename suffix; Windows
+// (LoadLibrary) makes exported symbols globally visible automatically and
+// does not have dlopen at all.
+#if defined(__APPLE__)
+#  define TAOSPYUDF_SELF_DSO "libtaospyudf.dylib"
+#elif !defined(_WIN32)
+#  define TAOSPYUDF_SELF_DSO "libtaospyudf.so"
+#endif
 
-  std::string logPath("/tmp/");
+int32_t pyOpen(SScriptUdfEnvItem *items, int numItems) {
+#ifdef TAOSPYUDF_SELF_DSO
+  // Promote our symbols to global so Python C extensions loaded later by the
+  // embedded interpreter can resolve them.  Resolve our own loaded path via
+  // dladdr first so dlopen succeeds regardless of LD_LIBRARY_PATH / install
+  // prefix; fall back to the bare SONAME if dladdr is unavailable.  Capture
+  // any failure so we can surface it via plog once the logger is initialized
+  // below.
+  std::string selfDsoErr;
+  const char *selfDsoTarget = TAOSPYUDF_SELF_DSO;
+  Dl_info     dlInfo{};
+  // Use the address of a local static (an object, not a function) so the
+  // implicit conversion to void* is well-defined.  Function-pointer to void*
+  // is only conditionally supported in C++; POSIX guarantees it for dlsym
+  // but standard C++ does not.  Any address inside this DSO satisfies dladdr.
+  static const char selfDsoAnchor = 0;
+  if (dladdr(const_cast<void *>(static_cast<const void *>(&selfDsoAnchor)), &dlInfo) != 0 &&
+      dlInfo.dli_fname != nullptr) {
+    selfDsoTarget = dlInfo.dli_fname;
+  }
+  if (dlopen(selfDsoTarget, RTLD_LAZY | RTLD_GLOBAL) == nullptr) {
+    const char *e = dlerror();
+    selfDsoErr = std::string("dlopen(") + selfDsoTarget + "): " + (e ? e : "unknown error");
+  }
+#endif
+
+  std::error_code ec;
+  std::filesystem::path logDir = std::filesystem::temp_directory_path(ec);
+  if (ec || logDir.empty()) {
+#ifdef _WIN32
+    logDir = ".";
+#else
+    logDir = "/tmp";
+#endif
+  }
   for (int i = 0; i < numItems; ++i) {
     if (std::string_view(items[i].name) == std::string_view("LOGDIR")) {
-      logPath = std::string(items[i].value);
-      break;
+      if (items[i].value) {
+        logDir = items[i].value;
+        break;
+      }
     }
   }
-  logPath += std::string("/taospyudf.log");
+  std::filesystem::path logPath = logDir / "taospyudf.log";
   plog::init(plog::info, logPath.c_str(), 50 * 1024 * 1024, 5);
   PLOGI << "taos python udf plugin open";
-  // only one caller
-  pythonCaller = new ThreadPool(1);
+#ifdef TAOSPYUDF_SELF_DSO
+  if (!selfDsoErr.empty()) {
+    PLOGE << selfDsoErr << " - Python C extensions may fail to resolve our symbols";
+  }
+#endif
+  // only one caller; guard against repeated pyOpen without pyClose
+  if (pythonCaller == nullptr) {
+    pythonCaller = new ThreadPool(1);
+  }
   auto f = pythonCaller->enqueue(doPyOpen, items, numItems);
   return f.get();
 }
@@ -746,7 +802,6 @@ int32_t pyClose() {
   int32_t ret = f.get();
   delete pythonCaller;
   pythonCaller = nullptr;
-  dlopen("libtaospyudf.so", RTLD_LAZY | RTLD_GLOBAL);
   PLOGI << "taos python udf plugin close";
   return ret;
 }
