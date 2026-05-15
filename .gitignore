@@ -82,3 +82,9 @@ tools/tdgpt/packaging/bin/uv.exe
 .worktrees/
 skills-lock.json
 debug_coverage/
+
+# JDBC project
+docs/examples/JDBC/**/.classpath
+docs/examples/JDBC/**/.factorypath
+docs/examples/JDBC/**/.project
+docs/examples/JDBC/**/.settings/

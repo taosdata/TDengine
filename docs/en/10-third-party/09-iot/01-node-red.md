@@ -25,7 +25,7 @@ Prepare the following environment components:
 
 Component interaction diagram:  
 
-![Node-RED component architecture](../../assets/node-red-01.webp)
+![Node-RED component architecture](../../assets/node-red-01.png)
 
 ## Configuring Data Source
 
@@ -140,7 +140,7 @@ After adding all nodes, connect them in sequence to form a pipeline. Click "Depl
 - 'td-writer' turns green.
 - 'debug1' shows data count.
 
-![Data collection flow](../../assets/node-red-02.webp)
+![Data collection flow](../../assets/node-red-02.png)
 
 Successful write output:
 
@@ -190,7 +190,7 @@ When the flow is successfully started:
 - 'td-reader' node turns green.
 - Debug node shows result count.  
 
-![Data query flow](../../assets/node-red-03.webp)
+![Data query flow](../../assets/node-red-03.png)
 
 Output from 'td-reader' (exceptions thrown on failure):  
 
@@ -257,7 +257,7 @@ When operational:
 - 'td-consumer' node turns green.
 - Debug node shows consumption count.
 
-![Data subscription flow](../../assets/node-red-04.webp)
+![Data subscription flow](../../assets/node-red-04.png)
 
 Alert output from 'td-consumer':
 
@@ -300,13 +300,13 @@ When errors occur:
 - Debug node shows error count.
 - View details in Node-RED logs.
 
-![Error handling flow](../../assets/node-red-05.webp)
+![Error handling flow](../../assets/node-red-05.png)
 
 ### Runtime View
 
 Complete workflow overview after deployment:
 
-![Complete workflow overview](../../assets/node-red-06.webp)
+![Complete workflow overview](../../assets/node-red-06.png)
 
 ## Summary
 
