@@ -606,24 +606,24 @@ class TestStreamSubqueryPerEvent:
             # Event 3: whitelist becomes empty after previously being {1,2}.
             # The subquery must be re-evaluated per event and must not reuse
             # the cached non-empty IN-list from event 2. No new result row
-            # should be emitted for the trigger, so this assertion must
-            # stabilize instead of passing immediately on the two rows that
-            # already existed after event 2.
+            # should be emitted for the trigger, so verify the two expected
+            # rows remain stable across a bounded observation window instead
+            # of passing immediately on the rows that already existed after
+            # event 2.
             expected_rows = (
                 lambda: tdSql.getRows() == 2
                 and tdSql.compareData(0, 0, 10)
                 and tdSql.compareData(1, 0, 30)
             )
-            time.sleep(0.5)
-            tdSql.checkResultsByFunc(
-                sql=f"select total from {self.db}.r order by ts",
-                func=expected_rows,
-            )
-            time.sleep(0.5)
-            tdSql.checkResultsByFunc(
-                sql=f"select total from {self.db}.r order by ts",
-                func=expected_rows,
-            )
+            deadline = time.monotonic() + 1.0
+            while True:
+                tdSql.checkResultsByFunc(
+                    sql=f"select total from {self.db}.r order by ts",
+                    func=expected_rows,
+                )
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.1)
 
     # ------------------------------------------------------------------
     # Row-comparison subquery (REMOTE_ROW)
