@@ -3512,11 +3512,10 @@ void msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg, SStm
       }
       break;
     case STREAM_STATUS_FAILED:
-      //STREAMTODO ADD ERRCODE HANDLE
       if (STREAM_RUNNER_TASK == pTask->type || STREAM_TRIGGER_TASK == pTask->type) {
         msttWarn("task failed with error:%s, try to undeploy whole stream, idx:%d", tstrerror(pMsg->errorCode),
                  pMsg->taskIdx);
-        msmStopStreamByError(streamId, pStatus, code, pCtx->currTs);
+        msmStopStreamByError(streamId, pStatus, pMsg->errorCode, pCtx->currTs);
       } else {
         msttInfo("task failed with error:%s, try to undeploy current task, idx:%d", tstrerror(pMsg->errorCode),
                  pMsg->taskIdx);

@@ -3985,6 +3985,10 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         }
         break;
       }
+      case TSDB_CODE_STREAM_VTB_TAG_CHANGED: {
+        code = pRsp->code;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       default: {
         bool addWait = false;
         if (pReq->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
