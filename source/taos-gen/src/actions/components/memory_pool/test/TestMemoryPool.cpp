@@ -205,7 +205,7 @@ void test_memory_pool_get_cell_null() {
 
     MemoryPool pool(1, 1, 2, col_instances, tag_instances);
 
-    std::vector<ColumnType> tags = {std::monostate{}, std::string("region-a")};
+    std::vector<ColumnType> tags = {NullValue{}, std::string("region-a")};
     pool.register_table_tags("t_null", tags);
 
     auto* block = pool.acquire_block();
@@ -213,17 +213,17 @@ void test_memory_pool_get_cell_null() {
 
     RowData row;
     row.timestamp = 1;
-    row.columns = {std::monostate{}, std::string("ok")};
+    row.columns = {NullValue{}, std::string("ok")};
     block->tables[0].table_name = "t_null";
     block->tables[0].tags_ptr = pool.get_table_tags("t_null");
     block->tables[0].add_row(row);
 
     ColumnType col0 = block->tables[0].get_column_cell(0, 0);
-    assert(std::holds_alternative<std::monostate>(col0));
+    assert(std::holds_alternative<NullValue>(col0));
     assert(std::get<std::string>(block->tables[0].get_column_cell(0, 1)) == "ok");
 
     ColumnType tag0 = block->tables[0].get_tag_cell(0, 0);
-    assert(std::holds_alternative<std::monostate>(tag0));
+    assert(std::holds_alternative<NullValue>(tag0));
     assert(std::get<std::string>(block->tables[0].get_tag_cell(0, 1)) == "region-a");
 
     pool.release_block(block);
@@ -242,7 +242,7 @@ void test_memory_pool_add_row_varlen_null_metadata() {
 
     RowData row;
     row.timestamp = 10;
-    row.columns = {int32_t(7), std::monostate{}};
+    row.columns = {int32_t(7), NullValue{}};
     block->tables[0].add_row(row);
 
     auto& var_col = block->tables[0].columns[1];
@@ -250,7 +250,7 @@ void test_memory_pool_add_row_varlen_null_metadata() {
     assert(var_col.is_nulls[0] == 1);
     assert(var_col.lengths[0] == 0);
     assert(var_col.var_offsets[0] == 0);
-    assert(std::holds_alternative<std::monostate>(block->tables[0].get_column_cell(0, 1)));
+    assert(std::holds_alternative<NullValue>(block->tables[0].get_column_cell(0, 1)));
 
     pool.release_block(block);
     std::cout << "test_memory_pool_add_row_varlen_null_metadata passed." << std::endl;
@@ -267,7 +267,7 @@ void test_memory_pool_add_rows_fixed_and_var_null() {
     assert(block != nullptr);
 
     std::vector<RowData> rows = {
-        {100, {std::monostate{}, std::monostate{}}},
+        {100, {NullValue{}, NullValue{}}},
         {110, {int32_t(9), std::string("ok")}}
     };
     block->tables[0].add_rows(rows);
@@ -278,11 +278,11 @@ void test_memory_pool_add_rows_fixed_and_var_null() {
     (void)fixed_col;
     (void)var_col;
     assert(fixed_col.is_nulls[0] == 1);
-    assert(std::holds_alternative<std::monostate>(block->tables[0].get_column_cell(0, 0)));
+    assert(std::holds_alternative<NullValue>(block->tables[0].get_column_cell(0, 0)));
 
     assert(var_col.is_nulls[0] == 1);
     assert(var_col.lengths[0] == 0);
-    assert(std::holds_alternative<std::monostate>(block->tables[0].get_column_cell(0, 1)));
+    assert(std::holds_alternative<NullValue>(block->tables[0].get_column_cell(0, 1)));
 
     assert(fixed_col.is_nulls[1] == 0);
     assert(std::get<int32_t>(block->tables[0].get_column_cell(1, 0)) == 9);
@@ -305,10 +305,10 @@ void test_memory_pool_reuse_block_varlen_null_marker_not_stale() {
     assert(first_block != nullptr);
 
     std::vector<RowData> first_rows = {
-        {1000, {int32_t(1), std::monostate{}}}
+        {1000, {int32_t(1), NullValue{}}}
     };
     first_block->tables[0].add_rows(first_rows);
-    assert(std::holds_alternative<std::monostate>(first_block->tables[0].get_column_cell(0, 1)));
+    assert(std::holds_alternative<NullValue>(first_block->tables[0].get_column_cell(0, 1)));
     pool.release_block(first_block);
 
     auto* reused_block = pool.acquire_block();
@@ -801,6 +801,171 @@ void test_memory_pool_bind_verification() {
     std::cout << "test_memory_pool_bind_verification passed." << std::endl;
 }
 
+void test_memory_pool_none_value() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"val", "INT"});
+    col_instances.emplace_back(ColumnConfig{"desc", "VARCHAR(20)"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    // First column normal, second column NONE
+    rows.push_back({1000, {int32_t(42), NoneValue{}}});
+    // First column NULL, second column normal
+    rows.push_back({2000, {NullValue{}, std::string("hello")}});
+    batch.table_batches.emplace_back("t1", std::move(rows));
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 2, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    const auto& tb = block->tables[0];
+    (void)tb;
+
+    // Row 0: val=42 (normal), desc=NONE (is_nulls=2)
+    assert(tb.columns[0].is_nulls[0] == 0);
+    assert(tb.columns[1].is_nulls[0] == 2);
+
+    // Row 1: val=NULL (is_nulls=1), desc="hello" (normal)
+    assert(tb.columns[0].is_nulls[1] == 1);
+    assert(tb.columns[1].is_nulls[1] == 0);
+
+    pool.release_block(block);
+    std::cout << "test_memory_pool_none_value passed." << std::endl;
+}
+
+void test_memory_pool_get_cell_none() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"val", "INT"});
+    col_instances.emplace_back(ColumnConfig{"desc", "VARCHAR(20)"});
+
+    MemoryPool pool(1, 1, 3, col_instances, tag_instances);
+    auto* block = pool.acquire_block();
+
+    // Row 0: normal values
+    RowData row0;
+    row0.timestamp = 1000;
+    row0.columns = {int32_t(10), std::string("hello")};
+    block->tables[0].add_row(row0);
+
+    // Row 1: NONE for both columns
+    RowData row1;
+    row1.timestamp = 2000;
+    row1.columns = {NoneValue{}, NoneValue{}};
+    block->tables[0].add_row(row1);
+
+    // Row 2: NULL for both columns
+    RowData row2;
+    row2.timestamp = 3000;
+    row2.columns = {NullValue{}, NullValue{}};
+    block->tables[0].add_row(row2);
+
+    // Verify get_column_cell distinguishes NULL vs NONE
+    auto cell_0_0 = block->tables[0].get_column_cell(0, 0);
+    assert(std::holds_alternative<int32_t>(cell_0_0));
+    assert(std::get<int32_t>(cell_0_0) == 10);
+
+    auto cell_1_0 = block->tables[0].get_column_cell(1, 0);
+    assert(std::holds_alternative<NoneValue>(cell_1_0));
+
+    auto cell_2_0 = block->tables[0].get_column_cell(2, 0);
+    assert(std::holds_alternative<NullValue>(cell_2_0));
+
+    // Var-len column: NONE metadata
+    auto& var_col = block->tables[0].columns[1];
+    (void)var_col;
+    assert(var_col.is_nulls[1] == 2);  // NONE
+    assert(var_col.lengths[1] == 0);
+    assert(var_col.is_nulls[2] == 1);  // NULL
+    assert(var_col.lengths[2] == 0);
+
+    auto cell_1_1 = block->tables[0].get_column_cell(1, 1);
+    assert(std::holds_alternative<NoneValue>(cell_1_1));
+
+    auto cell_2_1 = block->tables[0].get_column_cell(2, 1);
+    assert(std::holds_alternative<NullValue>(cell_2_1));
+
+    pool.release_block(block);
+    std::cout << "test_memory_pool_get_cell_none passed." << std::endl;
+}
+
+void test_memory_pool_add_rows_batch_null_none() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"val", "INT"});
+    col_instances.emplace_back(ColumnConfig{"desc", "VARCHAR(16)"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({1000, {int32_t(1), std::string("abc")}});
+    rows.push_back({2000, {NullValue{}, NoneValue{}}});
+    rows.push_back({3000, {NoneValue{}, NullValue{}}});
+    rows.push_back({4000, {int32_t(4), std::string("xyz")}});
+    batch.table_batches.emplace_back("t1", std::move(rows));
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 4, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    const auto& tb = block->tables[0];
+    (void)tb;
+    // Fixed column: check is_nulls
+    assert(tb.columns[0].is_nulls[0] == 0);
+    assert(tb.columns[0].is_nulls[1] == 1);  // NULL
+    assert(tb.columns[0].is_nulls[2] == 2);  // NONE
+    assert(tb.columns[0].is_nulls[3] == 0);
+
+    // Var-len column: check is_nulls and lengths
+    assert(tb.columns[1].is_nulls[0] == 0);
+    assert(tb.columns[1].is_nulls[1] == 2);  // NONE
+    assert(tb.columns[1].is_nulls[2] == 1);  // NULL
+    assert(tb.columns[1].is_nulls[3] == 0);
+    assert(tb.columns[1].lengths[1] == 0);
+    assert(tb.columns[1].lengths[2] == 0);
+
+    // Verify get_column_cell roundtrip
+    assert(std::holds_alternative<NullValue>(tb.get_column_cell(1, 0)));
+    assert(std::holds_alternative<NoneValue>(tb.get_column_cell(1, 1)));
+    assert(std::holds_alternative<NoneValue>(tb.get_column_cell(2, 0)));
+    assert(std::holds_alternative<NullValue>(tb.get_column_cell(2, 1)));
+    assert(std::get<int32_t>(tb.get_column_cell(3, 0)) == 4);
+    assert(std::get<std::string>(tb.get_column_cell(3, 1)) == "xyz");
+
+    pool.release_block(block);
+    std::cout << "test_memory_pool_add_rows_batch_null_none passed." << std::endl;
+}
+
+void test_memory_pool_tags_null_none() {
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"val", "INT"});
+    tag_instances.emplace_back(ColumnConfig{"t1", "INT"});
+    tag_instances.emplace_back(ColumnConfig{"t2", "VARCHAR(16)"});
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+
+    // Register tags with NullValue
+    std::vector<ColumnType> tags_null = {NullValue{}, std::string("ok")};
+    pool.register_table_tags("t_null", tags_null);
+
+    auto* block = pool.acquire_block();
+    block->tables[0].table_name = "t_null";
+    block->tables[0].tags_ptr = pool.get_table_tags("t_null");
+
+    RowData row;
+    row.timestamp = 1000;
+    row.columns = {int32_t(1)};
+    block->tables[0].add_row(row);
+
+    // Verify tag cells
+    auto tag0 = block->tables[0].get_tag_cell(0, 0);
+    assert(std::holds_alternative<NullValue>(tag0));
+    auto tag1 = block->tables[0].get_tag_cell(0, 1);
+    assert(std::get<std::string>(tag1) == "ok");
+
+    pool.release_block(block);
+    std::cout << "test_memory_pool_tags_null_none passed." << std::endl;
+}
+
 int main() {
     test_memory_pool_basic();
     test_memory_pool_multi_batch();
@@ -821,6 +986,10 @@ int main() {
     test_memory_pool_tags_management();
     test_memory_pool_tags_edge_cases();
     test_memory_pool_bind_verification();
+    test_memory_pool_none_value();
+    test_memory_pool_get_cell_none();
+    test_memory_pool_add_rows_batch_null_none();
+    test_memory_pool_tags_null_none();
 
     std::cout << "All MemoryPool tests passed." << std::endl;
     return 0;

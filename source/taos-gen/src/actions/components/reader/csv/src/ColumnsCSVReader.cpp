@@ -234,7 +234,7 @@ std::unordered_map<std::string, TableData> ColumnsCSVReader::generate() const {
                         ColumnTypeTag type_tag = instance.config().type_tag;
                         if ((ColumnTypeTraits::is_numeric(type_tag) || type_tag == ColumnTypeTag::BOOL)
                             && CsvNullUtils::is_null_text(row[col_idx])) {
-                            data_row.push_back(std::monostate{});
+                            data_row.push_back(NullValue{});
                         } else {
                             data_row.push_back(convert_to_type(row[col_idx], type_tag));
                         }

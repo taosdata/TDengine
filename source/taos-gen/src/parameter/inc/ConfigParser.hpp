@@ -7,6 +7,7 @@
 #include <vector>
 #include <optional>
 #include <variant>
+#include <cmath>
 #include <yaml-cpp/yaml.h>
 
 namespace YAML {
@@ -454,7 +455,7 @@ namespace YAML {
                 "name", "type", "primary_key", "count", "gen_type", "props", "null_ratio", "none_ratio"
             };
             static const std::set<std::string> random_allowed = {
-                "distribution", "min", "max", "dec_min", "dec_max", "corpus", "chinese", "values"
+                "distribution", "min", "max", "dec_min", "dec_max", "corpus", "chinese", "min_length", "max_length", "values"
             };
             static const std::set<std::string> order_allowed = {
                 "min", "max"
@@ -513,6 +514,21 @@ namespace YAML {
             if (node["null_ratio"]) rhs.null_ratio = node["null_ratio"].as<float>();
             if (node["none_ratio"]) rhs.none_ratio = node["none_ratio"].as<float>();
 
+            // Validate null_ratio and none_ratio
+            {
+                float nr = rhs.null_ratio.value_or(0.0f);
+                float no = rhs.none_ratio.value_or(0.0f);
+                if (!std::isfinite(nr) || nr < 0.0f || nr > 1.0f) {
+                    throw std::runtime_error("null_ratio must be a finite value in [0.0, 1.0] for column: " + rhs.name);
+                }
+                if (!std::isfinite(no) || no < 0.0f || no > 1.0f) {
+                    throw std::runtime_error("none_ratio must be a finite value in [0.0, 1.0] for column: " + rhs.name);
+                }
+                if (nr + no > 1.0f) {
+                    throw std::runtime_error("null_ratio + none_ratio must be <= 1.0 for column: " + rhs.name);
+                }
+            }
+
             // Inference generation method
             if (node["gen_type"]) {
                 rhs.gen_type = node["gen_type"].as<std::string>();
@@ -560,8 +576,45 @@ namespace YAML {
                 }
                 if (node["dec_min"]) rhs.dec_min = node["dec_min"].as<std::string>();
                 if (node["dec_max"]) rhs.dec_max = node["dec_max"].as<std::string>();
-                if (node["corpus"]) rhs.corpus = node["corpus"].as<std::string>();
+                if (node["corpus"]) {
+                    rhs.corpus = node["corpus"].as<std::string>();
+                    if (rhs.corpus->empty()) {
+                        throw std::runtime_error("corpus must be non-empty for column: " + rhs.name);
+                    }
+                    if (rhs.is_var_length() && rhs.len.has_value() &&
+                        rhs.corpus->size() > static_cast<size_t>(*rhs.len)) {
+                        throw std::runtime_error("corpus length (" + std::to_string(rhs.corpus->size()) +
+                            ") exceeds max length (" + std::to_string(*rhs.len) +
+                            ") for column: " + rhs.name);
+                    }
+                }
                 if (node["chinese"]) rhs.chinese = node["chinese"].as<bool>();
+                if (node["min_length"] || node["max_length"]) {
+                    if (!rhs.is_var_length()) {
+                        throw std::runtime_error("min_length/max_length only applicable to variable-length types for column: " + rhs.name);
+                    }
+                    int cap = *rhs.len;
+                    int min_len = node["min_length"] ? node["min_length"].as<int>() : 0;
+                    int max_len = node["max_length"] ? node["max_length"].as<int>() : cap;
+                    if (min_len < 0) {
+                        throw std::runtime_error("min_length must be >= 0 for column: " + rhs.name);
+                    }
+                    if (max_len < 0) {
+                        throw std::runtime_error("max_length must be >= 0 for column: " + rhs.name);
+                    }
+                    if (max_len > cap) {
+                        throw std::runtime_error("max_length (" + std::to_string(max_len) +
+                            ") exceeds type capacity (" + std::to_string(cap) +
+                            ") for column: " + rhs.name);
+                    }
+                    if (min_len > max_len) {
+                        throw std::runtime_error("min_length (" + std::to_string(min_len) +
+                            ") must be <= max_length (" + std::to_string(max_len) +
+                            ") for column: " + rhs.name);
+                    }
+                    rhs.min_length = min_len;
+                    rhs.max_length = max_len;
+                }
                 if (node["values"]) {
                     if (rhs.type_tag == ColumnTypeTag::BOOL) {
                         auto str_values = node["values"].as<std::vector<std::string>>();

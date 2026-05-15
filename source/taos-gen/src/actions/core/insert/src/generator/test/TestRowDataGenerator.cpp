@@ -310,14 +310,14 @@ void test_csv_mode_with_numeric_null_cell() {
 
     auto instances = ColumnConfigInstanceFactory::create(config.schema.columns);
 
-    // 3. Verify numeric empty cell is treated as NULL (std::monostate)
+    // 3. Verify numeric empty cell is treated as NULL (NullValue)
     {
         RowDataGenerator generator("table1", config, instances);
 
         auto row = generator.next_row();
         assert(row);
         assert(row->columns.size() == 2);
-        assert(std::holds_alternative<std::monostate>(row->columns[0]));
+        assert(std::holds_alternative<NullValue>(row->columns[0]));
         assert(std::get<std::string>(row->columns[1]) == "New York");
         assert(!generator.next_row());
         assert(!generator.has_more());

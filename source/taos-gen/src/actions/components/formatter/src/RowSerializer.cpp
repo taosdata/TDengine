@@ -33,8 +33,10 @@ nlohmann::ordered_json RowSerializer::to_json(
 
             std::visit([&](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, std::monostate>) {
+                if constexpr (std::is_same_v<T, NullValue>) {
                     json_data[inst.name()] = nullptr;
+                } else if constexpr (std::is_same_v<T, NoneValue>) {
+                    // NONE: skip this field (do not add to JSON)
                 } else if constexpr (std::is_same_v<T, Decimal>) {
                     json_data[inst.name()] = value.value;
                 } else if constexpr (std::is_same_v<T, JsonValue>) {
@@ -108,8 +110,10 @@ void RowSerializer::to_json_inplace(
 
             std::visit([&](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, std::monostate>) {
+                if constexpr (std::is_same_v<T, NullValue>) {
                     out[inst.name()] = nullptr;
+                } else if constexpr (std::is_same_v<T, NoneValue>) {
+                    // NONE: skip this field (do not add to JSON)
                 } else if constexpr (std::is_same_v<T, Decimal>) {
                     out[inst.name()] = value.value;
                 } else if constexpr (std::is_same_v<T, JsonValue>) {
@@ -175,7 +179,9 @@ static inline void append_escape_field_string(fmt::memory_buffer& out, std::stri
 static inline std::string to_utf8_for_text_like(const ColumnType& cell) {
     return std::visit([&](const auto& value) -> std::string {
         using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, std::monostate>) {
+        if constexpr (std::is_same_v<T, NullValue>) {
+            return "";
+        } else if constexpr (std::is_same_v<T, NoneValue>) {
             return "";
         } else if constexpr (std::is_same_v<T, std::string>) {
             return value;
@@ -204,7 +210,7 @@ static inline void append_int_suffix(fmt::memory_buffer& out, IntSuffixMode mode
     }
 }
 
-void RowSerializer::to_influx_inplace(
+bool RowSerializer::to_influx_inplace(
     const ColumnConfigInstanceVector& col_instances,
     const ColumnConfigInstanceVector& tag_instances,
     const MemoryPool::TableBlock& table,
@@ -217,6 +223,9 @@ void RowSerializer::to_influx_inplace(
     if (row_index >= table.used_rows) {
         throw std::out_of_range("Row index " + std::to_string(row_index) + " is out of range for table with " + std::to_string(table.used_rows) + " used rows");
     }
+
+    // Save buffer position so we can roll back if all fields are NULL/NONE
+    const size_t saved_size = out.size();
 
     // measurement
     append_escape_measure_or_key(out, measurement);
@@ -247,13 +256,20 @@ void RowSerializer::to_influx_inplace(
     bool first_field = true;
     for (size_t col_idx = 0; col_idx < col_instances.size(); ++col_idx) {
         const auto& inst = col_instances[col_idx];
+        const auto cell = table.get_column_cell(row_index, col_idx);
+
+        // Skip NULL/NONE fields in line protocol
+        if (std::holds_alternative<NullValue>(cell) ||
+            std::holds_alternative<NoneValue>(cell)) {
+            continue;
+        }
+
         if (!first_field) out.push_back(',');
         first_field = false;
 
         append_escape_measure_or_key(out, inst.name());
         out.push_back('=');
 
-        const auto cell = table.get_column_cell(row_index, col_idx);
         std::visit([&](const auto& value) {
             using T = std::decay_t<decltype(value)>;
             if constexpr (std::is_same_v<T, bool>) {
@@ -286,8 +302,16 @@ void RowSerializer::to_influx_inplace(
         }, cell);
     }
 
+    // All fields were NULL/NONE — invalid line protocol, drop this row
+    if (first_field) {
+        out.resize(saved_size);
+        return false;
+    }
+
     // Timestamp
     if (table.timestamps) {
         fmt::format_to(std::back_inserter(out), " {}", table.timestamps[row_index]);
     }
+
+    return true;
 }

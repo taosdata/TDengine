@@ -19,7 +19,8 @@ namespace {
     }
 
     static const ConvertFunc convert_from_double[] = {
-        nullptr,                // monostate
+        nullptr,                // NullValue
+        nullptr,                // NoneValue
         double_to<bool>,        // bool
         double_to<int8_t>,      // int8_t
         double_to<uint8_t>,     // uint8_t
@@ -40,7 +41,8 @@ namespace {
     };
 
     static const ConvertFunc convert_from_string[] = {
-        nullptr,                // monostate
+        nullptr,                // NullValue
+        nullptr,                // NoneValue
         nullptr,                // bool
         nullptr,                // int8_t
         nullptr,                // uint8_t

@@ -78,6 +78,17 @@ StmtV2Data::StmtV2Data(const ColumnConfigInstanceVector& col_instances, MultiBat
                 
                 for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
                     const auto& col_data = rows[row_idx].columns[col_idx];
+
+                    if (std::holds_alternative<NullValue>(col_data)) {
+                        mem.is_nulls[row_idx] = 1;
+                        memset(col_buf + row_idx * stride, 0, stride);
+                        continue;
+                    }
+                    if (std::holds_alternative<NoneValue>(col_data)) {
+                        mem.is_nulls[row_idx] = 2;
+                        memset(col_buf + row_idx * stride, 0, stride);
+                        continue;
+                    }
                     
                     std::visit([&](const auto& value) {
                         using T = std::decay_t<decltype(value)>;
@@ -86,6 +97,10 @@ StmtV2Data::StmtV2Data(const ColumnConfigInstanceVector& col_instances, MultiBat
                                      std::is_same_v<T, Decimal>) 
                         {
                             memcpy(col_buf + row_idx * stride, &value, stride);
+                        }
+                        else if constexpr (std::is_same_v<T, NullValue> ||
+                                          std::is_same_v<T, NoneValue>) {
+                            // Already handled above
                         }
                         else {
                             throw std::runtime_error("Unsupported fixed-length type");
@@ -99,6 +114,17 @@ StmtV2Data::StmtV2Data(const ColumnConfigInstanceVector& col_instances, MultiBat
                 
                 for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
                     const auto& col_data = rows[row_idx].columns[col_idx];
+
+                    if (std::holds_alternative<NullValue>(col_data)) {
+                        mem.is_nulls[row_idx] = 1;
+                        data_lengths[row_idx] = 0;
+                        continue;
+                    }
+                    if (std::holds_alternative<NoneValue>(col_data)) {
+                        mem.is_nulls[row_idx] = 2;
+                        data_lengths[row_idx] = 0;
+                        continue;
+                    }
                     
                     std::visit([&](const auto& value) {
                         using T = std::decay_t<decltype(value)>;
@@ -110,6 +136,10 @@ StmtV2Data::StmtV2Data(const ColumnConfigInstanceVector& col_instances, MultiBat
                         }
                         else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
                             data_lengths[row_idx] = std::min(value.size(), element_size);
+                        }
+                        else if constexpr (std::is_same_v<T, NullValue> ||
+                                          std::is_same_v<T, NoneValue>) {
+                            // Already handled above
                         }
                         else {
                             throw std::runtime_error("Unsupported var-length type");
@@ -128,6 +158,13 @@ StmtV2Data::StmtV2Data(const ColumnConfigInstanceVector& col_instances, MultiBat
                 for (size_t row_idx = 0; row_idx < row_count; ++row_idx) {
                     const auto& col_data = rows[row_idx].columns[col_idx];
                     const size_t data_len = data_lengths[row_idx];
+
+                    // Skip NULL/NONE rows (already handled, data_len=0)
+                    if (std::holds_alternative<NullValue>(col_data) ||
+                        std::holds_alternative<NoneValue>(col_data)) {
+                        mem.lengths[row_idx] = 0;
+                        continue;
+                    }
                     
                     std::visit([&](const auto& value) {
                         using T = std::decay_t<decltype(value)>;

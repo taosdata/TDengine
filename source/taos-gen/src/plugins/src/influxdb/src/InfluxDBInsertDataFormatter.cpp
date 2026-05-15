@@ -26,13 +26,17 @@ FormatResult InfluxDBInsertDataFormatter::format(MemoryPool::MemoryBlock* batch,
         if (table_block.used_rows == 0) continue;
 
         for (size_t row_idx = 0; row_idx < table_block.used_rows; ++row_idx) {
+            size_t pos_before = line_buffer.size();
             if (total_rows > 0) {
                 line_buffer.push_back('\n');
             }
 
-            RowSerializer::to_influx_inplace(
+            if (!RowSerializer::to_influx_inplace(
                 cols(), tags(), table_block, row_idx,
-                config().schema.name, "", line_buffer);
+                config().schema.name, "", line_buffer)) {
+                line_buffer.resize(pos_before);
+                continue;
+            }
             total_rows++;
         }
     }
