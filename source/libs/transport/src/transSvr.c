@@ -1932,7 +1932,7 @@ static int32_t addHandleToAcceptloop(void* arg) {
       tError("failed to bind since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-    tInfo("bind to ipv4 addr");
+    tInfo("RPC bind to ipv4 addr");
   }
   if ((code = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
     tError("failed to listen since %s", uv_err_name(code));

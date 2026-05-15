@@ -609,7 +609,7 @@ int32_t dmGetEncryptKeyFromTaosk() {
 
   // Check if master.bin exists
   if (!taosCheckExistFile(masterKeyFile)) {
-    dInfo("taosk master key file not found: %s, encryption not configured", masterKeyFile);
+    dInfo("loading encryption keys, taosk master key file not found: %s, encryption not configured", masterKeyFile);
     return TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
   }
 
@@ -721,7 +721,7 @@ int32_t dmGetEncryptKey() {
 
   if (!taosCheckExistFile(encryptFile)) {
     code = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
-    dInfo("no exist, checkCode file:%s", encryptFile);
+    dInfo("encryption key file not exist, checkCode file:%s", encryptFile);
     return 0;
   }
 
