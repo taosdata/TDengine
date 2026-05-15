@@ -188,7 +188,9 @@ SWords shellCommands[] = {
     {"select now();", 0, 0, NULL},
     {"select today();", 0, 0, NULL},
     {"select timezone();", 0, 0, NULL},
+    {"set first_day_of_week ", 0, 0, NULL},
     {"set max_binary_display_width ", 0, 0, NULL},
+    {"set timezone ", 0, 0, NULL},
     {"show apps;", 0, 0, NULL},
     {"show alive;", 0, 0, NULL},
     {"show anodes;", 0, 0, NULL},
@@ -728,7 +730,9 @@ void showHelp() {
     select now();\n\
     select today();\n\
     select timezone();\n\
+    set first_day_of_week ...\n\
     set max_binary_display_width ...\n\
+    set timezone ...\n\
     show apps;\n\
     show alive;\n\
     show anodes;\n\

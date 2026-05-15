@@ -458,7 +458,11 @@ static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
 
 static int32_t execSetTimezone(SRequestObj* pRequest, SSetTimezoneStmt* pStmt) {
   int64_t rid = pRequest->pTscObj->id;
-  return taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
+  int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
+  if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+    (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen, "Invalid timezone: '%s'", pStmt->timezone);
+  }
+  return code;
 }
 
 static int32_t execSetFirstDayOfWeek(SRequestObj* pRequest, SSetFirstDayOfWeekStmt* pStmt) {
