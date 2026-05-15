@@ -735,7 +735,8 @@ int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 
 int32_t tMissingFileListDataLenCalc(int32_t fileCount);
-int32_t tDeserializeMissingFileList(void *buf, int32_t bufLen, void **ppFiles, int32_t *pFileCount, SHashObj **ppHash);
+int32_t tDeserializeMissingFileList(void *buf, int32_t bufLen, void **ppFiles, int32_t *pFileCount, SHashObj **ppHash,
+                                    SHashObj **ppSttHash);
 int32_t tsdbExtractMissingFids(STsdb *pTsdb, SHashObj *missingFileHash, int32_t **ppFids, int32_t *pFidCount);
 int32_t tsdbDetermineFidSyncMode(STsdb *pTsdb, const void *files, int32_t fileCount, SHashObj **ppFidModeHash);
 
@@ -743,6 +744,13 @@ int32_t tsdbDetermineFidSyncMode(STsdb *pTsdb, const void *files, int32_t fileCo
 #define TSDB_SNAP_SYNC_FSET_LEVEL 1
 
 static inline int64_t tsdbMissingFileKey(int32_t fid, int32_t ftype) { return ((int64_t)fid << 32) | (uint32_t)ftype; }
+
+// stt hash key: (fid, cid) composite key to avoid collision across different file sets
+#define TSDB_STT_HASH_KEY_LEN (sizeof(int32_t) + sizeof(int64_t))
+static inline void tsdbSttHashKey(int32_t fid, int64_t cid, char key[TSDB_STT_HASH_KEY_LEN]) {
+  memcpy(key, &fid, sizeof(fid));
+  memcpy(key + sizeof(fid), &cid, sizeof(cid));
+}
 
 // snap read
 struct STsdbReadSnap {

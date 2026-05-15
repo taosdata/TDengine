@@ -58,6 +58,7 @@ struct SVSnapReader {
   // missing file filter
   SHashObj *missingFileHash;  // key=(fid,ftype), val=dummy — for RAW mode per-file filtering
   SHashObj *fidModeHash;      // key=fid, val=uint8_t mode (FILE_LEVEL or FSET_LEVEL)
+  SHashObj *missingSttHash;   // key=cid, val=dummy — for RAW mode per-STT filtering
   int32_t  *missingFids;      // FID set extracted from file names — for Normal mode FID filtering
   int32_t   missingFidCount;
 
@@ -147,12 +148,14 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
         case SNAP_DATA_MISSING_FIDS: {
           void   *missingFiles = NULL;
           int32_t missingFileCount = 0;
-          code = tDeserializeMissingFileList(buf, bufLen, &missingFiles, &missingFileCount, &pReader->missingFileHash);
+          code = tDeserializeMissingFileList(buf, bufLen, &missingFiles, &missingFileCount, &pReader->missingFileHash,
+                                             &pReader->missingSttHash);
           if (code) {
             vError("vgId:%d, failed to deserialize missing file list since %s", TD_VID(pVnode), tstrerror(code));
             goto _out;
           }
-          vInfo("vgId:%d, received %d missing files from follower", TD_VID(pVnode), missingFileCount);
+          vInfo("vgId:%d, received %d file infos from follower, missing:%d", TD_VID(pVnode), missingFileCount,
+                (pReader->missingFileHash ? (int32_t)taosHashGetSize(pReader->missingFileHash) : 0));
           // determine sync mode per fid
           if (missingFiles && missingFileCount > 0) {
             code = tsdbDetermineFidSyncMode(pVnode->pTsdb, missingFiles, missingFileCount, &pReader->fidModeHash);
@@ -218,8 +221,8 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
     code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->pRanges, pReader->missingFileHash,
-                                 pReader->fidModeHash, pReader->missingFids, pReader->missingFidCount,
-                                 &pReader->pTsdbRAWReader);
+                                 pReader->fidModeHash, pReader->missingSttHash, pReader->missingFids,
+                                 pReader->missingFidCount, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
 
@@ -293,6 +296,9 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
   }
   if (pReader->fidModeHash) {
     taosHashCleanup(pReader->fidModeHash);
+  }
+  if (pReader->missingSttHash) {
+    taosHashCleanup(pReader->missingSttHash);
   }
   taosMemoryFree(pReader->missingFids);
   taosMemoryFree(pReader);
@@ -398,8 +404,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
       code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, pReader->pRanges,
-                                   pReader->missingFileHash, pReader->fidModeHash, pReader->missingFids,
-                                   pReader->missingFidCount, &pReader->pTsdbRAWReader);
+                                   pReader->missingFileHash, pReader->fidModeHash, pReader->missingSttHash,
+                                   pReader->missingFids, pReader->missingFidCount, &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
