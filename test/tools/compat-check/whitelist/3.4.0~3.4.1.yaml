@@ -9,11 +9,15 @@
 
 added_tables:
 - INS_VIRTUAL_TABLES_REFERENCING
+- INS_SECURITY_POLICIES
+- INS_CPU_ALLOCATION
+- INS_TABLE_FIXED_DISTRIBUTED
 modified_tables:
 - table: INS_DATABASES
   added_columns:
   - cacheshardbits
   - allow_drop
+  - sec_level
   changed_position:
   - col: wal_level
     before: 20
@@ -77,6 +81,15 @@ modified_tables:
   - col: sql
     before: VARCHAR(2048)
     after: VARCHAR(49152)
+- table: INS_STABLES
+  added_columns:
+  - sec_level
+- table: INS_USERS
+  added_columns:
+  - sec_levels
+- table: INS_USERS_FULL
+  added_columns:
+  - sec_levels
 - table: INS_VGROUPS
   changed_type:
   - col: v1_applied/committed

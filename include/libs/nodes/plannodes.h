@@ -343,6 +343,12 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef struct SExtWindowFillInfo {
+  EFillMode  mode;
+  SNodeList* pFillExprs;
+  SNode*     pFillValues;
+} SExtWindowFillInfo;
+
 #define WINDOW_PART_HAS  0x01
 #define WINDOW_PART_TB   0x02
 
@@ -366,7 +372,7 @@ typedef struct SWindowLogicNode {
   int64_t               sessionGap;
   SNode*                pTsEnd;
   // for state window
-  SNode*                pStateExpr;
+  SNodeList*            pStateExprs;
   EStateWinExtendOption extendOption;
   // for event window
   SNode*                pStartCond;
@@ -387,6 +393,7 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -411,6 +418,7 @@ typedef struct SFillLogicNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -817,6 +825,7 @@ typedef struct SFillPhysiNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
@@ -831,7 +840,7 @@ typedef struct SSessionWinodwPhysiNode {
 
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pStateKey;
+  SNodeList*       pStateKeys;
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
@@ -868,6 +877,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;

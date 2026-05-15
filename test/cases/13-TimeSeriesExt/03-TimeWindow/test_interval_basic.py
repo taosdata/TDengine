@@ -1219,8 +1219,10 @@ class TestInterval:
         tdSql.query(f"select derivative(k, 6m, 1) from tm0")
         tdSql.checkRows(3)
 
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 interval(1s)")
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 session(ts, 1s)")
+        tdSql.query(f"select derivative(k, 6m, 1) from tm0 interval(1s)")
+        tdSql.checkRows(0)
+        tdSql.query(f"select derivative(k, 6m, 1) from tm0 session(ts, 1s)")
+        tdSql.checkRows(0)
         tdSql.error(f"select derivative(k, 6m, 1) from tm0 group by k")
 
         tdSql.execute(f"drop table if exists tm0")

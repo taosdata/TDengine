@@ -1328,7 +1328,7 @@ cmd ::= SHOW ARBGROUPS.                                                         
 cmd ::= SHOW FUNCTIONS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_FUNCTIONS_STMT); }
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, B, A, OP_TYPE_EQUAL); }
 cmd ::= SHOW INDEXES FROM db_name(B) NK_DOT table_name(A).                        { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, createIdentifierValueNode(pCxt, &B), createIdentifierValueNode(pCxt, &A), OP_TYPE_EQUAL); }
-cmd ::= SHOW db_name_cond_opt(A) STREAMS.                                         { pCxt->pRootNode = createShowStreamsStmt(pCxt, A, QUERY_NODE_SHOW_STREAMS_STMT); }
+cmd ::= SHOW db_name_cond_opt(A) STREAMS like_pattern_opt(B).                     { pCxt->pRootNode = createShowStreamsStmt(pCxt, A, B, QUERY_NODE_SHOW_STREAMS_STMT); }
 cmd ::= SHOW ACCOUNTS.                                                            { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 cmd ::= SHOW APPS.                                                                { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_APPS_STMT); }
 cmd ::= SHOW CONNECTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONNECTIONS_STMT); }
@@ -1347,6 +1347,7 @@ A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
 cmd ::= SHOW ENCRYPT_ALGORITHMS.                                                  { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT); }
 cmd ::= SHOW ENCRYPT_STATUS.                                                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT); }
+cmd ::= SHOW CPU_ALLOCATION.                                                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CPU_ALLOCATION_STMT); }
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
 cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT); }
 cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT); }
@@ -1603,7 +1604,7 @@ stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_o
 /***** trigger type *****/
 
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
-trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).                       { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
+trigger_type(A) ::= STATE_WINDOW NK_LP state_window_expr_list(B) NK_RP state_window_opt(C) true_for_opt(D).                 { A = createStateWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
@@ -2676,7 +2677,7 @@ twindow_clause_opt(A) ::= .                                                     
 twindow_clause_opt(A) ::= SESSION NK_LP column_reference(B) NK_COMMA
   interval_sliding_duration_literal(C) NK_RP.                                     { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 twindow_clause_opt(A) ::=
-  STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).     { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
+  STATE_WINDOW NK_LP state_window_expr_list(B) NK_RP state_window_opt(C) true_for_opt(D). { A = createStateWindowNode(pCxt, B, C, D); }
 twindow_clause_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(B)
   NK_RP sliding_opt(C) fill_opt(D).                                               { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }
 twindow_clause_opt(A) ::=
@@ -2698,9 +2699,28 @@ anomaly_col_list(A) ::= expr_or_subquery(B).                                    
 anomaly_col_list(A) ::= anomaly_col_list(B) NK_COMMA expr_or_subquery(C).         { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 /* External window treated as a special time window clause */
 twindow_clause_opt(A) ::= 
-  EXTERNAL_WINDOW NK_LP subquery(B) table_alias(C) external_window_fill_opt(D) NK_RP. {
+  EXTERNAL_WINDOW NK_LP subquery(B) table_alias(C) NK_RP fill_opt(D). {
                                                                                     A = createExternalWindowClause(pCxt, releaseRawExprNode(pCxt, B), &C, D);
                                                                                   }
+
+%type state_window_key_expr                                                       { SNode* }
+%destructor state_window_key_expr                                                 { nodesDestroyNode($$); }
+state_window_key_expr(A) ::= column_reference(B).                                 { A = B; }
+state_window_key_expr(A) ::= function_expression(B).                              { A = B; }
+state_window_key_expr(A) ::= case_when_expression(B).                             { A = B; }
+state_window_key_expr(A) ::= if_expression(B).                                    { A = B; }
+
+%type state_window_key_list                                                       { SNodeList* }
+%destructor state_window_key_list                                                 { nodesDestroyList($$); }
+state_window_key_list(A) ::= state_window_key_expr(B) NK_COMMA state_window_key_expr(C). { A = addNodeToList(pCxt, createNodeList(pCxt, releaseRawExprNode(pCxt, B)), releaseRawExprNode(pCxt, C)); }
+state_window_key_list(A) ::= state_window_key_list(B) NK_COMMA state_window_key_expr(C). { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
+
+%type state_window_expr_list                                                      { SNodeList* }
+%destructor state_window_expr_list                                                { nodesDestroyList($$); }
+state_window_expr_list(A) ::= state_window_key_expr(B).                           { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+state_window_expr_list(A) ::= state_window_key_list(B).                           { A = B; }
+state_window_expr_list(A) ::= state_window_key_expr(B) NK_COMMA extend_literal(C).                            { A = addNodeToList(pCxt, createNodeList(pCxt, releaseRawExprNode(pCxt, B)), C); }
+state_window_expr_list(A) ::= state_window_key_expr(B) NK_COMMA extend_literal(C) NK_COMMA zeroth_literal(D). { A = addNodeToList(pCxt, addNodeToList(pCxt, createNodeList(pCxt, releaseRawExprNode(pCxt, B)), C), D); }
 
 extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
 
@@ -2708,11 +2728,19 @@ zeroth_literal(A) ::= signed_integer(B).                                        
 zeroth_literal(A) ::= NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
 zeroth_literal(A) ::= NK_BOOL(B).                                                 { A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
 
+%type state_window_zeroth_list                                                    { SNodeList* }
+%destructor state_window_zeroth_list                                              { nodesDestroyList($$); }
+state_window_zeroth_list(A) ::= zeroth_literal(B).                                { A = createNodeList(pCxt, B); }
+state_window_zeroth_list(A) ::= NO_ZEROTH.                                        { A = createNodeList(pCxt, createNullValueNode(pCxt)); }
+state_window_zeroth_list(A) ::= state_window_zeroth_list(B) NK_COMMA zeroth_literal(C). { A = addNodeToList(pCxt, B, C); }
+state_window_zeroth_list(A) ::= state_window_zeroth_list(B) NK_COMMA NO_ZEROTH.   { A = addNodeToList(pCxt, B, createNullValueNode(pCxt)); }
+
 %type state_window_opt                                                            { SNodeList* }
 %destructor state_window_opt                                                      { nodesDestroyList($$); }
 state_window_opt(A) ::= .                                                         { A = NULL; }
-state_window_opt(A) ::= NK_COMMA extend_literal(B).                               { A = createNodeList(pCxt, B); }
-state_window_opt(A) ::= NK_COMMA extend_literal(B) NK_COMMA zeroth_literal(C).    { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
+state_window_opt(A) ::= EXTEND NK_LP extend_literal(B) NK_RP.                     { A = createNodeList(pCxt, B); }
+state_window_opt(A) ::= ZEROTH_STATE NK_LP state_window_zeroth_list(B) NK_RP.     { A = createNodeList(pCxt, createNodeListNode(pCxt, B)); }
+state_window_opt(A) ::= EXTEND NK_LP extend_literal(B) NK_RP ZEROTH_STATE NK_LP state_window_zeroth_list(C) NK_RP. { A = addNodeToList(pCxt, createNodeList(pCxt, B), createNodeListNode(pCxt, C)); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
 sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.      { A = releaseRawExprNode(pCxt, B); }
@@ -2755,13 +2783,6 @@ surround_opt(A) ::= .                                                           
 surround_opt(A) ::= SURROUND NK_LP duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 surround_opt(A) ::=
   SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
-
-/* External window clause syntax was folded into twindow_clause_opt */
-
-%type external_window_fill_opt                                                      { SNode* }
-%destructor external_window_fill_opt                                                { nodesDestroyNode($$); }
-external_window_fill_opt(A) ::= .                                                   { A = NULL; }
-external_window_fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                      { A = createFillNode(pCxt, B, NULL); }
 
 count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
 count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }

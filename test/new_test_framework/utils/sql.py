@@ -460,6 +460,7 @@ class TDSql:
         Raises:
             Exception: If the execution fails after the specified number of attempts.
         """
+        print(sql)
         self.sql = sql
         if show:
             tdLog.info(sql)

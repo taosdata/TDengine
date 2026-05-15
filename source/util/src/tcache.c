@@ -843,6 +843,7 @@ void taosCacheRefreshWorkerUnexpectedStopped(void) {
 void *taosCacheTimedRefresh(void *handle) {
   uDebug("cache refresh thread starts");
   setThreadName("cacheRefresh");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   const int32_t SLEEP_DURATION = 500;  // 500 ms
   int64_t       count = 0;

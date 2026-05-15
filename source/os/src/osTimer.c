@@ -51,6 +51,7 @@ static volatile int timer_stop = 0;
 static void* timer_routine(void* arg) {
   (void)arg;
   setThreadName("timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   int             r = 0;
   struct timespec to = {0};
@@ -102,6 +103,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
   struct sigevent sevent = {{0}};
 
   setThreadName("tmr");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
 #ifdef _ALPINE
   sevent.sigev_notify = SIGEV_THREAD_ID;

@@ -757,7 +757,7 @@ static bool isAlteredTable(int8_t action, ETableType tbType) {
 }
 
 void getAlterColId(void* pVnode, int64_t uid, const char* colName, col_id_t* colId) {
-  SSchemaWrapper *pSchema = metaGetTableSchema(((SVnode *)pVnode)->pMeta, uid, -1, 1, NULL, 0);
+  SSchemaWrapper *pSchema = metaGetTableSchema(((SVnode *)pVnode)->pMeta, uid, -1, 1, NULL, 0, false);
   if (pSchema == NULL) {
     return;
   }

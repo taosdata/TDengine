@@ -320,7 +320,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols,
                            int32_t fillType, struct SFillColInfo* pCol,
                            int32_t primaryTsSlotId, int32_t order,
                            const char* id, SExecTaskInfo* pTaskInfo,
-                           int64_t surroundingTime, SFillInfo** ppFillInfo) {
+                           int64_t surroundingTime, bool indefRowsMode,
+                           SFillInfo** ppFillInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (fillType == TSDB_FILL_NONE) {
@@ -384,6 +385,8 @@ int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols,
   QUERY_CHECK_CODE(code, lino, _end);
 
   pFillInfo->pTaskInfo = pTaskInfo;
+  pFillInfo->indefRowsMode = indefRowsMode;
+  pFillInfo->indefWindowActive = false;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -402,6 +405,7 @@ void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->numOfRows = 0;
   pFillInfo->numOfCurrent = 0;
   pFillInfo->numOfTotal = 0;
+  pFillInfo->indefWindowActive = false;
 }
 
 void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
@@ -1029,6 +1033,15 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
 
   // if all blocks are consumed, we have to fill for not filled cols
   if (pFillInfo->numOfRows == 0) {
+    if (pFillInfo->indefRowsMode && pFillInfo->indefWindowActive) {
+      const SInterval* pInterval = &pFillInfo->interval;
+      pFillInfo->currentKey =
+        taosTimeAdd(pFillInfo->currentKey,
+                    pInterval->sliding *
+                      GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                    pInterval->slidingUnit, pInterval->precision, NULL);
+      pFillInfo->indefWindowActive = false;
+    }
     if (!pFillBlock) {
       code = trySaveNewBlock(pFillInfo, pDstBlock, capacity, &pFillBlock);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1070,6 +1083,16 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockCurTs != fillCurTs || !pFillInfo->pSrcBlock) {
+      if (pFillInfo->indefRowsMode && pFillInfo->indefWindowActive) {
+        const SInterval* pInterval = &pFillInfo->interval;
+        pFillInfo->currentKey =
+          taosTimeAdd(pFillInfo->currentKey,
+                      pInterval->sliding *
+                        GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                      pInterval->slidingUnit, pInterval->precision, NULL);
+        pFillInfo->indefWindowActive = false;
+        continue;
+      }
       doFillOneRow(pFillInfo, pFillBlock->pBlock, blockCurTs, false);
     } else {
       for (int32_t colIdx = 0; colIdx < pFillInfo->numOfCols; ++colIdx) {
@@ -1105,15 +1128,37 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
         }
         tryResetColNextPrev(pFillInfo, colIdx);
       }
-      const SInterval* pInterval = &pFillInfo->interval;
-      pFillInfo->currentKey =
-        taosTimeAdd(pFillInfo->currentKey,
-                    pInterval->sliding *
-                      GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
-                    pInterval->slidingUnit, pInterval->precision, NULL);
       pFillBlock->pBlock->info.rows += 1;
       pFillInfo->index += 1;
       pFillInfo->numOfCurrent += 1;
+
+      if (pFillInfo->indefRowsMode) {
+        pFillInfo->indefWindowActive = true;
+        bool lastRowOfWindow = true;
+        if (pFillInfo->index < pFillInfo->numOfRows) {
+          TSKEY nextTs = getBlockCurTs(pFillInfo->pSrcBlock, pFillInfo->index,
+                                       pFillInfo->srcTsSlotId);
+          if (nextTs == fillCurTs) {
+            lastRowOfWindow = false;
+          }
+        }
+        if (lastRowOfWindow && pFillInfo->index < pFillInfo->numOfRows) {
+          const SInterval* pInterval = &pFillInfo->interval;
+          pFillInfo->currentKey =
+            taosTimeAdd(pFillInfo->currentKey,
+                        pInterval->sliding *
+                          GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                        pInterval->slidingUnit, pInterval->precision, NULL);
+          pFillInfo->indefWindowActive = false;
+        }
+      } else {
+        const SInterval* pInterval = &pFillInfo->interval;
+        pFillInfo->currentKey =
+          taosTimeAdd(pFillInfo->currentKey,
+                      pInterval->sliding *
+                        GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
+                      pInterval->slidingUnit, pInterval->precision, NULL);
+      }
     }
     tryExtractReadyBlocks(pFillInfo, pDstBlock, capacity);
   }

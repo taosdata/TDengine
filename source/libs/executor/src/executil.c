@@ -1043,7 +1043,7 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   }
  
   if (taosArrayGetSize(pUidTagList) > 0) {
-    code = pAPI->metaFn.getTableTagsByUid(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1);
   } else {
     code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
   }
@@ -1226,7 +1226,7 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   }
 
   if (taosArrayGetSize(pUidTagList) > 0) {
-    code = pAPI->metaFn.getTableTagsByUid(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1);
   } else {
     code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
   }
@@ -1576,7 +1576,7 @@ static int32_t doInWithAnd(SNode* cond, void* pVnode, SArray* list, SStorageAPI*
   return -1;
 }
 
-static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SNode* cond, SStorageAPI* pAPI) {
+static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SNode* cond, SStorageAPI* pAPI, int64_t version) {
   int32_t code = 0;
   int32_t lino = 0;
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
@@ -1584,7 +1584,7 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
   } else {
     code = doInWithAnd(cond, pVnode, list, pAPI, suid);
     QUERY_CHECK_CODE(code, lino, end);
-    code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, list);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, list, version);
   }
   
 end:
@@ -1896,7 +1896,7 @@ end:
   return result;
 }
 
-int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -1921,7 +1921,7 @@ int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void*
   QUERY_CHECK_CODE(code, lino, end);
 
   // Narrow down the scope of the tablelist set if there is tbname in condition and And Logical operator
-  code = optimizeTbnameInCond(pVnode, suid, pUidTagList, pTagCond, pAPI);
+  code = optimizeTbnameInCond(pVnode, suid, pUidTagList, pTagCond, pAPI, version);
   if (code == 0) {
     if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
       goto end;
@@ -1932,7 +1932,7 @@ int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void*
     FilterCondType condType = checkTagCond(pTagCond);
     if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) || // (super table) use tagIndex and operator is and
         (status == SFLT_NOT_INDEX && taosArrayGetSize(pUidTagList) > 0)) {                       // (child table with tagCond)
-      code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, pUidTagList);
+      code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, pUidTagList, version);
     } else {
       taosArrayClearEx(pUidTagList, freeItem);       // clear tablelist if using tagIndex and or condition
       code = pAPI->metaFn.getTableTags(pVnode, suid, pUidTagList);
@@ -2148,7 +2148,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
       QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
     }
-    code = doFilterByTagCond(pScanNode->suid, pUidList, pTagCond, pVnode, status, pStorageAPI, pStreamInfo);
+    code = doFilterByTagCond(pScanNode->suid, pUidList, -1, pTagCond, pVnode, status, pStorageAPI, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, end);
   } else {
     bool      isStream = (pStreamInfo != NULL);
@@ -2261,7 +2261,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
     }
     qTrace("after index filter, pTagCond:%p uidListSize:%d", pTagCond, (int32_t)taosArrayGetSize(pUidList));
-    code = doFilterByTagCond(pScanNode->suid, pUidList, pTagCond, pVnode, status, pStorageAPI, pStreamInfo);
+    code = doFilterByTagCond(pScanNode->suid, pUidList, -1, pTagCond, pVnode, status, pStorageAPI, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, end);
 
     // let's add the filter results into meta-cache
