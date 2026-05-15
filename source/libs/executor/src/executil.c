@@ -3253,7 +3253,7 @@ static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRa
     int32_t cloneCode = nodesCloneNode(*pPrimaryKeyCond, &pProbe);
     if (TSDB_CODE_SUCCESS != cloneCode || NULL == pProbe) {
       nodesDestroyNode(pProbe);
-      return TSDB_CODE_SUCCESS;
+      return TSDB_CODE_SUCCESS != cloneCode ? cloneCode : TSDB_CODE_SUCCESS;
     }
 
     if (nodeType(pProbe) == QUERY_NODE_LOGIC_CONDITION &&
