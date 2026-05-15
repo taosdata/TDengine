@@ -821,8 +821,8 @@ class TestStreamSubqueryPerEvent:
                 f"from linea "
                 f"into r as "
                 f"select _twstart as ts, "
-                f"case when exists (select * from gate) "
-                f"then 1 else 0 end as flag "
+                f"max(case when exists (select * from gate) "
+                f"then 1 else 0 end) as flag "
                 f"from data"
             )
 
