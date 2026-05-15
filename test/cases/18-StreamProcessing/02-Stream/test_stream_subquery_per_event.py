@@ -589,25 +589,27 @@ class TestStreamSubqueryPerEvent:
             )
 
         def insert3(self):
-            tdLog.info("=== whitelist -> {2,3}, trigger event 3 ===")
+            tdLog.info("=== whitelist -> {}, trigger event 3 ===")
             tdSql.execute(
                 "delete from whitelist where ts = '2026-05-01 00:00:00'"
             )
             tdSql.execute(
-                "insert into whitelist values ('2026-05-01 00:00:02', 3)"
+                "delete from whitelist where ts = '2026-05-01 00:00:01'"
             )
             tdSql.execute(
                 "insert into linea values ('2026-05-01 00:00:02', 1)"
             )
 
         def check3(self):
-            # Event 3: whitelist={2,3}, SUM=20+30=50.
+            # Event 3: whitelist becomes empty after previously being {1,2}.
+            # The subquery must be re-evaluated per event and must not reuse
+            # the cached non-empty IN-list from event 2. No new result row
+            # should be emitted for the trigger.
             tdSql.checkResultsByFunc(
                 sql=f"select total from {self.db}.r order by ts",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 2
                 and tdSql.compareData(0, 0, 10)
-                and tdSql.compareData(1, 0, 30)
-                and tdSql.compareData(2, 0, 50),
+                and tdSql.compareData(1, 0, 30),
             )
 
     # ------------------------------------------------------------------
