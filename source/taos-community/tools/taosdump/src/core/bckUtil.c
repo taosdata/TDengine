@@ -119,6 +119,9 @@ int obtainFileName(BackFileType fileType,
     case BACK_FILE_VTAG:
         snprintf(fileName, len, "%s/%s/vtags/%s_data%d.%s", outPath, dbName, stbName, index, ext);
         break;
+    case BACK_FILE_STREAMSQL:
+        snprintf(fileName, len, "%s/%s/stream.sql", outPath, dbName);
+        break;
     default:
         return TSDB_CODE_INVALID_PARA;
     }
