@@ -490,6 +490,20 @@ class TestStreamSubqueryPerEvent:
         def __init__(self):
             self.db = "test_subq_inlist"
 
+        def _wait_seed_visible(self, count_sql, label, timeout=15):
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    tdSql.query(count_sql)
+                    if tdSql.getData(0, 0) == 1:
+                        return
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            raise RuntimeError(
+                f"{label} seed row did not become queryable before CREATE STREAM"
+            )
+
         def create(self):
             tdLog.info(f"=== create db {self.db} ===")
             tdSql.execute(f"drop database if exists {self.db}")
@@ -520,7 +534,11 @@ class TestStreamSubqueryPerEvent:
                 "insert into whitelist values ('2026-05-01 00:00:00', 1)"
             )
 
-            time.sleep(10)
+            self._wait_seed_visible(
+                "select count(*) from whitelist "
+                "where ts = '2026-05-01 00:00:00' and id = 1",
+                "whitelist",
+            )
             tdLog.info("=== create stream sum_in_whitelist ===")
             tdSql.execute(
                 f"create stream sum_in_whitelist count_window(1, 1, p) "
@@ -614,6 +632,20 @@ class TestStreamSubqueryPerEvent:
         def __init__(self):
             self.db = "test_subq_row"
 
+        def _wait_seed_visible(self, count_sql, label, timeout=15):
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    tdSql.query(count_sql)
+                    if tdSql.getData(0, 0) == 1:
+                        return
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            raise RuntimeError(
+                f"{label} seed row did not become queryable before CREATE STREAM"
+            )
+
         def create(self):
             tdLog.info(f"=== create db {self.db} ===")
             tdSql.execute(f"drop database if exists {self.db}")
@@ -645,7 +677,11 @@ class TestStreamSubqueryPerEvent:
                 "insert into threshold values ('2026-05-01 00:00:00', 35)"
             )
 
-            time.sleep(10)
+            self._wait_seed_visible(
+                "select count(*) from threshold "
+                "where ts = '2026-05-01 00:00:00' and t = 35",
+                "threshold",
+            )
             tdLog.info("=== create stream sum_gt_any_threshold ===")
             tdSql.execute(
                 f"create stream sum_gt_any_threshold count_window(1, 1, p) "
