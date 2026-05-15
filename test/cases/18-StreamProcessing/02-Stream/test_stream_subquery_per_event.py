@@ -149,7 +149,6 @@ class TestStreamSubqueryPerEvent:
                 "insert into inicio_descarga values ('2026-05-01 00:00:00', 1)"
             )
 
-            expected_ts = "2026-05-01 00:00:00"
             deadline = time.time() + 30
             while True:
                 tdSql.query("select last_row(ts) from inicio_descarga")
