@@ -3236,13 +3236,18 @@ static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRa
   // subquery (e.g. WHERE ts >= (SELECT last_row(ts) FROM ref)) must not be
   // folded to a literal time range here; doing so freezes the bound at
   // task-build time and the same range is reused for every trigger event.
-  // Leave the cond intact so the caller merges it into pConditions and the
-  // runtime filter re-evaluates the RemoteValueNode per fetch.  Combined
-  // with qFetchRemoteNode's stream-mode cache bypass, this re-fires the
-  // wire request (req.reset=true) for each event.
+  // Keep the original cond intact so the caller merges it into pConditions
+  // and the runtime filter re-evaluates the RemoteValueNode per fetch.
+  // Still attempt to extract any independent static primary-key bounds
+  // from the original AND-expression so e.g.
+  //   ts >= '2026-05-01' AND ts < '2026-05-02' AND ts >= (SELECT ...)
+  // can use the literal range for scan pruning while the remote predicate
+  // is enforced by the residual filter.  filterGetTimeRange sets
+  // isStrict=false when remote nodes are present, signalling the caller
+  // to keep the residual condition.
   if (isStream && condHasRemoteValue(*pPrimaryKeyCond)) {
     *isStrict = false;
-    return TSDB_CODE_SUCCESS;
+    return filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, isStrict, NULL);
   }
 
   SNode*  pNew = NULL;
