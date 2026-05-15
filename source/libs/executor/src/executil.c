@@ -3242,12 +3242,54 @@ static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRa
   // from the original AND-expression so e.g.
   //   ts >= '2026-05-01' AND ts < '2026-05-02' AND ts >= (SELECT ...)
   // can use the literal range for scan pruning while the remote predicate
-  // is enforced by the residual filter.  filterGetTimeRange sets
-  // isStrict=false when remote nodes are present, signalling the caller
-  // to keep the residual condition.
+  // is enforced by the residual filter.  We strip remote-bearing children
+  // from a clone of the AND before calling filterGetTimeRange because the
+  // collector aborts when it sees any uncollectable child.
   if (isStream && condHasRemoteValue(*pPrimaryKeyCond)) {
     *isStrict = false;
-    return filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, isStrict, NULL);
+    TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
+
+    SNode* pProbe = NULL;
+    int32_t cloneCode = nodesCloneNode(*pPrimaryKeyCond, &pProbe);
+    if (TSDB_CODE_SUCCESS != cloneCode || NULL == pProbe) {
+      nodesDestroyNode(pProbe);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (nodeType(pProbe) == QUERY_NODE_LOGIC_CONDITION &&
+        ((SLogicConditionNode*)pProbe)->condType == LOGIC_COND_TYPE_AND) {
+      SLogicConditionNode* pAnd = (SLogicConditionNode*)pProbe;
+      SListCell* pCell = pAnd->pParameterList ? pAnd->pParameterList->pHead : NULL;
+      while (pCell != NULL) {
+        if (condHasRemoteValue(pCell->pNode)) {
+          pCell = nodesListErase(pAnd->pParameterList, pCell);
+        } else {
+          pCell = pCell->pNext;
+        }
+      }
+      int32_t remaining = pAnd->pParameterList ? (int32_t)pAnd->pParameterList->length : 0;
+      if (remaining == 0) {
+        nodesDestroyNode(pProbe);
+        return TSDB_CODE_SUCCESS;
+      }
+      if (remaining == 1) {
+        SNode* pOnly = pAnd->pParameterList->pHead->pNode;
+        pAnd->pParameterList->pHead->pNode = NULL;
+        nodesDestroyNode(pProbe);
+        pProbe = pOnly;
+      }
+    } else if (condHasRemoteValue(pProbe)) {
+      nodesDestroyNode(pProbe);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    bool probeStrict = true;
+    int32_t code = filterGetTimeRange(pProbe, pTimeRange, &probeStrict, NULL);
+    nodesDestroyNode(pProbe);
+    // Force isStrict=false: the residual remote predicate still has to
+    // be evaluated by the runtime filter on every event.
+    *isStrict = false;
+    return code;
   }
 
   SNode*  pNew = NULL;
