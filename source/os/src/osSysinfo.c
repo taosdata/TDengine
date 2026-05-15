@@ -1049,6 +1049,7 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   }
 
 _proc_stat:
+  ;
 #endif
 
   SysCpuInfo  sysCpu = {0};

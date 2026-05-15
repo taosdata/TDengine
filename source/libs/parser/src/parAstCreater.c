@@ -7789,8 +7789,9 @@ _err:
   return NULL;
 }
 
-SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SBalanceVgroupLeaderStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
