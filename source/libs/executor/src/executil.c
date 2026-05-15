@@ -4496,6 +4496,16 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SValueNode* pRes, SSDataBlock*
   // NULL when this fetch produced a real value.
   pRes->isNull = false;
 
+  // For variable-length / DECIMAL types, datum.p owns a heap buffer that
+  // was transferred from the response block on the previous fetch.  In
+  // stream mode this function is called per trigger event, so free the
+  // prior buffer before nodesSetValueNodeValueExt overwrites datum.p,
+  // otherwise we leak one buffer per event.
+  if (IS_VAR_DATA_TYPE(pRes->node.resType.type) ||
+      pRes->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
+    taosMemoryFreeClear(pRes->datum.p);
+  }
+
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
   if (colDataIsNull_s(pCol, 0)) {
     pRes->isNull = true;
