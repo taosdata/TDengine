@@ -1766,7 +1766,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with timezone information. The optional `timezone` parameter allows users to specify the output timezone. If omitted, timezone resolution follows connection timezone first, then client timezone, then system fallback (`L2 -> L3 -> L5`).
+**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with timezone information. The optional `timezone` parameter allows users to specify the output timezone. If omitted, it uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 
 **Return Data Type**: VARCHAR type.
 
@@ -1887,7 +1887,7 @@ Supported Formats:
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
 - If `timezone` is provided, it accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`.
-- If `timezone` is omitted, timezone resolution follows `L2 -> L3 -> L5`.
+- If `timezone` is omitted, it uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 - Ambiguous abbreviations (for example `CST`) are rejected.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
 
@@ -2015,8 +2015,8 @@ TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 - The third parameter supports both integer flags and timezone strings.
   - Integer `0/1`: keeps the legacy behavior for backward compatibility.
   - String timezone: accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`.
-- When the third parameter is omitted, timezone resolution follows `L2 -> L4 -> L5`.
-- For `1w`, week alignment uses `firstDayOfWeek` instead of fixed Thursday alignment.
+- When the third parameter is omitted, it uses the current connection timezone first; if not set, it uses the server default timezone; if still unavailable, it falls back to the system default timezone.
+- For `1w`, week alignment uses `firstDayOfWeek` instead of fixed Thursday alignment. For `firstDayOfWeek` initialization and platform differences, see [SET Commands](./53-set.md).
 - Ambiguous abbreviations (for example `CST`) are rejected.
 
 #### TIMEZONE
@@ -2051,7 +2051,7 @@ TODAY()
 
 - Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
-- Timezone resolution follows `L2 -> L3 -> L5`.
+- Timezone resolution uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 
 #### WEEK
 

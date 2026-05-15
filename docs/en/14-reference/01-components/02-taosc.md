@@ -67,6 +67,7 @@ The following configuration parameters only take effect for Native connections.
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
 | timezone       |                   |Supported, effective immediately  | Time zone; defaults to dynamically obtaining the current system time zone setting |
+| firstDayOfWeek | `≥ v3.4.2.0`      |Supported, effective immediately  | First day of week used by week-based calculations (for example `TIMETRUNCATE(..., 1w)`); defaults to OS setting and falls back to `4` (Thursday) when unavailable |
 | locale         |                   |Supported, effective immediately  | System locale and encoding format, defaults to system settings |
 | charset        |                   |Supported, effective immediately  | Character set encoding, defaults to system settings |
 
