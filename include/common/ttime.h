@@ -98,6 +98,7 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 char*   formatTimestampLocal(char* buf, int32_t cap, int64_t val, int precision);
+char*   formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, timezone_t tz);
 struct STm {
   struct tm tm;
   int64_t   fsec;  // in NANOSECOND

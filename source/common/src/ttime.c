@@ -1437,6 +1437,33 @@ char* formatTimestampLocal(char* buf, int32_t cap, int64_t val, int precision) {
   return buf;
 }
 
+char* formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, timezone_t tz) {
+  time_t tt;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+  } else {
+    tt = (time_t)(val / 1000);
+  }
+
+  struct tm tm;
+  if (taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
+    return NULL;
+  }
+  size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    snprintf(buf + pos, cap - (pos), ".%06d", (int)(val % 1000000));
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    snprintf(buf + pos, cap - (pos), ".%09d", (int)(val % 1000000000));
+  } else {
+    snprintf(buf + pos, cap - (pos), ".%03d", (int)(val % 1000));
+  }
+
+  return buf;
+}
+
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz) {
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];

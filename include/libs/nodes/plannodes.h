@@ -997,6 +997,7 @@ typedef struct SExplainInfo {
   EExplainMode mode;
   bool         verbose;
   double       ratio;
+  timezone_t   tz;       /* session timezone for formatting timestamps */
 } SExplainInfo;
 
 typedef struct SQueryPlan {
