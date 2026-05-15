@@ -480,8 +480,23 @@ impl ListOfStructBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::Array;
+    use arrow::array::{
+        Array, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array,
+        StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        TimestampNanosecondArray, TimestampSecondArray, UInt8Array, UInt64Array,
+    };
     use arrow::datatypes::DataType;
+
+    fn assert_not_yet_implemented<T>(result: Result<T, ArrowError>, expected: &str) {
+        if let Err(ArrowError::NotYetImplemented(message)) = result {
+            assert!(
+                message.contains(expected),
+                "error message {message:?} should mention {expected:?}"
+            );
+        } else {
+            ::core::panic!("expected ArrowError::NotYetImplemented");
+        }
+    }
 
     #[test]
     fn builder() -> anyhow::Result<()> {
@@ -599,5 +614,247 @@ mod tests {
         let list = builder.finish();
         assert_eq!(list.len(), 1);
         Ok(())
+    }
+
+    #[test]
+    fn append_nulls_and_fill_nulls_keep_list_struct_row_boundaries() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("value", DataType::Int32, true),
+            Field::new("payload", DataType::Binary, true),
+            Field::new(
+                "observed_at",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 3);
+
+        builder
+            .append(&"first" as &dyn Any)?
+            .append(&10i32 as &dyn Any)?
+            .fill_nulls_to_end()
+            .append_null_row()
+            .append(&"third" as &dyn Any)?
+            .append_null()
+            .append(&"bytes" as &dyn Any)?
+            .append(&9_999i64 as &dyn Any)?;
+
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+        assert!(list.is_valid(0));
+        assert_eq!(list.value_length(0), 3);
+
+        let values = list.value(0);
+        let rows = values.as_any().downcast_ref::<StructArray>().unwrap();
+        assert_eq!(rows.len(), 3);
+
+        let names = rows
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(names.value(0), "first");
+        assert!(names.is_null(1));
+        assert_eq!(names.value(2), "third");
+
+        let numbers = rows
+            .column(1)
+            .as_any()
+            .downcast_ref::<Int32Array>()
+            .unwrap();
+        assert_eq!(numbers.value(0), 10);
+        assert!(numbers.is_null(1));
+        assert!(numbers.is_null(2));
+
+        let payloads = rows
+            .column(2)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert!(payloads.is_null(0));
+        assert!(payloads.is_null(1));
+        assert_eq!(payloads.value(2), b"bytes");
+
+        let timestamps = rows
+            .column(3)
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert!(timestamps.is_null(0));
+        assert!(timestamps.is_null(1));
+        assert_eq!(timestamps.value(2), 9_999);
+
+        Ok(())
+    }
+
+    #[test]
+    fn append_values_aligns_supported_columns_inside_single_list() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("flag", DataType::Boolean, true),
+            Field::new("i16", DataType::Int16, true),
+            Field::new("u8", DataType::UInt8, true),
+            Field::new("u64", DataType::UInt64, true),
+            Field::new("f32", DataType::Float32, true),
+            Field::new("f64", DataType::Float64, true),
+            Field::new("ts_s", DataType::Timestamp(TimeUnit::Second, None), true),
+            Field::new(
+                "ts_us",
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+                true,
+            ),
+            Field::new(
+                "ts_ms",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            ),
+            Field::new(
+                "ts_ns",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+            Field::new("label", DataType::Utf8, true),
+            Field::new("payload", DataType::Binary, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+        let labels = vec![Cow::Borrowed("left"), Cow::Owned("right".to_string())];
+
+        builder
+            .append_values(&[true, false].as_slice(), 2)?
+            .append_values(&[-16i16, 16i16].as_slice(), 2)?
+            .append_values(&[8u8, 9u8].as_slice(), 2)?
+            .append_values(&[64u64, 65u64].as_slice(), 2)?
+            .append_values(&[1.25f32, -2.5f32].as_slice(), 2)?
+            .append_values(&[3.5f64, -4.75f64].as_slice(), 2)?
+            .append_values(&[11i64, 22i64].as_slice(), 2)?
+            .append_values(&[1_100i64, 2_200i64].as_slice(), 2)?
+            .append_values(&[1_001i64, 2_002i64].as_slice(), 2)?
+            .append_values(&[1_000_000i64, 2_000_000i64].as_slice(), 2)?
+            .append_values(&labels, 2)?
+            .append_values(&["bin-left", "bin-right"].as_slice(), 2)?;
+
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list.value_length(0), 2);
+
+        let values = list.value(0);
+        let rows = values.as_any().downcast_ref::<StructArray>().unwrap();
+        assert_eq!(rows.len(), 2);
+
+        let flags = rows
+            .column(0)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert!(flags.value(0));
+        assert!(!flags.value(1));
+
+        let i16s = rows
+            .column(1)
+            .as_any()
+            .downcast_ref::<Int16Array>()
+            .unwrap();
+        assert_eq!(i16s.value(0), -16);
+        assert_eq!(i16s.value(1), 16);
+
+        let u8s = rows
+            .column(2)
+            .as_any()
+            .downcast_ref::<UInt8Array>()
+            .unwrap();
+        assert_eq!(u8s.value(0), 8);
+        assert_eq!(u8s.value(1), 9);
+
+        let u64s = rows
+            .column(3)
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        assert_eq!(u64s.value(0), 64);
+        assert_eq!(u64s.value(1), 65);
+
+        let f32s = rows
+            .column(4)
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap();
+        assert_eq!(f32s.value(0), 1.25);
+        assert_eq!(f32s.value(1), -2.5);
+
+        let f64s = rows
+            .column(5)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .unwrap();
+        assert_eq!(f64s.value(0), 3.5);
+        assert_eq!(f64s.value(1), -4.75);
+
+        let seconds = rows
+            .column(6)
+            .as_any()
+            .downcast_ref::<TimestampSecondArray>()
+            .unwrap();
+        assert_eq!(seconds.value(0), 11);
+        assert_eq!(seconds.value(1), 22);
+
+        let micros = rows
+            .column(7)
+            .as_any()
+            .downcast_ref::<TimestampMicrosecondArray>()
+            .unwrap();
+        assert_eq!(micros.value(0), 1_100);
+        assert_eq!(micros.value(1), 2_200);
+
+        let millis = rows
+            .column(8)
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        assert_eq!(millis.value(0), 1_001);
+        assert_eq!(millis.value(1), 2_002);
+
+        let nanos = rows
+            .column(9)
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1_000_000);
+        assert_eq!(nanos.value(1), 2_000_000);
+
+        let strings = rows
+            .column(10)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(strings.value(0), "left");
+        assert_eq!(strings.value(1), "right");
+
+        let binaries = rows
+            .column(11)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert_eq!(binaries.value(0), b"bin-left");
+        assert_eq!(binaries.value(1), b"bin-right");
+
+        Ok(())
+    }
+
+    #[test]
+    fn append_and_append_values_report_safe_unsupported_types() {
+        let fields = vec![Field::new("date", DataType::Date32, true)];
+        let mut append_builder = ListOfStructBuilder::new(fields.clone(), 1);
+        assert_not_yet_implemented(
+            append_builder.append(&1i32 as &dyn Any).map(|_| ()),
+            "Date32",
+        );
+
+        let mut append_values_builder = ListOfStructBuilder::new(fields, 2);
+        assert_not_yet_implemented(
+            append_values_builder
+                .append_values(&[1i32, 2i32].as_slice(), 2)
+                .map(|_| ()),
+            "Date32",
+        );
     }
 }

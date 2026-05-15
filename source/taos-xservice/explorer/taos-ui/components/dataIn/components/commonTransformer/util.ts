@@ -4,18 +4,19 @@ export const VariableTableColumnType = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY
 
 // 将模版解析的结果转换成和用sql查询返回的数据结构一致
 export function convert(data: any) {
-  return [].concat(data).flatMap((item: Recordable) => {
-    // 提取 tags 中所有字段名
-    const tags = item.tags.map((tag: { name: string }) => tag.name);
-    const allData = item.columns.concat(item.tags);
-    return allData.map((col: { name: string; type: string; length: null | number }) => {
-      const name = col.name.replace(/`/g, ''); // 去除反引号
+  return [].concat(data || []).flatMap((item: Recordable) => {
+    if (!item) {
+      return [];
+    }
+    const tags = (item.tags || []).map((tag: { name: string }) => tag.name.replace(/`/g, ''));
+    const allData = (item.columns || []).concat(item.tags || []);
+    return allData.map((col: { name: string; type: string; length?: null | number }) => {
+      const name = col.name.replace(/`/g, '');
       const type = col.type;
-      const length = col.length !== null ? col.length : '';
-      const isTag = tags.includes(name) ? 'TAG' : '';
+      const length = col.length == null ? '' : col.length;
+      const isTag = tags.includes(name);
 
-      // 返回字段数据，带 TAG 的字段加上 TAG，其他字段正常返回
-      return length === '' ? [name, type, length] : [name, type, length, isTag].filter(Boolean); // 去除空值
+      return isTag ? [name, type, length, 'TAG'] : [name, type, length];
     });
   });
 }

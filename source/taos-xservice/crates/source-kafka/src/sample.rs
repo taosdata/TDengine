@@ -209,4 +209,57 @@ mod tests {
         assert_eq!(1, elements.len());
         assert_eq!(Offset::Beginning, elements[0].offset());
     }
+
+    #[test]
+    fn apply_fallback_offset_accepts_all_beginning_aliases() {
+        for fallback_offset in ["smallest", "earliest", "beginning"] {
+            let mut tp_list = TopicPartitionList::with_capacity(2);
+            tp_list.add_partition("topic_a", 0);
+            tp_list.add_partition("topic_a", 1);
+
+            apply_fallback_offset(&mut tp_list, fallback_offset).unwrap();
+
+            let offsets = tp_list
+                .elements()
+                .iter()
+                .map(|element| element.offset())
+                .collect::<Vec<_>>();
+            assert_eq!(offsets, vec![Offset::Beginning, Offset::Beginning]);
+        }
+    }
+
+    #[test]
+    fn apply_fallback_offset_accepts_all_end_aliases() {
+        for fallback_offset in ["largest", "latest", "end"] {
+            let mut tp_list = TopicPartitionList::with_capacity(2);
+            tp_list.add_partition("topic_a", 0);
+            tp_list.add_partition("topic_b", 0);
+
+            apply_fallback_offset(&mut tp_list, fallback_offset).unwrap();
+
+            let offsets = tp_list
+                .elements()
+                .iter()
+                .map(|element| element.offset())
+                .collect::<Vec<_>>();
+            assert_eq!(offsets, vec![Offset::End, Offset::End]);
+        }
+    }
+
+    #[test]
+    fn apply_fallback_offset_leaves_unknown_value_unchanged() {
+        let mut tp_list = TopicPartitionList::with_capacity(2);
+        tp_list.add_partition("topic_a", 0);
+        tp_list.add_partition("topic_b", 0);
+        tp_list.set_all_offsets(Offset::Offset(42)).unwrap();
+
+        apply_fallback_offset(&mut tp_list, "stored").unwrap();
+
+        let offsets = tp_list
+            .elements()
+            .iter()
+            .map(|element| element.offset())
+            .collect::<Vec<_>>();
+        assert_eq!(offsets, vec![Offset::Offset(42), Offset::Offset(42)]);
+    }
 }

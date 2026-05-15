@@ -264,7 +264,40 @@ mod tests {
         array::{Int64Array, RecordBatch},
         datatypes::{DataType, Field},
     };
-    use std::sync::Arc;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    };
+
+    #[test]
+    fn new_preserves_ids_config_and_metric_callback() {
+        let cache = Cache {
+            location: "cache-location".to_string(),
+            prefix: Some("cache-prefix".to_string()),
+            ..Default::default()
+        };
+        let archive = Archive {
+            location: "archive-location".to_string(),
+            prefix: Some("archive-prefix".to_string()),
+            ..Default::default()
+        };
+        let observed_rows = Arc::new(AtomicU64::new(0));
+        let metric_rows = Arc::clone(&observed_rows);
+
+        let consumer =
+            ArchiveConsumer::new(42, 7, cache.clone(), archive.clone(), move |rows: u64| {
+                metric_rows.store(rows, Ordering::SeqCst);
+                Ok(())
+            });
+
+        assert_eq!(consumer.task_id, 42);
+        assert_eq!(consumer.job_id, 7);
+        assert_eq!(consumer.cache, cache);
+        assert_eq!(consumer.archive, archive);
+
+        (consumer.update_metrics)(13).unwrap();
+        assert_eq!(observed_rows.load(Ordering::SeqCst), 13);
+    }
 
     #[ignore]
     #[tokio::test(flavor = "multi_thread", worker_threads = 3)]

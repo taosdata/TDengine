@@ -432,7 +432,19 @@ mod tests {
     use std::fs;
     use std::str::FromStr;
     use taos::{AsyncQueryable, AsyncTBuilder, TaosBuilder};
-    use tempfile::TempDir;
+    use tempfile::{Builder, TempDir};
+
+    fn repo_temp_dir() -> TempDir {
+        let base = std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("taosx-core-unit-tests");
+        fs::create_dir_all(&base).unwrap();
+        Builder::new()
+            .prefix("migrations-")
+            .tempdir_in(base)
+            .unwrap()
+    }
 
     #[test]
     fn test_compare_version() {
@@ -470,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_options_load_from_file_passwords_and_privileges_scoping() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = repo_temp_dir();
         let file = tmp.path().join("exported-privileges.json");
         let export = json!({
             "version": "3.3.4",
@@ -508,7 +520,7 @@ mod tests {
 
     #[test]
     fn test_options_load_from_file_whitelist_removed() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = repo_temp_dir();
         let file = tmp.path().join("exported-privileges.json");
         let export = json!({
             "version": "3.3.4",
@@ -534,6 +546,74 @@ mod tests {
             "whitelist disabled should strip allowed_host"
         );
         assert!(export.privileges.is_empty());
+    }
+
+    #[test]
+    fn test_export_deserializes_missing_collections_and_skips_empty_collections() {
+        let export: super::Export = serde_json::from_value(json!({
+            "version": "3.3.4"
+        }))
+        .unwrap();
+
+        assert!(export.users.is_empty());
+        assert!(export.privileges.is_empty());
+        assert_eq!(
+            serde_json::to_value(&export).unwrap(),
+            json!({
+                "version": "3.3.4"
+            })
+        );
+    }
+
+    #[test]
+    fn test_options_load_from_file_retains_whitelist_when_enabled_and_clears_privileges() {
+        let tmp = repo_temp_dir();
+        let file = tmp.path().join("exported-privileges.json");
+        let export = json!({
+            "version": "3.3.4",
+            "users": [{
+                "name": "user3",
+                "super": 0,
+                "enable": 1,
+                "sysinfo": 1,
+                "createdb": 0,
+                "encrypted_pass": "pass",
+                "allowed_host": "192.168.1.1"
+            }],
+            "privileges": [{
+                "user_name": "user3",
+                "priv_type": "write",
+                "priv_scope": "database",
+                "db_name": "db3",
+                "table_name": "",
+                "condition": "",
+                "notes": ""
+            }]
+        });
+        fs::write(&file, export.to_string()).unwrap();
+
+        let export = super::Options::new(true, false, true)
+            .load_from_file(&file)
+            .unwrap();
+
+        assert_eq!(export.users.len(), 1);
+        assert_eq!(export.users[0].allowed_host.as_deref(), Some("192.168.1.1"));
+        assert!(export.privileges.is_empty());
+    }
+
+    #[test]
+    fn test_options_load_from_file_wraps_json_parse_errors_with_file_context() {
+        let tmp = repo_temp_dir();
+        let file = tmp.path().join("invalid-export.json");
+        fs::write(&file, "{").unwrap();
+
+        let err = super::Options::default()
+            .load_from_file(&file)
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("Loading from file"));
+        assert!(err.contains("invalid-export.json"));
     }
 
     #[test]
@@ -570,6 +650,58 @@ mod tests {
             "- User `u2` privilege `read on `db`` import fails: denied, \n"
         );
         assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_apply_results_display_no_imported_items() {
+        let results = super::ApplyResults {
+            success: super::ApplySuccess {
+                passwords: 0,
+                privileges: 0,
+            },
+            fails: None,
+        };
+
+        assert_eq!(format!("{}", results), "No users and privileges imported");
+    }
+
+    #[test]
+    fn test_apply_results_display_single_failure_without_successful_imports() {
+        let results = super::ApplyResults {
+            success: super::ApplySuccess {
+                passwords: 0,
+                privileges: 0,
+            },
+            fails: Some(super::ApplyFails {
+                passwords: vec![super::ApplyFail::new("u1", "duplicate user")],
+                privileges: vec![],
+            }),
+        };
+
+        let formatted = format!("{}", results);
+        assert!(formatted.starts_with("Partially failed:"));
+        assert!(formatted.contains("1 item failed"));
+        assert!(formatted.contains("- User `u1` import fails: duplicate user"));
+    }
+
+    #[test]
+    fn test_apply_fails_len_and_is_empty_count_password_and_privilege_failures() {
+        let empty = super::ApplyFails {
+            passwords: vec![],
+            privileges: vec![],
+        };
+        assert!(empty.is_empty());
+        assert_eq!(empty.len(), 0);
+
+        let failures = super::ApplyFails {
+            passwords: vec![super::ApplyFail::new("u1", "password failed")],
+            privileges: vec![
+                super::ApplyFail::privilege("u1", "read on `db1`", "denied"),
+                super::ApplyFail::privilege("u2", "write on `db2`", "denied"),
+            ],
+        };
+        assert!(!failures.is_empty());
+        assert_eq!(failures.len(), 3);
     }
 
     #[test]
@@ -753,7 +885,7 @@ mod tests {
             assert!(d3.users.is_empty(), "Privileges only");
         }
 
-        let tmp = tempfile::TempDir::new()?;
+        let tmp = repo_temp_dir();
         let path = tmp.path().join("exported-privileges.json");
         super::export(&from, &path, &all).await?;
 

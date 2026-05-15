@@ -3,6 +3,7 @@ import { connect, TaosResult } from '@tdengine/websocket';
 import { json2csv } from 'json-2-csv';
 import { project } from 'config';
 import FileSaver from 'file-saver';
+import { CSV_MIME_TYPE, UTF8_BOM, createUtf8CsvBlob } from './files';
 
 declare global {
   interface Window {
@@ -55,6 +56,7 @@ export async function wsExport(gatewayURL: string, token: string, sql: string, w
     await ws.connect();
     wsInterface = ws._wsInterface;
     wsQueryResponse = await wsInterface.query(sql);
+    await writer.write(new TextEncoder().encode(UTF8_BOM));
     let wsFetchResponse = await wsInterface.fetch(wsQueryResponse);
     // generate the CSV header to the file
     let header = withHeaders;
@@ -68,7 +70,7 @@ export async function wsExport(gatewayURL: string, token: string, sql: string, w
         prependHeader: header
       });
       const csvBlob = new Blob([csvData], {
-        type: 'text/csv;charset=utf-8;'
+        type: CSV_MIME_TYPE
       });
       const readableStream = csvBlob.stream();
       const reader = readableStream.getReader();
@@ -100,9 +102,7 @@ export async function wsExport(gatewayURL: string, token: string, sql: string, w
 export function localExport(queryResult: any) {
   const FileName = getFileName();
   const data = convertToCsvData(queryResult.data, queryResult.head);
-  const blob = new Blob([data], {
-    type: 'text/csv;charset=utf-8;'
-  });
+  const blob = createUtf8CsvBlob(data);
   FileSaver.saveAs(blob, FileName);
 }
 

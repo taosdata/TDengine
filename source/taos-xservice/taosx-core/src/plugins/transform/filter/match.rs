@@ -704,6 +704,103 @@ mod tests {
         assert_eq!(new_batch.num_rows(), 1);
     }
 
+    #[test]
+    fn test_empty_match_keeps_record_batch_shape() {
+        let record_batch = init_record_batch();
+        let filter = MatchRecordFilter::new(LinkedHashMap::new());
+
+        let new_batch = filter.filter_records(&record_batch).unwrap();
+
+        assert_eq!(new_batch.num_rows(), record_batch.num_rows());
+        assert_eq!(new_batch.num_columns(), record_batch.num_columns());
+        assert_eq!(new_batch.schema(), record_batch.schema());
+    }
+
+    #[test]
+    fn test_filter_by_json_bool_and_integer_values() {
+        let record_batch = init_record_batch();
+
+        let cases = [
+            ("a", json!(true), 4),
+            ("b", json!(1), 4),
+            ("c", json!(1), 4),
+            ("d", json!(1), 4),
+            ("e", json!(1), 4),
+            ("f", json!(1), 4),
+            ("g", json!(1), 4),
+            ("h", json!(1), 4),
+            ("i", json!(1), 4),
+        ];
+
+        for (field, value, expected_rows) in cases {
+            let mut fields = LinkedHashMap::new();
+            fields.insert(field.to_string(), value);
+            let filter = MatchRecordFilter::new(fields);
+
+            let new_batch = filter.filter_records(&record_batch).unwrap();
+
+            assert_eq!(new_batch.num_rows(), expected_rows, "field {field}");
+        }
+    }
+
+    #[test]
+    fn test_filter_by_json_float_values() {
+        let record_batch = init_record_batch();
+
+        let cases = [
+            ("j", json!(2.0), 4),
+            ("k", json!(1.1), 4),
+            ("l", json!(1.1), 4),
+        ];
+
+        for (field, value, expected_rows) in cases {
+            let mut fields = LinkedHashMap::new();
+            fields.insert(field.to_string(), value);
+            let filter = MatchRecordFilter::new(fields);
+
+            let new_batch = filter.filter_records(&record_batch).unwrap();
+
+            assert_eq!(new_batch.num_rows(), expected_rows, "field {field}");
+        }
+    }
+
+    #[test]
+    fn test_filter_by_json_timestamp_values() {
+        let record_batch = init_record_batch();
+
+        let cases = [
+            ("m", json!(1699847022), 1),
+            ("n", json!(1699847022000i64), 1),
+            ("o", json!(1699847022000000i64), 1),
+            ("p", json!(1699847022000000000i64), 1),
+        ];
+
+        for (field, value, expected_rows) in cases {
+            let mut fields = LinkedHashMap::new();
+            fields.insert(field.to_string(), value);
+            let filter = MatchRecordFilter::new(fields);
+
+            let new_batch = filter.filter_records(&record_batch).unwrap();
+
+            assert_eq!(new_batch.num_rows(), expected_rows, "field {field}");
+        }
+    }
+
+    #[test]
+    fn test_filter_by_binary_and_fixed_size_binary_values() {
+        let record_batch = init_record_batch();
+
+        for field in ["q", "r"] {
+            let mut fields = LinkedHashMap::new();
+            fields.insert(field.to_string(), json!("a111"));
+            let filter = MatchRecordFilter::new(fields);
+
+            let new_batch = filter.filter_records(&record_batch).unwrap();
+
+            assert_eq!(new_batch.num_rows(), 1, "field {field}");
+        }
+    }
+
     fn init_record_batch() -> RecordBatch {
         let schema = Schema::new(vec![
             Field::new("a", DataType::Boolean, false),
