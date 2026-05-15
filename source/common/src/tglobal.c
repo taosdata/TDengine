@@ -2686,7 +2686,7 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     array = taosGetLocalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sdnode%sconfig%slocal.json", path, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
   }
-  uInfo("start to read config file:%s", filename);
+  uInfo("load config file:%s", filename);
 
   if (!taosCheckExistFile(filename)) {
     uInfo("config file:%s does not exist", filename);
