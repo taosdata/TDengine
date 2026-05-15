@@ -10,6 +10,8 @@
  */
 
 #include "sut.h"
+#include "tcompression.h"
+#include "tcol.h"
 
 class MndTestStb : public ::testing::Test {
  protected:
@@ -35,6 +37,11 @@ class MndTestStb : public ::testing::Test {
   void* BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
   void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen,
                                           int32_t verInBlock);
+  void* BuildCreateStbWithCompressReq(const char* stbname, uint32_t compress, int32_t* pContLen);
+  void* BuildAlterStbAddColumnWithCompressReq(const char* stbname, const char* colname, uint8_t colType,
+                                              int32_t colBytes, uint32_t compress, int32_t* pContLen);
+  void* BuildAlterStbModifyColumnCompressReq(const char* stbname, const char* colname, uint32_t compress,
+                                             int32_t* pContLen);
 };
 
 Testbase MndTestStb::test;
@@ -87,12 +94,12 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   createReq.numOfColumns = 2;
   createReq.numOfTags = 3;
   createReq.igExists = 0;
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions));
   createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
   strcpy(createReq.name, stbname);
 
   {
-    SField field = {0};
+    SFieldWithOptions field = {0};
     field.bytes = 8;
     field.type = TSDB_DATA_TYPE_TIMESTAMP;
     strcpy(field.name, "ts");
@@ -100,7 +107,7 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   }
 
   {
-    SField field = {0};
+    SFieldWithOptions field = {0};
     field.bytes = 12;
     field.type = TSDB_DATA_TYPE_BINARY;
     strcpy(field.name, "col1");
@@ -144,12 +151,12 @@ void* MndTestStb::BuildCreateStbDuplicateReq(const char* stbname, int32_t* pCont
   createReq.numOfColumns = 2;
   createReq.numOfTags = 4;
   createReq.igExists = 0;
-  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions));
   createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
   strcpy(createReq.name, stbname);
 
   {
-    SField field = {0};
+    SFieldWithOptions field = {0};
     field.bytes = 8;
     field.type = TSDB_DATA_TYPE_TIMESTAMP;
     strcpy(field.name, "ts");
@@ -157,7 +164,7 @@ void* MndTestStb::BuildCreateStbDuplicateReq(const char* stbname, int32_t* pCont
   }
 
   {
-    SField field = {0};
+    SFieldWithOptions field = {0};
     field.bytes = 12;
     field.type = TSDB_DATA_TYPE_BINARY;
     strcpy(field.name, "col1");
@@ -983,6 +990,334 @@ TEST_F(MndTestStb, 09_Create_Duplicate_Stb) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_DUP_COL_NAMES);
+    rpcFreeCont(pRsp->pCont);
+  }
+}
+
+void* MndTestStb::BuildCreateStbWithCompressReq(const char* stbname, uint32_t compress, int32_t* pContLen) {
+  SMCreateStbReq createReq = {0};
+  createReq.numOfColumns = 2;
+  createReq.numOfTags = 1;
+  createReq.igExists = 0;
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions));
+  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+  strcpy(createReq.name, stbname);
+
+  {
+    SFieldWithOptions field = {0};
+    field.bytes = 8;
+    field.type = TSDB_DATA_TYPE_TIMESTAMP;
+    strcpy(field.name, "ts");
+    taosArrayPush(createReq.pColumns, &field);
+  }
+
+  {
+    SFieldWithOptions field = {0};
+    field.bytes = 4;
+    field.type = TSDB_DATA_TYPE_INT;
+    field.compress = compress;
+    strcpy(field.name, "col1");
+    taosArrayPush(createReq.pColumns, &field);
+  }
+
+  {
+    SField field = {0};
+    field.bytes = 2;
+    field.type = TSDB_DATA_TYPE_TINYINT;
+    strcpy(field.name, "tag1");
+    taosArrayPush(createReq.pTags, &field);
+  }
+
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
+  void*   pHead = rpcMallocCont(tlen);
+  tSerializeSMCreateStbReq(pHead, tlen, &createReq);
+  tFreeSMCreateStbReq(&createReq);
+  *pContLen = tlen;
+  return pHead;
+}
+
+void* MndTestStb::BuildAlterStbAddColumnWithCompressReq(const char* stbname, const char* colname, uint8_t colType,
+                                                        int32_t colBytes, uint32_t compress, int32_t* pContLen) {
+  SMAlterStbReq req = {0};
+  strcpy(req.name, stbname);
+  req.numOfFields = 1;
+  req.pFields = taosArrayInit(1, sizeof(SFieldWithOptions));
+  req.alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION;
+
+  SFieldWithOptions field = {0};
+  field.bytes = colBytes;
+  field.type = colType;
+  field.compress = compress;
+  strcpy(field.name, colname);
+  taosArrayPush(req.pFields, &field);
+
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
+  void*   pHead = rpcMallocCont(contLen);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
+
+  *pContLen = contLen;
+  taosArrayDestroy(req.pFields);
+  return pHead;
+}
+
+// Construct a compress uint32_t from encode, compress algorithm, and level
+static uint32_t makeCompress(uint8_t encode, uint8_t compressAlg, uint8_t level) {
+  uint32_t ret = 0;
+  SET_COMPRESS(encode, compressAlg, level, ret);
+  return ret;
+}
+
+TEST_F(MndTestStb, 10_Create_Stb_InvalidCompress) {
+  const char* dbname = "1.d10";
+  const char* stbname = "1.d10.stb";
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // invalid encode: RLE(3) is only valid for BOOL, not for INT
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_RLE, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbWithCompressReq(stbname, badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_ENCODE_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // invalid compress: TSZ(4) is only valid for FLOAT/DOUBLE, not for INT
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_TSZ, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbWithCompressReq(stbname, badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_COMPRESS_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // invalid level: 99 is not a valid level
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_LZ4, 99);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbWithCompressReq(stbname, badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // invalid encode value (6 is not a defined encode)
+  {
+    uint32_t badCompress = makeCompress(6, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbWithCompressReq(stbname, badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_ENCODE_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // valid compress: SIMPLE8B + LZ4 + MEDIUM is valid for INT
+  {
+    uint32_t goodCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbWithCompressReq(stbname, goodCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+}
+
+TEST_F(MndTestStb, 11_Alter_Stb_AddColumn_InvalidCompress) {
+  const char* dbname = "1.d11";
+  const char* stbname = "1.d11.stb";
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // add column with invalid encode: RLE is only valid for BOOL, not INT
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_RLE, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbAddColumnWithCompressReq(stbname, "col2", TSDB_DATA_TYPE_INT, 4, badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_ENCODE_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // add column with invalid compress: TSZ only valid for FLOAT/DOUBLE
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_TSZ, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbAddColumnWithCompressReq(stbname, "col2", TSDB_DATA_TYPE_INT, 4, badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_COMPRESS_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // add column with valid compress should succeed
+  {
+    uint32_t goodCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_ZSTD, TSDB_COLVAL_LEVEL_HIGH);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbAddColumnWithCompressReq(stbname, "col2", TSDB_DATA_TYPE_INT, 4, goodCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+}
+
+void* MndTestStb::BuildAlterStbModifyColumnCompressReq(const char* stbname, const char* colname, uint32_t compress,
+                                                       int32_t* pContLen) {
+  SMAlterStbReq req = {0};
+  strcpy(req.name, stbname);
+  req.numOfFields = 1;
+  req.pFields = taosArrayInit(1, sizeof(SField));
+  req.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS;
+
+  SField field = {0};
+  field.bytes = (int32_t)compress;
+  field.type = 0;
+  strcpy(field.name, colname);
+  taosArrayPush(req.pFields, &field);
+
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
+  void*   pHead = rpcMallocCont(contLen);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
+
+  *pContLen = contLen;
+  taosArrayDestroy(req.pFields);
+  return pHead;
+}
+
+TEST_F(MndTestStb, 12_Alter_Stb_ModifyColumnCompress) {
+  const char* dbname = "1.d12";
+  const char* stbname = "1.d12.stb";
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // create stb with valid compress
+  {
+    uint32_t goodCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbWithCompressReq(stbname, goodCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // modify column compress with invalid encode: RLE is only valid for BOOL, not INT
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_RLE, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbModifyColumnCompressReq(stbname, "col1", badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_ENCODE_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // modify column compress with invalid compress alg: TSZ only for FLOAT/DOUBLE
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_TSZ, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbModifyColumnCompressReq(stbname, "col1", badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_COMPRESS_PARAM_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // modify column compress with invalid level
+  {
+    uint32_t badCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_LZ4, 99);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbModifyColumnCompressReq(stbname, "col1", badCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // modify column compress with valid values should succeed
+  {
+    uint32_t goodCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_ZSTD, TSDB_COLVAL_LEVEL_HIGH);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbModifyColumnCompressReq(stbname, "col1", goodCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  // modify non-existent column should fail
+  {
+    uint32_t goodCompress = makeCompress(TSDB_COLVAL_ENCODE_SIMPLE8B, TSDB_COLVAL_COMPRESS_LZ4, TSDB_COLVAL_LEVEL_MEDIUM);
+    int32_t  contLen = 0;
+    void*    pReq = BuildAlterStbModifyColumnCompressReq(stbname, "col_not_exist", goodCompress, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
+    rpcFreeCont(pRsp->pCont);
+  }
+
+  {
+    int32_t  contLen = 0;
+    void*    pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
     rpcFreeCont(pRsp->pCont);
   }
 }

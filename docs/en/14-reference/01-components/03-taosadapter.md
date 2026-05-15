@@ -1510,7 +1510,7 @@ Records are written before `taos_free_result` is executed or when the task ends 
 Records are stored in CSV format without headers. Each line includes the following fields:
 
 1. `TS`: Log timestamp (format: yyyy-MM-dd HH:mm:ss.SSSSSS, timezone: server's timezone).
-1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (\n, \r, ") are wrapped in double quotes.
+1. `SQL`: Executed SQL statement. Line breaks in SQL are preserved per CSV standards. Special characters (`\n`, `\r`, `"`) are wrapped in double quotes.
    SQL containing special characters cannot be directly copied for use. Example:
 
    Original SQL:

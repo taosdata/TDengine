@@ -59,9 +59,9 @@ In TDengine, the following data types can be used in the data model of basic tab
     | 3    | POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0)) | 13+3*16            | 13+4094*16         | +16                              |
 
 - In SQL statements, the type of numerical values will be determined based on the presence of a decimal point or the use of scientific notation, so care must be taken to avoid type overflow. For example, 9999999999999999999 will be considered to exceed the upper boundary of long integers and overflow, while 9999999999999999999.0 will be considered a valid floating point number.
-- VARBINARY is a data type for storing binary data, with a maximum length of 65,517 bytes for data columns and 16,382 bytes for label columns. Binary data can be written via SQL or schemaless methods (needs to be converted to a string starting with \x), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with \x.
+- VARBINARY is a data type for storing binary data, with a maximum length of 65,517 bytes for data columns and 16,382 bytes for label columns. Binary data can be written via SQL or schemaless methods (needs to be converted to a string starting with `\x`), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with `\x`.
 
-- BLOB is a data type for storing binary data, with a maximum length of 419,430,465 bytes for data columns. BLOB data can be written via SQL or schemaless methods (needs to be converted to a string starting with \x), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with \x.
+- BLOB is a data type for storing binary data, with a maximum length of 419,430,465 bytes for data columns. BLOB data can be written via SQL or schemaless methods (needs to be converted to a string starting with `\x`), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with `\x`.
 
 :::
 
@@ -79,7 +79,7 @@ When querying `DECIMAL` type expressions, if the intermediate result of the calc
 
 ### BLOB Data type
 
-The BLOB data type is used for storing binary data, with a maximum length of 4,194,304 bytes. Binary data can be written via SQL or stmt2 by converting it to a string that starts with \x, or directly as binary data using the stmt interface. When displayed, BLOB data is shown in hexadecimal format starting with \x
+The BLOB data type is used for storing binary data, with a maximum length of 4,194,304 bytes. Binary data can be written via SQL or stmt2 by converting it to a string that starts with `\x`, or directly as binary data using the stmt interface. When displayed, BLOB data is shown in hexadecimal format starting with `\x`
 `Limitations`
 Only one BLOB column is allowed per table.
 BLOB columns are not supported as tag columns.

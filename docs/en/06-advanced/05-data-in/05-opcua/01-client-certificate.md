@@ -3,7 +3,7 @@ title: "Generate the taosX OPC UA Client Certificate"
 sidebar_label: "Client Certificate"
 ---
 
-When the OPC UA server's **Security Mode** is set to `Sign` or `SignAndEncrypt`, taosX must establish the secure channel with a client certificate and private key. This page documents the standard procedure for generating that certificate on Windows and on Linux/macOS. **All scenarios that require certificate-encrypted access (Ignition, GE Cimplicity, …) follow the same procedure once.**
+When the OPC UA server's **Security Mode** is set to `Sign` or `SignAndEncrypt`, taosX must establish the secure channel with a client certificate and private key. This page documents the standard procedure for generating that certificate on Windows and on Linux/macOS. **All scenarios that require certificate-encrypted access (Ignition, GE CSS OPC UA Server, …) follow the same procedure once.**
 
 ## 1. Certificate Requirements
 
@@ -88,7 +88,7 @@ echo Verify certificate:
 "%OPENSSL%" x509 -in "%CERT_FILE%" -noout -subject -ext subjectAltName
 
 echo.
-echo SHA1 fingerprint (used by some servers, e.g. GE Cimplicity, to map the certificate to a user):
+echo SHA1 fingerprint (used by some servers, e.g. GE CSS OPC UA Server, to map the certificate to a user):
 "%OPENSSL%" x509 -in "%CERT_FILE%" -noout -fingerprint -sha1
 
 pause
@@ -174,7 +174,7 @@ X509v3 Subject Alternative Name:
     URI:urn:taosx-opc:client
 ```
 
-Some servers (for example GE Cimplicity) bind the client certificate to a user by its SHA1 fingerprint. Capture it with:
+Some servers (for example GE CSS OPC UA Server) bind the client certificate to a user by its SHA1 fingerprint. Capture it with:
 
 ```bash
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
@@ -189,4 +189,4 @@ The two generated files map to the **Connection Configuration** fields in taosX 
 | `client_cert.pem`   | Secure Channel Certificate    |
 | `client_key.pem`    | Certificate's Private Key     |
 
-The first **Check Connection** attempt usually fails, because the server has not yet trusted the certificate. Follow the vendor-specific steps to trust or bind the certificate on the server side (see [Ignition Integration Guide](./03-ignition.md) and [GE Cimplicity Integration Guide](./04-ge-cimplicity.md)), then run **Check Connection** again.
+The first **Check Connection** attempt usually fails, because the server has not yet trusted the certificate. Follow the vendor-specific steps to trust or bind the certificate on the server side (see [Ignition Integration Guide](./03-ignition.md) and [GE CSS OPC UA Server Integration Guide](./04-ge-opcua-server.md)), then run **Check Connection** again.
