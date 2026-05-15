@@ -15,6 +15,7 @@ Thumbs.db
 # Build outputs
 build/
 debug/
+debug-others/
 release/
 *.o
 *.so
