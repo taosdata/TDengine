@@ -4234,7 +4234,9 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   SVTableResolveResult     *pRes        = NULL;
   SMetaReader               metaReader  = {0};
   int64_t streamId = req->base.streamId;
-  stsDebug("vgId:%d %s start, ver:%"PRId64, TD_VID(pVnode), __func__, req->virTablePseudoColReq.ver);
+  stsDebug("vgId:%d %s start, ver:%"PRId64" uid:%"PRId64" cols_size:%d", TD_VID(pVnode), __func__,
+           req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid,
+           req->virTablePseudoColReq.cids ? (int)taosArrayGetSize(req->virTablePseudoColReq.cids) : -1);
 
   SArray* cols = req->virTablePseudoColReq.cids;
   STREAM_CHECK_NULL_GOTO(cols, terrno);
@@ -4266,10 +4268,22 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     emptyCols = taosArrayInit(0, sizeof(col_id_t));
     STREAM_CHECK_NULL_GOTO(emptyCols, terrno);
 
+    // The pseudo-column request can carry cid==-1 for the vtable name; the
+    // chain resolver only handles real tag cids, so pass a filtered copy.
+    SArray *tagOnly = taosArrayInit(taosArrayGetSize(cols), sizeof(col_id_t));
+    STREAM_CHECK_NULL_GOTO(tagOnly, terrno);
+    for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
+      col_id_t cid = *(col_id_t *)taosArrayGet(cols, i);
+      if (cid == -1) continue;
+      STREAM_CHECK_NULL_GOTO(taosArrayPush(tagOnly, &cid), terrno);
+    }
+
     // PSEUDO_COL bypasses cache — pass NULL so resolver does not read/write it.
-    STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
-                                                     req->virTablePseudoColReq.ver,
-                                                     singleUid, emptyCols, cols, &uid2Result));
+    code = streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
+                                       req->virTablePseudoColReq.ver,
+                                       singleUid, emptyCols, tagOnly, &uid2Result);
+    taosArrayDestroy(tagOnly);
+    STREAM_CHECK_RET_GOTO(code);
 
     SVTableResolveResult **pp = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uidVal, sizeof(uidVal));
     if (pp == NULL || *pp == NULL) {
@@ -5050,9 +5064,11 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
     goto _end;
   }
 
-  stDebug("vgId:%d %s uid=%" PRId64 " type=%d nCols=%d nTagRefs=%d",
+  stDebug("vgId:%d %s uid=%" PRId64 " type=%d nCols=%d nTagRefs=%d colCids_size=%d tagCids_size=%d",
           TD_VID(pVnode), __func__, uid, mr.me.type,
-          mr.me.colRef.nCols, mr.me.colRef.nTagRefs);
+          mr.me.colRef.nCols, mr.me.colRef.nTagRefs,
+          colCids ? (int)taosArrayGetSize(colCids) : -1,
+          tagCids ? (int)taosArrayGetSize(tagCids) : -1);
 
   SVTableResolveResult *pRes = streamGetOrCreateUidResult(uid2Result, uid);
   if (pRes == NULL) {
@@ -5620,9 +5636,36 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     int32_t  vgId    = *pVgKey;
     SEpSet  *pEpSet  = (SEpSet *)taosHashGet(vg2Ep, &vgId, sizeof(vgId));
 
-    int32_t rc = streamSendOneVgResolveRpc(pVnode, pEpSet, vgId, ver, batch, pList, outRspItems);
-    stTrace("vgId:%d %s per-vg done: targetVgId=%d items=%d rc=0x%x", TD_VID(pVnode), __func__,
-            vgId, (int32_t)taosArrayGetSize(pList), rc);
+    int32_t rc = 0;
+    if (vgId == TD_VID(pVnode)) {
+      // Local fast path: skip RPC and call the resolver in-process. The wire
+      // codec on its own preserves all fields we need (terminated/nextRef/
+      // tagType/tagLen/tagData), so the result is byte-equivalent to the RPC
+      // path; we just save one round-trip when the target vg is ourselves.
+      int32_t cnt = (int32_t)taosArrayGetSize(pList);
+      for (int32_t j = 0; j < cnt; ++j) {
+        int32_t           pos = *(int32_t *)taosArrayGet(pList, j);
+        SResolveWorkItem *w   = taosArrayGet(batch, pos);
+        SVTableRefResolveItem q = {0};
+        q.kind   = w->kind;
+        q.hasRef = true;
+        tstrncpy(q.refDbName,    w->refDbName,    TSDB_DB_NAME_LEN);
+        tstrncpy(q.refTableName, w->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(q.refColName,   w->refColName,   TSDB_COL_NAME_LEN);
+        SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, pos);
+        int32_t one = vnodeResolveOneHop(pVnode, &q, dst);
+        if (one != 0) {
+          dst->code = one;
+          // OOM aborts the whole resolution; other per-item errors are
+          // recorded in dst->code and treated as skipped by the caller.
+          if (one == TSDB_CODE_OUT_OF_MEMORY) { rc = one; break; }
+        }
+      }
+    } else {
+      rc = streamSendOneVgResolveRpc(pVnode, pEpSet, vgId, ver, batch, pList, outRspItems);
+    }
+    stTrace("vgId:%d %s per-vg done: targetVgId=%d items=%d rc=0x%x local=%d", TD_VID(pVnode),
+            __func__, vgId, (int32_t)taosArrayGetSize(pList), rc, vgId == TD_VID(pVnode));
     if (rc != 0) {
       if (rc == TSDB_CODE_OUT_OF_MEMORY) {
         taosHashCancelIterate(vg2Idx, pIter);
