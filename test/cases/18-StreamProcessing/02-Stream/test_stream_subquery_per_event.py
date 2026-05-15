@@ -19,7 +19,7 @@ class TestStreamSubqueryPerEvent:
     In stream mode every trigger event MUST refetch the subquery; the
     older code cached the result on the first event and silently
     replayed it forever.  This file pins the per-event semantics for the
-    original reproducer, the workaround control path, and all three
+    original reproducer, the workaround control path, and all four
     remote-subquery flavours that flow through sclInitParam:
 
       1. test_where_subquery (REMOTE_VALUE)
@@ -44,6 +44,12 @@ class TestStreamSubqueryPerEvent:
       4. test_row_subquery (REMOTE_ROW)
          WHERE x > ANY (subquery) re-evaluation.  Pins the ROW cache
          invalidation: pRemote->valSet must be cleared every event.
+
+      5. test_exists_subquery (REMOTE_ZERO_ROWS)
+         EXISTS (subquery) re-evaluation.  Pins the ZERO_ROWS cache
+         invalidation: setZeroRowsResValue rewrites node->type to
+         QUERY_NODE_VALUE, and stream mode must restore it to
+         QUERY_NODE_REMOTE_ZERO_ROWS so later events refetch.
     """
 
     def setup_class(cls):
