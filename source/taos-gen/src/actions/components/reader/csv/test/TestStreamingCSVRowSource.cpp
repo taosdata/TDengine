@@ -852,9 +852,9 @@ void test_numeric_null_literals_in_streaming_row() {
     auto r3 = source.next();
 
     assert(r1.has_value() && r2.has_value() && r3.has_value());
-    assert(std::holds_alternative<std::monostate>(r1->columns[1]));
-    assert(std::holds_alternative<std::monostate>(r2->columns[1]));
-    assert(std::holds_alternative<std::monostate>(r3->columns[1]));
+    assert(std::holds_alternative<NullValue>(r1->columns[1]));
+    assert(std::holds_alternative<NullValue>(r2->columns[1]));
+    assert(std::holds_alternative<NullValue>(r3->columns[1]));
 
     assert(std::get<std::string>(r1->columns[0]) == "Alice");
     assert(std::abs(std::get<double>(r1->columns[2]) - 98.5) < 0.001);
@@ -892,9 +892,9 @@ void test_bool_null_literals_in_streaming_row() {
     auto r3 = source.next();
 
     assert(r1.has_value() && r2.has_value() && r3.has_value());
-    assert(std::holds_alternative<std::monostate>(r1->columns[1]));
-    assert(std::holds_alternative<std::monostate>(r2->columns[1]));
-    assert(std::holds_alternative<std::monostate>(r3->columns[1]));
+    assert(std::holds_alternative<NullValue>(r1->columns[1]));
+    assert(std::holds_alternative<NullValue>(r2->columns[1]));
+    assert(std::holds_alternative<NullValue>(r3->columns[1]));
 
     assert(std::get<std::string>(r1->columns[0]) == "Alice");
 

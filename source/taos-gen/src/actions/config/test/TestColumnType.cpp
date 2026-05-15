@@ -7,6 +7,14 @@
 void test_column_type_ostream() {
     std::stringstream ss;
 
+    // Test NullValue
+    ss.str(""); ss << ColumnType{NullValue{}};
+    assert(ss.str() == "NULL");
+
+    // Test NoneValue
+    ss.str(""); ss << ColumnType{NoneValue{}};
+    assert(ss.str() == "NONE");
+
     // Test bool
     ss.str(""); ss << ColumnType{true};
     assert(ss.str() == "true");
@@ -62,13 +70,14 @@ void test_row_type_ostream() {
 }
 
 void test_variant_index() {
-    static_assert(variant_index<std::monostate, ColumnType>::value == 0);
-    static_assert(variant_index<bool, ColumnType>::value == 1);
-    static_assert(variant_index<int8_t, ColumnType>::value == 2);
-    static_assert(variant_index<int32_t, ColumnType>::value == 6);
-    static_assert(variant_index<double, ColumnType>::value == 11);
-    static_assert(variant_index<std::string, ColumnType>::value == 14);
-    static_assert(variant_index<Geometry, ColumnType>::value == 17);
+    static_assert(variant_index<NullValue, ColumnType>::value == 0);
+    static_assert(variant_index<NoneValue, ColumnType>::value == 1);
+    static_assert(variant_index<bool, ColumnType>::value == 2);
+    static_assert(variant_index<int8_t, ColumnType>::value == 3);
+    static_assert(variant_index<int32_t, ColumnType>::value == 7);
+    static_assert(variant_index<double, ColumnType>::value == 12);
+    static_assert(variant_index<std::string, ColumnType>::value == 15);
+    static_assert(variant_index<Geometry, ColumnType>::value == 18);
 
     std::cout << "test_variant_index passed!" << std::endl;
 }
@@ -95,11 +104,41 @@ void test_column_type_traits() {
     std::cout << "test_column_type_traits passed!" << std::endl;
 }
 
+void test_null_none_value_types() {
+    // NullValue equality
+    NullValue n1, n2;
+    (void)n1; (void)n2;
+    assert(n1 == n2);
+
+    // NoneValue equality
+    NoneValue m1, m2;
+    (void)m1; (void)m2;
+    assert(m1 == m2);
+
+    // fmt::format for NullValue and NoneValue
+    ColumnType null_col = NullValue{};
+    ColumnType none_col = NoneValue{};
+    assert(fmt::format("{}", null_col) == "NULL");
+    assert(fmt::format("{}", none_col) == "NONE");
+
+    // RowType with NULL and NONE
+    RowType row;
+    row.push_back(NullValue{});
+    row.push_back(NoneValue{});
+    row.push_back(int32_t(42));
+    std::stringstream ss;
+    ss << row;
+    assert(ss.str() == "[NULL, NONE, 42]");
+
+    std::cout << "test_null_none_value_types passed!" << std::endl;
+}
+
 int main() {
     test_column_type_ostream();
     test_row_type_ostream();
     test_variant_index();
     test_column_type_traits();
+    test_null_none_value_types();
 
     std::cout << "All tests passed!" << std::endl;
     return 0;

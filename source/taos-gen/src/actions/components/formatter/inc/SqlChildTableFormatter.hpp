@@ -30,7 +30,9 @@ public:
             }
             std::visit([&result](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<T, std::monostate>) {
+                if constexpr (std::is_same_v<T, NullValue>) {
+                    result += "NULL";
+                } else if constexpr (std::is_same_v<T, NoneValue>) {
                     result += "NULL";
                 } else if constexpr (std::is_same_v<T, std::string>) {
                     result += "'";

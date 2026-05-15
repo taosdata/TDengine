@@ -140,9 +140,9 @@ void test_generate_tags_numeric_null_literals() {
     auto tags = tags_csv.generate();
 
     assert(tags.size() == 3 && "Expected 3 rows of tags");
-    assert(std::holds_alternative<std::monostate>(tags[0][0]));
-    assert(std::holds_alternative<std::monostate>(tags[1][0]));
-    assert(std::holds_alternative<std::monostate>(tags[2][0]));
+    assert(std::holds_alternative<NullValue>(tags[0][0]));
+    assert(std::holds_alternative<NullValue>(tags[1][0]));
+    assert(std::holds_alternative<NullValue>(tags[2][0]));
 
     assert(std::get<std::string>(tags[0][1]) == "North");
     assert(std::get<int32_t>(tags[0][2]) == 100);
@@ -173,9 +173,9 @@ void test_generate_tags_bool_null_literals() {
     auto tags = tags_csv.generate();
 
     assert(tags.size() == 3 && "Expected 3 rows of tags");
-    assert(std::holds_alternative<std::monostate>(tags[0][0]));
-    assert(std::holds_alternative<std::monostate>(tags[1][0]));
-    assert(std::holds_alternative<std::monostate>(tags[2][0]));
+    assert(std::holds_alternative<NullValue>(tags[0][0]));
+    assert(std::holds_alternative<NullValue>(tags[1][0]));
+    assert(std::holds_alternative<NullValue>(tags[2][0]));
 
     assert(std::get<std::string>(tags[0][1]) == "North");
 

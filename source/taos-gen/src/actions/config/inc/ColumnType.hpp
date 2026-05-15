@@ -31,6 +31,16 @@ struct Geometry {
     std::string wkt; // e.g. "POINT(10 20)"
 };
 
+// NULL semantic: empty value, replaces the latest value with null
+struct NullValue {
+    bool operator==(const NullValue&) const { return true; }
+};
+
+// NONE semantic: data missing, do not overwrite the latest value
+struct NoneValue {
+    bool operator==(const NoneValue&) const { return true; }
+};
+
 enum class ColumnTypeTag {
     UNKNOWN,
     BOOL,
@@ -55,7 +65,8 @@ enum class ColumnTypeTag {
 };
 
 using ColumnType = std::variant<
-    std::monostate,       // null
+    NullValue,                // null (empty value, replaces latest)
+    NoneValue,                // none (data missing, keep previous value)
     bool,                 // bool
     int8_t,               // tinyint
     uint8_t,              // tinyint unsigned
@@ -90,8 +101,10 @@ struct fmt::formatter<ColumnType> {
             [&](auto&& value) {
                 using T = std::decay_t<decltype(value)>;
                 auto out = ctx.out();
-                if constexpr (std::is_same_v<T, std::monostate>) {
+                if constexpr (std::is_same_v<T, NullValue>) {
                     return fmt::format_to(out, "NULL");
+                } else if constexpr (std::is_same_v<T, NoneValue>) {
+                    return fmt::format_to(out, "NONE");
                 } else if constexpr (std::is_same_v<T, bool>) {
                     return fmt::format_to(out, "{}", value ? "true" : "false");
                 } else if constexpr (std::is_arithmetic_v<T>) {
