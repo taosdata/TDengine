@@ -726,6 +726,11 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
       } else {
         *action = SCHEMA_ACTION_CHANGE_COLUMN_SIZE;
       }
+      uDebug("SML:0x%" PRIx64 " smlGenerateSchemaAction key:\"%.*s\" found at index:%d, action:CHANGE_SIZE(isTag:%d)",
+             info->id, (int32_t)kv->keyLen, kv->key, *index, isTag);
+    } else {
+      uDebug("SML:0x%" PRIx64 " smlGenerateSchemaAction key:\"%.*s\" found at index:%d, action:NULL(no change, isTag:%d)",
+             info->id, (int32_t)kv->keyLen, kv->key, *index, isTag);
     }
   } else {
     if (isTag) {
@@ -733,6 +738,8 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
     } else {
       *action = SCHEMA_ACTION_ADD_COLUMN;
     }
+    uDebug("SML:0x%" PRIx64 " smlGenerateSchemaAction key:\"%.*s\" NOT found in schema, action:ADD(isTag:%d)",
+           info->id, (int32_t)kv->keyLen, kv->key, isTag);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -954,6 +961,14 @@ static int32_t changeMeta(SSmlHandle *info, SHashObj *hashTmp, SRequestConnInfo 
   taosMemoryFreeClear(*pTableMeta);
   SML_CHECK_CODE(catalogRefreshTableMeta(info->pCatalog, conn, pName, -1));
   SML_CHECK_CODE(catalogGetSTableMeta(info->pCatalog, conn, pName, pTableMeta));
+  uDebug("SML:0x%" PRIx64 " changeMeta after refresh table:%s uid:%" PRIu64 " sversion:%d numOfColumns:%d numOfTags:%d",
+         info->id, pName->tname, (*pTableMeta)->uid, (*pTableMeta)->sversion,
+         (*pTableMeta)->tableInfo.numOfColumns, (*pTableMeta)->tableInfo.numOfTags);
+  for (int32_t si = 0; si < (*pTableMeta)->tableInfo.numOfColumns + (*pTableMeta)->tableInfo.numOfTags; si++) {
+    uDebug("SML:0x%" PRIx64 "   schema[%d] name:%s type:%d bytes:%d colId:%d", info->id, si,
+           (*pTableMeta)->schema[si].name, (*pTableMeta)->schema[si].type,
+           (*pTableMeta)->schema[si].bytes, (*pTableMeta)->schema[si].colId);
+  }
 
 END:
   taosArrayDestroy(pColumns);
@@ -976,6 +991,9 @@ END:
 static int32_t smlProcessSchemaAction(SSmlHandle *info, SArray *cols, bool isTag, SRequestConnInfo *conn, STableMeta **tableMeta, SName *pName) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  uDebug("SML:0x%" PRIx64 " smlProcessSchemaAction table:%s isTag:%d colsSize:%d numOfColumns:%d numOfTags:%d",
+         info->id, pName->tname, isTag, (int32_t)taosArrayGetSize(cols),
+         (*tableMeta)->tableInfo.numOfColumns, (*tableMeta)->tableInfo.numOfTags);
   SHashObj *colHashTmp = taosHashInit((*tableMeta)->tableInfo.numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   SHashObj *tagHashTmp = taosHashInit((*tableMeta)->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   SML_CHECK_NULL(colHashTmp);
@@ -991,6 +1009,8 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SArray *cols, bool isTag
 
     SHashObj *schemaHashCheck = isTag ? colHashTmp : tagHashTmp;
     SHashObj *schemaHash = isTag ? tagHashTmp : colHashTmp;
+    uDebug("SML:0x%" PRIx64 " smlProcessSchemaAction j:%d key:\"%.*s\" isTag:%d schemaHashSize:%d",
+           info->id, j, (int32_t)kv->keyLen, kv->key, isTag, (int32_t)taosHashGetSize(schemaHash));
     if (taosHashGet(schemaHashCheck, kv->key, kv->keyLen) != NULL) {
       uError("SML:0x%" PRIx64 ", %s duplicated column %s", info->id, __FUNCTION__, kv->key);
       SML_CHECK_CODE(TSDB_CODE_PAR_DUPLICATED_COLUMN);
@@ -998,11 +1018,18 @@ static int32_t smlProcessSchemaAction(SSmlHandle *info, SArray *cols, bool isTag
     ESchemaAction action = SCHEMA_ACTION_NULL;
     SML_CHECK_CODE(smlGenerateSchemaAction((*tableMeta)->schema, schemaHash, kv, isTag, &action, info));
     if (action == SCHEMA_ACTION_NULL) {
+      uDebug("SML:0x%" PRIx64 " smlProcessSchemaAction j:%d key:\"%.*s\" action:NULL, skip", info->id, j,
+             (int32_t)kv->keyLen, kv->key);
       continue;
     }
+    uDebug("SML:0x%" PRIx64 " smlProcessSchemaAction j:%d key:\"%.*s\" action:%d, calling changeMeta",
+           info->id, j, (int32_t)kv->keyLen, kv->key, action);
     SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
 
     SML_CHECK_CODE(changeMeta(info, schemaHash, conn, kv, action, tableMeta, isTag, pName));
+    uDebug("SML:0x%" PRIx64 " smlProcessSchemaAction j:%d key:\"%.*s\" changeMeta done, numOfColumns:%d numOfTags:%d",
+           info->id, j, (int32_t)kv->keyLen, kv->key,
+           (*tableMeta)->tableInfo.numOfColumns, (*tableMeta)->tableInfo.numOfTags);
   }
 
 END:
@@ -1024,6 +1051,8 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
     SML_CHECK_NULL(kv);
     SSchema *sTmp = taosHashGet(hashTmp, kv->key, kv->keyLen);
     if (sTmp == NULL) {
+      uError("SML smlCheckMeta failed: column/tag \"%.*s\" (len:%d) not found in schema (schemaLen:%d)",
+             (int32_t)kv->keyLen, kv->key, (int32_t)kv->keyLen, length);
       SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
     }
     if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
@@ -1186,6 +1215,21 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     }
 
     if (needCheckMeta) {
+      uDebug("SML:0x%" PRIx64 " smlCheckMeta tableMeta uid:%" PRIu64 " suid:%" PRIu64
+             " sversion:%d tversion:%d numOfColumns:%d numOfTags:%d",
+             info->id, pTableMeta->uid, pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion,
+             pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags);
+      for (int32_t si = 0; si < pTableMeta->tableInfo.numOfColumns; si++) {
+        uDebug("SML:0x%" PRIx64 "   col[%d] name:%s type:%d bytes:%d colId:%d", info->id, si,
+               pTableMeta->schema[si].name, pTableMeta->schema[si].type, pTableMeta->schema[si].bytes,
+               pTableMeta->schema[si].colId);
+      }
+      for (int32_t si = 0; si < pTableMeta->tableInfo.numOfTags; si++) {
+        int32_t ti = pTableMeta->tableInfo.numOfColumns + si;
+        uDebug("SML:0x%" PRIx64 "   tag[%d] name:%s type:%d bytes:%d colId:%d", info->id, si,
+               pTableMeta->schema[ti].name, pTableMeta->schema[ti].type, pTableMeta->schema[ti].bytes,
+               pTableMeta->schema[ti].colId);
+      }
       SML_CHECK_CODE(smlCheckMeta(&(pTableMeta->schema[pTableMeta->tableInfo.numOfColumns]),
                                   pTableMeta->tableInfo.numOfTags, sTableData->tags));
       SML_CHECK_CODE(smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols));
