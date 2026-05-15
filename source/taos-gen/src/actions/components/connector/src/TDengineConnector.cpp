@@ -326,12 +326,17 @@ bool TDengineConnector::execute(const SchemalessInsertData& data) {
             "Please upgrade to a version that supports schemaless insert.");
     }
 
-    int32_t totalRows = 0;
+    if (data.total_rows <= 0) {
+        LogUtils::warn("{} SchemalessInsertData has non-positive total_rows: {}", display_name_, data.total_rows);
+        return true;
+    }
+
+    int32_t total_rows = 0;
     TAOS_RES* res = taos_schemaless_insert_raw_ttl_with_reqid_(
         conn_,
         const_cast<char*>(data.lines.data()),
         static_cast<int>(data.lines.size()),
-        &totalRows,
+        &total_rows,
         data.protocol,
         data.precision,
         0,      // ttl: use default

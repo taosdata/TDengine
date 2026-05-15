@@ -382,6 +382,45 @@ static void test_schemaless_insert_empty_lines_child() {
     std::cout << "[schemaless_empty] PASSED (no crash)\n";
 }
 
+static void test_schemaless_insert_non_positive_rows_child() {
+    TDengineConfig cfg;
+    cfg.host = "127.0.0.1";
+    cfg.port = 6030;
+    cfg.user = "root";
+    cfg.password = "taosdata";
+    cfg.database = "";
+
+    TDengineConnector conn(cfg, "native", "TDengine");
+    const std::string db = "test_schemaless_non_positive_rows";
+    if (!try_connect_tdengine(conn, db)) {
+        std::cout << "[schemaless_non_positive_rows] SKIPPED: TDengine not available\n";
+        return;
+    }
+
+    SchemalessInsertData zero_rows;
+    zero_rows.lines = "";
+    zero_rows.total_rows = 0;
+    zero_rows.protocol = TSDB_SML_LINE_PROTOCOL;
+    zero_rows.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    bool ok = conn.execute(zero_rows);
+    (void)ok;
+    assert(ok && "Schemaless insert should return true when total_rows == 0");
+
+    SchemalessInsertData negative_rows;
+    negative_rows.lines = "cpu,host=h1 usage=50.0 1609459200000000000\n";
+    negative_rows.total_rows = -1;
+    negative_rows.protocol = TSDB_SML_LINE_PROTOCOL;
+    negative_rows.precision = TSDB_SML_TIMESTAMP_NANO_SECONDS;
+
+    ok = conn.execute(negative_rows);
+    (void)ok;
+    assert(ok && "Schemaless insert should return true when total_rows < 0");
+
+    conn.execute(std::string("DROP DATABASE IF EXISTS " + db));
+    std::cout << "[schemaless_non_positive_rows] PASSED\n";
+}
+
 static void test_schemaless_insert_invalid_format_child() {
     TDengineConfig cfg;
     cfg.host = "127.0.0.1";
@@ -498,6 +537,9 @@ int main(int argc, char** argv) {
         if (arg == "--mode=schemaless_empty") {
             test_schemaless_insert_empty_lines_child(); return 0;
         }
+        if (arg == "--mode=schemaless_non_positive_rows") {
+            test_schemaless_insert_non_positive_rows_child(); return 0;
+        }
         if (arg == "--mode=schemaless_invalid") {
             test_schemaless_insert_invalid_format_child(); return 0;
         }
@@ -538,6 +580,7 @@ int main(int argc, char** argv) {
         "schemaless_basic",
         "schemaless_multi",
         "schemaless_empty",
+        "schemaless_non_positive_rows",
         "schemaless_invalid",
         "schemaless_not_connected",
         "schemaless_large",
