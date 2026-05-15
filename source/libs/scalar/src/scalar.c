@@ -809,7 +809,16 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
-      SCL_ERR_RET(sclInitParam(node, param, ctx, rowNum));
+      // setZeroRowsResValue rewrites node->type to QUERY_NODE_VALUE so the
+      // recursive sclInitParam below dispatches the literal-value branch.
+      // In stream mode the next per-event walker pass must re-dispatch
+      // this REMOTE_ZERO_ROWS case (otherwise EXISTS / NOT EXISTS replay
+      // event 1's row count forever); restore the type after the read.
+      int32_t code = sclInitParam(node, param, ctx, rowNum);
+      if (ctx->isStream) {
+        pRemote->val.node.type = QUERY_NODE_REMOTE_ZERO_ROWS;
+      }
+      SCL_ERR_RET(code);
 
       break;
     }      

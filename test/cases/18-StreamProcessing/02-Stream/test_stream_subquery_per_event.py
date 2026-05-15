@@ -743,3 +743,136 @@ class TestStreamSubqueryPerEvent:
                 and tdSql.compareData(1, 0, 90)
                 and tdSql.compareData(2, 0, 100),
             )
+
+    def test_exists_subquery(self):
+        """REMOTE_ZERO_ROWS (EXISTS) must be refreshed per stream event.
+
+        `EXISTS (subquery)` is rewritten by the planner to a
+        REMOTE_ZERO_ROWS node holding a 0/1 row count. handleRemoteZeroRowsRes
+        forces the AST node type to QUERY_NODE_VALUE after fetching, so the
+        scalar walker stops re-dispatching the case and replays the cached
+        row count for every later event. The fix restores the
+        QUERY_NODE_REMOTE_ZERO_ROWS type in stream mode so the next trigger
+        re-fetches.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-14 Created to pin REMOTE_ZERO_ROWS per-event refetch
+        """
+        streams = [self.ExistsPerEvent()]
+        tdStream.checkAll(streams)
+
+    class ExistsPerEvent(StreamCheckItem):
+        def __init__(self):
+            self.db = "test_subq_exists"
+
+        def _wait_seed_visible(self, count_sql, label, timeout=15):
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    tdSql.query(count_sql)
+                    if tdSql.getData(0, 0) >= 1:
+                        return
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            raise RuntimeError(
+                f"{label} seed row did not become queryable before CREATE STREAM"
+            )
+
+        def create(self):
+            tdLog.info(f"=== create db {self.db} ===")
+            tdSql.execute(f"drop database if exists {self.db}")
+            for _ in range(60):
+                try:
+                    tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+                    break
+                except Exception as e:
+                    if 'dropping' in str(e):
+                        time.sleep(1)
+                        continue
+                    raise
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute("create table linea  (ts timestamp, p int)")
+            tdSql.execute("create table data   (ts timestamp, v int)")
+            tdSql.execute("create table gate   (ts timestamp, on_off int)")
+
+            tdSql.execute(
+                "insert into data values "
+                "('2026-05-01 00:00:00', 10),"
+                "('2026-05-01 00:00:01', 20),"
+                "('2026-05-01 00:00:02', 30)"
+            )
+            # Seed gate so EXISTS resolves to TRUE at CREATE STREAM.
+            tdSql.execute(
+                "insert into gate values ('2026-05-01 00:00:00', 1)"
+            )
+            self._wait_seed_visible(
+                "select count(*) from gate", "gate",
+            )
+
+            tdLog.info("=== create stream sum_when_gate_open ===")
+            # Use EXISTS inside the projection so every trigger event emits a
+            # row regardless of gate state. flag is 1 when gate has rows,
+            # 0 otherwise.  Without the REMOTE_ZERO_ROWS type-restore fix,
+            # the AST node is rewritten to QUERY_NODE_VALUE on event 1 and
+            # the walker stops re-dispatching the case, so event 2 keeps
+            # replaying flag=1 even after the gate is emptied.
+            tdSql.execute(
+                f"create stream sum_when_gate_open count_window(1, 1, p) "
+                f"from linea "
+                f"into r as "
+                f"select _twstart as ts, "
+                f"case when exists (select * from gate) "
+                f"then 1 else 0 end as flag "
+                f"from data"
+            )
+
+        def insert1(self):
+            tdLog.info("=== event 1: gate non-empty -> flag=1 ===")
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:00', 1)"
+            )
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f"select flag from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, 1),
+            )
+
+        def insert2(self):
+            tdLog.info("=== event 2: empty gate -> flag must be 0 ===")
+            tdSql.execute("delete from gate")
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:01', 1)"
+            )
+
+        def check2(self):
+            sql = f"select flag from {self.db}.r order by ts"
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                tdSql.query(sql)
+                if tdSql.getRows() >= 2:
+                    break
+                time.sleep(2)
+            tdSql.query(sql)
+            rows = tdSql.getRows()
+            for i in range(rows):
+                tdLog.info(f"check2 row{i} flag={tdSql.getData(i, 0)!r}")
+            assert rows == 2, (
+                f"event 2 produced no new row (rows={rows}); stream stalled "
+                f"or output was suppressed"
+            )
+            v = tdSql.getData(1, 0)
+            assert v == 0, (
+                f"event 2 emitted flag={v} (expected 0); REMOTE_ZERO_ROWS "
+                f"node replayed event 1's cached row count instead of "
+                f"refetching after the gate was emptied"
+            )
