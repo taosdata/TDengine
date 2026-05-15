@@ -2063,6 +2063,184 @@ static char** getBackupStbNames(const char *dbName, int *code) {
 
 
 //
+// -------------------------------------- STREAM SQL -----------------------------------------
+//
+
+// restore stream create SQL
+// Replace all occurrences of oldPat with newPat in src, write result to dst.
+// Returns true if at least one replacement was made.
+static bool replaceAllSubstr(const char *src, const char *oldPat, const char *newPat,
+                              char *dst, int dstSize) {
+    int oldLen = strlen(oldPat);
+    int newLen = strlen(newPat);
+    char *d = dst;
+    int left = dstSize - 1;
+    const char *s = src;
+    bool replaced = false;
+    const char *pos;
+
+    while ((pos = strstr(s, oldPat)) != NULL && left > 0) {
+        int chunk = (int)(pos - s);
+        if (chunk > left) chunk = left;
+        memcpy(d, s, chunk);
+        d += chunk; left -= chunk;
+        if (newLen > left) break;
+        memcpy(d, newPat, newLen);
+        d += newLen; left -= newLen;
+        s = pos + oldLen;
+        replaced = true;
+    }
+    int tail = strlen(s);
+    if (tail > left) tail = left;
+    memcpy(d, s, tail);
+    d[tail] = '\0';
+    return replaced;
+}
+
+static int restoreStreamsSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+    const char *targetDb = argRenameDb(dbName);
+
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_STREAMSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    if (!taosCheckExistFile(sqlFile)) {
+        logDebug("stream.sql not found, skip streams: %s", sqlFile);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    char *content = readFileContent(sqlFile, NULL);
+    if (content == NULL) {
+        logError("read stream.sql failed: %s", sqlFile);
+        return TSDB_CODE_BCK_READ_FILE_FAILED;
+    }
+
+    TAOS *conn = getConnection(&code);
+    if (conn == NULL) {
+        taosMemoryFree(content);
+        return code;
+    }
+
+    // stream.sql contains CREATE STREAM statements, one per line
+    char *line = content;
+    char *next = NULL;
+    int streamCount = 0;
+
+    while (line && *line) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        next = strchr(line, '\n');
+        if (next) {
+            *next = '\0';
+            next++;
+        }
+
+        // trim
+        while (*line == ' ' || *line == '\r') line++;
+        int lineLen = strlen(line);
+        while (lineLen > 0 && (line[lineLen-1] == ' ' || line[lineLen-1] == '\r')) {
+            line[--lineLen] = '\0';
+        }
+
+        if (lineLen > 0) {
+            // Build final DDL in renamedBuf:
+            //  1) Ensure stream name is db-qualified (for WebSocket compatibility)
+            //  2) Replace old dbName with targetDb when -W rename is active
+            char *execSql = line;
+            char renamedBuf[TSDB_MAX_SQL_LEN];
+
+            // Step 1: qualify stream name with targetDb if not already db-qualified.
+            // DDL format: "create stream [IF NOT EXISTS] <name> ..."
+            // Find the stream name token after "create stream"
+            const char *csPrefix = "create stream ";
+            char *csPos = taosStrCaseStr(line, csPrefix);
+            if (csPos) {
+                int hdrLen = (int)(csPos - line) + strlen(csPrefix);
+                // skip optional "if not exists "
+                const char *afterCS = line + hdrLen;
+                const char *ifne = "if not exists ";
+                if (strncasecmp(afterCS, ifne, strlen(ifne)) == 0) {
+                    hdrLen += strlen(ifne);
+                    afterCS = line + hdrLen;
+                }
+                // Check if stream name already has a '.' (db-qualified)
+                const char *nameEnd = afterCS;
+                while (*nameEnd && *nameEnd != ' ' && *nameEnd != '\t') nameEnd++;
+                bool alreadyQualified = (memchr(afterCS, '.', nameEnd - afterCS) != NULL);
+                if (!alreadyQualified) {
+                    // Insert db-qualifier before stream name.
+                    // Use backtick-quoted form if the name itself is backtick-quoted.
+                    int n;
+                    if (*afterCS == '`') {
+                        n = snprintf(renamedBuf, sizeof(renamedBuf), "%.*s`%s`.%s",
+                                     hdrLen, line, targetDb, afterCS);
+                    } else {
+                        n = snprintf(renamedBuf, sizeof(renamedBuf), "%.*s%s.%s",
+                                     hdrLen, line, targetDb, afterCS);
+                    }
+                    if (n > 0 && n < (int)sizeof(renamedBuf)) {
+                        execSql = renamedBuf;
+                    }
+                }
+            }
+
+            // Step 2: if rename is configured, replace old dbName references with targetDb.
+            // Handle both backtick-quoted (`dbName`.) and unquoted (dbName.) patterns.
+            if (strcmp(targetDb, dbName) != 0) {
+                char *input = execSql;
+                char tmpBuf[TSDB_MAX_SQL_LEN];
+
+                // First pass: backtick-quoted  `dbName`. -> `targetDb`.
+                char oldBt[256], newBt[256];
+                snprintf(oldBt, sizeof(oldBt), "`%s`.", dbName);
+                snprintf(newBt, sizeof(newBt), "`%s`.", targetDb);
+                if (replaceAllSubstr(input, oldBt, newBt, tmpBuf, sizeof(tmpBuf))) {
+                    strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
+                    renamedBuf[sizeof(renamedBuf) - 1] = '\0';
+                    execSql = renamedBuf;
+                    input = execSql;
+                }
+
+                // Second pass: unquoted  dbName. -> targetDb.
+                char oldPat[256], newPat[256];
+                snprintf(oldPat, sizeof(oldPat), "%s.", dbName);
+                snprintf(newPat, sizeof(newPat), "%s.", targetDb);
+                if (replaceAllSubstr(input, oldPat, newPat, tmpBuf, sizeof(tmpBuf))) {
+                    strncpy(renamedBuf, tmpBuf, sizeof(renamedBuf) - 1);
+                    renamedBuf[sizeof(renamedBuf) - 1] = '\0';
+                    execSql = renamedBuf;
+                }
+            }
+
+            TAOS_RES *res = taos_query(conn, execSql);
+            int rc = taos_errno(res);
+
+            if (rc == TSDB_CODE_SUCCESS) {
+                streamCount++;
+            } else if (rc == TSDB_CODE_MND_STREAM_ALREADY_EXIST) {
+                logWarn("stream already exists(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                streamCount++;
+            } else {
+                logError("create stream failed(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                code = rc;
+            }
+            if (res) taos_free_result(res);
+        }
+
+        line = next;
+    }
+
+    logInfo("restored %d stream(s) for db: %s", streamCount, dbName);
+    releaseConnection(conn);
+    taosMemoryFree(content);
+    return code;
+}
+
+
+//
 // -------------------------------------- MAIN -----------------------------------------
 //
 
@@ -2174,6 +2352,16 @@ int restoreDatabaseMeta(const char *dbName) {
     code = restoreVtbSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         logError("restore vtb sql failed(%d): %s", code, dbName);
+        return code;
+    }
+
+    //
+    // 6. Restore stream SQL (stream.sql)
+    //    Must run after all tables are created since streams depend on source/target tables
+    //
+    code = restoreStreamsSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore stream sql failed(%d): %s", code, dbName);
         return code;
     }
 

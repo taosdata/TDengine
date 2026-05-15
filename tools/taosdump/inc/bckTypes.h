@@ -33,8 +33,9 @@ typedef enum BackFileType {
     BACK_FILE_NTBSQL = 8,
     BACK_DIR_NTBDATA = 9,
     BACK_FILE_VTBSQL = 10,
-    BACK_DIR_VTAG     = 11,   // {outdir}/{db}/vtags/
-    BACK_FILE_VTAG    = 12    // {outdir}/{db}/vtags/{vstbName}_data{N}.{ext}
+    BACK_DIR_VTAG        = 11,   // {outdir}/{db}/vtags/
+    BACK_FILE_VTAG       = 12,   // {outdir}/{db}/vtags/{vstbName}_data{N}.{ext}
+    BACK_FILE_STREAMSQL  = 13    // {outdir}/{db}/stream.sql
 } BackFileType;
 
 typedef enum StorageFormat {

@@ -1796,6 +1796,7 @@ if(${BUILD_LIBSASL})      # {
 endif(${BUILD_LIBSASL})   # }
 endif()
 
+if(TD_TAOS_TOOLS)
 # arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
 # Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
 # Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
@@ -1962,3 +1963,4 @@ ExternalProject_Add(ext_arrow
     VERBATIM
 )
 add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
+endif(TD_TAOS_TOOLS)

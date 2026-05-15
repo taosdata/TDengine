@@ -144,7 +144,7 @@ class TestTaosBackupFormat:
         tdLog.info(f"  [{label}] ~OK  ({v1}, rel_diff={diff/base:.2e})")
 
     def _crcOf(self, sql, col_idx=0):
-        """Fetch one column from *sql* and return CRC32 of its packed content.
+        """Fetch one column from *sql* and return (CRC32, row_count, first_diff_detail).
 
         Each value is serialised as:
             NULL  → b'\\x00'
@@ -167,7 +167,7 @@ class TestTaosBackupFormat:
             else:
                 buf += str(val).encode('utf-8')
             buf += b'\xff\xff'   # row separator
-        return zlib.crc32(bytes(buf)) & 0xFFFFFFFF
+        return zlib.crc32(bytes(buf)) & 0xFFFFFFFF, len(rows or [])
 
     def checkDbEqual(self, src_db, dst_db, label):
         """Full correctness verification: src_db vs dst_db for the meters STB."""
@@ -226,18 +226,35 @@ class TestTaosBackupFormat:
         #    Data is fetched in deterministic ORDER BY tbname, ts order and
         #    packed into a byte buffer; CRC32 checksums must match exactly.
         for col in self._VAR_COLS:
-            crc1 = self._crcOf(
+            crc1, cnt1 = self._crcOf(
                 f"SELECT {col} FROM {src_db}.{stb} ORDER BY tbname, ts"
             )
-            crc2 = self._crcOf(
+            crc2, cnt2 = self._crcOf(
                 f"SELECT {col} FROM {dst_db}.{stb} ORDER BY tbname, ts"
             )
             if crc1 != crc2:
+                # Fetch a few rows around the first difference to aid debugging
+                detail = ""
+                try:
+                    r1 = tdSql.getResult(
+                        f"SELECT tbname, ts, {col} FROM {src_db}.{stb} ORDER BY tbname, ts LIMIT 20"
+                    )
+                    r2 = tdSql.getResult(
+                        f"SELECT tbname, ts, {col} FROM {dst_db}.{stb} ORDER BY tbname, ts LIMIT 20"
+                    )
+                    for idx, (a, b) in enumerate(zip(r1 or [], r2 or [])):
+                        if a != b:
+                            detail = (f"  first diff at row {idx}: "
+                                      f"src={a!r} dst={b!r}")
+                            break
+                except Exception:
+                    pass
                 tdLog.exit(
                     f"MISMATCH [{label}] CRC data col '{col}': "
-                    f"{crc1:#010x} vs {crc2:#010x}"
+                    f"{crc1:#010x} vs {crc2:#010x} "
+                    f"(src_rows={cnt1} dst_rows={cnt2})\n{detail}"
                 )
-            tdLog.info(f"  [{label}] CRC({col}) OK  (crc={crc1:#010x})")
+            tdLog.info(f"  [{label}] CRC({col}) OK  (crc={crc1:#010x}, rows={cnt1})")
 
         # 7. SUM of integer tags (exact) + float/double tags (approximate)
         for tag in self._INT_TAGS:
@@ -265,20 +282,36 @@ class TestTaosBackupFormat:
         #    DISTINCT tbname + tag, ordered by tbname, so each CTB contributes
         #    exactly one entry regardless of row count.
         for tag in self._VAR_TAGS:
-            crc1 = self._crcOf(
+            crc1, cnt1 = self._crcOf(
                 f"SELECT DISTINCT tbname, {tag} FROM {src_db}.{stb} ORDER BY tbname",
                 col_idx=1
             )
-            crc2 = self._crcOf(
+            crc2, cnt2 = self._crcOf(
                 f"SELECT DISTINCT tbname, {tag} FROM {dst_db}.{stb} ORDER BY tbname",
                 col_idx=1
             )
             if crc1 != crc2:
+                detail = ""
+                try:
+                    r1 = tdSql.getResult(
+                        f"SELECT DISTINCT tbname, {tag} FROM {src_db}.{stb} ORDER BY tbname"
+                    )
+                    r2 = tdSql.getResult(
+                        f"SELECT DISTINCT tbname, {tag} FROM {dst_db}.{stb} ORDER BY tbname"
+                    )
+                    for idx, (a, b) in enumerate(zip(r1 or [], r2 or [])):
+                        if a != b:
+                            detail = (f"  first diff at row {idx}: "
+                                      f"src={a!r} dst={b!r}")
+                            break
+                except Exception:
+                    pass
                 tdLog.exit(
                     f"MISMATCH [{label}] CRC tag '{tag}': "
-                    f"{crc1:#010x} vs {crc2:#010x}"
+                    f"{crc1:#010x} vs {crc2:#010x} "
+                    f"(src_ctbs={cnt1} dst_ctbs={cnt2})\n{detail}"
                 )
-            tdLog.info(f"  [{label}] CRC(tag:{tag}) OK  (crc={crc1:#010x})")
+            tdLog.info(f"  [{label}] CRC(tag:{tag}) OK  (crc={crc1:#010x}, ctbs={cnt1})")
 
         # 10. Per-CTB tag snapshot (20 rows × 4 int tags); ORDER BY guarantees
         #     deterministic comparison.
@@ -323,6 +356,7 @@ class TestTaosBackupFormat:
         if "SUCCESS" not in out1:
             tdLog.exit(f"Restore ({fmt}/STMT1 -> {dst_v1}) failed:\n{out1[:600]}")
         tdLog.info(f"restore ({fmt}/STMT1) SUCCESS")
+        tdSql.execute(f"FLUSH DATABASE {dst_v1}")
         self.checkDbEqual(SRC_DB, dst_v1, f"{fmt}/STMT1")
 
         # -- Restore STMT2 ---------------------------------------------------
@@ -335,6 +369,7 @@ class TestTaosBackupFormat:
         if "SUCCESS" not in out2:
             tdLog.exit(f"Restore ({fmt}/STMT2 -> {dst_v2}) failed:\n{out2[:600]}")
         tdLog.info(f"restore ({fmt}/STMT2) SUCCESS")
+        tdSql.execute(f"FLUSH DATABASE {dst_v2}")
         self.checkDbEqual(SRC_DB, dst_v2, f"{fmt}/STMT2")
 
         tdLog.info(f"doFormatTest({fmt}) .......................... [passed]")
@@ -409,6 +444,7 @@ class TestTaosBackupFormat:
         out2 = "\n".join(rlist2) if rlist2 else ""
         if "SUCCESS" not in out2:
             tdLog.exit(f"restore (buffer overflow test) failed:\n{out2[:400]}")
+        tdSql.execute(f"FLUSH DATABASE {dst}")
         tdSql.query(f"select count(*) from {dst}.t1")
         tdSql.checkData(0, 0, ROWS)
 
@@ -461,30 +497,40 @@ class TestTaosBackupFormat:
         # the backup hangs indefinitely on a dead adapter (connection pool spin).
         self._wait_adapter_ready()
 
-        # Step 1 – generate data
-        tdLog.info("Step 1: insert data via taosBenchmark")
-        self.insertData()
+        try:
+            # Step 1 – generate data
+            tdLog.info("Step 1: insert data via taosBenchmark")
+            self.insertData()
 
-        # Verify source data is present
-        tdSql.query(f"SELECT COUNT(*) FROM {SRC_DB}.{STB}")
-        src_rows = tdSql.getData(0, 0)
-        if src_rows == 0:
-            tdLog.exit("No data in source DB after benchmark insert")
-        tdLog.info(f"Source rows: {src_rows}")
+            # Verify source data is present
+            tdSql.query(f"SELECT COUNT(*) FROM {SRC_DB}.{STB}")
+            src_rows = tdSql.getData(0, 0)
+            if src_rows == 0:
+                tdLog.exit("No data in source DB after benchmark insert")
+            tdLog.info(f"Source rows: {src_rows}")
 
-        # Step 2-4 – binary format
-        tdLog.info("Step 2-4: binary format")
-        self.doFormatTest("binary",  "./taosbackuptest/tmpdir_fmt_binary")
+            # Step 2-4 – binary format
+            tdLog.info("Step 2-4: binary format")
+            self.doFormatTest("binary",  "./taosbackuptest/tmpdir_fmt_binary")
 
-        # Step 5-7 – parquet format
-        tdLog.info("Step 5-7: parquet format")
-        self.doFormatTest("parquet", "./taosbackuptest/tmpdir_fmt_parquet")
+            # Step 5-7 – parquet format
+            tdLog.info("Step 5-7: parquet format")
+            self.doFormatTest("parquet", "./taosbackuptest/tmpdir_fmt_parquet")
 
-        # Step 8 – large binary column triggers writeTaosFile buffer-overflow path
-        tdLog.info("Step 8: binary buffer overflow path in storageTaos.c")
-        self.do_binary_buffer_overflow_test()
+            # Step 8 – large binary column triggers writeTaosFile buffer-overflow path
+            tdLog.info("Step 8: binary buffer overflow path in storageTaos.c")
+            self.do_binary_buffer_overflow_test()
 
-        tdLog.info("test_taosbackup_format ...................... [passed]")
+            tdLog.info("test_taosbackup_format ...................... [passed]")
+        finally:
+            # Cleanup databases even on failure so subsequent tests do not
+            # inherit leftover state that may cause hangs or timeouts.
+            for db in ["fmt_bin_v1", "fmt_bin_v2", "fmt_par_v1", "fmt_par_v2",
+                       "fmt_buf_ovflow", "fmt_buf_ovflow_r"]:
+                try:
+                    tdSql.execute(f"drop database if exists {db}")
+                except Exception:
+                    pass
 
     # -----------------------------------------------------------------------
     # Parquet-specific: NULL tag values and TIMESTAMP tag type
@@ -517,6 +563,8 @@ class TestTaosBackupFormat:
 
         """
         tdLog.info("=== test_parquet_null_and_timestamp_tags START ===")
+
+        self._wait_adapter_ready()
 
         src_db = "fmt_parq_tags_src"
         dst_v1 = "fmt_parq_tags_v1"

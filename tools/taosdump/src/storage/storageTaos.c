@@ -72,6 +72,7 @@ int writeTaosFile(TaosFile* taosFile, void *data, int len) {
     return TSDB_CODE_SUCCESS;
 }
 
+/* reserved for future
 TaosFile* createTaosFile(const char *fileName, TAOS_FIELD_E* fields, int numFields, int *code) {
     TaosFile* taosFile = (TaosFile*)taosMemoryMalloc(sizeof(TaosFile) + sizeof(FieldInfo) * numFields);
     if (taosFile == NULL) {
@@ -129,6 +130,7 @@ TaosFile* createTaosFile(const char *fileName, TAOS_FIELD_E* fields, int numFiel
 
     return taosFile;
 }
+*/
 
 int closeTaosFile(TaosFile* taosFile) {
     if (taosFile == NULL) {
