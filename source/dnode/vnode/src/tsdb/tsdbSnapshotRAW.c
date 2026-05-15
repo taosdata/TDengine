@@ -49,6 +49,7 @@ typedef struct STsdbSnapRAWReader {
   // missing file filter
   SHashObj* missingFileHash;  // key=(fid,ftype) — per-file filtering (not owned, do not free)
   SHashObj* fidModeHash;      // key=fid, val=uint8_t mode (not owned, do not free)
+  SHashObj* missingSttHash;   // key=(fid,cid) — per-STT filtering (not owned, do not free)
   int32_t*  missingFids;      // FID set for FID-level pre-filtering (owned, copy)
   int32_t   missingFidCount;
 } STsdbSnapRAWReader;
@@ -67,8 +68,8 @@ static bool tsdbFidInMissingSet(int32_t fid, const int32_t* missingFids, int32_t
 }
 
 int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRanges, SHashObj* missingFileHash,
-                              SHashObj* fidModeHash, const int32_t* missingFids, int32_t missingFidCount,
-                              STsdbSnapRAWReader** reader) {
+                              SHashObj* fidModeHash, SHashObj* missingSttHash, const int32_t* missingFids,
+                              int32_t missingFidCount, STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -82,6 +83,7 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, void* pRan
   // set missing file filter (hash is borrowed, not owned)
   reader[0]->missingFileHash = missingFileHash;
   reader[0]->fidModeHash = fidModeHash;
+  reader[0]->missingSttHash = missingSttHash;
 
   // copy missing fid filter
   if (missingFids != NULL && missingFidCount > 0) {
@@ -189,11 +191,13 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       // per-file filter: skip stt files not in missing set (only when FILE_LEVEL mode)
-      if (!fsetLevel && reader->missingFileHash != NULL) {
-        int64_t mfKey = tsdbMissingFileKey(reader->ctx->fset->fid, TSDB_FTYPE_STT);
-        if (taosHashGet(reader->missingFileHash, &mfKey, sizeof(mfKey)) == NULL) {
-          tsdbDebug("vgId:%d, RAW skip stt file fid:%d not in missing set", TD_VID(reader->tsdb->pVnode),
-                    reader->ctx->fset->fid);
+      if (!fsetLevel && reader->missingSttHash != NULL) {
+        int64_t sttCid = fobj->f->cid;
+        char    sttKey[TSDB_STT_HASH_KEY_LEN];
+        tsdbSttHashKey(reader->ctx->fset->fid, sttCid, sttKey);
+        if (taosHashGet(reader->missingSttHash, sttKey, sizeof(sttKey)) == NULL) {
+          tsdbDebug("vgId:%d, RAW skip stt file fid:%d cid:%" PRId64 " not in missing set",
+                    TD_VID(reader->tsdb->pVnode), reader->ctx->fset->fid, sttCid);
           continue;
         }
       }

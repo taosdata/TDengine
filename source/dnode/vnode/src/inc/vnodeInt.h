@@ -343,8 +343,8 @@ int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter, bool rollback);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapRAWReader ========================================
 int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, void* pRanges, SHashObj* missingFileHash,
-                              SHashObj* fidModeHash, const int32_t* missingFids, int32_t missingFidCount,
-                              STsdbSnapRAWReader** ppReader);
+                              SHashObj* fidModeHash, SHashObj* missingSttHash, const int32_t* missingFids,
+                              int32_t missingFidCount, STsdbSnapRAWReader** ppReader);
 void    tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
 int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
 // STsdbSnapRAWWriter ========================================
