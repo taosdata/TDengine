@@ -267,21 +267,30 @@ class TestStreamSubqueryPerEvent:
             )
 
         def check4(self):
-            # Don't poll-with-timeout here: when event 4 is correctly
-            # suppressed the row count stays at 3 and a fixed deadline
-            # would burn ~60s on the passing path.  Just snapshot the
-            # current count and defer the stale-(1,1) verification to
-            # check5: by the time event 5's (2,2) row lands, any output
-            # event 4 was going to emit has settled before it.
+            # Validate the event-4 suppression against the known-good
+            # row count captured after event 3, rather than taking a new
+            # post-event-4 baseline.  This avoids missing a stale row
+            # that is already present when we look, and also catches a
+            # delayed event-4 row before event 5 is driven.
             sql = (
                 f"select acumulado_cumple, acumulado_total "
                 f"from {self.db}.resultado_descarga order by ts"
             )
-            tdSql.query(sql)
-            self._rows_pre_e5 = tdSql.getRows()
+            expected_rows = self._rows_after_e3
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                tdSql.query(sql)
+                rows = tdSql.getRows()
+                if rows != expected_rows:
+                    raise AssertionError(
+                        f"event 4 unexpectedly produced output before event 5: "
+                        f"expected {expected_rows} rows, got {rows}"
+                    )
+                time.sleep(0.1)
+            self._rows_pre_e5 = expected_rows
             tdLog.info(
-                f"=== check4 snapshot: rows={self._rows_pre_e5} "
-                f"(event 4 stale-(1,1) check deferred to check5) ==="
+                f"=== check4 verified no event-4 output: rows={self._rows_pre_e5} "
+                f"(stale-(1,1) check remains deferred to check5) ==="
             )
 
         def insert5(self):
