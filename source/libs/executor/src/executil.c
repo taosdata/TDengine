@@ -3247,7 +3247,11 @@ static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRa
   // collector aborts when it sees any uncollectable child.
   if (isStream && condHasRemoteValue(*pPrimaryKeyCond)) {
     *isStrict = false;
-    TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
+    // Preserve the incoming window (seeded by initQueryTableDataCond from
+    // scanRange/winRange).  We will intersect any literal bound extracted
+    // below with it; if extraction yields no bound the incoming range
+    // remains as-is rather than being widened to a full scan.
+    STimeWindow incoming = *pTimeRange;
 
     SNode* pProbe = NULL;
     int32_t cloneCode = nodesCloneNode(*pPrimaryKeyCond, &pProbe);
@@ -3283,9 +3287,17 @@ static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRa
       return TSDB_CODE_SUCCESS;
     }
 
+    STimeWindow extracted = TSWINDOW_INITIALIZER;
     bool probeStrict = true;
-    int32_t code = filterGetTimeRange(pProbe, pTimeRange, &probeStrict, NULL);
+    int32_t code = filterGetTimeRange(pProbe, &extracted, &probeStrict, NULL);
     nodesDestroyNode(pProbe);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Intersect the extracted literal range with the incoming window.
+      pTimeRange->skey = TMAX(incoming.skey, extracted.skey);
+      pTimeRange->ekey = TMIN(incoming.ekey, extracted.ekey);
+    } else {
+      *pTimeRange = incoming;
+    }
     // Force isStrict=false: the residual remote predicate still has to
     // be evaluated by the runtime filter on every event.
     *isStrict = false;
