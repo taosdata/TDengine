@@ -972,12 +972,11 @@ if(NOT TD_WINDOWS)       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=-fPIC" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=-fPIC -Wno-implicit-function-declaration" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
                     --without-librtmp #--enable-debug
-                    CFLAGS=-Wno-implicit-function-declaration
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND
