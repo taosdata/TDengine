@@ -208,7 +208,7 @@ Displays the data distribution information of the table.
 
 Example explanation:
 
-Statement: show table distributed d0\G;   Displays the BLOCK distribution of table d0 vertically
+Statement: `show table distributed d0\G;`   Displays the BLOCK distribution of table d0 vertically
 
 <details>
  <summary>Display example</summary>

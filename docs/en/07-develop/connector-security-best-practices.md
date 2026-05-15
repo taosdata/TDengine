@@ -762,30 +762,30 @@ Before production rollout, verify the following controls:
 
 ### Transport Encryption
 
-- [ ] **Enable SSL/TLS**: all JDBC/REST/TMQ connections use encrypted transport (`useSSL=true` or equivalent).
-- [ ] **Certificate validation**: do not skip certificate verification in production.
-- [ ] **Strong ciphers**: TLS >= 1.2 and weak ciphers disabled (for example RC4, DES).
+- **Enable SSL/TLS**: all JDBC/REST/TMQ connections use encrypted transport (`useSSL=true` or equivalent).
+- **Certificate validation**: do not skip certificate verification in production.
+- **Strong ciphers**: TLS >= 1.2 and weak ciphers disabled (for example RC4, DES).
 
 ### Token Management
 
-- [ ] **Least privilege**: grant only required permissions.
-- [ ] **Reasonable TTL**: not more than 7 days; 24 hours recommended.
-- [ ] **No plaintext storage**: avoid storing tokens in plaintext in code/config.
-- [ ] **Secret management**: use KMS/Vault or equivalent.
-- [ ] **Regular rotation**: rotate automatically before expiration.
+- **Least privilege**: grant only required permissions.
+- **Reasonable TTL**: not more than 7 days; 24 hours recommended.
+- **No plaintext storage**: avoid storing tokens in plaintext in code/config.
+- **Secret management**: use KMS/Vault or equivalent.
+- **Regular rotation**: rotate automatically before expiration.
 
 ### Operations Security
 
-- [ ] **Audit logs**: record token creation/use/revocation.
-- [ ] **Monitoring and alerts**: token expiration, rotation failure, and connection anomalies.
-- [ ] **Incident response**: be able to revoke leaked tokens quickly.
-- [ ] **Exposure isolation**: use separate tokens per application.
+- **Audit logs**: record token creation/use/revocation.
+- **Monitoring and alerts**: token expiration, rotation failure, and connection anomalies.
+- **Incident response**: be able to revoke leaked tokens quickly.
+- **Exposure isolation**: use separate tokens per application.
 
 ### Code Security
 
-- [ ] **Log masking**: avoid printing full tokens in logs.
-- [ ] **Pool isolation**: isolate pools by tenant/service where required.
-- [ ] **Exception handling**: fail gracefully on token invalidation without leaking sensitive details.
+- **Log masking**: avoid printing full tokens in logs.
+- **Pool isolation**: isolate pools by tenant/service where required.
+- **Exception handling**: fail gracefully on token invalidation without leaking sensitive details.
 
 ---
 
