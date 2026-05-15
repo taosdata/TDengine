@@ -963,10 +963,10 @@ endif()    # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list -fPIC)
+        set(_c_flags_list -fPIC -Wno-implicit-function-declaration)
     elseif(TD_DARWIN)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list)
+        set(_c_flags_list -Wno-implicit-function-declaration)
     endif()
 else()
     set(ext_curl_static libcurl$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:-d>.lib)
@@ -1024,13 +1024,11 @@ else()
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=-fPIC" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=${_c_flags}" "CXXFLAGS=${_c_flags}" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
                     --without-librtmp #--enable-debug
-                    CFLAGS=${_c_flags}
-                    CXXFLAGS=${_c_flags}
         BUILD_COMMAND
             COMMAND make -j4
         INSTALL_COMMAND
