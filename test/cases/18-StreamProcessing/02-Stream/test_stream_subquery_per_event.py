@@ -250,6 +250,7 @@ class TestStreamSubqueryPerEvent:
                 and tdSql.compareData(2, 0, 1)
                 and tdSql.compareData(2, 1, 1),
             )
+            self._rows_after_e3 = 3
 
         def insert4(self):
             # Empty inicio_descarga, then trigger event 4. The subquery
