@@ -5274,11 +5274,14 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
   // Note: pRes here is a pointer into the operator's AST (the SRemoteValueNode
   // placeholder), not a heap-owned node.  In non-stream mode we still cache
   // that borrowed pointer in subResNodes[] so subsequent calls memcpy from it.
-  // In stream mode, however, we must not cache pRes in subResNodes[] or free
-  // anything through that slot: storing pRes would create a dangling alias
-  // once the AST is rebuilt, and freeing it would double-free the AST node.
-  // Clearing the slot to NULL below is intentional and only invalidates stale
-  // cached state from a previous event; it does not take ownership of pRes.
+  // In stream mode the slot must not retain a stale pRes across trigger
+  // events or be treated as owning pRes: a stale entry would create a
+  // dangling alias once the AST is rebuilt, and freeing through that slot
+  // would double-free the AST node.  Stream response handlers (e.g.
+  // handleRemoteValueRes) may still use subResNodes[] transiently during a
+  // single fetch to distinguish data from the completion sentinel; the
+  // requirement here is to clear the slot to NULL before each refetch so
+  // that only stale per-event state is invalidated, not to take ownership.
   SNode** ppRes = taosArrayGet(ctx->subResNodes, subQIdx);
   if (ctx->isStream) {
     // Clear the slot before refetching so that an empty result from this
