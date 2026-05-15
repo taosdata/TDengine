@@ -4770,13 +4770,11 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
 
       blockDataDestroy(pResBlock);
     } else if (NULL != *ppRes && 0 == pRsp->numOfRows) {
-      // In stream mode keep the node typed as REMOTE_ROW so the next
-      // per-event walker pass re-dispatches the case in sclInitParam
-      // and re-fires the fetch; otherwise > ANY / row subqueries would
-      // permanently replay the previous event's value.
-      if (!IS_STREAM_MODE(pTaskInfo)) {
-        pRemote->val.node.type = QUERY_NODE_VALUE;
-      }
+      // EOF after data in stream mode: keep the node typed as REMOTE_ROW
+      // (do NOT rewrite to QUERY_NODE_VALUE) so the next per-event walker
+      // pass re-dispatches the case in sclInitParam and re-fires the
+      // fetch; otherwise > ANY / row subqueries would permanently replay
+      // the previous event's value.
       pRsp->completed = true;
     }
 
