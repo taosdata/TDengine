@@ -112,7 +112,7 @@ IF(${TD_WINDOWS})
 
         option(
                 TDENGINE_3
-                "TDengine 3.x for taos-tools"
+                "TDengine 3.x for taosBenchmark"
                 ON
             )
 

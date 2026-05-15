@@ -255,7 +255,7 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
-  if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*use[[:space:]]+[a-zA-Z0-9_]+[[:space:]]*;?[[:space:]]*$", REG_EXTENDED | REG_ICASE)) {
     (void)printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
@@ -268,13 +268,13 @@ void shellRunSingleCommandImp(char *command) {
 
   // pre string
   char *pre = "Query OK";
-  if (shellRegexMatch(command, "^\\s*delete\\s*from\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*delete[[:space:]]+from[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Delete OK";
-  } else if (shellRegexMatch(command, "^\\s*insert\\s*into\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*insert[[:space:]]+into[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Insert OK";
-  } else if (shellRegexMatch(command, "^\\s*create\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*create[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Create OK";
-  } else if (shellRegexMatch(command, "^\\s*drop\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*drop[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Drop OK";
   }
 
@@ -1244,7 +1244,7 @@ void shellPrintError(TAOS_RES *tres, int64_t st) {
 
 bool shellIsCommentLine(char *line) {
   if (line == NULL) return true;
-  return shellRegexMatch(line, "^\\s*#.*", REG_EXTENDED);
+  return shellRegexMatch(line, "^[[:space:]]*#.*", REG_EXTENDED);
 }
 
 void shellSourceFile(const char *file) {

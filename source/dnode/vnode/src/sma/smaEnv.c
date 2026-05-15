@@ -404,6 +404,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 
 void *tdRSmaExecutorFunc(void *param) {
   setThreadName("vnode-rsma");
+  taosSetCpuAffinity(THREAD_CAT_WRITE);
 
   if (tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW) < 0) {
     smaError("vgId:%d, failed to process rsma exec", SMA_VID((SSma *)param));

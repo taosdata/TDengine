@@ -201,6 +201,7 @@ int32_t dmInit() {
   if ((code = dmInitMonitor()) != 0) return code;
   if ((code = dmInitMetrics()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
+  if ((code = taosInitCpuAllocation()) != 0) return code;
   if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
 

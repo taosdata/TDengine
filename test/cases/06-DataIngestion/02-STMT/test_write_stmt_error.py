@@ -249,16 +249,6 @@ class TestStmtError:
 
             result.close()
             stmt.close()
-
-            stmt = conn.statement("select * from STB")
-            stmt.execute()
-            result = stmt.use_result()
-            print(result.affected_rows)
-            row  = result.next()
-            print(row)
-
-            result.close()
-            stmt.close()
             conn.close()
 
         except Exception as err:
@@ -288,16 +278,6 @@ class TestStmtError:
 
             stmt.execute()
             result = stmt.use_result()
-
-            result.close()
-            stmt.close()
-
-            stmt = conn.statement("select * from STB")
-            stmt.execute()
-            result = stmt.use_result()
-            print(result.affected_rows)
-            row  = result.next()
-            print(row)
 
             result.close()
             stmt.close()
@@ -352,6 +332,65 @@ class TestStmtError:
             conn.close()
             raise err
 
+    def check_stmt_select_no_param(self, conn):
+        """Execute a zero-placeholder STMT SELECT and propagate any exception.
+
+        Sets up a minimal table, prepares a SELECT without '?' via STMT, then
+        calls execute() without bind_param().  The caller decides whether
+        success or failure is the expected outcome.
+        """
+        dbname = "pytest_taos_stmt_no_param"
+        try:
+            conn.execute("drop database if exists %s" % dbname)
+            conn.execute("create database if not exists %s" % dbname)
+            conn.select_db(dbname)
+            conn.execute("create table t1 (ts timestamp, v int)")
+            conn.execute("insert into t1 values(1626861392589, 42)")
+
+            stmt = conn.statement("select * from t1")
+            try:
+                stmt.execute()
+            finally:
+                stmt.close()
+
+            conn.execute("drop database if exists %s" % dbname)
+            conn.close()
+        except Exception as err:
+            conn.execute("drop database if exists %s" % dbname)
+            conn.close()
+            raise err
+
+    def test_stmt_select_no_param(self):
+        """STMT SELECT without '?' placeholders returns Stmt API usage error
+
+        A zero-placeholder SELECT prepared via STMT then executed directly
+        (no bind_param call) is not supported on this branch and must fail
+        with [0x022a]: Stmt API usage error.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-4-27 Added to document baseline behavior for 0-param STMT SELECT
+        """
+        expected = "[0x022a]: Stmt API usage error"
+        try:
+            self.check_stmt_select_no_param(self.get_connect())
+            # stmt.execute() unexpectedly succeeded — fail the test explicitly.
+            raise AssertionError("expected '%s' but stmt.execute() succeeded" % expected)
+        except AssertionError:
+            raise
+        except Exception as error:
+            if expected in str(error):
+                tdLog.info("0-param STMT SELECT correctly returns: %s" % error)
+            else:
+                raise AssertionError(
+                    "unexpected error for 0-param STMT SELECT: %s" % str(error)
+                ) from error
+
     def test_stmt_error(self):
         """STMT error
 
@@ -374,29 +413,35 @@ class TestStmtError:
 
         try:
             self.check_stmt_insert_error_null_timestamp(self.get_connect())
-            tdLog.exit("expect error not occured - 1")
-        except Exception as error :
-            if str(error)=='[0x060b]: Timestamp data out of range':
-                tdLog.info('=========stmt error occured  for bind part column(NULL Timestamp) ==============')
+            raise AssertionError("expected '[0x060b]: Timestamp data out of range' but no error occurred")
+        except AssertionError:
+            raise
+        except Exception as error:
+            if "[0x060b]: Timestamp data out of range" in str(error):
+                tdLog.info("stmt error correctly occurred for NULL timestamp: %s" % error)
             else:
-                tdLog.exit("expect error(%s) not occured - 2" % str(error))
+                raise AssertionError("unexpected error for NULL timestamp STMT insert: %s" % str(error)) from error
 
         try:
             self.check_stmt_insert_vtb_error(self.get_connect())
-        except Exception as error :
-
-            if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
-                tdLog.info('=========stmt error occured for bind part column ==============')
+            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+        except AssertionError:
+            raise
+        except Exception as error:
+            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+                tdLog.info("stmt error correctly occurred for virtual table insert: %s" % error)
             else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
+                raise AssertionError("unexpected error for virtual table STMT insert: %s" % str(error)) from error
 
         try:
             self.check_stmt_insert_vstb_error(self.get_connect())
-        except Exception as error :
-
-            if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
-                tdLog.info('=========stmt error occured for bind part column ==============')
+            raise AssertionError("expected '[0x6205]: Virtual table not support' but no error occurred")
+        except AssertionError:
+            raise
+        except Exception as error:
+            if "[0x6205]: Virtual table not support in STMT query and STMT insert" in str(error):
+                tdLog.info("stmt error correctly occurred for virtual super table insert: %s" % error)
             else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
+                raise AssertionError("unexpected error for virtual super table STMT insert: %s" % str(error)) from error
         
 

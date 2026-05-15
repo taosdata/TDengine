@@ -1,0 +1,14 @@
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, csum(val) as cv from db_indef_block.t_window_large interval(10s) order by ws, cv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, csum(val) as cv from db_indef_block.t_window_large session(ts, 10s) order by ws, cv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, csum(val) as cv from db_indef_block.t_window_large state_window(state_val) order by ws, cv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, csum(val) as cv from db_indef_block.t_window_large event_window start with marker = 1 end with marker = 2 order by ws, cv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, csum(val) as cv from db_indef_block.t_count_large count_window(2048) order by ws, cv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, diff(val) as dv from db_indef_block.t_metric_large interval(5000s) order by ws, dv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, derivative(val, 1s, 0) as drv from db_indef_block.t_metric_large interval(5000s) order by ws, drv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, mavg(val, 4) as mv from db_indef_block.t_metric_large interval(5000s) order by ws, mv;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, statecount(val, 'GE', 2500) as sc from db_indef_block.t_metric_large interval(5000s) order by ws, sc;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, stateduration(val, 'GE', 2500, 1s) as sd from db_indef_block.t_metric_large interval(5000s) order by ws, sd;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, twa(val) as tv from db_indef_block.t_metric_large interval(5000s) order by ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, irate(val) as iv from db_indef_block.t_metric_large interval(5000s) order by ws;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, _wduration as wd, sample(val, 1000) as sv from db_indef_block.t_metric_large count_window(1000) order by ws, sv;
+select interp(val) from db_indef_block.t_metric_large interval(5000s);

@@ -162,6 +162,12 @@ int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
 int32_t tsSecureEraseMode = 0;
 
+// cpu affinity
+bool    tsEnableCpuAffinity = 0;
+int32_t tsManagementCpuCores = 1;
+int32_t tsReadCpuCores = 1;
+int32_t tsOtherCpuCores = 1;
+
 // sync raft
 int32_t tsElectInterval = 4000;
 int32_t tsHeartbeatInterval = 1000;
@@ -232,6 +238,7 @@ int8_t   tsFlexDeploy = 0;
 #endif
 
 bool tsCompareAsStrInGreatest = true;
+bool tsIgnoreNullInGreatest = false;
 
 // monitor
 #ifdef USE_MONITOR
@@ -820,6 +827,9 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "ignoreNullInGreatest", tsIgnoreNullInGreatest, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "showFullCreateTableColumn", tsShowFullCreateTableColumn, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
@@ -1020,6 +1030,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "secureEraseMode", tsSecureEraseMode, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableCpuAffinity", tsEnableCpuAffinity, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "managementCpuCores", tsManagementCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "readCpuCores", tsReadCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "otherCpuCores", tsOtherCpuCores, 1, 256, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retentionSpeedLimitMB", tsRetentionSpeedLimitMB, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryUseMemoryPool", tsQueryUseMemoryPool, CFG_SCOPE_SERVER, CFG_DYN_BOTH_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "memPoolFullFunc", tsMemPoolFullFunc, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
@@ -1314,6 +1328,16 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     pItem->i64 = tsSyncApplyQueueSize;
     pItem->stype = stype;
+  }
+
+  // Compute dynamic defaults for readCpuCores and otherCpuCores
+  pItem = cfgGetItem(tsCfg, "managementCpuCores");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
   }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -1701,6 +1725,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "compareAsStrInGreatest");
   tsCompareAsStrInGreatest = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ignoreNullInGreatest");
+  tsIgnoreNullInGreatest = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "showFullCreateTableColumn");
   tsShowFullCreateTableColumn = pItem->bval;
 
@@ -1827,6 +1854,32 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "secureEraseMode");
   tsSecureEraseMode = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableCpuAffinity");
+  tsEnableCpuAffinity = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "managementCpuCores");
+  tsManagementCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "readCpuCores");
+  bool readCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
+  tsReadCpuCores = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "otherCpuCores");
+  bool otherCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
+  tsOtherCpuCores = pItem->i32;
+
+  // Recompute dynamic defaults for readCpuCores/otherCpuCores when they were
+  // not explicitly set by user but managementCpuCores was changed from default.
+  // The initial dynamic defaults in taosAddServerCfg() are computed with the
+  // default managementCpuCores=1 before the config file is loaded.
+  if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
+    int32_t total = (int32_t)tsNumOfCores;
+    int32_t remaining = total - tsManagementCpuCores;
+    if (remaining < 2) remaining = 2;
+    tsReadCpuCores = remaining / 2;
+    tsOtherCpuCores = remaining - tsReadCpuCores;
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
@@ -3474,6 +3527,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"bypassFlag", &tsBypassFlag},
                                          {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"compareAsStrInGreatest", &tsCompareAsStrInGreatest},
+                                         {"ignoreNullInGreatest", &tsIgnoreNullInGreatest},
                                          {"showFullCreateTableColumn", &tsShowFullCreateTableColumn}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {

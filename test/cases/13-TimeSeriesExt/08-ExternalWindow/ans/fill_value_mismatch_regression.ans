@@ -1,0 +1,53 @@
+
+taos> use test_fill_val_mismatch;
+Database changed.
+
+taos> select count(*) as c, sum(v) as s from src_t1 external_window((select ts, endtime, mark from win) w) fill(value, 888, 999) having(avg(v) is not null or avg(v) is null) order by _wstart;
+           c           |           s           |
+================================================
+                     1 |                    10 |
+                   888 |                   999 |
+                   888 |                   999 |
+
+taos> select count(*) as c, sum(v) as s from src_t1 external_window((select ts, endtime, mark from win) w) fill(value, 888, 999) order by avg(v);
+           c           |           s           |
+================================================
+                   888 |                   999 |
+                   888 |                   999 |
+                     1 |                    10 |
+
+taos> select count(*) as c, sum(v) as s from src_t1 external_window((select ts, endtime, mark from win) w) fill(value_f, 888, 999) having(avg(v) is not null or avg(v) is null) order by _wstart;
+           c           |           s           |
+================================================
+                     1 |                    10 |
+                   888 |                   999 |
+                   888 |                   999 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 from src_t1 external_window((select ts, endtime, mark from win) w) fill(value, 888, 999) order by _wstart;
+          ws           |            s1             |            s2             |
+================================================================================
+         1701000000000 |                        11 |                        12 |
+         1701000600000 |                       888 |                       999 |
+         1701001200000 |                       888 |                       999 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 from src_t1 external_window((select ts, endtime, mark from win) w) fill(value_f, 888, 999) order by _wstart;
+          ws           |            s1             |            s2             |
+================================================================================
+         1701000000000 |                        11 |                        12 |
+         1701000600000 |                       888 |                       999 |
+         1701001200000 |                       888 |                       999 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) + 1 as s1 from src_t1 external_window((select ts, endtime, mark from win) w) fill(null) order by _wstart;
+          ws           |            s1             |
+====================================================
+         1701000000000 |                        11 |
+         1701000600000 | NULL                      |
+         1701001200000 | NULL                      |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) + 1 as s1, cast(sum(v) as bigint) + 2 as s2 from src_t1 external_window((select ts, endtime, mark from win) w) fill(value, 888, 999) order by _wstart desc;
+          ws           |            s1             |            s2             |
+================================================================================
+         1701001200000 |                       888 |                       999 |
+         1701000600000 |                       888 |                       999 |
+         1701000000000 |                        11 |                        12 |
+

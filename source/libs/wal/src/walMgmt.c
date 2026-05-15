@@ -377,6 +377,7 @@ static void walFsyncAll() {
 
 static void *walThreadFunc(void *param) {
   setThreadName("wal");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   while (1) {
     walUpdateSeq();
     walFsyncAll();

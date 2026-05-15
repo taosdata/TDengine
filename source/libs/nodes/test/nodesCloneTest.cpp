@@ -90,7 +90,8 @@ TEST_F(NodesCloneTest, stateWindow) {
     SStateWindowNode* pSrcNode = (SStateWindowNode*)pSrc;
     SStateWindowNode* pDstNode = (SStateWindowNode*)pDst;
     ASSERT_EQ(nodeType(pSrcNode->pCol), nodeType(pDstNode->pCol));
-    ASSERT_EQ(nodeType(pSrcNode->pExpr), nodeType(pDstNode->pExpr));
+    ASSERT_EQ(LIST_LENGTH(pSrcNode->pExprList), LIST_LENGTH(pDstNode->pExprList));
+    ASSERT_EQ(nodeType(nodesListGetNode(pSrcNode->pExprList, 0)), nodeType(nodesListGetNode(pDstNode->pExprList, 0)));
     ASSERT_EQ(nodeType(pSrcNode->pTrueForLimit), nodeType(pDstNode->pTrueForLimit));
   });
 
@@ -102,7 +103,9 @@ TEST_F(NodesCloneTest, stateWindow) {
     srcNode.reset(pNew);
     SStateWindowNode* pNode = (SStateWindowNode*)srcNode.get();
     code = nodesMakeNode(QUERY_NODE_COLUMN, &pNode->pCol);
-    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pExpr);
+    SNode* pExpr = NULL;
+    code = nodesMakeNode(QUERY_NODE_OPERATOR, &pExpr);
+    code = nodesListMakeAppend(&pNode->pExprList, pExpr);
     code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pTrueForLimit);
     return srcNode.get();
   }());
