@@ -26,6 +26,7 @@
 #include "tlog.h"
 #include "tmisce.h"
 #include "tunit.h"
+#include "osLocale.h"
 
 #include "tutil.h"
 
@@ -1763,7 +1764,21 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsSessionControl = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstDayOfWeek");
-  tsFirstDayOfWeek = pItem->i32;
+  if (pItem->stype != CFG_STYPE_DEFAULT) {
+    /* user explicitly set in config file/env/cmd line, highest priority */
+    tsFirstDayOfWeek = pItem->i32;
+  } else {
+    /* try to read from OS config */
+    int32_t osVal = taosGetOSFirstDayOfWeek();
+    if (osVal >= 0 && osVal <= 6) {
+      tsFirstDayOfWeek = osVal;
+      /* Sync the config framework item so SHOW LOCAL VARIABLES reflects the OS-derived value */
+      pItem->i32 = osVal;
+    } else {
+      /* OS config not available, use registered default */
+      tsFirstDayOfWeek = pItem->i32;
+    }
+  }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
