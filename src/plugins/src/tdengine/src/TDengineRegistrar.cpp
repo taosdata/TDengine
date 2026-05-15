@@ -23,7 +23,7 @@ void register_tdengine_plugin_config_hooks() {
         [](const YAML::Node& node, InsertDataConfig& cfg) {
             // Detect unknown configuration keys
             static const std::set<std::string> target_tdengine = {
-                "tdengine", "format", "auto_create_table"
+                "tdengine", "format", "auto_create_table", "tbname_key"
             };
 
             std::set<std::string> valid_keys = YAML::merge_keys<std::string>({YAML::insert_common_keys, target_tdengine});
@@ -93,6 +93,10 @@ void register_tdengine_plugin_config_hooks() {
                 // Schemaless always needs tags for line protocol
                 if (cfg.data_format.format_type == "schemaless") {
                     cfg.data_format.support_tags = true;
+                }
+
+                if (node["tbname_key"]) {
+                    fmt->tbname_key = node["tbname_key"].as<std::string>();
                 }
             }
         });
