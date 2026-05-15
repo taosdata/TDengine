@@ -435,10 +435,10 @@ bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or origina
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-#if defined(WINDOWS) || !defined(USE_UDF)
-bool tsStartUdfd = false;
-#else
+#ifdef USE_UDF
 bool    tsStartUdfd = true;
+#else
+bool    tsStartUdfd = false;
 #endif
 
 // wal
