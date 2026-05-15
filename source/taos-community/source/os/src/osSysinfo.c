@@ -360,13 +360,71 @@ static void FlAbortHandler(int sig) {
 #include <unistd.h>
 
 static pid_t tsProcId;
-static char  tsSysNetFile[] = "/proc/net/dev";
-static char  tsSysCpuFile[] = "/proc/stat";
-static char  tsCpuPeriodFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
-static char  tsCpuQuotaFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
+static const char *tsSysNetFile = "/proc/net/dev";
+static const char *tsSysCpuFile = "/proc/stat";
+static const char *tsCpuPeriodFile = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
+static const char *tsCpuQuotaFile = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
 static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
 static char  tsProcIOFile[25] = {0};
+
+// cgroup v2 paths
+static const char *tsCgroupV2CpuMaxFile = "/sys/fs/cgroup/cpu.max";
+static const char *tsCgroupV2MemMaxFile = "/sys/fs/cgroup/memory.max";
+static const char *tsCgroupV2MemCurFile = "/sys/fs/cgroup/memory.current";
+static const char *tsCgroupV2MemStatFile = "/sys/fs/cgroup/memory.stat";
+static const char *tsCgroupV2CpuStatFile = "/sys/fs/cgroup/cpu.stat";
+
+// cgroup v1 memory paths
+static const char *tsCgroupV1MemLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes";
+static const char *tsCgroupV1MemUsageFile = "/sys/fs/cgroup/memory/memory.usage_in_bytes";
+static const char *tsCgroupV1MemStatFile = "/sys/fs/cgroup/memory/memory.stat";
+static const char *tsCgroupV1CpuAcctFile = "/sys/fs/cgroup/cpuacct/cpuacct.usage";
+
+// Returns: 2 for cgroup v2, 1 for cgroup v1, 0 for no cgroup
+static int32_t taosDetectCgroupVersion() {
+  static volatile int32_t cgroupVersion = -1;
+
+  int32_t ver = atomic_load_32(&cgroupVersion);
+  if (ver >= 0) return ver;
+
+  if (taosCheckExistFile("/sys/fs/cgroup/cgroup.controllers")) {
+    ver = 2;
+  } else if (taosCheckExistFile(tsCpuQuotaFile) || taosCheckExistFile(tsCgroupV1MemLimitFile)) {
+    ver = 1;
+  } else {
+    ver = 0;
+  }
+
+  (void)atomic_val_compare_exchange_32(&cgroupVersion, -1, ver);
+  return ver;
+}
+
+// Read a single int64 value from a cgroup file. Returns 0 on success.
+static int32_t taosReadCgroupInt64(const char *path, int64_t *value) {
+  if (path == NULL || value == NULL) return -1;
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return -1;
+
+  char line[64] = {0};
+  if (taosGetsFile(pFile, sizeof(line), line) <= 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+
+  // "max" means no limit
+  if (strncmp(line, "max", 3) == 0) {
+    *value = INT64_MAX;
+    return 0;
+  }
+
+  char *endPtr = NULL;
+  int64_t v = taosStr2Int64(line, &endPtr, 10);
+  if (endPtr == line) return -1;
+  *value = v;
+  return 0;
+}
 
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
@@ -786,6 +844,73 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #endif
 }
 
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+// Try cgroup v2 cpu.max: format "$MAX $PERIOD" or "max $PERIOD"
+static int32_t taosCntrGetCpuCoresV2(float *numOfCores) {
+  TdFilePtr pFile = taosOpenFile(tsCgroupV2CpuMaxFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return -1;
+
+  char line[64] = {0};
+  if (taosGetsFile(pFile, sizeof(line), line) <= 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+
+  // "max" means no CPU limit
+  if (strncmp(line, "max", 3) == 0) {
+    return -1;
+  }
+
+  int64_t quota = 0, period = 0;
+  if (sscanf(line, "%" PRId64 " %" PRId64, &quota, &period) != 2 || period <= 0 || quota <= 0) {
+    return -1;
+  }
+
+  double quotaCores = (double)quota / (double)period;
+  double sysCores = (double)sysconf(_SC_NPROCESSORS_ONLN);
+  *numOfCores = (float)((quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores);
+  return (*numOfCores > 0) ? 0 : -1;
+}
+
+// Try cgroup v1 cpu.cfs_quota_us / cpu.cfs_period_us
+static int32_t taosCntrGetCpuCoresV1(float *numOfCores) {
+  TdFilePtr pFile = NULL;
+  if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
+    return -1;
+  }
+  char qline[32] = {0};
+  if (taosGetsFile(pFile, sizeof(qline), qline) <= 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+
+  int64_t quota = taosStr2Int64(qline, NULL, 10);
+  if (quota < 0) {
+    return -1;
+  }
+
+  if (!(pFile = taosOpenFile(tsCpuPeriodFile, TD_FILE_READ | TD_FILE_STREAM))) {
+    return -1;
+  }
+  char pline[32] = {0};
+  if (taosGetsFile(pFile, sizeof(pline), pline) <= 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+
+  int64_t period = taosStr2Int64(pline, NULL, 10);
+  if (period <= 0) return -1;
+
+  double quotaCores = (double)quota / (double)period;
+  double sysCores = (double)sysconf(_SC_NPROCESSORS_ONLN);
+  *numOfCores = (float)((quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores);
+  return (*numOfCores > 0) ? 0 : -1;
+}
+#endif  // !WINDOWS && !_TD_DARWIN_64 && !TD_ASTRA
+
 // Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
 static int32_t taosCntrGetCpuCores(float *numOfCores) {
 #ifdef WINDOWS
@@ -793,56 +918,20 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
 #elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
   return TSDB_CODE_UNSUPPORT_OS;
 #else
-  TdFilePtr pFile = NULL;
-  if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _sys;
+  int32_t cgroupVer = taosDetectCgroupVersion();
+
+  if (cgroupVer == 2 && taosCntrGetCpuCoresV2(numOfCores) == 0) {
+    return 0;
   }
-  char qline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(qline), qline) <= 0) {
-    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-    goto _sys;
-  }
-  
-  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-  float quota = taosStr2Float(qline, NULL);
-  if (quota < 0) {
-    goto _sys;
+  if (cgroupVer >= 1 && taosCntrGetCpuCoresV1(numOfCores) == 0) {
+    return 0;
   }
 
-  if (!(pFile = taosOpenFile(tsCpuPeriodFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _sys;
-  }
-  
-  char pline[32] = {0};
-  if (taosGetsFile(pFile, sizeof(pline), pline) <= 0) {
-    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-    goto _sys;
-  }
-  
-  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-
-  float period = taosStr2Float(pline, NULL);
-  float quotaCores = quota / period;
-  float sysCores = sysconf(_SC_NPROCESSORS_ONLN);
-  if (quotaCores < sysCores && quotaCores > 0) {
-    *numOfCores = quotaCores;
-  } else {
-    *numOfCores = sysCores;
-  }
-  if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(ERRNO);
-  }
-  goto _end;
-  
-_sys:
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   if(*numOfCores <= 0) {
     return TAOS_SYSTEM_ERROR(ERRNO);
   }
-  
-_end:
   return 0;
-  
 #endif
 }
 
@@ -878,6 +967,42 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #endif
 }
 
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+// Read cgroup CPU usage in microseconds. Returns 0 on success.
+static int32_t taosGetCgroupCpuUsageUsec(int64_t *usageUsec) {
+  if (usageUsec == NULL) return -1;
+
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  if (cgroupVer == 2) {
+    // cgroup v2: cpu.stat has "usage_usec <value>"
+    TdFilePtr pFile = taosOpenFile(tsCgroupV2CpuStatFile, TD_FILE_READ | TD_FILE_STREAM);
+    if (pFile == NULL) return -1;
+    char line[256] = {0};
+    while (taosGetsFile(pFile, sizeof(line), line) > 0) {
+      if (strncmp(line, "usage_usec", 10) == 0) {
+        if (sscanf(line + 10, " %" PRId64, usageUsec) != 1) {
+          TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+          return -1;
+        }
+        TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+        return 0;
+      }
+    }
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  } else if (cgroupVer == 1) {
+    // cgroup v1: cpuacct.usage is in nanoseconds
+    int64_t usageNs = 0;
+    if (taosReadCgroupInt64(tsCgroupV1CpuAcctFile, &usageNs) == 0) {
+      *usageUsec = usageNs / 1000;
+      return 0;
+    }
+    return -1;
+  }
+  return -1;
+}
+#endif  // !WINDOWS && !_TD_DARWIN_64 && !TD_ASTRA
+
 int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t lastSysUsed = -1;
   static int64_t lastSysTotal = -1;
@@ -885,9 +1010,46 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t curSysUsed = 0;
   static int64_t curSysTotal = 0;
   static int64_t curProcTotal = 0;
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+  static int64_t lastCgroupUsageUsec = -1;
+  static int64_t lastWallTimeUsec = -1;
+#endif
 
   if (cpu_system != NULL) *cpu_system = 0;
   if (cpu_engine != NULL) *cpu_engine = 0;
+
+  bool    cgroupUsed = false;
+
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+  // Try container-aware CPU usage first
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupUsageUsec = 0;
+
+  if (cgroupVer > 0 && taosGetCgroupCpuUsageUsec(&cgroupUsageUsec) == 0) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) goto _proc_stat;
+    int64_t wallTimeUsec = (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+
+    if (lastCgroupUsageUsec >= 0 && lastWallTimeUsec >= 0) {
+      int64_t deltaUsage = cgroupUsageUsec - lastCgroupUsageUsec;
+      int64_t deltaWall = wallTimeUsec - lastWallTimeUsec;
+      if (deltaWall > 0 && deltaUsage >= 0) {
+        float numCores = 0;
+        TAOS_SKIP_ERROR(taosGetCpuCores(&numCores, false));
+        if (numCores <= 0) numCores = 1;
+        if (cpu_system != NULL) {
+          *cpu_system = (double)deltaUsage / (double)deltaWall / numCores * 100.0;
+          if (*cpu_system > 100.0) *cpu_system = 100.0;
+        }
+        cgroupUsed = true;
+      }
+    }
+    lastCgroupUsageUsec = cgroupUsageUsec;
+    lastWallTimeUsec = wallTimeUsec;
+  }
+
+_proc_stat:
+#endif
 
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
@@ -899,7 +1061,7 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
 
     if(lastSysUsed >= 0 && lastSysTotal >=0 && lastProcTotal >=0){
       if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
-        if (cpu_system != NULL) {
+        if (!cgroupUsed && cpu_system != NULL) {
           *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
         }
         if (cpu_engine != NULL) {
@@ -969,10 +1131,30 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
   *totalKB = (int64_t)256 * 1024;
   return 0;
 #else
-  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
+  int64_t pageSizeKB = tsPageSizeKB;
+  if (pageSizeKB <= 0) {
+    pageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
+  }
+  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * pageSizeKB);
   if(*totalKB <= 0) {
     return TAOS_SYSTEM_ERROR(ERRNO);
   }
+
+  // Apply cgroup memory limit if available
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupLimitBytes = INT64_MAX;
+  if (cgroupVer == 2) {
+    TAOS_SKIP_ERROR(taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimitBytes));
+  } else if (cgroupVer == 1) {
+    TAOS_SKIP_ERROR(taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimitBytes));
+  }
+  if (cgroupLimitBytes > 0 && cgroupLimitBytes < INT64_MAX) {
+    int64_t cgroupLimitKB = cgroupLimitBytes / 1024;
+    if (cgroupLimitKB > 0 && cgroupLimitKB < *totalKB) {
+      *totalKB = cgroupLimitKB;
+    }
+  }
+
   return 0;
 #endif
 }
@@ -1041,6 +1223,30 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
   *availSize = 0;
   return 0;
 #else
+  // Try cgroup-aware available memory first
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupLimit = 0;
+  int64_t cgroupCurrent = 0;
+
+  if (cgroupVer == 2) {
+    if (taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV2MemCurFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX) {
+      *availSize = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) : 0;
+      return 0;
+    }
+  } else if (cgroupVer == 1) {
+    // v1 uses a huge sentinel (near INT64_MAX) for "no limit"; also compare against physical memory
+    int64_t physMemBytes = (int64_t)sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+    if (taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV1MemUsageFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX && cgroupLimit < physMemBytes) {
+      *availSize = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) : 0;
+      return 0;
+    }
+  }
+
+  // Fallback to /proc/meminfo
   TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return terrno;
@@ -1094,6 +1300,26 @@ static void taosGetMemValue(char* line, char* key, int64_t* value){
   }
 }
 
+// Read "inactive_file" from cgroup memory.stat
+static int64_t taosGetCgroupMemCache(const char *statFile) {
+  TdFilePtr pFile = taosOpenFile(statFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return 0;
+
+  char    line[256] = {0};
+  int64_t inactiveFile = 0;
+  while (taosGetsFile(pFile, sizeof(line), line) > 0) {
+    if (strncmp(line, "inactive_file", 13) == 0) {
+      if (sscanf(line + 13, " %" PRId64, &inactiveFile) == 1) break;
+    }
+    // cgroup v1 uses "total_inactive_file"
+    if (strncmp(line, "total_inactive_file", 19) == 0) {
+      if (sscanf(line + 19, " %" PRId64, &inactiveFile) == 1) break;
+    }
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+  return inactiveFile;
+}
+
 int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferKB) {
   OS_PARAM_CHECK(usedKB);
   OS_PARAM_CHECK(freeKB);
@@ -1118,12 +1344,36 @@ int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferK
   *cacheBufferKB = 0;
   return 0;
 #else
-  /*
-  *usedKB = sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB;
-  if(*usedKB <= 0) {
-    return TAOS_SYSTEM_ERROR(ERRNO);
+  // Try cgroup-aware memory stats first
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupLimit = 0;
+  int64_t cgroupCurrent = 0;
+
+  if (cgroupVer == 2) {
+    if (taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV2MemCurFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX) {
+      int64_t cache = taosGetCgroupMemCache(tsCgroupV2MemStatFile);
+      *cacheBufferKB = cache / 1024;
+      *usedKB = (cgroupCurrent > cache) ? (cgroupCurrent - cache) / 1024 : 0;
+      *freeKB = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) / 1024 : 0;
+      return 0;
+    }
+  } else if (cgroupVer == 1) {
+    // v1 uses a huge sentinel (near INT64_MAX) for "no limit"; also compare against physical memory
+    int64_t physMemBytes = (int64_t)sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+    if (taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV1MemUsageFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX && cgroupLimit < physMemBytes) {
+      int64_t cache = taosGetCgroupMemCache(tsCgroupV1MemStatFile);
+      *cacheBufferKB = cache / 1024;
+      *usedKB = (cgroupCurrent > cache) ? (cgroupCurrent - cache) / 1024 : 0;
+      *freeKB = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) / 1024 : 0;
+      return 0;
+    }
   }
-  */
+
+  // Fallback to /proc/meminfo
   TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return terrno;

@@ -61,7 +61,7 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 不同厂商的 OPC UA Server 在端点格式、安全策略组合、客户端证书信任流程上存在差异。如果你使用下列任意一款 Server，**建议先阅读对应的专属指南** 获取经过验证的配置参考与服务端信任流程：
 
 - [Ignition OPC UA Server 集成指南](./03-ignition.md)
-- [GE Cimplicity OPC UA Server 集成指南](./04-ge-cimplicity.md)
+- [GE CSS OPC UA Server 集成指南](./04-ge-opcua-server.md)
 
 其他厂商的 OPC UA Server，按本节通用步骤填写即可。
 
