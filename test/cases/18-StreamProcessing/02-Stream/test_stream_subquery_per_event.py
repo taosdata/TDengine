@@ -295,14 +295,15 @@ class TestStreamSubqueryPerEvent:
             )
 
         def insert5(self):
-            # Re-populate inicio_descarga and trigger again. This covers
-            # Finding 1: setValueFromResBlock must reset pRes->isNull =
-            # false so the value placed by event 5 isn't masked by the
-            # isNull=true left over from event 4's empty fetch. With the
-            # bug, event 5's WHERE evaluates against a NULL lower bound
-            # and matches no cumple rows -> aggregate NULL. With the
-            # fix, the lower bound is 00:00:01 again and exactly two
-            # cumple rows match -> SUM=(2, 2).
+            # Re-populate inicio_descarga and trigger again.  This checks
+            # the NULL-to-non-NULL transition after event 4's empty fetch:
+            # setValueFromResBlock must reset pRes->isNull = false so
+            # event 5's newly fetched value is not masked by the
+            # isNull=true left over from event 4.  With the bug, event 5's
+            # WHERE evaluates against a NULL lower bound and matches no
+            # cumple rows -> aggregate NULL.  With the fix, the lower
+            # bound is 00:00:01 again and exactly two cumple rows match
+            # -> SUM=(2, 2).
             tdLog.info(
                 "=== event 5: re-insert inicio @ 00:00:01, trigger linea ==="
             )
