@@ -603,27 +603,48 @@ class TestStreamSubqueryPerEvent:
             )
 
         def check3(self):
-            # Event 3: whitelist becomes empty after previously being {1,2}.
-            # The subquery must be re-evaluated per event and must not reuse
-            # the cached non-empty IN-list from event 2. No new result row
-            # should be emitted for the trigger, so verify the two expected
-            # rows remain stable across a bounded observation window instead
-            # of passing immediately on the rows that already existed after
-            # event 2.
-            expected_rows = (
-                lambda: tdSql.getRows() == 2
-                and tdSql.compareData(0, 0, 10)
-                and tdSql.compareData(1, 0, 30)
-            )
-            deadline = time.monotonic() + 1.0
+            # Event 3 empties the whitelist so no rows match IN and the
+            # stream body emits no output.  Poll for 15 seconds to both
+            # allow the stream time to process event 3 and verify that no
+            # stale IN-list row appears.  The 15-second window ensures
+            # event 3 is evaluated while the whitelist is still empty,
+            # before insert4 re-populates it.
+            deadline = time.monotonic() + 15.0
             while True:
-                tdSql.checkResultsByFunc(
-                    sql=f"select total from {self.db}.r order by ts",
-                    func=expected_rows,
+                tdSql.query(f"select total from {self.db}.r order by ts")
+                assert tdSql.getRows() == 2, (
+                    f"event 3 stale IN-list: got {tdSql.getRows()} rows, "
+                    f"expected 2 (cached IN-list was not invalidated)"
                 )
                 if time.monotonic() >= deadline:
                     break
-                time.sleep(0.1)
+                time.sleep(0.5)
+
+        def insert4(self):
+            # Re-add id=1 to whitelist and trigger event 4.  Whitelist is
+            # now {1} so the correct SUM is 10 (only f1=1, v=10 matches).
+            # A stale IN-list from event 3 would have used {1,2} and
+            # produced SUM=30, which is distinct from 10 and raises the
+            # row count above rows_after_e2+1, catching the regression.
+            tdLog.info("=== add id=1 to whitelist, trigger event 4 ===")
+            tdSql.execute(
+                "insert into whitelist values ('2026-05-01 00:00:03', 1)"
+            )
+            tdSql.execute(
+                "insert into linea values ('2026-05-01 00:00:03', 1)"
+            )
+
+        def check4(self):
+            # Event 4: whitelist={1}, so only f1=1 (v=10) matches -> SUM=10.
+            # check3 already verified event 3 produced no stale row, so we
+            # just wait for the correct event-4 output.
+            tdSql.checkResultsByFunc(
+                sql=f"select total from {self.db}.r order by ts",
+                func=lambda: tdSql.getRows() == 3
+                and tdSql.compareData(0, 0, 10)
+                and tdSql.compareData(1, 0, 30)
+                and tdSql.compareData(2, 0, 10),
+            )
 
     # ------------------------------------------------------------------
     # Row-comparison subquery (REMOTE_ROW)
