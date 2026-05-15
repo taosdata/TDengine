@@ -721,6 +721,14 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
           pRemote->pHashFilterOthers = NULL;
           pRemote->hashAllocated = false;
         }
+        // Also reset the cached presence flags; otherwise an event that
+        // returns zero rows after a non-empty event would keep
+        // hasValue=true and handleRemoteValueListRes would skip
+        // rebuilding the empty-list hash, leaving the param with stale
+        // flags pointing at NULL hashes.
+        pRemote->hasValue = false;
+        pRemote->hasNull = false;
+        pRemote->hasNotNull = false;
         pRemote->flag |= VALUELIST_FLAG_VAL_UNSET;
       }
       if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
