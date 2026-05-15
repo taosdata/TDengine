@@ -4699,7 +4699,18 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
           continue;
         }
       } else {
-        timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+        /*
+         * Fallback path (notably on Windows where session tz handle can be NULL):
+         * keep fixed-offset alignment but honor firstDayOfWeek instead of
+         * implicit epoch-Thursday alignment.
+         */
+        int64_t tzOffset = offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
+        int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
+        int64_t rem = (timeVal + tzOffset - weekShift) % timeUnit;
+        if (rem < 0) {
+          rem += timeUnit;
+        }
+        timeVal -= rem;
       }
     } else if (useCurrentTz && seconds == 86400) {
       timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;

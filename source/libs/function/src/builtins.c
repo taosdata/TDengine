@@ -170,6 +170,36 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
 }
 
 /*
+ * Extract fixed UTC offset (+HHMM/-HHMM) from timezone display text.
+ *
+ * Expected display examples:
+ *   "Asia/Shanghai (CST, +0800)"
+ *   "System (UTC, +0800)"
+ *
+ * Returns true and writes a 5-byte offset string when found, otherwise false.
+ */
+static bool extractUtcOffsetFromTzDisplay(const char* display, char* out, int32_t outLen) {
+  if (display == NULL || out == NULL || outLen < 6) {
+    return false;
+  }
+
+  const char* p = strstr(display, "UTC, ");
+  if (p == NULL) {
+    return false;
+  }
+
+  p += 5;
+  if ((p[0] != '+' && p[0] != '-') || !isdigit((unsigned char)p[1]) || !isdigit((unsigned char)p[2]) ||
+      !isdigit((unsigned char)p[3]) || !isdigit((unsigned char)p[4])) {
+    return false;
+  }
+
+  (void)memcpy(out, p, 5);
+  out[5] = '\0';
+  return true;
+}
+
+/*
  * Inject the timezone IANA name string as a parameter, preserving
  * DST semantics.  Falls back to the system timezone string if tz is NULL
  * or the name lookup fails.
@@ -178,6 +208,10 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
   char    buf[TD_TIMEZONE_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
 
+  /*
+   * Preferred path: use connection/session timezone name map so downstream
+   * scalar functions can preserve IANA semantics (DST-aware when applicable).
+   */
   if (tz != NULL && pTimezoneNameMap != NULL) {
     char *tzName = (char *)taosHashGet(pTimezoneNameMap, &tz, sizeof(timezone_t));
     if (tzName != NULL) {
@@ -191,12 +225,28 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
   }
 
   if (buf[0] == '\0') {
-    /* fallback: extract name from system timezone string */
-    const char *paren = strchr(tsTimezoneStr, ' ');
-    int32_t nameLen = paren ? (int32_t)(paren - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
-    int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
-    (void)memcpy(buf, tsTimezoneStr, cpLen);
-    buf[cpLen] = '\0';
+    /*
+     * Fallback path when session timezone handle is unavailable.
+     *
+     * First try to extract a fixed offset from global display text so
+     * scalar offset parser can still compute local boundary correctly.
+     * This is especially important for Windows values like:
+     *   "System (UTC, +0800)"
+     * where taking the leading token ("System") would lose offset info.
+     *
+     * If offset extraction fails, keep legacy behavior and use leading token
+     * as a best-effort fallback.
+     *
+     * Prefer fixed offset extracted from "...(UTC, +0800)" so scalar
+     * offsetFromTz() can parse it on platforms where session tz handle is NULL.
+     */
+    if (!extractUtcOffsetFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
+      const char *paren = strchr(tsTimezoneStr, ' ');
+      int32_t nameLen = paren ? (int32_t)(paren - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
+      int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
+      (void)memcpy(buf, tsTimezoneStr, cpLen);
+      buf[cpLen] = '\0';
+    }
   }
 
   int32_t len = (int32_t)strlen(buf);
