@@ -18,8 +18,9 @@ class TestStreamSubqueryPerEvent:
 
     In stream mode every trigger event MUST refetch the subquery; the
     older code cached the result on the first event and silently
-    replayed it forever.  This file pins the per-event semantics for all
-    three remote-subquery flavours that flow through sclInitParam:
+    replayed it forever.  This file pins the per-event semantics for the
+    original reproducer, the workaround control path, and all three
+    remote-subquery flavours that flow through sclInitParam:
 
       1. test_where_subquery (REMOTE_VALUE)
          The original SQL shape with a scalar subquery in WHERE.
