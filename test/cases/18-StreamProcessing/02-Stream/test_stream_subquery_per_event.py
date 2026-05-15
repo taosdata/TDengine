@@ -261,53 +261,22 @@ class TestStreamSubqueryPerEvent:
             )
 
         def check4(self):
-            tdLog.info(
-                "=== check after event 4: 4th row must NOT be stale (1,1) ==="
-            )
-            # The fix means event 4 sees an empty subquery -> placeholder
-            # is NULL -> WHERE evaluates to NULL -> aggregate over empty
-            # input. The exact emitted shape (NULL row vs no row) is not
-            # the contract we pin here; what we MUST guarantee is that
-            # event 4 does not silently reuse event 3's value of 1.
-            #
-            # Use the existing polling helper instead of an open-coded
-            # sleep loop so CI only waits as long as needed for the stream
-            # output query to reach an acceptable stable shape.
+            # Don't poll-with-timeout here: when event 4 is correctly
+            # suppressed the row count stays at 3 and a fixed deadline
+            # would burn ~60s on the passing path.  Just snapshot the
+            # current count and defer the stale-(1,1) verification to
+            # check5: by the time event 5's (2,2) row lands, any output
+            # event 4 was going to emit has settled before it.
             sql = (
                 f"select acumulado_cumple, acumulado_total "
                 f"from {self.db}.resultado_descarga order by ts"
             )
-            # Wait long enough for event 4 to be processed by the stream.
-            # We must NOT return early on the pre-event 3-row snapshot —
-            # that would falsely accept the bug where event 4 emits a
-            # stale (1,1) row a few seconds later. Poll for either:
-            #   - rows == 4 (event 4 produced a row; verify below it
-            #     isn't the stale (1,1)); or
-            #   - the full timeout elapsed with rows still == 3 (event 4
-            #     was correctly suppressed because the subquery was
-            #     empty / WHERE evaluated to NULL).
-            deadline = time.time() + 60
-            while time.time() < deadline:
-                tdSql.query(sql)
-                if tdSql.getRows() >= 4:
-                    break
-                time.sleep(2)
             tdSql.query(sql)
-            rows_after_e4 = tdSql.getRows()
-            assert rows_after_e4 in (3, 4), (
-                f"unexpected row count {rows_after_e4} after event 4"
+            self._rows_pre_e5 = tdSql.getRows()
+            tdLog.info(
+                f"=== check4 snapshot: rows={self._rows_pre_e5} "
+                f"(event 4 stale-(1,1) check deferred to check5) ==="
             )
-            if rows_after_e4 == 4:
-                v0 = tdSql.getData(3, 0)
-                v1 = tdSql.getData(3, 1)
-                assert not (v0 == 1 and v1 == 1), (
-                    "event 4 reused event 3's stale subquery value (1,1); "
-                    "qFetchRemoteNode stream branch is not clearing the "
-                    "subResNodes slot before refetch"
-                )
-            # Hand the post-event-4 row count to insert5/check5 so they
-            # can detect the new row produced by event 5.
-            self._rows_after_e4 = rows_after_e4
 
         def insert5(self):
             # Re-populate inicio_descarga and trigger again. This covers
@@ -335,20 +304,34 @@ class TestStreamSubqueryPerEvent:
                 f"select acumulado_cumple, acumulado_total "
                 f"from {self.db}.resultado_descarga order by ts"
             )
-            rows_after_e4 = self._rows_after_e4
+            rows_pre_e5 = self._rows_pre_e5
+            # Wait for event 5's (2,2) row to arrive; this also flushes
+            # any pending event-4 output, so we can scan the new tail
+            # for the stale (1,1) marker.
             tdSql.checkResultsByFunc(
                 sql=sql,
-                func=lambda: tdSql.getRows() > rows_after_e4
+                func=lambda: tdSql.getRows() > rows_pre_e5
                 and tdSql.getData(tdSql.getRows() - 1, 0) == 2
                 and tdSql.getData(tdSql.getRows() - 1, 1) == 2,
             )
             tdSql.query(sql)
             rows_after_e5 = tdSql.getRows()
-            assert rows_after_e5 > rows_after_e4, (
-                f"event 5 produced no new row (was {rows_after_e4}, "
+            assert rows_after_e5 > rows_pre_e5, (
+                f"event 5 produced no new row (was {rows_pre_e5}, "
                 f"now {rows_after_e5}); stream stalled after empty event"
             )
+            # Verify event 4 did not silently reuse event 3's value (1,1).
+            # Any row appended between rows_pre_e5 and the final event-5
+            # row (last_row) belongs to event 4.
             last_row = rows_after_e5 - 1
+            for i in range(rows_pre_e5, last_row):
+                v0 = tdSql.getData(i, 0)
+                v1 = tdSql.getData(i, 1)
+                assert not (v0 == 1 and v1 == 1), (
+                    f"event 4 reused event 3's stale subquery value "
+                    f"(1,1) at row {i}; qFetchRemoteNode stream branch "
+                    f"is not clearing the subResNodes slot before refetch"
+                )
             v0 = tdSql.getData(last_row, 0)
             v1 = tdSql.getData(last_row, 1)
             assert v0 == 2 and v1 == 2, (
