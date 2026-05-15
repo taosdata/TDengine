@@ -255,6 +255,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpInDiffType.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest2.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeTinyInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpMaxCols.py
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py -B

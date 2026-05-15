@@ -8,7 +8,7 @@ class TestUserPrivilegeTable:
         tdLog.debug(f"start to execute {__file__}")
 
     
-    def check_show_tables(self, dbName = 'test', stbNum = 0, tbNum = 0, sysTbNum = 42, otherDbTbNum = 0):
+    def check_show_tables(self, dbName = 'test', stbNum = 0, tbNum = 0, sysTbNum = 44, otherDbTbNum = 0):
         tdSql.query(f"show {dbName}.stables;")
         tdSql.checkRows(stbNum)
         tdSql.query(f"select * from information_schema.ins_stables where db_name='{dbName}';")
@@ -58,7 +58,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"create table st2s2 using st2 tags(2, 'shanghai');")
         tdSql.execute(f"insert into st2s1 values(now, 1) st2s2 values(now, 2);")
         tdSql.execute(f"create user wxy pass 'taosdata';")
-        self.check_show_tables("test", 2, 4, 42)
+        self.check_show_tables("test", 2, 4, 44)
 
         tdLog.info(
             f"=============== case 1: database unauthorized and table unauthorized"
@@ -90,7 +90,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(2)
-        self.check_show_tables("test", 1, 2, 42)
+        self.check_show_tables("test", 1, 2, 44)
 
         tdSql.error(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -116,7 +116,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(1)
-        self.check_show_tables("test", 1, 2, 42)
+        self.check_show_tables("test", 1, 2, 44)
 
         tdSql.error(f"insert into test.st1s1 values(now, 10);")
         tdSql.error(f"insert into test.st1s2 values(now, 20);")
@@ -140,7 +140,7 @@ class TestUserPrivilegeTable:
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select tbname, * from test.st1;")
-        self.check_show_tables("test", 1, 2, 42)
+        self.check_show_tables("test", 1, 2, 44)
         tdSql.execute(f"insert into test.st1s1 values(now, 10);")
         tdSql.execute(f"insert into test.st1s2 values(now, 20);")
         tdSql.error(f"select * from test.st2;")
@@ -163,7 +163,7 @@ class TestUserPrivilegeTable:
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select tbname, * from test.st1;")
-        self.check_show_tables("test", 1, 2, 42)
+        self.check_show_tables("test", 1, 2, 44)
         tdSql.execute(f"insert into test.st1s1 values(now, 10);")
         tdSql.execute(
             f"insert into test.st1s3 using test.st1 tags(1, 'dachang') values(now, 100);"
@@ -193,7 +193,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(6)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
 
         tdSql.error(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -218,7 +218,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(6)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
 
         tdSql.error(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -244,7 +244,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(4)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
 
         tdSql.error(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -270,7 +270,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(6)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
 
         tdSql.execute(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -296,7 +296,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(8)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
 
         tdSql.execute(f"insert into test.st1s1 values(now, 10);")
         tdSql.error(f"insert into test.st1s2 values(now, 20);")
@@ -321,7 +321,7 @@ class TestUserPrivilegeTable:
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
         tdSql.execute(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
         )
@@ -343,7 +343,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(11)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
 
         tdSql.execute(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -367,7 +367,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
         tdSql.checkRows(8)
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
     
         tdSql.execute(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
@@ -390,7 +390,7 @@ class TestUserPrivilegeTable:
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
         tdSql.execute(
             f"insert into test.st1s1 values(now, 10) test.st1s2 values(now, 20);"
         )
@@ -412,7 +412,7 @@ class TestUserPrivilegeTable:
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 44)
         tdSql.execute(f"insert into test.st1s1 values(now, 10);")
         tdSql.error(f"insert into test.st1s2 values(now, 20);")
         tdSql.error(f"select * from test.st2;")
@@ -438,8 +438,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("wxy")
         tdSql.execute(f"reset query cache;")
-        self.check_show_tables("test", 2, 5, 42, 100)
-        self.check_show_tables("test2", 1, 100, 42, 5)
+        self.check_show_tables("test", 2, 5, 44, 100)
+        self.check_show_tables("test2", 1, 100, 44, 5)
 
         tdSql.connect("root")
         tdSql.execute(f"grant write on test2.st1 to wxy;")
@@ -447,23 +447,23 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"grant read on test2.st3 with id = 1 to wxy;")
         tdSql.connect("wxy")
         tdSql.execute(f"reset query cache;")
-        self.check_show_tables("test", 2, 5, 42, 400)
-        self.check_show_tables("test2", 4, 400, 42, 5)
+        self.check_show_tables("test", 2, 5, 44, 400)
+        self.check_show_tables("test2", 4, 400, 44, 5)
 
         tdSql.connect("root")
         tdSql.execute(f"grant read on test2.ntb0 to wxy;")
         tdSql.execute(f"grant read on test2.ntb9 to wxy;")
         tdSql.connect("wxy")
         tdSql.execute(f"reset query cache;")
-        self.check_show_tables("test", 2, 5, 42, 402)
-        self.check_show_tables("test2", 4, 402, 42, 5)
+        self.check_show_tables("test", 2, 5, 44, 402)
+        self.check_show_tables("test2", 4, 402, 44, 5)
 
         tdSql.connect("root")
         tdSql.execute(f"grant read on test2.* to wxy;")
         tdSql.connect("wxy")
         tdSql.execute(f"reset query cache;")
-        self.check_show_tables("test", 2, 5, 42, 1010)
-        self.check_show_tables("test2", 10, 1010, 42, 5)
+        self.check_show_tables("test", 2, 5, 44, 1010)
+        self.check_show_tables("test2", 10, 1010, 44, 5)
 
 
 

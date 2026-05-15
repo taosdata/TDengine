@@ -61,7 +61,7 @@ class TDTestCase:
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details"]
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details","ins_snap_send_vnodes", "ins_snap_send_filesets"]
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -221,7 +221,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkRows(333)
+        tdSql.checkRows(350)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkRows(65)
 
@@ -394,6 +394,25 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkRows(2)
 
+    def ins_snap_send_check(self):
+        # ins_snap_send_vnodes: table must exist and have the expected 6 columns.
+        # No active snapshot transfer in a single-node test, so 0 rows is correct.
+        tdSql.query('select * from information_schema.ins_snap_send_vnodes')
+        tdSql.checkRows(0)
+        tdSql.query('describe information_schema.ins_snap_send_vnodes')
+        col_names = [row[0] for row in tdSql.queryResult]
+        for col in ['vgroup_id', 'dnode_id', 'total_file_sets', 'finished_file_sets', 'start_time', 'elapsed']:
+            tdSql.checkEqual(True, col in col_names)
+
+        # ins_snap_send_filesets: table must exist and have the expected 11 columns.
+        tdSql.query('select * from information_schema.ins_snap_send_filesets')
+        tdSql.checkRows(0)
+        tdSql.query('describe information_schema.ins_snap_send_filesets')
+        col_names = [row[0] for row in tdSql.queryResult]
+        for col in ['vgroup_id', 'fid', 'file_count', 'finished_file_count',
+                    'total_size', 'read_size', 'start_time', 'elapsed',
+                    'start_index', 'end_index', 'transfer_type']:
+            tdSql.checkEqual(True, col in col_names)
 
     def run(self):
         self.prepare_data()
@@ -406,6 +425,7 @@ class TDTestCase:
         self.ins_grants_check()
         self.ins_encryptions_check()
         self.test_query_ins_tags()
+        self.ins_snap_send_check()
 
 
     def stop(self):
