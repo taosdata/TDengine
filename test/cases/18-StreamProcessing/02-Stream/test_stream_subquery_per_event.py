@@ -305,15 +305,19 @@ class TestStreamSubqueryPerEvent:
                     "qFetchRemoteNode stream branch is not clearing the "
                     "subResNodes slot before refetch"
                 )
+            # Hand the post-event-4 row count to insert5/check5 so they
+            # can detect the new row produced by event 5.
+            self._rows_after_e4 = rows_after_e4
 
-            # Event 5: re-populate inicio_descarga and trigger again.
-            # This covers Finding 1: setValueFromResBlock must reset
-            # pRes->isNull = false so the value placed by event 5 isn't
-            # masked by the isNull=true left over from event 4's empty
-            # fetch. With the bug, event 5's WHERE evaluates against a
-            # NULL lower bound and matches no cumple rows -> aggregate
-            # NULL. With the fix, the lower bound is 00:00:01 again
-            # and exactly two cumple rows match -> SUM=(2, 2).
+        def insert5(self):
+            # Re-populate inicio_descarga and trigger again. This covers
+            # Finding 1: setValueFromResBlock must reset pRes->isNull =
+            # false so the value placed by event 5 isn't masked by the
+            # isNull=true left over from event 4's empty fetch. With the
+            # bug, event 5's WHERE evaluates against a NULL lower bound
+            # and matches no cumple rows -> aggregate NULL. With the
+            # fix, the lower bound is 00:00:01 again and exactly two
+            # cumple rows match -> SUM=(2, 2).
             tdLog.info(
                 "=== event 5: re-insert inicio @ 00:00:01, trigger linea ==="
             )
@@ -325,8 +329,13 @@ class TestStreamSubqueryPerEvent:
                 f"insert into {self.db}.linea_descarga "
                 f"values ('2026-05-01 00:00:04', 1)"
             )
-            # Wait for event 5 to land via the polling helper instead of
-            # an open-coded sleep loop.
+
+        def check5(self):
+            sql = (
+                f"select acumulado_cumple, acumulado_total "
+                f"from {self.db}.resultado_descarga order by ts"
+            )
+            rows_after_e4 = self._rows_after_e4
             tdSql.checkResultsByFunc(
                 sql=sql,
                 func=lambda: tdSql.getRows() > rows_after_e4
