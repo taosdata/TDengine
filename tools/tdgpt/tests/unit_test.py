@@ -530,9 +530,10 @@ class ServiceTest(unittest.TestCase):
         return service_name, config_path
 
     def test_dynamic_prophet_service_is_supported(self):
-        """prophet is a supported dynamic algorithm; registering one must succeed and not raise NotImplementedError."""
+        """prophet dynamic service should register and execute with forecast outputs."""
         import os
         import json
+        import pandas as pd
         from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
 
         service_name = None
@@ -559,6 +560,49 @@ class ServiceTest(unittest.TestCase):
             self.assertIsNotNone(service)
             self.assertIsInstance(service, DynamicForecastService)
             self.assertEqual(service.algo.lower(), "prophet")
+
+            service.set_input_list(
+                [10.0, 11.0, 12.0, 13.0, 14.0],
+                [
+                    1704067200000,
+                    1704153600000,
+                    1704240000000,
+                    1704326400000,
+                    1704412800000
+                ],
+            )
+            service.set_params({
+                "rows": 2,
+                "start_ts": 1704499200000,
+                "time_step": 86400000,
+                "tz": "UTC",
+            })
+
+            forecast_df = pd.DataFrame({
+                "ds": pd.date_range("2024-01-01", periods=7, freq="D"),
+                "yhat": [1, 2, 3, 4, 5, 6, 7],
+                "yhat_lower": [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5],
+                "yhat_upper": [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5],
+            })
+
+            with mock.patch("taosanalytics.handlers.dynamic_forecast.ProphetModelForecaster") as mocked_forecaster:
+                mocked_forecaster.return_value.forecast.return_value = forecast_df
+                mocked_forecaster.return_value.get_param.return_value = {
+                    "changepoint_prior_scale": 0.05,
+                    "seasonality_mode": "additive",
+                    "freq": "D",
+                }
+
+                result = service.execute()
+
+                _, forecaster_df, rows = mocked_forecaster.call_args.args[:3]
+                self.assertEqual(rows, 2)
+                self.assertTrue(pd.api.types.is_datetime64_any_dtype(forecaster_df["ts"]))
+                self.assertFalse(isinstance(forecaster_df["ts"].dtype, pd.DatetimeTZDtype))
+                self.assertEqual(result["res"][0], [1704499200000, 1704585600000])
+                self.assertEqual(result["res"][1], [6, 7])
+                self.assertEqual(result["res"][2], [5.5, 6.5])
+                self.assertEqual(result["res"][3], [6.5, 7.5])
         finally:
             if service_name and service_name in loader.services:
                 del loader.services[service_name]
@@ -791,4 +835,3 @@ class ServiceTest(unittest.TestCase):
                 os.remove(config_path)
             if os.path.isdir(temp_dir):
                 os.rmdir(temp_dir)
-
