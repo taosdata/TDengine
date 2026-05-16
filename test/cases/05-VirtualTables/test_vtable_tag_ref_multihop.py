@@ -245,10 +245,10 @@ class TestVtableTagRefMultihop:
         )
         tdSql.execute("CREATE TABLE depth_src USING depth_src_stb TAGS ('origin');")
         tdSql.execute("INSERT INTO depth_src VALUES (1700000000000, 0);")
-        # Create chain: depth_v0 -> depth_v1 -> ... -> depth_v33
+        # Create chain: depth_v0 -> depth_v1 -> ... -> depth_v32
         prev_name = "depth_src"
         prev_tag = "depth_tag"
-        for i in range(34):
+        for i in range(33):
             vname = f"depth_v{i}"
             vstb = f"depth_vstb_{i}"
             tag_name = f"dt{i}"
@@ -798,9 +798,9 @@ class TestVtableTagRefMultihop:
     # Test: Depth limit (>32 levels) detection
     # ------------------------------------------------------------------
     def test_validate_depth_exceeded(self):
-        """VALIDATE: tag-ref chain > 32 levels reports depth exceeded.
+        """VALIDATE: tag-ref chain > 32 levels is rejected at CREATE time.
 
-        Verify SHOW VTABLE VALIDATE detects and reports VTABLE_REF_DEPTH_EXCEEDED error.
+        Verify CREATE VTABLE rejects a tag-ref chain that would exceed the depth limit.
 
         Catalog:
             - VirtualTable
@@ -811,16 +811,16 @@ class TestVtableTagRefMultihop:
 
         """
         tdSql.execute(f"USE {DEPTH_DB};")
-        # depth_v33 is at depth 34 (depth_v33 → depth_v32 → ... → depth_v0 → depth_src)
-        tdSql.query("SHOW VTABLE VALIDATE FOR depth_v33;")
-        found_depth_err = False
-        for i in range(tdSql.queryRows):
-            err_code = tdSql.getData(i, 8)
-            ref_type = tdSql.getData(i, 7)
-            if ref_type == 1 and err_code == TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED:
-                found_depth_err = True
-                break
-        assert found_depth_err, "Expected VTABLE_REF_DEPTH_EXCEEDED for chain > 32 levels"
+        # depth_v32 is the last created table. Creating depth_v33 would exceed depth limit.
+        tdSql.execute(
+            f"CREATE STABLE depth_vstb_33(ts TIMESTAMP, v INT) "
+            f"TAGS (dt33 NCHAR(20)) VIRTUAL 1;"
+        )
+        tdSql.error(
+            f"CREATE VTABLE depth_v33 (v FROM {DEPTH_DB}.depth_base.val) "
+            f"USING depth_vstb_33 TAGS ({DEPTH_DB}.depth_v32.dt32);",
+            expectedErrno=TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED
+        )
 
     def test_validate_within_depth_limit(self):
         """VALIDATE: tag-ref chain at exactly 32 levels passes.

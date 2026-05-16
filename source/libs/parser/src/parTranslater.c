@@ -26341,6 +26341,102 @@ _err:
   return code;
 }
 
+// Trace virtual table reference chain to check depth limit and circular references.
+static int32_t getChainTableMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
+                                 STableMeta** pMeta) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SName          name = {0};
+  toName(pParCxt->acctId, pDbName, pTableName, &name);
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  return catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
+}
+
+static int32_t checkRefChainDepthAndCircular(STranslateContext* pCxt, const char* pRefDbName,
+                                             const char* pRefTableName, const char* pRefColName, bool isTagRef) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  STableMeta* pMeta = NULL;
+  SHashObj*   pVisited = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pVisited) {
+    return terrno;
+  }
+
+  char curDb[TSDB_DB_NAME_LEN];
+  char curTable[TSDB_TABLE_NAME_LEN];
+  char curCol[TSDB_COL_NAME_LEN];
+  tstrncpy(curDb, pRefDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(curTable, pRefTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(curCol, pRefColName, TSDB_COL_NAME_LEN);
+
+  for (int32_t depth = 1; depth <= TSDB_MAX_VTABLE_REF_DEPTH + 1; ++depth) {
+    char    visitKey[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 2];
+    int32_t keyLen = snprintf(visitKey, sizeof(visitKey), "%s.%s", curDb, curTable);
+
+    if (taosHashGet(pVisited, visitKey, keyLen + 1)) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_VTABLE_CIRCULAR_REF,
+                                     "Circular reference detected at table \"%s\".\"%s\"", curDb, curTable);
+      goto _return;
+    }
+    code = taosHashPut(pVisited, visitKey, keyLen + 1, NULL, 0);
+    if (TSDB_CODE_SUCCESS != code) goto _return;
+
+    code = getChainTableMeta(pCxt, curDb, curTable, &pMeta);
+    if (TSDB_CODE_SUCCESS != code) goto _return;
+
+    if (pMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE && pMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
+      taosMemoryFreeClear(pMeta);
+      break;
+    }
+
+    // Resolve curCol name to colId via table schema (colRef.colName is not serialized over wire)
+    col_id_t colId = -1;
+    if (isTagRef) {
+      const SSchema* pTag = getTagSchema(pMeta, curCol);
+      if (pTag) colId = pTag->colId;
+    } else {
+      int32_t idx = getNormalColSchemaIndex(pMeta, curCol);
+      if (idx >= 0) colId = pMeta->schema[idx].colId;
+    }
+
+    if (colId < 0) {
+      taosMemoryFreeClear(pMeta);
+      break;
+    }
+
+    SColRef* refs = isTagRef ? pMeta->tagRef : pMeta->colRef;
+    int32_t  nRefs = isTagRef ? pMeta->numOfTagRefs : pMeta->numOfColRefs;
+    bool     found = false;
+
+    for (int32_t i = 0; refs && i < nRefs; ++i) {
+      if (refs[i].hasRef && refs[i].id == colId) {
+        tstrncpy(curDb, refs[i].refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(curTable, refs[i].refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(curCol, refs[i].refColName, TSDB_COL_NAME_LEN);
+        found = true;
+        break;
+      }
+    }
+
+    taosMemoryFreeClear(pMeta);
+
+    if (!found) break;
+
+    if (depth > TSDB_MAX_VTABLE_REF_DEPTH) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,
+                                     "Virtual table reference chain depth exceeds limit of %d",
+                                     TSDB_MAX_VTABLE_REF_DEPTH);
+      goto _return;
+    }
+  }
+
+_return:
+  taosMemoryFreeClear(pMeta);
+  taosHashCleanup(pVisited);
+  return code;
+}
+
 static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const char* pRefDbName,
                            const char* pRefTableName, const char* pRefColName, SDataType type, int8_t precision) {
   STableMeta*    pRefTableMeta = NULL;
@@ -26385,6 +26481,9 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const c
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
   }
 
+  if (pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pRefDbName, pRefTableName, pRefColName, false));
+  }
 
 _return:
   taosMemoryFreeClear(pRefTableMeta);
@@ -26425,6 +26524,10 @@ static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbN
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
                                          "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
                                          tagName, pRefColName));
+  }
+
+  if (pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pRefDbName, pRefTableName, pRefColName, true));
   }
 
 _return:
