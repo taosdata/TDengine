@@ -5,7 +5,7 @@ from new_test_framework.utils import tdLog, tdSql, tdStream
 class TestStreamVtableChainRef:
     """End-to-end tests for vtable chain-ref resolution in stream processing.
 
-    Covers TC01-TC09 from the design spec (vtable chain-ref stream adaptation).
+    Covers TC01-TC13 from the design spec (vtable chain-ref stream adaptation).
 
     NOTE: TCs that depend on cluster topology (cross-vnode), 10s throttling,
     or fault injection are gated and may be skipped if unsupported in the
@@ -17,7 +17,7 @@ class TestStreamVtableChainRef:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_chain_ref(self):
-        """TC01-TC09 -- vtable chain-ref end-to-end.
+        """TC01-TC13 -- vtable chain-ref end-to-end.
 
         Since: v3.4.1.0
 
@@ -36,17 +36,17 @@ class TestStreamVtableChainRef:
                 tdStream.createSnode()
             self._tc01_one_hop()
             self._tc02_three_hop_same_vg()
-            self._tc02_three_hop_tag_chain_same_vg()
-            self._tc03_three_hop_cross_vg()
-            self._tc03_three_hop_tag_chain_cross_vg()
-            self._tc03_event_window_chain_with_tag_cond()
-            self._tc03_event_window_chain_with_tag_cond_cross_vg()
-            self._tc04_partition_by_tag()
-            self._tc05_tag_changed_fatal()
-            self._tc06_col_terminal_changed_patch()
-            self._tc07_ref_table_not_exist()
-            self._tc08_ref_col_not_exist()
-            self._tc09_chain_too_deep()
+            self._tc03_three_hop_tag_chain_same_vg()
+            self._tc04_three_hop_cross_vg()
+            self._tc05_three_hop_tag_chain_cross_vg()
+            self._tc06_event_window_chain_with_tag_cond()
+            self._tc07_event_window_chain_with_tag_cond_cross_vg()
+            self._tc08_partition_by_tag()
+            self._tc09_tag_changed_fatal()
+            self._tc10_col_terminal_changed_patch()
+            self._tc11_ref_table_not_exist()
+            self._tc12_ref_col_not_exist()
+            self._tc13_chain_too_deep()
         finally:
             tdStream.dropAllStreamsAndDbs()
 
@@ -133,69 +133,13 @@ class TestStreamVtableChainRef:
         )
         tdSql.execute("drop database tc02 force")
 
-    def _tc03_three_hop_cross_vg(self):
-        tdLog.info("TC03: three-hop chain across vgroups")
-        # Hash routes tables by name; with vgroups=3 the four candidate tables
-        # may collapse onto one vg by chance. Retry with a name suffix until
-        # the chain physically spans at least two vgroups.
-        max_attempts = 8
-        chosen_suffix = None
-        chosen_vgs = None
-        for attempt in range(max_attempts):
-            suffix = "" if attempt == 0 else f"_a{attempt}"
-            db = f"tc03{suffix}"
-            tdSql.execute(f"drop database if exists {db}")
-            tdSql.execute(f"create database {db} vgroups 3")
-            tdSql.execute(f"use {db}")
-            tdSql.execute(f"create table {db}.ct0 (ts timestamp, v int)")
-            tdSql.execute(f"create vtable {db}.vt1 (ts timestamp, v int from {db}.ct0.v)")
-            tdSql.execute(f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v)")
-            tdSql.execute(f"create vtable {db}.vt3 (ts timestamp, v int from {db}.vt2.v)")
-            vgs = {}
-            for tbl in ("ct0", "vt1", "vt2", "vt3"):
-                tdSql.query(
-                    f"select vgroup_id from information_schema.ins_tables "
-                    f"where db_name='{db}' and table_name='{tbl}'"
-                )
-                vgs[tbl] = tdSql.getData(0, 0)
-            tdLog.info(f"TC03 attempt {attempt} db={db} vgs={vgs}")
-            # require that consecutive chain hops cross a vg boundary at least once.
-            crosses = sum(
-                1 for a, b in (("vt3", "vt2"), ("vt2", "vt1"), ("vt1", "ct0"))
-                if vgs[a] != vgs[b]
-            )
-            if crosses >= 1 and len(set(vgs.values())) >= 2:
-                chosen_suffix = suffix
-                chosen_vgs = vgs
-                break
-            tdSql.execute(f"drop database {db}")
-        if chosen_suffix is None:
-            tdLog.exit("TC03: failed to obtain a cross-vgroup chain layout after retries")
-        db = f"tc03{chosen_suffix}"
-        tdLog.info(f"TC03 chosen db={db} vgs={chosen_vgs}")
-        tdSql.execute(
-            f"create stream {db}.s3 sliding(1s) from {db}.vt3 into {db}.res as "
-            f"select ts, v from {db}.vt3"
-        )
-        tdStream.checkStreamStatus("s3")
-        ts = int(time.time() * 1000) // 1000 * 1000
-        tdSql.execute(
-            f"insert into {db}.ct0 values "
-            f"({ts}, 1) ({ts + 1000}, 2) ({ts + 2000}, 3)"
-        )
-        expected = [(ts, 1), (ts + 1000, 2), (ts + 2000, 3)]
-        self._checkRows(
-            "TC03", f"select cast(ts as bigint), v from {db}.res order by ts", expected
-        )
-        tdSql.execute(f"drop database {db} force")
-
-    def _tc02_three_hop_tag_chain_same_vg(self):
-        tdLog.info("TC02b: three-hop tag chain inside one vgroup")
+    def _tc03_three_hop_tag_chain_same_vg(self):
+        tdLog.info("TC03: three-hop tag chain inside one vgroup")
         # Source: physical stable + ct0 carrying a region tag.
         # Chain: vct1.tag <- ct0.tag, vct2.tag <- vct1.tag, vct3.tag <- vct2.tag.
         # Stream over vstb partition by region asserts the 3-hop tag chain
         # surfaces the original tag value on every output row.
-        db = "tc02b"
+        db = "tc03"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (region int)")
@@ -232,22 +176,78 @@ class TestStreamVtableChainRef:
             (ts + 1000, 2, 77),
         ]
         self._checkRows(
-            "TC02b",
+            "TC03",
             f"select cast(ts as bigint), v, region from {db}.res order by ts",
             expected,
         )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc03_three_hop_tag_chain_cross_vg(self):
-        tdLog.info("TC03b: three-hop tag chain across vgroups")
-        # Same chain shape as TC02b but vgroups=3 with retry-by-suffix until
+    def _tc04_three_hop_cross_vg(self):
+        tdLog.info("TC04: three-hop chain across vgroups")
+        # Hash routes tables by name; with vgroups=3 the four candidate tables
+        # may collapse onto one vg by chance. Retry with a name suffix until
+        # the chain physically spans at least two vgroups.
+        max_attempts = 8
+        chosen_suffix = None
+        chosen_vgs = None
+        for attempt in range(max_attempts):
+            suffix = "" if attempt == 0 else f"_a{attempt}"
+            db = f"tc04{suffix}"
+            tdSql.execute(f"drop database if exists {db}")
+            tdSql.execute(f"create database {db} vgroups 3")
+            tdSql.execute(f"use {db}")
+            tdSql.execute(f"create table {db}.ct0 (ts timestamp, v int)")
+            tdSql.execute(f"create vtable {db}.vt1 (ts timestamp, v int from {db}.ct0.v)")
+            tdSql.execute(f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v)")
+            tdSql.execute(f"create vtable {db}.vt3 (ts timestamp, v int from {db}.vt2.v)")
+            vgs = {}
+            for tbl in ("ct0", "vt1", "vt2", "vt3"):
+                tdSql.query(
+                    f"select vgroup_id from information_schema.ins_tables "
+                    f"where db_name='{db}' and table_name='{tbl}'"
+                )
+                vgs[tbl] = tdSql.getData(0, 0)
+            tdLog.info(f"TC04 attempt {attempt} db={db} vgs={vgs}")
+            # require that consecutive chain hops cross a vg boundary at least once.
+            crosses = sum(
+                1 for a, b in (("vt3", "vt2"), ("vt2", "vt1"), ("vt1", "ct0"))
+                if vgs[a] != vgs[b]
+            )
+            if crosses >= 1 and len(set(vgs.values())) >= 2:
+                chosen_suffix = suffix
+                chosen_vgs = vgs
+                break
+            tdSql.execute(f"drop database {db}")
+        if chosen_suffix is None:
+            tdLog.exit("TC04: failed to obtain a cross-vgroup chain layout after retries")
+        db = f"tc04{chosen_suffix}"
+        tdLog.info(f"TC04 chosen db={db} vgs={chosen_vgs}")
+        tdSql.execute(
+            f"create stream {db}.s3 sliding(1s) from {db}.vt3 into {db}.res as "
+            f"select ts, v from {db}.vt3"
+        )
+        tdStream.checkStreamStatus("s3")
+        ts = int(time.time() * 1000) // 1000 * 1000
+        tdSql.execute(
+            f"insert into {db}.ct0 values "
+            f"({ts}, 1) ({ts + 1000}, 2) ({ts + 2000}, 3)"
+        )
+        expected = [(ts, 1), (ts + 1000, 2), (ts + 2000, 3)]
+        self._checkRows(
+            "TC04", f"select cast(ts as bigint), v from {db}.res order by ts", expected
+        )
+        tdSql.execute(f"drop database {db} force")
+
+    def _tc05_three_hop_tag_chain_cross_vg(self):
+        tdLog.info("TC05: three-hop tag chain across vgroups")
+        # Same chain shape as TC03 but vgroups=3 with retry-by-suffix until
         # the four chain tables physically span at least two vgroups.
         max_attempts = 8
         chosen_suffix = None
         chosen_vgs = None
         for attempt in range(max_attempts):
             suffix = "" if attempt == 0 else f"_a{attempt}"
-            db = f"tc03b{suffix}"
+            db = f"tc05{suffix}"
             tdSql.execute(f"drop database if exists {db}")
             tdSql.execute(f"create database {db} vgroups 3")
             tdSql.execute(f"use {db}")
@@ -273,7 +273,7 @@ class TestStreamVtableChainRef:
                     f"where db_name='{db}' and table_name='{tbl}'"
                 )
                 vgs[tbl] = tdSql.getData(0, 0)
-            tdLog.info(f"TC03b attempt {attempt} db={db} vgs={vgs}")
+            tdLog.info(f"TC05 attempt {attempt} db={db} vgs={vgs}")
             crosses = sum(
                 1 for a, b in (("vct3", "vct2"), ("vct2", "vct1"), ("vct1", "ct0"))
                 if vgs[a] != vgs[b]
@@ -284,9 +284,9 @@ class TestStreamVtableChainRef:
                 break
             tdSql.execute(f"drop database {db}")
         if chosen_suffix is None:
-            tdLog.exit("TC03b: failed to obtain a cross-vgroup tag-chain layout after retries")
-        db = f"tc03b{chosen_suffix}"
-        tdLog.info(f"TC03b chosen db={db} vgs={chosen_vgs}")
+            tdLog.exit("TC05: failed to obtain a cross-vgroup tag-chain layout after retries")
+        db = f"tc05{chosen_suffix}"
+        tdLog.info(f"TC05 chosen db={db} vgs={chosen_vgs}")
         tdSql.execute(
             f"create stream {db}.s3b interval(1s) sliding(1s) from {db}.vstb "
             f"partition by region into {db}.res "
@@ -303,14 +303,14 @@ class TestStreamVtableChainRef:
             (ts + 1000, 2, 88),
         ]
         self._checkRows(
-            "TC03b",
+            "TC05",
             f"select cast(ts as bigint), v, region from {db}.res order by ts",
             expected,
         )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc03_event_window_chain_with_tag_cond(self):
-        tdLog.info("TC03c: event-window stream over chain-ref vchild with col + non-partition tag in event cond")
+    def _tc06_event_window_chain_with_tag_cond(self):
+        tdLog.info("TC06: event-window stream over chain-ref vchild with col + non-partition tag in event cond")
         # Shape:
         #   - two physical child tables under stb, each carrying (region, area):
         #       ct0  -> region=88, area=1   (event condition matches)
@@ -326,7 +326,7 @@ class TestStreamVtableChainRef:
         # equals 1) closes an event window and produces a row in res; the
         # region=99 partition is silenced because the tag predicate fails on
         # its chain-resolved area.
-        db = "tc03c"
+        db = "tc06"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(
@@ -391,15 +391,15 @@ class TestStreamVtableChainRef:
             (ts, 4, 88),
         ]
         self._checkRows(
-            "TC03c",
+            "TC06",
             f"select cast(ts as bigint), v, region from {db}.res order by ts, region",
             expected,
         )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc03_event_window_chain_with_tag_cond_cross_vg(self):
-        tdLog.info("TC03d: event-window chain-ref vchild with col + non-partition tag, across vgroups")
-        # Same shape as TC03c but with vgroups=3 and a retry-by-suffix loop
+    def _tc07_event_window_chain_with_tag_cond_cross_vg(self):
+        tdLog.info("TC07: event-window chain-ref vchild with col + non-partition tag, across vgroups")
+        # Same shape as TC06 but with vgroups=3 and a retry-by-suffix loop
         # until the eight chain tables (ct0/ct1 + vct1/2/3 a/b) physically
         # span at least two vgroups. Validates that the event_window stream
         # over a chain-ref vstb still surfaces correct results when chain
@@ -410,7 +410,7 @@ class TestStreamVtableChainRef:
         chosen_vgs = None
         for attempt in range(max_attempts):
             suffix = "" if attempt == 0 else f"_a{attempt}"
-            db = f"tc03d{suffix}"
+            db = f"tc07{suffix}"
             tdSql.execute(f"drop database if exists {db}")
             tdSql.execute(f"create database {db} vgroups 3")
             tdSql.execute(f"use {db}")
@@ -454,7 +454,7 @@ class TestStreamVtableChainRef:
                     f"where db_name='{db}' and table_name='{tbl}'"
                 )
                 vgs[tbl] = tdSql.getData(0, 0)
-            tdLog.info(f"TC03d attempt {attempt} db={db} vgs={vgs}")
+            tdLog.info(f"TC07 attempt {attempt} db={db} vgs={vgs}")
             # Require at least one chain hop to cross a vg boundary on either
             # the ct0 chain or the ct1 chain, and at least 2 distinct vgs in total.
             crosses = sum(
@@ -470,9 +470,9 @@ class TestStreamVtableChainRef:
                 break
             tdSql.execute(f"drop database {db}")
         if chosen_suffix is None:
-            tdLog.exit("TC03d: failed to obtain a cross-vgroup chain layout after retries")
-        db = f"tc03d{chosen_suffix}"
-        tdLog.info(f"TC03d chosen db={db} vgs={chosen_vgs}")
+            tdLog.exit("TC07: failed to obtain a cross-vgroup chain layout after retries")
+        db = f"tc07{chosen_suffix}"
+        tdLog.info(f"TC07 chosen db={db} vgs={chosen_vgs}")
         tdSql.execute(
             f"create stream {db}.s3d "
             f"event_window(start with v >= 10 and area = 1 end with v < 5) "
@@ -489,7 +489,7 @@ class TestStreamVtableChainRef:
         tdSql.execute(f"insert into {db}.ct1 values ({ts}, 12)")
         tdSql.execute(f"insert into {db}.ct1 values ({ts + 500}, 4)")
         tdSql.execute(f"insert into {db}.ct1 values ({ts + 1500}, 0)")
-        # Same expectation as TC03c: only the ct0 chain (area=1) fires, and
+        # Same expectation as TC06: only the ct0 chain (area=1) fires, and
         # each of vct1a/vct2a/vct3a produces one row with last(v)=4.
         expected = [
             (ts, 4, 88),
@@ -497,14 +497,14 @@ class TestStreamVtableChainRef:
             (ts, 4, 88),
         ]
         self._checkRows(
-            "TC03d",
+            "TC07",
             f"select cast(ts as bigint), v, region from {db}.res order by ts, region",
             expected,
         )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc04_partition_by_tag(self):
-        tdLog.info("TC04: partition by vtable tag")
+    def _tc08_partition_by_tag(self):
+        tdLog.info("TC08: partition by vtable tag")
         # Per spec v0.3, partition-by tag only makes sense on a CHILD vtable
         # (NORMAL vtable has no tag concept). The minimal shape is:
         #   * physical child tables carrying the data column;
@@ -515,36 +515,36 @@ class TestStreamVtableChainRef:
         #   * a stream from the vstb partition-by tag.
         # The test asserts that the chain-ref reader plumbing surfaces the
         # tag values into the stream output groups.
-        tdSql.execute("create database tc04 vgroups 1")
-        tdSql.execute("use tc04")
-        tdSql.execute("create table tc04.ct1 (ts timestamp, v int)")
-        tdSql.execute("create table tc04.ct2 (ts timestamp, v int)")
+        tdSql.execute("create database tc08 vgroups 1")
+        tdSql.execute("use tc08")
+        tdSql.execute("create table tc08.ct1 (ts timestamp, v int)")
+        tdSql.execute("create table tc08.ct2 (ts timestamp, v int)")
         tdSql.execute(
-            "create stable tc04.vstb (ts timestamp, v int) "
+            "create stable tc08.vstb (ts timestamp, v int) "
             "tags (region int) virtual 1"
         )
         tdSql.execute(
-            "create vtable tc04.vct1 (v from tc04.ct1.v) "
-            "using tc04.vstb tags(11)"
+            "create vtable tc08.vct1 (v from tc08.ct1.v) "
+            "using tc08.vstb tags(11)"
         )
         tdSql.execute(
-            "create vtable tc04.vct2 (v from tc04.ct2.v) "
-            "using tc04.vstb tags(22)"
+            "create vtable tc08.vct2 (v from tc08.ct2.v) "
+            "using tc08.vstb tags(22)"
         )
         tdSql.execute(
-            "create stream tc04.s4 interval(1s) sliding(1s) from tc04.vstb "
-            "partition by region into tc04.res "
+            "create stream tc08.s4 interval(1s) sliding(1s) from tc08.vstb "
+            "partition by region into tc08.res "
             "tags (region int as region) as "
             "select _twstart as ts, last(v) as v from %%trows"
         )
         tdStream.checkStreamStatus("s4")
         ts = int(time.time() * 1000) // 1000 * 1000
-        tdSql.execute(f"insert into tc04.ct1 values ({ts}, 1)")
-        tdSql.execute(f"insert into tc04.ct1 values ({ts + 1500}, 2)")
-        tdSql.execute(f"insert into tc04.ct1 values ({ts + 2500}, 3)")
-        tdSql.execute(f"insert into tc04.ct2 values ({ts}, 10)")
-        tdSql.execute(f"insert into tc04.ct2 values ({ts + 1500}, 20)")
-        tdSql.execute(f"insert into tc04.ct2 values ({ts + 2500}, 30)")
+        tdSql.execute(f"insert into tc08.ct1 values ({ts}, 1)")
+        tdSql.execute(f"insert into tc08.ct1 values ({ts + 1500}, 2)")
+        tdSql.execute(f"insert into tc08.ct1 values ({ts + 2500}, 3)")
+        tdSql.execute(f"insert into tc08.ct2 values ({ts}, 10)")
+        tdSql.execute(f"insert into tc08.ct2 values ({ts + 1500}, 20)")
+        tdSql.execute(f"insert into tc08.ct2 values ({ts + 2500}, 30)")
         # 2 partitions (region=11 from ct1, region=22 from ct2);
         # 3 rows per partition close 2 windows each.
         expected = [
@@ -554,21 +554,21 @@ class TestStreamVtableChainRef:
             (ts + 1000, 20, 22),
         ]
         self._checkRows(
-            "TC04",
-            "select cast(ts as bigint), v, region from tc04.res order by region, ts",
+            "TC08",
+            "select cast(ts as bigint), v, region from tc08.res order by region, ts",
             expected,
         )
-        tdSql.execute("drop database tc04 force")
+        tdSql.execute("drop database tc08 force")
 
-    def _tc05_tag_changed_fatal(self):
-        tdLog.info("TC05: chain-ref partition tag mutation -> stream Failed (0x701D)")
-        # Spec TC05: when the terminal-link tag value of a partition-by tag
+    def _tc09_tag_changed_fatal(self):
+        tdLog.info("TC09: chain-ref partition tag mutation -> stream Failed (0x701D)")
+        # Spec TC09: when the terminal-link tag value of a partition-by tag
         # chain changes, the >=10s throttled recheck hook must detect the
         # diff and return TSDB_CODE_STREAM_VTB_TAG_CHANGED (0x701D). The
         # reader bails, the trigger task self-fails on the error RSP, and
         # mnode surfaces the failure as status='Failed' with a message
         # containing 'partition tag changed'.
-        db = "tc05"
+        db = "tc09"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create stable {db}.stb (ts timestamp, v int) tags (region int)")
@@ -608,27 +608,27 @@ class TestStreamVtableChainRef:
                 if status == "Failed":
                     break
             time.sleep(1)
-        tdLog.info(f"TC05 final stream state: status={status!r} message={message!r}")
+        tdLog.info(f"TC09 final stream state: status={status!r} message={message!r}")
         if status != "Failed":
             tdLog.exit(
-                f"TC05 expected status 'Failed', got {status!r} message={message!r}"
+                f"TC09 expected status 'Failed', got {status!r} message={message!r}"
             )
         if "partition tag changed" not in (message or "").lower():
             tdLog.exit(
-                f"TC05 expected message contain 'partition tag changed', "
+                f"TC09 expected message contain 'partition tag changed', "
                 f"got {message!r}"
             )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc06_col_terminal_changed_patch(self):
-        tdLog.info("TC06: middle vtable column re-points -> stream redeploys, resumes against new ref")
-        # Spec TC06 (current product behavior): runtime ALTER on a middle
+    def _tc10_col_terminal_changed_patch(self):
+        tdLog.info("TC10: middle vtable column re-points -> stream redeploys, resumes against new ref")
+        # Spec TC10 (current product behavior): runtime ALTER on a middle
         # vtable's column ref is reported by the trigger reader as
         # INTERNAL_ERROR; mnode then tears down and redeploys the whole
         # stream. After redeploy completes the stream MUST come back to
         # 'Running' with 'Failed times' >= 1, and rows written to the NEW
         # chain terminal MUST surface via the rebuilt chain.
-        db = "tc06"
+        db = "tc10"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
@@ -647,7 +647,7 @@ class TestStreamVtableChainRef:
             f"insert into {db}.ct1 values ({ts}, 100) ({ts + 1000}, 200)"
         )
         self._checkRows(
-            "TC06-baseline",
+            "TC10-baseline",
             f"select cast(ts as bigint), v from {db}.res order by ts",
             [(ts, 100), (ts + 1000, 200)],
         )
@@ -662,7 +662,7 @@ class TestStreamVtableChainRef:
         initial_status = tdSql.getData(0, 0) if tdSql.getRows() >= 1 else None
         initial_message = tdSql.getData(0, 1) if tdSql.getRows() >= 1 else None
         tdLog.info(
-            f"TC06 pre-change: status={initial_status!r} message={initial_message!r}"
+            f"TC10 pre-change: status={initial_status!r} message={initial_message!r}"
         )
         # Re-point the middle node onto a new physical table.
         tdSql.execute(f"drop vtable {db}.vt2")
@@ -690,12 +690,12 @@ class TestStreamVtableChainRef:
             time.sleep(2)
         if not redeployed:
             tdLog.exit(
-                f"TC06 expected stream to be redeployed (Running with "
+                f"TC10 expected stream to be redeployed (Running with "
                 f"message changed from {initial_message!r}); "
                 f"last status={last_status!r} message={last_message!r}"
             )
         tdLog.info(
-            f"TC06 redeployed: status={last_status!r} message={last_message!r}"
+            f"TC10 redeployed: status={last_status!r} message={last_message!r}"
         )
         # Write to the new chain terminal; the rebuilt chain must surface it.
         new_ts = int(time.time() * 1000) // 1000 * 1000
@@ -708,23 +708,23 @@ class TestStreamVtableChainRef:
         )
         if tdSql.getRows() != 1 or tdSql.getData(0, 1) != 300:
             tdLog.exit(
-                f"TC06: post-redeploy write to ct2 missing in res "
+                f"TC10: post-redeploy write to ct2 missing in res "
                 f"(got {tdSql.getRows()} rows)"
             )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc07_ref_table_not_exist(self):
+    def _tc11_ref_table_not_exist(self):
         tdLog.info(
-            "TC07: runtime resolver propagates STREAM_VTB_REF_TABLE_NOT_EXIST"
+            "TC11: runtime resolver propagates STREAM_VTB_REF_TABLE_NOT_EXIST"
             " when a middle-chain vtable is dropped"
         )
-        # Spec TC07: when a middle-link ref-table disappears at runtime, the
+        # Spec TC11: when a middle-link ref-table disappears at runtime, the
         # vnode reader returns TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST in the
         # per-item response, A function propagates it, the trigger task
         # self-fails on the error RSP, and mnode surfaces the failure as
         # status='Failed' with a message containing the ref-table-not-exist
         # error string.
-        db = "tc07"
+        db = "tc11"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
@@ -760,24 +760,24 @@ class TestStreamVtableChainRef:
                 if status == "Failed":
                     break
             time.sleep(1)
-        tdLog.info(f"TC07 final stream state: status={status!r} message={message!r}")
+        tdLog.info(f"TC11 final stream state: status={status!r} message={message!r}")
         if status != "Failed":
             tdLog.exit(
-                f"TC07 expected status 'Failed', got {status!r} message={message!r}"
+                f"TC11 expected status 'Failed', got {status!r} message={message!r}"
             )
         msg_lower = (message or "").lower()
         if "ref table not exist" not in msg_lower and "0x701b" not in msg_lower:
             tdLog.exit(
-                f"TC07 expected message contain 'ref table not exist', got {message!r}"
+                f"TC11 expected message contain 'ref table not exist', got {message!r}"
             )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc08_ref_col_not_exist(self):
+    def _tc12_ref_col_not_exist(self):
         tdLog.info(
-            "TC08: chain-ref resolver propagates STREAM_VTB_REF_COL_NOT_EXIST"
+            "TC12: chain-ref resolver propagates STREAM_VTB_REF_COL_NOT_EXIST"
             " when an intermediate vtable column is dropped at runtime"
         )
-        # Spec TC08: REF_COL_NOT_EXIST (0x701C) is raised at
+        # Spec TC12: REF_COL_NOT_EXIST (0x701C) is raised at
         # vnodeStream.c:4843 when a vtable hop fails to locate the
         # referenced column name in the vtable's schema (cidFound=false)
         # or when the colRef array does not carry an entry for that cid.
@@ -789,7 +789,7 @@ class TestStreamVtableChainRef:
         # so the next chain resolve hop=1 must miss the cid and report
         # 0x701C; A propagates; trigger self-fails; mnode surfaces
         # status='Failed'.
-        db = "tc08"
+        db = "tc12"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {db}.nt (ts timestamp, v int, x int)")
@@ -833,12 +833,12 @@ class TestStreamVtableChainRef:
                 break
             time.sleep(0.2)
         tdLog.info(
-            f"TC08 final stream state: status={status!r} message={message!r}"
+            f"TC12 final stream state: status={status!r} message={message!r}"
             f" observed_failed={observed_failed}"
         )
         if not observed_failed:
             tdLog.exit(
-                f"TC08 expected to observe status 'Failed',"
+                f"TC12 expected to observe status 'Failed',"
                 f" got {status!r} message={message!r}"
             )
         msg_lower = (message or "").lower()
@@ -848,22 +848,22 @@ class TestStreamVtableChainRef:
             and "0x701c" not in msg_lower
         ):
             tdLog.exit(
-                f"TC08 expected message contain 'ref column not exist', got {message!r}"
+                f"TC12 expected message contain 'ref column not exist', got {message!r}"
             )
         tdSql.execute(f"drop database {db} force")
 
-    def _tc09_chain_too_deep(self):
+    def _tc13_chain_too_deep(self):
         tdLog.info(
-            "TC09: chain-ref resolver propagates STREAM_VTB_REF_TOO_DEEP"
+            "TC13: chain-ref resolver propagates STREAM_VTB_REF_TOO_DEEP"
             " when a vtable chain exceeds TSDB_MAX_VTABLE_REF_DEPTH"
         )
-        # Spec TC09: TSDB_MAX_VTABLE_REF_DEPTH = 32 (include/util/tdef.h).
+        # Spec TC13: TSDB_MAX_VTABLE_REF_DEPTH = 32 (include/util/tdef.h).
         # H2 v0.5 makes the stream reader detect hop overflow in
         # streamResolveVTableRefChain (vnodeStream.c:5935) and report
         # TSDB_CODE_STREAM_VTB_REF_TOO_DEEP (0x7019) rather than silently
         # skipping the offending uids. A propagates; trigger self-fails;
         # mnode surfaces status='Failed' with the matching message.
-        db = "tc09"
+        db = "tc13"
         depth = 34  # one past the 32-hop limit, plus headroom for off-by-one
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
@@ -888,7 +888,7 @@ class TestStreamVtableChainRef:
         try:
             tdSql.execute(f"insert into {db}.ct1 values ({ts}, 7)")
         except Exception as e:
-            tdLog.info(f"TC09 insert hit (acceptable): {e}")
+            tdLog.info(f"TC13 insert hit (acceptable): {e}")
         deadline = time.time() + 60
         status, message = (None, None)
         observed_failed = False
@@ -907,12 +907,12 @@ class TestStreamVtableChainRef:
                 break
             time.sleep(0.2)
         tdLog.info(
-            f"TC09 final stream state: status={status!r} message={message!r}"
+            f"TC13 final stream state: status={status!r} message={message!r}"
             f" observed_failed={observed_failed}"
         )
         if not observed_failed:
             tdLog.exit(
-                f"TC09 expected to observe status 'Failed',"
+                f"TC13 expected to observe status 'Failed',"
                 f" got {status!r} message={message!r}"
             )
         msg_lower = (message or "").lower()
@@ -922,7 +922,7 @@ class TestStreamVtableChainRef:
             and "0x7019" not in msg_lower
         ):
             tdLog.exit(
-                f"TC09 expected message contain 'chain too deep', got {message!r}"
+                f"TC13 expected message contain 'chain too deep', got {message!r}"
             )
         tdSql.execute(f"drop database {db} force")
 
