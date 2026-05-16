@@ -565,7 +565,7 @@ class ServiceTest(unittest.TestCase):
             if config_path and os.path.exists(config_path):
                 os.remove(config_path)
 
-    def test_dynamic_execute_holtwinters_not_supported(self):
+    def test_dynamic_register_holtwinters_not_supported(self):
         """holtwinters is not accepted as a dynamic model algorithm; registration must raise ValueError."""
         import os
 

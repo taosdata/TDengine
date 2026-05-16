@@ -45,8 +45,7 @@ class ServiceRegistry:
         """ get the required service """
         with self._services_lock:
             self.sync_dynamic_services()
-            serv = self.services.get(name, None)
-        return copy.copy(serv)
+            return copy.copy(self.services.get(name, None))
 
     def sync_dynamic_services(self):
         """Synchronize dynamic services with the shared config directory."""
