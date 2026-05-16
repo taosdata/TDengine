@@ -92,7 +92,7 @@ class TsfmBaseService(AbstractForecastService):
         if self.service_host is None:
             AppLogger.error("tsfm service host is not specified yet")
             return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
-        
+
         try:
             _ = requests.get(self.service_host, headers=self.headers, timeout=5)
         except Exception as e:
