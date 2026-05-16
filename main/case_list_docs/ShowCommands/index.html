@@ -3124,6 +3124,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#23-ShowCommands.test_show_create_stream.TestShowCreateStream.test_show_create_stream" class="md-nav__link">
+        Show create stream 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#23-ShowCommands.test_show_tables.TestShowDbTableKind.test_show_tables" class="md-nav__link">
         Show databases & tables 
       </a>
@@ -3979,6 +3990,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#23-ShowCommands.test_show_create_stream.TestShowCreateStream.test_show_create_stream" class="md-nav__link">
+        Show create stream 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#23-ShowCommands.test_show_tables.TestShowDbTableKind.test_show_tables" class="md-nav__link">
         Show databases & tables 
       </a>
@@ -4100,7 +4122,6 @@
                           <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   show tags from super table/child table</div>
                           <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   show table tags from super table/child table</div>
                           <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   show indexes from super table/child table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Verify SHOW STREAMS works without a selected database and shows db_name column</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
@@ -4141,6 +4162,39 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/23-ShowCommands/test_show_create_db.py" target="_blank">
                       cases/23-ShowCommands/test_show_create_db.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="23-ShowCommands.test_show_create_stream.TestShowCreateStream.test_show_create_stream" class="doc doc-heading">
+
+<a href="#23-ShowCommands.test_show_create_stream.TestShowCreateStream.test_show_create_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Show create stream</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database with super table and child tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create streams with different window types (state_window, session)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify SHOW CREATE STREAM returns correct stream name and CREATE STREAM SQL</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify the returned SQL is idempotent (drop stream, re-execute SQL, re-check)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify SHOW CREATE STREAM on a non-existent stream returns an error</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/23-ShowCommands/test_show_create_stream.py" target="_blank">
+                      cases/23-ShowCommands/test_show_create_stream.py
                     </a>
                   </div>
         </div>
@@ -4207,9 +4261,6 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Confirms accurate row counts in various scenarios</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Validates functionality across different cluster configurations</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Assesses performance impact of show table distributed command</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Tests ins_table_fixed_distributed for supertable, child table, normal table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Verifies mandatory WHERE db_name AND table_name conditions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Checks histogram bucket consistency with total_blocks</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
