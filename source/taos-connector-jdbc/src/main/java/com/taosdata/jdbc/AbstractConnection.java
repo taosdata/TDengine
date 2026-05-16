@@ -28,6 +28,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         for (String propName : propNames) {
             clientInfoProps.setProperty(propName, properties.getProperty(propName));
         }
+        this.catalog = properties.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME);
         serverVersion = version;
         supportBlob = VersionUtil.surpportBlob(serverVersion);
         supportLineBind = supportBlob;

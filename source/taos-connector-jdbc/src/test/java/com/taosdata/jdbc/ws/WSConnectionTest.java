@@ -30,13 +30,13 @@ public class WSConnectionTest {
     private final String dbName = "information_schema";
 
     @Test
-    @Ignore
     @Description("normal test with websocket server")
     public void normalConnection() throws SQLException {
         String url = "jdbc:TAOS-RS://" + host + ":" + port + "/" + dbName + "?user=" + TestEnvUtil.getUser() + "&password=" + TestEnvUtil.getPassword();
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
+        Assert.assertEquals(dbName, connection.getCatalog());
     }
 
     @Test
@@ -46,6 +46,7 @@ public class WSConnectionTest {
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
+        Assert.assertNull(connection.getCatalog());
     }
 
     @Test

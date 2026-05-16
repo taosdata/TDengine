@@ -41,7 +41,7 @@
         <jackson.version>2.21.1</jackson.version>
         <httpclient.version>4.5.14</httpclient.version>
         <guava.version>33.5.0-jre</guava.version>
-        <netty-all.version>4.2.11.Final</netty-all.version>
+        <netty-all.version>4.2.13.Final</netty-all.version>
         <junit.version>4.13.2</junit.version>
         <mockito.version>4.11.0</mockito.version>
         <byte-buddy.version>1.12.22</byte-buddy.version>
