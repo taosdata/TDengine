@@ -1,0 +1,58 @@
+
+taos> CREATE DATABASE IF NOT EXISTS file_src_db;
+Create OK, 0 row(s) affected 
+
+taos> USE file_src_db;
+Database changed.
+
+taos> SELECT ts, v FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_varbinary.csv', 'ts TIMESTAMP, v VARBINARY(64)') f ORDER BY ts;
+           ts            |               v                |
+===========================================================
+ 2026-01-01 00:00:01.000 | \x68656C6C6F                   |
+ 2026-01-01 00:00:02.000 | \x776F726C64                   |
+
+taos> SELECT ts, n FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_nchar.csv', 'ts TIMESTAMP, n NCHAR(64)') f ORDER BY ts;
+           ts            |               n                |
+===========================================================
+ 2026-01-01 00:00:01.000 | 你好                           |
+ 2026-01-01 00:00:02.000 | 世界                           |
+
+taos> SELECT * FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_integers.csv', 'ts TIMESTAMP, v1 TINYINT, v2 SMALLINT, v3 UTINYINT, v4 USMALLINT, v5 UINT, v6 UBIGINT') f;
+         expr_1          | expr_2 | expr_3 | expr_4 | expr_5 |   expr_6    |        expr_7         |
+====================================================================================================
+ 2026-01-01 00:00:01.000 |    127 |  32767 |    255 |  65535 |  4294967295 |  18446744073709551615 |
+
+taos> SELECT ts, v, s FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_nulls.csv', 'ts TIMESTAMP, v INT, s VARCHAR(32)') f ORDER BY ts;
+           ts            |      v      |               s                |
+=========================================================================
+ 2026-01-01 00:00:01.000 | NULL        | NULL                           |
+ 2026-01-01 00:00:02.000 | NULL        | NULL                           |
+ 2026-01-01 00:00:03.000 | NULL        | NULL                           |
+ 2026-01-01 00:00:04.000 |          42 | hello                          |
+
+taos> SELECT ts, b FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_bool.csv', 'ts TIMESTAMP, b BOOL') f ORDER BY ts;
+           ts            |   b   |
+==================================
+ 2026-01-01 00:00:01.000 | true  |
+ 2026-01-01 00:00:02.000 | false |
+ 2026-01-01 00:00:03.000 | NULL  |
+
+taos> SELECT ts, f, d FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_float.csv', 'ts TIMESTAMP, f FLOAT, d DOUBLE') f_tbl ORDER BY ts;
+           ts            |          f           |             d             |
+=============================================================================
+ 2026-01-01 00:00:01.000 |                 3.14 |          2.71828182845905 |
+ 2026-01-01 00:00:02.000 | NULL                 | NULL                      |
+
+taos> SELECT * FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_partial.csv', 'ts TIMESTAMP, a INT, b VARCHAR(32)') f ORDER BY ts;
+         expr_1          |   expr_2    |             expr_3             |
+=========================================================================
+ 2026-01-01 00:00:01.000 |          10 | skip1                          |
+ 2026-01-01 00:00:02.000 |          20 | skip3                          |
+
+taos> SELECT ts, d FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_decimal.csv', 'ts TIMESTAMP, d DECIMAL(10,2)') f ORDER BY ts;
+           ts            |          d           |
+=================================================
+ 2026-01-01 00:00:01.000 |                 3.14 |
+ 2026-01-01 00:00:02.000 | NULL                 |
+ 2026-01-01 00:00:03.000 |                99.99 |
+

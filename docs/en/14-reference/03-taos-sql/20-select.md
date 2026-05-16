@@ -47,7 +47,12 @@ table_expr: {
     table_name
   | view_name
   | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 }
+
+column_list:
+    col_name type_name [, col_name type_name] ...
 
 join_clause:
     [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
@@ -105,7 +110,8 @@ true_for_expr: {
 - select_expr: Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and not support nested aggregate functions.
 - from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
-- table_expr: Specify the query data source, which can be table name, view name, or subquery.
+- table_expr: Specify the query data source, which can be a table name, view name, subquery, or an inline data source (`TEXT` or `FILE`). See [TEXT Inline Data Source](#text-inline-data-source) and [FILE CSV Data Source](#file-csv-data-source) for details.
+- column_list: Column definition list shared by `TEXT` and `FILE`. Each entry is `col_name type_name`. All types except JSON, GEOMETRY, and BLOB are supported.
 - join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](./01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0, 1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](24-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only), such as SESSION (ts, 12s).
@@ -307,7 +313,7 @@ select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 
 ## Query Objects
 
-The FROM keyword can be followed by a list of tables (supertables) or the result of a subquery.
+The FROM keyword can be followed by a list of tables (supertables), the result of a subquery, or a TEXT or FILE inline data source (see below).
 If the user's current database is not specified, the database name can be used before the table name to specify the database to which the table belongs. For example, using `power.d1001` to cross-database use tables.
 
 TDengine supports INNER JOIN based on the timestamp primary key, with the following rules:
@@ -318,6 +324,150 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 4. Tables involved in JOIN calculations must be of the same type, i.e., all must be supertables, subtables, or basic tables.
 5. Both sides of JOIN support subqueries.
 6. Does not support mixing with the FILL clause.
+
+## TEXT Inline Data Source
+
+`TEXT` allows row data to be embedded directly in an SQL statement as a temporary table source, without needing to create a table in advance.
+
+### Syntax
+
+```sql
+TEXT(column_list)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### Description
+
+- The column schema must be declared explicitly; type inference is not supported.
+- Each `VALUES` group represents one row. All rows must match the declared schema column count.
+- NULL values are supported using the `NULL` keyword.
+- An optional alias assigns a table alias to the data source, useful in JOIN or subquery contexts.
+- `TEXT` can be used as a `FROM` table source, in subqueries, JOIN, window queries, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
+- All types except JSON, GEOMETRY, and BLOB are supported.
+- The first column must be of type `TIMESTAMP` (serves as the primary key). Input data does not need to be ordered.
+
+### Volume Limits
+
+| Constraint | Limit |
+|---|---|
+| Maximum rows | 10,000 |
+| Maximum columns | 4,096 |
+| Maximum cells (rows × cols) | 1,000,000 |
+| Inline text size | 8 MB |
+
+### Examples
+
+```sql
+-- Basic query: inline smart-meter readings
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- Filter: find readings with voltage above threshold
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- Subquery: secondary filter on inline data
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- Window aggregation: average current and peak voltage per 6-hour window
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+
+-- JOIN: correlate inline calibration data with real meter table
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
+```
+
+## FILE CSV Data Source
+
+`FILE` uses a local CSV file as a query table source, allowing direct queries without importing data into the database.
+
+### Syntax
+
+```sql
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### Description
+
+- Only CSV text format is currently supported.
+- `file_path`: Path to the CSV file. The file is read by the process that performs query planning (typically the client process such as `taos` CLI or client driver). Both relative paths (relative to that process's working directory) and absolute paths are accepted.
+- The second argument is a schema declaration string; column definitions are comma-separated and must match the CSV column order.
+- Columns in the CSV that exceed the declared schema count are ignored. You can read a subset of the file's columns by declaring only the columns you need.
+- `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. When enabled, columns are matched by name rather than position, and the schema may declare a subset of the file's columns in any order. Defaults to `false`.
+- `delimiter`: Field separator character (single character). Defaults to `,`.
+- NULL values are supported; empty fields in the CSV are parsed as NULL.
+- Both the file path and schema must be string literals; runtime expressions are not supported.
+- `FILE` can be used in the same contexts as `TEXT`: `FROM` clause, subqueries, JOIN, window queries, UNION, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
+- Supported column types: same as `TEXT`. All types except JSON, GEOMETRY, and BLOB are supported.
+- The first column of the Schema declaration must be of type `TIMESTAMP` (serves as the primary key), and the input is not required to be ordered.
+
+### Volume Limits
+
+Same as `TEXT`: maximum 10,000 rows, 4,096 columns, 1,000,000 cells, and 8 MB per read.
+
+### Examples
+
+```sql
+-- Read all four columns from a meter readings CSV
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV has 4 columns; read only current and voltage
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV has a header row; skip it with header=true
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- Subquery: filter and aggregate CSV data
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN: correlate CSV calibration data with real meter table
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- Window aggregation: per-hour statistics from CSV
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
+```
 
 ## INTERP
 

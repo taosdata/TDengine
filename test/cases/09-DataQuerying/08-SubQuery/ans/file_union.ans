@@ -1,0 +1,83 @@
+
+taos> CREATE DATABASE IF NOT EXISTS file_union_db;
+Create OK, 0 row(s) affected 
+
+taos> USE file_union_db;
+Database changed.
+
+taos> CREATE STABLE IF NOT EXISTS meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8));
+Create OK, 0 row(s) affected 
+
+taos> CREATE TABLE IF NOT EXISTS m1 USING meters TAGS('f1');
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO m1 VALUES ('2026-04-01 00:00:00',100)('2026-04-01 00:01:00',200)('2026-04-01 00:02:00',300);
+Insert OK, 3 row(s) affected 
+
+taos> SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f UNION ALL SELECT id FROM TEXT(id INT) VALUES (10)(20) t ORDER BY id;
+
+DB error: FILE source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f UNION ALL SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) VALUES ('2026-02-01 00:00:00',10)('2026-02-02 00:00:00',20) t ORDER BY volt, ts;
+           ts            |    volt     |
+========================================
+ 2026-01-01 00:00:01.000 |          10 |
+ 2026-02-01 00:00:00.000 |          10 |
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-02-02 00:00:00.000 |          20 |
+ 2026-01-01 00:00:03.000 |          30 |
+
+taos> SELECT volt FROM TEXT(volt INT) VALUES (999)(888) t UNION ALL SELECT volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f ORDER BY volt DESC;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) VALUES ('2026-03-01 00:00:00',999)('2026-03-02 00:00:00',888) t UNION ALL SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f ORDER BY volt DESC;
+           ts            |    volt     |
+========================================
+ 2026-03-01 00:00:00.000 |         999 |
+ 2026-03-02 00:00:00.000 |         888 |
+ 2026-01-01 00:00:03.000 |          30 |
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:01.000 |          10 |
+
+taos> SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f1 UNION ALL SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f2 ORDER BY id;
+
+DB error: FILE source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f1 UNION ALL SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f2 ORDER BY ts, volt;
+           ts            |    volt     |
+========================================
+ 2026-01-01 00:00:01.000 |          10 |
+ 2026-01-01 00:00:01.000 |          10 |
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:03.000 |          30 |
+ 2026-01-01 00:00:03.000 |          30 |
+
+taos> SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f1 UNION SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f2 ORDER BY id;
+
+DB error: FILE source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f1 UNION SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f2 ORDER BY ts;
+           ts            |    volt     |
+========================================
+ 2026-01-01 00:00:01.000 |          10 |
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:03.000 |          30 |
+
+taos> SELECT volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f UNION ALL SELECT volt FROM m1 ORDER BY volt;
+    volt     |
+==============
+          10 |
+          20 |
+          30 |
+         100 |
+         200 |
+         300 |
+
+taos> SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f UNION ALL SELECT ts, volt FROM m1 ORDER BY volt, ts;
+           ts            |    volt     |
+========================================
+ 2026-01-01 00:00:01.000 |          10 |
+ 2026-01-01 00:00:02.000 |          20 |
+ 2026-01-01 00:00:03.000 |          30 |
+ 2026-04-01 00:00:00.000 |         100 |
+ 2026-04-01 00:01:00.000 |         200 |
+ 2026-04-01 00:02:00.000 |         300 |
+

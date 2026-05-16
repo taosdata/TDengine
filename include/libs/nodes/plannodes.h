@@ -240,6 +240,17 @@ typedef struct SForecastFuncLogicNode {
   SNodeList* pFuncs;
 } SForecastFuncLogicNode, SGenericAnalysisLogicNode;
 
+typedef struct SRowsetSourceLogicNode {
+  SLogicNode node;
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;  // owned; released by destroy; moved to physi node by physical planner (then set to NULL)
+} SRowsetSourceLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
   bool       grpColsMayBeNull;
@@ -645,6 +656,17 @@ typedef struct SForecastFuncPhysiNode {
   SNodeList* pExprs;
   SNodeList* pFuncs;
 } SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
+
+typedef struct SRowsetSourcePhysiNode {
+  SPhysiNode node;           // QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;      // SSDataBlock binary; owned; freed by destroy
+} SRowsetSourcePhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
