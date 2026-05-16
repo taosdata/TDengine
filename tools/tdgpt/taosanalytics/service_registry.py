@@ -92,19 +92,21 @@ class ServiceRegistry:
         all_items = []
         with self._services_lock:
             AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(self.services), hex(id(self.services)))
-            for key, val in self.services.items():
-                if val.type == type_str:
-                    try:
-                        one = {
-                            "name": key,
-                            "desc": val.get_desc(),
-                            "params": val.get_params(),
-                            "status": val.get_status(),
-                            'builtins': val.is_builtins
-                        }
-                        all_items.append(one)
-                    except AttributeError as e:
-                        AppLogger.error("failed to get service: %s info, reason: %s", key, e)
+            services_snapshot = list(self.services.items())
+
+        for key, val in services_snapshot:
+            if val.type == type_str:
+                try:
+                    one = {
+                        "name": key,
+                        "desc": val.get_desc(),
+                        "params": val.get_params(),
+                        "status": val.get_status(),
+                        'builtins': val.is_builtins
+                    }
+                    all_items.append(one)
+                except AttributeError as e:
+                    AppLogger.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 
