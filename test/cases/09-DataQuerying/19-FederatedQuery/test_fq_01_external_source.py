@@ -48,6 +48,8 @@ from federated_query_common import (
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_MND_DB_ALREADY_EXIST,
     TSDB_CODE_MND_DB_NOT_EXIST,
+    TSDB_CODE_EXT_FEATURE_DISABLED,
+    TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
 )
 
 # ---------------------------------------------------------------------------
@@ -67,6 +69,16 @@ _COL_CTIME = 9
 
 # Expected mask string for any sensitive field (password, api_token, etc.)
 _MASKED = "******"
+
+_BASE_TS = 1_704_067_200_000  # ms; 2024-01-01 00:00:00 UTC
+# push_t InfluxDB equivalent (5 rows, status as TAG, val/score/flag/name as fields)
+_INFLUX_PUSH_T_LINES = [
+    f'push_t,status=active val=1i,score=1.5,flag=1i,name="alpha" {_BASE_TS}000000',
+    f'push_t,status=idle val=2i,score=2.5,flag=0i,name="beta" {_BASE_TS + 60000}000000',
+    f'push_t,status=active val=3i,score=3.5,flag=1i,name="gamma" {_BASE_TS + 120000}000000',
+    f'push_t,status=idle val=4i,score=4.5,flag=0i,name="delta" {_BASE_TS + 180000}000000',
+    f'push_t,status=active val=5i,score=5.5,flag=1i,name="epsilon" {_BASE_TS + 240000}000000',
+]
 
 
 class TestFq01ExternalSource(FederatedQueryVersionedMixin):
@@ -4031,4 +4043,505 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             expectedErrno=TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
         )
         tdSql.execute(f"drop external source if exists {n_err}")
+
+    # ------------------------------------------------------------------
+    # FQ-EXT-S16 ~ FQ-EXT-S21: Enterprise DDL positive suite + lifecycle
+    # (migrated from test_fq_05_local_unsupported.py)
+    # ------------------------------------------------------------------
+
+    def test_fq_ext_s16_enterprise_feature_enabled(self):
+        """FQ-EXT-S16: enterprise edition — federated query feature is enabled.
+
+        Since setup_class calls require_external_source_feature() and the test
+        reaches this point, the runtime is confirmed enterprise edition.
+        Verifies the positive contract:
+          a) SHOW EXTERNAL SOURCES executes without error
+          b) The command returns a result set (no TSDB_CODE_EXT_FEATURE_DISABLED)
+          c) CREATE EXTERNAL SOURCE with valid params does not return
+             TSDB_CODE_EXT_FEATURE_DISABLED
+
+        Catalog: - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation (as test_fq_local_029 in fq_05)
+            - 2026-04-21 wpan Replace pytest.skip with enterprise-positive assertion
+            - 2026-05-xx wpan Migrated to fq_01
+
+        """
+        # (a)+(b) SHOW EXTERNAL SOURCES must succeed on enterprise
+        result = tdSql.query("show external sources", exit=False)
+        assert result is not False, (
+            "SHOW EXTERNAL SOURCES failed — feature is disabled on this build"
+        )
+
+        # (c) CREATE with valid params must not return EXT_FEATURE_DISABLED
+        src = "fq_ext_s16_probe"
+        self._cleanup_src(src)
+        try:
+            cfg = self._mysql_cfg()
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'"
+            )
+            # Source must be visible in system table
+            tdSql.query(
+                "select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, src)
+        finally:
+            self._cleanup_src(src)
+
+    def test_fq_ext_s17_ddl_create_alter_drop(self):
+        """FQ-EXT-S17: enterprise edition — all external source DDL operations succeed.
+
+        Verifies that on enterprise edition all three DDL verbs work correctly:
+          a) CREATE EXTERNAL SOURCE → source appears in ins_ext_sources
+          b) ALTER EXTERNAL SOURCE → field change reflected in ins_ext_sources
+          c) DROP EXTERNAL SOURCE → source disappears from ins_ext_sources
+
+        Catalog: - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation (as test_fq_local_030 in fq_05)
+            - 2026-04-21 wpan Replace pytest.skip with enterprise-positive assertion
+            - 2026-05-xx wpan Migrated to fq_01
+
+        """
+        src = "fq_ext_s17_ddl"
+        self._cleanup_src(src)
+        cfg = self._mysql_cfg()
+        try:
+            # (a) CREATE
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='192.0.2.1' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'"
+            )
+            tdSql.query(
+                "select `host` from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "192.0.2.1")
+
+            # (b) ALTER
+            tdSql.execute(
+                f"alter external source {src} SET host='192.0.2.2'"
+            )
+            tdSql.query(
+                "select `host` from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, "192.0.2.2")
+
+            # (c) DROP
+            tdSql.execute(f"drop external source {src}")
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 0)
+        finally:
+            self._cleanup_src(src)
+
+    def test_fq_ext_s18_error_code_stability(self):
+        """FQ-EXT-S18: error code stability — operations return consistent codes.
+
+        On enterprise edition verifies:
+          a) Normal DDL does NOT return TSDB_CODE_EXT_FEATURE_DISABLED
+          b) Reserved TYPE='tdengine' returns TSDB_CODE_EXT_FEATURE_DISABLED
+          c) Querying a dropped source consistently returns EXT_SOURCE_NOT_FOUND
+
+        Catalog: - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation (as test_fq_local_031 in fq_05)
+            - 2026-04-21 wpan Replace pytest.skip with enterprise error-code assertion
+            - 2026-05-xx wpan Migrated to fq_01
+
+        """
+        src_ok = "fq_ext_s18_ok"
+        src_td = "fq_ext_s18_td"
+        self._cleanup_src(src_ok, src_td)
+        cfg = self._mysql_cfg()
+
+        # (a) Normal MySQL source: must not raise EXT_FEATURE_DISABLED
+        try:
+            tdSql.execute(
+                f"create external source {src_ok} "
+                f"type='mysql' host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}'"
+            )
+            # Drop it normally — also must not raise EXT_FEATURE_DISABLED
+            tdSql.execute(f"drop external source {src_ok}")
+        finally:
+            self._cleanup_src(src_ok)
+
+        # (b) Reserved TYPE='tdengine' → must raise EXT_FEATURE_DISABLED
+        try:
+            tdSql.error(
+                f"create external source {src_td} "
+                f"type='tdengine' host='{cfg.host}' port=6030 "
+                f"user='{cfg.user}' password='{cfg.password}'",
+                expectedErrno=TSDB_CODE_EXT_FEATURE_DISABLED,
+            )
+        finally:
+            self._cleanup_src(src_td)
+
+        # (c) Query nonexistent source returns EXT_SOURCE_NOT_FOUND (stable code)
+        ghost = "fq_ext_s18_ghost_never_existed"
+        self._cleanup_src(ghost)
+        for _ in range(3):
+            tdSql.error(
+                f"select * from {ghost}.some_db.some_table",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+            )
+
+    def test_fq_ext_s19_all_types_positive_suite(self):
+        """FQ-EXT-S19: comprehensive positive verification for all supported source types.
+
+        Verifies that on enterprise edition:
+          a) CREATE EXTERNAL SOURCE for all supported types (mysql, postgresql, influxdb)
+             does not raise TSDB_CODE_EXT_FEATURE_DISABLED
+          b) SHOW EXTERNAL SOURCES lists all created sources
+          c) DESCRIBE EXTERNAL SOURCE succeeds for a live source
+          d) ALTER EXTERNAL SOURCE with multiple fields does not raise
+             TSDB_CODE_EXT_FEATURE_DISABLED
+          e) DROP EXTERNAL SOURCE IF EXISTS is idempotent (no error on absent source)
+          f) Querying ins_ext_sources after each operation reflects correct state
+
+        Catalog: - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-21 wpan Initial implementation (as test_fq_local_s12 in fq_05)
+            - 2026-05-xx wpan Migrated to fq_01
+
+        """
+        src_m = "fq_ext_s19_m"
+        src_p = "fq_ext_s19_p"
+        src_i = "fq_ext_s19_i"
+        self._cleanup_src(src_m, src_p, src_i)
+        cfg_m = self._mysql_cfg()
+        cfg_p = self._pg_cfg()
+        cfg_i = self._influx_cfg()
+
+        try:
+            # (a) CREATE for all supported types
+            tdSql.execute(
+                f"create external source {src_m} "
+                f"type='mysql' host='{cfg_m.host}' port={cfg_m.port} "
+                f"user='{cfg_m.user}' password='{cfg_m.password}'"
+            )
+            tdSql.execute(
+                f"create external source {src_p} "
+                f"type='postgresql' host='{cfg_p.host}' port={cfg_p.port} "
+                f"user='{cfg_p.user}' password='{cfg_p.password}' database='testdb'"
+            )
+            tdSql.execute(
+                f"create external source {src_i} "
+                f"type='influxdb' host='{cfg_i.host}' port={cfg_i.port} "
+                f"user='u' password='' "
+                f"options('protocol'='http')"
+            )
+
+            # (f) All three visible in system table
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name in ('{src_m}', '{src_p}', '{src_i}')"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+
+            # (b) SHOW EXTERNAL SOURCES — lists all external sources
+            tdSql.query("show external sources")
+            assert tdSql.queryRows >= 3, "SHOW EXTERNAL SOURCES must list at least 3 sources"
+
+            # (c) DESCRIBE EXTERNAL SOURCE
+            tdSql.query(f"describe external source {src_m}")
+            assert tdSql.queryRows >= 1, "DESCRIBE must return at least one row"
+
+            # (d) ALTER with multiple fields on MySQL source
+            tdSql.execute(
+                f"alter external source {src_m} SET "
+                f"host='{cfg_m.host}', port={cfg_m.port}, "
+                f"options('connect_timeout_ms'='3000')"
+            )
+            tdSql.query(
+                "select `host`, `port` from information_schema.ins_ext_sources "
+                f"where source_name = '{src_m}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, cfg_m.host)
+            tdSql.checkData(0, 1, cfg_m.port)
+
+            # (e) DROP EXTERNAL SOURCE IF EXISTS: first call drops, second is idempotent
+            tdSql.execute(f"drop external source if exists {src_m}")
+            tdSql.execute(f"drop external source if exists {src_m}")   # must not error
+
+            # Remaining two sources still present
+            tdSql.query(
+                "select count(*) from information_schema.ins_ext_sources "
+                f"where source_name in ('{src_p}', '{src_i}')"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+        finally:
+            self._cleanup_src(src_m, src_p, src_i)
+
+    # ------------------------------------------------------------------
+    # FQ-EXT-S20 ~ FQ-EXT-S21: REFRESH and ALTER-host catalog update
+    # (migrated from test_fq_06_pushdown_fallback.py)
+    # ------------------------------------------------------------------
+
+    def test_fq_ext_s20_refresh_external_source(self):
+        """FQ-EXT-S20: REFRESH EXTERNAL SOURCE re-triggers capability probe and metadata reload.
+
+        Dimensions:
+          a) REFRESH EXTERNAL SOURCE accepted by parser (DDL executes)
+          b) Source still in catalog after REFRESH
+          c) Query after REFRESH: connection still works, count correct
+          d) Multiple REFRESH calls idempotent
+
+        Catalog: - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-13 wpan Initial implementation (as test_fq_push_s07 in fq_06)
+            - 2026-05-xx wpan Migrated to fq_01
+
+        """
+        def _body(src):
+            # Verify works before REFRESH
+            tdSql.query(f"select count(*) from {src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension a) REFRESH syntax accepted
+            tdSql.execute(f"refresh external source {src}")
+            # Dimension b) Source still in catalog after REFRESH
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'")
+            tdSql.checkRows(1)
+            # Dimension c) Query post-REFRESH: connection still works → count=5
+            tdSql.query(f"select count(*) from {src}.push_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(
+                f"select count(*) from {src}.push_t", "COUNT")
+            # Dimension d) Multiple REFRESH calls idempotent
+            tdSql.execute(f"refresh external source {src}")
+            tdSql.execute(f"refresh external source {src}")
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'")
+            tdSql.checkRows(1)
+        self._with_std_sources("fq_ext_s20", _body, table="push_t")
+
+    def test_fq_ext_s21_alter_host_catalog_update(self):
+        """FQ-EXT-S21: ALTER source HOST to valid address → next query succeeds.
+
+        Creates an external source pointing at an unreachable RFC-5737 TEST-NET
+        address.  Confirms the initial query fails.  ALTERs the source to the
+        real host.  Confirms the next query returns correct data.
+
+        Dimensions:
+          a) Source with unreachable host → query returns UNAVAILABLE
+          b) ALTER source HOST to real address
+          c) ins_ext_sources shows updated host after ALTER
+          d) Query after ALTER returns correct data (not an error)
+          e) Multiple queries after ALTER all succeed consistently
+
+        Catalog: - Query:FederatedExternalSource
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-04-21 wpan Initial implementation (as test_fq_push_s08 in fq_06)
+            - 2026-05-xx wpan Migrated to fq_01
+
+        """
+        # --- MySQL path ---
+        src = "fq_ext_s21"
+        ext_db = "fq_ext_s21_ext"
+        cfg = self._mysql_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.mysql_create_db_cfg(cfg, ext_db)
+            ExtSrcEnv.mysql_exec_cfg(cfg, ext_db, [
+                "drop table if exists push_s08_t",
+                "create table push_s08_t (id int primary key, val int)",
+                "insert into push_s08_t values (1, 10),(2, 20),(3, 30)",
+            ])
+
+            # (a) Create source with unreachable host (RFC-5737 TEST-NET-3)
+            bad_host = "192.0.2.200"
+            tdSql.execute(
+                f"create external source {src} "
+                f"type='mysql' host='{bad_host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+            tdSql.error(
+                f"select id, val from {src}.{ext_db}.push_s08_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+
+            # (b) ALTER source HOST to real MySQL address
+            tdSql.execute(
+                f"alter external source {src} set host='{cfg.host}'"
+            )
+            # Force catalog refresh so the next query sees the new host immediately.
+            tdSql.execute(f"refresh external source {src}")
+
+            # (c) ins_ext_sources shows updated host
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, cfg.host)
+
+            # (d) Query after ALTER returns correct data
+            tdSql.query(
+                f"select id, val from {src}.{ext_db}.push_s08_t order by id"
+            )
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 20)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 30)
+            self._verify_pushdown_explain(
+                f"select id, val from {src}.{ext_db}.push_s08_t order by id",
+                "ORDER BY")
+
+            # (e) Multiple subsequent queries all succeed consistently
+            for _ in range(3):
+                tdSql.query(f"select count(*) from {src}.{ext_db}.push_s08_t")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 3)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+        # --- PG path ---
+        p_src = "fq_ext_s21_pg"
+        p_db = "fq_ext_s21_p_ext"
+        p_cfg = self._pg_cfg()
+        self._cleanup_src(p_src)
+        try:
+            ExtSrcEnv.pg_create_db_cfg(p_cfg, p_db)
+            ExtSrcEnv.pg_exec_cfg(p_cfg, p_db, [
+                "DROP TABLE IF EXISTS push_s08_t",
+                "CREATE TABLE push_s08_t (id INT PRIMARY KEY, val INT)",
+                "INSERT INTO push_s08_t VALUES (1, 10),(2, 20),(3, 30)",
+            ])
+            bad_host = "192.0.2.200"
+            tdSql.execute(
+                f"create external source {p_src} "
+                f"type='postgresql' host='{bad_host}' port={p_cfg.port} "
+                f"user='{p_cfg.user}' password='{p_cfg.password}' "
+                f"database='{p_db}' "
+                f"options('connect_timeout_ms'='500')"
+            )
+            tdSql.error(
+                f"select id, val from {p_src}.public.push_s08_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+            tdSql.execute(f"alter external source {p_src} set host='{p_cfg.host}'")
+            tdSql.execute(f"refresh external source {p_src}")
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{p_src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, p_cfg.host)
+            tdSql.query(
+                f"select id, val from {p_src}.public.push_s08_t order by id"
+            )
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 30)
+            self._verify_pushdown_explain(
+                f"select id, val from {p_src}.public.push_s08_t order by id",
+                "ORDER BY")
+            for _ in range(3):
+                tdSql.query(
+                    f"select count(*) from {p_src}.public.push_s08_t")
+                tdSql.checkData(0, 0, 3)
+        finally:
+            self._cleanup_src(p_src)
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(p_cfg, p_db)
+            except Exception:
+                pass
+        # --- InfluxDB path ---
+        i_src = "fq_ext_s21_influx"
+        i_db = "fq_ext_s21_i_ext"
+        i_cfg = self._influx_cfg()
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(i_cfg, i_db)
+            ExtSrcEnv.influx_write_cfg(i_cfg, i_db, _INFLUX_PUSH_T_LINES)
+            bad_host = "192.0.2.200"
+            tdSql.execute(
+                f"create external source {i_src} "
+                f"type='influxdb' host='{bad_host}' port={i_cfg.port} "
+                f"user='u' password='' database={i_db} "
+                f"options('api_token'='{i_cfg.token}','protocol'='flight_sql')"
+            )
+            tdSql.error(
+                f"select count(*) from {i_src}.push_t",
+                expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+            )
+            tdSql.execute(f"alter external source {i_src} set host='{i_cfg.host}'")
+            tdSql.query(
+                "select host from information_schema.ins_ext_sources "
+                f"where source_name = '{i_src}'"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, i_cfg.host)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 5)
+            self._verify_pushdown_explain(f"select count(*) from {i_src}.push_t")
+            for _ in range(3):
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(i_cfg, i_db)
+            except Exception:
+                pass
 

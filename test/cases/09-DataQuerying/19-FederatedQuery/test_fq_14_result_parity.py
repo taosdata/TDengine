@@ -19,12 +19,14 @@ JOINs, UNION, subqueries, NULLS FIRST/LAST, etc. — are tested on every
 supported source.
 
 Schema (all four sources identical):
-  Local TDengine:  time TIMESTAMP PK, id INT, val INT, score DOUBLE, label NCHAR(32)
+  Local TDengine:  time TIMESTAMP PK, id INT, val INT, score DOUBLE, label NCHAR(32),
+                   nullable_val INT, lat DOUBLE, lon DOUBLE,
+                   wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32)
   MySQL:           time DATETIME(3) NOT NULL PK  (enables TDengine window queries)
   PostgreSQL:      time TIMESTAMP NOT NULL PK
-  InfluxDB:        time (built-in timestamp); label tag; id/val/score fields
+  InfluxDB:        time (built-in timestamp); label tag; id/val/score/nullable_val fields
 
-All four sources share the same column names (time, id, val, score, label),
+All four sources share the same column names (time, id, val, score, label, …),
 so every SQL statement is identical across all sources with no per-source adaptation.
 
 Environment:
@@ -33,36 +35,20 @@ Environment:
   Python: pymysql, psycopg2, requests
 """
 
-import math
 import os
-import re
 import time
 import pytest
 
 from new_test_framework.utils import tdLog, tdSql
 
 
-class QueryError(AssertionError):
-    """Carries structured error information from a failed query."""
-    def __init__(self, errno: int | None, err_info: str | None, sql: str, raw: Exception):
-        self.qerrno   = errno      # raw integer errno, e.g. -2147473820
-        self.err_info = err_info
-        self.sql      = sql
-        detail = ""
-        if errno is not None:
-            detail += f"\n  errno:      {errno:#010x}"
-        if err_info:
-            detail += f"\n  error_info: {err_info}"
-        super().__init__(
-            f"Query execution failed{detail}\n"
-            f"  sql: {sql}\n"
-            f"  raw exception: {raw}"
-        )
-
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    ParityTestBase,
+    QueryError,
+    parity_sql_val,
+    parity_make_insert_sqls,
 )
 
 _MYSQL_DB      = "fq_parity_m"
@@ -72,227 +58,643 @@ _LOCAL_DB      = "fq_parity_local"
 _LOCAL_TBL     = "parity_t"
 _FLOAT_TOL     = 1e-4
 
-# Each entry: (sql_template, opts)
-# opts keys: positive (bool, default True), reason (str, default ""),
-#             float_cols, ordered, source_expected, skip_sources
+# ── Case registry ────────────────────────────────────────────────────────────────
+# Every entry: (sql_template,) or (sql_template, opts_dict)
+# opts keys: positive (bool, default True), reason (str),
+#             float_cols (set of col indices), ordered (bool, default True),
+#             source_expected (dict[str, list]), skip_sources (set[str])
 # positive=True  → results must match local reference (正向用例)
-# positive=False → all sources must error with the same errno (负向用例，reason必填)
-_PARITY_CASES = [
-    # ── WHERE 比较条件（=  <>  <  <=  >  >=  BETWEEN  NOT BETWEEN）
-    ("SELECT id, val FROM {tbl} WHERE val > 20 ORDER BY time",),  # #1
-    ("SELECT id, val FROM {tbl} WHERE val = 30 ORDER BY time",),  # #2
-    ("SELECT id FROM {tbl} WHERE val <> 30 ORDER BY time",),  # #3
-    ("SELECT id, val FROM {tbl} WHERE val <= 30 ORDER BY time",),  # #4
-    ("SELECT id, val FROM {tbl} WHERE val >= 30 ORDER BY time",),  # #5
-    ("SELECT id, val FROM {tbl} WHERE val BETWEEN 20 AND 40 ORDER BY time",),  # #6
-    ("SELECT id FROM {tbl} WHERE val NOT BETWEEN 20 AND 40 ORDER BY time",),  # #7
-    # ── WHERE 字符串条件（IN  NOT IN  LIKE  NOT LIKE  IS NULL  IS NOT NULL）
-    ("SELECT id FROM {tbl} WHERE label IN ('north', 'east') ORDER BY time",),  # #8
-    ("SELECT id FROM {tbl} WHERE label NOT IN ('east') ORDER BY time",),  # #9
-    ("SELECT id FROM {tbl} WHERE label LIKE 'n%' ORDER BY time",),  # #10
-    ("SELECT id FROM {tbl} WHERE label LIKE '%th' ORDER BY time",),  # #11
-    ("SELECT id FROM {tbl} WHERE label NOT LIKE 'n%' ORDER BY time",),  # #12
-    ("SELECT id FROM {tbl} WHERE label IS NOT NULL ORDER BY time",),  # #13
-    ("SELECT id FROM {tbl} WHERE label IS NULL ORDER BY time",),  # #14
-    # ── WHERE 逻辑组合（AND  OR  NOT）
-    ("SELECT id, val FROM {tbl} WHERE val > 20 AND val < 50 ORDER BY time",),  # #15
-    ("SELECT id, val FROM {tbl} WHERE val < 15 OR val > 45 ORDER BY time",),  # #16
-    ("SELECT id FROM {tbl} WHERE NOT (val > 30) ORDER BY time",),  # #17
-    ("SELECT id FROM {tbl} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id",),  # #18
-    # ── 条件表达式（COALESCE  NULLIF  IF  IFNULL  NVL2  CASE WHEN）
-    ("SELECT id, COALESCE(label, 'unknown') FROM {tbl} ORDER BY time",),  # #19
-    ("SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time",),  # #20
-    ("SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {tbl} ORDER BY time",),  # #21
-    ("SELECT id, IFNULL(label, 'none') FROM {tbl} ORDER BY time",),  # #22
-    ("SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {tbl} ORDER BY time",),  # #23
-    ("SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {tbl} ORDER BY time",),  # #24
-    ("SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time",),  # #25
-    ("SELECT id, COALESCE(NULL, val) FROM {tbl} ORDER BY time",),  # #26
-    ("SELECT id, NVL2(label, 'has_val', 'no_val') AS nv FROM {tbl} ORDER BY time",),  # #27
-    ("SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v ASC NULLS FIRST",),  # #28
-    ("SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v DESC NULLS LAST",),  # #29
-    # ── 算术运算符（一元 -  +  -  *  /  %  &  |）
-    ("SELECT id, val * 2 + 1 FROM {tbl} ORDER BY time",),  # #30
-    ("SELECT id, val * 3 FROM {tbl} ORDER BY time",),  # #31
-    ("SELECT id, val / 4.0 FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #32
-    ("SELECT id, val % 3 FROM {tbl} ORDER BY time",),  # #33
-    ("SELECT id, val & 3 FROM {tbl} ORDER BY time",),  # #34
-    ("SELECT id, val | 1 FROM {tbl} ORDER BY time",),  # #35
-    ("SELECT id, val * 2 AS dbl FROM {tbl} ORDER BY dbl",),  # #36
-    # ── 数学函数（ABS  CEIL  FLOOR  ROUND  SQRT  POW  MOD  SIGN  GREATEST  LEAST  PI  TRUNCATE  DEGREES  RADIANS  EXP  LN  LOG）
-    ("SELECT id, GREATEST(id, val) FROM {tbl} ORDER BY time",),  # #37
-    ("SELECT id, LEAST(id, val) FROM {tbl} ORDER BY time",),  # #38
-    ("SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #39
-    ("SELECT id, ABS(20 - val) FROM {tbl} ORDER BY time",),  # #40
-    ("SELECT id, CEIL(score) FROM {tbl} ORDER BY time",),  # #41
-    ("SELECT id, FLOOR(score) FROM {tbl} ORDER BY time",),  # #42
-    ("SELECT id, ROUND(score, 1) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #43
-    ("SELECT id, ROUND(score, 0) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #44
-    ("SELECT id, SQRT(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #45
-    ("SELECT id, POW(id, 2) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #46
-    ("SELECT id, MOD(val, 3) FROM {tbl} ORDER BY time",),  # #47
-    ("SELECT id, SIGN(val - 25) FROM {tbl} ORDER BY time",),  # #48
-    ("SELECT id, EXP(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #49
-    ("SELECT id, LN(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #50
-    ("SELECT id, LOG(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #51
-    ("SELECT id, LOG(val, 10) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #52
-    ("SELECT id, TRUNCATE(score, 1) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #53
-    ("SELECT id, DEGREES(score) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #54
-    ("SELECT id, RADIANS(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #55
-    # ── 三角函数（SIN  COS  TAN  ASIN  ACOS  ATAN）
-    ("SELECT id, SIN(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #56
-    ("SELECT id, COS(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #57
-    ("SELECT id, TAN(score) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #58
-    ("SELECT id, ASIN(score / 10.0) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #59
-    ("SELECT id, ACOS(score / 10.0) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #60
-    ("SELECT id, ATAN(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #61
-    # ── 字符串函数（LOWER  UPPER  LENGTH  TRIM  CONCAT  SUBSTRING  REPLACE  POSITION  REPEAT  ASCII  CHAR  FIND_IN_SET）
-    ("SELECT id, LOWER(label) FROM {tbl} ORDER BY time",),  # #62
-    ("SELECT id, UPPER(label) FROM {tbl} ORDER BY time",),  # #63
-    ("SELECT id, CHAR_LENGTH(label) FROM {tbl} ORDER BY time",),  # #64
-    ("SELECT id, LENGTH(label) FROM {tbl} ORDER BY time",),  # #65
-    ("SELECT id, LTRIM(CONCAT(' ', label)) FROM {tbl} ORDER BY time",),  # #66
-    ("SELECT id, RTRIM(CONCAT(label, ' ')) FROM {tbl} ORDER BY time",),  # #67
-    ("SELECT id, TRIM(CONCAT(' ', label, ' ')) FROM {tbl} ORDER BY time",),  # #68
-    ("SELECT id, CONCAT(label, '-', LOWER(label)) FROM {tbl} ORDER BY time",),  # #69
-    ("SELECT id, CONCAT_WS('-', label, LOWER(label)) FROM {tbl} ORDER BY time",),  # #70
-    ("SELECT id, SUBSTRING(label, 1, 3) FROM {tbl} ORDER BY time",),  # #71
-    ("SELECT id, SUBSTR(label, -3, 3) FROM {tbl} ORDER BY time",),  # #72
-    ("SELECT id, REPLACE(label, 'north', 'n') FROM {tbl} ORDER BY time",),  # #73
-    ("SELECT id, POSITION('o' IN label) FROM {tbl} ORDER BY time",),  # #74
-    ("SELECT id, REPEAT('x', id) FROM {tbl} ORDER BY time",),  # #75
-    ("SELECT id, ASCII(label) FROM {tbl} ORDER BY time",),  # #76
-    ("SELECT id, CHAR(65) FROM {tbl} ORDER BY time",),  # #77
-    ("SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {tbl} ORDER BY time",),  # #78
-    ("SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {tbl} ORDER BY time",),  # #79
-    # ── 哈希 / 编码函数（MD5  SHA1  SHA2  CRC32  TO_BASE64  FROM_BASE64）
-    ("SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time",),  # #80
-    ("SELECT id, TO_BASE64(label) FROM {tbl} ORDER BY time",),  # #81
-    ("SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {tbl} ORDER BY time",),  # #82
-    ("SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time",),  # #83
-    ("SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {tbl} ORDER BY time",),  # #84
-    ("SELECT id, CRC32(label) FROM {tbl} ORDER BY time",),  # #85
-    # ── 聚合函数（COUNT  SUM  MIN  MAX  AVG  STDDEV  VARIANCE  COUNT DISTINCT）
-    ("SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {tbl}", dict(ordered=False)),  # #86
-    ("SELECT AVG(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #87
-    ("SELECT STDDEV(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #88
-    ("SELECT VARIANCE(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #89
-    ("SELECT STDDEV_SAMP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #90
-    ("SELECT VAR_SAMP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),  # #91
-    ("SELECT COUNT(DISTINCT val) FROM {tbl}",
-     dict(ordered=False, positive=False, reason="COUNT(DISTINCT col) syntax not supported (0x80002600); use a subquery workaround")),  # #92
-    ("SELECT COUNT(label) FROM {tbl}", dict(ordered=False)),  # #93
-    ("SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {tbl}", dict(ordered=False)),  # #94
-    # ── GROUP BY / HAVING
-    ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label ORDER BY label",),  # #95
-    ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label",),  # #96
-    ("SELECT label, SUM(val) FROM {tbl} GROUP BY label ORDER BY label",),  # #97
-    ("SELECT label, AVG(val) FROM {tbl} GROUP BY label ORDER BY label", dict(float_cols={1})),  # #98
-    ("SELECT label, MAX(val) FROM {tbl} GROUP BY label ORDER BY label",),  # #99
-    ("SELECT label, MIN(val) FROM {tbl} GROUP BY label ORDER BY label",),  # #100
-    ("SELECT label, COUNT(id) FROM {tbl} GROUP BY label ORDER BY label",),  # #101
-    ("SELECT label, SUM(val) FROM {tbl} GROUP BY label HAVING SUM(val) > 30 ORDER BY label",),  # #102
-    ("SELECT label, AVG(score) FROM {tbl} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label", dict(float_cols={1})),  # #103
-    ("SELECT val / 20 AS bucket, COUNT(*) FROM {tbl} GROUP BY val / 20 ORDER BY bucket",),  # #104
-    ("SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC",),  # #105
-    ("SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label", dict(float_cols={3})),  # #106
-    # ── 类型转换（CAST）
-    ("SELECT id, CAST(val AS DOUBLE) FROM {tbl} ORDER BY time", dict(float_cols={1})),  # #107
-    ("SELECT id, CHAR_LENGTH(CAST(val AS VARCHAR(10))) FROM {tbl} ORDER BY time",),  # #108
-    ("SELECT id, CAST(score AS BIGINT) FROM {tbl} ORDER BY time",),  # #109
-    # ── ORDER BY / LIMIT / OFFSET / DISTINCT / NULLS FIRST/LAST
-    ("SELECT id, val - 5 FROM {tbl} ORDER BY time",),  # #110
-    ("SELECT id, val, score, label FROM {tbl} ORDER BY time", dict(float_cols={2})),  # #111
-    ("SELECT id, val FROM {tbl} ORDER BY time LIMIT 3 OFFSET 1",),  # #112
-    ("SELECT DISTINCT label FROM {tbl} ORDER BY label",),  # #113
-    ("SELECT id, val FROM {tbl} ORDER BY val DESC",),  # #114
-    ("SELECT id, -val FROM {tbl} ORDER BY time",),  # #115
-    ("SELECT id, label, val FROM {tbl} ORDER BY label, val",),  # #116
-    ("SELECT DISTINCT label, val FROM {tbl} ORDER BY label, val",),  # #117
-    # ── 子查询（IN  NOT IN  EXISTS  ALL  ANY  SOME  标量子查询  派生表）
-    ("SELECT id FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time",),  # #118
-    ("SELECT id FROM {tbl} WHERE val NOT IN (SELECT val FROM {tbl} WHERE label = 'east') ORDER BY time",),  # #119
-    ("SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY time",
-     dict(positive=False, reason="correlated EXISTS subquery as expr not supported (0x800026A6)")),  # #120
-    ("SELECT id FROM {tbl} t1 WHERE NOT EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY time",
-     dict(positive=False, reason="correlated NOT EXISTS subquery as expr not supported (0x800026A6)")),  # #121
-    ("SELECT id FROM {tbl} WHERE val > ALL (SELECT val FROM {tbl} WHERE val < 20) ORDER BY time",),  # #122
-    ("SELECT id FROM {tbl} WHERE val > ANY (SELECT val FROM {tbl} WHERE val < 30) ORDER BY time",),  # #123
-    ("SELECT id FROM {tbl} WHERE val >= SOME (SELECT val FROM {tbl} WHERE val >= 30) ORDER BY time",),  # #124
-    ("SELECT id, val, (SELECT AVG(val) FROM {tbl}) AS avg_val FROM {tbl} ORDER BY time", dict(float_cols={2})),  # #125
-    ("SELECT id, val FROM {tbl} WHERE val > (SELECT AVG(val) FROM {tbl}) ORDER BY time",),  # #126
-    ("SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {tbl} GROUP BY label) sub", dict(float_cols={0}, ordered=False)),  # #127
-    ("SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {tbl}) sub ORDER BY id",),  # #128
-    ("SELECT id FROM {tbl} WHERE id IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id",),  # #129
-    ("SELECT id FROM {tbl} WHERE id NOT IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id",),  # #130
-    # ── UNION / UNION ALL
-    ("SELECT val FROM {tbl} WHERE id <= 2 UNION ALL SELECT val FROM {tbl} WHERE id <= 2 ORDER BY val",),  # #131
-    ("SELECT label FROM {tbl} WHERE id IN (1,3) UNION SELECT label FROM {tbl} WHERE id IN (1,4) ORDER BY label",),  # #132
-    # ── JOIN（INNER  LEFT  RIGHT  FULL OUTER  CROSS  3-way）
-    ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
-     dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),  # #133
-    ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
-     dict(positive=False, reason="LEFT JOIN without primary timestamp equal condition in ON clause not supported")),  # #134
-    ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
-     dict(positive=False, reason="RIGHT JOIN without primary timestamp equal condition in ON clause not supported")),  # #135
-    ("SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
-     dict(positive=False, reason="FULL OUTER JOIN without primary timestamp equal condition in ON clause not supported")),  # #136
-    ("SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id",
-     dict(positive=False, reason="CROSS JOIN syntax not supported (0x80002600)")),  # #137
-    ("SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
-     dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),  # #138
-    ("SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
-     dict(positive=False, reason="3-way INNER JOIN without primary timestamp equal condition not supported")),  # #139
-    # ── 时间窗口（INTERVAL  FILL  PARTITION BY  SESSION  STATE_WINDOW  EVENT_WINDOW  COUNT_WINDOW）
-    ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),  # #140
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),  # #141
-    ("SELECT AVG(score) AS avg_s FROM {tbl} INTERVAL(1m) ORDER BY _wstart", dict(float_cols={0})),  # #142
-    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} INTERVAL(2m) ORDER BY _wstart",),  # #143
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",),  # #144
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",),  # #145
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",),  # #146
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",),  # #147
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart", dict(float_cols={0})),  # #148
-    ("SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart",),  # #149
-    ("SELECT COUNT(*) AS cnt FROM {tbl} SESSION(time, 30s) ORDER BY _wstart",),  # #150
-    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} SESSION(time, 2m) ORDER BY _wstart",),  # #151
-    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} STATE_WINDOW(val >= 30) ORDER BY _wstart",),  # #152
-    ("SELECT COUNT(*) AS cnt FROM {tbl} STATE_WINDOW(label) ORDER BY _wstart",),  # #153
-    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} EVENT_WINDOW START WITH val >= 30 END WITH val >= 50 ORDER BY _wstart",),  # #154
-    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(2) ORDER BY _wstart",),  # #155
-    ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(3) ORDER BY _wstart",),  # #156
-    ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",),  # #157
-    ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),  # #158
+# positive=False → all sources must error with same errno  (负向用例，reason必填)
+#
+# IDs are auto-generated as  <group>-<NN>  (e.g. whr-01, win-19).
+# To add a case: append to the relevant group — only that group's last IDs shift.
+# To add a group: add a new key — all existing IDs are unaffected.
+# ─────────────────────────────────────────────────────────────────────────────────
+_PARITY_GROUPS: dict[str, list] = {
+    # ── whr: WHERE 条件（比较 / 字符串 / 逻辑组合）───────────────────────────
+    "whr": [
+        ("SELECT id, val FROM {tbl} WHERE val > 20 ORDER BY time",),
+        ("SELECT id, val FROM {tbl} WHERE val = 30 ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE val <> 30 ORDER BY time",),
+        ("SELECT id, val FROM {tbl} WHERE val <= 30 ORDER BY time",),
+        ("SELECT id, val FROM {tbl} WHERE val >= 30 ORDER BY time",),
+        ("SELECT id, val FROM {tbl} WHERE val BETWEEN 20 AND 40 ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE val NOT BETWEEN 20 AND 40 ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label IN ('north', 'east') ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label NOT IN ('east') ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label LIKE 'n%' ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label LIKE '%th' ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label NOT LIKE 'n%' ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label IS NOT NULL ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE label IS NULL ORDER BY time",),
+        ("SELECT id, val FROM {tbl} WHERE val > 20 AND val < 50 ORDER BY time",),
+        ("SELECT id, val FROM {tbl} WHERE val < 15 OR val > 45 ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE NOT (val > 30) ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE (val < 20 OR val > 40) AND label <> 'east' ORDER BY id",),
+        ("SELECT val FROM {tbl} WHERE val > 30 ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val = 10 ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val != 30 ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val < 30 ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val IN (10, 30, 50) ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE label LIKE 'n%' ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val = 10 OR val = 50 ORDER BY val",),
+        ("SELECT COUNT(*) FROM {tbl} WHERE val IS NOT NULL", dict(ordered=False)),
+        ("SELECT val FROM {tbl} WHERE val > 20 AND id > 3 ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE NOT (id = 1) ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE label NOT LIKE 'n%' ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val NOT IN (10, 30, 50) ORDER BY val",),
+        ("SELECT val, ISNULL(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT val FROM {tbl} WHERE val BETWEEN 20 AND 40 ORDER BY val",),
+    ],
+    # ── cond: 条件表达式（COALESCE / NULLIF / IF / IFNULL / NVL2 / CASE WHEN）─
+    "cond": [
+        ("SELECT id, COALESCE(label, 'unknown') FROM {tbl} ORDER BY time",),
+        ("SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time",),
+        ("SELECT id, IF(val > 30, 'high', 'low') AS cat FROM {tbl} ORDER BY time",),
+        ("SELECT id, IFNULL(label, 'none') FROM {tbl} ORDER BY time",),
+        ("SELECT id, CASE WHEN val >= 40 THEN 'high' WHEN val >= 20 THEN 'mid' ELSE 'low' END AS cat FROM {tbl} ORDER BY time",),
+        ("SELECT id, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {tbl} ORDER BY time",),
+        ("SELECT id, NULLIF(val, 30) FROM {tbl} ORDER BY time",),
+        ("SELECT id, COALESCE(NULL, val) FROM {tbl} ORDER BY time",),
+        ("SELECT id, NVL2(label, 'has_val', 'no_val') AS nv FROM {tbl} ORDER BY time",),
+        ("SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v ASC NULLS FIRST",),
+        ("SELECT id, NULLIF(val, 30) AS v FROM {tbl} ORDER BY v DESC NULLS LAST",),
+        ("SELECT val, CASE WHEN val > 30 THEN 'high' ELSE 'low' END AS lvl FROM {tbl} ORDER BY val",),
+        ("SELECT SUM(CASE WHEN id = 1 THEN val ELSE 0 END) AS s1 FROM {tbl}", dict(ordered=False)),
+        ("SELECT IFNULL(val, 0) FROM {tbl} WHERE val = 10",),
+        ("SELECT COALESCE(val, 0) FROM {tbl} WHERE val = 10",),
+        ("SELECT val, val / NULLIF(0, 0) FROM {tbl} WHERE val = 10",),
+        ("SELECT val, CASE val WHEN 10 THEN 'ten' WHEN 20 THEN 'twenty' ELSE 'other' END AS lbl FROM {tbl} ORDER BY val",),
+    ],
+    # ── arith: 算术运算符（+  -  *  /  %  &  |）──────────────────────────────
+    "arith": [
+        ("SELECT id, val * 2 + 1 FROM {tbl} ORDER BY time",),
+        ("SELECT id, val * 3 FROM {tbl} ORDER BY time",),
+        ("SELECT id, val / 4.0 FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, val % 3 FROM {tbl} ORDER BY time",),
+        ("SELECT id, val & 3 FROM {tbl} ORDER BY time",),
+        ("SELECT id, val | 1 FROM {tbl} ORDER BY time",),
+        ("SELECT id, val * 2 AS dbl FROM {tbl} ORDER BY dbl",),
+        ("SELECT val, val+1, val-1, val*2, val%3 FROM {tbl} ORDER BY val",),
+        ("SELECT val, val / 2.0 FROM {tbl} ORDER BY val", dict(float_cols={1})),
+        ("SELECT val, val * 2 AS doubled FROM {tbl} ORDER BY val",),
+        ("SELECT val, val & 3 FROM {tbl} WHERE val = 50 ORDER BY time",),
+        ("SELECT val, val | 8 FROM {tbl} WHERE val = 50 ORDER BY time",),
+    ],
+    # ── math: 数学函数（ABS CEIL FLOOR ROUND SQRT POW MOD SIGN GREATEST LEAST
+    #                    PI TRUNCATE DEGREES RADIANS EXP LN LOG）────────────────
+    "math": [
+        ("SELECT id, GREATEST(id, val) FROM {tbl} ORDER BY time",),
+        ("SELECT id, LEAST(id, val) FROM {tbl} ORDER BY time",),
+        ("SELECT id, TRUNCATE(PI(), 5) AS pi5 FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, ABS(20 - val) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CEIL(score) FROM {tbl} ORDER BY time",),
+        ("SELECT id, FLOOR(score) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ROUND(score, 1) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, ROUND(score, 0) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, SQRT(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, POW(id, 2) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, MOD(val, 3) FROM {tbl} ORDER BY time",),
+        ("SELECT id, SIGN(val - 25) FROM {tbl} ORDER BY time",),
+        ("SELECT id, EXP(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, LN(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, LOG(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, LOG(val, 10) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, TRUNCATE(score, 1) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, DEGREES(score) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, RADIANS(val) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT ABS(val - 30) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT CEIL(score) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT FLOOR(score) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT ROUND(score, 0) FROM {tbl} WHERE val = 10 ORDER BY time", dict(float_cols={0})),
+        ("SELECT SQRT(val) FROM {tbl} WHERE val = 40 ORDER BY time", dict(float_cols={0})),
+        ("SELECT POW(val, 2) FROM {tbl} WHERE val = 30 ORDER BY time", dict(float_cols={0})),
+        ("SELECT SIGN(val) FROM {tbl} WHERE val = 30 ORDER BY time",),
+        ("SELECT LOG(val, 2) FROM {tbl} WHERE val = 40 ORDER BY time", dict(float_cols={0})),
+        ("SELECT TRUNCATE(score, 1) FROM {tbl} WHERE val = 10 ORDER BY time", dict(float_cols={0})),
+        ("SELECT LOG(val) FROM {tbl} WHERE val = 10 ORDER BY time", dict(float_cols={0})),
+        ("SELECT MOD(val, 3) FROM {tbl} WHERE val = 50 ORDER BY time",),
+        ("SELECT GREATEST(val, 3), LEAST(val, 3) FROM {tbl} WHERE val = 50 ORDER BY time",),
+        ("SELECT GREATEST(val, 3), LEAST(val, 3) FROM {tbl} WHERE val = 10 ORDER BY time",),
+    ],
+    # ── trig: 三角函数（SIN COS TAN ASIN ACOS ATAN）──────────────────────────
+    "trig": [
+        ("SELECT id, SIN(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, COS(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, TAN(score) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, ASIN(score / 10.0) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, ACOS(score / 10.0) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, ATAN(id) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT COS(val - 10), SIN(val - 10), TAN(val - 10) FROM {tbl} WHERE val = 10 ORDER BY time", dict(float_cols={0, 1, 2})),
+        ("SELECT ACOS(val - 10), ASIN(val / 10.0), ATAN(val / 10.0) FROM {tbl} WHERE val = 10 ORDER BY time", dict(float_cols={0, 1, 2})),
+        ("SELECT DEGREES(PI()), RADIANS(180), PI(), EXP(val - 10) FROM {tbl} WHERE val = 10 ORDER BY time", dict(float_cols={0, 1, 2, 3})),
+    ],
+    # ── sfn: 字符串函数（LOWER UPPER LENGTH TRIM CONCAT SUBSTRING REPLACE
+    #                     POSITION REPEAT ASCII CHAR FIND_IN_SET）──────────────
+    "sfn": [
+        ("SELECT id, LOWER(label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, UPPER(label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CHAR_LENGTH(label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, LENGTH(label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, LTRIM(CONCAT(' ', label)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, RTRIM(CONCAT(label, ' ')) FROM {tbl} ORDER BY time",),
+        ("SELECT id, TRIM(CONCAT(' ', label, ' ')) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CONCAT(label, '-', LOWER(label)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CONCAT_WS('-', label, LOWER(label)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, SUBSTRING(label, 1, 3) FROM {tbl} ORDER BY time",),
+        ("SELECT id, SUBSTR(label, -3, 3) FROM {tbl} ORDER BY time",),
+        ("SELECT id, REPLACE(label, 'north', 'n') FROM {tbl} ORDER BY time",),
+        ("SELECT id, POSITION('o' IN label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, REPEAT('x', id) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ASCII(label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CHAR(65) FROM {tbl} ORDER BY time",),
+        ("SELECT id, FIND_IN_SET(label, 'north,south,east') AS pos FROM {tbl} ORDER BY time",),
+        ("SELECT id, SUBSTRING_INDEX(label, 'o', 1) AS si FROM {tbl} ORDER BY time",),
+        ("SELECT CONCAT(label, '_x') FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT UPPER(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT LOWER(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT REPLACE(label, 'north', 'omega') FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT LENGTH(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT CHAR_LENGTH(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT ASCII(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT LTRIM(label), RTRIM(label), TRIM(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT CONCAT_WS('-', label, 'b') FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT REPEAT('x', 3) FROM {tbl} LIMIT 1",),
+        ("SELECT SUBSTRING(label, 1, 3) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT CHAR(65) FROM {tbl} LIMIT 1",),
+        ("SELECT POSITION('lp' IN label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT FIND_IN_SET('B', 'A,B,C') FROM {tbl} LIMIT 1",),
+        ("SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 2) FROM {tbl} LIMIT 1",),
+        ("SELECT LIKE_IN_SET(label, 'no%,so%') FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT REGEXP_IN_SET(label, '^n.*,^s.*') FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT MASK_NONE(label) FROM {tbl} WHERE val = 10 ORDER BY time",),
+    ],
+    # ── hash: 哈希 / 编码函数（MD5 SHA1 SHA2 CRC32 TO_BASE64 FROM_BASE64）────
+    "hash": [
+        ("SELECT id, MD5(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time",),
+        ("SELECT id, TO_BASE64(label) FROM {tbl} ORDER BY time",),
+        ("SELECT id, FROM_BASE64(TO_BASE64(label)) AS decoded FROM {tbl} ORDER BY time",),
+        ("SELECT id, SHA1(CAST(label AS VARCHAR(32))) FROM {tbl} ORDER BY time",),
+        ("SELECT id, SHA2(CAST(label AS VARCHAR(32)), 256) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CRC32(label) FROM {tbl} ORDER BY time",),
+        ("SELECT SHA1(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE val = 10 ORDER BY time",),
+        ("SELECT SHA2(CAST(label AS VARCHAR(32)), 256) FROM {tbl} WHERE val = 10 ORDER BY time",),
+    ],
+    # ── agg: 聚合函数（COUNT SUM MIN MAX AVG STDDEV VARIANCE COUNT DISTINCT）──
+    "agg": [
+        ("SELECT COUNT(*), SUM(val), MIN(val), MAX(val) FROM {tbl}", dict(ordered=False)),
+        ("SELECT AVG(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT STDDEV(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT VARIANCE(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT STDDEV_SAMP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT VAR_SAMP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT COUNT(DISTINCT val) FROM {tbl}",
+         dict(ordered=False, positive=False,
+              reason="COUNT(DISTINCT col) syntax not supported (0x80002600); use a subquery workaround")),
+        ("SELECT COUNT(label) FROM {tbl}", dict(ordered=False)),
+        ("SELECT SUM(CASE WHEN label = 'north' THEN val ELSE 0 END) FROM {tbl}", dict(ordered=False)),
+        ("SELECT COUNT(*), SUM(val), AVG(val), MIN(val), MAX(val) FROM {tbl}", dict(float_cols={2}, ordered=False)),
+        ("SELECT PERCENTILE(val, 50) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT APERCENTILE(val, 50) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT SPREAD(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT LEASTSQUARES(val, 0, 1) FROM {tbl}", dict(ordered=False)),
+        ("SELECT VAR_POP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT STDDEV_POP(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT GROUP_CONCAT(label, ',') FROM {tbl}", dict(ordered=False)),
+        ("SELECT COLS(MAX(val), label) FROM {tbl}", dict(ordered=False)),
+        ("SELECT COLS(MIN(val), label) FROM {tbl}", dict(ordered=False)),
+    ],
+    # ── grp: GROUP BY / HAVING ────────────────────────────────────────────────
+    "grp": [
+        ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label ORDER BY label",),
+        ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label HAVING COUNT(*) > 1 ORDER BY label",),
+        ("SELECT label, SUM(val) FROM {tbl} GROUP BY label ORDER BY label",),
+        ("SELECT label, AVG(val) FROM {tbl} GROUP BY label ORDER BY label", dict(float_cols={1})),
+        ("SELECT label, MAX(val) FROM {tbl} GROUP BY label ORDER BY label",),
+        ("SELECT label, MIN(val) FROM {tbl} GROUP BY label ORDER BY label",),
+        ("SELECT label, COUNT(id) FROM {tbl} GROUP BY label ORDER BY label",),
+        ("SELECT label, SUM(val) FROM {tbl} GROUP BY label HAVING SUM(val) > 30 ORDER BY label",),
+        ("SELECT label, AVG(score) FROM {tbl} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label",
+         dict(float_cols={1})),
+        ("SELECT val / 20 AS bucket, COUNT(*) FROM {tbl} GROUP BY val / 20 ORDER BY bucket",),
+        ("SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC",),
+        ("SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label",
+         dict(float_cols={3})),
+        ("SELECT id, COUNT(*) AS cnt FROM {tbl} GROUP BY id ORDER BY id",),
+        ("SELECT id, COUNT(*) AS cnt FROM {tbl} GROUP BY id HAVING COUNT(*) > 0 ORDER BY id",),
+    ],
+    # ── cast: 类型转换（CAST）────────────────────────────────────────────────
+    "cast": [
+        ("SELECT id, CAST(val AS DOUBLE) FROM {tbl} ORDER BY time", dict(float_cols={1})),
+        ("SELECT id, CHAR_LENGTH(CAST(val AS VARCHAR(10))) FROM {tbl} ORDER BY time",),
+        ("SELECT id, CAST(score AS BIGINT) FROM {tbl} ORDER BY time",),
+        ("SELECT CAST(val AS DOUBLE) FROM {tbl} WHERE val = 30 ORDER BY time", dict(float_cols={0})),
+        ("SELECT CAST(score AS BINARY(16)) FROM {tbl} WHERE val = 10 ORDER BY time",),
+    ],
+    # ── sort: ORDER BY / LIMIT / DISTINCT / NULLS FIRST/LAST ─────────────────
+    "sort": [
+        ("SELECT id, val - 5 FROM {tbl} ORDER BY time",),
+        ("SELECT id, val, score, label FROM {tbl} ORDER BY time", dict(float_cols={2})),
+        ("SELECT id, val FROM {tbl} ORDER BY time LIMIT 3 OFFSET 1",),
+        ("SELECT DISTINCT label FROM {tbl} ORDER BY label",),
+        ("SELECT id, val FROM {tbl} ORDER BY val DESC",),
+        ("SELECT id, -val FROM {tbl} ORDER BY time",),
+        ("SELECT id, label, val FROM {tbl} ORDER BY label, val",),
+        ("SELECT DISTINCT label, val FROM {tbl} ORDER BY label, val",),
+        ("SELECT val, score FROM {tbl} ORDER BY val", dict(float_cols={1})),
+        ("SELECT val FROM {tbl} ORDER BY val DESC",),
+        ("SELECT val FROM {tbl} ORDER BY val LIMIT 2 OFFSET 2",),
+        ("SELECT val FROM {tbl} ORDER BY val LIMIT 2 OFFSET 3",),
+        ("SELECT val FROM {tbl} ORDER BY val LIMIT 10 OFFSET 100",),
+        ("SELECT DISTINCT id FROM {tbl} ORDER BY id",),
+        ("SELECT DISTINCT val, id FROM {tbl} ORDER BY val",),
+    ],
+    # ── sub: 子查询（IN / NOT IN / EXISTS / ALL / ANY / SOME / scalar / derived）
+    "sub": [
+        ("SELECT id FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north') ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE val NOT IN (SELECT val FROM {tbl} WHERE label = 'east') ORDER BY time",),
+        ("SELECT id FROM {tbl} t1 WHERE EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'north') ORDER BY time",
+         dict(positive=False, reason="correlated EXISTS subquery as expr not supported (0x800026A6)")),
+        ("SELECT id FROM {tbl} t1 WHERE NOT EXISTS (SELECT 1 FROM {tbl} t2 WHERE t2.id = t1.id AND t2.label = 'south') ORDER BY time",
+         dict(positive=False, reason="correlated NOT EXISTS subquery as expr not supported (0x800026A6)")),
+        ("SELECT id FROM {tbl} WHERE val > ALL (SELECT val FROM {tbl} WHERE val < 20) ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE val > ANY (SELECT val FROM {tbl} WHERE val < 30) ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE val >= SOME (SELECT val FROM {tbl} WHERE val >= 30) ORDER BY time",),
+        ("SELECT id, val, (SELECT AVG(val) FROM {tbl}) AS avg_val FROM {tbl} ORDER BY time", dict(float_cols={2})),
+        ("SELECT id, val FROM {tbl} WHERE val > (SELECT AVG(val) FROM {tbl}) ORDER BY time",),
+        ("SELECT AVG(s) AS avg_sum FROM (SELECT SUM(val) AS s FROM {tbl} GROUP BY label) sub",
+         dict(float_cols={0}, ordered=False)),
+        ("SELECT id, doubled FROM (SELECT id, val * 2 AS doubled FROM {tbl}) sub ORDER BY id",),
+        ("SELECT id FROM {tbl} WHERE id IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id",),
+        ("SELECT id FROM {tbl} WHERE id NOT IN (SELECT id FROM {tbl} WHERE val > 30) ORDER BY id",),
+        ("SELECT AVG(v) FROM (SELECT val AS v FROM {tbl} WHERE val > 10) sub", dict(float_cols={0}, ordered=False)),
+        ("SELECT val, (SELECT MAX(val) FROM {tbl}) AS mx FROM {tbl} ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val > ALL (SELECT val FROM {tbl} WHERE val < 20) ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val < ANY (SELECT val FROM {tbl} WHERE val = 50) ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE id = 1) ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE val NOT IN (SELECT val FROM {tbl} WHERE id = 1) ORDER BY val",),
+        ("SELECT id FROM {tbl} WHERE EXISTS (SELECT 1 FROM {tbl} WHERE val > 10) ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE NOT EXISTS (SELECT 1 FROM {tbl} WHERE val > 999) ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE NOT EXISTS (SELECT 1 FROM {tbl} WHERE val > 10) ORDER BY time",),
+        ("SELECT val FROM {tbl} WHERE val > SOME (SELECT val FROM {tbl} WHERE label = 'south') ORDER BY val",),
+    ],
+    # ── union: UNION / UNION ALL ──────────────────────────────────────────────
+    "union": [
+        ("SELECT val FROM {tbl} WHERE id <= 2 UNION ALL SELECT val FROM {tbl} WHERE id <= 2 ORDER BY val",),
+        ("SELECT label FROM {tbl} WHERE id IN (1,3) UNION SELECT label FROM {tbl} WHERE id IN (1,4) ORDER BY label",),
+        ("SELECT id, label FROM {tbl} WHERE id <= 2 UNION ALL SELECT id, label FROM {tbl} WHERE id >= 4 ORDER BY id",),
+        # 3-way UNION ALL（源自 fq_04 cross-source 三路 UNION）
+        ("SELECT id, val FROM {tbl} WHERE id <= 2 UNION ALL SELECT id, val FROM {tbl} WHERE id BETWEEN 2 AND 4 UNION ALL SELECT id, val FROM {tbl} WHERE id >= 4 ORDER BY id, val",),
+    ],
+    # ── join: JOIN（INNER / LEFT / RIGHT / FULL OUTER / CROSS / 3-way）────────
+    "join": [
+        ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
+         dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),
+        ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.id = b.id AND b.val > 30 ORDER BY a.id",
+         dict(positive=False, reason="LEFT JOIN without primary timestamp equal condition in ON clause not supported")),
+        ("SELECT a.id, b.val FROM {tbl} a RIGHT JOIN {tbl} b ON a.id = b.id AND a.val < 30 ORDER BY b.id",
+         dict(positive=False, reason="RIGHT JOIN without primary timestamp equal condition in ON clause not supported")),
+        ("SELECT a.id AS aid, b.id AS bid FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.id = b.id + 3 ORDER BY a.id, b.id",
+         dict(positive=False, reason="FULL OUTER JOIN without primary timestamp equal condition in ON clause not supported")),
+        ("SELECT a.id AS aid, b.id AS bid FROM (SELECT id FROM {tbl} WHERE id <= 2) a CROSS JOIN (SELECT id FROM {tbl} WHERE id >= 4) b ORDER BY a.id, b.id",
+         dict(positive=False, reason="CROSS JOIN syntax not supported (0x80002600)")),
+        ("SELECT a.label, COUNT(*) AS cnt, SUM(b.val) AS sv FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id GROUP BY a.label ORDER BY a.label",
+         dict(positive=False, reason="INNER JOIN without primary timestamp equal condition in ON clause not supported")),
+        ("SELECT a.id, b.val, c.label FROM {tbl} a INNER JOIN {tbl} b ON a.id = b.id INNER JOIN {tbl} c ON b.id = c.id WHERE a.id <= 3 ORDER BY a.id",
+         dict(positive=False, reason="3-way INNER JOIN without primary timestamp equal condition not supported")),
+        # SEMI / ANTI JOIN — 非 ts-pk（负例，源自 fq_04 join_types）
+        ("SELECT a.id, a.val FROM {tbl} a LEFT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
+         dict(positive=False, reason="LEFT SEMI JOIN without primary timestamp equal condition not supported")),
+        ("SELECT a.id, a.val FROM {tbl} a LEFT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY a.id",
+         dict(positive=False, reason="LEFT ANTI JOIN without primary timestamp equal condition not supported")),
+        ("SELECT b.id, b.val FROM {tbl} a RIGHT SEMI JOIN {tbl} b ON a.id = b.id ORDER BY b.id",
+         dict(positive=False, reason="RIGHT SEMI JOIN without primary timestamp equal condition not supported")),
+        ("SELECT b.id, b.val FROM {tbl} a RIGHT ANTI JOIN {tbl} b ON a.id = b.id ORDER BY b.id",
+         dict(positive=False, reason="RIGHT ANTI JOIN without primary timestamp equal condition not supported")),
+        # ts-pk 自连接 — 正例（源自 fq_06 013/033/s03）
+        ("SELECT a.id, a.val, b.label FROM {tbl} a INNER JOIN {tbl} b ON a.time = b.time ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a LEFT JOIN {tbl} b ON a.time = b.time ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM {tbl} a FULL OUTER JOIN {tbl} b ON a.time = b.time ORDER BY a.id",),
+    ],
+    # ── asof: ASOF JOIN（源自 fq_04 asof_join）───────────────────────────────
+    "asof": [
+        ("SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time ORDER BY a.time",),
+        ("SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time JLIMIT 1 ORDER BY a.time",),
+        ("SELECT a.val, b.id, b.val AS b_val FROM {tbl} a RIGHT ASOF JOIN {tbl} b ON b.time >= a.time ORDER BY b.time",),
+    ],
+    # ── wjoin: WINDOW JOIN（源自 fq_04 window_join）─────────────────────────
+    "wjoin": [
+        ("SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) ORDER BY a.time, b.time",),
+        ("SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) JLIMIT 1 ORDER BY a.time",),
+        ("SELECT a.val, b.id, b.val AS b_val FROM {tbl} a RIGHT WINDOW JOIN {tbl} b WINDOW_OFFSET(-2m, 2m) ORDER BY b.time, a.time",),
+    ],
+    # ── win: 时间窗口（INTERVAL / FILL / PARTITION BY / SESSION /
+    #                   STATE_WINDOW / EVENT_WINDOW / COUNT_WINDOW）────────────
+    "win": [
+        ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),
+        ("SELECT AVG(score) AS avg_s FROM {tbl} INTERVAL(1m) ORDER BY _wstart", dict(float_cols={0})),
+        ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} INTERVAL(2m) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NULL) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(PREV) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart", dict(float_cols={0})),
+        ("SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart",),
+        ("SELECT COUNT(*) AS cnt FROM {tbl} SESSION(time, 30s) ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} SESSION(time, 2m) ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} STATE_WINDOW(val >= 30) ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt FROM {tbl} STATE_WINDOW(label) ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} EVENT_WINDOW START WITH val >= 30 END WITH val >= 50 ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(2) ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt, SUM(val) AS sv FROM {tbl} COUNT_WINDOW(3) ORDER BY _wstart",),
+        ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) HAVING SUM(val) > 25 ORDER BY _wstart",),
+        ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} SESSION(time, 2m)",),
+        ("SELECT _wstart, COUNT(*) FROM {tbl} EVENT_WINDOW START WITH val > 20 END WITH val < 40 ORDER BY _wstart",),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} COUNT_WINDOW(2) ORDER BY _wstart",),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(NULL) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(PREV) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(NEXT) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, COUNT(*) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 PARTITION BY id INTERVAL(1m) ORDER BY id, _wstart",),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} STATE_WINDOW(id) ORDER BY _wstart",),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} STATE_WINDOW(CASE WHEN val > 30 THEN 1 ELSE 0 END) ORDER BY _wstart",),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(NONE) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(NEAR) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(30s) FILL(VALUE_F, 0) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, _wend, _wduration, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) ORDER BY _wstart",),
+        ("SELECT _wstart, _wend, w.win_max, COUNT(*), AVG(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend, MAX(val) win_max FROM {tbl} INTERVAL(2m)) w) ORDER BY _wstart", dict(float_cols={4})),
+        ("SELECT _wstart, _wend, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} EVENT_WINDOW START WITH val >= 20 END WITH val >= 40) w) ORDER BY _wstart",),
+        ("SELECT _wstart, _wend, id, COUNT(*), SUM(val) FROM {tbl} PARTITION BY id EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) ORDER BY id, _wstart",),
+        ("SELECT _wstart, _wend, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) HAVING COUNT(*) >= 2 ORDER BY _wstart",),
+        ("SELECT _wstart, _wend, COUNT(*), MAX(val), MIN(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(2m)) w) ORDER BY _wstart",),
+        ("SELECT _wstart, COUNT(*) FROM {tbl} EVENT_WINDOW START WITH val > 20 END WITH val < 40 TRUE_FOR(1m)", dict(ordered=False)),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(2m) SLIDING(1m) ORDER BY _wstart",),
+        # PARTITION BY + INTERVAL + LIMIT（非下推 LIMIT，源自 fq_06 010）
+        ("SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart LIMIT 3",),
+        ("SELECT _QSTART, _QEND, COUNT(*) FROM {tbl} WHERE time >= 1704067200000 AND time < 1704067500000 INTERVAL(1m) ORDER BY _wstart",),
+    ],
+    # ── regex: MATCH/NMATCH 正则匹配
+    "regex": [
+        ("SELECT val FROM {tbl} WHERE label MATCH '^n' ORDER BY val",),
+        ("SELECT val FROM {tbl} WHERE label NMATCH '^n' ORDER BY val",),
+    ],
+    # ── dt: 日期时间函数（TIMEDIFF/TIMETRUNCATE/TO_ISO8601/WEEKOFYEAR）
+    "dt": [
+        ("SELECT TIMEDIFF('2024-01-01', '2024-01-01') FROM {tbl} LIMIT 1",),
+        ("SELECT TIMETRUNCATE(time, 1h) FROM {tbl} ORDER BY time LIMIT 1",),
+        ("SELECT CAST(time AS BIGINT) FROM {tbl} ORDER BY time LIMIT 1",),
+        ("SELECT TO_ISO8601(time) FROM {tbl} ORDER BY time LIMIT 1",),
+        ("SELECT WEEKOFYEAR(time) FROM {tbl} ORDER BY time LIMIT 1",),
+        ("SELECT TIMEZONE() FROM {tbl} LIMIT 1",),
+    ],
+    # ── ts: TDengine 时序函数（FIRST/LAST/TOP/BOTTOM/DIFF/CSUM 等）
+    "ts": [
+        ("SELECT FIRST(val) FROM {tbl}",),
+        ("SELECT LAST(val) FROM {tbl}",),
+        ("SELECT TOP(val, 2) FROM {tbl}",),
+        ("SELECT BOTTOM(val, 2) FROM {tbl}",),
+        ("SELECT ELAPSED(time) FROM {tbl}",),
+        ("SELECT ELAPSED(time, 1s) FROM {tbl}",),
+        ("SELECT HYPERLOGLOG(val) FROM {tbl}", dict(ordered=False)),
+        ("SELECT DIFF(val) FROM {tbl}",),
+        ("SELECT CSUM(val) FROM {tbl}",),
+        ("SELECT LAST_ROW(val) FROM {tbl}",),
+        ("SELECT TAIL(val, 2) FROM {tbl}",),
+        ("SELECT TWA(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT HISTOGRAM(val, 'user_input', '[0, 60, 100]', 0) FROM {tbl}",),
+        ("SELECT * FROM (SELECT time, DIFF(val) AS d FROM {tbl})",),
+        ("SELECT DERIVATIVE(val, 1m, 0) FROM {tbl}", dict(float_cols={0})),
+        ("SELECT IRATE(val) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+        ("SELECT MAVG(val, 2) FROM {tbl}", dict(float_cols={0})),
+        ("SELECT STATECOUNT(val, 'GT', 20) FROM {tbl}",),
+        ("SELECT STATEDURATION(val, 'GT', 20, 1s) FROM {tbl}",),
+        ("SELECT _ROWTS, val FROM {tbl} ORDER BY time",),
+        ("SELECT UNIQUE(val) FROM {tbl}", dict(ordered=False)),
+        ("SELECT SAMPLE(val, 3) FROM {tbl}", dict(validate_in={10, 20, 30, 40, 50})),
+    ],
+    # ── lag: LAG/LEAD 窗口函数
+    "lag": [
+        ("SELECT val, LAG(val, 1) FROM {tbl} ORDER BY time",),
+        ("SELECT val, LEAD(val, 1) FROM {tbl} ORDER BY time",),
+    ],
+    # ── pscol: 伪列错误测试（TAGS/TBNAME）
+    # Note: tbname-based queries succeed on local TDengine but fail on external sources
+    # (non-parity behavior) — only SELECT TAGS errors on all sources including local
+    "pscol": [
+        ("SELECT tags FROM {tbl}", dict(positive=False, reason="SELECT TAGS pseudo-column not supported (TSDB_CODE_PAR_SYNTAX_ERROR)")),
+    ],
+    # ── mask: 数据脱敏函数（MASK_FULL/MASK_PARTIAL）
+    "mask": [
+        ("SELECT MASK_FULL(label) FROM {tbl} ORDER BY val LIMIT 1", dict(positive=False, reason="MASK_FULL with 1 argument invalid - requires (string, mask_char) (TSDB_CODE_FUNC_FUNTION_PARA_NUM)")),
+        ("SELECT MASK_FULL(label, 'X') FROM {tbl} ORDER BY val LIMIT 1",),
+        ("SELECT MASK_PARTIAL(label, 2, 'X') FROM {tbl} WHERE val = 10", dict(positive=False, reason="MASK_PARTIAL with 3 args invalid - requires 4 (TSDB_CODE_FUNC_FUNTION_PARA_NUM)")),
+        ("SELECT label, MASK_PARTIAL(label, 0, 2, 'X') FROM {tbl} WHERE val = 10 ORDER BY time",),
+    ],
+    # ── slimit: SLIMIT/SOFFSET 分区限制
+    "slimit": [
+        ("SELECT id, AVG(val) FROM {tbl} PARTITION BY id SLIMIT 5 ORDER BY id", dict(float_cols={1})),
+    ],
+    # ── null: nullable_val 列的 NULL 处理（IS NULL / IFNULL / NVL / FILL_FORWARD 等）
+    # nullable_val: 10, NULL, 30, NULL, 50  (id=2 and id=4 are NULL)
+    "null": [
+        ("SELECT id, IFNULL(nullable_val, 99) FROM {tbl} ORDER BY time",),
+        ("SELECT id, NVL(nullable_val, 99) FROM {tbl} ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE nullable_val IS NULL ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE nullable_val IS NOT NULL ORDER BY time",),
+        ("SELECT id, COALESCE(nullable_val, 0) FROM {tbl} ORDER BY time",),
+        ("SELECT id, NVL2(nullable_val, 'has', 'no') FROM {tbl} ORDER BY time",),
+        ("SELECT id, NULLIF(nullable_val, 30) FROM {tbl} WHERE id IN (1, 3) ORDER BY time",),
+        ("SELECT id, IF(nullable_val > 0, 'positive', 'other') FROM {tbl} ORDER BY time",),
+        ("SELECT id, ISNOTNULL(nullable_val) FROM {tbl} ORDER BY time",),
+        ("SELECT FILL_FORWARD(nullable_val) FROM {tbl} ORDER BY time",),
+        ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST",),
+        ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST",),
+    ],
+    # ── corr: CORR 相关系数（val/score 完全线性相关 → CORR = 1.0）
+    "corr": [
+        ("SELECT CORR(val, score) FROM {tbl}", dict(float_cols={0}, ordered=False)),
+    ],
+    # ── geo: 坐标距离（SQRT + POW 欧几里得距离）
+    # lat/lon: (116.4,39.9), (121.5,31.2), (104.0,30.6), (108.0,34.2), (113.0,28.1)
+    "geo": [
+        ("SELECT id, SQRT(POW(lat - lat, 2) + POW(lon - lon, 2)) AS dist FROM {tbl} ORDER BY time",
+         dict(float_cols={1})),
+        ("SELECT SQRT(POW(lat - 116.4, 2) + POW(lon - 39.9, 2)) AS dist FROM {tbl} WHERE id = 1",
+         dict(float_cols={0}, ordered=False)),
+        ("SELECT id, SQRT(POW(lat - 116.4, 2) + POW(lon - 39.9, 2)) AS dist FROM {tbl} WHERE id = 2 ORDER BY time",
+         dict(float_cols={1})),
+    ],
+    # ── geost: GeoS2 几何函数（ST_Contains / ST_Intersects / ST_Equals / ST_Covers / ST_Touches）
+    # wkt_point: POINT(5 5), POINT(15 15), POINT(3 3), POINT(12 12), POINT(8 8)
+    # wkt_poly : POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))  (same for all rows)
+    "geost": [
+        ("SELECT id, ST_Contains(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ST_ContainsProperly(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ST_Intersects(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ST_Equals(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_poly)) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ST_Covers(ST_GeomFromText(wkt_poly), ST_GeomFromText(wkt_point)) FROM {tbl} ORDER BY time",),
+        ("SELECT ST_Touches(ST_GeomFromText('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'), ST_GeomFromText('POINT(0 0)')) FROM {tbl} LIMIT 1",),
+    ],
+    # ── enc: AES/SM4 加解密 + MD5/CRC32 负向（NCHAR 类型错误）
+    "enc": [
+        ("SELECT MD5(label) FROM {tbl} WHERE id = 1",
+         dict(positive=False, reason="MD5 requires VARCHAR; all sources see label as NCHAR → type error")),
+        ("SELECT AES_ENCRYPT(label, 'mykeystring12345') FROM {tbl} WHERE id = 1",
+         dict(positive=False, reason="AES_ENCRYPT requires VARCHAR; NCHAR input → type error")),
+        ("SELECT AES_DECRYPT(AES_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1",),
+        ("SELECT SM4_DECRYPT(SM4_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1",),
+        ("SELECT CRC32(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE id = 1", dict(ordered=False)),
+    ],
+    # ── dtf: 日期函数（DATE / DAYOFWEEK / WEEK / WEEKDAY）
+    # 2024-01-01 is a Monday: DAYOFWEEK=2, WEEK=0, WEEKDAY=0
+    # YEAR/HOUR/MINUTE are not TDengine functions → error on all sources
+    "dtf": [
+        ("SELECT DATE(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
+        ("SELECT DAYOFWEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
+        ("SELECT WEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
+        ("SELECT WEEKDAY(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
+        ("SELECT YEAR(time) FROM {tbl} LIMIT 1",
+         dict(positive=False, reason="YEAR() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
+        ("SELECT HOUR(time) FROM {tbl} LIMIT 1",
+         dict(positive=False, reason="HOUR() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
+        ("SELECT MINUTE(time) FROM {tbl} LIMIT 1",
+         dict(positive=False, reason="MINUTE() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
+    ],
+    # ── tochar: TO_CHAR / TO_TIMESTAMP / TO_UNIXTIMESTAMP
+    "tochar": [
+        ("SELECT TO_CHAR(time, 'yyyy-MM-dd') FROM {tbl} WHERE id = 1 ORDER BY time",),
+        ("SELECT TO_TIMESTAMP(ts_str, 'YYYY-MM-DD HH24:mi:ss') FROM {tbl} WHERE id = 1 ORDER BY time",),
+        ("SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1",
+         dict(positive=False, reason="TO_UNIXTIMESTAMP requires string input; TIMESTAMP column → type error")),
+    ],
+    # ── interp: INTERP 时间序列插值（RANGE / EVERY / FILL）
+    # Data: val=10,20,30,40,50 at 1-minute intervals from 2024-01-01 00:00:00
+    "interp": [
+        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00', '2024-01-01 00:04:00') EVERY(1m) FILL(linear)",),
+        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00', '2024-01-01 00:04:00') EVERY(30s) FILL(prev)",),
+        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00', '2024-01-01 00:04:00') EVERY(30s) FILL(next)",),
+        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00', '2024-01-01 00:04:00') EVERY(30s) FILL(null)",),
+        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30') FILL(linear) SURROUND(1)",),
+        ("SELECT _IROWTS, interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00', '2024-01-01 00:04:00') EVERY(1m) FILL(linear)",),
+    ],
+    # ── sysfn: 系统信息函数（CLIENT_VERSION / SERVER_VERSION / CURRENT_USER / DATABASE）
+    # 这些函数由 TDengine 本地计算，不推送到外部源，4库结果应一致
+    "sysfn": [
+        ("SELECT CLIENT_VERSION() FROM {tbl} LIMIT 1",),
+        ("SELECT SERVER_VERSION() FROM {tbl} LIMIT 1",),
+        ("SELECT CURRENT_USER() FROM {tbl} LIMIT 1",),
+        ("SELECT DATABASE() FROM {tbl} LIMIT 1",),
+    ],
+    # ── json: JSON 操作符拒绝 + LIKE 变通 + TO_JSON 类型错误
+    "json": [
+        ("SELECT label->'k' FROM {tbl} WHERE id = 1",
+         dict(positive=False, reason="'->' on NCHAR column → PAR_INVALID_COL_JSON")),
+        ("SELECT id FROM {tbl} WHERE label CONTAINS 'num'",
+         dict(positive=False, reason="CONTAINS on NCHAR column → PAR_INVALID_COL_JSON")),
+        ("SELECT id FROM {tbl} WHERE label LIKE '%orth%' ORDER BY time",),
+        ("SELECT TO_JSON(label) FROM {tbl} WHERE id = 1",
+         dict(positive=False, reason="TO_JSON requires JSON type; NCHAR column → FUNC_FUNTION_PARA_TYPE")),
+    ],
+    # ── push: 下推管线组合（WHERE→Agg→Sort→Limit 多阶段组合，源自 fq_06）──
+    # 验证 pushdown 优化对结果正确性的透明性：无论是否下推，四库结果一致
+    "push": [
+        # --- WHERE + COUNT 组合 ---
+        ("SELECT COUNT(*) FROM {tbl} WHERE val > 20", dict(ordered=False)),
+        ("SELECT COUNT(*) FROM {tbl} WHERE val > 10 AND id > 2", dict(ordered=False)),
+        ("SELECT COUNT(*) FROM {tbl} WHERE val <= 30", dict(ordered=False)),
+        # --- WHERE + ORDER BY + LIMIT 三级组合 ---
+        ("SELECT val FROM {tbl} WHERE val > 0 ORDER BY val LIMIT 3",),
+        ("SELECT val FROM {tbl} WHERE val > 0 ORDER BY val ASC LIMIT 3",),
+        ("SELECT val FROM {tbl} ORDER BY val ASC LIMIT 2",),
+        ("SELECT val FROM {tbl} ORDER BY val DESC LIMIT 2",),
+        # --- non-pushable ORDER BY（本地排序）---
+        ("SELECT label, val FROM {tbl} ORDER BY LENGTH(label), val",),
+        # --- WHERE + GROUP BY + ORDER BY + LIMIT 全管线 ---
+        ("SELECT label, COUNT(*) FROM {tbl} WHERE val > 0 GROUP BY label ORDER BY label LIMIT 10",),
+        ("SELECT label, SUM(val) FROM {tbl} WHERE val > 0 GROUP BY label ORDER BY label",),
+        # --- WHERE BETWEEN + COUNT/SUM ---
+        ("SELECT COUNT(*), SUM(val) FROM {tbl} WHERE val BETWEEN 20 AND 40", dict(ordered=False)),
+        # --- 三路一致性 count/avg ---
+        ("SELECT COUNT(*), AVG(score) FROM {tbl}", dict(float_cols={1}, ordered=False)),
+        ("SELECT COUNT(*) FROM {tbl} WHERE score > 0", dict(ordered=False)),
+        ("SELECT AVG(score) FROM {tbl} WHERE score > 0", dict(float_cols={0}, ordered=False)),
+        ("SELECT COUNT(*) FROM {tbl} WHERE score > 0 AND val > 0", dict(ordered=False)),
+        # --- 子查询投影合并 ---
+        ("SELECT val FROM (SELECT val, label FROM {tbl}) t ORDER BY val",),
+        # --- UNION ALL 空分支消除 ---
+        ("SELECT val FROM {tbl} WHERE val > 0 UNION ALL SELECT val FROM {tbl} WHERE val < 0 ORDER BY val",),
+        # --- 直接投影 + 列裁剪 ---
+        ("SELECT val FROM {tbl} ORDER BY val",),
+        ("SELECT val, score FROM {tbl} ORDER BY val", dict(float_cols={1})),
+        # --- WHERE + COUNT + AVG 组合 ---
+        ("SELECT COUNT(*), AVG(val) FROM {tbl} WHERE val > 0", dict(float_cols={1}, ordered=False)),
+        # --- GROUP BY label + COUNT/AVG 聚合下推 ---
+        ("SELECT label, COUNT(*), AVG(val) FROM {tbl} GROUP BY label ORDER BY label", dict(float_cols={2})),
+        # --- ORDER BY val + NULLS LAST/FIRST（下推重写）---
+        ("SELECT nullable_val FROM {tbl} ORDER BY nullable_val ASC NULLS LAST",),
+        ("SELECT nullable_val FROM {tbl} ORDER BY nullable_val DESC NULLS FIRST",),
+        # --- HAVING + GROUP BY ---
+        ("SELECT label, COUNT(*) FROM {tbl} GROUP BY label HAVING COUNT(*) >= 2 ORDER BY label",),
+        # --- WHERE + 多列投影 + ORDER BY ---
+        ("SELECT id, val, score FROM {tbl} WHERE val >= 20 ORDER BY val", dict(float_cols={2})),
+        # --- Hint 语法不推送到外部源（本地执行）---
+        ("SELECT /*+ para_tables_sort() */ val FROM {tbl} ORDER BY val",),
+    ],
+    # ── grpconcat: GROUP_CONCAT 函数映射（MySQL GROUP_CONCAT / PG STRING_AGG / InfluxDB 本地执行）
+    # 每个 id 仅对应一行 → GROUP_CONCAT 结果唯一确定（单元素无二义性）
+    "grpconcat": [
+        ("SELECT id, GROUP_CONCAT(label, ',') AS g FROM {tbl} GROUP BY id ORDER BY id",),
+        ("SELECT id, GROUP_CONCAT(CAST(val AS VARCHAR(8)), '') AS g FROM {tbl} GROUP BY id ORDER BY id",),
+    ],
+}
+
+# Flat list derived from _PARITY_GROUPS; each entry: (case_id, sql_template, opts)
+# case_id format: "<group>-<NN>"  e.g. "whr-01", "win-19"
+_PARITY_CASES: list[tuple[str, str, dict]] = [
+    (f"{grp}-{i:02d}", entry[0], entry[1] if len(entry) > 1 else {})
+    for grp, entries in _PARITY_GROUPS.items()
+    for i, entry in enumerate(entries, 1)
 ]
 
 
 # 5 rows, 2024-01-01 00:00-04:00 UTC, 1-minute spacing
+# Columns: ts_ms, id, val, score, label, nullable_val, lat, lon, wkt_point, wkt_poly, ts_str
+_POLY = "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"
 _ROWS = [
-    (1704067200000, 1, 10, 1.5, "north"),
-    (1704067260000, 2, 20, 2.5, "south"),
-    (1704067320000, 3, 30, 3.5, "north"),
-    (1704067380000, 4, 40, 4.5, "south"),
-    (1704067440000, 5, 50, 5.5, "east"),
+    (1704067200000, 1, 10, 1.5, "north", 10,   116.4, 39.9, "POINT(5 5)",   _POLY, "2024-01-01 00:00:00"),
+    (1704067260000, 2, 20, 2.5, "south", None, 121.5, 31.2, "POINT(15 15)", _POLY, "2024-01-01 00:01:00"),
+    (1704067320000, 3, 30, 3.5, "north", 30,   104.0, 30.6, "POINT(3 3)",   _POLY, "2024-01-01 00:02:00"),
+    (1704067380000, 4, 40, 4.5, "south", None, 108.0, 34.2, "POINT(12 12)", _POLY, "2024-01-01 00:03:00"),
+    (1704067440000, 5, 50, 5.5, "east",  50,   113.0, 28.1, "POINT(8 8)",   _POLY, "2024-01-01 00:04:00"),
 ]
 
 _ROWS_DT = [
-    ("2024-01-01 00:00:00.000", 1, 10, 1.5, "north"),
-    ("2024-01-01 00:01:00.000", 2, 20, 2.5, "south"),
-    ("2024-01-01 00:02:00.000", 3, 30, 3.5, "north"),
-    ("2024-01-01 00:03:00.000", 4, 40, 4.5, "south"),
-    ("2024-01-01 00:04:00.000", 5, 50, 5.5, "east"),
+    ("2024-01-01 00:00:00.000", 1, 10, 1.5, "north", 10,   116.4, 39.9, "POINT(5 5)",   _POLY, "2024-01-01 00:00:00"),
+    ("2024-01-01 00:01:00.000", 2, 20, 2.5, "south", None, 121.5, 31.2, "POINT(15 15)", _POLY, "2024-01-01 00:01:00"),
+    ("2024-01-01 00:02:00.000", 3, 30, 3.5, "north", 30,   104.0, 30.6, "POINT(3 3)",   _POLY, "2024-01-01 00:02:00"),
+    ("2024-01-01 00:03:00.000", 4, 40, 4.5, "south", None, 108.0, 34.2, "POINT(12 12)", _POLY, "2024-01-01 00:03:00"),
+    ("2024-01-01 00:04:00.000", 5, 50, 5.5, "east",  50,   113.0, 28.1, "POINT(8 8)",   _POLY, "2024-01-01 00:04:00"),
 ]
+
 
 # MySQL: DATETIME(3) PRIMARY KEY — TDengine recognises as time axis for window queries
 _MYSQL_SETUP = [
     "DROP TABLE IF EXISTS parity_t",
     "CREATE TABLE parity_t ("
     "  time DATETIME(3) NOT NULL, id INT, val INT, score DOUBLE, label VARCHAR(32),"
+    "  nullable_val INT, lat DOUBLE, lon DOUBLE,"
+    "  wkt_point VARCHAR(64), wkt_poly VARCHAR(256), ts_str VARCHAR(32),"
     "  PRIMARY KEY (time)"
     ")",
 ] + [
-    f"INSERT INTO parity_t VALUES ('{ts}', {i}, {v}, {s}, '{l}')"
-    for ts, i, v, s, l in _ROWS_DT
+    "INSERT INTO parity_t VALUES ({})".format(
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, s, l, nv, lat, lon, wp, wy, tss))
+    )
+    for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
 ]
 
 # PostgreSQL: TIMESTAMP PRIMARY KEY
@@ -300,76 +702,55 @@ _PG_SETUP = [
     "DROP TABLE IF EXISTS public.parity_t",
     "CREATE TABLE public.parity_t ("
     "  time TIMESTAMP NOT NULL PRIMARY KEY,"
-    "  id INT, val INT, score DOUBLE PRECISION, label VARCHAR(32)"
+    "  id INT, val INT, score DOUBLE PRECISION, label VARCHAR(32),"
+    "  nullable_val INT, lat DOUBLE PRECISION, lon DOUBLE PRECISION,"
+    "  wkt_point VARCHAR(64), wkt_poly VARCHAR(256), ts_str VARCHAR(32)"
     ")",
 ] + [
-    f"INSERT INTO public.parity_t VALUES ('{ts}', {i}, {v}, {s}, '{l}')"
-    for ts, i, v, s, l in _ROWS_DT
+    "INSERT INTO public.parity_t VALUES ({})".format(
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, s, l, nv, lat, lon, wp, wy, tss))
+    )
+    for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
 ]
 
-# InfluxDB line-protocol: label tag; id/val/score fields; timestamp in ns
-_INFLUX_LINES = [
-    f"parity_t,label={l} id={i}i,val={v}i,score={s} {ts}000000"
-    for ts, i, v, s, l in _ROWS
-]
+# InfluxDB line-protocol: label tag; numeric/string fields; timestamp in ns.
+# nullable_val is omitted for NULL rows (InfluxDB has no NULL — omitting a field
+# makes it NULL when read back via TDengine federated query).
+def _influx_line(ts, i, v, s, l, nv, lat, lon, wp, wy, tss):
+    fields = [f"id={i}i", f"val={v}i", f"score={s}"]
+    if nv is not None:
+        fields.append(f"nullable_val={nv}i")
+    fields += [
+        f"lat={lat}", f"lon={lon}",
+        f'wkt_point="{wp}"', f'wkt_poly="{wy}"', f'ts_str="{tss}"',
+    ]
+    return f"parity_t,label={l} {','.join(fields)} {ts}000000"
+
+_INFLUX_LINES = [_influx_line(*row) for row in _ROWS]
 
 _LOCAL_SETUP = [
     f"DROP DATABASE IF EXISTS {_LOCAL_DB}",
     f"CREATE DATABASE {_LOCAL_DB}",
     f"USE {_LOCAL_DB}",
     f"CREATE TABLE {_LOCAL_TBL} ("
-    f"  time TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32)"
+    f"  time TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32),"
+    f"  nullable_val INT, lat DOUBLE, lon DOUBLE,"
+    f"  wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32)"
     f")",
 ] + [
-    f"INSERT INTO {_LOCAL_TBL} VALUES ({ts}, {i}, {v}, {s}, '{l}')"
-    for ts, i, v, s, l in _ROWS
+    "INSERT INTO {} VALUES ({})".format(
+        _LOCAL_TBL,
+        ", ".join(parity_sql_val(x) for x in (ts, i, v, s, l, nv, lat, lon, wp, wy, tss))
+    )
+    for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS
 ]
 
-
-def _float_eq(a, b):
-    if a is None and b is None:
-        return True
-    if a is None or b is None:
-        return False
-    try:
-        return abs(float(str(a)) - float(str(b))) <= _FLOAT_TOL
-    except (TypeError, ValueError):
-        return str(a) == str(b)
+# 乱序写入：刻意打乱插入顺序（row-3, row-1, row-5, row-2, row-4），
+# 验证无论插入顺序如何，查询结果都与顺序写入一致。
+_DISORDER_IDX = [2, 0, 4, 1, 3]
 
 
-_BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_result_parity.txt")
-
-
-def _serialize_cell(val, col_idx, float_cols):
-    """Serialize a single cell value to a stable string representation."""
-    if val is None:
-        return "NULL"
-    if col_idx in float_cols:
-        try:
-            return f"{float(str(val)):.6g}"
-        except (TypeError, ValueError):
-            pass
-    return str(val)
-
-
-def _serialize_case(idx, total, sql_template, positive, ref_rows, local_qerr, float_cols, ordered):
-    """Serialize local result of one parity case to a canonical text block."""
-    kind_tag = "POS" if positive else "NEG"
-    lines = [f"### #{idx:03d} {kind_tag}", f"SQL: {sql_template}"]
-    if local_qerr is not None:
-        errno = local_qerr.qerrno
-        err_info = local_qerr.err_info or ""
-        lines.append(f"ERROR {errno if errno is not None else 0:#010x}: {err_info}")
-    else:
-        lines.append("RESULT")
-        for row in ref_rows:
-            cells = [_serialize_cell(v, ci, float_cols) for ci, v in enumerate(row)]
-            lines.append("|".join(cells))
-    lines.append("---")
-    return "\n".join(lines)
-
-
-class TestFq14ResultParity(FederatedQueryTestMixin):
+class TestFq14ResultParity(ParityTestBase):
     """Result-parity: local TDengine == MySQL == PostgreSQL == InfluxDB.
 
     Every test executes the same logical query against all four sources
@@ -381,22 +762,20 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
     _SRC_PG     = "fq_parity_src_p"
     _SRC_INFLUX = "fq_parity_src_i"
     _class_setup_done = False
+    _FLOAT_TOL = _FLOAT_TOL
+    _BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_result_parity.txt")
+    _PARITY_CASES = _PARITY_CASES
 
     @property
-    def _L(self):
+    def _local_tbl(self):
         return f"{_LOCAL_DB}.{_LOCAL_TBL}"
 
-    @property
-    def _M(self):
-        return f"{self._SRC_MYSQL}.parity_t"
-
-    @property
-    def _P(self):
-        return f"{self._SRC_PG}.parity_t"
-
-    @property
-    def _I(self):
-        return f"{self._SRC_INFLUX}.parity_t"
+    def _ext_sources(self):
+        return [
+            ("MySQL",    f"{self._SRC_MYSQL}.parity_t"),
+            ("PG",       f"{self._SRC_PG}.parity_t"),
+            ("InfluxDB", f"{self._SRC_INFLUX}.parity_t"),
+        ]
 
     def setup_method(self, method):
         if TestFq14ResultParity._class_setup_done:
@@ -441,294 +820,16 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
         TestFq14ResultParity._class_setup_done = False
         ExtSrcEnv.teardown_env()
 
-    def _get_rows(self, sql, no_retry=False):
-        """Execute *sql* and return results as a list of tuples.
-
-        On failure raises QueryError that includes the SQL text,
-        errno, and error_info so the failing query is immediately
-        identifiable in the test report without re-running.
-
-        Pass no_retry=True (for negative cases) to skip the 10-attempt
-        retry loop and fail immediately, saving ~9 seconds per source.
-        When no_retry=True the cursor is called directly to avoid the
-        tdLog.error() that tdSql.query() emits on failure — expected
-        failures should be debug info, not errors.
-        """
-        try:
-            if no_retry:
-                # Bypass tdSql.query() so that expected SQL failures are logged
-                # at DEBUG level instead of ERROR level.
-                tdSql.cursor.execute(sql)
-                tdSql.queryResult = tdSql.cursor.fetchall()
-                tdSql.queryRows = len(tdSql.queryResult)
-                tdSql.queryCols = len(tdSql.cursor.description)
-            else:
-                tdSql.query(sql, queryTimes=10)
-        except Exception as e:
-            # Extract errno directly from the exception.  tdSql.query() does NOT
-            # update tdSql.errno on failure, so tdSql.errno may hold a stale value
-            # from a prior tdSql.error() call in a different test class (e.g. the
-            # preceding fq_05 class sets tdSql.errno = TSDB_CODE_EXT_TABLE_NOT_EXIST
-            # and that value persists into this class, corrupting baseline comparisons).
-            _eargs = getattr(e, 'args', ())
-            errno = None
-            if len(_eargs) >= 2 and isinstance(_eargs[-1], int):
-                errno = _eargs[-1]
-            if errno is None:
-                errno = getattr(e, 'errno', None)
-            err_info = None
-            if _eargs:
-                err_info = str(_eargs[0])
-            tdLog.debug(f"expected SQL failure: {sql!r} → {err_info!r} (errno={errno})")
-            raise QueryError(errno, err_info, sql, e) from e
-        return list(tdSql.queryResult)
-
-    @staticmethod
-    def _fmt_result_tables(ref_rows, ext_rows, ref_sql, cmp_sql, label):
-        """Return a formatted side-by-side diff of *ref_rows* vs *ext_rows*.
-
-        Every row is shown; mismatched cells are marked with ✗ so the
-        developer can see at a glance which values differ.
-        """
-        lines = [
-            f"  local_sql  : {ref_sql}",
-            f"  {label}_sql    : {cmp_sql}",
-            f"  local rows : {len(ref_rows)}  {label} rows: {len(ext_rows)}",
-        ]
-        n_rows = max(len(ref_rows), len(ext_rows))
-        for r in range(n_rows):
-            lr = tuple(ref_rows[r]) if r < len(ref_rows) else ()
-            er = tuple(ext_rows[r]) if r < len(ext_rows) else ()
-            n_cols = max(len(lr), len(er))
-            cells = []
-            for c in range(n_cols):
-                lv = lr[c] if c < len(lr) else "<missing>"
-                ev = er[c] if c < len(er) else "<missing>"
-                mark = "" if str(lv) == str(ev) else " \u2717"
-                cells.append(f"col{c}[local={lv!r} {label}={ev!r}]{mark}")
-            lines.append(f"  row[{r:02d}]: " + "  ".join(cells))
-        return "\n".join(lines)
-
-    def _compare_rows(self, ref, rows, ref_sql, cmp_sql, label, float_cols):
-        """Row-by-row comparison of *ref* (local) vs *rows* (external source).
-
-        On any mismatch shows the FULL side-by-side result table so the
-        developer can immediately see which rows and cells diverge.
-        """
-        if len(ref) != len(rows):
-            raise AssertionError(
-                f"{label} row count mismatch: local={len(ref)} {label}={len(rows)}\n"
-                + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
-            )
-        for ri, (lr, er) in enumerate(zip(ref, rows)):
-            if len(lr) != len(er):
-                raise AssertionError(
-                    f"{label} col count mismatch at row {ri}: "
-                    f"local={len(lr)} {label}={len(er)}\n"
-                    + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
-                )
-            for ci, (lv, ev) in enumerate(zip(lr, er)):
-                if ci in float_cols:
-                    ok = _float_eq(lv, ev)
-                else:
-                    ok = (str(lv) == str(ev)) or (lv is None and ev is None)
-                if not ok:
-                    raise AssertionError(
-                        f"{label} value mismatch at row={ri} col={ci}: "
-                        f"local={lv!r} {label}={ev!r}\n"
-                        + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
-                    )
-
-    def _assert_parity_all(
-        self,
-        sql_template,
-        *,
-        float_cols=None,
-        ordered=True,
-    ):
-        """Execute *sql_template* against all four sources and compare results.
-
-        *sql_template* must contain ``{tbl}`` as the table-name placeholder.
-        The same template is instantiated for Local TDengine, MySQL, PG and
-        InfluxDB; results from each external source are compared row-by-row
-        against the local reference.
-        """
-        float_cols = float_cols or set()
-        local_sql = sql_template.format(tbl=self._L)
-        ref = self._get_rows(local_sql)
-        if not ordered:
-            ref = sorted(ref, key=lambda r: [str(x) for x in r])
-        for lbl, tbl in [
-            ("MySQL",    self._M),
-            ("PG",       self._P),
-            ("InfluxDB", self._I),
-        ]:
-            sql = sql_template.format(tbl=tbl)
-            rows = self._get_rows(sql)
-            if not ordered:
-                rows = sorted(rows, key=lambda r: [str(x) for x in r])
-            self._compare_rows(ref, rows, local_sql, sql, lbl, float_cols)
-
-    def _run_one_case(self, idx: int, total: int, sql_template: str, **kwargs) -> tuple:
-        """Run one parity case and return ``(passed, details, serialized)``.
-
-        Returns a 3-tuple:
-          - passed (bool): whether this case passed
-          - details (str): one-line failure summary (empty on pass)
-          - serialized (str): canonical text block of the local result
-            for regression baseline comparison
-        """
-        positive        = kwargs.get("positive", True)
-        reason          = kwargs.get("reason", "")
-        float_cols      = kwargs.get("float_cols") or set()
-        ordered         = kwargs.get("ordered", True)
-        # source_expected: dict[str, list[tuple]] — for sources whose results
-        # legitimately differ from local (e.g. type-mapping semantic differences),
-        # supply the *exact* expected rows instead of comparing against local.
-        # Sources absent from this dict (and not in skip_sources) are compared
-        # against local as usual.  skip_sources is still supported for sources
-        # where no meaningful assertion is possible at all.
-        source_expected = kwargs.get("source_expected") or {}
-        skip_sources    = kwargs.get("skip_sources") or set()
-        kind_tag   = "POS" if positive else "NEG"
-        sql_short  = sql_template if len(sql_template) <= 90 else sql_template[:87] + "..."
-        prefix     = f"[{kind_tag} #{idx:03d}/{total}]"
-        t0 = time.monotonic()
-        if not positive and reason:
-            tdLog.info(f"{prefix}  reason: {reason}")
-
-        # ── local reference ──────────────────────────────────────────────────
-        local_sql        = sql_template.format(tbl=self._L)
-        local_qerr: QueryError | None = None   # non-None when local query errors out
-        ref = None
-        try:
-            ref = self._get_rows(local_sql, no_retry=not positive)
-            if not ordered:
-                ref = sorted(ref, key=lambda r: [str(x) for x in r])
-        except QueryError as exc:
-            local_qerr = exc
-
-        # ── serialize local result for baseline comparison ────────────────
-        serialized = _serialize_case(idx, total, sql_template, positive, ref, local_qerr, float_cols, ordered)
-
-        # ── negative-case early-fail: if local succeeded but we expected error ─
-        if not positive and local_qerr is None:
-            elapsed = time.monotonic() - t0
-            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-            tdLog.info(f"  [neg-expected] local unexpectedly succeeded (expected error)")
-            if reason:
-                tdLog.info(f"  reason: {reason}")
-            return False, "local unexpectedly succeeded", serialized
-
-        # ── compare each external source ─────────────────────────────────────
-        # When local errors we still run all external sources:
-        #   • external source also errors with same errno → parity OK
-        #   • external source errors with different errno → BUG (wrong error code)
-        #   • external source succeeds                   → BUG (should have errored)
-        src_failures: list[tuple[str, str]] = []   # (label, full_error_str)
-        for lbl, tbl in [("MySQL", self._M), ("PG", self._P), ("InfluxDB", self._I)]:
-            if lbl in skip_sources:
-                continue
-            sql = sql_template.format(tbl=tbl)
-            ext_qerr: QueryError | None = None
-            rows = None
-            try:
-                rows = self._get_rows(sql, no_retry=not positive)
-                if not ordered:
-                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
-            except QueryError as exc:
-                ext_qerr = exc
-
-            if local_qerr is not None:
-                if ext_qerr is None:
-                    # External succeeded but local errored — that's a bug.
-                    _le = local_qerr.qerrno
-                    src_failures.append((
-                        lbl,
-                        f"BUG: local errored but [{lbl}] succeeded\n"
-                        f"  local errno : {_le if _le is not None else 0:#010x} — {local_qerr.err_info}\n"
-                        f"  {lbl} sql   : {sql}",
-                    ))
-                elif ext_qerr.qerrno != local_qerr.qerrno:
-                    # Both errored but with different errno — that's a bug.
-                    _le = local_qerr.qerrno
-                    _ee = ext_qerr.qerrno
-                    src_failures.append((
-                        lbl,
-                        f"BUG: errno mismatch\n"
-                        f"  local  errno: {_le if _le is not None else 0:#010x} — {local_qerr.err_info}\n"
-                        f"  {lbl}   errno: {_ee if _ee is not None else 0:#010x} — {ext_qerr.err_info}\n"
-                        f"  {lbl} sql   : {sql}",
-                    ))
-                # else: both errored with same errno — parity satisfied
-            else:
-                # Local succeeded — compare results normally.
-                if ext_qerr is not None:
-                    src_failures.append((lbl, str(ext_qerr)))
-                    continue
-                try:
-                    if lbl in source_expected:
-                        expected_rows = list(source_expected[lbl])
-                        self._compare_rows(expected_rows, rows, f"expected({lbl})", sql, lbl, float_cols)
-                    else:
-                        self._compare_rows(ref, rows, local_sql, sql, lbl, float_cols)
-                except AssertionError as exc:
-                    src_failures.append((lbl, str(exc)))
-
-        if local_qerr is not None and not src_failures:
-            # All sources errored with same errno — parity OK.
-            # For positive cases this is unexpected but still consistent (err-parity).
-            # For negative cases this is the expected outcome → PASS.
-            elapsed = time.monotonic() - t0
-            _le = local_qerr.qerrno
-            tag = "PASS" if not positive else "PASS(err-parity)"
-            tdLog.info(f"{prefix} {tag}  {sql_short}  errno={_le if _le is not None else 0:#010x}  [{elapsed:.2f}s]")
-            return True, "", serialized
-
-        if local_qerr is not None and src_failures:
-            # Some external sources had wrong errno or succeeded — bug.
-            elapsed = time.monotonic() - t0
-            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-            if not positive and reason:
-                tdLog.info(f"  [neg-expected] {reason}")
-            _le = local_qerr.qerrno
-            tdLog.info(f"  [local] errno={_le if _le is not None else 0:#010x} — {local_qerr.err_info}")
-            for lbl, err in src_failures:
-                for line in err.splitlines()[:5]:
-                    tdLog.info(f"  {line}")
-            summary = "; ".join(f"[{lbl}] {err.splitlines()[0]}" for lbl, err in src_failures)
-            return False, summary, serialized
-
-        if src_failures:
-            elapsed = time.monotonic() - t0
-            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-            if not positive and reason:
-                tdLog.info(f"  [neg-expected] {reason}")
-            for lbl, err in src_failures:
-                err_lines = err.split("\n")
-                tdLog.info(f"  [{lbl}] {err_lines[0]}")
-                for line in err_lines[1:10]:        # up to 9 detail lines
-                    tdLog.info(f"    {line}")
-            summary = "; ".join(
-                f"[{lbl}] {err.split(chr(10))[0]}" for lbl, err in src_failures
-            )
-            return False, summary, serialized
-
-        elapsed = time.monotonic() - t0
-        tdLog.info(f"{prefix} PASS  {sql_short}  [{elapsed:.2f}s]")
-        return True, "", serialized
-
     def test_fq_parity_all_cases(self):
-        """All result-parity cases (parametrized via _PARITY_CASES).
+        """All result-parity cases driven by _PARITY_GROUPS.
 
         By default every entry in _PARITY_CASES is executed.  Set the
         environment variable ``PARITY_IDX`` to a comma-separated list of
-        1-based indices to run only those entries, e.g.::
+        case IDs (``grp-NN``) or group names to run only those entries::
 
-            PARITY_IDX=1 pytest test_fq_14_result_parity.py::...::test_fq_parity_all_cases
-            PARITY_IDX=1,3,5-8 pytest ...
-
-        Ranges (``a-b``) are inclusive on both ends.
+            PARITY_IDX=whr-01 pytest ...::test_fq_parity_all_cases
+            PARITY_IDX=whr-01,win-03 pytest ...
+            PARITY_IDX=whr,win pytest ...       # entire groups
 
         Catalog: - Query:FederatedResultParity
 
@@ -738,108 +839,68 @@ class TestFq14ResultParity(FederatedQueryTestMixin):
 
         History:
             - 2026-04-21 wpan Initial implementation
+            - 2026-05-14 wpan Switch to group-based case IDs (grp-NN format)
         """
 
-        raw = os.environ.get("PARITY_IDX", "").strip()
-        if raw:
-            selected: set[int] = set()
-            for part in raw.split(","):
-                part = part.strip()
-                if "-" in part:
-                    lo, hi = part.split("-", 1)
-                    selected.update(range(int(lo), int(hi) + 1))
-                else:
-                    selected.add(int(part))
-            indices = sorted(selected)
-        else:
-            indices = list(range(1, len(_PARITY_CASES) + 1))
+        self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
 
-        total  = len(_PARITY_CASES)
-        n_run  = len(indices)
-        n_pos  = sum(1 for i in indices if (_PARITY_CASES[i - 1][1] if len(_PARITY_CASES[i - 1]) > 1 else {}).get("positive", True))
-        n_neg  = n_run - n_pos
-        tdLog.info(f"\nParity run: {n_run} case(s) of {total} total  (pos={n_pos} neg={n_neg})")
+    # ── 乱序数据写入 ─────────────────────────────────────────────────────
+    def _rewrite_all_data(self, row_indices):
+        """Drop and re-insert parity data in all 4 DBs using *row_indices* order."""
+        ordered_rows    = [_ROWS[i] for i in row_indices]
+        ordered_rows_dt = [_ROWS_DT[i] for i in row_indices]
 
-        failed: list[tuple[int, str, str]] = []   # (idx, sql_template, details)
-        serialized_blocks: list[str] = []          # per-case baseline text
+        # --- Local TDengine ---
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.execute(f"DROP TABLE IF EXISTS {_LOCAL_TBL}")
+        tdSql.execute(
+            f"CREATE TABLE {_LOCAL_TBL} ("
+            f"  time TIMESTAMP, id INT, val INT, score DOUBLE, label NCHAR(32),"
+            f"  nullable_val INT, lat DOUBLE, lon DOUBLE,"
+            f"  wkt_point NCHAR(64), wkt_poly NCHAR(256), ts_str NCHAR(32))")
+        for row in ordered_rows:
+            vals = ", ".join(parity_sql_val(x) for x in row)
+            tdSql.execute(f"INSERT INTO {_LOCAL_TBL} VALUES ({vals})")
 
-        for idx in indices:
-            if idx < 1 or idx > total:
-                raise ValueError(f"PARITY_IDX {idx} out of range 1..{total}")
-            entry        = _PARITY_CASES[idx - 1]
-            sql_template = entry[0]
-            kwargs       = entry[1] if len(entry) > 1 else {}
-            passed, details, serialized = self._run_one_case(idx, total, sql_template, **kwargs)
-            serialized_blocks.append(serialized)
-            if not passed:
-                failed.append((idx, sql_template, details))
+        # --- MySQL ---
+        mysql_sqls = ["DELETE FROM parity_t"] + parity_make_insert_sqls(ordered_rows_dt)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_DB, mysql_sqls)
 
-        # ── write temp result file and compare with static baseline ────────
-        run_all = (not raw) or (set(indices) == set(range(1, total + 1)))
-        if run_all:
-            tmp_file = _BASELINE_FILE + ".tmp"
-            tmp_content = "\n".join(serialized_blocks) + "\n"
-            with open(tmp_file, "w") as f:
-                f.write(tmp_content)
-            tdLog.info(f"Temp result file written: {tmp_file}")
+        # --- PostgreSQL ---
+        pg_sqls = ["DELETE FROM public.parity_t"] + parity_make_insert_sqls(
+            ordered_rows_dt, schema="public")
+        ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_DB, pg_sqls)
 
-            if os.path.isfile(_BASELINE_FILE):
-                with open(_BASELINE_FILE, "r") as f:
-                    baseline_content = f.read()
-                if tmp_content != baseline_content:
-                    # Find first diff line for diagnostic
-                    tmp_lines = tmp_content.splitlines()
-                    base_lines = baseline_content.splitlines()
-                    diff_line = -1
-                    for li in range(max(len(tmp_lines), len(base_lines))):
-                        tl = tmp_lines[li] if li < len(tmp_lines) else "<EOF>"
-                        bl = base_lines[li] if li < len(base_lines) else "<EOF>"
-                        if tl != bl:
-                            diff_line = li + 1
-                            break
-                    baseline_err = (
-                        f"Regression baseline mismatch!\n"
-                        f"  baseline: {_BASELINE_FILE}\n"
-                        f"  actual  : {tmp_file}\n"
-                        f"  first diff at line {diff_line}:\n"
-                        f"    baseline: {bl!r}\n"
-                        f"    actual  : {tl!r}\n"
-                        f"  Run: diff {_BASELINE_FILE} {tmp_file}"
-                    )
-                    tdLog.info(f"BASELINE MISMATCH: {baseline_err}")
-                    failed.append((0, "<baseline>", baseline_err))
-                else:
-                    tdLog.info("Baseline comparison: OK (matches static baseline)")
-            else:
-                tdLog.info(f"No baseline file found at {_BASELINE_FILE}, skipping baseline comparison")
+        # --- InfluxDB (no DELETE; drop + recreate bucket) ---
+        try:
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_BUCKET)
+        except Exception:
+            pass
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET)
+        disorder_lines = [_influx_line(*_ROWS[i]) for i in row_indices]
+        ExtSrcEnv.influx_write_cfg(
+            self._influx_cfg(), _INFLUX_BUCKET, disorder_lines)
 
-        # ── summary ────────────────────────────────────────────────────────
-        n_pass = n_run - len(failed)
-        sep    = "─" * 72
-        tdLog.info(f"\n{sep}")
-        tdLog.info(f"  Parity summary: {n_pass}/{n_run} passed  |  {len(failed)} failed  (pos={n_pos} neg={n_neg})")
-        if failed:
-            tdLog.info("  Failed cases:")
-            for i, sql, det in failed:
-                opts     = _PARITY_CASES[i - 1][1] if i > 0 and len(_PARITY_CASES[i - 1]) > 1 else {}
-                kind_tag = "POS" if opts.get("positive", True) else "NEG"
-                tdLog.info(f"    [{kind_tag} #{i:03d}]  {sql[:70]}")
-                tdLog.info(f"           {det[:130]}")
-        tdLog.info(sep)
+    def test_fq_parity_disorder(self):
+        """Re-run ALL parity cases after inserting data in deliberately shuffled order.
 
-        # ── cleanup temp file: keep on failure, remove on success ─────────
-        if run_all:
-            tmp_file_path = _BASELINE_FILE + ".tmp"
-            if failed:
-                tdLog.info(f"Temp result file kept for debugging: {tmp_file_path}")
-            elif os.path.isfile(tmp_file_path):
-                os.remove(tmp_file_path)
-                tdLog.info(f"Temp result file removed (all passed).")
+        Verifies that insertion order does not affect query results:
+        same SQL, same data, different write order → identical results.
 
-        if failed:
-            all_errors = "\n".join(
-                f"\n[#{i:03d}] {sql}\n  {det}" for i, sql, det in failed
-            )
-            raise AssertionError(
-                f"{len(failed)} of {n_run} case(s) failed:\n{all_errors}"
-            )
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-05-15 wpan Disorder data parity test (s10 migration)
+        """
+        tdLog.info("\n[disorder] Re-inserting data in shuffled order …")
+        self._rewrite_all_data(_DISORDER_IDX)
+        self.run_parity_disorder(
+            _PARITY_CASES,
+            rewrite_data_fn=lambda: None,       # already rewritten above
+            restore_data_fn=lambda: self._rewrite_all_data(list(range(len(_ROWS)))),
+        )
+
