@@ -163,7 +163,6 @@ def do_handle_undeploy_model(request):
             'message': f"Model {model_name} undeployed successfully"
         }, 200
     except Exception as e:
-        AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
 
         if isinstance(e, NotFoundDynamicModelError):
             AppLogger.warning("Model %s not found during undeploy, maybe already undeployed", model_name)
@@ -172,6 +171,7 @@ def do_handle_undeploy_model(request):
                 'error': f"Model {model_name} not found for undeployment"
             }, 404
         else:
+            AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
             return {
                 'status': 'error',
                 'error': f"Error undeploying model {model_name}: {str(e)}"
