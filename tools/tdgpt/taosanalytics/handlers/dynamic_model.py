@@ -156,23 +156,41 @@ def do_handle_undeploy_model(request):
             os.remove(full_path)
         else:
             AppLogger.warning("Model configuration file for model %s not found during undeploy, maybe already removed", model_name)
-        
+
         AppLogger.info("Model %s configuration file is removed successfully", model_name)
         return {
             'status': 'success',
             'message': f"Model {model_name} undeployed successfully"
         }, 200
     except Exception as e:
-
         if isinstance(e, NotFoundDynamicModelError):
+            if Path(str(full_path)).exists():
+                try:
+                    os.remove(full_path)
+                    AppLogger.warning(
+                        "Model %s not found in memory during undeploy, but config file existed and was removed",
+                        model_name
+                    )
+                    return {
+                        'status': 'success',
+                        'message': f"Model {model_name} undeployed successfully"
+                    }, 200
+                except Exception as cleanup_error:
+                    AppLogger.error("Error removing model %s config file during undeploy: %s",
+                                    model_name, str(cleanup_error))
+                    return {
+                        'status': 'error',
+                        'error': f"Error undeploying model {model_name}: {str(cleanup_error)}"
+                    }, 500
+
             AppLogger.warning("Model %s not found during undeploy, maybe already undeployed", model_name)
             return {
                 'status': 'error',
                 'error': f"Model {model_name} not found for undeployment"
             }, 404
-        else:
-            AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
-            return {
-                'status': 'error',
-                'error': f"Error undeploying model {model_name}: {str(e)}"
-            }, 500
+
+        AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
+        return {
+            'status': 'error',
+            'error': f"Error undeploying model {model_name}: {str(e)}"
+        }, 500
