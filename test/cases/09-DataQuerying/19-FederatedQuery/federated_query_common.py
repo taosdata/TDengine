@@ -3,6 +3,8 @@ import re
 import sys
 import subprocess
 import datetime as _datetime
+import shutil
+import time as _time
 import pytest
 from collections import namedtuple
 from itertools import zip_longest
@@ -399,41 +401,47 @@ class ExtSrcEnv:
 
         # ------------------------------------------------------------------
         # Step 1: run platform-appropriate setup script
+        # (skip if FQ_SKIP_ENV_RESET=1 — assumes DBs are already running)
         # ------------------------------------------------------------------
         import subprocess
 
         here = os.path.dirname(os.path.abspath(__file__))
-        env = os.environ.copy()
-        env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
-        env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
-        env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
 
-        if sys.platform == "win32":
-            ps1 = os.path.join(here, "ensure_ext_env.ps1")
-            if os.path.exists(ps1):
-                cmd = [
-                    "powershell.exe",
-                    "-ExecutionPolicy", "Bypass",
-                    "-NoProfile",
-                    "-File", ps1,
-                ]
-                ret = subprocess.call(cmd, env=env)
-                if ret != 0:
-                    raise RuntimeError(
-                        f"ensure_ext_env.ps1 failed (exit={ret}). "
-                        f"Check that MySQL/PG/InfluxDB test instances can start.")
+        if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
+            tdLog.info("[FQ] FQ_SKIP_ENV_RESET=1 — skipping ensure_ext_env script")
         else:
-            sh = os.path.join(here, "ensure_ext_env.sh")
-            if os.path.exists(sh):
-                ret = subprocess.call(["bash", sh], env=env)
-                if ret != 0:
-                    raise RuntimeError(
-                        f"ensure_ext_env.sh failed (exit={ret}). "
-                        f"Check that MySQL/PG/InfluxDB test instances can start.")
+            env = os.environ.copy()
+            env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
+            env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
+            env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+
+            if sys.platform == "win32":
+                ps1 = os.path.join(here, "ensure_ext_env.ps1")
+                if os.path.exists(ps1):
+                    cmd = [
+                        "powershell.exe",
+                        "-ExecutionPolicy", "Bypass",
+                        "-NoProfile",
+                        "-File", ps1,
+                    ]
+                    ret = subprocess.call(cmd, env=env)
+                    if ret != 0:
+                        raise RuntimeError(
+                            f"ensure_ext_env.ps1 failed (exit={ret}). "
+                            f"Check that MySQL/PG/InfluxDB test instances can start.")
+            else:
+                sh = os.path.join(here, "ensure_ext_env.sh")
+                if os.path.exists(sh):
+                    ret = subprocess.call(["bash", sh], env=env)
+                    if ret != 0:
+                        raise RuntimeError(
+                            f"ensure_ext_env.sh failed (exit={ret}). "
+                            f"Check that MySQL/PG/InfluxDB test instances can start.")
 
         # ------------------------------------------------------------------
         # Step 2: connectivity probe — verify every configured version
         # ------------------------------------------------------------------
+        cls._revive_attempts = 0   # reset mid-test recovery counter
         errors = []
 
         # --- MySQL (all configured versions) ---
@@ -537,6 +545,100 @@ class ExtSrcEnv:
             tdLog.info("[FQ env] dropped qnode on dnode 1")
         except Exception as e:
             tdLog.info(f"[FQ env] qnode drop skipped: {e}")
+
+    # Number of mid-test ext-DB recovery attempts already consumed.
+    # Reset to 0 by each ensure_env() call.
+    _revive_attempts = 0
+    _REVIVE_MAX = 2          # at most 2 mid-test recoveries per file
+
+    @classmethod
+    def revive_if_dead(cls):
+        """Re-start ext DBs if they died mid-test; return True if revived.
+
+        Checks TCP connectivity to every configured ext-DB port.  If any
+        is unreachable, runs ensure_ext_env.sh to restart all of them and
+        re-verifies.  Returns True if a recovery was performed, False if
+        all ext DBs were already alive.
+
+        Raises RuntimeError if recovery fails or the maximum number of
+        mid-test recoveries has been exceeded (to prevent infinite loops
+        masking a real environment issue).
+
+        Callers should invoke this when they observe ext-DB connection
+        failures, then retry the failed query.  The method is idempotent
+        and safe to call when ext DBs are healthy (fast TCP probe, no
+        subprocess overhead).
+        """
+        import socket
+        import subprocess
+
+        dead = []
+        for cfg in cls.mysql_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                dead.append(f"MySQL {cfg.version} @ {cfg.host}:{cfg.port}")
+        for cfg in cls.pg_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                dead.append(f"PG {cfg.version} @ {cfg.host}:{cfg.port}")
+        for cfg in cls.influx_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                dead.append(f"InfluxDB {cfg.version} @ {cfg.host}:{cfg.port}")
+
+        if not dead:
+            return False      # all alive — nothing to do
+
+        cls._revive_attempts += 1
+        if cls._revive_attempts > cls._REVIVE_MAX:
+            raise RuntimeError(
+                f"[FQ revive] ext DBs died again (attempt {cls._revive_attempts}/"
+                f"{cls._REVIVE_MAX}); giving up.  Dead: {dead}")
+
+        tdLog.info(
+            f"[FQ revive] ext-DB processes dead mid-test (attempt "
+            f"{cls._revive_attempts}/{cls._REVIVE_MAX}): {dead}")
+        tdLog.info("[FQ revive] restarting via ensure_ext_env.sh ...")
+
+        here = os.path.dirname(os.path.abspath(__file__))
+        env = os.environ.copy()
+        env["FQ_MYSQL_VERSIONS"]  = ",".join(cls.MYSQL_VERSIONS)
+        env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
+        env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
+        sh = os.path.join(here, "ensure_ext_env.sh")
+        ret = subprocess.call(["bash", sh], env=env)
+        if ret != 0:
+            raise RuntimeError(
+                f"[FQ revive] ensure_ext_env.sh failed (exit={ret})")
+
+        # Re-verify
+        still_dead = []
+        for cfg in cls.mysql_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                still_dead.append(f"MySQL {cfg.version}")
+        for cfg in cls.pg_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                still_dead.append(f"PG {cfg.version}")
+        for cfg in cls.influx_version_configs():
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                still_dead.append(f"InfluxDB {cfg.version}")
+        if still_dead:
+            raise RuntimeError(
+                f"[FQ revive] ext DBs still dead after restart: {still_dead}")
+
+        tdLog.info("[FQ revive] ext DBs restored successfully.")
+        return True
+
+    @staticmethod
+    def _tcp_probe(host: str, port: int, timeout: float = 2.0) -> bool:
+        """Return True if *host*:*port* accepts a TCP connection."""
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        try:
+            s.connect((host, port))
+            return True
+        except (ConnectionRefusedError, OSError, TimeoutError):
+            return False
+        finally:
+            s.close()
 
     @classmethod
     def teardown_env(cls):
@@ -1982,3 +2084,615 @@ class FederatedQueryCaseHelper:
             f"  plan ({len(plan_lines)} lines):\n"
             f"    {plan_dump}"
         )
+
+
+# =====================================================================
+# Parity test framework
+# =====================================================================
+
+class QueryError(AssertionError):
+    """Carries structured error information from a failed query."""
+    def __init__(self, errno: int | None, err_info: str | None, sql: str, raw: Exception):
+        self.qerrno   = errno
+        self.err_info = err_info
+        self.sql      = sql
+        detail = ""
+        if errno is not None:
+            detail += f"\n  errno:      {errno:#010x}"
+        if err_info:
+            detail += f"\n  error_info: {err_info}"
+        super().__init__(
+            f"Query execution failed{detail}\n"
+            f"  sql: {sql}\n"
+            f"  raw exception: {raw}"
+        )
+
+
+def parity_sql_val(v):
+    """Format a Python value as a SQL literal (NULL for None, quoted for str)."""
+    if v is None:
+        return "NULL"
+    if isinstance(v, str):
+        return f"'{v}'"
+    return str(v)
+
+
+def parity_float_eq(a, b, tol=1e-4):
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    try:
+        return abs(float(str(a)) - float(str(b))) <= tol
+    except (TypeError, ValueError):
+        return str(a) == str(b)
+
+
+def parity_serialize_cell(val, col_idx, float_cols):
+    """Serialize a single cell value to a stable string representation."""
+    if val is None:
+        return "NULL"
+    if col_idx in float_cols:
+        try:
+            return f"{float(str(val)):.6g}"
+        except (TypeError, ValueError):
+            pass
+    return str(val)
+
+
+def parity_serialize_case(case_id, sql_template, positive, ref_rows, local_qerr, float_cols, ordered):
+    """Serialize local result of one parity case to a canonical text block."""
+    kind_tag = "POS" if positive else "NEG"
+    lines = [f"### {case_id} {kind_tag}", f"SQL: {sql_template}"]
+    if local_qerr is not None:
+        errno = local_qerr.qerrno
+        err_info = local_qerr.err_info or ""
+        lines.append(f"ERROR {errno if errno is not None else 0:#010x}: {err_info}")
+    else:
+        lines.append("RESULT")
+        for row in ref_rows:
+            cells = [parity_serialize_cell(v, ci, float_cols) for ci, v in enumerate(row)]
+            lines.append("|".join(cells))
+    lines.append("---")
+    return "\n".join(lines)
+
+
+def parity_make_insert_sqls(rows_dt, *, table="parity_t", schema=""):
+    """Generate INSERT statements for a parity table given rows in any order."""
+    tbl = f"{schema}.{table}" if schema else table
+    return [
+        f"INSERT INTO {tbl} VALUES ({', '.join(parity_sql_val(x) for x in r)})"
+        for r in rows_dt
+    ]
+
+
+class ParityTestBase(FederatedQueryTestMixin):
+    """Base class for parity tests that compare local TDengine results
+    against one or more external sources.
+
+    Subclasses must define:
+      - ``_local_tbl`` property: fully-qualified local table path
+      - ``_ext_sources()`` method: returns ``[(label, tbl_expr), ...]``
+      - ``_BASELINE_FILE``: path to baseline file (or None to skip)
+      - ``_FLOAT_TOL``: float comparison tolerance (default 1e-4)
+      - ``_PARITY_CASES``: flat list of ``(case_id, sql_template, opts)``
+    """
+
+    _FLOAT_TOL = 1e-4
+    _BASELINE_FILE = None
+    _PARITY_CASES: list[tuple[str, str, dict]] = []
+
+    @property
+    def _local_tbl(self):
+        raise NotImplementedError
+
+    def _ext_sources(self):
+        """Return list of (label, tbl_expr) for external sources."""
+        raise NotImplementedError
+
+    # ------------------------------------------------------------------
+    # Query execution
+    # ------------------------------------------------------------------
+
+    def _get_rows(self, sql, no_retry=False):
+        """Execute *sql* and return results as a list of tuples.
+
+        On failure raises QueryError.  Pass no_retry=True for negative cases.
+        """
+        try:
+            if no_retry:
+                tdSql.cursor.execute(sql)
+                tdSql.queryResult = tdSql.cursor.fetchall()
+                tdSql.queryRows = len(tdSql.queryResult)
+                tdSql.queryCols = len(tdSql.cursor.description)
+            else:
+                tdSql.query(sql, queryTimes=10)
+        except Exception as e:
+            _eargs = getattr(e, 'args', ())
+            errno = None
+            if len(_eargs) >= 2 and isinstance(_eargs[-1], int):
+                errno = _eargs[-1]
+            if errno is None:
+                errno = getattr(e, 'errno', None)
+            err_info = None
+            if _eargs:
+                err_info = str(_eargs[0])
+            tdLog.debug(f"expected SQL failure: {sql!r} → {err_info!r} (errno={errno})")
+            raise QueryError(errno, err_info, sql, e) from e
+        return list(tdSql.queryResult)
+
+    # ------------------------------------------------------------------
+    # Result comparison helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _fmt_result_tables(ref_rows, ext_rows, ref_sql, cmp_sql, label):
+        """Return a formatted side-by-side diff of *ref_rows* vs *ext_rows*."""
+        lines = [
+            f"  local_sql  : {ref_sql}",
+            f"  {label}_sql    : {cmp_sql}",
+            f"  local rows : {len(ref_rows)}  {label} rows: {len(ext_rows)}",
+        ]
+        n_rows = max(len(ref_rows), len(ext_rows))
+        for r in range(n_rows):
+            lr = tuple(ref_rows[r]) if r < len(ref_rows) else ()
+            er = tuple(ext_rows[r]) if r < len(ext_rows) else ()
+            n_cols = max(len(lr), len(er))
+            cells = []
+            for c in range(n_cols):
+                lv = lr[c] if c < len(lr) else "<missing>"
+                ev = er[c] if c < len(er) else "<missing>"
+                mark = "" if str(lv) == str(ev) else " \u2717"
+                cells.append(f"col{c}[local={lv!r} {label}={ev!r}]{mark}")
+            lines.append(f"  row[{r:02d}]: " + "  ".join(cells))
+        return "\n".join(lines)
+
+    def _compare_rows(self, ref, rows, ref_sql, cmp_sql, label, float_cols):
+        """Row-by-row comparison with full diff on mismatch."""
+        if len(ref) != len(rows):
+            raise AssertionError(
+                f"{label} row count mismatch: local={len(ref)} {label}={len(rows)}\n"
+                + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
+            )
+        for ri, (lr, er) in enumerate(zip(ref, rows)):
+            if len(lr) != len(er):
+                raise AssertionError(
+                    f"{label} col count mismatch at row {ri}: "
+                    f"local={len(lr)} {label}={len(er)}\n"
+                    + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
+                )
+            for ci, (lv, ev) in enumerate(zip(lr, er)):
+                if ci in float_cols:
+                    ok = parity_float_eq(lv, ev, self._FLOAT_TOL)
+                else:
+                    ok = (str(lv) == str(ev)) or (lv is None and ev is None)
+                if not ok:
+                    raise AssertionError(
+                        f"{label} value mismatch at row={ri} col={ci}: "
+                        f"local={lv!r} {label}={ev!r}\n"
+                        + self._fmt_result_tables(ref, rows, ref_sql, cmp_sql, label)
+                    )
+
+    def _assert_parity_all(self, sql_template, *, float_cols=None, ordered=True):
+        """Execute *sql_template* against all sources and compare."""
+        float_cols = float_cols or set()
+        local_sql = sql_template.format(tbl=self._local_tbl)
+        ref = self._get_rows(local_sql)
+        if not ordered:
+            ref = sorted(ref, key=lambda r: [str(x) for x in r])
+        for lbl, tbl in self._ext_sources():
+            sql = sql_template.format(tbl=tbl)
+            rows = self._get_rows(sql)
+            if not ordered:
+                rows = sorted(rows, key=lambda r: [str(x) for x in r])
+            self._compare_rows(ref, rows, local_sql, sql, lbl, float_cols)
+
+    # ------------------------------------------------------------------
+    # Case runner
+    # ------------------------------------------------------------------
+
+    def _run_one_case(self, case_id: str, sql_template: str, **kwargs) -> tuple:
+        """Run one parity case and return ``(passed, details, serialized)``."""
+        positive        = kwargs.get("positive", True)
+        reason          = kwargs.get("reason", "")
+        float_cols      = kwargs.get("float_cols") or set()
+        ordered         = kwargs.get("ordered", True)
+        source_expected = kwargs.get("source_expected") or {}
+        skip_sources    = kwargs.get("skip_sources") or set()
+        validate_in     = kwargs.get("validate_in")
+        kind_tag   = "POS" if positive else "NEG"
+        sql_short  = sql_template if len(sql_template) <= 90 else sql_template[:87] + "..."
+        prefix     = f"[{case_id:<9s} {kind_tag}]"
+        t0 = _time.monotonic()
+        if not positive and reason:
+            tdLog.info(f"{prefix}  reason: {reason}")
+
+        # ── local reference ──
+        local_sql        = sql_template.format(tbl=self._local_tbl)
+        local_qerr: QueryError | None = None
+        ref = None
+        try:
+            ref = self._get_rows(local_sql, no_retry=not positive)
+            if not ordered:
+                ref = sorted(ref, key=lambda r: [str(x) for x in r])
+        except QueryError as exc:
+            local_qerr = exc
+
+        # ── validate_in mode ──
+        if validate_in is not None:
+            return self._run_validate_in(
+                case_id, sql_template, prefix, sql_short, t0,
+                ref, local_qerr, validate_in,
+            )
+
+        # ── serialize local result for baseline ──
+        serialized = parity_serialize_case(
+            case_id, sql_template, positive, ref, local_qerr, float_cols, ordered)
+
+        # ── negative-case early-fail ──
+        if not positive and local_qerr is None:
+            elapsed = _time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            tdLog.info(f"  [neg-expected] local unexpectedly succeeded (expected error)")
+            if reason:
+                tdLog.info(f"  reason: {reason}")
+            return False, "local unexpectedly succeeded", serialized
+
+        # ── compare each external source ──
+        _EXT_CONN_FAILED = 0x80006400
+        src_failures: list[tuple[str, str]] = []
+        for lbl, tbl in self._ext_sources():
+            if lbl in skip_sources:
+                continue
+            sql = sql_template.format(tbl=tbl)
+            ext_qerr: QueryError | None = None
+            rows = None
+            try:
+                rows = self._get_rows(sql, no_retry=not positive)
+                if not ordered:
+                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
+            except QueryError as exc:
+                if exc.qerrno == _EXT_CONN_FAILED:
+                    try:
+                        revived = ExtSrcEnv.revive_if_dead()
+                    except RuntimeError:
+                        revived = False
+                    if revived:
+                        tdLog.info(f"[FQ revive] retrying {lbl} query after ext-DB restart")
+                        try:
+                            rows = self._get_rows(sql, no_retry=not positive)
+                            if not ordered:
+                                rows = sorted(rows, key=lambda r: [str(x) for x in r])
+                        except QueryError as exc2:
+                            ext_qerr = exc2
+                    else:
+                        ext_qerr = exc
+                else:
+                    ext_qerr = exc
+
+            if local_qerr is not None:
+                if ext_qerr is None:
+                    _le = local_qerr.qerrno
+                    src_failures.append((
+                        lbl,
+                        f"BUG: local errored but [{lbl}] succeeded\n"
+                        f"  local errno : {_le if _le is not None else 0:#010x} — {local_qerr.err_info}\n"
+                        f"  {lbl} sql   : {sql}",
+                    ))
+                elif ext_qerr.qerrno != local_qerr.qerrno:
+                    _le = local_qerr.qerrno
+                    _ee = ext_qerr.qerrno
+                    src_failures.append((
+                        lbl,
+                        f"BUG: errno mismatch\n"
+                        f"  local  errno: {_le if _le is not None else 0:#010x} — {local_qerr.err_info}\n"
+                        f"  {lbl}   errno: {_ee if _ee is not None else 0:#010x} — {ext_qerr.err_info}\n"
+                        f"  {lbl} sql   : {sql}",
+                    ))
+            else:
+                if ext_qerr is not None:
+                    src_failures.append((lbl, str(ext_qerr)))
+                    continue
+                try:
+                    if lbl in source_expected:
+                        expected_rows = list(source_expected[lbl])
+                        self._compare_rows(expected_rows, rows, f"expected({lbl})", sql, lbl, float_cols)
+                    else:
+                        self._compare_rows(ref, rows, local_sql, sql, lbl, float_cols)
+                except AssertionError as exc:
+                    src_failures.append((lbl, str(exc)))
+
+        if local_qerr is not None and not src_failures:
+            elapsed = _time.monotonic() - t0
+            _le = local_qerr.qerrno
+            tag = "PASS" if not positive else "PASS(err-parity)"
+            tdLog.info(f"{prefix} {tag}  {sql_short}  errno={_le if _le is not None else 0:#010x}  [{elapsed:.2f}s]")
+            return True, "", serialized
+
+        if local_qerr is not None and src_failures:
+            elapsed = _time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            if not positive and reason:
+                tdLog.info(f"  [neg-expected] {reason}")
+            _le = local_qerr.qerrno
+            tdLog.info(f"  [local] errno={_le if _le is not None else 0:#010x} — {local_qerr.err_info}")
+            for lbl, err in src_failures:
+                for line in err.splitlines()[:5]:
+                    tdLog.info(f"  {line}")
+            summary = "; ".join(f"[{lbl}] {err.splitlines()[0]}" for lbl, err in src_failures)
+            return False, summary, serialized
+
+        if src_failures:
+            elapsed = _time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            if not positive and reason:
+                tdLog.info(f"  [neg-expected] {reason}")
+            for lbl, err in src_failures:
+                err_lines = err.split("\n")
+                tdLog.info(f"  [{lbl}] {err_lines[0]}")
+                for line in err_lines[1:10]:
+                    tdLog.info(f"    {line}")
+            summary = "; ".join(
+                f"[{lbl}] {err.split(chr(10))[0]}" for lbl, err in src_failures
+            )
+            return False, summary, serialized
+
+        elapsed = _time.monotonic() - t0
+        tdLog.info(f"{prefix} PASS  {sql_short}  [{elapsed:.2f}s]")
+        return True, "", serialized
+
+    def _run_validate_in(self, case_id, sql_template, prefix, sql_short, t0,
+                          ref, local_qerr, valid_values):
+        """Validate every returned value is in *valid_values* (non-deterministic funcs)."""
+        if local_qerr is not None:
+            elapsed = _time.monotonic() - t0
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            return False, f"local query error: {local_qerr}", ""
+
+        errors: list[str] = []
+        for ri, row in enumerate(ref):
+            for ci, v in enumerate(row):
+                if v not in valid_values:
+                    errors.append(f"local row[{ri}] col[{ci}]={v!r} not in {valid_values}")
+        for lbl, tbl in self._ext_sources():
+            sql = sql_template.format(tbl=tbl)
+            try:
+                rows = self._get_rows(sql)
+            except QueryError as exc:
+                errors.append(f"[{lbl}] query error: {exc}")
+                continue
+            if len(rows) != len(ref):
+                errors.append(f"[{lbl}] row count {len(rows)} != local {len(ref)}")
+            for ri, row in enumerate(rows):
+                for ci, v in enumerate(row):
+                    if v not in valid_values:
+                        errors.append(f"[{lbl}] row[{ri}] col[{ci}]={v!r} not in {valid_values}")
+
+        elapsed = _time.monotonic() - t0
+        if errors:
+            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+            for e in errors[:10]:
+                tdLog.info(f"  {e}")
+            return False, "; ".join(errors[:3]), ""
+
+        tdLog.info(f"{prefix} PASS  {sql_short}  (validate_in)  [{elapsed:.2f}s]")
+        return True, "", ""
+
+    # ------------------------------------------------------------------
+    # Orchestrators
+    # ------------------------------------------------------------------
+
+    def run_parity_cases(self, parity_cases, parity_groups=None):
+        """Run all parity cases with PARITY_IDX filtering and baseline comparison.
+
+        *parity_cases*: flat list of (case_id, sql_template, opts).
+        *parity_groups*: optional dict of group_name → entries for PARITY_IDX
+                         group expansion.  If None, only exact IDs are supported.
+        """
+        raw = os.environ.get("PARITY_IDX", "").strip()
+        if raw:
+            selected_ids: set[str] = set()
+            for part in raw.split(","):
+                part = part.strip()
+                if parity_groups and part in parity_groups:
+                    for i in range(1, len(parity_groups[part]) + 1):
+                        selected_ids.add(f"{part}-{i:02d}")
+                else:
+                    selected_ids.add(part)
+            all_ids = {c[0] for c in parity_cases}
+            invalid = selected_ids - all_ids
+            if invalid:
+                grp_names = list(parity_groups) if parity_groups else []
+                raise ValueError(
+                    f"Unknown PARITY_IDX entries: {sorted(invalid)!r}\n"
+                    f"  Valid groups: {grp_names}\n"
+                    f"  Example IDs: {list(all_ids)[:3]}"
+                )
+            selected_cases = [c for c in parity_cases if c[0] in selected_ids]
+        else:
+            selected_cases = parity_cases
+
+        total  = len(parity_cases)
+        n_run  = len(selected_cases)
+        n_pos  = sum(1 for _, _, kw in selected_cases if kw.get("positive", True))
+        n_neg  = n_run - n_pos
+        tdLog.info(f"\nParity run: {n_run} case(s) of {total} total  (pos={n_pos} neg={n_neg})")
+
+        failed: list[tuple[str, str, str]] = []
+        serialized_blocks: list[str] = []
+
+        for case_id, sql_template, kwargs in selected_cases:
+            passed, details, serialized = self._run_one_case(case_id, sql_template, **kwargs)
+            if serialized:
+                serialized_blocks.append(serialized)
+            if not passed:
+                failed.append((case_id, sql_template, details))
+
+        # ── baseline comparison ──
+        baseline_file = self._BASELINE_FILE
+        run_all = (not raw) or (len(selected_cases) == total)
+        if baseline_file:
+            if run_all:
+                tmp_file = baseline_file + ".tmp"
+                tmp_content = "\n".join(serialized_blocks) + "\n"
+                with open(tmp_file, "w") as f:
+                    f.write(tmp_content)
+                tdLog.info(f"Temp result file written: {tmp_file}")
+
+                if os.path.isfile(baseline_file):
+                    with open(baseline_file, "r") as f:
+                        baseline_content = f.read()
+                    if tmp_content != baseline_content:
+                        tmp_lines = tmp_content.splitlines()
+                        base_lines = baseline_content.splitlines()
+                        diff_line = -1
+                        for li in range(max(len(tmp_lines), len(base_lines))):
+                            tl = tmp_lines[li] if li < len(tmp_lines) else "<EOF>"
+                            bl = base_lines[li] if li < len(base_lines) else "<EOF>"
+                            if tl != bl:
+                                diff_line = li + 1
+                                break
+                        baseline_err = (
+                            f"Regression baseline mismatch!\n"
+                            f"  baseline: {baseline_file}\n"
+                            f"  actual  : {tmp_file}\n"
+                            f"  first diff at line {diff_line}:\n"
+                            f"    baseline: {bl!r}\n"
+                            f"    actual  : {tl!r}\n"
+                            f"  Run: diff {baseline_file} {tmp_file}"
+                        )
+                        tdLog.info(f"BASELINE MISMATCH: {baseline_err}")
+                        failed.append(("<baseline>", "<baseline>", baseline_err))
+                    else:
+                        tdLog.info("Baseline comparison: OK (matches static baseline)")
+                else:
+                    shutil.copy(tmp_file, baseline_file)
+                    tdLog.info(f"Baseline file created: {baseline_file}")
+            else:
+                # Subset run
+                if os.path.isfile(baseline_file) and serialized_blocks:
+                    with open(baseline_file, "r") as f:
+                        baseline_content = f.read()
+                    baseline_blocks: dict[str, str] = {}
+                    current_id = None
+                    current_lines: list[str] = []
+                    for line in baseline_content.splitlines():
+                        if line.startswith("### "):
+                            if current_id is not None:
+                                baseline_blocks[current_id] = "\n".join(current_lines)
+                            parts = line.split()
+                            current_id = parts[1] if len(parts) >= 2 else None
+                            current_lines = [line]
+                        else:
+                            current_lines.append(line)
+                    if current_id is not None:
+                        baseline_blocks[current_id] = "\n".join(current_lines)
+
+                    selected_ids_ordered = [c[0] for c in selected_cases]
+                    expected_parts = []
+                    for cid in selected_ids_ordered:
+                        if cid in baseline_blocks:
+                            expected_parts.append(baseline_blocks[cid])
+                    if expected_parts:
+                        expected_content = "\n".join(expected_parts) + "\n"
+                        actual_content = "\n".join(serialized_blocks) + "\n"
+                        if actual_content != expected_content:
+                            act_lines = actual_content.splitlines()
+                            exp_lines = expected_content.splitlines()
+                            diff_line = -1
+                            for li in range(max(len(act_lines), len(exp_lines))):
+                                tl = act_lines[li] if li < len(act_lines) else "<EOF>"
+                                bl = exp_lines[li] if li < len(exp_lines) else "<EOF>"
+                                if tl != bl:
+                                    diff_line = li + 1
+                                    break
+                            baseline_err = (
+                                f"Subset baseline mismatch!\n"
+                                f"  baseline: {baseline_file} (subset of {len(selected_ids_ordered)} cases)\n"
+                                f"  first diff at line {diff_line}:\n"
+                                f"    baseline: {bl!r}\n"
+                                f"    actual  : {tl!r}"
+                            )
+                            tdLog.info(f"BASELINE MISMATCH: {baseline_err}")
+                            failed.append(("<baseline>", "<baseline>", baseline_err))
+                        else:
+                            tdLog.info(f"Baseline comparison: OK (subset of {len(selected_ids_ordered)} cases matches)")
+
+        # ── summary ──
+        n_pass = n_run - len(failed)
+        sep    = "─" * 72
+        tdLog.info(f"\n{sep}")
+        tdLog.info(f"  Parity summary: {n_pass}/{n_run} passed  |  {len(failed)} failed  (pos={n_pos} neg={n_neg})")
+        if failed:
+            tdLog.info("  Failed cases:")
+            for case_id, sql, det in failed:
+                kw = next((kw for cid, _, kw in parity_cases if cid == case_id), {})
+                kind_tag = "POS" if kw.get("positive", True) else "NEG"
+                tdLog.info(f"    [{kind_tag}  {case_id}]  {sql[:70]}")
+                tdLog.info(f"            {det[:130]}")
+        tdLog.info(sep)
+
+        # ── cleanup temp file ──
+        if baseline_file and run_all:
+            tmp_file_path = baseline_file + ".tmp"
+            if failed:
+                tdLog.info(f"Temp result file kept for debugging: {tmp_file_path}")
+            elif os.path.isfile(tmp_file_path):
+                os.remove(tmp_file_path)
+                tdLog.info(f"Temp result file removed (all passed).")
+
+        if failed:
+            all_errors = "\n".join(
+                f"\n[{case_id}] {sql}\n  {det}" for case_id, sql, det in failed
+            )
+            raise AssertionError(
+                f"{len(failed)} of {n_run} case(s) failed:\n{all_errors}"
+            )
+
+    def run_parity_disorder(self, parity_cases, rewrite_data_fn, restore_data_fn):
+        """Run positive parity cases after disorder data rewrite.
+
+        *rewrite_data_fn*: callable that re-inserts data in shuffled order.
+        *restore_data_fn*: callable that restores original ordered data.
+        """
+        pos_cases = [
+            (cid, sql, kw) for cid, sql, kw in parity_cases
+            if kw.get("positive", True)
+        ]
+        n_run = len(pos_cases)
+        tdLog.info(f"[disorder] Running {n_run} positive parity case(s) "
+                   f"with disorder data …")
+
+        failed: list[tuple[str, str, str]] = []
+        for case_id, sql_template, kwargs in pos_cases:
+            passed, details, _ = self._run_one_case(
+                case_id, sql_template, **kwargs)
+            if not passed:
+                failed.append((case_id, sql_template, details))
+
+        # ── restore ──
+        tdLog.info("[disorder] Restoring original ordered data …")
+        restore_data_fn()
+
+        # ── summary ──
+        n_pass = n_run - len(failed)
+        sep    = "─" * 72
+        tdLog.info(f"\n{sep}")
+        tdLog.info(f"  Disorder parity: {n_pass}/{n_run} passed  |  "
+                   f"{len(failed)} failed")
+        if failed:
+            tdLog.info("  Failed cases:")
+            for case_id, sql, det in failed:
+                tdLog.info(f"    [{case_id}]  {sql[:70]}")
+                tdLog.info(f"            {det[:130]}")
+        tdLog.info(sep)
+
+        if failed:
+            all_errors = "\n".join(
+                f"\n[{case_id}] {sql}\n  {det}"
+                for case_id, sql, det in failed
+            )
+            raise AssertionError(
+                f"[disorder] {len(failed)} of {n_run} case(s) failed:\n"
+                f"{all_errors}"
+            )

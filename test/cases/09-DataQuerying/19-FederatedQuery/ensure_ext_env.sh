@@ -227,7 +227,7 @@ _start_daemon() {
     shift 2
     mkdir -p "$(dirname "$pidfile")" "$(dirname "$logfile")"
     _rotate_log "$logfile"
-    nohup "$@" >> "$logfile" 2>&1 &
+    setsid nohup "$@" >> "$logfile" 2>&1 &
     echo "$!" > "$pidfile"
 }
 
@@ -1137,8 +1137,9 @@ _pg_reset_env() {
     mkdir -p "${log}"
     : > "${log}/initdb.log"
 
-    # Remove socket/lock files to prevent "lock file already exists" on restart
+    # Remove socket/lock files and shared-memory segments from previous run
     rm -f "/tmp/.s.PGSQL.${port}" "/tmp/.s.PGSQL.${port}.lock"
+    rm -f /dev/shm/PostgreSQL.* 2>/dev/null || true
     # Verify: socket files must be absent before new postgres starts
     [[ ! -e "/tmp/.s.PGSQL.${port}" ]] \
         || { err "PostgreSQL ${ver}: cannot remove socket file"; return 1; }
@@ -1172,6 +1173,10 @@ _pg_reset_env() {
     cp "${CERT_SRC}/pg/client.pem"       "${cert_dst}/client.pem"
     cp "${CERT_SRC}/pg/client-key.pem"   "${cert_dst}/client-key.pem"
     chmod 600 "${cert_dst}/server.key" "${cert_dst}/client-key.pem"
+    # Ensure cert files are owned by the postgres OS user so PG can read them
+    if [[ "$CURRENT_USER" == "root" ]]; then
+        chown -R postgres:postgres "${cert_dst}" 2>/dev/null || true
+    fi
     _pg_write_ssl_conf "$data" "$cert_dst"
     PGPASSWORD="$PG_PASS" "$psql" -h 127.0.0.1 -p "$port" -U "$PG_USER" \
         -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
@@ -1282,7 +1287,7 @@ ensure_influx() {
         local _qi2=0
         while [[ $_qi2 -lt 30 ]]; do
             if curl -sf --max-time 3 "http://127.0.0.1:${port}/health" 2>/dev/null \
-                    | grep -qE '"status":"(pass|ok)"'; then
+                    | grep -qiE '"status":"(pass|ok)"|^OK$'; then
                 info "InfluxDB ${ver}: quick restart complete."
                 return 0
             fi
@@ -1344,7 +1349,7 @@ ensure_influx() {
     local deadline=$(( SECONDS + 30 ))
     until curl -sf --max-time 3 \
                "http://127.0.0.1:${port}/health" 2>/dev/null \
-               | grep -qE '"status":"(pass|ok)"'; do
+               | grep -qiE '"status":"(pass|ok)"|^OK$'; do
         if [[ "$SECONDS" -gt "$deadline" ]]; then
             warn "InfluxDB ${ver}: health endpoint not passing (non-fatal)."
             break
@@ -1503,7 +1508,7 @@ _influx_reset_env() {
     local _hi=0
     while [[ $_hi -lt 30 ]]; do
         if curl -sf --max-time 3 "http://127.0.0.1:${port}/health" 2>/dev/null \
-                | grep -qE '"status":"(pass|ok)"'; then
+                | grep -qiE '"status":"(pass|ok)"|^OK$'; then
             info "InfluxDB ${ver} @ ${port}: reset complete (data wiped, restarted)."
             return 0
         fi
