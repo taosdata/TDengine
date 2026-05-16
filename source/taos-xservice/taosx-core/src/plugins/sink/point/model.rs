@@ -11,9 +11,10 @@ use std::sync::OnceLock;
 use taos::{Dsn, Ty};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
+use taosx_utils::sql::sql_value_escaped_fmt;
 
 use crate::plugins::sink::point::csv::{CsvColumn, CsvHeader, CsvParser};
-use crate::runners::opc::points::OpcNode;
+use crate::runners::opc::points::{OpcNode, opc_data_type_to_ipc};
 use crate::sink::point::UpdateMode;
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::table_meta::{TableMeta, TableMetaQuerier, TableMetaQueryBuilder};
@@ -281,7 +282,7 @@ impl PointModelConfig {
                     match t.r#type {
                         IpcDataType::NChar(_)
                         | IpcDataType::VarChar(_)
-                        | IpcDataType::VarBinary(_) => format!("'{}'", val),
+                        | IpcDataType::VarBinary(_) => sql_value_escaped_fmt(val).to_string(),
                         _ => val.to_string(),
                     }
                 })
@@ -2216,10 +2217,9 @@ impl PointMappingGenerator for PointMappingRule {
     ///
     /// OPC Property 处理（动/静识别后由 Go 侧打标）：
     /// - `is_property=Some(true)` 节点 → 跳过（不建子表，其值已合并到父 Variable 的 properties）
-    /// - 其余动态 Variable 的 `opc_node.properties` → 收集为整个超表的 Tag union
-    ///   并写入子表 tag_values。
+    /// - 其余动态 Variable 的 `opc_node.properties` → 收集为整个超级表的 Tag，合并，写入子表 tag_values。
     ///
-    /// 决策（用户拍板）：
+    /// 决策：
     /// - #1: Tag 名直接用 OPC Property 的 BrowseName，与 custom_tag 重名时 bail
     /// - #2: 全部 VARCHAR(1024)，复杂值已是 JSON 字符串
     /// - #6: 超表 schema 一次性 union 定型（generate 阶段完成）
@@ -2263,6 +2263,7 @@ impl PointMappingGenerator for PointMappingRule {
                 node_type: None,
                 parent_id: None,
                 path: None,
+                data_type: None,
                 properties: None,
             });
 
@@ -2276,8 +2277,7 @@ impl PointMappingGenerator for PointMappingRule {
                 for k in props.keys() {
                     if custom_tag_names.contains(k.as_str()) {
                         bail!(
-                            "OPC Property name '{}' conflicts with a configured custom_tag of the same name; \
-                             rename the custom_tag or change the OPC namespace",
+                            "OPC Property name '{}' conflicts with a configured custom_tag of the same name; rename the custom_tag or change the OPC namespace",
                             k
                         );
                     }
@@ -2303,7 +2303,9 @@ impl PointMappingGenerator for PointMappingRule {
         for (index, opc_node) in variable_nodes {
             let point_id = opc_node.id.clone();
 
-            let mut point_config = self.gen_point_config(index, point_id.clone(), None)?;
+            let point_type = opc_node.data_type.as_deref().and_then(opc_data_type_to_ipc);
+            let mut point_config =
+                self.gen_point_config(index, point_id.clone(), point_type.clone())?;
             self.extra_custom_tags(&mut point_config, &opc_node)?;
 
             if !tag_union.is_empty() {
@@ -2322,7 +2324,7 @@ impl PointMappingGenerator for PointMappingRule {
 
             point_map.insert(point_id.clone(), point_config);
 
-            let mut table_config = self.gen_table_config(None)?;
+            let mut table_config = self.gen_table_config(point_type)?;
             if !opc_extra_tag_configs.is_empty() {
                 let tags = table_config.tag_configs.get_or_insert_with(Vec::new);
                 tags.extend(opc_extra_tag_configs.iter().cloned());
@@ -3612,6 +3614,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             node_type: None,
             parent_id: None,
             path: Some("/Objects/Plant/Area1/".to_string()),
+            data_type: None,
             properties: None,
         };
 
@@ -3661,6 +3664,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             node_type: None,
             parent_id: None,
             path: None,
+            data_type: None,
             properties: None,
         };
         let mut pc3 = PointConfig {
@@ -3710,6 +3714,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             node_type: Some("Variable".to_string()),
             parent_id: None,
             path: Some(id.to_string()),
+            data_type: None,
             properties: properties.map(|v| {
                 v.into_iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -3876,5 +3881,62 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         let (points, tables) = rule.generate(vec![ds]).unwrap();
         assert_eq!(points.len(), 0);
         assert_eq!(tables.len(), 0);
+    }
+
+    #[test]
+    fn p5_generate_resolves_type_placeholder_with_data_type() {
+        // 当 OpcNode 携带 data_type 时，generate() 应解析 {type} 占位符
+        let rule = make_rule(None); // stable_expression = "opc_{type}"
+
+        let mut node = make_opc_node("ns=2;s=Temp", None, None);
+        node.data_type = Some("Float".to_string());
+        let ds: DataSet = node.try_into().unwrap();
+
+        let (points, _tables) = rule.generate(vec![ds]).unwrap();
+        let pc = points.get("ns=2;s=Temp").unwrap();
+        // Float → IpcDataType::Float32 → sql_repr "float" → stable = "opc_float"
+        assert_eq!(pc.stable.as_deref(), Some("opc_float"));
+        assert_eq!(pc.value_type, Some(IpcDataType::Float32));
+    }
+
+    #[test]
+    fn p5_generate_resolves_type_for_various_opc_types() {
+        let rule = make_rule(None); // stable_expression = "opc_{type}"
+
+        let types_and_expected = vec![
+            ("Boolean", "opc_bool"),
+            ("Int32", "opc_int"),
+            ("UInt16", "opc_smallint_unsigned"),
+            ("Double", "opc_double"),
+            ("String", "opc_varchar"),
+            ("DateTime", "opc_timestamp"),
+        ];
+
+        for (opc_type, expected_stable) in types_and_expected {
+            let mut node = make_opc_node(&format!("ns=2;s=T_{opc_type}"), None, None);
+            node.data_type = Some(opc_type.to_string());
+            let ds: DataSet = node.try_into().unwrap();
+
+            let (points, _) = rule.generate(vec![ds]).unwrap();
+            let pc = points.get(&format!("ns=2;s=T_{opc_type}")).unwrap();
+            assert_eq!(
+                pc.stable.as_deref(),
+                Some(expected_stable),
+                "OPC type {opc_type} should map to stable {expected_stable}"
+            );
+        }
+    }
+
+    #[test]
+    fn p5_generate_without_data_type_keeps_type_placeholder() {
+        // 兼容性：无 data_type → {type} 不解析 → stable 仍含 {type}
+        let rule = make_rule(None);
+        let node = make_opc_node("ns=2;s=Old", None, None);
+        let ds: DataSet = node.try_into().unwrap();
+
+        let (points, _) = rule.generate(vec![ds]).unwrap();
+        let pc = points.get("ns=2;s=Old").unwrap();
+        assert_eq!(pc.stable.as_deref(), Some("opc_{type}"));
+        assert!(pc.value_type.is_none());
     }
 }

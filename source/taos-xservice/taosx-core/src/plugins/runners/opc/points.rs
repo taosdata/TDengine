@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
+use arrow_schema::TimeUnit;
 use serde::{Deserialize, Serialize};
+use taosx_ipc::prelude::IpcDataType;
 
 use crate::{
     DataSet, OptionSet,
@@ -27,6 +29,9 @@ pub const OPC_IS_PROPERTY: &str = "IsProperty";
 /// 用于在 sink 阶段写入子表 Tag。
 /// 编码到 OptionSet.display 为整个 map 的 JSON 字符串（"{}" 表示空）。
 pub const OPC_PROPERTIES: &str = "Properties";
+/// DataType：OPC 节点的值数据类型（如 "Float"、"Boolean"、"Int32" 等）。
+/// 在 generate 阶段用于解析 super_table_expression 中的 {type} 占位符。
+pub const OPC_DATA_TYPE: &str = "DataType";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpcNode {
@@ -43,6 +48,11 @@ pub struct OpcNode {
     pub node_type: Option<String>,    // NodeClass: Object | Variable
     pub parent_id: Option<String>,    // Parent Node ID
     pub path: Option<String>,         // Full path
+    /// OPC 节点的值数据类型（如 "Float"、"Boolean"、"Int32"）。
+    /// 由 taosx-opc points 命令从 OPC UA/DA 服务器读取后填充。
+    /// 在 generate 阶段用于解析 super_table_expression 中的 {type} 占位符。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_type: Option<String>,
     /// 父 Variable 的 Property 名→已序列化字符串值（复杂值为 JSON 字符串）。
     /// 仅对动态 Variable（is_property=false / None）填充；
     /// Property 节点本身不携带（其值已塞进父）。
@@ -144,6 +154,14 @@ impl TryInto<DataSet> for OpcNode {
                 required: false,
             });
         }
+        if let Some(data_type) = &self.data_type {
+            options.push(OptionSet {
+                name: OPC_DATA_TYPE.to_string(),
+                display: data_type.clone(),
+                description: None,
+                required: false,
+            });
+        }
 
         Ok(DataSet {
             id: self.id,
@@ -172,6 +190,7 @@ impl TryFrom<DataSet> for OpcNode {
         let mut is_static = None;
         let mut is_property = None;
         let mut properties = None;
+        let mut data_type = None;
 
         if let Some(options) = dataset.options {
             for option in options {
@@ -188,6 +207,11 @@ impl TryFrom<DataSet> for OpcNode {
                         properties =
                             serde_json::from_str::<HashMap<String, String>>(&option.display).ok();
                     }
+                    OPC_DATA_TYPE => {
+                        if !option.display.is_empty() {
+                            data_type = Some(option.display);
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -203,6 +227,7 @@ impl TryFrom<DataSet> for OpcNode {
             node_type: dataset.r#type,
             parent_id,
             path,
+            data_type,
             properties,
         })
     }
@@ -217,6 +242,41 @@ impl OpcNode {
     // 过滤出 static nodes 的函数
     pub fn object_node_filter() -> fn(&OpcNode) -> bool {
         |node: &OpcNode| node.node_type.as_deref() == Some("Object")
+    }
+}
+
+/// 将 OPC UA/DA 数据类型名称转换为 IpcDataType。
+///
+/// 同时接受 OPC UA 标准类型名（PascalCase，如 "Boolean"、"Int32"、"DateTime"）
+/// 和 Go 侧 taosx-opc IPC 连接类型名（大写，如 "BOOL"、"INT32"、"TIMESTAMP"）。
+///
+/// 未识别的类型返回 `None`，调用方保持原始行为（不解析 `{type}` 占位符）。
+pub fn opc_data_type_to_ipc(s: &str) -> Option<IpcDataType> {
+    match s.to_ascii_lowercase().as_str() {
+        // Boolean
+        "bool" | "boolean" => Some(IpcDataType::Bool),
+        // Signed integers
+        "sbyte" | "int8" | "i8" => Some(IpcDataType::Int8),
+        "int16" | "i16" => Some(IpcDataType::Int16),
+        "int32" | "i32" => Some(IpcDataType::Int32),
+        "int64" | "i64" => Some(IpcDataType::Int64),
+        // Unsigned integers
+        "byte" | "uint8" | "u8" => Some(IpcDataType::UInt8),
+        "uint16" | "u16" => Some(IpcDataType::UInt16),
+        "uint32" | "u32" => Some(IpcDataType::UInt32),
+        "uint64" | "u64" => Some(IpcDataType::UInt64),
+        // Floating point
+        "float" | "f32" | "float32" => Some(IpcDataType::Float32),
+        "double" | "f64" | "float64" => Some(IpcDataType::Float64),
+        // String types
+        "string" | "localizedtext" | "xmlelement" | "qualifiedname" => {
+            Some(IpcDataType::VarChar(256))
+        }
+        // Timestamp
+        "datetime" | "timestamp" => Some(IpcDataType::Timestamp(TimeUnit::Millisecond)),
+        // Binary
+        "bytestring" => Some(IpcDataType::VarBinary(256)),
+        _ => None,
     }
 }
 
@@ -290,6 +350,7 @@ mod tests {
             node_type: Some("Variable".to_string()),
             parent_id: Some("ns=2;s=G3".to_string()),
             path: Some("Objects/G3/a96cd_1a".to_string()),
+            data_type: None,
             properties: Some(props),
         }
     }
@@ -324,6 +385,7 @@ mod tests {
             node_type: Some("Variable".to_string()),
             parent_id: Some("ns=2;s=G3.a96cd_1a".to_string()),
             path: Some("Objects/G3/a96cd_1a/EURange".to_string()),
+            data_type: None,
             properties: None,
         };
         let ds: DataSet = original.clone().try_into().unwrap();
@@ -346,6 +408,7 @@ mod tests {
             node_type: Some("Object".to_string()),
             parent_id: Some("ns=0;i=85".to_string()),
             path: Some("Objects/G3".to_string()),
+            data_type: None,
             properties: None,
         };
         let ds: DataSet = original.clone().try_into().unwrap();
@@ -390,6 +453,7 @@ mod tests {
             node_type: Some("Variable".to_string()),
             parent_id: None,
             path: None,
+            data_type: None,
             properties: Some(HashMap::new()),
         };
         let ds: DataSet = node.try_into().unwrap();
@@ -472,5 +536,116 @@ mod tests {
         assert_eq!(nodes[2].node_type.as_deref(), Some("Object"));
         assert!(nodes[2].is_property.is_none());
         assert!(nodes[2].properties.is_none());
+    }
+
+    #[test]
+    fn opcnode_dataset_roundtrip_with_data_type() {
+        let node = OpcNode {
+            id: "ns=2;s=Temp".to_string(),
+            is_static: Some(false),
+            is_property: None,
+            name: Some("Temp".to_string()),
+            description: None,
+            display_name: None,
+            node_type: Some("Variable".to_string()),
+            parent_id: None,
+            path: None,
+            data_type: Some("Float".to_string()),
+            properties: None,
+        };
+        let ds: DataSet = node.clone().try_into().unwrap();
+        // DataType OptionSet should exist
+        let opts = ds.options.as_ref().unwrap();
+        assert!(
+            opts.iter()
+                .any(|o| o.name == OPC_DATA_TYPE && o.display == "Float")
+        );
+        // Roundtrip
+        let back = OpcNode::try_from(ds).unwrap();
+        assert_eq!(back.data_type.as_deref(), Some("Float"));
+    }
+
+    #[test]
+    fn opcnode_dataset_roundtrip_without_data_type() {
+        // Legacy: no data_type → roundtrip preserves None
+        let node = OpcNode {
+            id: "ns=2;s=Old".to_string(),
+            is_static: None,
+            is_property: None,
+            name: None,
+            description: None,
+            display_name: None,
+            node_type: Some("Variable".to_string()),
+            parent_id: None,
+            path: None,
+            data_type: None,
+            properties: None,
+        };
+        let ds: DataSet = node.try_into().unwrap();
+        let back = OpcNode::try_from(ds).unwrap();
+        assert!(back.data_type.is_none());
+    }
+
+    #[test]
+    fn opcnode_deserialize_with_data_type_from_go_json() {
+        let json = r#"[{
+            "id": "ns=2;s=Tag1",
+            "is_static": false,
+            "name": "Tag1",
+            "node_type": "Variable",
+            "data_type": "Int32",
+            "path": "Objects/Tag1"
+        }]"#;
+        let nodes: Vec<OpcNode> = serde_json::from_str(json).unwrap();
+        assert_eq!(nodes[0].data_type.as_deref(), Some("Int32"));
+    }
+
+    #[test]
+    fn opc_data_type_to_ipc_covers_all_common_types() {
+        use arrow_schema::TimeUnit;
+
+        // OPC UA standard names (PascalCase)
+        assert_eq!(opc_data_type_to_ipc("Boolean"), Some(IpcDataType::Bool));
+        assert_eq!(opc_data_type_to_ipc("SByte"), Some(IpcDataType::Int8));
+        assert_eq!(opc_data_type_to_ipc("Byte"), Some(IpcDataType::UInt8));
+        assert_eq!(opc_data_type_to_ipc("Int16"), Some(IpcDataType::Int16));
+        assert_eq!(opc_data_type_to_ipc("Int32"), Some(IpcDataType::Int32));
+        assert_eq!(opc_data_type_to_ipc("Int64"), Some(IpcDataType::Int64));
+        assert_eq!(opc_data_type_to_ipc("UInt16"), Some(IpcDataType::UInt16));
+        assert_eq!(opc_data_type_to_ipc("UInt32"), Some(IpcDataType::UInt32));
+        assert_eq!(opc_data_type_to_ipc("UInt64"), Some(IpcDataType::UInt64));
+        assert_eq!(opc_data_type_to_ipc("Float"), Some(IpcDataType::Float32));
+        assert_eq!(opc_data_type_to_ipc("Double"), Some(IpcDataType::Float64));
+        assert_eq!(
+            opc_data_type_to_ipc("String"),
+            Some(IpcDataType::VarChar(256))
+        );
+        assert_eq!(
+            opc_data_type_to_ipc("DateTime"),
+            Some(IpcDataType::Timestamp(TimeUnit::Millisecond))
+        );
+        assert_eq!(
+            opc_data_type_to_ipc("ByteString"),
+            Some(IpcDataType::VarBinary(256))
+        );
+
+        // Go-side IPC connection type names (UPPERCASE)
+        assert_eq!(opc_data_type_to_ipc("BOOL"), Some(IpcDataType::Bool));
+        assert_eq!(opc_data_type_to_ipc("FLOAT"), Some(IpcDataType::Float32));
+        assert_eq!(opc_data_type_to_ipc("INT32"), Some(IpcDataType::Int32));
+        assert_eq!(opc_data_type_to_ipc("UINT16"), Some(IpcDataType::UInt16));
+        assert_eq!(opc_data_type_to_ipc("UINT32"), Some(IpcDataType::UInt32));
+        assert_eq!(
+            opc_data_type_to_ipc("STRING"),
+            Some(IpcDataType::VarChar(256))
+        );
+        assert_eq!(
+            opc_data_type_to_ipc("TIMESTAMP"),
+            Some(IpcDataType::Timestamp(TimeUnit::Millisecond))
+        );
+
+        // Unknown type → None
+        assert_eq!(opc_data_type_to_ipc("Variant"), None);
+        assert_eq!(opc_data_type_to_ipc("ExtensionObject"), None);
     }
 }

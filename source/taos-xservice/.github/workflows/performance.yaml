@@ -1,8 +1,6 @@
 name: performance test
+
 on:
-  # push:
-  #   branches:
-  #     - feat/ts-6669
   workflow_dispatch:
   schedule:
     - cron: "0 16 * * *" # 每天 UTC+8 零点触发 (GitHub Actions 使用 UTC)

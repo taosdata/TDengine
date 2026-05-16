@@ -1,7 +1,6 @@
 name: Code Coverage
 
 on:
-  # workflow_dispatch:
   push:
     branches:
       - main
@@ -45,13 +44,14 @@ jobs:
         run: cargo make explorer-ui-prod
 
       - name: Code Coverage Test
-        run: |
-          cargo make test
+        run: cargo make test
+
       - name: Artifact Upload
         uses: actions/upload-artifact@v4
         with:
           name: taosx-coverage-report
           path: target/llvm-cov-merged.lcov
+
   upload-coverage:
     needs: unit-test
     name: Upload Coverage Report

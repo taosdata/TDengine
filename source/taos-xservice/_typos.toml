@@ -5,6 +5,7 @@ ba = "ba"
 testng = "testng"
 mosquitto = "mosquitto"
 hashi = "hashi" # for HashiCorp
+AIMD = "AIMD" # Additive Increase Multiplicative Decrease (networking algorithm)
 
 [type.csv]
 extend-glob = ["*.csv"]
