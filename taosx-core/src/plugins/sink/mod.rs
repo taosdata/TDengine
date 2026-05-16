@@ -1514,6 +1514,33 @@ async fn consume_point_record(
                                     }
                                 }
 
+                                // When stable already exists (0x0360), the actual tag schema
+                                // may differ from what config expects (e.g., old stable has 5
+                                // tags, new config has 11). Query the actual tag schema and
+                                // adapt the child table create SQL accordingly.
+                                let actual_tag_names: Option<Vec<String>> = match taos
+                                    .as_ref()
+                                    .unwrap()
+                                    .describe(&stable_name)
+                                    .await
+                                {
+                                    Ok(desc) => {
+                                        let tags: Vec<String> = desc
+                                            .iter()
+                                            .filter(|c| c.is_tag())
+                                            .map(|c| c.field().to_string())
+                                            .collect();
+                                        if tags.is_empty() { None } else { Some(tags) }
+                                    }
+                                    Err(err) => {
+                                        tracing::warn!(
+                                            "describe stable {stable_name} for tag adaptation failed: {err:#}, \
+                                             falling back to config tags"
+                                        );
+                                        None
+                                    }
+                                };
+
                                 // 创建子表
                                 let mut child_table_create_sqls = Vec::new();
                                 let mut child_table_counts_vec = Vec::<u32>::new();
@@ -1524,8 +1551,48 @@ async fn consume_point_record(
                                 for (child_table_name, child_table_create_sql) in
                                     child_table_create_sql_map
                                 {
+                                    // Adapt the create SQL to match the actual stable's tag schema
+                                    let adapted_sql = if let Some(ref actual_tags) =
+                                        actual_tag_names
+                                    {
+                                        let config_tags =
+                                            parse_child_table_create_sql(child_table_create_sql);
+                                        if config_tags.is_empty() {
+                                            // Parse failed, use original
+                                            child_table_create_sql.clone()
+                                        } else {
+                                            let config_tag_names: Vec<&str> = config_tags
+                                                .iter()
+                                                .map(|(k, _)| k.as_str())
+                                                .collect();
+                                            if config_tag_names
+                                                == actual_tags
+                                                    .iter()
+                                                    .map(|s| s.as_str())
+                                                    .collect::<Vec<&str>>()
+                                            {
+                                                // Tags already match, no adaptation needed
+                                                child_table_create_sql.clone()
+                                            } else {
+                                                tracing::info!(
+                                                    stable = %stable_name,
+                                                    child_table = %child_table_name,
+                                                    config_tags = ?config_tag_names,
+                                                    actual_tags = ?actual_tags,
+                                                    "Adapting child table create SQL to match actual stable tag schema"
+                                                );
+                                                rebuild_child_table_create_sql(
+                                                    actual_tags,
+                                                    &config_tags,
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        child_table_create_sql.clone()
+                                    };
+
                                     let suffix_sql = format!(
-                                        " `{child_table_name}` USING `{stable_name}` {child_table_create_sql}"
+                                        " `{child_table_name}` USING `{stable_name}` {adapted_sql}"
                                     );
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
@@ -2650,6 +2717,117 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     )
     .in_current_span()
     .await
+}
+
+/// Parse a child table create SQL suffix like `(\`tag1\`, \`tag2\`) TAGS (val1, val2)`
+/// into a list of (tag_name, tag_value) pairs.
+///
+/// The tag names are backtick-quoted, and the tag values may contain commas inside
+/// single-quoted strings, so we need proper parsing.
+fn parse_child_table_create_sql(sql: &str) -> Vec<(String, String)> {
+    // Expected format: "(`tag1`, `tag2`, ...) TAGS (val1, val2, ...)"
+    // Split at ") TAGS (" to get tag names part and tag values part
+    let Some(tags_pos) = sql.find(") TAGS (") else {
+        // Also try ") TAGS(", without space
+        let Some(tags_pos) = sql.find(") TAGS(") else {
+            return Vec::new();
+        };
+        let names_part = &sql[1..tags_pos]; // skip leading '('
+        let values_start = tags_pos + ") TAGS(".len();
+        let values_part = &sql[values_start..sql.len() - 1]; // skip trailing ')'
+        let names = parse_backtick_names(names_part);
+        let values = parse_sql_values(values_part);
+        return names.into_iter().zip(values).collect();
+    };
+    let names_part = &sql[1..tags_pos]; // skip leading '('
+    let values_start = tags_pos + ") TAGS (".len();
+    let values_part = &sql[values_start..sql.len() - 1]; // skip trailing ')'
+    let names = parse_backtick_names(names_part);
+    let values = parse_sql_values(values_part);
+    names.into_iter().zip(values).collect()
+}
+
+/// Parse backtick-quoted names like `` `tag1`, `tag2` `` into vec of names.
+fn parse_backtick_names(s: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut chars = s.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        if c == '`' {
+            chars.next(); // consume opening backtick
+            let mut name = String::new();
+            for c in chars.by_ref() {
+                if c == '`' {
+                    break;
+                }
+                name.push(c);
+            }
+            names.push(name);
+        } else {
+            chars.next();
+        }
+    }
+    names
+}
+
+/// Parse SQL values that may contain single-quoted strings with commas inside.
+/// E.g., `'hello, world', NULL, 123` → `["'hello, world'", "NULL", "123"]`
+fn parse_sql_values(s: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut current = String::new();
+    let mut in_quote = false;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\'' && !in_quote {
+            in_quote = true;
+            current.push(c);
+        } else if c == '\'' && in_quote {
+            current.push(c);
+            // Check for escaped quote ''
+            if chars.peek() == Some(&'\'') {
+                current.push(chars.next().unwrap());
+            } else {
+                in_quote = false;
+            }
+        } else if c == ',' && !in_quote {
+            values.push(current.trim().to_string());
+            current = String::new();
+        } else {
+            current.push(c);
+        }
+    }
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        values.push(trimmed);
+    }
+    values
+}
+
+/// Rebuild the child table create SQL suffix using only the tags that exist in the
+/// actual stable schema. Tags present in the stable but missing from config get NULL.
+///
+/// `actual_tag_names`: tag names from DESCRIBE stable (only TAG rows), in order.
+/// `config_tags`: parsed (name, value) pairs from the original child_table_create_sql.
+///
+/// Returns a string like `(\`tag1\`, \`tag2\`) TAGS (val1, NULL)`.
+fn rebuild_child_table_create_sql(
+    actual_tag_names: &[String],
+    config_tags: &[(String, String)],
+) -> String {
+    let config_map: std::collections::HashMap<&str, &str> = config_tags
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+
+    let mut names = Vec::new();
+    let mut values = Vec::new();
+    for tag_name in actual_tag_names {
+        names.push(format!("`{}`", tag_name));
+        match config_map.get(tag_name.as_str()) {
+            Some(val) => values.push(val.to_string()),
+            None => values.push("NULL".to_string()),
+        }
+    }
+    format!("({}) TAGS ({})", names.join(", "), values.join(", "))
 }
 
 pub fn generate_alter_sql_diff_desc(
@@ -4598,5 +4776,127 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(result.record().num_rows(), 1);
+    }
+
+    #[test]
+    fn test_parse_backtick_names() {
+        let names = parse_backtick_names("`point_id`, `point_name`");
+        assert_eq!(names, vec!["point_id", "point_name"]);
+
+        let names = parse_backtick_names("`a`, `b`, `c`");
+        assert_eq!(names, vec!["a", "b", "c"]);
+
+        let names = parse_backtick_names("`single`");
+        assert_eq!(names, vec!["single"]);
+    }
+
+    #[test]
+    fn test_parse_sql_values() {
+        let vals = parse_sql_values("'hello', NULL, 123");
+        assert_eq!(vals, vec!["'hello'", "NULL", "123"]);
+
+        // Value with comma inside quotes
+        let vals = parse_sql_values("'hello, world', NULL");
+        assert_eq!(vals, vec!["'hello, world'", "NULL"]);
+
+        // Escaped quotes
+        let vals = parse_sql_values("'it''s', 'ok'");
+        assert_eq!(vals, vec!["'it''s'", "'ok'"]);
+    }
+
+    #[test]
+    fn test_parse_child_table_create_sql() {
+        let sql = "(`point_id`, `point_name`) TAGS ('id1', 'name1')";
+        let tags = parse_child_table_create_sql(sql);
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0], ("point_id".to_string(), "'id1'".to_string()));
+        assert_eq!(tags[1], ("point_name".to_string(), "'name1'".to_string()));
+
+        // With more tags (11-tag config)
+        let sql = "(`point_id`, `id`, `path`, `device`, `point_name`) TAGS ('full_id', 'short', '/path', 'dev', 'name')";
+        let tags = parse_child_table_create_sql(sql);
+        assert_eq!(tags.len(), 5);
+        assert_eq!(tags[0].0, "point_id");
+        assert_eq!(tags[4].0, "point_name");
+    }
+
+    #[test]
+    fn test_rebuild_child_table_create_sql_superset() {
+        // Config has 5 tags, stable has 2 (C ⊃ S)
+        let config_tags = vec![
+            ("point_id".to_string(), "'id1'".to_string()),
+            ("id".to_string(), "'short'".to_string()),
+            ("path".to_string(), "'/p'".to_string()),
+            ("device".to_string(), "'dev'".to_string()),
+            ("point_name".to_string(), "'name1'".to_string()),
+        ];
+        let actual_tags = vec!["point_id".to_string(), "point_name".to_string()];
+        let result = rebuild_child_table_create_sql(&actual_tags, &config_tags);
+        assert_eq!(result, "(`point_id`, `point_name`) TAGS ('id1', 'name1')");
+    }
+
+    #[test]
+    fn test_rebuild_child_table_create_sql_subset() {
+        // Config has 2 tags, stable has 3 (C ⊂ S)
+        let config_tags = vec![
+            ("point_id".to_string(), "'id1'".to_string()),
+            ("point_name".to_string(), "'name1'".to_string()),
+        ];
+        let actual_tags = vec![
+            "point_id".to_string(),
+            "point_name".to_string(),
+            "extra_tag".to_string(),
+        ];
+        let result = rebuild_child_table_create_sql(&actual_tags, &config_tags);
+        assert_eq!(
+            result,
+            "(`point_id`, `point_name`, `extra_tag`) TAGS ('id1', 'name1', NULL)"
+        );
+    }
+
+    #[test]
+    fn test_rebuild_child_table_create_sql_partial_overlap() {
+        // Partial intersection: config has {a, b}, stable has {b, c}
+        let config_tags = vec![
+            ("a".to_string(), "'va'".to_string()),
+            ("b".to_string(), "'vb'".to_string()),
+        ];
+        let actual_tags = vec!["b".to_string(), "c".to_string()];
+        let result = rebuild_child_table_create_sql(&actual_tags, &config_tags);
+        assert_eq!(result, "(`b`, `c`) TAGS ('vb', NULL)");
+    }
+
+    #[test]
+    fn test_rebuild_child_table_create_sql_identical() {
+        // Config and stable have same tags
+        let config_tags = vec![
+            ("point_id".to_string(), "'id1'".to_string()),
+            ("point_name".to_string(), "'name1'".to_string()),
+        ];
+        let actual_tags = vec!["point_id".to_string(), "point_name".to_string()];
+        let result = rebuild_child_table_create_sql(&actual_tags, &config_tags);
+        assert_eq!(result, "(`point_id`, `point_name`) TAGS ('id1', 'name1')");
+    }
+
+    #[test]
+    fn test_parse_and_rebuild_roundtrip() {
+        // End-to-end: parse a real SQL, then rebuild with fewer tags
+        let original = "(`point_id`, `id`, `path`, `device`, `point_name`, `t1`, `t2`, `t3`, `t4`, `t5`, `t6`) TAGS ('ns=2;s=G3.bb1', 'G3.bb1', '/G3/bb1', 'G3', 'bb1', NULL, NULL, NULL, NULL, NULL, NULL)";
+        let config_tags = parse_child_table_create_sql(original);
+        assert_eq!(config_tags.len(), 11);
+
+        // Actual stable only has 5 tags
+        let actual_tags = vec![
+            "point_id".to_string(),
+            "id".to_string(),
+            "path".to_string(),
+            "device".to_string(),
+            "point_name".to_string(),
+        ];
+        let result = rebuild_child_table_create_sql(&actual_tags, &config_tags);
+        assert_eq!(
+            result,
+            "(`point_id`, `id`, `path`, `device`, `point_name`) TAGS ('ns=2;s=G3.bb1', 'G3.bb1', '/G3/bb1', 'G3', 'bb1')"
+        );
     }
 }
