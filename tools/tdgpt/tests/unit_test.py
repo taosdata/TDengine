@@ -367,7 +367,7 @@ class ServiceTest(unittest.TestCase):
                 os.rmdir(temp_dir)
 
     def test_get_service_removes_deleted_dynamic_model(self):
-        """get_service should return none after the dynamic model file is deleted"""
+        """get_service should return None after the dynamic model file is deleted"""
         from taosanalytics.conf import Configure
 
         service_name = "sync_deleted_lookup_service"
