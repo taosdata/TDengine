@@ -64,8 +64,8 @@ class BaseModelAnomalyDetector(ABC):
         """Run anomaly detection and return a per-point list of anomaly codes."""
         model = self._model or self.build()
         if model is None:
-            AppLogger.error("model unavailable, returning all-valid codes for %s", self.path)
-            return [self.valid_code] * len(self.input_list)
+            AppLogger.error("model unavailable for anomaly detection: %s", self.path)
+            raise RuntimeError(f"anomaly detection model unavailable: {self.path}")
         return self._predict(model)
 
     def _load_config(self) -> Optional[dict]:
