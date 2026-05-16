@@ -161,23 +161,31 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
                 AppLogger.warning("unknown feature function '%s', skipping", fn)
         return features
 
+    @staticmethod
+    def _validate_window_params(params: dict) -> tuple[int, int]:
+        """Return validated sliding-window parameters from best_params."""
+        try:
+            window_size = int(params.get('window_size', 100))
+            stride = int(params.get('stride', 1))
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                "best_params.window_size and best_params.stride must be integers"
+            ) from e
+
+        if window_size <= 0 or stride <= 0:
+            raise ValueError(
+                "best_params.window_size and best_params.stride must be positive integers; "
+                f"got window_size={window_size}, stride={stride}"
+            )
+
+        return window_size, stride
+
     def _predict(self, model) -> list:
         params = self.model_info.get('best_params', {})
         feature_fns = params.get('feature_fns', [])
         n = len(self.input_list)
 
-        try:
-            window_size = int(params.get('window_size', 100))
-            stride = int(params.get('stride', 1))
-        except (TypeError, ValueError) as e:
-            AppLogger.error("invalid window_size/stride in best_params: %s", e)
-            return [self.valid_code] * n
-
-        if window_size <= 0 or stride <= 0:
-            AppLogger.error(
-                "window_size and stride must be positive integers; got window_size=%s, stride=%s",
-                window_size, stride)
-            return [self.valid_code] * n
+        window_size, stride = self._validate_window_params(params)
 
         if n < window_size:
             AppLogger.warning(
