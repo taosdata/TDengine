@@ -144,16 +144,20 @@ ExpressionEngine::Result ExpressionEngine::evaluate() {
         throw std::runtime_error("Runtime error: " + err);
     }
 
-    // Handle return value
+    // Handle return value using lua_type() for exact type checking.
+    // Note: lua_isnumber()/lua_isstring() use Lua's coercion rules
+    // (e.g., numeric strings pass lua_isnumber), so we use lua_type()
+    // to get the actual Lua type without coercion.
     Result result;
-    if (lua_isnumber(L, -1)) {
+    int ltype = lua_type(L, -1);
+    if (ltype == LUA_TNUMBER) {
         auto number = lua_tonumber(L, -1);
         state_->last_value = number;
         result = number;
-    } else if (lua_isstring(L, -1)) {
+    } else if (ltype == LUA_TSTRING) {
         const char* str = lua_tostring(L, -1);
         result = std::string(str);
-    } else if (lua_isboolean(L, -1)) {
+    } else if (ltype == LUA_TBOOLEAN) {
         result = static_cast<bool>(lua_toboolean(L, -1));
     } else {
         lua_pop(L, 1);

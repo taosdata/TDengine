@@ -2,12 +2,15 @@
 #include "StepParserRegistry.hpp"
 #include "LogUtils.hpp"
 #include "version.hpp"
+#include "CheckpointAction.hpp"
+#include "InsertDataConfig.hpp"
+#include "CreateSuperTableConfig.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <sstream>
 #include <filesystem>
-#include "CheckpointAction.hpp"
+
 
 ParameterContext::ParameterContext() {
     register_core_step_parsers();
@@ -210,6 +213,38 @@ void ParameterContext::parse_steps(const YAML::Node& steps_node, Job& job) {
         }
 
         job.steps.emplace_back(std::move(step));
+    }
+
+    // Validate tag types for schemaless + create-super-table compatibility.
+    // TDengine schemaless (InfluxDB line protocol) always parses tags as NCHAR.
+    // If create-super-table creates tags with non-NCHAR types (e.g., VARCHAR,
+    // BINARY, INT), schemaless inserts will fail with type mismatch errors.
+    bool has_schemaless = false;
+    bool has_create_stb = false;
+    for (const auto& step : job.steps) {
+        if (auto* cfg = std::get_if<InsertDataConfig>(&step.action_config)) {
+            if (cfg->data_format.format_type == "schemaless") {
+                has_schemaless = true;
+            }
+        }
+        if (std::holds_alternative<CreateSuperTableConfig>(step.action_config)) {
+            has_create_stb = true;
+        }
+    }
+    if (has_schemaless && has_create_stb) {
+        for (const auto& tag : job.schema.tags) {
+            if (tag.type_tag != ColumnTypeTag::NCHAR) {
+                throw std::runtime_error(
+                    "Tag '" + tag.name + "' has type '" + tag.type +
+                    "', but TDengine schemaless (InfluxDB line protocol) requires all tags "
+                    "to be NCHAR type. Please change the tag type to 'nchar' in your YAML "
+                    "configuration to be compatible with schemaless inserts.");
+            }
+        }
+
+        // Note: TDengine schemaless uses '_ts' as the default timestamp column
+        // name (configurable via smlTsDefaultName on the server side). We do not
+        // enforce a specific name here because users may have customized it.
     }
 }
 

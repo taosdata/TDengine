@@ -13,7 +13,7 @@ public:
         std::ostringstream result;
         result << "CREATE TABLE IF NOT EXISTS `"
                << config.tdengine.database << "`.`"
-               << config.schema.name << "` (ts TIMESTAMP";
+               << config.schema.name << "` (`" << config.schema.columns[0].name << "` TIMESTAMP";
 
         // columns
         auto col_instances = ColumnConfigInstanceFactory::create(config.schema.columns_cfg.get_schema());

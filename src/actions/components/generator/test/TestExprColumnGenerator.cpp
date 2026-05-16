@@ -139,6 +139,96 @@ void test_generate_expr_unsupported_conversion() {
     }
 }
 
+void test_generate_expr_double_to_varchar_column() {
+    // Lua numeric result (double) targeting varchar column should convert via double_to_string
+    ColumnConfig config;
+    config.type = "varchar(32)";
+    config.formula = std::string("42.5 + 0.5");
+    ColumnConfigInstance instance(config);
+
+    ExprColumnGenerator generator(instance);
+
+    ColumnType value = generator.generate();
+    assert(std::holds_alternative<std::string>(value));
+    std::string str_value = std::get<std::string>(value);
+    // std::to_string(43.0) produces "43.000000"
+    assert(str_value.find("43") != std::string::npos);
+
+    std::cout << "test_generate_expr_double_to_varchar_column passed.\n";
+}
+
+void test_generate_expr_double_to_nchar_column() {
+    // Lua numeric result (double) targeting nchar column should convert via double_to_u16string
+    ColumnConfig config;
+    config.type = "nchar(32)";
+    config.formula = std::string("100.0");
+    ColumnConfigInstance instance(config);
+
+    ExprColumnGenerator generator(instance);
+
+    ColumnType value = generator.generate();
+    assert(std::holds_alternative<std::u16string>(value));
+    std::u16string u16_value = std::get<std::u16string>(value);
+    // Should contain "100" as u16string
+    assert(u16_value.find(u'1') != std::u16string::npos);
+    assert(u16_value.find(u'0') != std::u16string::npos);
+
+    std::cout << "test_generate_expr_double_to_nchar_column passed.\n";
+}
+
+void test_generate_expr_numeric_string_to_varchar() {
+    // tostring(number) returns a string in Lua; targeting varchar should work directly
+    ColumnConfig config;
+    config.type = "varchar(10)";
+    config.formula = std::string("tostring(math.random(1, 10000))");
+    ColumnConfigInstance instance(config);
+
+    ExprColumnGenerator generator(instance);
+
+    ColumnType value = generator.generate();
+    assert(std::holds_alternative<std::string>(value));
+    std::string str_value = std::get<std::string>(value);
+    int num = std::stoi(str_value);
+    (void)num;
+    assert(num >= 1 && num <= 10000);
+
+    std::cout << "test_generate_expr_numeric_string_to_varchar passed.\n";
+}
+
+void test_generate_expr_numeric_string_to_nchar() {
+    // tostring(number) returns a string; targeting nchar should convert via string_to_u16string
+    ColumnConfig config;
+    config.type = "nchar(10)";
+    config.formula = std::string("tostring(math.random(1, 10000))");
+    ColumnConfigInstance instance(config);
+
+    ExprColumnGenerator generator(instance);
+
+    ColumnType value = generator.generate();
+    assert(std::holds_alternative<std::u16string>(value));
+    std::u16string u16_value = std::get<std::u16string>(value);
+    assert(!u16_value.empty());
+
+    std::cout << "test_generate_expr_numeric_string_to_nchar passed.\n";
+}
+
+void test_generate_expr_utf8_string_to_nchar() {
+    // UTF-8 string (Chinese characters) targeting nchar should convert correctly
+    ColumnConfig config;
+    config.type = "nchar(20)";
+    config.formula = std::string("'\\228\\184\\138\\230\\181\\183'"); // "上海" in Lua escaped UTF-8
+    ColumnConfigInstance instance(config);
+
+    ExprColumnGenerator generator(instance);
+
+    ColumnType value = generator.generate();
+    assert(std::holds_alternative<std::u16string>(value));
+    std::u16string u16_value = std::get<std::u16string>(value);
+    assert(!u16_value.empty());
+
+    std::cout << "test_generate_expr_utf8_string_to_nchar passed.\n";
+}
+
 int main() {
     test_generate_expr_double_column();
     test_generate_expr_string_column();
@@ -147,6 +237,11 @@ int main() {
     test_generate_expr_nchar_column();
     test_generate_expr_multiple_values();
     test_generate_expr_unsupported_conversion();
+    test_generate_expr_double_to_varchar_column();
+    test_generate_expr_double_to_nchar_column();
+    test_generate_expr_numeric_string_to_varchar();
+    test_generate_expr_numeric_string_to_nchar();
+    test_generate_expr_utf8_string_to_nchar();
 
     std::cout << "All ExprColumnGenerator tests passed.\n";
     return 0;
