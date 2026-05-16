@@ -512,6 +512,7 @@ void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pReque
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper* pWrapper, SMetaData* pResultMeta, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
+void    destroyCtxInRequest(SRequestObj* pRequest);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);

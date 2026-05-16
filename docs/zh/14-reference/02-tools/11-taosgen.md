@@ -28,8 +28,8 @@ taosgen 解决了 taosBenchmark 难以灵活配置、数据生成方式单一、
 下载二进制发布包到本地，解压缩，为了便捷访问，可以创建符号链接存放到系统执行目录中，如 Linux 系统下执行命令：
 
 ```shell
-tar zxvf tsgen-v0.3.0-linux-amd64.tar.gz
-cd tsgen
+tar zxvf taosgen-v0.8.6-linux-x64.tar.gz
+cd taosgen
 ln -sf `pwd`/taosgen /usr/bin/taosgen
 ```
 
@@ -57,9 +57,10 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
 | -c/--config-file      | 指定 yaml 格式配置文件的路径 |
 | -d/--log-dir          | 指定日志输出目录，默认值为 ./log |
-| -f/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir） |
-| -?/--help             | 显示帮助信息并退出|
+| -o/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir），-f 已弃用 |
+| -v/--verbose          | 提高输出详细程度 |
 | -V/--version          | 显示版本信息并退出，不能与其它参数混用 |
+| -?/--help             | 显示帮助信息并退出 |
 
 提示：当没有指定参数运行 taosgen 时，默认会创建 TDengine 数据库 tsbench、超级表 meters、1 万张子表，并为每张子表批量写入 1 万条数据。
 
@@ -238,6 +239,8 @@ taosgen -h 127.0.0.1 -c config.yaml
   - random：随机方式生成。
   - order：按自然数顺序增长，仅适用整数类型。
   - expression：根据表达式生成。适用整数类型、浮点数类型 float、double 和字符类型。
+- null_ratio（浮点数）：指定生成 NULL 值的比例，取值范围 [0.0, 1.0]，默认值为 0.0。NULL 表示空值，写入后替换该列的最新值为空。
+- none_ratio（浮点数）：指定生成 NONE 值的比例，取值范围 [0.0, 1.0]，默认值为 0.0。NONE 表示数据缺失，写入后不替换该列的最新值，保留原有值。null_ratio 与 none_ratio 之和不得超过 1.0。
 
 ##### 数据生成方式详解
 
@@ -246,6 +249,8 @@ taosgen -h 127.0.0.1 -c config.yaml
   - min（浮点数）：表示列的最小值，仅适用整数类型和浮点数类型，生成的值将大于或等于最小值。
   - max（浮点数）：表示列的最大值，仅适用整数类型和浮点数类型，生成的值将小于最大值。
   - values（列表）：指定随机数据的取值范围，生成的数据将从中随机选取。
+  - min_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最小长度。这里的“容量”指类型定义的最大长度。生效规则如下：若 `min_length` 和 `max_length` 都未设置，则生成长度固定为类型定义的最大长度；若仅设置 `min_length`，则 `max_length` 默认为类型定义的最大长度；若同时设置，则需满足 `0 ≤ min_length ≤ max_length ≤ 容量`。设置后每次生成的字符串长度会在 `min_length` 到 `max_length` 之间随机变化。
+  - max_length（整数）：仅适用于变长字符类型（nchar、varchar 或 binary），指定生成字符串的最大长度。这里的“容量”指类型定义的最大长度。若仅设置 `max_length`，则 `min_length` 默认为 `0`；若同时设置 `min_length` 和 `max_length`，则需满足 `0 ≤ min_length ≤ max_length ≤ 容量`。
 
 - order：按自然数顺序增长，仅适用整数类型，达到最大值后会自动翻转到最小值
   - min（整数）：表示列的最小值，生成的值将大于或等于最小值。
@@ -325,6 +330,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - stmt：使用参数化写入（Prepared Statement）方式写入数据，适合高性能批量写入场景。
   - schemaless：使用行协议（Line Protocol）方式写入数据，无需预先创建超级表和子表，适合模拟 Telegraf 等采集器向 TDengine 发送数据的场景。
 - auto_create_table（布尔）：表示是否使用 TDengine 自动建表功能在写入数据时动态创建表，默认值为 false。
+- tbname_key（字符串）：仅在 schemaless 格式下生效，用于指定行协议（Line Protocol）输出中代表子表名称的 tag key。如果此参数被设置为空字符串（""），则不在行协议中输出子表名称 tag。默认值为 ""。
 - concurrency（整数）：并发写入数据的线程数量，默认值为 8。
 - failure_handling：表示失败处理策略：
   - max_retries（整数）：最大重试次数，默认值为 0。
@@ -365,7 +371,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - `{column}`：表示列数据，column 是列字段名称
 - qos（整数）：QoS 等级，取值范围为 0、1、2，默认为 0。
 - retain（布尔）：MQTT Broker 是否保留最后一条消息，默认值为 false。
-- tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
+- tbname_key (字符串)：用于指定输出中代表表名的字段名称。如果此参数被设置为空字符串（""），则不输出表名信息。默认值为 ""。
 - records_per_message（整数）：每条消息包含的记录数，默认为 1。
 
 ### 发布 Kafka 数据行动的格式
@@ -388,7 +394,7 @@ taosgen -h 127.0.0.1 -c config.yaml
   - "1"：生产者只需要等待分区 Leader 副本成功接收到消息并将其写入本地日志（Log），就会认为消息发送成功，并立即向应用程序返回确认。
   - "0"：生产者完全不等待任何确认。一旦消息被成功发送到网络（甚至只是放入了生产者的发送缓冲区），就立即认为发送成功。
 - compression (字符串)：消息压缩类型，支持 "none"、"gzip"、"snappy"、"lz4"、"zstd"，默认为 "none"。
-- tbname_key (字符串)：用于指定 json 格式输出中代表表名的字段名称。如果此参数被设置为空字符串 ("")，则不输出表名信息。默认值为 "table"。
+- tbname_key (字符串)：用于指定输出中代表表名的字段名称。在 json 格式中作为 JSON 字段名，在 influx 格式中作为行协议的 tag key。如果此参数被设置为空字符串（""），则不输出表名信息。默认值为 ""。
 - records_per_message（整数）：每条消息包含的记录数，默认为 1。
 
 ### 写入 InfluxDB 数据行动的格式
@@ -402,6 +408,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 - precision（字符串）：时间戳精度，可选值为 "ns"、"us"、"ms"、"s"，默认为 "ns"。
 - batch_size（整数）：每次 HTTP 请求包含的行协议行数，默认为 5000。InfluxDB 官方推荐值为 5000。
 - gzip（布尔）：是否对 HTTP 请求体启用 gzip 压缩，默认为 false。启用后可显著减少网络带宽占用。
+- tbname_key（字符串）：用于指定行协议（Line Protocol）输出中代表表名称的 tag key。如果此参数被设置为空字符串（""），则不在行协议中输出表名称 tag。默认值为 ""。
 
 ## 配置文件示例
 

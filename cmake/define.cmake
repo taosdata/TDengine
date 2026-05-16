@@ -79,6 +79,10 @@ IF(${BUILD_SHARED_STORAGE})
   ENDIF ()
 ENDIF ()
 
+if(BUILD_WITH_COS)
+    message(FATAL_ERROR "freemine: not implemented yet")
+endif()
+
 # Enable advanced security features
 IF(BUILD_ADVANCED_SECURITY)
     ADD_DEFINITIONS(-DTD_ENABLE_ADVANCED_SECURITY)
@@ -252,13 +256,16 @@ ELSE()
         CHECK_C_COMPILER_FLAG("-mavx512vl" COMPILER_SUPPORT_AVX512VL)
     ENDIF()
 
-    # Use positive form -Wstringop-overread for the check: GCC silently accepts
-    # unknown -Wno-* flags during try_compile (CHECK_*_COMPILER_FLAG returns TRUE
-    # even on GCC 7 which does not support it), but -Werror later turns the
-    # "unrecognized option" warning into a fatal error.  The positive -W* form
-    # is reliably rejected by GCC when unsupported.
-    CHECK_C_COMPILER_FLAG("-Wstringop-overread" COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
-    CHECK_CXX_COMPILER_FLAG("-Wstringop-overread" COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
+    # Old GCC accepts unknown -Wno-* options without diagnostics unless another
+    # warning is emitted. Probe the positive warning option instead.
+    CHECK_C_COMPILER_FLAG("-Wstringop-overread" COMPILER_SUPPORT_WSTRINGOP_OVERREAD)
+    CHECK_CXX_COMPILER_FLAG("-Wstringop-overread" COMPILER_SUPPORT_CXX_WSTRINGOP_OVERREAD)
+    IF(COMPILER_SUPPORT_WSTRINGOP_OVERREAD)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-stringop-overread")
+    ENDIF()
+    IF(COMPILER_SUPPORT_CXX_WSTRINGOP_OVERREAD)
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
+    ENDIF()
 
     IF(COMPILER_SUPPORT_SSE42)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2")
@@ -299,10 +306,6 @@ ELSE()
         ENDIF()
     ENDIF()
 
-    # build mode
-    SET(CMAKE_C_FLAGS_REL "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-    SET(CMAKE_CXX_FLAGS_REL "${CMAKE_CXX_FLAGS} -Werror -Wno-reserved-user-defined-literal -Wno-literal-suffix -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-
     IF(BUILD_SANITIZER)
         # Note: -fsanitize=undefined is intentionally omitted from C_FLAGS.
         # The manylinux2014 (CentOS 7) build container ships GCC 7 which generates
@@ -311,21 +314,11 @@ ELSE()
         # (__ubsan_handle_type_mismatch_v1), causing an unresolvable link error
         # with the mold linker.  ASan (-fsanitize=address) works correctly.
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
-
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
         MESSAGE(STATUS "Compile with Address Sanitizer!")
-    ELSEIF(BUILD_RELEASE)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
     elseif(TD_LINUX)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
-        IF(COMPILER_SUPPORT_WNO_STRINGOP_OVERREAD)
-            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-stringop-overread")
-        ENDIF()
-        IF(COMPILER_SUPPORT_CXX_WNO_STRINGOP_OVERREAD)
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-overread")
-        ENDIF()
     elseif(TD_DARWIN)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wno-reserved-user-defined-literal -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations -Wno-literal-conversion -Wno-writable-strings -Wno-unused-value -Wno-format -Wno-null-conversion")
