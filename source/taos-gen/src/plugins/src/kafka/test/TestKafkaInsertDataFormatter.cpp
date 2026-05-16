@@ -163,7 +163,7 @@ void test_kafka_format_influx_single_record() {
     std::vector<RowData> rows;
     rows.push_back({1609459200000, {25.5f, std::string("dev1"), 100}});
     rows.push_back({1609459201000, {26.1f, std::string("dev2"), 101}});
-    batch.table_batches.emplace_back("weather", std::move(rows));
+    batch.table_batches.emplace_back("table1", std::move(rows));
     batch.update_metadata();
 
     MemoryPool pool(1, 1, 2, col_instances, tag_instances);
@@ -191,11 +191,11 @@ void test_kafka_format_influx_single_record() {
     assert(payload->size() == 2);
 
     // Message 1
-    assert((*payload)[0].first == "weather-1609459200000");
-    assert((*payload)[0].second == "weather temp=25.5,device=\"dev1\",status=100i 1609459200000");
+    assert((*payload)[0].first == "table1-1609459200000");
+    assert((*payload)[0].second == "weather,table_name=table1 temp=25.5,device=\"dev1\",status=100i 1609459200000");
     // Message 2
-    assert((*payload)[1].first == "weather-1609459201000");
-    assert((*payload)[1].second == "weather temp=26.1,device=\"dev2\",status=101i 1609459201000");
+    assert((*payload)[1].first == "table1-1609459201000");
+    assert((*payload)[1].second == "weather,table_name=table1 temp=26.1,device=\"dev2\",status=101i 1609459201000");
 
     std::cout << "test_kafka_format_influx_single_record passed!" << std::endl;
 }
@@ -218,7 +218,7 @@ void test_kafka_format_influx_multiple_records() {
     std::vector<RowData> rows;
     rows.push_back({1609459200000, {25.5f, std::string("dev1")}});
     rows.push_back({1609459201000, {26.1f, std::string("dev2")}});
-    batch.table_batches.emplace_back("weather", std::move(rows));
+    batch.table_batches.emplace_back("table1", std::move(rows));
     batch.update_metadata();
 
     MemoryPool pool(1, 1, 2, col_instances, tag_instances);
@@ -244,9 +244,9 @@ void test_kafka_format_influx_multiple_records() {
     assert(payload != nullptr);
     assert(payload->size() == 1);
 
-    assert((*payload)[0].first == "weather-1609459200000");
-    std::string expected_payload = "weather temp=25.5,device=\"dev1\" 1609459200000\n"
-                                   "weather temp=26.1,device=\"dev2\" 1609459201000";
+    assert((*payload)[0].first == "table1-1609459200000");
+    std::string expected_payload = "weather,table_name=table1 temp=25.5,device=\"dev1\" 1609459200000\n"
+                                   "weather,table_name=table1 temp=26.1,device=\"dev2\" 1609459201000";
     assert((*payload)[0].second == expected_payload);
 
     (void)payload;
@@ -400,7 +400,7 @@ void test_kafka_format_with_tags() {
         assert(payload->size() == 1);
         assert((*payload)[0].first == "us-west-table1");
 
-        std::string expected_payload = "sensor,region=us-west,sensor_id=1001 f1=3.14 1500000000000";
+        std::string expected_payload = "sensor,table_name=table1,region=us-west,sensor_id=1001 f1=3.14 1500000000000";
         assert((*payload)[0].second == expected_payload);
         (void)payload;
         (void)expected_payload;

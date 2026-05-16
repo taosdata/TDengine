@@ -1,5 +1,6 @@
 #include "RowGenerator.hpp"
 #include "ColumnGeneratorFactory.hpp"
+#include <cassert>
 #include <stdexcept>
 
 RowGenerator::RowGenerator(const std::string& table_name, const ColumnConfigInstanceVector& col_instances)
@@ -49,6 +50,7 @@ RowType RowGenerator::generate() const {
 }
 
 void RowGenerator::generate(RowType& columns) const {
+    assert(columns.size() <= column_gens_.size());
     auto columns_size = columns.size();
     for (size_t i = 0; i < columns_size; ++i) {
         columns[i] = column_gens_[i]->generate();

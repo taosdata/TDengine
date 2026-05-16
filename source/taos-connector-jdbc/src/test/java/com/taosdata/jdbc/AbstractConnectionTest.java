@@ -16,7 +16,11 @@ public class AbstractConnectionTest {
 
     @Before
     public void setUp() {
-        connection = new AbstractConnection(new Properties(), TSDBConstants.UNKNOWN_VERSION) {
+        connection = newConnection(new Properties());
+    }
+
+    private AbstractConnection newConnection(Properties properties) {
+        return new AbstractConnection(properties, TSDBConstants.UNKNOWN_VERSION) {
             @Override
             public Statement createStatement() throws SQLException {
                 return null; // Mock implementation
@@ -235,6 +239,20 @@ public class AbstractConnectionTest {
     public void testGetCatalog() throws SQLException {
         connection.setCatalog("testCatalog");
         assertEquals("testCatalog", connection.getCatalog());
+    }
+
+    @Test
+    public void testGetCatalogFromProperties() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_DBNAME, "test_catalog");
+        connection = newConnection(properties);
+        assertEquals("test_catalog", connection.getCatalog());
+    }
+
+    @Test
+    public void testGetCatalogWithoutPropertiesDatabase() throws SQLException {
+        connection = newConnection(new Properties());
+        assertNull(connection.getCatalog());
     }
 
     @Test(expected = SQLException.class)
