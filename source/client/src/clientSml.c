@@ -1053,7 +1053,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
     if (sTmp == NULL) {
       uError("SML smlCheckMeta failed: column/tag \"%.*s\" (len:%d) not found in schema (schemaLen:%d)",
              (int32_t)kv->keyLen, kv->key, (int32_t)kv->keyLen, length);
-      SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
     }
     if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
         (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
@@ -1781,7 +1781,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
   do {
     code = smlModifyDBSchemas(info);
     if (code != TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER && code != TSDB_CODE_SDB_OBJ_CREATING && code != TSDB_CODE_SYN_NOT_LEADER &&
-        code != TSDB_CODE_MND_TRANS_CONFLICT) {
+        code != TSDB_CODE_MND_TRANS_CONFLICT && code != TSDB_CODE_MND_INVALID_SCHEMA_VER) {
       break;
     }
     taosMsleep(100);

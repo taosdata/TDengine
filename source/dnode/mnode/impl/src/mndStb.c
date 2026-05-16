@@ -1706,7 +1706,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
               createReq.name, createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
         if (tagDelta <= 0 && colDelta <= 0) {
           mInfo("stb:%s, schema version is not incremented and nothing needs to be done", createReq.name);
-          code = 0;
+          code = TSDB_CODE_MND_INVALID_SCHEMA_VER;
           goto _OVER;
         } else if ((tagDelta == 1 && colDelta == 0) || (tagDelta == 0 && colDelta == 1) ||
                    (pStb->colVer == 1 && createReq.colVer > 1) || (pStb->tagVer == 1 && createReq.tagVer > 1)) {
