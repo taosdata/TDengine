@@ -171,10 +171,13 @@ def do_handle_undeploy_model(request):
                         "Model %s not found in memory during undeploy, but config file existed and was removed",
                         model_name
                     )
-                    return {
-                        'status': 'success',
-                        'message': f"Model {model_name} undeployed successfully"
-                    }, 200
+                except FileNotFoundError:
+                    # Another worker already removed the file between the exists() check
+                    # and the remove() call — the model is already undeployed, treat as success.
+                    AppLogger.warning(
+                        "Model %s config file was already removed by another worker during undeploy",
+                        model_name
+                    )
                 except Exception as cleanup_error:
                     AppLogger.error("Error removing model %s config file during undeploy: %s",
                                     model_name, str(cleanup_error))
@@ -182,6 +185,10 @@ def do_handle_undeploy_model(request):
                         'status': 'error',
                         'error': f"Error undeploying model {model_name}: {str(cleanup_error)}"
                     }, 500
+                return {
+                    'status': 'success',
+                    'message': f"Model {model_name} undeployed successfully"
+                }, 200
 
             AppLogger.warning("Model %s not found during undeploy, maybe already undeployed", model_name)
             return {
