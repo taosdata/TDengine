@@ -2,7 +2,7 @@
 """DynamicForecastService: a forecast service driven by a parameter config file."""
 import pandas as pd
 
-from taosanalytics.algo.tool.forecaster import ArimaModelForecaster, ProphetModelForecaster
+from taosanalytics.algo.tool.forecaster import ArimaModelForecaster
 from taosanalytics.log import AppLogger
 from taosanalytics.base import AbstractForecastService
 
@@ -30,7 +30,10 @@ class DynamicForecastService(AbstractForecastService):
         if algo_name == 'theta':
             raise NotImplementedError("Theta model is not implemented yet")
 
-        if algo_name not in ('arima', 'prophet'):
+        if algo_name == 'prophet':
+            raise NotImplementedError("Prophet model is not implemented yet")
+
+        if algo_name != 'arima':
             raise ValueError(f"unsupported algorithm '{algo_name}' in dynamic forecast service")
 
         # Build input DataFrame common to all forecast algorithms.
@@ -46,13 +49,7 @@ class DynamicForecastService(AbstractForecastService):
             AppLogger.error(msg)
             raise RuntimeError(msg) from e
 
-        if algo_name == 'arima':
-            forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
-        else:
-            # Prophet requires tz-naive datetime in its 'ds' column; strip timezone
-            # after converting to the target tz so that local time values are correct.
-            df['ts'] = df['ts'].dt.tz_localize(None)
-            forecaster = ProphetModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
+        forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
 
         result = forecaster.forecast()
 
@@ -62,10 +59,6 @@ class DynamicForecastService(AbstractForecastService):
             raise RuntimeError(
                 f"failed to execute forecast with {algo_name.upper()} model forecaster "
                 f"built from config file: {self.config_file_path}")
-
-        if algo_name == 'prophet':
-            # make_future_dataframe includes historical rows; keep only the future horizon.
-            result = result.tail(self.rows).reset_index(drop=True)
 
         result_ts = [self.start_ts + i * self.time_step for i in range(self.rows)]
         res = [result_ts, result['yhat'].tolist()]

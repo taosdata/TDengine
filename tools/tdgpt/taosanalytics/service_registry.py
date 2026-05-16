@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 import sys
+import threading
 from collections import defaultdict
 from pathlib import Path
 
@@ -38,58 +39,64 @@ class ServiceRegistry:
     def __init__(self):
         self.services = defaultdict()
         self._loaded = False
+        self._services_lock = threading.RLock()
 
     def get_service(self, name):
         """ get the required service """
-        self.sync_dynamic_services()
-        serv = self.services.get(name, None)
+        with self._services_lock:
+            self.sync_dynamic_services()
+            serv = self.services.get(name, None)
         return copy.copy(serv)
 
     def sync_dynamic_services(self):
         """Synchronize dynamic services with the shared config directory."""
-        dynamic_service_names = [
-            name for name, service in self.services.items()
-            if isinstance(service, (DynamicForecastService, DynamicAnomalyService))
-        ]
+        with self._services_lock:
+            dynamic_service_names = [
+                name for name, service in self.services.items()
+                if isinstance(service, (DynamicForecastService, DynamicAnomalyService))
+            ]
 
-        for name in dynamic_service_names:
-            service = self.services.get(name)
-            if service is None:
-                continue
+            for name in dynamic_service_names:
+                service = self.services.get(name)
+                if service is None:
+                    continue
 
-            config_file_path = getattr(service, 'config_file_path', None)
-            if config_file_path and not Path(config_file_path).exists():
-                del self.services[name]
-                AppLogger.info(
-                    "remove dynamic model '%s' from memory because config file is gone",
-                    name)
+                config_file_path = getattr(service, 'config_file_path', None)
+                if config_file_path and not Path(config_file_path).exists():
+                    del self.services[name]
+                    AppLogger.info(
+                        "remove dynamic model '%s' from memory because config file is gone",
+                        name)
 
-        dyn_dir = Path(Configure.get_instance().get_dynamic_model_directory())
-        if not dyn_dir.exists() or not dyn_dir.is_dir():
-            return
+            dyn_dir = Path(Configure.get_instance().get_dynamic_model_directory())
+            if not dyn_dir.exists() or not dyn_dir.is_dir():
+                return
 
-        for config_path in dyn_dir.iterdir():
-            if not config_path.is_file() or config_path.suffix != '.json':
-                continue
+            for config_path in dyn_dir.iterdir():
+                if not config_path.is_file() or config_path.suffix != '.json':
+                    continue
 
-            model_name = config_path.stem
-            if model_name in self.services:
-                continue
+                model_name = config_path.stem
+                if model_name in self.services:
+                    continue
 
-            try:
-                self.register_service_from_file(str(config_path))
-            except Exception as e:
-                AppLogger.error(
-                    "failed to sync dynamic model from file %s: %s, skipping",
-                    str(config_path),
-                    str(e))
+                try:
+                    self.register_service_from_file(str(config_path))
+                except Exception as e:
+                    AppLogger.error(
+                        "failed to sync dynamic model from file %s: %s, skipping",
+                        str(config_path),
+                        str(e))
 
     def get_typed_services(self, type_str: str) -> list:
         """ get specified type service """
         all_items = []
-        AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(self.services), hex(id(self.services)))
+        with self._services_lock:
+            service_items = list(self.services.items())
 
-        for key, val in self.services.items():
+        AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(service_items), hex(id(self.services)))
+
+        for key, val in service_items:
             if val.type == type_str:
                 try:
                     one = {
@@ -158,72 +165,74 @@ class ServiceRegistry:
 
         """
 
-        if not config_file.endswith('.json'):
-            msg = f"not a json file: {config_file}"
-            raise ValueError(msg)
-
-        config_file_name = Path(config_file).name
-        model_name = config_file_name.replace(os.sep, '.')[:-5]  # strip .json
-
-        AppLogger.info("loading algorithm/model from file: %s (module: %s)", config_file, model_name)
-
-        with open(config_file, 'r', encoding="utf-8") as f:
-            file_content = f.read()
-            try:
-                config = json.loads(file_content)
-            except Exception as e:
-                msg = f"failed to load dynamic model configuration, file: {config_file}: {e}"
-                raise ValueError(msg) from e
-
-        if not isinstance(config, dict):
-            raise ValueError(f"invalid config format in file: {config_file}, expected a JSON object")
-
-        if 'algo' in config:
-            algo_name = config['algo']
-
-            if algo_name.lower() in ServiceRegistry._only_params_models:
-                # only parameters model
-                # create a simple service object with the metadata, the actual implementation can be loaded later when execute.
-                serv = DynamicForecastService(
-                    name=model_name,
-                    desc=f"dynamic generated model training from {algo_name}",
-                    algo=algo_name,
-                    path=config_file,
-                )
-            elif algo_name.lower() in ServiceRegistry._only_params_anomaly_models:
-                serv = DynamicAnomalyService(
-                    name=model_name,
-                    desc=f"dynamic generated anomaly detection from {algo_name}",
-                    algo=algo_name,
-                    path=config_file,
-                )
-            else:
-                msg = f"unsupported algorithm '{algo_name}' in dynamic model configuration file: {config_file}"
+        with self._services_lock:
+            if not config_file.endswith('.json'):
+                msg = f"not a json file: {config_file}"
                 raise ValueError(msg)
 
-            if model_name in self.services:
-                raise RuntimeError(f"model with name '{model_name}' already exists, register failed")
+            config_file_name = Path(config_file).name
+            model_name = config_file_name.replace(os.sep, '.')[:-5]  # strip .json
 
-            ServiceRegistry._register_service(self.services, model_name, serv)
-            AppLogger.info("register dynamic model:'%s' from %s, total:%d", model_name, config_file,
-                            len(self.services))
-        else:
-            msg = f"failed to register dynamic service, missing 'algo' field in dynamic model configuration file: {config_file}"
-            raise ValueError(msg)
+            AppLogger.info("loading algorithm/model from file: %s (module: %s)", config_file, model_name)
+
+            with open(config_file, 'r', encoding="utf-8") as f:
+                file_content = f.read()
+                try:
+                    config = json.loads(file_content)
+                except Exception as e:
+                    msg = f"failed to load dynamic model configuration, file: {config_file}: {e}"
+                    raise ValueError(msg) from e
+
+            if not isinstance(config, dict):
+                raise ValueError(f"invalid config format in file: {config_file}, expected a JSON object")
+
+            if 'algo' in config:
+                algo_name = config['algo']
+
+                if algo_name.lower() in ServiceRegistry._only_params_models:
+                    # only parameters model
+                    # create a simple service object with the metadata, the actual implementation can be loaded later when execute.
+                    serv = DynamicForecastService(
+                        name=model_name,
+                        desc=f"dynamic generated model training from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
+                elif algo_name.lower() in ServiceRegistry._only_params_anomaly_models:
+                    serv = DynamicAnomalyService(
+                        name=model_name,
+                        desc=f"dynamic generated anomaly detection from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
+                else:
+                    msg = f"unsupported algorithm '{algo_name}' in dynamic model configuration file: {config_file}"
+                    raise ValueError(msg)
+
+                if model_name in self.services:
+                    raise RuntimeError(f"model with name '{model_name}' already exists, register failed")
+
+                ServiceRegistry._register_service(self.services, model_name, serv)
+                AppLogger.info("register dynamic model:'%s' from %s, total:%d", model_name, config_file,
+                                len(self.services))
+            else:
+                msg = f"failed to register dynamic service, missing 'algo' field in dynamic model configuration file: {config_file}"
+                raise ValueError(msg)
 
     def unregister_dynamic_service(self, name: str):
         """ unregister the dynamic service, e.g. when the model is deleted or updated."""
-        if name in self.services:
-            if self.services[name].is_builtins:
-                raise RuntimeError(f"try to unregister built-in model:'{name}', operation not allowed")
+        with self._services_lock:
+            if name in self.services:
+                if self.services[name].is_builtins:
+                    raise RuntimeError(f"try to unregister built-in model:'{name}', operation not allowed")
 
-            if not isinstance(self.services[name], (DynamicForecastService, DynamicAnomalyService)):
-                raise RuntimeError(f"try to unregister non-dynamic model:'{name}', operation not allowed")
+                if not isinstance(self.services[name], (DynamicForecastService, DynamicAnomalyService)):
+                    raise RuntimeError(f"try to unregister non-dynamic model:'{name}', operation not allowed")
 
-            del self.services[name]
-            AppLogger.info("unregister dynamic model:'%s'", name)
-        else:
-            raise NotFoundDynamicModelError(f"try to unregister non-existing model:'{name}', operation failed")
+                del self.services[name]
+                AppLogger.info("unregister dynamic model:'%s'", name)
+            else:
+                raise NotFoundDynamicModelError(f"try to unregister non-existing model:'{name}', operation failed")
 
     @staticmethod
     def _register_service(container, name: str, service):
