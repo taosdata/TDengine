@@ -756,6 +756,12 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
                                   PRIV_SECURITY_POLICY_ALTER, 0, pCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == code &&
+      (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
+       pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)) {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache);
+  }
   return code;
 }
 

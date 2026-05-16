@@ -35,8 +35,10 @@ L2_DB = "test_tagref_mh_l2"        # Layer-2 virtual tables (refs layer-1)
 L3_DB = "test_tagref_mh_l3"        # Layer-3 virtual tables (refs layer-2)
 SAME_DB = "test_tagref_mh_same"    # Same-DB multi-hop
 DEPTH_DB = "test_tagref_mh_depth"  # Depth-limit test
+CIRC_DB = "test_tagref_mh_circ"   # Circular reference test
 
 TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED = -2147458548
+TSDB_CODE_VTABLE_CIRCULAR_REF = -2147458546
 
 
 class TestVtableTagRefMultihop:
@@ -73,7 +75,7 @@ class TestVtableTagRefMultihop:
     def setup_class(cls):
         tdLog.info("=== setup: creating multi-hop tag-ref topology ===")
 
-        for db in [PHY_DB, L1_DB, L2_DB, L3_DB, SAME_DB, DEPTH_DB]:
+        for db in [PHY_DB, L1_DB, L2_DB, L3_DB, SAME_DB, DEPTH_DB, CIRC_DB]:
             tdSql.execute(f"DROP DATABASE IF EXISTS {db};")
 
         # --- Physical DB: real tables with real tag values ---
@@ -263,9 +265,58 @@ class TestVtableTagRefMultihop:
             prev_name = vname
             prev_tag = tag_name
 
+        # --- Circular-ref DB: tables for ALTER-induced circular reference ---
+        tdSql.execute(f"CREATE DATABASE {CIRC_DB} VGROUPS 1;")
+        tdSql.execute(f"USE {CIRC_DB};")
+        # Physical source
+        tdSql.execute("CREATE TABLE circ_base(ts TIMESTAMP, val INT);")
+        tdSql.execute("INSERT INTO circ_base VALUES (1700000000000, 1);")
+        tdSql.execute(
+            "CREATE STABLE circ_src_stb(ts TIMESTAMP, dummy INT) "
+            "TAGS (src_tag NCHAR(20));"
+        )
+        tdSql.execute("CREATE TABLE circ_src USING circ_src_stb TAGS ('origin');")
+        tdSql.execute("INSERT INTO circ_src VALUES (1700000000000, 0);")
+        # v_a: refs physical source
+        tdSql.execute(
+            "CREATE STABLE circ_vstb_a(ts TIMESTAMP, v INT) "
+            "TAGS (tag_a NCHAR(20)) VIRTUAL 1;"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE circ_v_a (v FROM {CIRC_DB}.circ_base.val) "
+            f"USING circ_vstb_a TAGS ({CIRC_DB}.circ_src.src_tag);"
+        )
+        # v_b: refs v_a (chain: v_b -> v_a -> circ_src)
+        tdSql.execute(
+            "CREATE STABLE circ_vstb_b(ts TIMESTAMP, v INT) "
+            "TAGS (tag_b NCHAR(20)) VIRTUAL 1;"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE circ_v_b (v FROM {CIRC_DB}.circ_base.val) "
+            f"USING circ_vstb_b TAGS ({CIRC_DB}.circ_v_a.tag_a);"
+        )
+        # v_c: refs v_b (chain: v_c -> v_b -> v_a -> circ_src)
+        tdSql.execute(
+            "CREATE STABLE circ_vstb_c(ts TIMESTAMP, v INT) "
+            "TAGS (tag_c NCHAR(20)) VIRTUAL 1;"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE circ_v_c (v FROM {CIRC_DB}.circ_base.val) "
+            f"USING circ_vstb_c TAGS ({CIRC_DB}.circ_v_b.tag_b);"
+        )
+        # Column-ref virtual normal tables for column circular ref test
+        tdSql.execute(
+            "CREATE VTABLE circ_col_a(ts TIMESTAMP, "
+            f"v INT FROM {CIRC_DB}.circ_base.val);"
+        )
+        tdSql.execute(
+            "CREATE VTABLE circ_col_b(ts TIMESTAMP, "
+            f"v INT FROM {CIRC_DB}.circ_col_a.v);"
+        )
+
     def teardown_class(cls):
         tdLog.info("=== teardown: dropping databases ===")
-        for db in [PHY_DB, L1_DB, L2_DB, L3_DB, SAME_DB, DEPTH_DB]:
+        for db in [PHY_DB, L1_DB, L2_DB, L3_DB, SAME_DB, DEPTH_DB, CIRC_DB]:
             tdSql.execute(f"DROP DATABASE IF EXISTS {db};")
 
     # ------------------------------------------------------------------
@@ -905,3 +956,126 @@ class TestVtableTagRefMultihop:
             "WHERE tbname = 'l3_east' LIMIT 1;"
         )
         assert rows[0] == ("l3_east", "east", 90)
+
+    # ------------------------------------------------------------------
+    # Test: Circular reference detection via ALTER TAG REF
+    # ------------------------------------------------------------------
+    def test_circular_ref_alter_tag_self(self):
+        """Circular ref: ALTER TAG REF to self is rejected.
+
+        ALTER v_a's tag to reference itself, forming a self-loop.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
+        tdSql.execute(f"USE {CIRC_DB};")
+        tdSql.error(
+            f"ALTER VTABLE circ_v_a SET TAG tag_a = {CIRC_DB}.circ_v_a.tag_a;",
+            expectedErrno=TSDB_CODE_VTABLE_CIRCULAR_REF
+        )
+
+    def test_circular_ref_alter_tag_2node(self):
+        """Circular ref: ALTER creates 2-node cycle (v_a -> v_b -> v_a).
+
+        v_b already refs v_a. ALTER v_a to ref v_b creates a cycle.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
+        tdSql.execute(f"USE {CIRC_DB};")
+        # v_b -> v_a -> circ_src (existing chain)
+        # ALTER v_a to ref v_b would create: v_a -> v_b -> v_a (cycle!)
+        tdSql.error(
+            f"ALTER VTABLE circ_v_a SET TAG tag_a = {CIRC_DB}.circ_v_b.tag_b;",
+            expectedErrno=TSDB_CODE_VTABLE_CIRCULAR_REF
+        )
+
+    def test_circular_ref_alter_tag_3node(self):
+        """Circular ref: ALTER creates 3-node cycle (v_a -> v_c -> v_b -> v_a).
+
+        v_c -> v_b -> v_a -> circ_src. ALTER v_a to ref v_c creates a cycle.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
+        tdSql.execute(f"USE {CIRC_DB};")
+        # v_c -> v_b -> v_a -> circ_src (existing chain)
+        # ALTER v_a to ref v_c would create: v_a -> v_c -> v_b -> v_a (cycle!)
+        tdSql.error(
+            f"ALTER VTABLE circ_v_a SET TAG tag_a = {CIRC_DB}.circ_v_c.tag_c;",
+            expectedErrno=TSDB_CODE_VTABLE_CIRCULAR_REF
+        )
+
+    def test_circular_ref_alter_col_self(self):
+        """Circular ref: ALTER COLUMN REF to self is rejected.
+
+        ALTER circ_col_a's column to reference itself.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
+        tdSql.execute(f"USE {CIRC_DB};")
+        tdSql.error(
+            f"ALTER TABLE {CIRC_DB}.circ_col_a ALTER COLUMN v SET {CIRC_DB}.circ_col_a.v;",
+            expectedErrno=TSDB_CODE_VTABLE_CIRCULAR_REF
+        )
+
+    def test_circular_ref_alter_col_2node(self):
+        """Circular ref: ALTER COLUMN REF creates 2-node cycle.
+
+        circ_col_b refs circ_col_a. ALTER circ_col_a to ref circ_col_b creates cycle.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
+        tdSql.execute(f"USE {CIRC_DB};")
+        # circ_col_b -> circ_col_a -> circ_base (existing)
+        # ALTER circ_col_a to ref circ_col_b -> cycle!
+        tdSql.error(
+            f"ALTER TABLE {CIRC_DB}.circ_col_a ALTER COLUMN v SET {CIRC_DB}.circ_col_b.v;",
+            expectedErrno=TSDB_CODE_VTABLE_CIRCULAR_REF
+        )
+
+    def test_circular_ref_alter_valid(self):
+        """Non-circular ALTER TAG REF should succeed.
+
+        ALTER v_a to reference a different physical source is valid (no cycle).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual
+
+        """
+        tdSql.execute(f"USE {CIRC_DB};")
+        # v_a currently refs circ_src. Changing to ref circ_src again is fine (no cycle).
+        tdSql.execute(
+            f"ALTER VTABLE circ_v_a SET TAG tag_a = {CIRC_DB}.circ_src.src_tag;"
+        )

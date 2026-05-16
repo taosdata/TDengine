@@ -26354,13 +26354,25 @@ static int32_t getChainTableMeta(STranslateContext* pCxt, const char* pDbName, c
   return catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
 }
 
-static int32_t checkRefChainDepthAndCircular(STranslateContext* pCxt, const char* pRefDbName,
+static int32_t checkRefChainDepthAndCircular(STranslateContext* pCxt, const char* pSrcDbName,
+                                             const char* pSrcTableName, const char* pRefDbName,
                                              const char* pRefTableName, const char* pRefColName, bool isTagRef) {
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pMeta = NULL;
   SHashObj*   pVisited = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pVisited) {
     return terrno;
+  }
+
+  // Pre-seed with source table to detect cycles back to the table being created/altered
+  if (pSrcDbName && pSrcTableName) {
+    char    srcKey[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 2];
+    int32_t srcKeyLen = snprintf(srcKey, sizeof(srcKey), "%s.%s", pSrcDbName, pSrcTableName);
+    code = taosHashPut(pVisited, srcKey, srcKeyLen + 1, NULL, 0);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosHashCleanup(pVisited);
+      return code;
+    }
   }
 
   char curDb[TSDB_DB_NAME_LEN];
@@ -26437,12 +26449,14 @@ _return:
   return code;
 }
 
-static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const char* pRefDbName,
+static int32_t checkColRef(STranslateContext* pCxt, const char* pSrcDbName, const char* pSrcTableName,
+                           const char* colName, const char* pRefDbName,
                            const char* pRefTableName, const char* pRefColName, SDataType type, int8_t precision) {
   STableMeta*    pRefTableMeta = NULL;
   int32_t        code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_JRET(refreshGetTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
+  code = refreshGetTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta);
+  PAR_ERR_JRET(code);
 
   if (pRefTableMeta->tableInfo.precision != precision) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
@@ -26482,7 +26496,7 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* colName, const c
   }
 
   if (pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
-    PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pRefDbName, pRefTableName, pRefColName, false));
+    PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pSrcDbName, pSrcTableName, pRefDbName, pRefTableName, pRefColName, false));
   }
 
 _return:
@@ -26490,7 +26504,8 @@ _return:
   return code;
 }
 
-static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbName, char* pRefTableName,
+static int32_t checkTagRef(STranslateContext* pCxt, const char* pSrcDbName, const char* pSrcTableName,
+                           char* tagName, char* pRefDbName, char* pRefTableName,
                            char* pRefColName, SDataType type) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -26527,7 +26542,7 @@ static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbN
   }
 
   if (pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
-    PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pRefDbName, pRefTableName, pRefColName, true));
+    PAR_ERR_JRET(checkRefChainDepthAndCircular(pCxt, pSrcDbName, pSrcTableName, pRefDbName, pRefTableName, pRefColName, true));
   }
 
 _return:
@@ -26570,7 +26585,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     // check ref column exists and check type
     SDataType colType = pStmt->dataType;
     colType.bytes = calcTypeBytes(colType);
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, colType,
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, colType,
                             pTableMeta->tableInfo.precision));
 
     pReq->type = pStmt->dataType.type;
@@ -26792,7 +26807,7 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
   SDataType colType = {0};
   schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
 
-  PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, colType,
+  PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, colType,
                            pTableMeta->tableInfo.precision));
 
   pReq->colName = taosStrdup(pStmt->colName);
@@ -26842,7 +26857,7 @@ static int buildAlterTableTagRef(STranslateContext* pCxt, SAlterTableStmt* pStmt
   SDataType tagType = {0};
   schemaToRefDataType(pSchema, 0, &tagType);
 
-  PAR_ERR_JRET(checkTagRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, tagType));
+  PAR_ERR_JRET(checkTagRef(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName, tagType));
 
   pReq->colName = taosStrdup(pStmt->colName);
   pReq->refDbName = taosStrdup(pStmt->refDbName);
@@ -27784,7 +27799,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       SDataType colType = pColNode->dataType;
       colType.bytes = calcTypeBytes(colType);
       PAR_ERR_JRET(checkColRef(
-          pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
+          pCxt, pStmt->dbName, pStmt->tableName, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
           colType, dbCfg.precision));
     }
     index++;
@@ -27805,7 +27820,8 @@ _return:
 // Check if pValsOfTags contains any tag references (SColumnRefNode), validate them,
 // and replace them with NULL value nodes so buildKVRowForBindTags/buildKVRowForAllTags can proceed.
 // Returns the tag reference info in pTagRefNodes (caller should destroy).
-static int32_t checkAndReplaceTagRefs(STranslateContext* pCxt, SNodeList* pSpecificTags, SNodeList* pValsOfTags,
+static int32_t checkAndReplaceTagRefs(STranslateContext* pCxt, const char* pSrcDbName, const char* pSrcTableName,
+                                      SNodeList* pSpecificTags, SNodeList* pValsOfTags,
                                       STableMeta* pSuperTableMeta, SNodeList** ppTagRefNodes) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pTagRefNodes = NULL;
@@ -27862,7 +27878,7 @@ static int32_t checkAndReplaceTagRefs(STranslateContext* pCxt, SNodeList* pSpeci
       // Validate the tag reference
       SDataType tagType = {0};
       schemaToRefDataType(pSchema, 0, &tagType);
-      PAR_ERR_JRET(checkTagRef(pCxt, (char*)pSchema->name, pColRef->refDbName, pColRef->refTableName,
+      PAR_ERR_JRET(checkTagRef(pCxt, pSrcDbName, pSrcTableName, (char*)pSchema->name, pColRef->refDbName, pColRef->refTableName,
                                pColRef->refColName, tagType));
 
       // Store the tag reference info (with tag name filled in)
@@ -27949,7 +27965,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
               : NULL;
       SDataType colType = {0};
       schemaToRefDataType(pSchema, NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+      PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                colType, pSuperTableMeta->tableInfo.precision));
     }
   } else if (pStmt->pColRefs) {
@@ -27962,7 +27978,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
               : NULL;
       SDataType colType = {0};
       schemaToRefDataType(&pSuperTableMeta->schema[index], NULL != pSchemaExt ? pSchemaExt->typeMod : 0, &colType);
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+      PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                colType, pSuperTableMeta->tableInfo.precision));
       index++;
     }
@@ -27976,7 +27992,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   // Check and extract tag references from pValsOfTags, replacing them with NULL values.
   // Supports both legacy syntax (FROM db.table.tag) and new unified syntax
   // (tag_name FROM db.table.tag, or db.table.tag positional).
-  PAR_ERR_JRET(checkAndReplaceTagRefs(pCxt, pStmt->pSpecificTags, pStmt->pValsOfTags, pSuperTableMeta, &pTagRefNodes));
+  PAR_ERR_JRET(checkAndReplaceTagRefs(pCxt, pStmt->dbName, pStmt->tableName, pStmt->pSpecificTags, pStmt->pValsOfTags, pSuperTableMeta, &pTagRefNodes));
 
   if (NULL != pStmt->pSpecificTags) {
     PAR_ERR_JRET(
