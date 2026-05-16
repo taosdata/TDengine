@@ -529,37 +529,66 @@ class ServiceTest(unittest.TestCase):
         loader.register_service_from_file(config_path)
         return service_name, config_path
 
-    def test_dynamic_execute_prophet_not_implemented(self):
+    def test_dynamic_prophet_service_is_supported(self):
+        """prophet is a supported dynamic algorithm; registering one must succeed and not raise NotImplementedError."""
         import os
+        import json
+        from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
 
         service_name = None
         config_path = None
         try:
-            service_name, config_path = self._register_dynamic_service_for_algo("prophet")
+            config_path = os.path.join(tempfile.gettempdir(), "prophet_model_config.json")
+            service_name = "prophet_model_config"
+            conf_file_content = json.dumps({
+                "algo": "prophet",
+                "best_params": {
+                    "changepoint_prior_scale": 0.05,
+                    "seasonality_mode": "additive"
+                },
+                "freq": "D"
+            })
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(conf_file_content)
+
+            if service_name in loader.services:
+                del loader.services[service_name]
+
+            loader.register_service_from_file(config_path)
             service = loader.get_service(service_name)
             self.assertIsNotNone(service)
-            with self.assertRaisesRegex(NotImplementedError, "Prophet model is not implemented yet"):
-                service.execute()
+            self.assertIsInstance(service, DynamicForecastService)
+            self.assertEqual(service.algo.lower(), "prophet")
         finally:
             if service_name and service_name in loader.services:
                 del loader.services[service_name]
             if config_path and os.path.exists(config_path):
                 os.remove(config_path)
 
-    def test_dynamic_execute_holtwinters_not_implemented(self):
+    def test_dynamic_execute_holtwinters_not_supported(self):
+        """holtwinters is not accepted as a dynamic model algorithm; registration must raise ValueError."""
         import os
 
-        service_name = None
         config_path = None
         try:
-            service_name, config_path = self._register_dynamic_service_for_algo("holtwinters")
-            service = loader.get_service(service_name)
-            self.assertIsNotNone(service)
-            with self.assertRaisesRegex(NotImplementedError, "HoltWinters model is not implemented yet"):
-                service.execute()
+            config_path = os.path.join(tempfile.gettempdir(), "holtwinters_model_config.json")
+            conf_file_content = """
+            {
+              "algo": "holtwinters",
+              "best_params": {
+                "p": 1,
+                "d": 0,
+                "q": 1
+              },
+              "freq": "MS"
+            }
+            """
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(conf_file_content)
+
+            with self.assertRaises(ValueError):
+                loader.register_service_from_file(config_path)
         finally:
-            if service_name and service_name in loader.services:
-                del loader.services[service_name]
             if config_path and os.path.exists(config_path):
                 os.remove(config_path)
 
