@@ -923,7 +923,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     STREAM_CHECK_CONDITION_GOTO(!sStreamReaderInfo->isVtableStream, TDB_CODE_SUCCESS);
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
-      ST_TASK_WLOG("stream reader scan alter ref table %s not exist, %s %"PRIu64, req.tbName, uid);
+      ST_TASK_WLOG("stream reader scan alter ref table %s not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
       code = 0;
       goto end;
     }
@@ -935,7 +935,7 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
-      ST_TASK_WLOG("stream reader scan alter suid table %s not exist, %s %"PRIu64, req.tbName, uid);
+      ST_TASK_WLOG("stream reader scan alter suid table %s not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
       code = 0;
       goto end;
     }
@@ -3774,9 +3774,13 @@ static int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fu
   taosWLockLatch(&pCache->lock);
 
   if (fullScan) {
-    // C2a: atomic full-map replacement.
+    // C2a: atomic full-map replacement. Once swapped in, pCache owns the map;
+    // detach from the local handle so a later failure (cids sync) cannot lead
+    // to a double-destroy via the caller's cleanup path.
     SSHashObj *oldMap = pCache->uid2Result;
     pCache->uid2Result = uid2Result;
+    uid2Result    = NULL;
+    *ppUid2Result = NULL;
     if (oldMap) {
       void *iter = NULL; int32_t it = 0;
       while ((iter = tSimpleHashIterate(oldMap, iter, &it)) != NULL) {
@@ -3791,17 +3795,27 @@ static int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fu
       pCache->uid2Result = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
       if (pCache->uid2Result == NULL) { code = terrno; goto _exit; }
     }
+    // Transfer per-uid entries from uid2Result into pCache->uid2Result. As each
+    // entry is moved we NULL the slot in uid2Result so a later failure path can
+    // safely clean only the entries that have NOT been transferred yet.
     void *iter = NULL; int32_t it = 0;
     while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
-      int64_t uid = *(int64_t *)tSimpleHashGetKey(iter, NULL);
-      SVTableResolveResult *r = *(SVTableResolveResult **)iter;
+      int64_t                uid = *(int64_t *)tSimpleHashGetKey(iter, NULL);
+      SVTableResolveResult **pSlot = (SVTableResolveResult **)iter;
+      SVTableResolveResult  *r     = *pSlot;
+      if (r == NULL) continue;
       SVTableResolveResult **pOld = (SVTableResolveResult **)tSimpleHashGet(pCache->uid2Result, &uid, sizeof(uid));
       if (pOld && *pOld) streamVTableResolveResultDestroy(*pOld);
       int32_t rc = tSimpleHashPut(pCache->uid2Result, &uid, sizeof(uid), &r, POINTER_BYTES);
-      if (rc != 0) { code = rc; goto _exit; }
+      if (rc != 0) {
+        // Put failed: r is still referenced by uid2Result[uid]; leave the slot
+        // non-NULL so the _exit cleanup destroys it together with the rest of
+        // the un-transferred entries.
+        code = rc;
+        goto _exit;
+      }
+      *pSlot = NULL;  // ownership moved to pCache
     }
-    // Detach values from uid2Result (they are now owned by the cache) and free the shell.
-    tSimpleHashCleanup(uid2Result);
   }
 
   // Sync request col/tag cid arrays so refresh hook knows what to re-resolve.
@@ -3831,7 +3845,16 @@ static int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fu
 
 _exit:
   taosWUnLockLatch(&pCache->lock);
-  *ppUid2Result = NULL;
+  if (uid2Result != NULL) {
+    // Either success on the M1 path (all slots NULLed, just free the shell) or
+    // failure that leaves un-transferred entries; let the caller's cleanup
+    // path destroy any remaining values and the shell. Always null the local
+    // ownership to keep semantics symmetric with the fullScan branch above.
+    if (code == 0) {
+      tSimpleHashCleanup(uid2Result);
+      *ppUid2Result = NULL;
+    }
+  }
   return code;
 }
 
@@ -3965,33 +3988,72 @@ static bool tagValueEqual(const STagValue *a, const STagValue *b) {
 #define STREAM_VTB_RECHECK_INTERVAL_MS 1000
 #define STREAM_VTB_RECHECK_SLICE_SIZE  1000
 
-// Re-resolve a slice of the cached uids and diff against existing cache.
-// Returns 0 (col-only diffs collected into changedUids), TSDB_CODE_STREAM_VTB_TAG_CHANGED,
-// or other non-zero for technical errors. Cache lock must be held by caller (write).
-static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
-                                        int64_t walVer, SArray *changedUids) {
-  int32_t                 code       = 0;
-  SSHashObj              *uid2Result = NULL;
-  SArray                 *sliceUids  = NULL;
-  SStreamVTableInfoCache *pCache     = pInfo->vtbCache;
-  if (pCache == NULL) return 0;
+// Throttled hook called at the entry of every WAL meta request.
+// On tag change: returns TSDB_CODE_STREAM_VTB_TAG_CHANGED so caller bails out fast.
+// On col-only change: appends affected uids into rsp->tableBlock as TABLE_BLOCK_ADD.
+// All other cases: returns 0 and lets caller continue normal processing.
+//
+// Locking discipline: the resolver round-trip (RPC + tsem_wait) is expensive
+// and MUST run outside the cache W-latch, otherwise WAL meta processing and
+// the foreground vtable-info request path stall on every recheck tick. The
+// hook therefore splits work into three phases:
+//   1) under lock: throttle check + snapshot of reqColCids/reqTagCids and the
+//      slice uid list, advance the slice cursor, and claim lastCheckMs = now
+//      so concurrent callers see the throttle and skip;
+//   2) without lock: streamResolveVTableRefChain over the snapshot;
+//   3) under lock: diff the resolved result against the live cache and apply
+//      M1-style per-uid updates / fail-fast on tag changes.
+static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
+                                             int64_t walVer, SSTriggerWalNewRsp *pRsp) {
+  if (pInfo == NULL || pInfo->vtbCache == NULL || !pInfo->vtbCache->valid) {
+    return 0;
+  }
+  SStreamVTableInfoCache *pCache = pInfo->vtbCache;
+  int64_t now = taosGetTimestampMs();
+  if (now - pCache->lastCheckMs < STREAM_VTB_RECHECK_INTERVAL_MS) {
+    return 0;
+  }
 
-  // Refill uidSlice snapshot whenever the cursor wraps to 0, so newly registered
-  // vtables (those not yet in uid2Result) are also picked up by the next sweep.
+  int32_t    code         = 0;
+  SArray    *sliceUids    = NULL;
+  SArray    *reqColCids   = NULL;
+  SArray    *reqTagCids   = NULL;
+  SArray    *changedUids  = NULL;
+  SSHashObj *uid2Result   = NULL;
+
+  // ---- Phase 1: snapshot under lock ----
+  taosWLockLatch(&pCache->lock);
+  if (now - pCache->lastCheckMs < STREAM_VTB_RECHECK_INTERVAL_MS) {
+    taosWUnLockLatch(&pCache->lock);
+    return 0;
+  }
+
+  // Refill uidSlice whenever the cursor wraps to 0 so newly registered vtables
+  // (not yet in uid2Result) are picked up by the next sweep.
   if (pCache->sliceCursor == 0) {
     taosArrayClear(pCache->uidSlice);
     SArray *pTableListArray = qStreamGetTableArrayList(pInfo);
-    if (pTableListArray == NULL) { code = terrno; goto _exit; }
+    if (pTableListArray == NULL) {
+      taosWUnLockLatch(&pCache->lock);
+      return terrno;
+    }
     int32_t nAll = (int32_t)taosArrayGetSize(pTableListArray);
     for (int32_t i = 0; i < nAll; ++i) {
       SStreamTableKeyInfo *pKey = taosArrayGetP(pTableListArray, i);
       if (pKey == NULL || pKey->markedDeleted) continue;
-      if (taosArrayPush(pCache->uidSlice, &pKey->uid) == NULL) { code = terrno; goto _exit; }
+      if (taosArrayPush(pCache->uidSlice, &pKey->uid) == NULL) {
+        code = terrno;
+        taosArrayDestroyP(pTableListArray, taosMemFree);
+        goto _unlock_phase1;
+      }
     }
+    taosArrayDestroyP(pTableListArray, taosMemFree);
   }
 
   int32_t total = (int32_t)taosArrayGetSize(pCache->uidSlice);
   if (total == 0) {
+    pCache->lastCheckMs = taosGetTimestampMs();
+    taosWUnLockLatch(&pCache->lock);
     stDebug("vgId:%d %s skip: cache empty", TD_VID(pVnode), __func__);
     return 0;
   }
@@ -3999,21 +4061,44 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
   int32_t begin = pCache->sliceCursor;
   int32_t end   = TMIN(begin + STREAM_VTB_RECHECK_SLICE_SIZE, total);
   sliceUids = taosArrayInit(end - begin, sizeof(int64_t));
-  if (sliceUids == NULL) { code = terrno; goto _exit; }
+  if (sliceUids == NULL) { code = terrno; goto _unlock_phase1; }
   for (int32_t i = begin; i < end; ++i) {
     if (taosArrayPush(sliceUids, taosArrayGet(pCache->uidSlice, i)) == NULL) {
-      code = terrno; goto _exit;
+      code = terrno;
+      goto _unlock_phase1;
     }
   }
+
+  if (pCache->reqColCids != NULL) {
+    reqColCids = taosArrayDup(pCache->reqColCids, NULL);
+    if (reqColCids == NULL) { code = terrno; goto _unlock_phase1; }
+  }
+  if (pCache->reqTagCids != NULL) {
+    reqTagCids = taosArrayDup(pCache->reqTagCids, NULL);
+    if (reqTagCids == NULL) { code = terrno; goto _unlock_phase1; }
+  }
+
+  // Advance cursor and claim the throttle slot so concurrent callers skip.
+  pCache->sliceCursor = (end >= total) ? 0 : end;
+  pCache->lastCheckMs = taosGetTimestampMs();
+
+_unlock_phase1:
+  taosWUnLockLatch(&pCache->lock);
+  if (code != 0) goto _cleanup;
 
   stDebug("vgId:%d %s walVer=%" PRId64 " total=%d slice=[%d,%d)",
           TD_VID(pVnode), __func__, walVer, total, begin, end);
 
+  // ---- Phase 2: resolver round-trip, no lock held ----
   code = streamResolveVTableRefChain(pVnode, NULL, pInfo, walVer, sliceUids,
-                                     pCache->reqColCids, pCache->reqTagCids, &uid2Result);
-  if (code != 0) goto _exit;
+                                     reqColCids, reqTagCids, &uid2Result);
+  if (code != 0) goto _cleanup;
 
-  // Per-uid diff & update — only touch uids in this slice (M1 semantics).
+  changedUids = taosArrayInit(0, sizeof(int64_t));
+  if (changedUids == NULL) { code = terrno; goto _cleanup; }
+
+  // ---- Phase 3: diff + apply under lock ----
+  taosWLockLatch(&pCache->lock);
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(sliceUids); ++i) {
     int64_t uid = *(int64_t *)taosArrayGet(sliceUids, i);
     SVTableResolveResult **ppNew = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
@@ -4021,7 +4106,7 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
     SVTableResolveResult *newRes = (ppNew == NULL) ? NULL : *ppNew;
     SVTableResolveResult *oldRes = (ppOld == NULL) ? NULL : *ppOld;
 
-    // uid skipped by resolver (top-level vtable dropped, H2 fallback) → drop from cache.
+    // uid skipped by resolver (top-level vtable dropped, H2 fallback) -> drop from cache.
     if (newRes == NULL) {
       if (oldRes != NULL) {
         stDebug("vgId:%d %s uid dropped: uid=%" PRId64, TD_VID(pVnode), __func__, uid);
@@ -4031,7 +4116,8 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
       continue;
     }
 
-    // Tag diff — any tag change is fatal.
+    // Tag diff -- any tag change is fatal.
+    bool tagChanged = false;
     if (oldRes != NULL && oldRes->tagMap != NULL) {
       void *it2 = NULL; int32_t i2 = 0;
       while ((it2 = tSimpleHashIterate(oldRes->tagMap, it2, &i2)) != NULL) {
@@ -4043,13 +4129,17 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
         if (!tagValueEqual(oldV, newV)) {
           stDebug("vgId:%d %s tag changed: uid=%" PRId64 " cid=%d", TD_VID(pVnode), __func__,
                   uid, (int32_t)cid);
-          code = TSDB_CODE_STREAM_VTB_TAG_CHANGED;
-          goto _exit;
+          tagChanged = true;
+          break;
         }
       }
     }
+    if (tagChanged) {
+      code = TSDB_CODE_STREAM_VTB_TAG_CHANGED;
+      break;
+    }
 
-    // Col diff — append changed uids.
+    // Col diff -- collect uids that need re-publication.
     bool colChanged = false;
     if (oldRes != NULL && oldRes->colMap != NULL) {
       void *it2 = NULL; int32_t i2 = 0;
@@ -4062,22 +4152,22 @@ static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo
         if (!colResolveItemEqual(oldI, newI)) { colChanged = true; break; }
       }
     }
-    if (colChanged && changedUids != NULL) {
-      if (taosArrayPush(changedUids, &uid) == NULL) { code = terrno; goto _exit; }
+    if (colChanged) {
+      if (taosArrayPush(changedUids, &uid) == NULL) { code = terrno; break; }
     }
 
-    // Replace cache entry with new resolved result; transfer ownership.
+    // Replace cache entry with the freshly resolved result; transfer ownership.
     if (tSimpleHashPut(pCache->uid2Result, &uid, sizeof(uid), &newRes, POINTER_BYTES) != 0) {
-      code = terrno; goto _exit;
+      code = terrno;
+      break;
     }
-    *ppNew = NULL;  // newly-owned by cache, remove from uid2Result to prevent double-free.
+    *ppNew = NULL;  // newly-owned by cache; null the slot to prevent double-free.
     if (oldRes != NULL) streamVTableResolveResultDestroy(oldRes);
   }
+  pCache->lastCheckMs = taosGetTimestampMs();
+  taosWUnLockLatch(&pCache->lock);
 
-  // Advance cursor; wrap to 0 when slice reaches the end.
-  pCache->sliceCursor = (end >= total) ? 0 : end;
-
-_exit:
+_cleanup:
   if (uid2Result != NULL) {
     void *iter = NULL; int32_t it = 0;
     while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
@@ -4087,36 +4177,8 @@ _exit:
     tSimpleHashCleanup(uid2Result);
   }
   taosArrayDestroy(sliceUids);
-  return code;
-}
-
-// Throttled hook called at the entry of every WAL meta request.
-// On tag change: returns TSDB_CODE_STREAM_VTB_TAG_CHANGED so caller bails out fast.
-// On col-only change: appends affected uids into rsp->tableBlock as TABLE_BLOCK_ADD.
-// All other cases: returns 0 and lets caller continue normal processing.
-static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
-                                             int64_t walVer, SSTriggerWalNewRsp *pRsp) {
-  if (pInfo == NULL || pInfo->vtbCache == NULL || !pInfo->vtbCache->valid) {
-    return 0;
-  }
-  SStreamVTableInfoCache *pCache = pInfo->vtbCache;
-  int64_t now = taosGetTimestampMs();
-  if (now - pCache->lastCheckMs < STREAM_VTB_RECHECK_INTERVAL_MS) {
-    return 0;
-  }
-
-  int32_t code = 0;
-  SArray *changedUids = NULL;
-  taosWLockLatch(&pCache->lock);
-  if (now - pCache->lastCheckMs < STREAM_VTB_RECHECK_INTERVAL_MS) {
-    taosWUnLockLatch(&pCache->lock);
-    return 0;
-  }
-  changedUids = taosArrayInit(0, sizeof(int64_t));
-  if (changedUids == NULL) { taosWUnLockLatch(&pCache->lock); return terrno; }
-  code = streamRecheckVTableCache(pVnode, pInfo, walVer, changedUids);
-  pCache->lastCheckMs = taosGetTimestampMs();
-  taosWUnLockLatch(&pCache->lock);
+  taosArrayDestroy(reqColCids);
+  taosArrayDestroy(reqTagCids);
 
   if (code == TSDB_CODE_STREAM_VTB_TAG_CHANGED) {
     stWarn("vgId:%d %s tag changed, abort fast walVer=%" PRId64, TD_VID(pVnode), __func__, walVer);
@@ -4128,7 +4190,7 @@ static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReade
     taosArrayDestroy(changedUids);
     return code;
   }
-  if (pRsp != NULL && taosArrayGetSize(changedUids) > 0) {
+  if (pRsp != NULL && changedUids != NULL && taosArrayGetSize(changedUids) > 0) {
     int32_t rc = addUidListToBlock(changedUids, &pRsp->tableBlock, walVer, &pRsp->totalRows, TABLE_BLOCK_ADD);
     stDebug("vgId:%d %s appended %d changed uids walVer=%" PRId64, TD_VID(pVnode), __func__,
             (int32_t)taosArrayGetSize(changedUids), walVer);
@@ -5540,6 +5602,12 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
   if (vg2Idx == NULL || vg2Ep == NULL) { code = terrno; goto _end; }
 
   // pVnode->config.dbname is always "acctId.dbName"; parse acctId once.
+  // TODO(cross-tenant): the ref target db (w->refDbName) may belong to a
+  // different acctId than the local vnode (e.g. cross-tenant vtable refs).
+  // Looking the catalog vg up with this local acctId would silently return the
+  // wrong vgroup. When cross-tenant vtables are introduced the resolver request
+  // must carry per-item acctId (parsed from the original FQ db name) instead of
+  // hard-coding the local vnode's acctId here.
   int32_t acctId = 0;
   if (sscanf(pVnode->config.dbname, "%d.", &acctId) != 1) {
     code = TSDB_CODE_INVALID_PARA;

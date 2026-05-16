@@ -3989,8 +3989,14 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       case TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST:
       case TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST:
       case TSDB_CODE_STREAM_VTB_REF_TOO_DEEP: {
+        // Fatal vtable chain-resolve errors: propagate as the task error so the
+        // trigger can fail-fast and request a redeploy. The code values above
+        // are guaranteed non-zero, so QUERY_CHECK_CODE always jumps to _end;
+        // we still keep an explicit break to avoid falling through to default
+        // if any of these codes is ever changed to 0 in the future.
         code = pRsp->code;
         QUERY_CHECK_CODE(code, lino, _end);
+        break;
       }
       default: {
         bool addWait = false;

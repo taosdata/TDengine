@@ -529,7 +529,11 @@ int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   pCache->reqColCids  = NULL;
   pCache->reqTagCids  = NULL;
   pCache->uid2Result  = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  // dbVgInfo is touched on the resolver path (vnodeProcessStreamVTableInfoReq)
+  // without holding pCache->lock, and concurrently by streamMaybeRecheckVTableCache
+  // which only protects diff/commit. Use HASH_ENTRY_LOCK so per-bucket access is
+  // safe across these paths.
+  pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pCache->uidSlice    = taosArrayInit(64, sizeof(int64_t));
   pCache->sliceCursor = 0;
   pCache->lastCheckMs = 0;

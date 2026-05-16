@@ -85,3 +85,6 @@ tools/tdgpt/packaging/bin/uv.exe
 skills-lock.json
 debug_coverage/
 build_test/
+
+# superpowers session artifacts (plans/specs) are kept locally, not tracked
+docs/superpowers/
