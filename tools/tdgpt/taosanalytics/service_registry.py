@@ -92,23 +92,20 @@ class ServiceRegistry:
         """ get specified type service """
         all_items = []
         with self._services_lock:
-            service_items = list(self.services.items())
-
-        AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(service_items), hex(id(self.services)))
-
-        for key, val in service_items:
-            if val.type == type_str:
-                try:
-                    one = {
-                        "name": key,
-                        "desc": val.get_desc(),
-                        "params": val.get_params(),
-                        "status": val.get_status(),
-                        'builtins': val.is_builtins
-                    }
-                    all_items.append(one)
-                except AttributeError as e:
-                    AppLogger.error("failed to get service: %s info, reason: %s", key, e)
+            AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(self.services), hex(id(self.services)))
+            for key, val in self.services.items():
+                if val.type == type_str:
+                    try:
+                        one = {
+                            "name": key,
+                            "desc": val.get_desc(),
+                            "params": val.get_params(),
+                            "status": val.get_status(),
+                            'builtins': val.is_builtins
+                        }
+                        all_items.append(one)
+                    except AttributeError as e:
+                        AppLogger.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 

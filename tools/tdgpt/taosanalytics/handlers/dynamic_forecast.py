@@ -27,11 +27,12 @@ class DynamicForecastService(AbstractForecastService):
         algo_name = self.algo.lower()
         AppLogger.info("execute dynamic forecast service:%s, algo:%s", self.name, algo_name)
 
-        if algo_name == 'theta':
-            raise NotImplementedError("Theta model is not implemented yet")
-
-        if algo_name == 'prophet':
-            raise NotImplementedError("Prophet model is not implemented yet")
+        if algo_name in ('theta', 'prophet'):
+            not_implemented_msg = {
+                'theta': "Theta model is not implemented yet",
+                'prophet': "Prophet model is not implemented yet",
+            }
+            raise NotImplementedError(not_implemented_msg[algo_name])
 
         if algo_name != 'arima':
             raise ValueError(f"unsupported algorithm '{algo_name}' in dynamic forecast service")
