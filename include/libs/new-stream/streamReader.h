@@ -45,6 +45,12 @@ typedef struct SStreamVTableInfoCache {
   SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
   SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
   int64_t     lastCheckMs;
+  // Sliced recheck cursor: every throttle tick scans at most
+  // STREAM_VTB_RECHECK_SLICE_SIZE uids from uidSlice[sliceCursor..]; when the
+  // cursor wraps to 0, uidSlice is rebuilt from the current uid2Result keys
+  // so newly-added uids are picked up on the next round.
+  SArray     *uidSlice;       // SArray<int64_t>: snapshot of uids to scan
+  int32_t     sliceCursor;
   bool        valid;
 } SStreamVTableInfoCache;
 

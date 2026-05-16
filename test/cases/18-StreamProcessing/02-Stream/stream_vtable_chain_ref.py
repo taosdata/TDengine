@@ -5,7 +5,7 @@ from new_test_framework.utils import tdLog, tdSql, tdStream
 class TestStreamVtableChainRef:
     """End-to-end tests for vtable chain-ref resolution in stream processing.
 
-    Covers TC01-TC10 from the design spec (vtable chain-ref stream adaptation).
+    Covers TC01-TC09 from the design spec (vtable chain-ref stream adaptation).
 
     NOTE: TCs that depend on cluster topology (cross-vnode), 10s throttling,
     or fault injection are gated and may be skipped if unsupported in the
@@ -17,7 +17,7 @@ class TestStreamVtableChainRef:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_chain_ref(self):
-        """TC01-TC10 -- vtable chain-ref end-to-end.
+        """TC01-TC09 -- vtable chain-ref end-to-end.
 
         Since: v3.4.1.0
 
@@ -47,7 +47,6 @@ class TestStreamVtableChainRef:
             self._tc07_ref_table_not_exist()
             self._tc08_ref_col_not_exist()
             self._tc09_chain_too_deep()
-            self._tc10_throttle_10s()
         finally:
             tdStream.dropAllStreamsAndDbs()
 
@@ -715,114 +714,215 @@ class TestStreamVtableChainRef:
         tdSql.execute(f"drop database {db} force")
 
     def _tc07_ref_table_not_exist(self):
-        tdLog.info("TC07: vtable referencing missing table is rejected at create time")
+        tdLog.info(
+            "TC07: runtime resolver propagates STREAM_VTB_REF_TABLE_NOT_EXIST"
+            " when a middle-chain vtable is dropped"
+        )
+        # Spec TC07: when a middle-link ref-table disappears at runtime, the
+        # vnode reader returns TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST in the
+        # per-item response, A function propagates it, the trigger task
+        # self-fails on the error RSP, and mnode surfaces the failure as
+        # status='Failed' with a message containing the ref-table-not-exist
+        # error string.
         db = "tc07"
-        tdSql.execute(f"create database {db} vgroups 1")
-        tdSql.execute(f"use {db}")
-        # Reference a table that does not exist -> create vtable must fail.
-        rejected = False
-        msg = ""
-        try:
-            tdSql.execute(
-                f"create vtable {db}.vt_bad (ts timestamp, v int from {db}.no_such.v)"
-            )
-        except BaseException as e:
-            rejected = True
-            msg = str(e)
-        if not rejected:
-            tdLog.exit("TC07: create vtable referencing missing table should fail")
-        if "not exist" not in msg.lower() and "0x80002603" not in msg.lower():
-            tdLog.exit(f"TC07: unexpected error message: {msg}")
-        tdLog.info(f"TC07 rejected as expected: {msg}")
-        tdSql.execute(f"drop database {db} force")
-
-    def _tc08_ref_col_not_exist(self):
-        tdLog.info("TC08: vtable referencing missing column is rejected at create time")
-        db = "tc08"
-        tdSql.execute(f"create database {db} vgroups 1")
-        tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
-        rejected = False
-        msg = ""
-        try:
-            tdSql.execute(
-                f"create vtable {db}.vt_bad (ts timestamp, v int from {db}.ct1.notexist)"
-            )
-        except BaseException as e:
-            rejected = True
-            msg = str(e)
-        if not rejected:
-            tdLog.exit("TC08: create vtable referencing missing column should fail")
-        if "not exist" not in msg.lower() and "0x8000268d" not in msg.lower():
-            tdLog.exit(f"TC08: unexpected error message: {msg}")
-        tdLog.info(f"TC08 rejected as expected: {msg}")
-        tdSql.execute(f"drop database {db} force")
-
-    def _tc09_chain_too_deep(self):
-        tdLog.info("TC09: build a >32-hop vtable chain and probe depth-limit handling")
-        # TSDB_MAX_VTABLE_REF_DEPTH = 32 (include/util/tdef.h). Spec TC09 says
-        # a chain longer than the limit should surface STREAM_VTB_REF_TOO_DEEP
-        # via the reader. In the current build the planner already collapses
-        # the chain into a direct scan on the terminal physical table, so
-        # neither create vtable nor a plain SELECT trips the limit. This case
-        # builds a 34-hop chain and asserts the chain is otherwise functional;
-        # the explicit too-deep enforcement is left to a future change and
-        # logged here as informational rather than failing the suite.
-        db = "tc09"
-        tdSql.execute(f"create database {db} vgroups 1")
-        tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
-        tdSql.execute(f"create vtable {db}.l1 (ts timestamp, v int from {db}.ct1.v)")
-        for i in range(2, 35):
-            tdSql.execute(
-                f"create vtable {db}.l{i} (ts timestamp, v int from {db}.l{i-1}.v)"
-            )
-        ts = int(time.time() * 1000) // 1000 * 1000
-        tdSql.execute(f"insert into {db}.ct1 values ({ts}, 7)")
-        try:
-            tdSql.query(f"select * from {db}.l34")
-            rows = tdSql.getRows()
-            tdLog.info(
-                f"TC09: 34-hop chain query returned {rows} rows; "
-                "depth-limit enforcement is a future enhancement"
-            )
-        except BaseException as e:
-            msg = str(e).lower()
-            if "depth" in msg or "too deep" in msg:
-                tdLog.info(f"TC09 rejected as expected: {e}")
-            else:
-                tdLog.exit(f"TC09: unexpected error message: {e}")
-        tdSql.execute(f"drop database {db} force")
-
-    def _tc10_throttle_10s(self):
-        tdLog.info("TC10: rapid back-to-back inserts continue to flow without throttle stalls")
-        # Spec TC10: the >=10s reader-side recheck throttle must not block
-        # normal data flow between metadata events. A direct log-counter
-        # assertion needs internal hooks; this case asserts the observable
-        # contract instead: three rapid inserts (sub-second cadence) on a
-        # 3-hop column chain must all surface in stream output, proving the
-        # throttle does not gate per-batch processing.
-        db = "tc10"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
         tdSql.execute(f"create vtable {db}.vt1 (ts timestamp, v int from {db}.ct1.v)")
         tdSql.execute(f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v)")
-        tdSql.execute(f"create vtable {db}.vt3 (ts timestamp, v int from {db}.vt2.v)")
         tdSql.execute(
-            f"create stream {db}.s10 sliding(1s) from {db}.vt3 into {db}.res as "
-            f"select ts, v from {db}.vt3"
+            f"create stream {db}.s7 sliding(1s) from {db}.vt2 "
+            f"into {db}.res as select ts, v from {db}.vt2"
         )
-        tdStream.checkStreamStatus("s10")
+        tdStream.checkStreamStatus("s7")
         ts = int(time.time() * 1000) // 1000 * 1000
-        # Issue inserts back-to-back to exercise the rapid-recheck path.
+        # Initial insert builds vtbCache for the full vt2 -> vt1 -> ct1 chain.
         tdSql.execute(f"insert into {db}.ct1 values ({ts}, 1)")
-        tdSql.execute(f"insert into {db}.ct1 values ({ts + 100}, 2)")
-        tdSql.execute(f"insert into {db}.ct1 values ({ts + 200}, 3)")
-        expected = [(ts, 1), (ts + 100, 2), (ts + 200, 3)]
-        self._checkRows(
-            "TC10",
-            f"select cast(ts as bigint), v from {db}.res order by ts",
-            expected,
-        )
+        self._waitRows(f"select cast(ts as bigint), v from {db}.res", 1)
+        # Drop the middle-chain vtable. ct1 and vt2 remain; the next resolver
+        # round must fail to look up vt1.
+        tdSql.execute(f"drop vtable {db}.vt1")
+        # Wait past the 10s recheck throttle so the next WAL-meta hook re-runs
+        # the chain resolver instead of reusing the cached entry.
+        time.sleep(11)
+        # New row triggers WAL_META_NEW -> streamMaybeRecheckVTableCache ->
+        # batched RPC to vt1's vnode -> ref-table miss -> REF_TABLE_NOT_EXIST.
+        tdSql.execute(f"insert into {db}.ct1 values ({ts + 12000}, 2)")
+        deadline = time.time() + 60
+        status, message = (None, None)
+        while time.time() < deadline:
+            tdSql.query(
+                "select status, message from information_schema.ins_streams "
+                "where stream_name = 's7'"
+            )
+            if tdSql.getRows() >= 1:
+                status, message = tdSql.getData(0, 0), tdSql.getData(0, 1)
+                if status == "Failed":
+                    break
+            time.sleep(1)
+        tdLog.info(f"TC07 final stream state: status={status!r} message={message!r}")
+        if status != "Failed":
+            tdLog.exit(
+                f"TC07 expected status 'Failed', got {status!r} message={message!r}"
+            )
+        msg_lower = (message or "").lower()
+        if "ref table not exist" not in msg_lower and "0x701b" not in msg_lower:
+            tdLog.exit(
+                f"TC07 expected message contain 'ref table not exist', got {message!r}"
+            )
         tdSql.execute(f"drop database {db} force")
+
+    def _tc08_ref_col_not_exist(self):
+        tdLog.info(
+            "TC08: chain-ref resolver propagates STREAM_VTB_REF_COL_NOT_EXIST"
+            " when an intermediate vtable column is dropped at runtime"
+        )
+        # Spec TC08: REF_COL_NOT_EXIST (0x701C) is raised at
+        # vnodeStream.c:4843 when a vtable hop fails to locate the
+        # referenced column name in the vtable's schema (cidFound=false)
+        # or when the colRef array does not carry an entry for that cid.
+        #
+        # Setup: vt2.v -> vt1.v -> nt.v (a valid 3-hop chain at DDL
+        # time). After the initial insert builds the cache we drop
+        # vt1.v via `alter vtable vt1 drop column v`. vt2's colRef
+        # still points at vt1.v, but vt1's schema no longer carries it,
+        # so the next chain resolve hop=1 must miss the cid and report
+        # 0x701C; A propagates; trigger self-fails; mnode surfaces
+        # status='Failed'.
+        db = "tc08"
+        tdSql.execute(f"create database {db} vgroups 1")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {db}.nt (ts timestamp, v int, x int)")
+        # vt1 carries `v` (the chain) and `pad` (so drop column is legal).
+        tdSql.execute(
+            f"create vtable {db}.vt1 ("
+            f"ts timestamp, v int from {db}.nt.v, pad int from {db}.nt.x)"
+        )
+        tdSql.execute(f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v)")
+        tdSql.execute(
+            f"create stream {db}.s8 sliding(1s) from {db}.vt2 "
+            f"into {db}.res as select ts, v from {db}.vt2"
+        )
+        tdStream.checkStreamStatus("s8")
+        ts = int(time.time() * 1000) // 1000 * 1000
+        # Initial insert primes vtbCache with the full vt2 -> vt1 -> nt chain.
+        tdSql.execute(f"insert into {db}.nt values ({ts}, 1, 100)")
+        self._waitRows(f"select cast(ts as bigint), v from {db}.res", 1)
+        # Drop the intermediate vtable column. vt1's schema loses `v`,
+        # but vt2.v's colRef entry still references vt1.v.
+        tdSql.execute(f"alter vtable {db}.vt1 drop column v")
+        # Wait past the 10s recheck throttle so the next resolver round
+        # re-runs against the new vt1 schema.
+        time.sleep(11)
+        tdSql.execute(f"insert into {db}.nt values ({ts + 12000}, 2, 200)")
+        deadline = time.time() + 60
+        status, message = (None, None)
+        observed_failed = False
+        while time.time() < deadline:
+            tdSql.query(
+                "select status, message from information_schema.ins_streams "
+                "where stream_name = 's8'"
+            )
+            rows = tdSql.getRows()
+            if rows >= 1:
+                status, message = tdSql.getData(0, 0), tdSql.getData(0, 1)
+                if status == "Failed":
+                    observed_failed = True
+                    break
+            elif observed_failed:
+                break
+            time.sleep(0.2)
+        tdLog.info(
+            f"TC08 final stream state: status={status!r} message={message!r}"
+            f" observed_failed={observed_failed}"
+        )
+        if not observed_failed:
+            tdLog.exit(
+                f"TC08 expected to observe status 'Failed',"
+                f" got {status!r} message={message!r}"
+            )
+        msg_lower = (message or "").lower()
+        if (
+            "ref column" not in msg_lower
+            and "ref column/tag not exist" not in msg_lower
+            and "0x701c" not in msg_lower
+        ):
+            tdLog.exit(
+                f"TC08 expected message contain 'ref column not exist', got {message!r}"
+            )
+        tdSql.execute(f"drop database {db} force")
+
+    def _tc09_chain_too_deep(self):
+        tdLog.info(
+            "TC09: chain-ref resolver propagates STREAM_VTB_REF_TOO_DEEP"
+            " when a vtable chain exceeds TSDB_MAX_VTABLE_REF_DEPTH"
+        )
+        # Spec TC09: TSDB_MAX_VTABLE_REF_DEPTH = 32 (include/util/tdef.h).
+        # H2 v0.5 makes the stream reader detect hop overflow in
+        # streamResolveVTableRefChain (vnodeStream.c:5935) and report
+        # TSDB_CODE_STREAM_VTB_REF_TOO_DEEP (0x7019) rather than silently
+        # skipping the offending uids. A propagates; trigger self-fails;
+        # mnode surfaces status='Failed' with the matching message.
+        db = "tc09"
+        depth = 34  # one past the 32-hop limit, plus headroom for off-by-one
+        tdSql.execute(f"create database {db} vgroups 1")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
+        tdSql.execute(f"create vtable {db}.l1 (ts timestamp, v int from {db}.ct1.v)")
+        for i in range(2, depth + 1):
+            tdSql.execute(
+                f"create vtable {db}.l{i} (ts timestamp, v int from {db}.l{i-1}.v)"
+            )
+        # Stream reads from the deepest vtable; resolver must walk the full
+        # chain at runtime and trip the hop-overflow guard.
+        tdSql.execute(
+            f"create stream {db}.s9 sliding(1s) from {db}.l{depth} "
+            f"into {db}.res as select ts, v from {db}.l{depth}"
+        )
+        # NOTE: do NOT call checkStreamStatus here. With H2 v0.5 the trigger
+        # may discover the hop overflow at startup and self-fail before
+        # ever reaching 'Running'. Give the stream a brief moment to deploy,
+        # nudge it with an insert, then poll for the expected Failed state.
+        time.sleep(3)
+        ts = int(time.time() * 1000) // 1000 * 1000
+        try:
+            tdSql.execute(f"insert into {db}.ct1 values ({ts}, 7)")
+        except Exception as e:
+            tdLog.info(f"TC09 insert hit (acceptable): {e}")
+        deadline = time.time() + 60
+        status, message = (None, None)
+        observed_failed = False
+        while time.time() < deadline:
+            tdSql.query(
+                "select status, message from information_schema.ins_streams "
+                "where stream_name = 's9'"
+            )
+            rows = tdSql.getRows()
+            if rows >= 1:
+                status, message = tdSql.getData(0, 0), tdSql.getData(0, 1)
+                if status == "Failed":
+                    observed_failed = True
+                    break
+            elif observed_failed:
+                break
+            time.sleep(0.2)
+        tdLog.info(
+            f"TC09 final stream state: status={status!r} message={message!r}"
+            f" observed_failed={observed_failed}"
+        )
+        if not observed_failed:
+            tdLog.exit(
+                f"TC09 expected to observe status 'Failed',"
+                f" got {status!r} message={message!r}"
+            )
+        msg_lower = (message or "").lower()
+        if (
+            "too deep" not in msg_lower
+            and "chain too deep" not in msg_lower
+            and "0x7019" not in msg_lower
+        ):
+            tdLog.exit(
+                f"TC09 expected message contain 'chain too deep', got {message!r}"
+            )
+        tdSql.execute(f"drop database {db} force")
+

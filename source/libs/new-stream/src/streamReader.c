@@ -530,9 +530,11 @@ int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   pCache->reqTagCids  = NULL;
   pCache->uid2Result  = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pCache->uidSlice    = taosArrayInit(64, sizeof(int64_t));
+  pCache->sliceCursor = 0;
   pCache->lastCheckMs = 0;
   pCache->valid       = false;
-  if (!pCache->uid2Result || !pCache->dbVgInfo) {
+  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice) {
     streamVTableInfoCacheDestroy(pCache);
     return terrno;
   }
@@ -573,6 +575,7 @@ void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
   }
   taosArrayDestroy(pCache->reqColCids);
   taosArrayDestroy(pCache->reqTagCids);
+  taosArrayDestroy(pCache->uidSlice);
   if (pCache->dbVgInfo) {
     void *iter = taosHashIterate(pCache->dbVgInfo, NULL);
     while (iter != NULL) {
@@ -585,6 +588,8 @@ void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
   pCache->reqColCids  = NULL;
   pCache->reqTagCids  = NULL;
   pCache->dbVgInfo    = NULL;
+  pCache->uidSlice    = NULL;
+  pCache->sliceCursor = 0;
   pCache->valid       = false;
 }
 

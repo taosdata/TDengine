@@ -3985,7 +3985,10 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         }
         break;
       }
-      case TSDB_CODE_STREAM_VTB_TAG_CHANGED: {
+      case TSDB_CODE_STREAM_VTB_TAG_CHANGED:
+      case TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST:
+      case TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST:
+      case TSDB_CODE_STREAM_VTB_REF_TOO_DEEP: {
         code = pRsp->code;
         QUERY_CHECK_CODE(code, lino, _end);
       }

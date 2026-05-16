@@ -3409,7 +3409,10 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   {
     int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
     ST_TASK_DLOG("vgId:%d %s hook rc=0x%x ver=%" PRId64, TD_VID(pVnode), __func__, hookRc, resultRsp.ver);
-    if (hookRc == TSDB_CODE_STREAM_VTB_TAG_CHANGED) { code = hookRc; goto end; }
+    // H2 v0.5: any non-zero hook rc (TAG_CHANGED, REF_TABLE_NOT_EXIST,
+    // REF_COL_NOT_EXIST, REF_TOO_DEEP, RPC failure, etc.) is propagated to
+    // the trigger via rsp.code so it can fail-fast and request a redeploy.
+    if (hookRc != 0) { code = hookRc; goto end; }
   }
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo, req->walMetaNewReq.ctime));
 
@@ -3466,7 +3469,8 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   {
     int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
     ST_TASK_DLOG("vgId:%d %s hook rc=0x%x ver=%" PRId64, TD_VID(pVnode), __func__, hookRc, resultRsp.ver);
-    if (hookRc == TSDB_CODE_STREAM_VTB_TAG_CHANGED) { code = hookRc; goto end; }
+    // H2 v0.5: propagate any hook error so trigger fail-fasts.
+    if (hookRc != 0) { code = hookRc; goto end; }
   }
 
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, &resultRsp));
@@ -3990,91 +3994,129 @@ static bool tagValueEqual(const STagValue *a, const STagValue *b) {
   return eq;
 }
 
-// Re-resolve full uid set and diff against existing cache.
+// Sliced re-check tuning: every STREAM_VTB_RECHECK_INTERVAL_MS scans at most
+// STREAM_VTB_RECHECK_SLICE_SIZE uids. A full sweep of N uids therefore takes
+// roughly ceil(N / SLICE_SIZE) * INTERVAL_MS. With INTERVAL=1000 ms and
+// SLICE=1000, up to 1000 uids/sec are verified per vnode.
+#define STREAM_VTB_RECHECK_INTERVAL_MS 1000
+#define STREAM_VTB_RECHECK_SLICE_SIZE  1000
+
+// Re-resolve a slice of the cached uids and diff against existing cache.
 // Returns 0 (col-only diffs collected into changedUids), TSDB_CODE_STREAM_VTB_TAG_CHANGED,
 // or other non-zero for technical errors. Cache lock must be held by caller (write).
 static int32_t streamRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
                                         int64_t walVer, SArray *changedUids) {
-  int32_t                code = 0;
-  SSHashObj             *uid2Result = NULL;
-  SStreamVTableInfoCache *pCache    = pInfo->vtbCache;
+  int32_t                 code       = 0;
+  SSHashObj              *uid2Result = NULL;
+  SArray                 *sliceUids  = NULL;
+  SStreamVTableInfoCache *pCache     = pInfo->vtbCache;
   if (pCache == NULL) return 0;
 
-  stDebug("vgId:%d %s enter: walVer=%" PRId64 " reqCols=%d reqTags=%d oldUidCnt=%d",
+  // Refill uidSlice snapshot whenever the cursor wraps to 0, so newly registered
+  // vtables (those not yet in uid2Result) are also picked up by the next sweep.
+  if (pCache->sliceCursor == 0) {
+    taosArrayClear(pCache->uidSlice);
+    SArray *pTableListArray = qStreamGetTableArrayList(pInfo);
+    if (pTableListArray == NULL) { code = terrno; goto _exit; }
+    int32_t nAll = (int32_t)taosArrayGetSize(pTableListArray);
+    for (int32_t i = 0; i < nAll; ++i) {
+      SStreamTableKeyInfo *pKey = taosArrayGetP(pTableListArray, i);
+      if (pKey == NULL || pKey->markedDeleted) continue;
+      if (taosArrayPush(pCache->uidSlice, &pKey->uid) == NULL) { code = terrno; goto _exit; }
+    }
+  }
+
+  int32_t total = (int32_t)taosArrayGetSize(pCache->uidSlice);
+  if (total == 0) {
+    stDebug("vgId:%d %s skip: cache empty", TD_VID(pVnode), __func__);
+    return 0;
+  }
+
+  int32_t begin = pCache->sliceCursor;
+  int32_t end   = TMIN(begin + STREAM_VTB_RECHECK_SLICE_SIZE, total);
+  sliceUids = taosArrayInit(end - begin, sizeof(int64_t));
+  if (sliceUids == NULL) { code = terrno; goto _exit; }
+  for (int32_t i = begin; i < end; ++i) {
+    if (taosArrayPush(sliceUids, taosArrayGet(pCache->uidSlice, i)) == NULL) {
+      code = terrno; goto _exit;
+    }
+  }
+
+  stDebug("vgId:%d %s enter: walVer=%" PRId64 " reqCols=%d reqTags=%d total=%d slice=[%d,%d)",
           TD_VID(pVnode), __func__, walVer,
           (int32_t)taosArrayGetSize(pCache->reqColCids),
-          (int32_t)taosArrayGetSize(pCache->reqTagCids),
-          pCache->uid2Result ? tSimpleHashGetSize(pCache->uid2Result) : 0);
+          (int32_t)taosArrayGetSize(pCache->reqTagCids), total, begin, end);
 
-  code = streamResolveVTableRefChain(pVnode, NULL, pInfo, walVer, NULL,
+  code = streamResolveVTableRefChain(pVnode, NULL, pInfo, walVer, sliceUids,
                                      pCache->reqColCids, pCache->reqTagCids, &uid2Result);
   stDebug("vgId:%d %s resolve done: code=0x%x newUidCnt=%d", TD_VID(pVnode), __func__, code,
           uid2Result ? tSimpleHashGetSize(uid2Result) : 0);
-  if (code != 0) return code;
+  if (code != 0) goto _exit;
 
-  // Diff against existing cache.
-  if (pCache->uid2Result != NULL) {
-    void *iter = NULL; int32_t it = 0;
-    while ((iter = tSimpleHashIterate(pCache->uid2Result, iter, &it)) != NULL) {
-      int64_t uid = *(int64_t *)tSimpleHashGetKey(iter, NULL);
-      SVTableResolveResult *oldRes = *(SVTableResolveResult **)iter;
-      SVTableResolveResult **ppNew = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
-      if (ppNew == NULL || *ppNew == NULL) continue;
-      SVTableResolveResult *newRes = *ppNew;
+  // Per-uid diff & update — only touch uids in this slice (M1 semantics).
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(sliceUids); ++i) {
+    int64_t uid = *(int64_t *)taosArrayGet(sliceUids, i);
+    SVTableResolveResult **ppNew = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
+    SVTableResolveResult **ppOld = (SVTableResolveResult **)tSimpleHashGet(pCache->uid2Result, &uid, sizeof(uid));
+    SVTableResolveResult *newRes = (ppNew == NULL) ? NULL : *ppNew;
+    SVTableResolveResult *oldRes = (ppOld == NULL) ? NULL : *ppOld;
 
-      // Tag diff first — any tag change is fatal.
-      if (oldRes->tagMap != NULL) {
-        void *it2 = NULL; int32_t i2 = 0;
-        while ((it2 = tSimpleHashIterate(oldRes->tagMap, it2, &i2)) != NULL) {
-          col_id_t cid = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
-          STagValue *oldV = *(STagValue **)it2;
-          STagValue **ppNewV = (newRes->tagMap == NULL) ? NULL :
-                               (STagValue **)tSimpleHashGet(newRes->tagMap, &cid, sizeof(cid));
-          STagValue *newV = (ppNewV == NULL) ? NULL : *ppNewV;
-          if (!tagValueEqual(oldV, newV)) {
-            stDebug("vgId:%d %s tag changed: uid=%" PRId64 " cid=%d", TD_VID(pVnode), __func__,
-                    uid, (int32_t)cid);
-            code = TSDB_CODE_STREAM_VTB_TAG_CHANGED;
-            goto _exit;
-          }
+    // uid skipped by resolver (top-level vtable dropped, H2 fallback) → drop from cache.
+    if (newRes == NULL) {
+      if (oldRes != NULL) {
+        stDebug("vgId:%d %s uid dropped: uid=%" PRId64, TD_VID(pVnode), __func__, uid);
+        streamVTableResolveResultDestroy(oldRes);
+        tSimpleHashRemove(pCache->uid2Result, &uid, sizeof(uid));
+      }
+      continue;
+    }
+
+    // Tag diff — any tag change is fatal.
+    if (oldRes != NULL && oldRes->tagMap != NULL) {
+      void *it2 = NULL; int32_t i2 = 0;
+      while ((it2 = tSimpleHashIterate(oldRes->tagMap, it2, &i2)) != NULL) {
+        col_id_t cid = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
+        STagValue *oldV = *(STagValue **)it2;
+        STagValue **ppNewV = (newRes->tagMap == NULL) ? NULL :
+                             (STagValue **)tSimpleHashGet(newRes->tagMap, &cid, sizeof(cid));
+        STagValue *newV = (ppNewV == NULL) ? NULL : *ppNewV;
+        if (!tagValueEqual(oldV, newV)) {
+          stDebug("vgId:%d %s tag changed: uid=%" PRId64 " cid=%d", TD_VID(pVnode), __func__,
+                  uid, (int32_t)cid);
+          code = TSDB_CODE_STREAM_VTB_TAG_CHANGED;
+          goto _exit;
         }
       }
+    }
 
-      // Col diff — only changed uids are appended to changedUids.
-      bool colChanged = false;
-      if (oldRes->colMap != NULL) {
-        void *it2 = NULL; int32_t i2 = 0;
-        while ((it2 = tSimpleHashIterate(oldRes->colMap, it2, &i2)) != NULL) {
-          col_id_t cid = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
-          SColResolveItem *oldI = *(SColResolveItem **)it2;
-          SColResolveItem **ppNewI = (newRes->colMap == NULL) ? NULL :
-                                     (SColResolveItem **)tSimpleHashGet(newRes->colMap, &cid, sizeof(cid));
-          SColResolveItem *newI = (ppNewI == NULL) ? NULL : *ppNewI;
-          if (!colResolveItemEqual(oldI, newI)) { colChanged = true; break; }
-        }
-      }
-      if (colChanged && changedUids != NULL) {
-        stDebug("vgId:%d %s col changed: uid=%" PRId64, TD_VID(pVnode), __func__, uid);
-        if (taosArrayPush(changedUids, &uid) == NULL) { code = terrno; goto _exit; }
+    // Col diff — append changed uids.
+    bool colChanged = false;
+    if (oldRes != NULL && oldRes->colMap != NULL) {
+      void *it2 = NULL; int32_t i2 = 0;
+      while ((it2 = tSimpleHashIterate(oldRes->colMap, it2, &i2)) != NULL) {
+        col_id_t cid = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
+        SColResolveItem *oldI = *(SColResolveItem **)it2;
+        SColResolveItem **ppNewI = (newRes->colMap == NULL) ? NULL :
+                                   (SColResolveItem **)tSimpleHashGet(newRes->colMap, &cid, sizeof(cid));
+        SColResolveItem *newI = (ppNewI == NULL) ? NULL : *ppNewI;
+        if (!colResolveItemEqual(oldI, newI)) { colChanged = true; break; }
       }
     }
+    if (colChanged && changedUids != NULL) {
+      stDebug("vgId:%d %s col changed: uid=%" PRId64, TD_VID(pVnode), __func__, uid);
+      if (taosArrayPush(changedUids, &uid) == NULL) { code = terrno; goto _exit; }
+    }
+
+    // Replace cache entry with new resolved result; transfer ownership.
+    if (tSimpleHashPut(pCache->uid2Result, &uid, sizeof(uid), &newRes, POINTER_BYTES) != 0) {
+      code = terrno; goto _exit;
+    }
+    *ppNew = NULL;  // newly-owned by cache, remove from uid2Result to prevent double-free.
+    if (oldRes != NULL) streamVTableResolveResultDestroy(oldRes);
   }
 
-  // Atomic full replacement (C2a).
-  {
-    SSHashObj *oldMap = pCache->uid2Result;
-    pCache->uid2Result = uid2Result;
-    uid2Result = NULL;
-    if (oldMap != NULL) {
-      void *iter = NULL; int32_t it = 0;
-      while ((iter = tSimpleHashIterate(oldMap, iter, &it)) != NULL) {
-        SVTableResolveResult **pp = (SVTableResolveResult **)iter;
-        if (pp && *pp) streamVTableResolveResultDestroy(*pp);
-      }
-      tSimpleHashCleanup(oldMap);
-    }
-    pCache->valid = true;
-  }
+  // Advance cursor; wrap to 0 when slice reaches the end.
+  pCache->sliceCursor = (end >= total) ? 0 : end;
 
 _exit:
   if (uid2Result != NULL) {
@@ -4085,6 +4127,7 @@ _exit:
     }
     tSimpleHashCleanup(uid2Result);
   }
+  taosArrayDestroy(sliceUids);
   return code;
 }
 
@@ -4102,7 +4145,7 @@ static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReade
   }
   SStreamVTableInfoCache *pCache = pInfo->vtbCache;
   int64_t now = taosGetTimestampMs();
-  if (now - pCache->lastCheckMs < 10 * 1000) {
+  if (now - pCache->lastCheckMs < STREAM_VTB_RECHECK_INTERVAL_MS) {
     stDebug("vgId:%d %s skip throttled: now=%" PRId64 " lastCheckMs=%" PRId64 " walVer=%" PRId64,
             TD_VID(pVnode), __func__, now, pCache->lastCheckMs, walVer);
     return 0;
@@ -4114,7 +4157,7 @@ static int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReade
   int32_t code = 0;
   SArray *changedUids = NULL;
   taosWLockLatch(&pCache->lock);
-  if (now - pCache->lastCheckMs < 10 * 1000) {
+  if (now - pCache->lastCheckMs < STREAM_VTB_RECHECK_INTERVAL_MS) {
     taosWUnLockLatch(&pCache->lock);
     stDebug("vgId:%d %s skip throttled (post-lock): lastCheckMs=%" PRId64, TD_VID(pVnode),
             __func__, pCache->lastCheckMs);
@@ -4287,7 +4330,11 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
 
     SVTableResolveResult **pp = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uidVal, sizeof(uidVal));
     if (pp == NULL || *pp == NULL) {
-      code = TSDB_CODE_INVALID_PARA;
+      // H2 v0.5: A returned 0 but the uid has no entry in uid2Result. This
+      // happens only when the top-level uid was missing from local meta
+      // (vtable dropped concurrently). PSEUDO_COL is single-uid and has no
+      // partial-success semantic, so propagate as REF_TABLE_NOT_EXIST.
+      code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
       goto end;
     }
     pRes = *pp;
@@ -5052,15 +5099,19 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
           colCids == NULL ? -1 : (int32_t)taosArrayGetSize(colCids),
           tagCids == NULL ? 0  : (int32_t)taosArrayGetSize(tagCids));
 
+  // H2 v0.5: top-level vtable uid not present in local meta (concurrently
+  // dropped) or entry type is not a vtable. Treat as a soft skip: log a
+  // warning and return 0 without producing any uid2Result entry. The caller
+  // (streamResolveVTableRefChain seed loop) sees rc==0 and simply continues;
+  // downstream consumers that strictly require this uid (e.g. PSEUDO_COL
+  // single-uid path) detect the missing entry and raise the error.
   if (metaReaderGetTableEntryByUid(&mr, uid) != 0) {
-    stDebug("vgId:%d %s uid=%" PRId64 " META_NOT_FOUND -> skip", TD_VID(pVnode), __func__, uid);
-    code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+    stWarn("vgId:%d %s uid=%" PRId64 " META_NOT_FOUND -> H2 skip", TD_VID(pVnode), __func__, uid);
     goto _end;
   }
   if (mr.me.type != TSDB_VIRTUAL_NORMAL_TABLE && mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
-    stDebug("vgId:%d %s uid=%" PRId64 " type=%d not vtable -> skip",
-            TD_VID(pVnode), __func__, uid, mr.me.type);
-    code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+    stWarn("vgId:%d %s uid=%" PRId64 " type=%d not vtable -> H2 skip",
+           TD_VID(pVnode), __func__, uid, mr.me.type);
     goto _end;
   }
 
@@ -5444,8 +5495,8 @@ static int32_t streamProcessVgResolveRsp(void *param, SDataBuf *pMsg, int32_t co
 // arrays so we can reorder responses back to the caller's original layout.
 //
 // Return value: 0 -> all items in this group filled successfully;
-//              != 0 -> RPC failed; whole-group failure handled by the caller
-//              (mark every uid in indexList as skipped).
+//              != 0 -> RPC failed; H2 v0.5 strict: caller propagates the error
+//              (no per-uid skipping on transport failure).
 static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, int32_t vgId,
                                          int64_t ver, SArray *batch, SArray *indexList,
                                          SArray *outRspItems) {
@@ -5547,15 +5598,16 @@ _end:
 // mnode. NULL means no cache (every miss goes to mnode).
 //
 // outRspItems must be pre-sized with batch.size() default-zero entries; this
-// function fills them in place. Per-group RPC failure (non-OOM) marks every uid
-// in that group as skipped via *pPerVgFail; callers translate that into the
-// existing skipped-uid bookkeeping.
+// function fills them in place.
 //
-// Returns 0 on success (per-group failures are reported via pPerVgFail/skipped),
-// non-zero only on OOM/structural errors that abort the whole resolution.
+// H2 v0.5 strict: any per-vg routing/RPC failure is propagated upward as the
+// return value. Per-item business errors are still reported through
+// outRspItems[i].code so the caller can include the originating uid/cid in
+// its log; the caller (streamResolveVTableRefChain) decides how to react.
+//
+// Returns 0 on success; non-zero on OOM, routing, or RPC failure.
 static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *pCache,
-                                        int64_t ver, SArray *batch, SArray *outRspItems,
-                                        SHashObj *skipped) {
+                                        int64_t ver, SArray *batch, SArray *outRspItems) {
   int32_t   code     = 0;
   SHashObj *vg2Idx   = NULL;  // key: int32_t vgId, value: SArray<int32_t>* (positions)
   SHashObj *vg2Ep    = NULL;  // key: int32_t vgId, value: SEpSet
@@ -5579,7 +5631,9 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     goto _end;
   }
 
-  // 1. Route each work-item to its target vgId (skip on routing failure).
+  // 1. Route each work-item to its target vgId. Any routing failure is reported
+  //    upward (H2 v0.5 strict): only top-level uid-not-exist is tolerated, and
+  //    that is filtered before reaching this function.
   for (int32_t i = 0; i < n; ++i) {
     SResolveWorkItem *w = taosArrayGet(batch, i);
 
@@ -5590,10 +5644,10 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     bool       fromCache = false;
     int32_t    rc = streamGetOrFetchDbVgInfo(pVnode, pCache, dbFName, &pRsp, &fromCache);
     if (rc != 0) {
-      if (rc == TSDB_CODE_OUT_OF_MEMORY) { code = rc; goto _end; }
-      (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid),
-                        &w->originVtbUid, sizeof(w->originVtbUid));
-      continue;
+      stError("vgId:%d %s uid=%" PRId64 " getDbVgInfo db=%s rc=0x%x -> propagate",
+              TD_VID(pVnode), __func__, w->originVtbUid, dbFName, rc);
+      code = rc;
+      goto _end;
     }
 
     int32_t vgId  = 0;
@@ -5604,9 +5658,10 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
       taosMemoryFree(pRsp);
     }
     if (rc != 0) {
-      (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid),
-                        &w->originVtbUid, sizeof(w->originVtbUid));
-      continue;
+      stError("vgId:%d %s uid=%" PRId64 " routeTableToVg db=%s tb=%s rc=0x%x -> propagate",
+              TD_VID(pVnode), __func__, w->originVtbUid, dbFName, w->refTableName, rc);
+      code = rc;
+      goto _end;
     }
 
     SArray **ppList = (SArray **)taosHashGet(vg2Idx, &vgId, sizeof(vgId));
@@ -5627,7 +5682,8 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     if (taosArrayPush(pList, &i) == NULL) { code = terrno; goto _end; }
   }
 
-  // 2. Issue one RPC per vg group.
+  // 2. Issue one RPC per vg group. Any per-vg RPC failure is propagated up
+  //    immediately (H2 v0.5 strict, no per-uid skip on transport failure).
   void *pIter = taosHashIterate(vg2Idx, NULL);
   while (pIter != NULL) {
     SArray  *pList   = *(SArray **)pIter;
@@ -5655,9 +5711,10 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
         SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, pos);
         int32_t one = vnodeResolveOneHop(pVnode, &q, dst);
         if (one != 0) {
+          // Local fast-path errors are propagated via dst->code. The outer
+          // loop in streamResolveVTableRefChain will treat any non-zero
+          // dst->code as a propagated business error and abort the round.
           dst->code = one;
-          // OOM aborts the whole resolution; other per-item errors are
-          // recorded in dst->code and treated as skipped by the caller.
           if (one == TSDB_CODE_OUT_OF_MEMORY) { rc = one; break; }
         }
       }
@@ -5667,19 +5724,11 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     stTrace("vgId:%d %s per-vg done: targetVgId=%d items=%d rc=0x%x local=%d", TD_VID(pVnode),
             __func__, vgId, (int32_t)taosArrayGetSize(pList), rc, vgId == TD_VID(pVnode));
     if (rc != 0) {
-      if (rc == TSDB_CODE_OUT_OF_MEMORY) {
-        taosHashCancelIterate(vg2Idx, pIter);
-        code = rc;
-        goto _end;
-      }
-      // Whole-group RPC failure: mark every uid in this group as skipped.
-      int32_t cnt = (int32_t)taosArrayGetSize(pList);
-      for (int32_t j = 0; j < cnt; ++j) {
-        int32_t           pos = *(int32_t *)taosArrayGet(pList, j);
-        SResolveWorkItem *w   = taosArrayGet(batch, pos);
-        (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid),
-                          &w->originVtbUid, sizeof(w->originVtbUid));
-      }
+      stError("vgId:%d %s per-vg RPC failed: targetVgId=%d items=%d rc=0x%x -> propagate",
+              TD_VID(pVnode), __func__, vgId, (int32_t)taosArrayGetSize(pList), rc);
+      taosHashCancelIterate(vg2Idx, pIter);
+      code = rc;
+      goto _end;
     }
     pIter = taosHashIterate(vg2Idx, pIter);
   }
@@ -5701,9 +5750,13 @@ _end:
 // Function A: drive multi-hop chain resolution for a batch of vtable uids on the
 // triggering vnode. Cross-vgId version: groups each batch by target vgId, then
 // dispatches one TDMT_VND_VTABLE_REF_RESOLVE RPC per group via streamCallResolveBatched.
-//   - per-uid local failure (table missing / cid missing / chain too deep) -> uid skipped
-//   - per-item failure inside response (r->code != 0) -> whole-uid skipped
-//   - per-vg RPC failure -> all uids in that vg group skipped (only OOM bubbles up)
+//
+// H2 v0.5 strict error policy:
+//   - top-level uid not in local meta (or not a vtable type) -> warn + skip
+//     that uid; function returns 0 and uid simply has no entry in *ppUid2Result.
+//   - any other error (mid-chain table/col/tag missing, RPC failure, OOM,
+//     hop > MAX_HOPS, ref-triple inconsistency) -> A returns the underlying
+//     errCode; caller (reader -> trigger -> mnode) propagates and fail-fasts.
 // pCache (optional): caches db routing info (SUseDbRsp) across calls.
 // pReaderInfo (optional): when vtbUids is NULL/empty, all live uids are pulled from
 //                          qStreamGetTableArrayList(pReaderInfo). If both are NULL/empty
@@ -5720,7 +5773,7 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   SArray    *batch        = NULL;
   SArray    *rspItems     = NULL;
   SSHashObj *uid2Result   = NULL;
-  SHashObj  *skipped      = NULL;
+
   SArray    *fullUids     = NULL;
   SArray    *pTableListArray = NULL;
 
@@ -5773,41 +5826,39 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   uid2Result = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   if (uid2Result == NULL) { code = terrno; goto _end; }
 
-  skipped = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (skipped == NULL) { code = terrno; goto _end; }
-
   workList = taosArrayInit(64, sizeof(SResolveWorkItem));
   if (workList == NULL) { code = terrno; goto _end; }
 
-  // 1. seed work-list
+  // 1. seed work-list. H2 v0.5: streamPushInitialWorkItemsForUid swallows
+  //    top-level uid-not-exist (warn + return 0 without entry); any other
+  //    error (col/tag not in ref triple, OOM) is propagated upward so the
+  //    caller (reader -> trigger -> mnode) can fail-fast and trigger a
+  //    redeploy.
   int32_t nUid = (int32_t)taosArrayGetSize(vtbUids);
   for (int32_t i = 0; i < nUid; ++i) {
     int64_t uid = *(int64_t *)taosArrayGet(vtbUids, i);
     int32_t rc  = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, workList, uid2Result);
-    if (rc != 0) {
-      if (rc == TSDB_CODE_OUT_OF_MEMORY) { code = rc; goto _end; }
-      stDebug("vgId:%d %s seed uid=%" PRId64 " push rc=0x%x -> SKIPPED", TD_VID(pVnode), __func__, uid, rc);
-      (void)taosHashPut(skipped, &uid, sizeof(uid), &uid, sizeof(uid));
-    }
+    if (rc == 0) continue;
+    stError("vgId:%d %s seed uid=%" PRId64 " push rc=0x%x -> propagate (strict)",
+            TD_VID(pVnode), __func__, uid, rc);
+    code = rc;
+    goto _end;
   }
-  stDebug("vgId:%d %s after seed: workListSz=%d uid2ResultSz=%d skippedSz=%d",
+  stDebug("vgId:%d %s after seed: workListSz=%d uid2ResultSz=%d",
           TD_VID(pVnode), __func__,
           (int32_t)taosArrayGetSize(workList),
-          tSimpleHashGetSize(uid2Result),
-          taosHashGetSize(skipped));
+          tSimpleHashGetSize(uid2Result));
 
   // 2. main hop loop
   for (int32_t hop = 0; hop < STREAM_VTB_MAX_HOPS; ++hop) {
     int32_t cur = (int32_t)taosArrayGetSize(workList);
-    stDebug("vgId:%d %s hop=%d workListSz=%d skippedSz=%d", TD_VID(pVnode), __func__,
-            hop, cur, taosHashGetSize(skipped));
+    stDebug("vgId:%d %s hop=%d workListSz=%d", TD_VID(pVnode), __func__, hop, cur);
     if (cur == 0) break;
 
     batch = taosArrayInit(cur, sizeof(SResolveWorkItem));
     if (batch == NULL) { code = terrno; goto _end; }
     for (int32_t i = 0; i < cur; ++i) {
       SResolveWorkItem *w = taosArrayGet(workList, i);
-      if (taosHashGet(skipped, &w->originVtbUid, sizeof(w->originVtbUid)) != NULL) continue;
       if (taosArrayPush(batch, w) == NULL) { code = terrno; goto _end; }
     }
     if (taosArrayGetSize(batch) == 0) {
@@ -5819,10 +5870,9 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
     rspItems = taosArrayInit(taosArrayGetSize(batch), sizeof(SVTableRefResolveRspItem));
     if (rspItems == NULL) { code = terrno; goto _end; }
 
-    int32_t rc = streamCallResolveBatched(pVnode, pCache, ver, batch, rspItems, skipped);
+    int32_t rc = streamCallResolveBatched(pVnode, pCache, ver, batch, rspItems);
     if (rc != 0) {
-      // Only OOM/structural errors bubble up; per-vg RPC failures already mark
-      // their uids in `skipped` inside streamCallResolveBatched.
+      // H2 v0.5: any error (OOM, routing, RPC) propagates immediately.
       code = rc;
       goto _end;
     }
@@ -5836,18 +5886,14 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
       SVTableRefResolveRspItem *r = taosArrayGet(rspItems, i);
 
       if (r->code != 0) {
-        stDebug("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d rspCode=0x%x -> SKIPPED uid",
+        // H2 v0.5: any per-item business error (mid-chain ref-table missing,
+        // ref-col missing, tag changed, etc.) is propagated upward.
+        stError("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d rspCode=0x%x -> propagate",
                 TD_VID(pVnode), __func__, hop, w->originVtbUid, w->kind, w->originCid, r->code);
-        (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid), &w->originVtbUid, sizeof(w->originVtbUid));
+        int32_t rspCode = r->code;
         taosMemoryFreeClear(r->tagData);
-        continue;
-      }
-      // already in skip list (race from earlier failure on same uid)
-      if (taosHashGet(skipped, &w->originVtbUid, sizeof(w->originVtbUid)) != NULL) {
-        stDebug("vgId:%d %s hop=%d uid=%" PRId64 " kind=%d cid=%d already-skipped, drop",
-                TD_VID(pVnode), __func__, hop, w->originVtbUid, w->kind, w->originCid);
-        taosMemoryFreeClear(r->tagData);
-        continue;
+        code = rspCode;
+        goto _end;
       }
 
       if (r->terminated) {
@@ -5911,36 +5957,23 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
     nextWorkList = NULL;
   }
 
-  // 3. hop overflow: any leftover work-items belong to chains that exceeded MAX_HOPS
+  // 3. hop overflow: any leftover work-items mean the chain exceeded MAX_HOPS.
+  //    H2 v0.5: report TSDB_CODE_STREAM_VTB_REF_TOO_DEEP rather than silently
+  //    skipping the offending uids.
   if (workList != NULL) {
     int32_t leftover = (int32_t)taosArrayGetSize(workList);
     if (leftover > 0) {
-      stDebug("vgId:%d %s HOP_OVERFLOW leftover=%d -> mark uids skipped",
+      for (int32_t i = 0; i < leftover; ++i) {
+        SResolveWorkItem *w = taosArrayGet(workList, i);
+        stError("vgId:%d %s OVERFLOW uid=%" PRId64 " kind=%d cid=%d ref=%s.%s.%s",
+                TD_VID(pVnode), __func__, w->originVtbUid, w->kind, w->originCid,
+                w->refDbName, w->refTableName, w->refColName);
+      }
+      stError("vgId:%d %s HOP_OVERFLOW leftover=%d -> propagate TOO_DEEP",
               TD_VID(pVnode), __func__, leftover);
+      code = TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
+      goto _end;
     }
-    for (int32_t i = 0; i < leftover; ++i) {
-      SResolveWorkItem *w = taosArrayGet(workList, i);
-      stDebug("vgId:%d %s OVERFLOW uid=%" PRId64 " kind=%d cid=%d ref=%s.%s.%s",
-              TD_VID(pVnode), __func__, w->originVtbUid, w->kind, w->originCid,
-              w->refDbName, w->refTableName, w->refColName);
-      (void)taosHashPut(skipped, &w->originVtbUid, sizeof(w->originVtbUid), &w->originVtbUid, sizeof(w->originVtbUid));
-    }
-  }
-
-  // 4. drop partial entries for any skipped uid
-  void *pIter = taosHashIterate(skipped, NULL);
-  while (pIter != NULL) {
-    int64_t                uid    = *(int64_t *)pIter;
-    SVTableResolveResult **ppRes  = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
-    if (ppRes != NULL && *ppRes != NULL) {
-      stDebug("vgId:%d %s drop partial uid=%" PRId64 " (had colMapSz=%d tagMapSz=%d)",
-              TD_VID(pVnode), __func__, uid,
-              tSimpleHashGetSize((*ppRes)->colMap),
-              tSimpleHashGetSize((*ppRes)->tagMap));
-      streamVTableResolveResultDestroy(*ppRes);
-      (void)tSimpleHashRemove(uid2Result, &uid, sizeof(uid));
-    }
-    pIter = taosHashIterate(skipped, pIter);
   }
 
   // Final dump: per-uid colMap/tagMap contents.
@@ -5976,10 +6009,9 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   uid2Result    = NULL;
 
 _end:
-  stDebug("vgId:%d %s exit: code=0x%x outUidCnt=%d skipped=%d", TD_VID(pVnode), __func__, code,
+  stDebug("vgId:%d %s exit: code=0x%x outUidCnt=%d", TD_VID(pVnode), __func__, code,
           uid2Result ? tSimpleHashGetSize(uid2Result) :
-          (*ppUid2Result ? tSimpleHashGetSize(*ppUid2Result) : 0),
-          skipped ? taosHashGetSize(skipped) : 0);
+          (*ppUid2Result ? tSimpleHashGetSize(*ppUid2Result) : 0));
   if (fullUids        != NULL) taosArrayDestroy(fullUids);
   if (pTableListArray != NULL) taosArrayDestroyP(pTableListArray, taosMemFree);
   if (workList     != NULL) taosArrayDestroy(workList);
@@ -5993,7 +6025,6 @@ _end:
     }
     taosArrayDestroy(rspItems);
   }
-  if (skipped != NULL) taosHashCleanup(skipped);
   if (uid2Result != NULL) {
     void *p = NULL; int32_t it = 0;
     while ((p = tSimpleHashIterate(uid2Result, p, &it)) != NULL) {
