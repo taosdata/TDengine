@@ -1,0 +1,36 @@
+### itag-01 POS
+SQL: SELECT DISTINCT host, region FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY host
+RESULT
+h1|us
+h2|eu
+---
+### itag-02 POS
+SQL: SELECT AVG(usage) FROM {I_TAG}.{I_TAG_DB}.cpu PARTITION BY host ORDER BY host
+RESULT
+40
+15
+---
+### i04-01 POS
+SQL: SELECT COUNT(*) FROM {I_CPU}.cpu PARTITION BY tbname
+RESULT
+2
+2
+---
+### i04-02 POS
+SQL: SELECT AVG(usage_idle) FROM {I_CPU}.cpu PARTITION BY tbname
+RESULT
+77.5
+87.5
+---
+### vw-m-01 POS
+SQL: SELECT * FROM {M_VIEW}.{M_VIEW_DB}.v_summary ORDER BY status
+RESULT
+1|100
+2|200
+---
+### vw-p-01 POS
+SQL: SELECT * FROM {P_VIEW}.public.v_summary ORDER BY status
+RESULT
+1|100
+2|200
+---
