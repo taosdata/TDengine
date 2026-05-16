@@ -196,7 +196,10 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
         # Build sliding window feature matrix across all columns.
         # Each row concatenates per-column features (or raw values).
         # Shape: (n_windows, C * len(feature_fns)) or (n_windows, C * window_size).
-        starts = list(range(0, n - window_size + 1, stride))
+        last_start = n - window_size
+        starts = list(range(0, last_start + 1, stride))
+        if starts[-1] != last_start:
+            starts.append(last_start)
         rows = []
         for i in starts:
             row = []
