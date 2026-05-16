@@ -637,5 +637,158 @@ class ServiceTest(unittest.TestCase):
 
         self.assertNotIn("_imported_forecast", registry.services)
 
-if __name__ == '__main__':
-    unittest.main()
+    # ------------------------------------------------------------------
+    # DynamicAnomalyService (iforest) tests
+    # ------------------------------------------------------------------
+
+    def _iforest_config_content(self):
+        """Return a minimal valid iforest config as a JSON string."""
+        import json
+        return json.dumps({
+            "algo": "iforest",
+            "best_params": {
+                "n_estimators": 10,
+                "contamination": 0.05,
+                "window_size": 5,
+                "stride": 1
+            }
+        })
+
+    def test_dynamic_load_iforest_service_success(self):
+        """Registering a valid iforest config must create a DynamicAnomalyService."""
+        import os
+        from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
+
+        config_path = os.path.join(tempfile.gettempdir(), "iforest_model_config.json")
+        service_name = "iforest_model_config"
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._iforest_config_content())
+
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            self.assertIsInstance(service, DynamicAnomalyService)
+            self.assertEqual(service.algo.lower(), "iforest")
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_get_service_list_syncs_iforest_from_directory(self):
+        """list API should load a dynamic iforest model that exists in the shared directory."""
+        import os
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_iforest_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._iforest_config_content())
+
+            loader.services.pop(service_name, None)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service_list = loader.get_service_list()
+
+            anomaly_item = next(item for item in service_list["details"] if item["type"] == "anomaly-detection")
+            self.assertTrue(any(item["name"] == service_name for item in anomaly_item["algo"]))
+            self.assertIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_get_service_list_removes_deleted_iforest_model(self):
+        """list API should drop a dynamic iforest model whose config file has been removed."""
+        import os
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_deleted_iforest_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._iforest_config_content())
+
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+            os.remove(config_path)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service_list = loader.get_service_list()
+
+            anomaly_item = next(item for item in service_list["details"] if item["type"] == "anomaly-detection")
+            self.assertFalse(any(item["name"] == service_name for item in anomaly_item["algo"]))
+            self.assertNotIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_get_service_syncs_iforest_from_directory(self):
+        """get_service should load a dynamic iforest model that exists in shared storage."""
+        import os
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_iforest_lookup_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._iforest_config_content())
+
+            loader.services.pop(service_name, None)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service = loader.get_service(service_name)
+
+            self.assertIsNotNone(service)
+            self.assertEqual(service.name, service_name)
+            self.assertIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_get_service_removes_deleted_iforest_model(self):
+        """get_service should return None after a dynamic iforest model's config is deleted."""
+        import os
+        from taosanalytics.conf import Configure
+
+        service_name = "sync_deleted_iforest_lookup_service"
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, service_name + ".json")
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._iforest_config_content())
+
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+            os.remove(config_path)
+
+            conf = Configure.get_instance()
+            with mock.patch.object(conf, 'get_dynamic_model_directory', return_value=temp_dir):
+                service = loader.get_service(service_name)
+
+            self.assertIsNone(service)
+            self.assertNotIn(service_name, loader.services)
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
