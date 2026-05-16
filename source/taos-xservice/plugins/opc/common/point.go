@@ -57,6 +57,10 @@ type Point struct {
 	// 为 true 时不应建独立子表，而应合并到父 Variable 子表的 Tag。
 	// 仅对 NodeClass=Variable 节点有意义；Object / 顶层 Variable 一律为 false。
 	IsProperty bool `json:"is_property,omitempty"`
+	// DataType 是 OPC UA Variable 节点的值数据类型名称（如 "Boolean"、"Float"、"Int32"）。
+	// 在 Rust 侧 generate 阶段用于解析 super_table_expression 中的 {type} 占位符。
+	// 仅对 Variable 节点填充；Object 节点保持空串。
+	DataType string `json:"data_type,omitempty"`
 	// Properties 存储父 Variable 收集到的、归属自身的 Property 名→值（已序列化为字符串；
 	// 复杂类型用 JSON 字符串）。仅对动态 Variable（IsProperty=false）有意义；
 	// Property 节点本身的 Properties 永远为 nil（其值已塞进父）。

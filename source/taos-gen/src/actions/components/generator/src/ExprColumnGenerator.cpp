@@ -12,10 +12,21 @@ namespace {
         return static_cast<T>(std::get<double>(v));
     }
 
+    // double -> string (e.g., for numeric Lua results targeting varchar columns)
+    ColumnType double_to_string(const ColumnType& v) {
+        return std::to_string(std::get<double>(v));
+    }
+
+    // double -> u16string
+    ColumnType double_to_u16string(const ColumnType& v) {
+        auto s = std::to_string(std::get<double>(v));
+        return std::u16string(s.begin(), s.end());
+    }
+
     // string -> u16string
     ColumnType string_to_u16string(const ColumnType& v) {
         const std::string& s = std::get<std::string>(v);
-        return std::u16string(s.begin(), s.end());
+        return StringUtils::utf8_to_u16string(s);
     }
 
     static const ConvertFunc convert_from_double[] = {
@@ -33,8 +44,8 @@ namespace {
         double_to<float>,       // float
         nullptr,                // double
         nullptr,                // Decimal
-        nullptr,                // u16string
-        nullptr,                // string
+        double_to_u16string,    // u16string
+        double_to_string,       // string
         nullptr,                // JsonValue
         nullptr,                // vector<uint8_t>
         nullptr                 // Geometry

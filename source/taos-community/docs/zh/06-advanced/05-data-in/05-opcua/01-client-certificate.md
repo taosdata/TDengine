@@ -3,7 +3,7 @@ title: "生成 taosX OPC UA 客户端证书"
 sidebar_label: "客户端证书"
 ---
 
-当 OPC UA 服务端的 **Security Mode** 设置为 `Sign` 或 `SignAndEncrypt` 时，taosX 必须以客户端证书与私钥的方式与之建立安全通道。本页给出在 Windows 与 Linux/macOS 上生成证书与私钥的标准步骤，**Ignition、GE Cimplicity 等所有需要证书加密的场景都按本页执行一次即可**。
+当 OPC UA 服务端的 **Security Mode** 设置为 `Sign` 或 `SignAndEncrypt` 时，taosX 必须以客户端证书与私钥的方式与之建立安全通道。本页给出在 Windows 与 Linux/macOS 上生成证书与私钥的标准步骤，**Ignition、GE CSS OPC UA Server 等所有需要证书加密的场景都按本页执行一次即可**。
 
 ## 1. 证书要求
 
@@ -88,7 +88,7 @@ echo Verify certificate:
 "%OPENSSL%" x509 -in "%CERT_FILE%" -noout -subject -ext subjectAltName
 
 echo.
-echo SHA1 fingerprint (used by some servers, e.g. GE Cimplicity, to map the certificate to a user):
+echo SHA1 fingerprint (used by some servers, e.g. GE CSS OPC UA Server, to map the certificate to a user):
 "%OPENSSL%" x509 -in "%CERT_FILE%" -noout -fingerprint -sha1
 
 pause
@@ -174,7 +174,7 @@ X509v3 Subject Alternative Name:
     URI:urn:taosx-opc:client
 ```
 
-如果服务端（例如 GE Cimplicity）需要按 SHA1 指纹将证书绑定到某个用户，使用如下命令获取指纹：
+如果服务端（例如 GE CSS OPC UA Server）需要按 SHA1 指纹将证书绑定到某个用户，使用如下命令获取指纹：
 
 ```bash
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
@@ -189,4 +189,4 @@ openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 | `client_cert.pem` | Secure Channel Certificate |
 | `client_key.pem`  | Certificate's Private Key  |
 
-上传后第一次 **Check Connection** 通常会失败，因为服务端尚未信任该证书。请按对应厂商的指南完成服务端"信任 / 绑定证书"的操作（参见 [Ignition 集成指南](./03-ignition.md) 和 [GE Cimplicity 集成指南](./04-ge-cimplicity.md)），随后重新进行连通性检查。
+上传后第一次 **Check Connection** 通常会失败，因为服务端尚未信任该证书。请按对应厂商的指南完成服务端"信任 / 绑定证书"的操作（参见 [Ignition 集成指南](./03-ignition.md) 和 [GE CSS OPC UA Server 集成指南](./04-ge-opcua-server.md)），随后重新进行连通性检查。

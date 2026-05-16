@@ -3,8 +3,8 @@ name: OPC
 on:
   pull_request:
     paths:
-    - '.github/workflows/opc.yaml'
-    - 'plugins/opc/**'
+      - ".github/workflows/opc.yaml"
+      - "plugins/opc/**"
   workflow_dispatch:
 
 jobs:
@@ -17,5 +17,4 @@ jobs:
           clean: false
 
       - name: Build taosx-opc
-        run: |
-          cargo make taosx-opc
+        run: cargo make taosx-opc

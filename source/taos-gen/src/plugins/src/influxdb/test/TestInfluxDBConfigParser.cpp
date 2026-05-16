@@ -229,6 +229,7 @@ schema:
     assert(fo->precision == "ns");
     assert(fo->batch_size == 5000);
     assert(fo->gzip == false);
+    assert(fo->tbname_key.empty());
     assert(idc.data_format.format_type == "influxdb");
     assert(idc.data_format.support_tags == true);
 
@@ -300,6 +301,29 @@ gzip: true
     std::cout << "test_full_config_parsing PASSED\n";
 }
 
+void test_format_decoder_tbname_key() {
+    std::string yaml = R"(
+target: influxdb
+influxdb:
+  url: "http://localhost:8086"
+  token: "test"
+schema:
+  name: test_schema
+  columns:
+    - name: c1
+      type: INT
+tbname_key: "device_id"
+)";
+    YAML::Node node = YAML::Load(yaml);
+    InsertDataConfig idc = node.as<InsertDataConfig>();
+    auto* fo = get_influxdb_format_options(idc);
+    (void)fo;
+    assert(fo != nullptr);
+    assert(fo->tbname_key == "device_id");
+
+    std::cout << "test_format_decoder_tbname_key PASSED\n";
+}
+
 int main() {
     register_influxdb_plugin_config_hooks();
 
@@ -316,6 +340,7 @@ int main() {
     test_format_decoder_defaults();
     test_format_decoder_unknown_key();
     test_full_config_parsing();
+    test_format_decoder_tbname_key();
 
     std::cout << "\nAll InfluxDB ConfigParser tests PASSED\n";
     return 0;

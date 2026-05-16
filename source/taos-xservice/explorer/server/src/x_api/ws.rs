@@ -304,8 +304,7 @@ async fn handle_ws_metrics(
             Some(event_tx.clone()),
             cancel.child_token(),
         )
-        .await?
-        .context("no available xnode found")?;
+        .await?;
         tokio::spawn(ha_client_hb(client, cancel.clone()));
     }
     drop(event_tx);
@@ -345,8 +344,7 @@ where
         Some(event_tx),
         cancel.child_token(),
     )
-    .await?
-    .context("no available xnode found")?;
+    .await?;
     tokio::spawn({
         let cancel = cancel.clone();
         let session = session.clone();

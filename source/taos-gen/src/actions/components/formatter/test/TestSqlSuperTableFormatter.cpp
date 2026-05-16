@@ -29,7 +29,7 @@ void test_format_create_super_table_with_columns_and_tags() {
 
     assert(std::holds_alternative<std::string>(result));
     assert(std::get<std::string>(result) ==
-        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (ts TIMESTAMP, `col1` INT, `col2_1` BINARY(10), `col2_2` BINARY(10)) TAGS (`tag1` FLOAT, `tag2` NCHAR(20));");
+        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (`ts` TIMESTAMP, `col1` INT, `col2_1` BINARY(10), `col2_2` BINARY(10)) TAGS (`tag1` FLOAT, `tag2` NCHAR(20));");
     std::cout << "test_format_create_super_table_with_columns_and_tags passed!" << std::endl;
 }
 
@@ -55,7 +55,7 @@ void test_format_create_super_table_without_columns() {
 
     assert(std::holds_alternative<std::string>(result));
     assert(std::get<std::string>(result) ==
-        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (ts TIMESTAMP) TAGS (`tag1` FLOAT);");
+        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (`ts` TIMESTAMP) TAGS (`tag1` FLOAT);");
     std::cout << "test_format_create_super_table_without_columns passed!" << std::endl;
 }
 
@@ -81,7 +81,7 @@ void test_format_create_super_table_without_tags() {
 
     assert(std::holds_alternative<std::string>(result));
     assert(std::get<std::string>(result) ==
-        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (ts TIMESTAMP, `col1` INT);");
+        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (`ts` TIMESTAMP, `col1` INT);");
     std::cout << "test_format_create_super_table_without_tags passed!" << std::endl;
 }
 
@@ -103,8 +103,41 @@ void test_format_create_super_table_with_empty_config() {
 
     assert(std::holds_alternative<std::string>(result));
     assert(std::get<std::string>(result) ==
-        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (ts TIMESTAMP);");
+        "CREATE TABLE IF NOT EXISTS `test_db`.`test_table` (`ts` TIMESTAMP);");
     std::cout << "test_format_create_super_table_with_empty_config passed!" << std::endl;
+}
+
+void test_format_create_super_table_with_custom_ts_name() {
+    DataFormat format;
+    format.format_type = "sql";
+
+    CreateSuperTableConfig config;
+    config.tdengine.database = "test_db";
+    config.schema.name = "telemetry";
+
+    // Use _ts as timestamp column name (required for schemaless compatibility)
+    config.schema.columns = {
+        {"_ts", "TIMESTAMP", "ms", "1735660800000", "1"},
+        {"val1", "DOUBLE", "random"},
+    };
+
+    config.schema.tags = {
+        {"fleet", "NCHAR(24)", "random"},
+    };
+    config.schema.apply();
+
+    auto formatter = FormatterFactory::create_formatter<CreateSuperTableConfig>(format);
+    FormatResult result = formatter->format(config);
+
+    assert(std::holds_alternative<std::string>(result));
+    std::string sql = std::get<std::string>(result);
+    // Timestamp column should use the config name `_ts`, not hardcoded `ts`
+    assert(sql.find("`_ts` TIMESTAMP") != std::string::npos);
+    assert(sql.find("`val1` DOUBLE") != std::string::npos);
+    assert(sql.find("`fleet` NCHAR(24)") != std::string::npos);
+    assert(sql ==
+        "CREATE TABLE IF NOT EXISTS `test_db`.`telemetry` (`_ts` TIMESTAMP, `val1` DOUBLE) TAGS (`fleet` NCHAR(24));");
+    std::cout << "test_format_create_super_table_with_custom_ts_name passed!" << std::endl;
 }
 
 int main() {
@@ -112,6 +145,7 @@ int main() {
     test_format_create_super_table_without_columns();
     test_format_create_super_table_without_tags();
     test_format_create_super_table_with_empty_config();
+    test_format_create_super_table_with_custom_ts_name();
     std::cout << "All tests passed!" << std::endl;
     return 0;
 }

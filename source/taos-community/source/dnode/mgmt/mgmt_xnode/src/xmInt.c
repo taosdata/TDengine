@@ -18,7 +18,7 @@
 #include "xmInt.h"
 
 static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
-  xndInfo("xnode require call path:%s, name:%s", pInput->path, pInput->name);
+  xndInfo("xnode call path:%s, name:%s", pInput->path, pInput->name);
   *required = true;
   return TSDB_CODE_SUCCESS;
 }

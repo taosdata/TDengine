@@ -111,7 +111,7 @@ pub async fn get_one_client(
     dsn: &Dsn,
     via: Option<i64>,
     cancel: CancellationToken,
-) -> Result<Option<HaRpcClient>> {
+) -> anyhow::Result<HaRpcClient> {
     get_client(args, None, dsn, via, None, cancel).await
 }
 
@@ -122,13 +122,21 @@ pub async fn get_client(
     via: Option<i64>,
     message_tx: Option<flume::Sender<FlightResult>>,
     cancel: CancellationToken,
-) -> Result<Option<HaRpcClient>> {
+) -> anyhow::Result<HaRpcClient> {
     let rpc_ca_cert = args
         .ssl
         .as_ref()
         .and_then(|s| s.rpc_ca_cert_pem.as_deref())
         .map(|v| v.as_slice());
     let xnodes = query::<Xnode>(dsn, "SHOW XNODES WHERE STATUS = 'online'").await?;
+    if xnodes.is_empty() {
+        bail!("no available xnode found");
+    }
+
+    // Track the last error encountered during xnode iteration so we can return
+    // a meaningful message instead of a generic "not found".
+    let mut last_error: Option<String> = None;
+
     for Xnode { id, url, .. } in &xnodes {
         if xnode_id.is_some_and(|v| v != *id) {
             continue;
@@ -145,12 +153,17 @@ pub async fn get_client(
         let endpoint = match rpc_transport::build_xnode_rpc_endpoint(&prepared, rpc_ca_cert).await {
             Ok(ep) => ep,
             Err(e) => {
+                let msg = format!(
+                    "failed to build rpc endpoint for xnode {id} ({}): {e:#}",
+                    meta.endpoint
+                );
                 tracing::error!(
                     xnode_id = id,
                     endpoint = %meta.endpoint,
                     transport = meta.transport,
                     "failed to build xnode rpc endpoint: {e:#}"
                 );
+                last_error = Some(msg);
                 continue;
             }
         };
@@ -160,6 +173,8 @@ pub async fn get_client(
                 let error_kind = rpc_transport::classify_connect_error(&e);
                 let possible_cause =
                     rpc_transport::possible_scheme_mismatch_hint(meta.transport, &e);
+                let e = anyhow::Error::new(e);
+                let msg = format!("failed to connect to xnode {id} ({}): {e:#}", meta.endpoint);
                 if let Some(cause) = possible_cause {
                     tracing::error!(
                         xnode_id = id,
@@ -180,6 +195,7 @@ pub async fn get_client(
                         "failed to connect to xnode rpc: {e:#}"
                     );
                 }
+                last_error = Some(msg);
                 continue;
             }
         };
@@ -221,18 +237,22 @@ pub async fn get_client(
                     );
                     match via {
                         Some(via) => (client, via),
-                        None => return Ok(Some(client)),
+                        None => return Ok(client),
                     }
                 }
                 Err(e) => {
+                    let e = anyhow::Error::new(e);
                     cancel.cancel();
                     tracing::error!(
                         xnode_id = id,
                         endpoint = %meta.endpoint,
                         transport = meta.transport,
-                        "failed to create guest for xnode: {:#}",
-                        anyhow::Error::new(e)
+                        "failed to create guest for xnode: {e:#}",
                     );
+                    last_error = Some(format!(
+                        "failed to create guest for xnode {id} ({}): {e:#}",
+                        meta.endpoint,
+                    ));
                     continue;
                 }
             };
@@ -242,21 +262,30 @@ pub async fn get_client(
                     .iter()
                     .any(|v| v.id == via && v.status.is_connected())
                 {
-                    return Ok(Some(client));
+                    return Ok(client);
                 }
+                // Agent exists but not connected, or not found at all
+                let agent_status = agents.iter().find(|v| v.id == via);
+                last_error = Some(match agent_status {
+                    Some(agent) => {
+                        format!("agent {} is not connected (status: {})", via, agent.status)
+                    }
+                    None => format!("agent {via} not found on any available xnode"),
+                });
             }
             Err(e) => {
                 cancel.cancel();
-                tracing::error!(
-                    "failed to list agents for xnode {}: {:#}",
-                    id,
-                    anyhow::Error::new(e)
-                );
+                let e = anyhow::Error::new(e);
+                tracing::error!("failed to list agents for xnode {id}: {e:#}");
+                last_error = Some(format!("failed to list agents for xnode {id}: {e:#}"));
                 continue;
             }
         }
     }
-    Ok(None)
+    bail!(
+        "{}",
+        last_error.unwrap_or_else(|| "no available xnode found".to_string())
+    )
 }
 
 #[cfg(feature = "disable-x-api")]
@@ -269,9 +298,7 @@ pub async fn get_x_url(args: &Args, req: &HttpRequest, api: &str) -> Result<Opti
     let dsn = get_dsn(args, req).await?;
     let cancel = CancellationToken::new();
     let _guard = cancel.drop_guard_ref();
-    let client = get_one_client(args, &dsn, None, cancel.clone())
-        .await?
-        .context("no available xnode found")?;
+    let client = get_one_client(args, &dsn, None, cancel.clone()).await?;
 
     let mut ports = client
         .get_x_http_port()

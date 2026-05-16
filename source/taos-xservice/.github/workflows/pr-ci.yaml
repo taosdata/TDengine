@@ -47,6 +47,9 @@ env:
   BUILD_PROFILE: dev
   COVERAGE_THRESHOLD: "48.0" # Default threshold, may be overridden by target branch coverage
   COVERAGE_ALLOW_DECREASE: "0.2" # Allowable decrease in coverage compared to target branch
+  # Cargo network resilience: retry git fetches to avoid transient CI failures (e.g. krb5-src)
+  CARGO_NET_RETRY: "10"
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 permissions:
   contents: read

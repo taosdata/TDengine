@@ -2843,7 +2843,7 @@ void msmStopAllStreamsByGrant(int32_t errCode) {
 }
 
 int32_t msmHandleGrantExpired(SMnode *pMnode, int32_t errCode) {
-  mstInfo("stream grant expired");
+  mstWarn("stream grant expired");
 
   if (0 == atomic_load_8(&mStreamMgmt.active)) {
     mstWarn("mnode stream is NOT active, ignore handling");

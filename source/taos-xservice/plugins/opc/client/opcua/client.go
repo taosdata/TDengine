@@ -62,6 +62,18 @@ type UAClient struct {
 	// propertyMu 保护 getPointsCache 内 Point.Properties map 的并发写入。
 	// 收集 Property 阶段，多个 goroutine 可能向同一父 Point 回填 Property → 必须加锁。
 	propertyMu sync.Mutex
+
+	// badNodes 记录持续失败的节点，后续轮询跳过这些节点以避免整批失败和日志洪泛。
+	// 定期重探以检测节点是否恢复。
+	badNodes      map[string]*badNodeInfo
+	badNodesMu    sync.RWMutex
+	probeInterval uint64 // 每隔多少个轮询周期重探一次
+	pollCount     uint64 // 当前轮询周期计数
+
+	// 跨周期失败批次拆分：当批次 RPC 失败时（如 StatusBadEncodingError），
+	// 记录失败批次的节点范围，下一周期将其拆成更小的子批次分别读取。
+	// 利用周期间的连接自动恢复来绕过"同周期连接断开"的约束。
+	failedBatches []failedBatchInfo
 }
 
 type subscription struct {
@@ -75,12 +87,83 @@ type subscription struct {
 }
 
 type nodeValue struct {
-	nodeID          *ua.NodeID
-	nodeValue       *common.NodeValue
-	clientHandle    uint32 //always exists
-	subscribed      bool
-	subscriptionID  *int
-	monitoredItemID uint32
+	nodeID              *ua.NodeID
+	nodeValue           *common.NodeValue
+	clientHandle        uint32 //always exists
+	subscribed          bool
+	subscriptionID      *int
+	monitoredItemID     uint32
+	consecutiveFailures int // 连续 Status 失败次数，用于黑名单判定
+}
+
+// badNodeInfo 记录被拉黑节点的信息
+type badNodeInfo struct {
+	idStr     string
+	reason    string // "batch_rpc_error" | "status_error"
+	lastError string
+	addedAt   time.Time
+}
+
+// failedBatchInfo 记录上一周期失败的批次，下一周期跨周期拆分重试。
+type failedBatchInfo struct {
+	nodes   []*nodeValue // 失败批次中的节点（直接引用，不依赖索引）
+	subSize int          // 下一周期用的子批次大小（每次失败减半）
+}
+
+// batchReadResult 表示 readValueBatch 的执行结果。
+type batchReadResult int
+
+const (
+	batchReadOK              batchReadResult = iota // 批次读取成功
+	batchReadConnectionError                        // 连接级错误，Server 不可达
+	batchReadRPCError                               // 非连接 RPC 错误（如 EncodingError），节点相关
+)
+
+const (
+	// statusFailThreshold 连续 Status 失败多少次后加入黑名单
+	statusFailThreshold = 3
+	// defaultProbeInterval 每隔多少个轮询周期重探一次黑名单节点
+	defaultProbeInterval = 60
+	// postFailureDelay 批次 RPC 错误后等待自动重连的延迟
+	postFailureDelay = 500 * time.Millisecond
+	// individualTestThreshold 当子批次大小 <= 此值时，逐个读取以精确定位坏节点
+	individualTestThreshold = 10
+)
+
+// isConnectionError 判断 err 是否为连接级别错误（非节点自身问题）。
+// 连接级错误意味着 OPC Server 不可达，任何 Read 都会失败，不应归咎于具体节点。
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// 优先使用类型化的 ua.StatusCode 检查
+	connectionStatuses := []ua.StatusCode{
+		ua.StatusBadServerNotConnected,
+		ua.StatusBadConnectionClosed,
+		ua.StatusBadSessionClosed,
+		ua.StatusBadSecureChannelClosed,
+		ua.StatusBadCommunicationError,
+		ua.StatusBadTimeout,
+	}
+	for _, code := range connectionStatuses {
+		if errors.Is(err, code) {
+			return true
+		}
+	}
+	// context 取消 / 超时
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	// 网络层错误
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	// 最后兜底：字符串匹配
+	s := err.Error()
+	return strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "broken pipe") ||
+		strings.Contains(s, "use of closed network connection")
 }
 
 func newSubscription(uaClient *UAClient) (*subscription, error) {
@@ -126,6 +209,8 @@ func NewUAClient(ctx context.Context, connectConfig config.UaConnectConfig, inde
 		maxNodesPerRead:          0,
 		maxAge:                   maxAge,
 		autoReconnect:            connectConfig.GetAutoReconnect(),
+		badNodes:                 make(map[string]*badNodeInfo),
+		probeInterval:            defaultProbeInterval,
 	}, nil
 }
 
@@ -413,16 +498,140 @@ func (c *UAClient) readAllValue(nodes []*nodeValue) {
 		c.logger.Errorf("no nodes to collect")
 		return
 	}
-	maxOperations := uint(c.maxNodesPerRead)
-	operationTimes := uint(len(nodes)) / maxOperations
-	for i := uint(0); i < operationTimes; i++ {
-		base := i * maxOperations
-		c.readValueBatch(nodes[base : base+maxOperations])
+
+	// Phase 1: 处理上一周期记录的失败批次（跨周期拆分重试）。
+	// 此时连接已自动恢复，子批次 Read 可以正常完成。
+	var nextFailedBatches []failedBatchInfo
+	if len(c.failedBatches) > 0 {
+		c.logger.WithField("count", len(c.failedBatches)).
+			Debug("retrying failed batches from previous cycle")
+
+		// 收集失败批次覆盖的节点，用于 Phase 2 中跳过
+		failedNodeSet := make(map[*nodeValue]struct{})
+		for _, fb := range c.failedBatches {
+			for _, n := range fb.nodes {
+				failedNodeSet[n] = struct{}{}
+			}
+		}
+
+		for _, fb := range c.failedBatches {
+			newFailed := c.retryFailedBatch(fb)
+			nextFailedBatches = append(nextFailedBatches, newFailed...)
+		}
+
+		// Phase 2: 正常读取不在失败批次中的节点
+		if len(failedNodeSet) < len(nodes) {
+			normalNodes := make([]*nodeValue, 0, len(nodes)-len(failedNodeSet))
+			for _, n := range nodes {
+				if _, inFailed := failedNodeSet[n]; !inFailed {
+					normalNodes = append(normalNodes, n)
+				}
+			}
+			newFailed := c.readNormalBatches(normalNodes)
+			nextFailedBatches = append(nextFailedBatches, newFailed...)
+		}
+	} else {
+		// 无历史失败批次，所有节点正常分批读取
+		nextFailedBatches = c.readNormalBatches(nodes)
 	}
-	if len(nodes)%int(maxOperations) != 0 {
-		base := operationTimes * maxOperations
-		c.readValueBatch(nodes[base:])
+
+	c.failedBatches = nextFailedBatches
+}
+
+// readNormalBatches 用 maxNodesPerRead 分批读取节点，返回新产生的失败批次。
+func (c *UAClient) readNormalBatches(nodes []*nodeValue) []failedBatchInfo {
+	if len(nodes) == 0 {
+		return nil
 	}
+	var failed []failedBatchInfo
+	maxOp := int(c.maxNodesPerRead)
+
+	for i := 0; i < len(nodes); i += maxOp {
+		end := i + maxOp
+		if end > len(nodes) {
+			end = len(nodes)
+		}
+		batch := nodes[i:end]
+		result := c.readValueBatch(batch)
+		if result == batchReadRPCError {
+			subSize := len(batch) / 2
+			if subSize < 1 {
+				subSize = 1
+			}
+			failed = append(failed, failedBatchInfo{
+				nodes:   batch,
+				subSize: subSize,
+			})
+			c.logger.WithFields(logrus.Fields{
+				"batch_size":     len(batch),
+				"next_sub_size":  subSize,
+				"first":          batch[0].nodeValue.IDStr,
+				"last":           batch[len(batch)-1].nodeValue.IDStr,
+			}).Warn("batch failed, will retry with smaller sub-batches next cycle")
+			time.Sleep(postFailureDelay)
+		} else if result == batchReadConnectionError {
+			time.Sleep(postFailureDelay)
+		}
+	}
+	return failed
+}
+
+// retryFailedBatch 将上一周期的失败批次用更小的子批次重试，返回仍然失败的子批次。
+func (c *UAClient) retryFailedBatch(fb failedBatchInfo) []failedBatchInfo {
+	nodes := fb.nodes
+	subSize := fb.subSize
+
+	c.logger.WithFields(logrus.Fields{
+		"total_nodes": len(nodes),
+		"sub_size":    subSize,
+		"first":       nodes[0].nodeValue.IDStr,
+		"last":        nodes[len(nodes)-1].nodeValue.IDStr,
+	}).Info("retrying failed batch with sub-batches")
+
+	var stillFailed []failedBatchInfo
+
+	for i := 0; i < len(nodes); i += subSize {
+		end := i + subSize
+		if end > len(nodes) {
+			end = len(nodes)
+		}
+		sub := nodes[i:end]
+		result := c.readValueBatch(sub)
+		switch result {
+		case batchReadOK:
+			// 子批次成功，数据已正常处理
+		case batchReadRPCError:
+			if len(sub) <= individualTestThreshold {
+				// 子批次足够小，逐节点测试精确定位坏节点
+				c.testNodesIndividually(sub)
+			} else {
+				// 继续缩小，下一周期再拆
+				nextSub := len(sub) / 2
+				if nextSub < 1 {
+					nextSub = 1
+				}
+				stillFailed = append(stillFailed, failedBatchInfo{
+					nodes:   sub,
+					subSize: nextSub,
+				})
+				c.logger.WithFields(logrus.Fields{
+					"sub_size":      len(sub),
+					"next_sub_size": nextSub,
+					"first":         sub[0].nodeValue.IDStr,
+					"last":          sub[len(sub)-1].nodeValue.IDStr,
+				}).Warn("sub-batch still failing, will retry with smaller size next cycle")
+			}
+			time.Sleep(postFailureDelay)
+		case batchReadConnectionError:
+			// 连接断开，保留原批次下一周期重试（不缩小，因为不是节点问题）
+			stillFailed = append(stillFailed, failedBatchInfo{
+				nodes:   sub,
+				subSize: len(sub), // 不缩小
+			})
+			time.Sleep(postFailureDelay)
+		}
+	}
+	return stillFailed
 }
 
 func (c *UAClient) readNameBatch(nodes []*nodeValue) {
@@ -445,26 +654,57 @@ func (c *UAClient) readNameBatch(nodes []*nodeValue) {
 	return
 }
 
-func (c *UAClient) readValueBatch(nodes []*nodeValue) {
+func (c *UAClient) readValueBatch(nodes []*nodeValue) batchReadResult {
 	valueReqs := make([]*ua.ReadValueID, 0, len(nodes))
 	for _, node := range nodes {
 		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node.nodeID, AttributeID: ua.AttributeIDValue})
+	}
+	if len(nodes) > 0 {
+		c.logger.WithFields(logrus.Fields{
+			"size":  len(nodes),
+			"first": nodes[0].nodeValue.IDStr,
+			"last":  nodes[len(nodes)-1].nodeValue.IDStr,
+		}).Debug("readValueBatch start")
 	}
 	start := time.Now()
 	conn := c.conn
 	resp, err := conn.Read(c.ctx, &ua.ReadRequest{MaxAge: c.maxAge, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
 	if err != nil {
-		c.logger.WithError(err).Error("read value batch error")
-		c.reconnect(conn, err)
-		return
+		if isConnectionError(err) {
+			c.logger.WithError(err).WithFields(logrus.Fields{
+				"batch_size": len(nodes),
+				"first":      nodes[0].nodeValue.IDStr,
+				"last":       nodes[len(nodes)-1].nodeValue.IDStr,
+			}).Warn("readValueBatch failed with connection error, skipping batch")
+			return batchReadConnectionError
+		}
+		c.logger.WithError(err).WithFields(logrus.Fields{
+			"batch_size": len(nodes),
+			"first":      nodes[0].nodeValue.IDStr,
+			"last":       nodes[len(nodes)-1].nodeValue.IDStr,
+		}).Warn("readValueBatch failed with RPC error")
+
+		return batchReadRPCError
 	}
 	end := time.Now()
 	c.logger.WithField("time", end.Sub(start)).Debug("read value spend")
 	for i, r := range resp.Results {
 		if !errors.Is(r.Status, ua.StatusOK) {
-			c.logger.WithField("id", nodes[i].nodeValue.IDStr).WithError(r.Status).Error("read value batch status error")
 			nodes[i].nodeValue.Value = nil
+			nodes[i].consecutiveFailures++
+			if nodes[i].consecutiveFailures == statusFailThreshold {
+				c.logger.WithField("id", nodes[i].nodeValue.IDStr).
+					WithError(r.Status).
+					WithField("consecutive_failures", nodes[i].consecutiveFailures).
+					Error("node consistently failing, adding to bad nodes list")
+				c.addBadNode(nodes[i].nodeValue.IDStr, "status_error", r.Status.Error())
+			} else if nodes[i].consecutiveFailures == 1 {
+				c.logger.WithField("id", nodes[i].nodeValue.IDStr).
+					WithError(r.Status).
+					Debug("read value status error")
+			}
 		} else {
+			nodes[i].consecutiveFailures = 0
 			if r.Value != nil {
 				nodes[i].nodeValue.Value = r.Value.Value()
 				if r.Value.ArrayLength() > 0 || r.Value.ArrayDimensions() != nil {
@@ -493,6 +733,39 @@ func (c *UAClient) readValueBatch(nodes []*nodeValue) {
 		nodes[i].nodeValue.FinishTime = end
 		nodes[i].nodeValue.StartTime = start
 		nodes[i].nodeValue.Status = int64(r.Status)
+	}
+	return batchReadOK
+}
+
+// testNodesIndividually 逐个读取小批次中的节点，精确定位并黑名单化坏节点。
+// 仅在批次大小 <= individualTestThreshold 时调用。
+// 注意：调用时机是在 RPC 错误之后，连接可能已断开。
+// 对连接错误采用容忍策略：跳过并等待下一轮 probe 处理。
+func (c *UAClient) testNodesIndividually(nodes []*nodeValue) {
+	for _, n := range nodes {
+		req := &ua.ReadRequest{
+			MaxAge:             c.maxAge,
+			TimestampsToReturn: ua.TimestampsToReturnBoth,
+			NodesToRead: []*ua.ReadValueID{
+				{NodeID: n.nodeID, AttributeID: ua.AttributeIDValue},
+			},
+		}
+		_, err := c.conn.Read(c.ctx, req)
+		if err == nil {
+			continue // 单节点读取成功，不是坏节点
+		}
+		if isConnectionError(err) {
+			// 连接断开，无法继续逐个测试。
+			// 不标记任何节点为坏——等连接恢复后由 adaptive 机制再次处理。
+			c.logger.WithField("id", n.nodeValue.IDStr).WithError(err).
+				Debug("testNodesIndividually: connection error, deferring remaining nodes")
+			return
+		}
+		// 单节点 RPC 错误 → 确认为坏节点
+		c.logger.WithField("id", n.nodeValue.IDStr).WithError(err).
+			Warn("testNodesIndividually: single node causes RPC failure, adding to bad nodes list")
+		c.addBadNode(n.nodeValue.IDStr, "batch_rpc_error",
+			"single node Read RPC failure: "+err.Error())
 	}
 }
 
@@ -535,6 +808,113 @@ func (c *UAClient) reconnect(oldConn *opcua.Client, err error) {
 	c.logger.Panic("reconnect to opcua server failed, retry 60 times")
 }
 
+// addBadNode 将节点加入黑名单。
+func (c *UAClient) addBadNode(idStr string, reason string, lastError string) {
+	c.badNodesMu.Lock()
+	defer c.badNodesMu.Unlock()
+	if _, exists := c.badNodes[idStr]; exists {
+		return
+	}
+	c.badNodes[idStr] = &badNodeInfo{
+		idStr:     idStr,
+		reason:    reason,
+		lastError: lastError,
+		addedAt:   time.Now(),
+	}
+	c.logger.WithFields(logrus.Fields{
+		"id":           idStr,
+		"reason":       reason,
+		"error":        lastError,
+		"total_bad":    len(c.badNodes),
+	}).Warn("node added to bad nodes list, will be skipped in subsequent polls")
+}
+
+// filterActiveNodes 返回不在黑名单中的节点。
+func (c *UAClient) filterActiveNodes(nodes []*nodeValue) []*nodeValue {
+	c.badNodesMu.RLock()
+	defer c.badNodesMu.RUnlock()
+	if len(c.badNodes) == 0 {
+		return nodes
+	}
+	active := make([]*nodeValue, 0, len(nodes))
+	for _, n := range nodes {
+		if _, bad := c.badNodes[n.nodeValue.IDStr]; !bad {
+			active = append(active, n)
+		}
+	}
+	return active
+}
+
+// probeBadNodes 逐个重探黑名单节点，恢复正常的移出黑名单。
+func (c *UAClient) probeBadNodes() {
+	c.badNodesMu.RLock()
+	badList := make([]*badNodeInfo, 0, len(c.badNodes))
+	for _, info := range c.badNodes {
+		badList = append(badList, info)
+	}
+	c.badNodesMu.RUnlock()
+
+	if len(badList) == 0 {
+		return
+	}
+	c.logger.WithField("count", len(badList)).Info("probing bad nodes for recovery")
+
+	recovered := 0
+	for _, info := range badList {
+		// 找到对应的 nodeValue（需要从 c.nodes 中查找）
+		var target *nodeValue
+		for _, n := range c.nodes {
+			if n.nodeValue.IDStr == info.idStr {
+				target = n
+				break
+			}
+		}
+		if target == nil {
+			continue
+		}
+
+		req := &ua.ReadRequest{
+			MaxAge:             c.maxAge,
+			TimestampsToReturn: ua.TimestampsToReturnBoth,
+			NodesToRead: []*ua.ReadValueID{
+				{NodeID: target.nodeID, AttributeID: ua.AttributeIDValue},
+			},
+		}
+		resp, err := c.conn.Read(c.ctx, req)
+		if err != nil {
+			if isConnectionError(err) {
+				c.logger.WithError(err).Warn("probe: connection error, aborting probe cycle")
+				break
+			}
+			c.logger.WithField("id", info.idStr).WithError(err).
+				Debug("probe: node still fails RPC")
+			continue
+		}
+		if len(resp.Results) > 0 && errors.Is(resp.Results[0].Status, ua.StatusOK) {
+			// 节点恢复
+			c.badNodesMu.Lock()
+			delete(c.badNodes, info.idStr)
+			c.badNodesMu.Unlock()
+			target.consecutiveFailures = 0
+			recovered++
+			c.logger.WithField("id", info.idStr).
+				Info("probe: node recovered, removed from bad nodes list")
+		} else {
+			c.logger.WithField("id", info.idStr).
+				Debug("probe: node still has bad status")
+		}
+	}
+	if recovered > 0 {
+		c.badNodesMu.RLock()
+		remaining := len(c.badNodes)
+		c.badNodesMu.RUnlock()
+		c.logger.WithFields(logrus.Fields{
+			"recovered": recovered,
+			"remaining": remaining,
+		}).Info("probe completed")
+	}
+}
+
 func (c *UAClient) observe() error {
 	ticker := time.NewTicker(c.readInterval)
 	go func() {
@@ -550,16 +930,27 @@ func (c *UAClient) observe() error {
 				return
 			case data := <-c.observeChange:
 				c.nodes = data
+				c.failedBatches = nil // 节点列表变更，旧的失败批次引用失效
 			case <-ticker.C:
+				c.pollCount++
+
+				// 定期重探黑名单节点
+				if c.pollCount%c.probeInterval == 0 {
+					c.probeBadNodes()
+				}
+
+				// 构建活跃节点列表（排除黑名单）
+				activeNodes := c.filterActiveNodes(c.nodes)
+
 				readNameList = readNameList[:0]
 				start := time.Now()
-				c.readAllValue(c.nodes)
+				c.readAllValue(activeNodes)
 				spent := time.Since(start)
 				if spent > c.readInterval {
 					c.logger.WithField("spent", spent).WithField("interval", c.readInterval).Warn("read value spend too much time")
 				}
-				values := make([]*common.NodeValue, 0, len(c.nodes))
-				for _, node := range c.nodes {
+				values := make([]*common.NodeValue, 0, len(activeNodes))
+				for _, node := range activeNodes {
 					if !node.nodeValue.ValueType.IsValid() {
 						continue
 					}
@@ -568,7 +959,6 @@ func (c *UAClient) observe() error {
 						continue
 					}
 					if !errors.Is(ua.StatusCode(node.nodeValue.Status), ua.StatusOK) {
-						c.logger.WithField("id", node.nodeValue.IDStr).WithField("status", ua.StatusCode(node.nodeValue.Status)).Warn("read value status is not ok")
 						if !c.containsBad {
 							continue
 						}
@@ -675,21 +1065,43 @@ func (c *UAClient) doSubItems(sub *subscription, nodes []*nodeValue) error {
 		}
 		reqs = append(reqs, opcua.NewMonitoredItemCreateRequestWithDefaults(node.nodeID, ua.AttributeIDValue, node.clientHandle))
 	}
+	// 打印当前批要 monitor 的节点范围
+	if len(nodes) > 0 {
+		c.logger.WithFields(logrus.Fields{
+			"sub_index": sub.subIndex,
+			"size":      len(nodes),
+			"first":     nodes[0].nodeValue.IDStr,
+			"last":      nodes[len(nodes)-1].nodeValue.IDStr,
+		}).Debug("doSubItems start")
+	}
 	resp, err := sub.sub.Monitor(c.ctx, ua.TimestampsToReturnBoth, reqs...)
 	if err != nil {
-		c.logger.WithError(err).Error("monitor error")
+		c.logger.WithError(err).WithField("batch_size", len(nodes)).Error("doSubItems Monitor RPC failed")
 		return err
 	}
 	var errs []error
+	var failedIds []string
+	var failedStatuses []string
 	for index, r := range resp.Results {
 		if !errors.Is(r.StatusCode, ua.StatusOK) {
 			errs = append(errs, fmt.Errorf("subscribe monitor for node %s failed: %w", nodes[index].nodeValue.IDStr, r.StatusCode))
+			if len(failedIds) < 20 {
+				failedIds = append(failedIds, nodes[index].nodeValue.IDStr)
+				failedStatuses = append(failedStatuses, r.StatusCode.Error())
+			}
 		} else {
 			nodes[index].subscribed = true
 			nodes[index].monitoredItemID = r.MonitoredItemID
 			sub.subCount += 1
 		}
 	}
+	// 打印本批 monitor 成功/失败统计
+	c.logger.WithFields(logrus.Fields{
+		"sub_index":  sub.subIndex,
+		"batch_size": len(nodes),
+		"success":    len(nodes) - len(errs),
+		"fail":       len(errs),
+	}).Debug("doSubItems result")
 	if len(errs) != 0 {
 		err = errors.Join(errs...)
 		c.logger.WithError(err).Error("subscribe monitor error")
@@ -735,6 +1147,7 @@ func (s *subscription) handleSubCallback() {
 				case *ua.DataChangeNotification:
 					c.logger.Debug("receive data change notification")
 					now := time.Now()
+					readNameList = readNameList[:0]
 					values := make([]*common.NodeValue, 0, len(x.MonitoredItems))
 					for _, item := range x.MonitoredItems {
 						handle := item.ClientHandle
@@ -787,11 +1200,6 @@ func (s *subscription) handleSubCallback() {
 							if value.nodeValue.Name != "" {
 								values = append(values, value.nodeValue.Copy())
 							}
-						}
-					}
-					for _, value := range readNameList {
-						if value.nodeValue.Name != "" {
-							values = append(values, value.nodeValue.Copy())
 						}
 					}
 					if len(values) != 0 {
@@ -1092,15 +1500,45 @@ var convertType = map[ua.TypeID]types.ValueType{
 
 var attributes = []ua.AttributeID{
 	ua.AttributeIDDescription,
+	ua.AttributeIDDataType,
 }
 
 var attributeNames = []string{
 	"Description",
+	"DataType",
 }
 
 var nodeClassNames = []string{
 	ua.NodeClassObject:   "Object",
 	ua.NodeClassVariable: "Variable",
+}
+
+// dataTypeNames maps OPC UA built-in type IDs (namespace 0) to their standard names.
+// These names match OPC UA specification Part 6, and are recognized by Rust-side
+// opc_data_type_to_ipc() for resolving {type} in super_table_expression.
+var dataTypeNames = map[uint32]string{
+	1:  "Boolean",
+	2:  "SByte",
+	3:  "Byte",
+	4:  "Int16",
+	5:  "UInt16",
+	6:  "Int32",
+	7:  "UInt32",
+	8:  "Int64",
+	9:  "UInt64",
+	10: "Float",
+	11: "Double",
+	12: "String",
+	13: "DateTime",
+	15: "ByteString",
+	// Uncommon types — include for completeness
+	14: "Guid",
+	16: "XmlElement",
+	17: "NodeId",
+	20: "QualifiedName",
+	21: "LocalizedText",
+	22: "ExtensionObject",
+	24: "Variant",
 }
 
 func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, ns []*bfsListElement, pointRegex, nameRegex, idRegex regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
@@ -1148,7 +1586,7 @@ func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, n
 		if nodeType != ua.NodeClassVariable && nodeType != ua.NodeClassObject {
 			continue
 		}
-		// get Description attribute
+		// get Description attribute (index+0)
 		description := ""
 		err = res.Results[index].Status
 		// ignore get description error, some nodes may not have description
@@ -1162,6 +1600,18 @@ func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, n
 			c.logger.WithError(err).WithField("nodeID", nodeID).Errorf("get node attribute %s error", attributeNames[0])
 		}
 
+		// get DataType attribute (index+1) — returns a NodeID identifying the data type
+		dataTypeName := ""
+		dtStatus := res.Results[index+1].Status
+		if errors.Is(dtStatus, ua.StatusOK) && res.Results[index+1].Value != nil {
+			dtNodeID := res.Results[index+1].Value.NodeID()
+			if dtNodeID != nil && dtNodeID.Namespace() == 0 {
+				if name, ok := dataTypeNames[dtNodeID.IntID()]; ok {
+					dataTypeName = name
+				}
+			}
+		}
+
 		point := &common.Point{
 			ID:          nodeID,
 			Name:        browseName,
@@ -1171,6 +1621,7 @@ func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, n
 			ParentID:    parent,
 			Path:        path,
 			IsStatic:    true,
+			DataType:    dataTypeName,
 		}
 		c.getPointsCache.Store(nodeID, point)
 		if (pointRegex != nil && !(pointRegex.MatchString(point.Name) || pointRegex.MatchString(point.ID))) ||
@@ -1432,9 +1883,11 @@ func (c *UAClient) getChildrenByList(ctx context.Context, nodes []*bfsListElemen
 						typeDef = refItem.TypeDefinition.NodeID
 					}
 
+					childIDStr := nodeId.String()
+
 					children = append(children, &bfsListElement{
 						node:            nodeId,
-						id:              nodeId.String(),
+						id:              childIDStr,
 						browseName:      browseName,
 						displayName:     displayName,
 						nodeClass:       refItem.NodeClass,

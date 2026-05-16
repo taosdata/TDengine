@@ -106,7 +106,7 @@ FormatResult KafkaInsertDataFormatter::format_influx(MemoryPool::MemoryBlock* ba
             }
 
             if (!RowSerializer::to_influx_inplace(*col_instances_, *tag_instances_, table_block, row_idx,
-                                              config().schema.name, "", line_buffer)) {
+                                              config().schema.name, format_options_->tbname_key, line_buffer)) {
                 line_buffer.resize(pos_before);
                 continue;
             }
