@@ -101,17 +101,21 @@ def do_handle_dynamic_model(request):
         loader.register_service_from_file(full_path)
         AppLogger.info("Model %s deployed successfully", raw_model_name)
     except Exception as e:
-        AppLogger.error("Error deploying dynamic model:%s, remove file, error:%s", raw_model_name, str(e))
-        try:
-            if Path(full_path).exists():
-                os.unlink(full_path)
-        except Exception as cleanup_error:
-            pass
+        # Check if another worker already registered this model via sync_dynamic_services
+        if raw_model_name in loader.services:
+            AppLogger.info("Model %s was already registered by another worker, treating as success", raw_model_name)
+        else:
+            AppLogger.error("Error deploying dynamic model:%s, remove file, error:%s", raw_model_name, str(e))
+            try:
+                if Path(full_path).exists():
+                    os.unlink(full_path)
+            except Exception as cleanup_error:
+                pass
 
-        return {
-            'status': 'error',
-            'error': f"Error deploying model {raw_model_name}: {str(e)}"
-        }, 400
+            return {
+                'status': 'error',
+                'error': f"Error deploying model {raw_model_name}: {str(e)}"
+            }, 400
 
     return {
         'status': 'success',
@@ -153,7 +157,11 @@ def do_handle_undeploy_model(request):
         loader.unregister_dynamic_service(model_name)
 
         if Path(str(full_path)).exists():
-            os.remove(full_path)
+            try:
+                os.remove(full_path)
+            except FileNotFoundError:
+                # Another worker removed the file between exists() and remove()
+                AppLogger.warning("Model %s config file was already removed by another worker during undeploy", model_name)
         else:
             AppLogger.warning("Model configuration file for model %s not found during undeploy, maybe already removed", model_name)
 
