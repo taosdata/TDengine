@@ -51,8 +51,10 @@ class DynamicForecastService(AbstractForecastService):
         else:
             # Prophet requires tz-naive datetime in its 'ds' column; strip timezone
             # after converting to the target tz so that local time values are correct.
-            df['ts'] = df['ts'].dt.tz_localize(None)
-            forecaster = ProphetModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
+            prophet_df = df.rename(columns={'ts': 'ds'}).copy()
+            prophet_df['ds'] = prophet_df['ds'].dt.tz_localize(None)
+            forecaster = ProphetModelForecaster(
+                self.config_file_path, prophet_df, self.rows, alpha=1 - self.conf)
 
         result = forecaster.forecast()
 
