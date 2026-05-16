@@ -7,7 +7,7 @@ struct MqttFormatOptions {
     std::string compression = "";
     std::string encoding = "UTF-8";
     std::string content_type = "json";
-    std::string tbname_key = "table";
+    std::string tbname_key = "";
 
     size_t qos = 0;
     bool retain = false;

@@ -108,6 +108,50 @@ void test_evaluate_last_value_env() {
     std::cout << "test_evaluate_last_value_env passed.\n";
 }
 
+void test_evaluate_numeric_string_returns_string() {
+    // tostring(math.random(1,10000)) returns a string like "5000".
+    // With lua_type() exact checking, this must be detected as LUA_TSTRING,
+    // not LUA_TNUMBER (lua_isnumber would coerce "5000" to true).
+    ExpressionEngine engine("tostring(42)");
+    auto result = engine.evaluate();
+    assert(std::holds_alternative<std::string>(result));
+    assert(std::get<std::string>(result) == "42");
+
+    // tostring on a random value should also return string
+    ExpressionEngine engine2("tostring(math.random(1, 10000))");
+    auto result2 = engine2.evaluate();
+    assert(std::holds_alternative<std::string>(result2));
+    // The result should be a parseable number string
+    std::string s = std::get<std::string>(result2);
+    int val = std::stoi(s);
+    (void)val;
+    assert(val >= 1 && val <= 10000);
+
+    std::cout << "test_evaluate_numeric_string_returns_string passed.\n";
+}
+
+void test_evaluate_number_returns_double() {
+    // A plain number expression must still return double
+    ExpressionEngine engine("math.random(1, 100)");
+    auto result = engine.evaluate();
+    assert(std::holds_alternative<double>(result));
+    double val = std::get<double>(result);
+    (void)val;
+    assert(val >= 1.0 && val <= 100.0);
+
+    std::cout << "test_evaluate_number_returns_double passed.\n";
+}
+
+void test_evaluate_string_concat_returns_string() {
+    // String concatenation should return string even if parts are numeric
+    ExpressionEngine engine("'prefix_' .. tostring(123)");
+    auto result = engine.evaluate();
+    assert(std::holds_alternative<std::string>(result));
+    assert(std::get<std::string>(result) == "prefix_123");
+
+    std::cout << "test_evaluate_string_concat_returns_string passed.\n";
+}
+
 int main() {
     test_evaluate_bool_expression();
     test_evaluate_square_wave();
@@ -115,6 +159,9 @@ int main() {
     test_evaluate_mixed_expression();
     test_evaluate_table_env();
     test_evaluate_last_value_env();
+    test_evaluate_numeric_string_returns_string();
+    test_evaluate_number_returns_double();
+    test_evaluate_string_concat_returns_string();
     std::cout << "All ExpressionEngine tests passed.\n";
     return 0;
 }

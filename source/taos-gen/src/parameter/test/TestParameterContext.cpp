@@ -893,6 +893,141 @@ jobs:
     std::cout << "CLI overrides YAML log_dir test passed.\n";
 }
 
+void test_schemaless_create_stb_tag_type_validation() {
+    // When schemaless + create-super-table are both present,
+    // all tags must be NCHAR type. Non-NCHAR tags should throw.
+    ParameterContext ctx;
+    YAML::Node config = YAML::Load(R"(
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/testdb
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 10
+  columns:
+    - name: _ts
+      type: timestamp
+  tags:
+    - name: region
+      type: varchar(20)
+jobs:
+  insert-job:
+    steps:
+      - uses: tdengine/create-super-table
+      - uses: tdengine/insert
+        with:
+          format: schemaless
+)");
+    try {
+        ctx.merge_yaml(config);
+        assert(false && "Should throw for non-NCHAR tag with schemaless + create-super-table");
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        assert(msg.find("region") != std::string::npos);
+        assert(msg.find("NCHAR") != std::string::npos || msg.find("nchar") != std::string::npos);
+    }
+    std::cout << "schemaless create-stb tag type validation test passed.\n";
+}
+
+void test_schemaless_create_stb_nchar_tags_pass() {
+    // NCHAR tags with schemaless + create-super-table should pass validation.
+    // Any timestamp column name is accepted (smlTsDefaultName is configurable).
+    ParameterContext ctx;
+    YAML::Node config = YAML::Load(R"(
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/testdb
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 10
+  columns:
+    - name: ts
+      type: timestamp
+  tags:
+    - name: region
+      type: nchar(20)
+    - name: city
+      type: nchar(30)
+jobs:
+  insert-job:
+    steps:
+      - uses: tdengine/create-super-table
+      - uses: tdengine/insert
+        with:
+          format: schemaless
+)");
+    ctx.merge_yaml(config);
+    const auto& data = ctx.get_config_data();
+    (void)data;
+    assert(!data.jobs.empty());
+    std::cout << "schemaless create-stb nchar tags pass test passed.\n";
+}
+
+void test_schemaless_without_create_stb_no_validation() {
+    // Schemaless WITHOUT create-super-table should NOT validate tag types or ts name
+    ParameterContext ctx;
+    YAML::Node config = YAML::Load(R"(
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/testdb
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 10
+  columns:
+    - name: ts
+      type: timestamp
+  tags:
+    - name: region
+      type: varchar(20)
+jobs:
+  insert-job:
+    steps:
+      - uses: tdengine/insert
+        with:
+          format: schemaless
+)");
+    ctx.merge_yaml(config);
+    const auto& data = ctx.get_config_data();
+    (void)data;
+    assert(!data.jobs.empty());
+    std::cout << "schemaless without create-stb no validation test passed.\n";
+}
+
+void test_create_stb_without_schemaless_no_validation() {
+    // create-super-table WITHOUT schemaless should NOT validate tag types
+    ParameterContext ctx;
+    YAML::Node config = YAML::Load(R"(
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/testdb
+schema:
+  name: meters
+  tbname:
+    prefix: d
+    count: 10
+  columns:
+    - name: ts
+      type: timestamp
+  tags:
+    - name: region
+      type: varchar(20)
+jobs:
+  insert-job:
+    steps:
+      - uses: tdengine/create-super-table
+      - uses: tdengine/insert
+        with:
+          format: sql
+)");
+    ctx.merge_yaml(config);
+    const auto& data = ctx.get_config_data();
+    (void)data;
+    assert(!data.jobs.empty());
+    std::cout << "create-stb without schemaless no validation test passed.\n";
+}
+
 // Test init_global then init_jobs two-phase flow
 void test_init_global_then_init_jobs() {
     const char* config_content = R"(
@@ -980,6 +1115,10 @@ int main() {
     test_yaml_log_dir();
     test_yaml_log_file();
     test_cli_overrides_yaml_log_dir();
+    test_schemaless_create_stb_tag_type_validation();
+    test_schemaless_create_stb_nchar_tags_pass();
+    test_schemaless_without_create_stb_no_validation();
+    test_create_stb_without_schemaless_no_validation();
     test_init_global_then_init_jobs();
 
     std::cout << "All tests passed!\n";

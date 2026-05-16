@@ -33,7 +33,7 @@ FormatResult InfluxDBInsertDataFormatter::format(MemoryPool::MemoryBlock* batch,
 
             if (!RowSerializer::to_influx_inplace(
                 cols(), tags(), table_block, row_idx,
-                config().schema.name, "", line_buffer)) {
+                config().schema.name, format_options_->tbname_key, line_buffer)) {
                 line_buffer.resize(pos_before);
                 continue;
             }
