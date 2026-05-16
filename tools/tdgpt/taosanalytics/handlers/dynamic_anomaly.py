@@ -40,4 +40,16 @@ class DynamicAnomalyService(AbstractAnomalyDetectionService):
             input_data_lists=self.input_data_lists,
         )
 
-        return detector.detect()
+        result = detector.detect()
+        expected_size = len(self.list) if self.list is not None else None
+
+        if result is None:
+            raise ValueError("dynamic anomaly detector returned no result")
+
+        if expected_size is not None and len(result) != expected_size:
+            raise ValueError(
+                "dynamic anomaly detector returned %d codes for %d input points"
+                % (len(result), expected_size)
+            )
+
+        return result
