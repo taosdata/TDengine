@@ -666,7 +666,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
       // NOTE: this is an patch to fix the physical plan
-      code = createVirtualTableMergeOperatorInfo(NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
+      code = createVirtualTableMergeOperatorInfo(NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE == type) {
       code = createRowsetSourceOperatorInfo(pPhyNode, pTaskInfo, &pOperator);
     } else {
