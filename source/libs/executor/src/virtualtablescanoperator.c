@@ -639,11 +639,11 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
     pCtx->pIntermediateBlock = NULL;
 
     QUERY_CHECK_NULL(taosArrayPush(pVirtualScanInfo->pSortCtxList, &pCtx), code, lino, _return, terrno)
-    ps->param = pCtx;
+    pCtx = NULL;
+    ps->param = *(SLoadNextCtx**)taosArrayGetLast(pVirtualScanInfo->pSortCtxList);
     ps->onlyRef = true;
 
     VTS_ERR_JRET(tsortAddSource(pVirtualScanInfo->pSortHandle, ps));
-    pCtx = NULL;
     ps = NULL;
   }
 
@@ -1235,7 +1235,13 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       VTS_ERR_JRET(createOneDataBlock(pTagRefBlock, true, &pSavedBlock));
 
       STagRefSavedBlock savedBlock = {.blockId = *pBlockId, .pBlock = pSavedBlock};
-      QUERY_CHECK_NULL(taosArrayPush(pVirtualScanInfo->pSavedTagRefBlocks, &savedBlock), code, lino, _return, terrno)
+      if (NULL == taosArrayPush(pVirtualScanInfo->pSavedTagRefBlocks, &savedBlock)) {
+        blockDataDestroy(pSavedBlock);
+        pSavedBlock = NULL;
+        code = terrno;
+        lino = __LINE__;
+        goto _return;
+      }
     }
   }
 

@@ -116,9 +116,9 @@ static int32_t tagRefSourceScanOneTable(SOperatorInfo* pOperator, SSDataBlock* p
       }
 
       if (pColInfo == NULL) {
-        qWarn("%s: failed to get col info for slotIndex:%d", __func__, slotIndex);
-        slotIndex++;
-        continue;
+        qError("%s: failed to get col info for slotIndex:%d", __func__, slotIndex);
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _end;
       }
 
       // Extract tag value from table entry using source table's colId

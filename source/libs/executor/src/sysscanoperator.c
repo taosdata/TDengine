@@ -2127,11 +2127,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     if (pMatchedRef != NULL && pMatchedRef->hasRef) {
       bool resolved = false;
       code = sysTagsResolveRefTagVal(pInfo, pMatchedRef, tagType, &tagData, &tagLen, &resolved, reqId, pTaskInfo);
-      if (code == TSDB_CODE_OUT_OF_MEMORY || code == TSDB_CODE_QRY_REACH_QMEM_THRESHOLD ||
-          code == TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = TSDB_CODE_SUCCESS;
+      QUERY_CHECK_CODE(code, lino, _end);
       if (resolved) {
         tagDataFromRemote = true;
       }

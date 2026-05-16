@@ -7039,7 +7039,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
           taosHashCleanup(pTagRefDedup);
           goto _return;
         }
-        code = nodesListMakeAppend(&pVTable->refTables, (SNode*)pRefNode);
+        code = nodesListMakeStrictAppend(&pVTable->refTables, (SNode*)pRefNode);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pNextRefs);
           taosArrayDestroy(pPendingRefs);

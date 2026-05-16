@@ -808,27 +808,29 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
 // at the super table level which specific tag columns have refs, any tag
 // column condition must conservatively stay on VirtualScan.
 // Pure tbname conditions use FUNCTION_TYPE_TBNAME with no tag columns.
-static bool pdcCondHasTagColumn(SNode* pCond) {
+static int32_t pdcCondHasTagColumn(SNode* pCond, bool* pHasTag) {
+  *pHasTag = false;
   SNodeList* pCondCols = NULL;
-  if (TSDB_CODE_SUCCESS != nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols) ||
-      NULL == pCondCols) {
-    nodesDestroyList(pCondCols);
-    return false;
+  int32_t code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (NULL == pCondCols) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  bool found = false;
   SNode* pNode = NULL;
   FOREACH(pNode, pCondCols) {
     if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (COLUMN_TYPE_TAG == pCol->colType) {
-      found = true;
+      *pHasTag = true;
       break;
     }
   }
 
   nodesDestroyList(pCondCols);
-  return found;
+  return TSDB_CODE_SUCCESS;
 }
 
 // Split a tag condition into SystemScan-safe part and VirtualScan-only part.
@@ -862,7 +864,14 @@ static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, S
       code = nodesCloneNode(pChild, &pClone);
       if (TSDB_CODE_SUCCESS != code) return code;
 
-      if (pdcCondHasTagColumn(pChild)) {
+      bool hasTag = false;
+      code = pdcCondHasTagColumn(pChild, &hasTag);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pClone);
+        return code;
+      }
+
+      if (hasTag) {
         code = nodesMergeNode(ppRefTagCond, &pClone);
       } else {
         code = nodesMergeNode(ppSysTagCond, &pClone);
@@ -876,7 +885,10 @@ static int32_t pdcSplitTagCondForVstb(SNode** ppTagCond, SNode** ppSysTagCond, S
     *ppTagCond = NULL;
   } else {
     // Single condition
-    if (pdcCondHasTagColumn(pCond)) {
+    bool hasTag = false;
+    code = pdcCondHasTagColumn(pCond, &hasTag);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (hasTag) {
       *ppRefTagCond = pCond;
     } else {
       *ppSysTagCond = pCond;

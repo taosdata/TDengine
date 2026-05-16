@@ -1890,8 +1890,16 @@ static int32_t keepOnlyLocalTagPseudoCols(SVirtualTableNode* pVirtualTable, SVir
 
     if (keepInPseudoCols) {
       SNode* pClone = NULL;
-      PLAN_ERR_RET(nodesCloneNode(pNode, &pClone));
-      PLAN_ERR_RET(nodesListMakeStrictAppend(&pRemainPseudoCols, pClone));
+      code = nodesCloneNode(pNode, &pClone);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pRemainPseudoCols);
+        return code;
+      }
+      code = nodesListMakeStrictAppend(&pRemainPseudoCols, pClone);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pRemainPseudoCols);
+        return code;
+      }
     }
   }
 
@@ -1918,6 +1926,7 @@ typedef struct SExtractFilterCondCtx {
   SNodeList*  pRefCols;        // List of reference columns (tagRef or colRef)
   SNodeList*  pMatchedConds;   // Conditions that match reference columns
   bool        hasNonRefCol;    // Whether condition has non-reference columns
+  int32_t     errCode;         // Error code from walker
 } SExtractFilterCondCtx;
 
 static bool isNodeContainForeignRefColumn(SNode* pNode, SNodeList* pRefCols);
@@ -1950,10 +1959,14 @@ static EDealRes extractFilterCondImpl(SNode* pNode, void* pContext) {
       }
       if (hasRefColInOr && !hasForeignInOr) {
         SNode* pClone = NULL;
-        if (TSDB_CODE_SUCCESS == nodesCloneNode(pNode, &pClone)) {
-          if (nodesListAppend(pCtx->pMatchedConds, pClone) != TSDB_CODE_SUCCESS) {
-            nodesDestroyNode(pClone);
-          }
+        if (TSDB_CODE_SUCCESS != nodesCloneNode(pNode, &pClone)) {
+          pCtx->errCode = terrno;
+          return DEAL_RES_ERROR;
+        }
+        if (nodesListAppend(pCtx->pMatchedConds, pClone) != TSDB_CODE_SUCCESS) {
+          nodesDestroyNode(pClone);
+          pCtx->errCode = terrno;
+          return DEAL_RES_ERROR;
         }
       }
     }
@@ -1965,10 +1978,14 @@ static EDealRes extractFilterCondImpl(SNode* pNode, void* pContext) {
     if (isNodeContainRefColumn(pNode, pCtx->pRefCols) &&
         !isNodeContainForeignRefColumn(pNode, pCtx->pRefCols)) {
       SNode* pClone = NULL;
-      if (TSDB_CODE_SUCCESS == nodesCloneNode(pNode, &pClone)) {
-        if (nodesListAppend(pCtx->pMatchedConds, pClone) != TSDB_CODE_SUCCESS) {
-          nodesDestroyNode(pClone);
-        }
+      if (TSDB_CODE_SUCCESS != nodesCloneNode(pNode, &pClone)) {
+        pCtx->errCode = terrno;
+        return DEAL_RES_ERROR;
+      }
+      if (nodesListAppend(pCtx->pMatchedConds, pClone) != TSDB_CODE_SUCCESS) {
+        nodesDestroyNode(pClone);
+        pCtx->errCode = terrno;
+        return DEAL_RES_ERROR;
       }
     }
   }
@@ -2087,7 +2104,7 @@ static int32_t extractFilterConditionForSingleRef(SNode* pWhere, SColumnNode* pC
   SNodeList* pMatchedConds = NULL;
   PLAN_ERR_RET(nodesMakeList(&pMatchedConds));
 
-  SExtractFilterCondCtx ctx = {.pRefCols = NULL, .pMatchedConds = pMatchedConds, .hasNonRefCol = false};
+  SExtractFilterCondCtx ctx = {.pRefCols = NULL, .pMatchedConds = pMatchedConds, .hasNonRefCol = false, .errCode = 0};
 
   SNodeList* pSingleColList = NULL;
   PLAN_ERR_RET(nodesMakeList(&pSingleColList));
@@ -2095,11 +2112,16 @@ static int32_t extractFilterConditionForSingleRef(SNode* pWhere, SColumnNode* pC
   ctx.pRefCols = pSingleColList;
 
   nodesWalkExpr(pWhere, extractFilterCondImpl, &ctx);
+  if (ctx.errCode != TSDB_CODE_SUCCESS) {
+    nodesDestroyList(ctx.pMatchedConds);
+    nodesClearList(pSingleColList);
+    return ctx.errCode;
+  }
 
   int32_t code = buildCombinedFilterCondition(ctx.pMatchedConds, ppFilterCond);
 
   nodesDestroyList(ctx.pMatchedConds);
-  nodesDestroyList(pSingleColList);
+  nodesClearList(pSingleColList);
   PLAN_ERR_RET(code);
 
   if (*ppFilterCond != NULL) {
@@ -2124,6 +2146,10 @@ static int32_t extractFilterConditionForRefs(SNode* pWhere, SNodeList* pRefCols,
   ctx.pRefCols = pRefCols;
 
   nodesWalkExpr(pWhere, extractFilterCondImpl, &ctx);
+  if (ctx.errCode != TSDB_CODE_SUCCESS) {
+    nodesDestroyList(ctx.pMatchedConds);
+    return ctx.errCode;
+  }
 
   int32_t code = buildCombinedFilterCondition(ctx.pMatchedConds, ppFilterCond);
 
@@ -2541,6 +2567,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   SNode*                  pNode = NULL;
   bool                    scanAllCols = true;
   SNode*                  pTagScan = NULL;
+  SNodeList*              pTagRefCols = NULL;
 
   // Virtual table scan node -> Real table scan node
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
@@ -2701,7 +2728,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
         pVtableScan->hasTagRef = true;
 
       // === Step 1: Build pTagRefCols from pTagRefSources (before moving nodes) ===
-      SNodeList* pTagRefCols = NULL;
       PLAN_ERR_JRET(nodesMakeList(&pTagRefCols));
 
       FOREACH(pRefNode, pVtableScan->pTagRefSources) {
@@ -2914,6 +2940,7 @@ _return:
   planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   nodesDestroyNode((SNode*)pRealTableScan);
   nodesDestroyNode((SNode*)pDynCtrl);
+  nodesDestroyList(pTagRefCols);
   if (pRefTableNodeMap) {
     taosHashCleanup(pRefTableNodeMap);
   }
@@ -2931,6 +2958,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   SHashObj* pRefTableNodeMap = NULL;
   SNode*    pTagScan = NULL;
   bool      hasUnrefCol = false;
+  SNodeList* pRemainPseudoCols = NULL;
 
   pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pRefTablesMap) {
@@ -3099,7 +3127,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
 
   // referenced virtual tags should be scanned from source tables, not from vtable tag-scan.
   if (pVtableScan->pScanPseudoCols) {
-    SNodeList* pRemainPseudoCols = NULL;
     PLAN_ERR_JRET(nodesMakeList(&pRemainPseudoCols));
 
     FOREACH(pNode, pVtableScan->pScanPseudoCols) {
@@ -3256,6 +3283,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   return code;
 _return:
   planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyList(pRemainPseudoCols);
   taosHashSetFreeFp(pRefTablesMap, destroyScanLogicNode);
   taosHashCleanup(pRefTablesMap);
   taosHashCleanup(pRefTableNodeMap);

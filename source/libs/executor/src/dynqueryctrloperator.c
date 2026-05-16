@@ -3679,6 +3679,7 @@ static int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **db
 
   if (find == NULL) {
     output = taosMemoryMalloc(sizeof(SUseDbOutput));
+    QUERY_CHECK_NULL(output, code, line, _return, terrno);
     code = buildDbVgInfoMap(pOperator, pMsgCb, name, pTaskInfo, output);
     QUERY_CHECK_CODE(code, line, _return);
     code = taosHashPut(pInfo->vtbScan.dbVgInfoMap, name->dbname, strlen(name->dbname), &output, POINTER_BYTES);
