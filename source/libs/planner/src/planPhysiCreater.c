@@ -2199,6 +2199,27 @@ static int32_t ensureCondColSlotsInJoinDescs(SPhysiPlanContext* pCxt, SNode* pCo
     }
   }
 
+  // FQ fallback: when child is Exchange (not Scan), alias is still NULL.
+  // Walk down via pTargets which every logic node carries with valid tableAlias.
+  if (NULL == leftAlias && pLeftLogic && pLeftLogic->pTargets) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pLeftLogic->pTargets) {
+      if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((SColumnNode*)pNode)->tableAlias[0]) {
+        leftAlias = ((SColumnNode*)pNode)->tableAlias;
+        break;
+      }
+    }
+  }
+  if (NULL == rightAlias && pRightLogic && pRightLogic->pTargets) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pRightLogic->pTargets) {
+      if (QUERY_NODE_COLUMN == nodeType(pNode) && '\0' != ((SColumnNode*)pNode)->tableAlias[0]) {
+        rightAlias = ((SColumnNode*)pNode)->tableAlias;
+        break;
+      }
+    }
+  }
+
   // Collect all column nodes referenced in pCond
   SNodeList* pCols = NULL;
   int32_t    code  = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCols);
