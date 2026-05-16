@@ -1,0 +1,12 @@
+# kafka server
+KafkaServer:
+  broker: '192.168.1.45'
+  port: 19092
+  topics:
+    -
+      topicname: test_taosx
+      format: json
+      partition: 6
+      message: {"mytime":myts, "id": myid,"current": 10.77,"phase": 0.77,"voltage": 210, "description": "hello taosx", "groupid": 1,"location":"Beijing"}
+
+interval: 1

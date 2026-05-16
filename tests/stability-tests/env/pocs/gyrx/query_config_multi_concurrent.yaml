@@ -1,0 +1,70 @@
+# TDengine 多并发查询性能测试配置文件示例
+# 展示如何配置多组并发查询测试
+
+# 基础查询配置 - 每个查询将使用JMeter执行指定次数
+basic_queries:
+  # 条件过滤查询
+  condition_filter_queries:
+    - name: "条件过滤查询_ID等值"
+      description: "时序表查询-条件过滤(ID等值查询)"
+      sql: "select * from usecase17 where sid = 600001 limit 10"
+      iterations: 100
+      
+    - name: "条件过滤查询_价格范围"
+      description: "时序表查询-条件过滤(价格范围查询)"
+      sql: "select * from usecase17 where price > 10 limit 10"
+      iterations: 100
+
+# 【新功能】多组并发查询配置 - 支持多个不同的并发测试场景
+concurrent_queries:
+  # 第一组：多表关联查询并发测试
+  - name: "多表关联并发查询"
+    description: "时序表查询-多表关联并发测试"
+    sql: "select * from d17_0 a, d17_1 b, d17_2 c where a.ts=b.ts and a.ts=c.ts limit 10"
+    concurrency_levels: [10, 50, 100]
+  
+  # 第二组：单表条件过滤并发测试
+  - name: "单表条件过滤并发查询"
+    description: "时序表查询-单表条件过滤并发测试"
+    sql: "select * from usecase17 where sid = 600001 limit 50"
+    concurrency_levels: [20, 100, 200]
+  
+  # 第三组：聚合查询并发测试
+  - name: "聚合查询并发测试"
+    description: "时序表查询-聚合函数并发测试"
+    sql: "select count(*), avg(price), max(ts) from usecase17"
+    concurrency_levels: [5, 25, 50]
+  
+  # 第四组：排序查询并发测试
+  - name: "排序查询并发测试"
+    description: "时序表查询-排序操作并发测试"
+    sql: "select * from d17_0 order by ts desc limit 20"
+    concurrency_levels: [10, 30, 60]
+
+# 【向后兼容】单个并发查询配置 - 如果同时存在concurrent_queries，则忽略此配置
+concurrent_query:
+  name: "兼容性多表关联并发查询"
+  description: "向后兼容的并发测试配置"
+  sql: "select * from d17_0 a, d17_1 b where a.ts=b.ts limit 10"
+  concurrency_levels: [10, 50]
+
+# 全局测试配置
+test_config:
+  # 是否启用SQL验证(在JMeter测试前先验证SQL正确性)
+  enable_sql_validation: true
+  
+  # 验证时使用的limit子句
+  validation_limit: 1
+  
+  # 是否生成截图
+  enable_screenshots: true
+  
+  # JMeter测试超时时间(秒)
+  jmeter_timeout: 3600
+
+# 说明文档：
+# 1. 使用 concurrent_queries (复数) 可配置多组并发测试
+# 2. 每组测试可以有不同的SQL、并发级别和测试名称
+# 3. 截图文件名会包含查询名称，如：jmeter_多表关联并发查询_concurrency_10.png
+# 4. 保持向后兼容，concurrent_query (单数) 仍然支持
+# 5. 如果同时配置了 concurrent_queries 和 concurrent_query，优先使用 concurrent_queries 

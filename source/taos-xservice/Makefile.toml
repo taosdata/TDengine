@@ -1,0 +1,1852 @@
+# command "toml get ..." requires installation of "toml-cli" first, ref https://github.com/gnprice/toml-cli
+
+# Use env scripts to get the latest version from git tags to make it available for any platform.
+env_scripts = ['''
+  #!@duckscript
+
+  # setup version
+  ver = get_env VER_NUMBER
+  if is_empty ${ver}
+    out = exec git describe --tags --abbrev=0
+    ver = trim ${out.stdout}
+    ver = replace ${ver} "ver-" ""
+    echo "* last published version: ${ver}"
+    set_env "VER_NUMBER" "${ver}"
+  end
+
+  # 获取编译器版本信息
+  gcc_version = exec cc -dumpversion
+  version = trim ${gcc_version.stdout}
+  if is_empty ${version}
+    set_env "CFLAGS" "-fno-builtin"
+  else
+    echo "GCC version: ${version}"
+
+    if contains ${version} "."
+      version = semver_parse "${version}"
+    else
+      version = semver_parse "${version}.0.0"
+    end
+    echo "Major version: ${version.major}"
+
+    # 比较主版本号是否大于 9
+    if greater_than ${version.major} 9
+        echo "GCC version is 10+"
+    else
+        echo "GCC version is 9 or lower, use -fno-builtin"
+        set_env "CFLAGS" "-fno-builtin"
+    end
+  end
+
+  cus_name = get_env "CUS_NAME"
+  echo ${cus_name}
+  if is_empty "${cus_name}"
+    cus_name = set "TDengine"
+    set_env "CUS_NAME" "${cus_name}"
+  end
+  echo "Product: ${cus_name}"
+
+  if eq "${cus_name}" "TDengine TSDB-Lite"
+    set_env "TSDB_LITE" "true"
+  end
+
+  cus_prompt = get_env "CUS_PROMPT"
+  if is_empty "${cus_prompt}"
+    cus_prompt = set "taos"
+    set_env "CUS_PROMPT" "${cus_prompt}"
+  end
+  echo "Prompt: ${cus_prompt}"
+
+  # 获取插件目录
+  plugins_home = get_env "PLUGINS_HOME"
+
+  # 获取当前系统平台
+  os = os_family
+  echo "Build on OS: ${os}"
+  set_env "CARGO_MAKE_BUILD_OS_FAMILY" "${os}"
+  if is_empty "${plugins_home}"
+    if eq ${os} "windows"
+      set_env "PLUGINS_HOME" "C:\\${cus_name}\\plugins"
+    else
+      set_env "PLUGINS_HOME" "/usr/local/${cus_prompt}/plugins"
+    end
+  end
+  ''']
+
+[config]
+load_cargo_aliases = false
+skip_core_tasks = true
+default_to_workspace = false
+
+[env]
+UPX_DIR = "./target/deploy/upx/"
+BUILD_PROFILE = { value = "release", condition = { env_not_set = [
+  "BUILD_PROFILE",
+] } }
+RUST_VERSION = "1.90.0"
+ZIG_VERSION = "0.14.1"
+PNPM_VERSION = "10.33.4"
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--profile", "${BUILD_PROFILE}", "${@}"]
+
+[tasks.dump-env]
+script = """
+echo VER_NUMBER=$VER_NUMBER
+echo BUILD_PROFILE=$BUILD_PROFILE
+echo CFLAGS=$CFLAGS
+echo PLUGINS_HOME=$PLUGINS_HOME
+"""
+[tasks.taosx-unlicensed]
+condition.files_modified = { input = [
+  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
+  "src/**/*.rs",
+  "crates/**/*.rs",
+  "taosx-core/src/**/*.rs",
+  "taosx-ipc/src/**/*.rs",
+  "taosx-metrics/src/**/*.rs",
+], output = [
+  "target/${BUILD_PROFILE}/taosx",
+] }
+dependencies = ["install-protoc"]
+command = "cargo"
+args = [
+  "build",
+  "-p",
+  "taosx",
+  "--features",
+  "disable-enterprise-only-validation,disable-enterprise-connector-validation",
+  "--profile",
+  "${BUILD_PROFILE}",
+]
+
+[tasks.taosx]
+dependencies = ["install-protoc"]
+command = "cargo"
+args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
+
+[tasks.taosx.windows]
+command = "cargo"
+args = [
+  "build",
+  "-p",
+  "taosx",
+  "--profile",
+  "${BUILD_PROFILE}",
+  "--no-default-features",
+  "--features",
+  "optin,native-tls",
+]
+
+[tasks.taosx-agent]
+command = "cargo"
+dependencies = ["install-protoc"]
+args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
+
+[tasks.plugins]
+dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc", "taosx-pspace"]
+
+[tasks.clean-plugins]
+script = """
+set -ex
+rm -rf plugins/influxdb/target
+rm -rf plugins/opentsdb/target
+rm -rf plugins/opc/taosx-opc
+rm -rf plugins/pspace/target
+"""
+
+[tasks.taosx-influxdb]
+command = "mvn"
+args = ["package", "-f", "plugins/influxdb/pom.xml"]
+
+[tasks.taosx-opentsdb]
+command = "mvn"
+args = ["package", "-f", "plugins/opentsdb/pom.xml"]
+
+[tasks.taosx-pspace]
+command = "mvn"
+args = ["package", "-f", "plugins/pspace/pom.xml"]
+
+[tasks.taosx-opc]
+cwd = "plugins/opc"
+script = """
+commit=$(git rev-parse HEAD | cut -c 1-8)
+built=$(date +"%F %T %:z")
+go mod tidy
+go build -o taosx-opc \
+  -ldflags "-X collector/version.CommitID=${commit} -X 'collector/version.BuildAt=$built'"
+"""
+
+[tasks.taosx-plugin-hebeipower]
+cwd = "crates/transform/parsers/hebeipower"
+script = """
+cargo clean
+cargo build --release
+"""
+
+[tasks.package]
+# script = { file = "./scripts/package.sh" }
+# dependencies = ["build-all"]
+script = """
+PKG=target/packaging/linux
+[ -d $PKG ] && rm -rf $PKG
+mkdir -p $PKG/usr/bin
+mkdir -p $PKG/usr/local/taos/plugins/influxdb
+mkdir -p $PKG/usr/local/taos/plugins/opentsdb
+mkdir -p $PKG/usr/local/taos/plugins/opc
+mkdir -p $PKG/usr/local/taos/plugins/pspace
+
+mkdir -p $PKG/etc/systemd
+mkdir -p $PKG/etc/taos
+
+cp target/release/taosx target/release/taosx-agent $PKG/usr/bin
+cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taos/plugins/influxdb
+cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taos/plugins/opentsdb
+cp plugins/opc/taosx-opc $PKG/usr/local/taos/plugins/opc/
+cp plugins/pspace/target/taosx-pspace.jar $PKG/usr/local/taos/plugins/pspace/
+cp packaging/uninstall.sh $PKG/usr/local/taos/
+
+cp target/*.service $PKG/etc/systemd/
+cp taosx-agent/examples/agent.toml $PKG/etc/taos/agent.example.toml
+
+cd $PKG
+version=$(./usr/bin/taosx --version|cut -f 2 -d " ")
+tar cavf ../taosx-$version.tar.gz ./*
+ln -f ../taosx-$version.tar.gz ../taosx-latest.tar.gz
+"""
+
+[tasks.dev-install-taosx]
+script = """
+sudo systemctl stop taosx || true
+sudo install target/debug/taosx /usr/local/taos/bin/
+sudo ln -sf /usr/local/taos/bin/taosx /usr/bin/taosx
+sudo systemctl start taosx
+"""
+
+[tasks.dev-install-plugins]
+description = "Use install-plugins instead"
+deprecated = true
+
+[tasks.install-plugins]
+description = "Install all available plugins"
+run_task = { name = [
+  "install-plugin-opc",
+  "install-plugin-influxdb",
+  "install-plugin-opentsdb",
+  "install-plugin-pspace",
+] }
+
+[tasks.install-plugin-opc]
+condition = { files_exist = ["plugins/opc/taosx-opc"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/opc
+sudo cp plugins/opc/taosx-opc ${PLUGINS_HOME}/opc/
+"""
+[tasks.install-plugin-influxdb]
+condition = { files_exist = ["plugins/influxdb/target/taosx-influxdb.jar"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/influxdb
+sudo cp plugins/influxdb/target/taosx-influxdb.jar  ${PLUGINS_HOME}/influxdb/
+"""
+[tasks.install-plugin-opentsdb]
+condition = { files_exist = ["plugins/opentsdb/target/taosx-opentsdb.jar"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/opentsdb
+sudo cp plugins/opentsdb/target/taosx-opentsdb.jar  ${PLUGINS_HOME}/opentsdb/
+"""
+[tasks.install-plugin-pspace]
+condition = { files_exist = ["plugins/pspace/target/taosx-pspace.jar"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/pspace
+sudo cp plugins/pspace/target/taosx-pspace.jar ${PLUGINS_HOME}/pspace/
+"""
+
+[tasks.install-agent]
+condition = { files_exist = ["target/${BUILD_PROFILE}/taosx-agent"] }
+script = """
+sudo cp target/${BUILD_PROFILE}/taosx-agent /usr/bin/
+sudo cp target/taosx-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+"""
+
+[tasks.install]
+cwd = "target/packaging"
+dependencies = ["package"]
+script = """
+sudo tar -C / --no-same-owner -xvf taosx-latest.tar.gz
+"""
+
+[tasks.uninstall]
+script = """
+echo $@
+sudo rm /usr/local/taos/bin/taos-explorer
+sudo rm /usr/local/taos/bin/taosx
+sudo rm /usr/local/taos/bin/taosx-agent
+sudo rm /etc/systemd/systemd/taos-explorer.service
+sudo rm /etc/systemd/systemd/taosx.service
+sudo rm /etc/systemd/systemd/taosx-agent.service
+sudo systemctl daemon-reload
+if [ "$1" == "--all" ]; then
+  sudo rm -rf /var/lib/taos/taosx/
+fi
+"""
+
+[tasks.explorer-ui]
+cwd = "explorer"
+script = """
+npx -y pnpm@${PNPM_VERSION} install && npx -y pnpm@${PNPM_VERSION} run build
+"""
+
+[tasks.explorer-ui.windows]
+script_runner = "@shell"
+
+[tasks.build-all]
+dependencies = ["explorer-ui"]
+script = """
+cargo make build -p taosx -p taos-explorer
+"""
+
+[tasks.build-all-with-agent]
+dependencies = ["explorer-ui"]
+script = """
+cargo make build -p taosx -p taosx-agent -p taos-explorer
+"""
+
+[tasks.build-sanitizer]
+env = { "RUSTFLAGS" = "-Zsanitizer=address --cfg tokio_unstable" }
+script = """
+cargo +nightly build --profile sani --target x86_64-unknown-linux-gnu -Zbuild-std
+"""
+
+[tasks.clean-all]
+dependencies = ["clean-plugins", "clean"]
+
+[tasks.docker-cloud]
+script = """
+set -e
+push=0
+build=0
+for arg in "$@"; do
+  case $arg in
+    --push|-p)
+      push=1
+      ;;
+    --build|-b)
+      build=1
+      ;;
+  esac
+done
+
+commit=$(git rev-parse HEAD | cut -c 1-8)
+version=$(toml get Cargo.toml workspace.package.version -r)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+
+if [ "$build" = "1" ]; then
+  cargo build --release
+fi
+docker build --build-arg VER_NUMBER=${VER_NUMBER} -t image.cloud.taosdata.com/taosx/serve:$version-$commit .
+if [ "$push" = "1" ]; then
+  docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
+fi
+"""
+dependencies = ["plugins", "install-toml-cli"]
+
+[tasks.docker-push]
+script = """
+commit=$(git rev-parse HEAD | cut -c 1-8)
+version=$(toml get Cargo.toml workspace.package.version -r)
+docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
+"""
+
+[tasks.build-all-and-cloud]
+dependencies = ["build-all", "docker-cloud"]
+
+[tasks.build-and-push-docker-cloud]
+dependencies = ["build-all", "docker-cloud", "docker-push"]
+
+[tasks.build-docker]
+run_task = [
+  { name = "build-docker-serve-source", condition = { env = { "mode" = "serve", "type" = "source" } } },
+  { name = "build-docker-serve-bin", condition = { env = { "mode" = "serve", "type" = "bin" } } },
+  { name = "build-docker-agent-source", condition = { env = { "mode" = "agent", "type" = "source" } } },
+  { name = "build-docker-agent-bin", condition = { env = { "mode" = "agent", "type" = "bin" } } },
+  { name = "build-docker-integrated-bin", condition = { env = { "mode" = "integrated" } } },
+  { name = "build-docker-integrated-bin" },
+]
+
+[tasks.build-docker-serve-source]
+description = "Build docker image for Cloud"
+script = """
+set -ex
+commit=$(git rev-parse HEAD | cut -c 1-8)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/serve/release/plugins/
+rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz .
+tar vxf TDengine-enterprise-client-${VER_NUMBER}-Linux-x64.tar.gz
+cp -r ./TDengine-enterprise-client-${VER_NUMBER} ./docker/serve/release/TDengine-enterprise-client
+cp ./target/release/taosx ./docker/serve/release/taosx
+cp ./target/release/taos-explorer ./docker/serve/release/taos-explorer
+cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
+cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
+cp ./plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
+docker build -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER}-$commit ./docker/serve/
+rm -rf ./docker/serve/release
+rm -rf ./TDengine-enterprise-client-${VER_NUMBER}
+"""
+dependencies = [
+  "taosx",
+  # "taos-explorer",
+  "plugins",
+]
+
+[tasks.build-docker-serve-bin]
+script = """
+set -e
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/serve/release/plugins/
+wget http://192.168.1.131/data/nas/TDengine/3.3/v${VER_NUMBER}/enterprise/tdengine-tsdb-enterprise-client-${VER_NUMBER}-linux-arm64.tar.gz
+wget http://192.168.1.131/data/nas/TDengine/3.3/v${VER_NUMBER}/enterprise/tdengine-tsdb-enterprise-${VER_NUMBER}-linux-x64.tar.gz
+tar vxf tdengine-tsdb-enterprise-client-${VER_NUMBER}-linux-arm64.tar.gz
+cp -r ./tdengine-tsdb-enterprise-client-${VER_NUMBER} ./docker/serve/release/tdengine-tsdb-enterprise-client
+tar vxf tdengine-tsdb-enterprise-${VER_NUMBER}-linux-x64.tar.gz
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/serve/release/plugins/taosx-influxdb.jar
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/serve/release/plugins/taosx-opentsdb.jar
+cp ./tdengine-tsdb-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/serve/release/plugins/taosx-opc
+docker buildx build --platform linux/amd64 -t image.cloud.taosdata.com/taosx/serve:${VER_NUMBER} ./docker/serve/
+rm -rf ./docker/serve/release
+rm -rf ./tdengine-tsdb-enterprise-client-${VER_NUMBER}
+rm -rf ./tdengine-tsdb-enterprise-${VER_NUMBER}
+"""
+
+[tasks.build-docker-agent-source]
+script = """
+set -e
+commit=$(git rev-parse HEAD | cut -c 1-8)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/agent/release/plugins/
+cp ./target/release/taosx-agent ./docker/agent/release/taosx-agent
+cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/agent/release/plugins/taosx-influxdb.jar
+cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/agent/release/plugins/taosx-opentsdb.jar
+cp ./plugins/opc/taosx-opc ./docker/agent/release/plugins/taosx-opc
+docker build -t image.cloud.taosdata.com/taosx/agent:${VER_NUMBER}-$commit ./docker/agent/
+rm -rf ./docker/agent/release
+"""
+dependencies = ["taosx-agent", "plugins"]
+
+[tasks.build-docker-agent-bin]
+script = """
+set -e
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/agent/release/plugins/
+rsync -u root@192.168.1.213:/nas/TDengine/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
+tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taosx-agent ./docker/agent/release/taosx-agent
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/agent/release/plugins/taosx-influxdb.jar
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/agent/release/plugins/taosx-opentsdb.jar
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/agent/release/plugins/taosx-opc
+docker build -t image.cloud.taosdata.com/taosx/agent:${VER_NUMBER} ./docker/agent/
+rm -rf ./docker/agent/release
+rm -rf ./TDengine-enterprise-${VER_NUMBER}
+"""
+
+[tasks.build-docker-integrated-source]
+script = """
+set -ex
+commit=$(git rev-parse HEAD | cut -c 1-8)
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/integrated/release/plugins/
+echo $(echo "${VER_NUMBER}" | cut -d'.' -f1,2)
+rsync -u root@192.168.1.213:/nas/TDengine/$(echo "${VER_NUMBER}" | cut -d'.' -f1,2)/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
+tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
+cp -r ./TDengine-enterprise-${VER_NUMBER} ./docker/integrated/release/TDengine-enterprise
+rm -rf ./docker/integrated/release/TDengine-enterprise/taosx/
+cp ./target/release/taosx ./docker/integrated/release/taosx
+cp ./target/release/taos-explorer ./docker/integrated/release/taos-explorer
+cp ./plugins/influxdb/target/taosx-influxdb.jar ./docker/integrated/release/plugins/taosx-influxdb.jar
+cp ./plugins/opentsdb/target/taosx-opentsdb.jar ./docker/integrated/release/plugins/taosx-opentsdb.jar
+cp ./plugins/opc/taosx-opc ./docker/integrated/release/plugins/taosx-opc
+docker build -t image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit ./docker/integrated/
+rm -rf ./docker/integrated/release
+rm -rf ./TDengine-enterprise-${VER_NUMBER}
+"""
+dependencies = [
+
+
+  # "taosx",
+  # "plugins",
+  # "taos-explorer"
+]
+
+[tasks.verify-integrated-image]
+description = "[WIP] Verify integrated docker image"
+script = """
+set -ex
+commit=$(git rev-parse HEAD | cut -c 1-8)
+export container=taosx-integrated-${VER_NUMBER}-$commit
+stop_container() {
+  docker stop $container
+  if [ $? -ne 0 ]; then
+    echo "Failed to stop container $container"
+  else
+    echo "Waiting for container $container to stop..."
+    while [ "$(docker inspect -f '{{.State.Running}}' $container)" = "true" ]; do
+      sleep 1
+    docker rm $container
+  done
+  fi
+}
+stop_container || true
+docker run --rm --name $container -d image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit
+sleep 5
+docker logs $container 2>&1 |grep "enable taosx" || (echo "taosx should be enabled"; stop_container; exit 1)
+stop_container || true
+docker run --rm --name $container -e ENABLE_TAOSX=0 -d image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER}-$commit
+sleep 5
+docker logs $container  2>&1|grep "enable taosx" && (echo "taosx should not be enabled"; stop_container; exit 1)
+stop_container || true
+"""
+
+[tasks.build-docker-integrated-bin]
+script = """
+set -e
+echo TDengine version in cloud image is "${VER_NUMBER}"
+mkdir -p ./docker/integrated/release/plugins/
+rsync -u root@192.168.1.213:/nas/TDengine/$(echo "${VER_NUMBER}" | cut -d'.' -f1,2)/v${VER_NUMBER}/enterprise/TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz .
+tar vxf TDengine-enterprise-${VER_NUMBER}-Linux-x64.tar.gz
+cp -r ./TDengine-enterprise-${VER_NUMBER} ./docker/integrated/release/TDengine-enterprise
+rm -rf ./docker/integrated/release/TDengine-enterprise/taosx/
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taosx ./docker/integrated/release/taosx
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/bin/taos-explorer ./docker/integrated/release/taos-explorer
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/influxdb/taosx-influxdb.jar ./docker/integrated/release/plugins/taosx-influxdb.jar
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opentsdb/taosx-opentsdb.jar ./docker/integrated/release/plugins/taosx-opentsdb.jar
+cp ./TDengine-enterprise-${VER_NUMBER}/taosx/plugins/opc/taosx-opc ./docker/integrated/release/plugins/taosx-opc
+docker build -t image.cloud.taosdata.com/taosx/integrated:${VER_NUMBER} ./docker/integrated/
+rm -rf ./docker/integrated/release
+rm -rf ./TDengine-enterprise-${VER_NUMBER}
+"""
+
+[tasks.build-docker-dev]
+cwd = "docker/dev/"
+script = """
+echo use manylinux2014 as base image with docker/dev/Dockerfile .
+set -e
+PLATFORM=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#--platform=}"
+      shift
+      ;;
+    *)
+      echo "Unknown param: $1, ignored"
+      ;;
+  esac
+done
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64,linux/arm64" # default platform
+fi
+echo "Building taosx/dev:${RUST_VERSION} for platform: ${PLATFORM}"
+docker buildx build --platform ${PLATFORM} -t taosx/dev:${RUST_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} --load .
+"""
+[tasks.install-taosx-dev-docker-image]
+install_script = """
+#!/bin/bash
+echo "Prepare dev image for version $RUST_VERSION"
+if ! docker image inspect taosx/dev:${RUST_VERSION} >/dev/null 2>&1; then
+  echo "Dev image taosx/dev:${RUST_VERSION} not found locally. Building..."
+  cargo make build-docker-dev
+else
+  echo "Dev image taosx/dev:${RUST_VERSION} already present. Skipping build."
+fi
+"""
+
+[tasks.check-aarch64]
+alias = "check-arm64"
+[tasks.check-arm64]
+dependencies = ["assert-explorer-dist"]
+script_runner = "bash"
+script = """
+if [[ "$@" = "" ]]; then
+  extras="--workspace";
+else
+  extras="$@";
+fi
+echo cargo check $extras
+export PLATFORM=linux/arm64
+export TARGET_DIR=$PWD/target/${PLATFORM}
+mkdir -p $TARGET_DIR
+docker run --platform $PLATFORM --rm \
+  -v .:/app \
+  -e VER_NUMBER=${VER_NUMBER} \
+  -v $HOME/.cargo/registry:/root/.cargo/registry \
+  -v $HOME/.cargo/git:/root/.cargo/git \
+  -v $TARGET_DIR:/app/target \
+  taosx/dev:${RUST_VERSION} \
+  cargo check
+"""
+
+# # Examples
+#
+# 1. Build aarch64 taosx: cargo make build-centos7-release --platform linux/arm64 -p taosx
+# 2. Build aarch64 taosx and agent: cargo make build-centos7-release --platform linux/amd64 -p taosx -p taosx-agent
+#
+[tasks.build-centos7-release]
+dependencies = ["install-taosx-dev-docker-image"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+
+# Parse arguments: extract --platform (linux/amd64 or linux/arm64) and pass remaining to cargo.
+PLATFORM=""
+EXTRAS=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      PLATFORM="$2"
+      shift 2
+      ;;
+    --platform=*)
+      PLATFORM="${1#--platform=}"
+      shift
+      ;;
+    *)
+      if [ -z "$EXTRAS" ]; then
+        EXTRAS="$1"
+      else
+        EXTRAS="$EXTRAS $1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [ -z "$PLATFORM" ]; then
+  PLATFORM="linux/amd64" # default platform
+fi
+
+case "${PLATFORM}" in
+  "linux/amd64"|"linux/arm64")
+    echo "Build taosX release for target ${PLATFORM}"
+    echo "EXTRAS: ${EXTRAS}"
+    echo "BUILD_PROFILE: ${BUILD_PROFILE}"
+    TARGET_DIR=$PWD/target/${PLATFORM}
+    mkdir -p "$TARGET_DIR"
+    docker run --platform "${PLATFORM}" --rm \
+      -v .:/app \
+      -v $HOME/.cargo/registry:/root/.cargo/registry \
+      -v $HOME/.cargo/git:/root/.cargo/git \
+      -v "$TARGET_DIR":/app/target \
+      -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
+      -e VER_NUMBER=${VER_NUMBER} \
+      taosx/dev:${RUST_VERSION} \
+      cargo build --profile "${BUILD_PROFILE}" ${EXTRAS}
+    ;;
+  *)
+    echo "Unsupported platform: ${PLATFORM}. Allowed: linux/amd64 or linux/arm64"
+    exit 1
+    ;;
+esac
+
+"""
+
+[tasks.build-centos7-sani]
+dependencies = ["install-taosx-dev-docker-image"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker compose run --remove-orphans --rm build \
+  cargo build --profile sani -p taosx "--target" "x86_64-unknown-linux-gnu" "-Zbuild-std"
+"""
+
+[tasks.build-centos7-jemalloc]
+dependencies = ["install-taosx-dev-docker-image"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker compose run --remove-orphans --rm build \
+  cargo build --profile production -p taosx --no-default-features --features jemallocator,optin,native-tls,tokio-tracing
+"""
+
+[tasks.build-centos7-production]
+dependencies = ["install-taosx-dev-docker-image"]
+script = """
+echo Build taosX release binaries with taosx/dev image.
+mkdir -p target/centos7
+docker compose run build \
+  cargo build --profile production -p taosx
+"""
+
+[tasks.upx-local]
+script_runner = "@duckscript"
+script = """
+!print "* Use local UPX binary"
+os = os_family
+echo "Detect OS ${os}"
+
+upx_dir = get_env "UPX_DIR"
+echo "Use upx dir ${upx_dir}"
+
+version = set "5.0.1"
+
+if eq ${os} "windows"
+  if is_path_exists "${upx_dir}/upx.exe"
+    echo "UPX binary already exists"
+    exit 0
+  end
+  echo "Download UPX binary in windows"
+
+  file = set ${upx_dir}/upx.zip
+
+  if is_path_exists ${file}
+    echo "UPX already downloaded as ${file}"
+  else
+    url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-win64.zip"
+    echo ${url}
+    response_size = wget -O ${file} ${url}
+    echo Got response size: ${response_size}
+  end
+
+  exec powershell -command "Expand-Archive -Force '${file}' '${upx_dir}/'"
+	exec powershell -command "Move-Item '${upx_dir}/upx-${version}-win64/upx.exe' '${upx_dir}/'"
+  rm ${file}
+else
+  if is_path_exists "${upx_dir}/upx"
+    echo "* UPX binary already exists"
+    exit 0
+  end
+
+  echo "* Downloading UPX binary in linux..."
+
+  file = set ${upx_dir}/upx.tar.xz
+
+  if is_path_exists ${file}
+    echo "UPX already downloaded: ${file}"
+  else
+    triple = get_env CARGO_MAKE_RUST_TARGET_TRIPLE
+    echo Target triple: ${triple}
+    if contains ${triple} "aarch64"
+      arch = set "arm64"
+    else
+      arch = set "amd64"
+    end
+    url = set "https://github.com/upx/upx/releases/download/v${version}/upx-${version}-${arch}_linux.tar.xz"
+    echo ${url}
+    response_size = wget -O ${file} ${url}
+    echo Got response size: ${response_size}
+  end
+
+  exec tar -xvf ${file} --strip-components=1 -C ${upx_dir}
+  echo "* UPX binary downloaded, remove ${file}"
+  rm ${file}
+end
+"""
+
+[tasks.upx]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+upx_run ${1} ${2}
+"""
+
+[tasks.clean-taosx]
+script_runner = "@duckscript"
+script.pre = """
+echo "Clean taosx with profile ${BUILD_PROFILE}"
+if eq ${BUILD_PROFILE} "dev"
+  rm target/debug/taosx
+else
+  rm target/${BUILD_PROFILE}/taosx
+end
+"""
+
+[tasks.clean-xnoded]
+script_runner = "@duckscript"
+script.pre = """
+echo "Clean xnoded with profile ${BUILD_PROFILE}"
+if eq ${BUILD_PROFILE} "dev"
+  rm target/debug/xnoded
+else
+  rm target/${BUILD_PROFILE}/xnoded
+end
+"""
+
+[tasks.xnoded]
+command = "cargo"
+args = ["build", "-p", "xnoded", "--profile", "${BUILD_PROFILE}"]
+
+# ============================================================================
+# Coverage-Instrumented Build Tasks
+# ============================================================================
+
+[tasks.taosx-with-coverage]
+description = "Build taosx with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov", "install-protoc"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p taosx --profile ${BUILD_PROFILE}
+"""
+
+[tasks.taosx-agent-with-coverage]
+description = "Build taosx-agent with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov", "install-protoc"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p taosx-agent --profile ${BUILD_PROFILE}
+"""
+
+[tasks.explorer-with-coverage]
+description = "Build taos-explorer with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov", "explorer-ui"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p taos-explorer --profile ${BUILD_PROFILE}
+"""
+
+[tasks.xnoded-with-coverage]
+description = "Build xnoded with llvm-cov instrumentation"
+dependencies = ["install-llvm-cov"]
+script = """
+#!/usr/bin/env bash
+eval "$(cargo llvm-cov show-env --export-prefix)"
+cargo build -p xnoded --profile ${BUILD_PROFILE}
+"""
+
+[tasks.generate-coverage-report]
+description = "Generate coverage reports from profraw files"
+dependencies = ["install-llvm-cov"]
+script = """
+set -e
+
+# Merge all profraw files from the coverage directory
+# Note: Requires instrumented binaries to be present in target/debug/ (BUILD_PROFILE=dev)
+cd ${COVERAGE_OUTPUT_DIR}
+mapfile -t profraw_files < <(find . -maxdepth 1 -name 'coverage-*.profraw' -print | sort)
+if [ "${#profraw_files[@]}" -eq 0 ]; then
+  echo "No profraw files found in ${COVERAGE_OUTPUT_DIR}"
+  exit 1
+fi
+llvm-profdata merge -sparse "${profraw_files[@]}" -o merged.profdata
+
+# Generate reports using the merged profdata
+cd -
+cargo llvm-cov report --html --output-dir ${COVERAGE_OUTPUT_DIR}/html --profdata-path ${COVERAGE_OUTPUT_DIR}/merged.profdata
+cargo llvm-cov report --lcov --output-path ${COVERAGE_OUTPUT_DIR}/llvm-cov-merged.lcov --profdata-path ${COVERAGE_OUTPUT_DIR}/merged.profdata
+"""
+
+[tasks.deploy-xnoded]
+dependencies = ["clean-xnoded", "xnoded"]
+script_runner = "@duckscript"
+script.main = """
+!include_files .github/helpers.duck
+
+if eq ${BUILD_PROFILE} "dev"
+  cp target/${BUILD_PROFILE}/xnoded target/deploy/xnoded
+else
+  upx_run target/${BUILD_PROFILE}/xnoded target/deploy/xnoded
+end
+"""
+
+[tasks.deploy-xnoded.windows]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/xnoded.exe target/deploy/xnoded.exe
+else
+  cp target/${profile}/xnoded.exe target/deploy/xnoded.exe
+end
+"""
+
+[tasks.deploy-taosx]
+dependencies = ["clean-taosx", "taosx"]
+script_runner = "@duckscript"
+script.main = """
+!include_files .github/helpers.duck
+
+if eq ${BUILD_PROFILE} "dev"
+  cp target/${BUILD_PROFILE}/taosx target/deploy/${CUS_PROMPT}x
+  cp target/debug/${CUS_PROMPT}x.service target/deploy/${CUS_PROMPT}x.service
+else
+  upx_run target/${BUILD_PROFILE}/taosx target/deploy/${CUS_PROMPT}x
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x.service target/deploy/${CUS_PROMPT}x.service
+end
+"""
+
+[tasks.deploy-taosx.windows]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx.exe target/deploy/${cus_prompt}x.exe
+  cp target/debug/${CUS_PROMPT}x-srv.xml target/deploy/${CUS_PROMPT}x-srv.xml
+else
+  upx_run target/${profile}/taosx.exe target/deploy/${cus_prompt}x.exe
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-srv.xml target/deploy/${CUS_PROMPT}x-srv.xml
+end
+cp bin/taosx-srv.exe target/deploy/${CUS_PROMPT}x-srv.exe
+"""
+
+[tasks.deploy-agent]
+alias = "deploy-taosx-agent"
+[tasks.deploy-taosx-agent]
+dependencies = ["taosx-agent"]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx-agent target/deploy/${cus_prompt}x-agent
+  cp target/debug/${CUS_PROMPT}x-agent.service target/deploy/${CUS_PROMPT}x-agent.service
+else
+  upx_run target/${profile}/taosx-agent target/deploy/${cus_prompt}x-agent
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent.service target/deploy/${CUS_PROMPT}x-agent.service
+end
+"""
+
+[tasks.deploy-taosx-agent.windows]
+dependencies = ["taosx-agent"]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
+  cp target/debug/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
+else
+  upx_run target/${profile}/taosx-agent.exe target/deploy/${cus_prompt}x-agent.exe
+  cp target/${BUILD_PROFILE}/${CUS_PROMPT}x-agent-srv.xml target/deploy/${CUS_PROMPT}x-agent-srv.xml
+end
+
+cp taosx-agent/bin/taosx-agent-srv.exe target/deploy/${CUS_PROMPT}x-agent-srv.exe
+"""
+
+[tasks.zigbuild-aarch64-image]
+cwd = "docker/ci"
+script = """
+[ -f zig-x86_64-linux-${ZIG_VERSION}.tar.xz ] || \
+  wget -c https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz
+docker build -t taosx/zigbuilder:${RUST_VERSION} -f build.arm64.Dockerfile \
+  --build-arg ZIG_VERSION=${ZIG_VERSION} --build-arg RUST_VERSION=${RUST_VERSION} .
+"""
+
+[tasks.zigbuild-aarch64-taosx]
+install_script = """
+IMAGE_TAG="${ARM_BUILDER_IMAGE:-taosx/zigbuilder:${RUST_VERSION}}"
+echo "Prepare zigbuilder image for aarch64: ${IMAGE_TAG}"
+if [ -z "${ARM_BUILDER_IMAGE:-}" ]; then
+  if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+    echo "zigbuilder image $IMAGE_TAG not found. Building..."
+    cargo make zigbuild-aarch64-image
+  else
+    echo "zigbuilder image $IMAGE_TAG already present."
+  fi
+else
+  if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+    echo "error: ARM_BUILDER_IMAGE=$IMAGE_TAG is not available locally. CI or the workflow is expected to prepare this image before running zigbuild-aarch64-taosx."
+    exit 1
+  fi
+  echo "zigbuilder image $IMAGE_TAG already present."
+fi
+"""
+script = """
+IMAGE_TAG="${ARM_BUILDER_IMAGE:-taosx/zigbuilder:${RUST_VERSION}}"
+docker run --rm -v .:/app -w /app \
+  -v $HOME/.cargo/registry:/root/.cargo/registry \
+  -v $HOME/.cargo/git:/root/.cargo/git \
+  -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
+  "$IMAGE_TAG" \
+  cargo zigbuild --target aarch64-unknown-linux-gnu.2.39
+"""
+
+[tasks.fmt]
+dependencies = ["assert-explorer-dist", "install-protoc"]
+command = "cargo"
+args = ["fmt", "--check", "--all"]
+
+[tasks.clippy]
+dependencies = ["assert-explorer-dist", "install-protoc"]
+command = "cargo"
+args = [
+  "clippy",
+  "--locked",
+  "--workspace",
+  "--tests",
+  "--examples",
+  "--",
+  "--no-deps",
+  "-Dwarnings",
+]
+
+[tasks.test-taosx-without-cov]
+command = "cargo"
+args = [
+  "nextest",
+  "run",
+  "--workspace",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/(_with_taos|_with_datasource)$/)",
+  "--exclude",
+  "taos-explorer",
+]
+
+[tasks.test-explorer-without-cov]
+command = "cargo"
+args = [
+  "nextest",
+  "run",
+  "-p",
+  "taos-explorer",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/(_with_taos|_with_datasource)$/)",
+]
+
+[tasks.pre-commit]
+dependencies = [
+  "fmt",
+  "clippy",
+  "test-taosx-without-cov",
+  "test-explorer-without-cov",
+]
+
+[tasks.download-docs-from-remote]
+condition.env_not_set = ["COMMUNITY"]
+condition.env_true = ["DOWNLOAD_EXPLORER_DOCS"]
+script_runner = "@shell"
+script = """
+remote_path=/root/enterprise_build_zip_work/enterprise-docs
+rsync -u root@192.168.0.30:${remote_path}/docs-zh.zip .
+rsync -u root@192.168.0.30:${remote_path}/docs-en.zip .
+rm -rf explorer/public/docs && unzip -u docs-zh.zip -d explorer/public/docs
+rm -rf explorer/public/docs-en && unzip -u docs-en.zip -d explorer/public/docs-en
+"""
+[tasks.remove-docs-if-community]
+condition.env = { "COMMUNITY" = "community" }
+script_runner = "@shell"
+script = """
+rm -rf explorer/public/docs
+rm -rf explorer/public/docs-en
+"""
+[tasks.explorer-ui-prod]
+dependencies = ["download-docs-from-remote", "remove-docs-if-community"]
+condition.files_modified = { input = [
+  "explorer/package.json",
+  "explorer/vite.config.ts",
+  "explorer/pnpm-*.yaml",
+  "explorer/src/**",
+  "explorer/static/**",
+  "explorer/taos-ui/**",
+], output = [
+  "explorer/dist/",
+] }
+condition.env_not_set = ["NO_BUILD_UI"]
+cwd = "explorer"
+script_runner = "@duckscript"
+script = """
+exec npx -y pnpm@${PNPM_VERSION} install
+exec npx -y pnpm@${PNPM_VERSION} run build
+cp ./static ./dist
+"""
+
+[tasks.explorer-ui-prod.windows]
+cwd = "explorer"
+script_runner = "@shell"
+script = """
+npx -y pnpm@${PNPM_VERSION} install && npx -y pnpm@${PNPM_VERSION} run build && cp -r ./static ./dist
+"""
+
+# linux 环境下使用 docker 构建
+[tasks.explorer-ui-prod.linux]
+cwd = "explorer"
+script_runner = "bash"
+script = """
+# docker pull node:22.3.0
+chmod +x ./build.sh
+docker run --rm -e CI=true -e COMMUNITY=${COMMUNITY} -e "CUS_PROMPT=${CUS_PROMPT}" -e "CUS_NAME=${CUS_NAME}" -e "CUS_EMAIL=${CUS_EMAIL}" -v $(pwd):/app -w /app node:22.3.0 bash /app/build.sh
+"""
+
+[tasks.explorer-disable-x-api]
+dependencies = ["explorer-ui-prod"]
+command = "cargo"
+args = [
+  "build",
+  "-p",
+  "taos-explorer",
+  "--profile",
+  "${BUILD_PROFILE}",
+  "--features",
+  "disable-x-api",
+]
+
+[tasks.explorer-with-x-api]
+dependencies = ["explorer-ui-prod"]
+command = "cargo"
+args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
+
+[tasks.explorer]
+run_task = [
+  { name = "explorer-disable-x-api", condition = { env_true = [
+    "TSDB_LITE",
+  ] } },
+  { name = "explorer-with-x-api" },
+]
+
+[tasks.taos-explorer]
+alias = "explorer"
+
+[tasks.deploy-explorer]
+dependencies = ["explorer"]
+
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taos-explorer target/deploy/${cus_prompt}-explorer
+  cp target/debug/${cus_prompt}-explorer.service target/deploy/${cus_prompt}-explorer.service
+else
+  upx_run target/${profile}/taos-explorer target/deploy/${cus_prompt}-explorer
+  cp target/${profile}/${cus_prompt}-explorer.service target/deploy/${cus_prompt}-explorer.service
+end
+
+cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
+"""
+[tasks.deploy-explorer.windows]
+dependencies = ["explorer"]
+
+script_runner = "@duckscript"
+script = """
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
+  cp target/debug/${cus_prompt}-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
+else
+  cp target/${profile}/taos-explorer.exe target/deploy/${cus_prompt}-explorer.exe
+  cp target/${profile}/${cus_prompt}-explorer-srv.xml target/deploy/${cus_prompt}-explorer-srv.xml
+end
+
+cp explorer/bin/taos-explorer-srv.exe target/deploy/${cus_prompt}-explorer-srv.exe
+cp explorer/server/examples/explorer.toml target/deploy/explorer.toml
+"""
+
+[tasks.install-llvm-cov]
+install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rustup_component_name = "llvm-tools-preview", test_arg = "--version" }
+[tasks.install-nextest]
+install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
+[tasks.install-toml-cli]
+install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
+[tasks.install-protoc]
+script_runner = "@duckscript"
+install_script = """
+# 设置 protoc 版本和下载 URL
+protoc_version = set "33.0"
+protoc_url_prefix = set "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}"
+
+protoc_cmd = which protoc
+if is_empty ${protoc_cmd}
+  echo "Install protoc v${protoc_version}"
+else
+  installed_version = exec protoc --version
+  echo "Protoc has been installed: ${installed_version.stdout}"
+  exit
+end
+
+family = os_family
+
+if equals ${family} "windows"
+  file = set "protobuf-${protoc_version}.zip"
+elseif equals ${family} "mac"
+  file = set "protoc-${protoc_version}-osx-aarch_64.zip"
+else
+  apt_exe = which apt-get
+  if is_empty ${apt_exe}
+  else
+    code = exec --get-exit-code sudo apt-get install protobuf-compiler
+    if equals ${code} 0
+      installed_version = exec protoc --version
+      echo successfully installed.. ${installed_version}
+      exit
+    end
+  end
+
+  arch = get_env "CARGO_MAKE_RUST_TARGET_ARCH"
+  echo "Build arch: " ${arch}
+  if equals "${arch}" "x86_64"
+    file = set "protoc-${protoc_version}-linux-x86_64.zip"
+  elseif equals ${arch} "aarch64"
+    file = set "protoc-${protoc_version}-linux-aarch_64.zip"
+  elseif equals ${arch} "s390"
+    file = set "protoc-${protoc_version}-linux-s390_64.zip"
+  elseif equals ${arch} "powerpc64le"
+    file = set "protoc-${protoc_version}-linux-ppcle_64.zip"
+  else
+    echo "Unsupported architecture: ${arch}"
+    exit 1
+  end
+end
+
+download_url = set "${protoc_url_prefix}/${file}"
+
+echo "Downloading: ${download_url}"
+
+size = wget -O ${file} ${download_url}
+
+install_path = get_env "CARGO_HOME"
+
+unzip_exe = which unzip
+if is_empty ${unzip_exe}
+  echo "Guess you're using windows"
+  exec powershell -command "Expand-Archive -Force '${file}' '${install_path}/'"
+else
+  output = exec unzip -o "${file}" -d ${install_path}
+  stdout = set ${output.stdout}
+  stderr = set ${output.stderr}
+  exit_code = set ${output.code}
+
+  if equals ${exit_code} 0
+    echo "Stdout:"
+    echo ${stdout}
+  else
+    echo "Stderr:"
+    echo ${stderr}
+  end
+end
+
+protoc_file = join_path "${install_path}" bin protoc
+echo "Installed at: " ${protoc_file}
+chmod 770 ${protoc_file}
+
+protoc_expect = which protoc
+if is_empty "${protoc_expect}"
+  echo "Error: Protoc installation failed: protoc file not found in ${install_path}"
+  exit 1
+end
+echo "Installed proto compiler (protoc)"
+rm ${file}
+"""
+[tasks.install-nvm]
+windows_alias = "empty"
+install_script = """
+echo "Install NVM"
+set -ex
+nvm_exec=$(command -v nvm || true)
+echo $nvm_exec
+nvm_version=$(nvm --version || true)
+if [ "$NVM_DIR" = "" ] && [ "$NVM_BIN" = "" ] && [ "$nvm_exec" = "" ] && [ "$nvm_version" = "" ]; then
+  echo "NVM not installed"
+  #curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+else
+  echo "NVM already installed"
+fi
+"""
+[tasks.assert-explorer-dist]
+private = true
+script_runner = "@duckscript"
+script = """
+if not is_dir explorer/dist/
+  mkdir explorer/dist/
+end
+"""
+
+[tasks.test-without-explorer]
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov-taosx.lcov",
+  "nextest",
+  "--workspace",
+  "--no-fail-fast",
+  "--exclude",
+  "taos-explorer",
+  "--profile",
+  "ci",
+]
+
+[tasks.test-explorer]
+dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov-explorer.lcov",
+  "nextest",
+  "-p",
+  "taos-explorer",
+  "--no-fail-fast",
+]
+
+[tasks.test-ci]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "--lcov",
+  "--output-path",
+  "target/llvm-cov.lcov",
+  "nextest",
+  "--workspace",
+  "--no-fail-fast",
+  "--profile",
+  "ci",
+]
+
+[tasks.test-integration]
+description = "Run tests without llvm-cov instrumentation for CI (connects to instrumented services in container)"
+dependencies = ["install-nextest"]
+command = "cargo"
+args = [
+  "nextest",
+  "run",
+  "--no-fail-fast",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-all-datasources",
+  "--profile",
+  "ci",
+]
+
+[tasks.test]
+dependencies = [
+  "test-without-explorer",
+  "test-explorer",
+  "install-lcov",
+]
+script = """
+# merge coverage data from local tests only
+# Note: Integration tests run separately in CI with instrumented container services
+lcov --add-tracefile target/llvm-cov-taosx.lcov --add-tracefile target/llvm-cov-explorer.lcov --output-file target/llvm-cov-merged.lcov
+# convert absolute path to relative path
+sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
+
+# 1. remove third-party crates: tokio-cron-scheduler, rust-sasl
+# 2. remove windows only data sources including PI and KingHistorian
+# 3. remove compatibility layer
+# 4. remove build-script generated sources that do not exist on report runners
+lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov \
+  --ignore-errors unused \
+  'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*' 'target/*/build/*/out/*.rs'
+
+# make output clean
+mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
+"""
+
+[tasks.merge-all-coverage]
+description = "Merge all coverage files including integration tests (for CI)"
+dependencies = ["install-lcov"]
+script = """
+set -e
+
+# Merge coverage data from local unit tests and integration tests
+# This task is designed to run in CI after both local_test and test_integration jobs complete
+
+COVERAGE_DIR=${COVERAGE_OUTPUT_DIR:-target}
+CARGO_HOME_DIR="${CARGO_HOME:-$HOME/.cargo}"
+
+# Check which coverage files exist
+LCOV_FILES=()
+if [ -f "$COVERAGE_DIR/llvm-cov-taosx.lcov" ]; then
+  LCOV_FILES+=(--add-tracefile "$COVERAGE_DIR/llvm-cov-taosx.lcov")
+  echo "Found: llvm-cov-taosx.lcov"
+fi
+
+if [ -f "$COVERAGE_DIR/llvm-cov-explorer.lcov" ]; then
+  LCOV_FILES+=(--add-tracefile "$COVERAGE_DIR/llvm-cov-explorer.lcov")
+  echo "Found: llvm-cov-explorer.lcov"
+fi
+
+if [ -f "$COVERAGE_DIR/llvm-cov-integration.lcov" ]; then
+  LCOV_FILES+=(--add-tracefile "$COVERAGE_DIR/llvm-cov-integration.lcov")
+  echo "Found: llvm-cov-integration.lcov"
+fi
+
+if [ "${#LCOV_FILES[@]}" -eq 0 ]; then
+  echo "Error: No coverage files found in $COVERAGE_DIR"
+  exit 1
+fi
+
+# Merge all available coverage files
+lcov "${LCOV_FILES[@]}" --output-file $COVERAGE_DIR/llvm-cov-merged.lcov
+
+# Convert absolute path to relative path
+sed -i 's#SF:.*taosx/#SF:#' $COVERAGE_DIR/llvm-cov-merged.lcov
+
+# Remove third-party dependencies, platform-specific code, and build-script generated sources
+lcov --remove $COVERAGE_DIR/llvm-cov-merged.lcov -o $COVERAGE_DIR/llvm-cov-filter.lcov \
+  --ignore-errors unused \
+  "$CARGO_HOME_DIR/*" \
+  '*/.cargo/registry/*' \
+  '*/.cargo/git/checkouts/*' \
+  'registry/src/*' \
+  'git/checkouts/*' \
+  'crates/tokio-cron-scheduler/*' \
+  'crates/rust-sasl/*' \
+  'src/privileges/*' \
+  'crates/sink*' \
+  'crates/source-king*' \
+  'taosx-core/src/plugins/sink/*' \
+  'crates/source-pulsar/*' \
+  'crates/source-mssql/*' \
+  'crates/source-postgres/*' \
+  'taosx-agent/*' \
+  'target/*/build/*/out/*.rs'
+
+# Make output clean
+mv $COVERAGE_DIR/llvm-cov-filter.lcov $COVERAGE_DIR/llvm-cov-merged.lcov
+
+echo "Coverage merge complete: $COVERAGE_DIR/llvm-cov-merged.lcov"
+"""
+
+[tasks.install-locally]
+dependencies = ["install-plugins", "install-agent"]
+script = """
+sudo cp target/${BUILD_PROFILE}/taosx.service target/${BUILD_PROFILE}/taos-explorer.service /etc/systemd/system/
+sudo cp target/${BUILD_PROFILE}/taosx target/${BUILD_PROFILE}/taos-explorer /usr/bin/
+sudo systemctl daemon-reload
+"""
+
+[tasks.install-typos]
+install_crate = { crate_name = "typos-cli", binary = "typos", test_arg = "--version", min_version = "1.38.1" }
+[tasks.typos]
+dependencies = ["install-typos"]
+command = "typos"
+
+[tasks.install-lcov.linux]
+script = """
+lcov --version || sudo apt-get install -y lcov ||sudo yum install -y lcov
+"""
+
+[tasks.install-lcov.windows]
+script = """
+lcov --version || choco install -y lcov
+"""
+
+[tasks.install-lcov.mac]
+script = """
+lcov --version || brew install lcov
+"""
+# ============================================================================
+# Integration Test Tasks (Phase 1: Test Architecture Refactoring)
+# ============================================================================
+
+[tasks.test-integration-check]
+description = "Check if integration tests compile"
+command = "cargo"
+args = ["check", "-p", "taosx-integration-tests", "--tests"]
+
+[tasks.test-integration-lib]
+description = "Run integration test framework initialization"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--lib",
+  "--lcov",
+  "--output-path",
+  "target/integration-lib-lcov.info",
+]
+
+# ============================================================================
+# Data Source Specific Tests (Feature-gated)
+# ============================================================================
+
+[tasks.test-datasource-kafka]
+description = "Run Kafka data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_KAFKA_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-kafka",
+  "--lcov",
+  "--output-path",
+  "target/integration-kafka-lcov.info",
+]
+
+[tasks.test-datasource-mysql]
+description = "Run MySQL data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_MYSQL_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-mysql",
+  "--lcov",
+  "--output-path",
+  "target/integration-mysql-lcov.info",
+]
+
+[tasks.test-datasource-oracle]
+description = "Run Oracle data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_ORACLE_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-oracle",
+  "--lcov",
+  "--output-path",
+  "target/integration-oracle-lcov.info",
+]
+
+[tasks.test-datasource-postgres]
+description = "Run PostgreSQL data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_POSTGRES_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-postgres",
+  "--lcov",
+  "--output-path",
+  "target/integration-postgres-lcov.info",
+]
+
+[tasks.test-datasource-mongodb]
+description = "Run MongoDB data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_MONGODB_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-mongodb",
+  "--lcov",
+  "--output-path",
+  "target/integration-mongodb-lcov.info",
+]
+
+[tasks.test-datasource-mssql]
+description = "Run MSSQL data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_MSSQL_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-mssql",
+  "--lcov",
+  "--output-path",
+  "target/integration-mssql-lcov.info",
+]
+
+[tasks.test-datasource-mqtt]
+description = "Run MQTT data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_MQTT_BROKER"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-mqtt",
+  "--lcov",
+  "--output-path",
+  "target/integration-mqtt-lcov.info",
+]
+
+[tasks.test-datasource-opcua]
+description = "Run OPC-UA data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = ["TEST_OPCUA_DSN"] }
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-opcua",
+  "--lcov",
+  "--output-path",
+  "target/integration-opcua-lcov.info",
+]
+
+[tasks.test-datasource-opcda]
+description = "Run OPC-DA data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-opcda",
+  "--lcov",
+  "--output-path",
+  "target/integration-opcda-lcov.info",
+]
+
+[tasks.test-datasource-pi]
+description = "Run PI System data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-pi",
+  "--lcov",
+  "--output-path",
+  "target/integration-pi-lcov.info",
+]
+
+[tasks.test-datasource-historian]
+description = "Run Historian data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-historian",
+  "--lcov",
+  "--output-path",
+  "target/integration-historian-lcov.info",
+]
+
+# ============================================================================
+# Grouped Data Source Tests (by category)
+# ============================================================================
+
+[tasks.test-relational-db]
+description = "Run all relational database data source tests (MySQL, Oracle, PostgreSQL, MSSQL)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-relational-db",
+  "--lcov",
+  "--output-path",
+  "target/integration-relational-db-lcov.info",
+]
+
+[tasks.test-nosql-db]
+description = "Run all NoSQL database data source tests (MongoDB)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-nosql-db",
+  "--lcov",
+  "--output-path",
+  "target/integration-nosql-db-lcov.info",
+]
+
+[tasks.test-message-queue]
+description = "Run all message queue data source tests (Kafka, MQTT)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-message-queue",
+  "--lcov",
+  "--output-path",
+  "target/integration-message-queue-lcov.info",
+]
+
+[tasks.test-industrial-protocol]
+description = "Run all industrial protocol data source tests (OPC-UA, OPC-DA, PI, Historian)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-industrial-protocol",
+  "--lcov",
+  "--output-path",
+  "target/integration-industrial-protocol-lcov.info",
+]
+
+[tasks.test-all-datasources]
+description = "Run all data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--features",
+  "test-all-datasources",
+  "--lcov",
+  "--output-path",
+  "target/integration-all-datasources-lcov.info",
+]
+
+# ============================================================================
+# Core and E2E Tests
+# ============================================================================
+
+[tasks.test-core]
+description = "Run core functionality tests (TMQ, backup, replication)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--run-ignored",
+  "ignored-only",
+  "--lcov",
+  "--output-path",
+  "target/integration-core-lcov.info",
+]
+
+[tasks.test-e2e]
+description = "Run end-to-end scenario tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taosx-integration-tests",
+  "--run-ignored",
+  "ignored-only",
+  "--lcov",
+  "--output-path",
+  "target/integration-e2e-lcov.info",
+]
+
+# ============================================================================
+# Convenience Commands
+# ============================================================================
+
+[tasks.test-integration-help]
+description = "Display help for integration test commands"
+script = """
+echo ""
+echo "╔══════════════════════════════════════════════════════════════════════╗"
+echo "║                 taosX Integration Test Commands                      ║"
+echo "╚══════════════════════════════════════════════════════════════════════╝"
+echo ""
+echo "Framework Commands:"
+echo "  cargo make test-integration-check       - Check integration tests compile"
+echo "  cargo make test-integration-lib         - Initialize test framework"
+echo ""
+echo "Data Source Specific Tests:"
+echo "  cargo make test-datasource-kafka       - Kafka connector tests"
+echo "  cargo make test-datasource-mysql       - MySQL connector tests"
+echo "  cargo make test-datasource-oracle      - Oracle connector tests"
+echo "  cargo make test-datasource-postgres    - PostgreSQL connector tests"
+echo "  cargo make test-datasource-mongodb     - MongoDB connector tests"
+echo "  cargo make test-datasource-mssql       - MSSQL connector tests"
+echo "  cargo make test-datasource-mqtt        - MQTT connector tests"
+echo "  cargo make test-datasource-opcua       - OPC-UA connector tests"
+echo "  cargo make test-datasource-opcda       - OPC-DA connector tests"
+echo "  cargo make test-datasource-pi          - PI System connector tests"
+echo "  cargo make test-datasource-historian   - Historian connector tests"
+echo ""
+echo "Grouped Tests (by category):"
+echo "  cargo make test-relational-db          - All relational databases"
+echo "  cargo make test-nosql-db                - All NoSQL databases"
+echo "  cargo make test-message-queue           - All message queues"
+echo "  cargo make test-industrial-protocol     - All industrial protocols"
+echo "  cargo make test-all-datasources         - All data sources"
+echo ""
+echo "Other Tests:"
+echo "  cargo make test-core                    - Core functionality tests"
+echo "  cargo make test-e2e                     - End-to-end scenario tests"
+echo ""
+echo "Coverage Report:"
+echo "  cargo make test-coverage-html           - Generate HTML coverage report"
+echo "  Note: Run any test-* task first to generate lcov data"
+echo "  HTML report location: target/llvm-cov/html/index.html"
+echo ""
+"""
+
+# ============================================================================
+# Coverage Report Generation Task
+# ============================================================================
+
+[tasks.test-coverage-html]
+description = "Generate HTML coverage report from existing lcov files"
+dependencies = ["install-llvm-cov"]
+script = """
+set -e
+echo "Generating HTML coverage report..."
+if [ ! -f "target/integration-lib-lcov.info" ]; then
+  echo "No coverage data found. Run a test task first (e.g., cargo make test-integration-lib)"
+  exit 1
+fi
+cargo llvm-cov report --html --output-dir target/llvm-cov/html
+echo "HTML coverage report generated at: target/llvm-cov/html/index.html"
+echo "Open it in browser: file://$(pwd)/target/llvm-cov/html/index.html"
+"""

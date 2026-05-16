@@ -1,0 +1,16 @@
+kind: pipeline
+name: default
+type: docker
+
+steps:
+  - name: test
+    image: golang
+    commands:
+      - wget https://www.taosdata.com/assets-download/TDengine-server-2.3.0.0-beta-Linux-x64.tar.gz
+      - tar xvf TDengine-server-2.3.0.0-beta-Linux-x64.tar.gz
+      - cd TDengine-server-2.3.0.0/
+      - printf "\n\n"|./install.sh
+      - nohup taosd &
+      - cd ../
+      - go mod tidy
+      - go test -v ./...

@@ -1,0 +1,175 @@
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znam
+   fun:_Z14set_fetch_sizeP13StatementDatam
+   fun:_ZN18ExecuteAsyncWorker7ExecuteEv
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znwm
+   fun:_ZN4ODBC15StoreBindValuesEPN4Napi5ArrayEPP9Parameter
+   fun:_ZN13ODBCStatement4BindERKN4Napi12CallbackInfoE
+   fun:operator()
+   fun:WrapCallback<Napi::InstanceWrap<ODBCStatement>::InstanceMethodCallbackWrapper(napi_env, napi_callback_info)::<lambda()> >
+   fun:_ZN4Napi12InstanceWrapI13ODBCStatementE29InstanceMethodCallbackWrapperEP10napi_env__P20napi_callback_info__
+   fun:_ZN6v8impl12_GLOBAL__N_123FunctionCallbackWrapper6InvokeERKN2v820FunctionCallbackInfoINS2_5ValueEEE
+   fun:_ZN2v88internal12_GLOBAL__N_119HandleApiCallHelperILb0EEENS0_11MaybeHandleINS0_6ObjectEEEPNS0_7IsolateENS0_6HandleINS0_10HeapObjectEEESA_NS8_INS0_20FunctionTemplateInfoEEENS8_IS4_EENS0_16BuiltinArgumentsE
+   fun:_ZN2v88internal21Builtin_HandleApiCallEiPmPNS0_7IsolateE
+   fun:Builtins_CEntry_Return1_DontSaveFPRegs_ArgvOnStack_BuiltinExit
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_PromiseConstructor
+   fun:Builtins_JSBuiltinsConstructStub
+   fun:Builtins_ConstructHandler
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_AsyncFunctionAwaitResolveClosure
+   fun:Builtins_PromiseFulfillReactionJob
+   fun:Builtins_RunMicrotasks
+   fun:Builtins_JSRunMicrotasksEntry
+   fun:_ZN2v88internal12_GLOBAL__N_16InvokeEPNS0_7IsolateERKNS1_12InvokeParamsE
+   fun:_ZN2v88internal12_GLOBAL__N_118InvokeWithTryCatchEPNS0_7IsolateERKNS1_12InvokeParamsE.constprop.58
+   fun:_ZN2v88internal9Execution16TryRunMicrotasksEPNS0_7IsolateEPNS0_14MicrotaskQueueEPNS0_11MaybeHandleINS0_6ObjectEEE
+   fun:_ZN2v88internal14MicrotaskQueue13RunMicrotasksEPNS0_7IsolateE.part.50
+   fun:_ZN2v88internal14MicrotaskQueue17PerformCheckpointEPNS_7IsolateE
+   fun:_ZN4node21InternalCallbackScope5CloseEv
+   fun:_ZN4node13CallbackScopeD1Ev
+   fun:_ZZN4node14ThreadPoolWork12ScheduleWorkEvENUlP9uv_work_siE0_4_FUNES2_i
+   fun:uv__work_done
+   fun:uv__async_io.part.1
+   fun:uv__io_poll
+   fun:uv_run
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znam
+   fun:_ZN15ODBCAsyncWorker13GetODBCErrorsEsPv
+   fun:_ZN18ConnectAsyncWorker7ExecuteEv
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znam
+   fun:_ZN15ODBCAsyncWorker13GetODBCErrorsEsPv
+   fun:_ZN18ExecuteAsyncWorker7ExecuteEv
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znam
+   fun:_Z12bind_buffersP13StatementData.part.0
+   fun:_ZN16QueryAsyncWorker7ExecuteEv
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znam
+   fun:_ZN4ODBC15StoreBindValuesEPN4Napi5ArrayEPP9Parameter
+   fun:_ZN13ODBCStatement4BindERKN4Napi12CallbackInfoE
+   fun:operator()
+   fun:WrapCallback<Napi::InstanceWrap<ODBCStatement>::InstanceMethodCallbackWrapper(napi_env, napi_callback_info)::<lambda()> >
+   fun:_ZN4Napi12InstanceWrapI13ODBCStatementE29InstanceMethodCallbackWrapperEP10napi_env__P20napi_callback_info__
+   fun:_ZN6v8impl12_GLOBAL__N_123FunctionCallbackWrapper6InvokeERKN2v820FunctionCallbackInfoINS2_5ValueEEE
+   fun:_ZN2v88internal12_GLOBAL__N_119HandleApiCallHelperILb0EEENS0_11MaybeHandleINS0_6ObjectEEEPNS0_7IsolateENS0_6HandleINS0_10HeapObjectEEESA_NS8_INS0_20FunctionTemplateInfoEEENS8_IS4_EENS0_16BuiltinArgumentsE
+   fun:_ZN2v88internal21Builtin_HandleApiCallEiPmPNS0_7IsolateE
+   fun:Builtins_CEntry_Return1_DontSaveFPRegs_ArgvOnStack_BuiltinExit
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_PromiseConstructor
+   fun:Builtins_JSBuiltinsConstructStub
+   fun:Builtins_ConstructHandler
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_AsyncFunctionAwaitResolveClosure
+   fun:Builtins_PromiseFulfillReactionJob
+   fun:Builtins_RunMicrotasks
+   fun:Builtins_JSRunMicrotasksEntry
+   fun:_ZN2v88internal12_GLOBAL__N_16InvokeEPNS0_7IsolateERKNS1_12InvokeParamsE
+   fun:_ZN2v88internal12_GLOBAL__N_118InvokeWithTryCatchEPNS0_7IsolateERKNS1_12InvokeParamsE.constprop.58
+   fun:_ZN2v88internal9Execution16TryRunMicrotasksEPNS0_7IsolateEPNS0_14MicrotaskQueueEPNS0_11MaybeHandleINS0_6ObjectEEE
+   fun:_ZN2v88internal14MicrotaskQueue13RunMicrotasksEPNS0_7IsolateE.part.50
+   fun:_ZN2v88internal14MicrotaskQueue17PerformCheckpointEPNS_7IsolateE
+   fun:_ZN4node21InternalCallbackScope5CloseEv
+   fun:_ZN4node13CallbackScopeD1Ev
+   fun:_ZZN4node14ThreadPoolWork12ScheduleWorkEvENUlP9uv_work_siE0_4_FUNES2_i
+   fun:uv__work_done
+   fun:uv__async_io.part.1
+   fun:uv__io_poll
+   fun:uv_run
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znwm
+   fun:napi_module_register
+   fun:call_init.part.0
+   fun:call_init
+   fun:_dl_init
+   fun:_dl_catch_exception
+   fun:dl_open_worker
+   fun:dl_open_worker
+   fun:_dl_catch_exception
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_exception
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen_implementation
+   fun:dlopen@@GLIBC_2.34
+   fun:_ZNSt17_Function_handlerIFbPN4node7binding4DLibEEZNS1_6DLOpenERKN2v820FunctionCallbackInfoINS5_5ValueEEEEUlS3_E_E9_M_invokeERKSt9_Any_dataOS3_
+   fun:_ZN4node11Environment12TryLoadAddonEPKciRKSt8functionIFbPNS_7binding4DLibEEE
+   fun:_ZN4node7binding6DLOpenERKN2v820FunctionCallbackInfoINS1_5ValueEEE
+   fun:_ZN2v88internal12_GLOBAL__N_119HandleApiCallHelperILb0EEENS0_11MaybeHandleINS0_6ObjectEEEPNS0_7IsolateENS0_6HandleINS0_10HeapObjectEEESA_NS8_INS0_20FunctionTemplateInfoEEENS8_IS4_EENS0_16BuiltinArgumentsE
+   fun:_ZN2v88internal21Builtin_HandleApiCallEiPmPNS0_7IsolateE
+   fun:Builtins_CEntry_Return1_DontSaveFPRegs_ArgvOnStack_BuiltinExit
+   fun:Builtins_InterpreterEntryTrampoline
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_InterpreterEntryTrampoline
+   fun:Builtins_JSEntryTrampoline
+   fun:Builtins_JSEntry
+   fun:_ZN2v88internal12_GLOBAL__N_16InvokeEPNS0_7IsolateERKNS1_12InvokeParamsE
+   fun:_ZN2v88internal9Execution4CallEPNS0_7IsolateENS0_6HandleINS0_6ObjectEEES6_iPS6_
+   fun:_ZN2v88Function4CallENS_5LocalINS_7ContextEEENS1_INS_5ValueEEEiPS5_
+   fun:_ZN4node19ExecuteBootstrapperEPNS_11EnvironmentEPKcPSt6vectorIN2v85LocalINS5_6StringEEESaIS8_EEPS4_INS6_INS5_5ValueEEESaISD_EE
+   fun:_ZN4nodeL14StartExecutionEPNS_11EnvironmentEPKc
+   fun:_ZN4node14StartExecutionEPNS_11EnvironmentESt8functionIFN2v810MaybeLocalINS3_5ValueEEERKNS_26StartExecutionCallbackInfoEEE
+   fun:_ZN4node15LoadEnvironmentEPNS_11EnvironmentESt8functionIFN2v810MaybeLocalINS3_5ValueEEERKNS_26StartExecutionCallbackInfoEEE
+   fun:_ZN4node16NodeMainInstance3RunEv
+   fun:_ZN4node5StartEiPPc
+   fun:(below main)
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:_Znam
+   fun:_Z12bind_buffersP13StatementData.part.0
+   fun:_ZN18ExecuteAsyncWorker7ExecuteEv
+}
+

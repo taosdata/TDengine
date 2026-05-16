@@ -1,0 +1,258 @@
+name: Go_WINDOWS
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.1.2'
+      - '3.3.6'
+  push:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+      - '3.1.2'
+      - '3.3.6'
+  workflow_dispatch:
+    inputs:
+      tbBranch:
+        description: 'TDengine branch'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-2022
+    name: build TDengine
+    outputs:
+      commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
+    steps:
+      - name: checkout TDengine by pr
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          ref: ${{ github.base_ref }}
+
+      - name: checkout TDengine by push
+        if: github.event_name == 'push'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          ref: ${{ github.ref_name }}
+
+      - name: checkout TDengine manually
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          ref: ${{ inputs.tbBranch }}
+
+      - name: get_commit_id
+        id: get_commit_id
+        run: |
+          echo "commit_id=$(git rev-parse HEAD)" >> $Env:GITHUB_OUTPUT
+
+      - name: Cache server by pr
+        if: github.event_name == 'pull_request'
+        id: cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: C:/TDengine
+          key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server by pr
+        if: github.event_name == 'push'
+        id: cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: C:/TDengine
+          key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: C:/TDengine
+          key: ${{ runner.os }}-build-${{ inputs.tbBranch }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: install jom
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        shell: powershell
+        run: |
+          Start-BitsTransfer -Source http://download.qt.io/official_releases/jom/jom.zip
+          7z x jom.zip
+
+      - name: Get CMake
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Cache externals built
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: actions/cache@v5
+        id: cache-ext
+        with:
+          path: .externals
+          key: ${{ runner.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3
+
+      - name: install TDengine
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        shell: cmd
+        run: |
+          set PATH=%PATH%;%cd%
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          mkdir debug
+          cd debug
+          cmake .. -G "NMake Makefiles JOM" -DBUILD_HTTP=true -DBUILD_TOOLS=false -DBUILD_TEST=off
+          jom.exe 
+          jom.exe install
+
+  test_build:
+    name: test_build
+    needs: build
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        go: [ 'stable' ]
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v5
+        with:
+          path: C:/TDengine
+          key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v5
+        with:
+          path: C:/TDengine
+          key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ github.ref_name }}-
+
+      - name: cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v5
+        with:
+          path: C:/TDengine
+          key: ${{ runner.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ inputs.tbBranch }}-
+
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: build taosadapter
+        run: go build
+
+#  test_e2e:
+#    name: test_e2e
+#    needs: build
+#    runs-on: windows-2022
+#    strategy:
+#      matrix:
+#        go: [ 'stable' ]
+#    steps:
+#      - name: get cache server by pr
+#        if: github.event_name == 'pull_request'
+#        id: get-cache-server-pr
+#        uses: actions/cache@v5
+#        with:
+#          path: C:/TDengine
+#          key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
+#          restore-keys: |
+#            ${{ runner.os }}-build-${{ github.base_ref }}-
+#
+#      - name: get cache server by push
+#        if: github.event_name == 'push'
+#        id: get-cache-server-push
+#        uses: actions/cache@v5
+#        with:
+#          path: C:/TDengine
+#          key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
+#          restore-keys: |
+#            ${{ runner.os }}-build-${{ github.ref_name }}-
+#
+#      - name: cache server manually
+#        if: github.event_name == 'workflow_dispatch'
+#        id: get-cache-server-manually
+#        uses: actions/cache@v5
+#        with:
+#          path: C:/TDengine
+#          key: ${{ runner.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
+#          restore-keys: |
+#            ${{ runner.os }}-build-${{ inputs.tbBranch }}-
+#
+#      - name: upload artifact
+#        uses: actions/upload-artifact@v6
+#        with:
+#          name: cache-windows
+#          path: C:/TDengine
+#
+#      - name: checkout
+#        uses: actions/checkout@v6
+#
+#      - uses: actions/setup-go@v6
+#        with:
+#          go-version: ${{ matrix.go }}
+#          cache-dependency-path: go.sum
+#
+#      - name: run TDengine
+#        shell: cmd
+#        env:
+#          TAOS_SUPPORT_VNODES: 256
+#        run: |
+#          set PATH=%PATH%;C:\TDengine
+#          start /b C:/TDengine/taosd.exe > log.txt
+#
+#      - name: build taosadapter
+#        run: go build --cover
+#
+#      - name: copy lib to system32
+#        run: |
+#          copy C:\TDengine\taosnative.dll C:\Windows\System32\taosnative.dll
+#
+#      - name: run e2e test
+#        shell: bash
+#        run: |
+#          ./tests/e2e.sh
+#
+#      - name: merge coverage
+#        run: |
+#          go tool covdata textfmt -i="coverage" -o="cov.txt"
+#
+#      - name: Upload coverage to Codecov
+#        uses: codecov/codecov-action@v5
+#        with:
+#          files: cov.txt
+#        env:
+#          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+#          OS: windows

@@ -1,0 +1,23 @@
+[package]
+name = "fake-data"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+arrow.workspace = true
+arrow-schema.workspace = true
+chrono.workspace = true
+rand.workspace = true
+rayon.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_with.workspace = true
+snafu.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+
+[lints]
+workspace = true

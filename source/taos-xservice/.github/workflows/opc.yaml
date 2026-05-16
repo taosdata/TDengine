@@ -1,0 +1,20 @@
+name: OPC
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/opc.yaml"
+      - "plugins/opc/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: [self-hosted, linux, x64, 201]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Build taosx-opc
+        run: cargo make taosx-opc

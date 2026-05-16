@@ -1,0 +1,17 @@
+from:
+  fromhost: mqtt://{0}
+  topics: 
+    topic6: "ems/site/+/root/+/+"
+    topic7: "ems/site/+/+/+/+/+"
+    topic8: "ems/site/+/unit/+/root/+/+"
+    topic9: "ems/site/+/unit/+/+/+/+/+"
+  topic_patterns: 
+    topic6: "_/_/site_controller_id/_/point_name/data_type"
+    topic7: "_/_/site_controller_id/source_device_type/source_device_id/point_name/data_type"
+    topic8: "_/_/site_controller_id/_/unit_controller_id/_/point_name/data_type"
+    topic9: "_/_/site_controller_id/_/unit_controller_id/source_device_type/source_device_id/point_name/data_type"
+  labels: [
+        "cluster-id::2465387463056216254",
+        "type::datain",
+        "user::root"
+    ]

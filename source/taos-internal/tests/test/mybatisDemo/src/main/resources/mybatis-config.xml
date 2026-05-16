@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <typeAliases>
+        <typeAlias type="com.taosdata.iot.mybatisTest.entities.Record" alias="Record"/>
+    </typeAliases>
+    <environments default="development">
+        <environment id="development">
+            <transactionManager type="JDBC"/>
+            <dataSource type="POOLED">
+                <property name="driver" value="com.taosdata.jdbc.TSDBDriver"/>
+                <property name="url" value="jdbc:TAOS://localhost:0/mybatis_demo?charset=GB18030&amp;cfgdir=/home/jyhou/jhou"/>
+                <property name="username" value="root"/>
+                <property name="password" value="taosdata"/>
+            </dataSource>
+        </environment>
+    </environments>
+    <mappers>
+        <mapper resource="recordMapper.xml"/>
+        <!--<mapper class = "com.taosdata.iot.mybatisTest.mappers.RecordMapper"/>-->
+    </mappers>
+</configuration>

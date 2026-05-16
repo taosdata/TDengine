@@ -1,0 +1,1 @@
+For installation instructions, see doc/legacy/install.html.

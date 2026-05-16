@@ -1,0 +1,403 @@
+name: Test on macOS
+
+on:
+  push:
+    branches:
+      - "main"
+      - "3.0"
+  pull_request:
+    branches:
+      - "main"
+      - "3.0"
+  workflow_dispatch:
+    inputs:
+      tdengine_branch:
+        description: "TDengine branch"
+        required: true
+        type: string
+
+jobs:
+  build-tdengine:
+    runs-on: macos-latest
+    outputs:
+      commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
+    steps:
+      #----------------------------------------------
+      # Determine TDengine branch dynamically
+      #----------------------------------------------
+      - name: Determine TDengine branch
+        uses: haya14busa/action-cond@v1
+        id: determine-branch
+        with:
+          cond: ${{ github.base_ref == 'main' }}
+          if_true: "main"
+          if_false: "3.0"
+
+      #----------------------------------------------
+      # Checkout TDengine repository
+      #----------------------------------------------
+      - name: Checkout TDengine
+        uses: actions/checkout@v4
+        with:
+          repository: "taosdata/TDengine"
+          path: "TDengine"
+          ref: ${{ steps.determine-branch.outputs.value }}
+
+      - name: get_commit_id
+        id: get_commit_id
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache server by pr
+        if: github.event_name == 'pull_request'
+        id: cache-server-pr
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server by push
+        if: github.event_name == 'push'
+        id: cache-server-push
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: cache-server-manually
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ inputs.tdengine_branch }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: prepare install
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: brew install argp-standalone pkgconfig geos
+
+      - name: Set up homebrew
+        if: |
+          github.event_name == 'pull_request'
+          || github.event_name == 'push'
+          || github.event_name == 'schedule'
+        run: |
+          brew update
+          brew install --overwrite argp-standalone pkg-config
+          brew info argp-standalone
+
+      - name: Set up Go
+        if: |
+          github.event_name == 'pull_request'
+          || github.event_name == 'push'
+          || github.event_name == 'schedule'
+        uses: actions/setup-go@v3
+        with:
+          go-version: stable
+
+      - name: Set up Rust
+        if: |
+          github.event_name == 'pull_request'
+          || github.event_name == 'push'
+          || github.event_name == 'schedule'
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: install TDengine
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          cd TDengine
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=false -DVERNUMBER=3.9.9.9
+          make -j 14 install
+          echo "do make_install grep libtao"
+          pwd
+
+      - name: package
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          mkdir -p ./release
+          cp ./TDengine/debug/build/bin/taos ./release/
+          cp ./TDengine/debug/build/bin/taosd ./release/
+          cp ./TDengine/debug/build/bin/taosadapter ./release/
+          cp ./TDengine/debug/build/lib/libtaos.dylib ./release/
+          cp ./TDengine/debug/build/lib/libtaosnative.dylib ./release/
+          cp ./TDengine/include/client/taos.h ./release/
+          cat >./release/install.sh<<EOF 
+          echo "-------------"
+          ls -l /usr/local/lib/
+          chmod +x ./taos
+          chmod +x ./taosd
+          chmod +x ./taosadapter
+          cp ./taos /usr/local/bin
+          cp ./taosd /usr/local/bin
+          cp ./taosadapter /usr/local/bin
+          sudo rm -rf /usr/local/lib/libtaos*
+          cp ./libtaos.dylib /usr/local/lib
+          cp ./libtaosnative.dylib /usr/local/lib
+          cp ./taos.h /usr/local/include
+          ls -l /usr/local/lib/
+          echo "!-------------!"
+          EOF
+          tar -zcvf server.tar.gz ./release
+
+  build-poetry:
+    runs-on: macos-latest
+    needs: build-tdengine
+    steps:
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ needs.build-tdengine.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ needs.build-tdengine.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ github.ref_name }}-
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ inputs.tdengine_branch }}-${{ needs.build-tdengine.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ inputs.tdengine_branch }}-
+
+      - name: prepare install
+        run: |
+          brew install geos
+          echo "GEOS_CONFIG=$(brew --prefix geos)/bin/geos-config" >> $GITHUB_ENV
+          echo "GEOS_DIR=$(brew --prefix geos)" >> $GITHUB_ENV
+
+      - name: install TDengine
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+
+      - name: Checkout Connector
+        uses: actions/checkout@v4
+
+      - name: Cache Poetry
+        id: cache-poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.poetry
+          key: macos-poetry
+
+      #----------------------------------------------
+      # install & configure poetry
+      #----------------------------------------------
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.5
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      #----------------------------------------------
+      # load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install --no-interaction --no-root
+
+      #----------------------------------------------
+      # install your root project, if required
+      #----------------------------------------------
+      - name: Install library
+        run: poetry install --no-interaction
+
+      #----------------------------------------------
+      # build connector
+      #----------------------------------------------
+
+      - name: Build Artifacts
+        run: |
+          poetry build
+
+  test:
+    runs-on: macos-latest
+    needs: build-tdengine
+    steps:
+      - name: get cache server by pr
+        if: github.event_name == 'pull_request'
+        id: get-cache-server-pr
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ needs.build-tdengine.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ github.base_ref }}-
+
+      - name: get cache server by push
+        if: github.event_name == 'push'
+        id: get-cache-server-push
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ needs.build-tdengine.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ github.ref_name }}-
+
+      - name: get cache server manually
+        if: github.event_name == 'workflow_dispatch'
+        id: get-cache-server-manually
+        uses: actions/cache@v4
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ inputs.tdengine_branch }}-${{ needs.build-tdengine.outputs.commit_id }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ inputs.tdengine_branch }}-
+
+      - name: prepare install
+        run: |
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
+
+      - name: install TDengine
+        run: |
+          tar -zxvf server.tar.gz
+          cd release && sudo sh install.sh
+          ls -l /usr/local/lib/ | grep libtaos
+
+      - name: Checkout Connector
+        uses: actions/checkout@v4
+
+      - name: Cache Poetry
+        id: cache-poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.poetry
+          key: macos-poetry
+
+      #----------------------------------------------
+      # install & configure poetry
+      #----------------------------------------------
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.5
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      #----------------------------------------------
+      # load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: |
+          export GEOS_CONFIG=$(brew --prefix geos)/bin/geos-config
+          export GEOS_DIR=$(brew --prefix geos)
+          poetry env use python3.12
+          poetry install --no-interaction --no-root
+
+      #----------------------------------------------
+      # install your root project, if required
+      #----------------------------------------------
+      - name: Install library
+        run: |
+          export GEOS_CONFIG=$(brew --prefix geos)/bin/geos-config
+          export GEOS_DIR=$(brew --prefix geos)
+          poetry env use python3.12
+          poetry install --no-interaction
+
+      - name: Copy taos.cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+
+      - name: Start TDengine
+        run: |
+          export C_INCLUDE_PATH=$PWD/TDengine/build/build/include
+          mkdir -p /tmp/taos/v3/log /tmp/taos/v3/data
+          sudo taosd &
+          sleep 1
+
+      - name: Start taosAdapter
+        run: |
+          pwd
+          mkdir -p TDengine/debug/build/lib
+          ln -sfv /usr/local/lib/libtaos.dylib TDengine/debug/build/lib/libtaos.dylib
+          ln -sfv /usr/local/lib/libtaosnative.dylib TDengine/debug/build/lib/libtaosnative.dylib
+          ln -sfv /usr/local/lib/libtaos.dylib TDengine/debug/build/lib/libtaos.1.dylib
+          ln -sfv /usr/local/lib/libtaosnative.dylib TDengine/debug/build/lib/libtaosnative.1.dylib
+          ls -l TDengine/debug/build/lib/
+          sudo taosadapter &
+
+      #----------------------------------------------
+      # run test suite
+      #----------------------------------------------
+      - name: Test
+        env:
+          DYLD_LIBRARY_PATH: /usr/local/lib:$DYLD_LIBRARY_PATH
+          TDENGINE_URL: localhost:6041
+          TDENGINE_TEST_USERNAME: ${{ secrets.TDENGINE_TEST_USERNAME }}
+          TDENGINE_TEST_PASSWORD: ${{ secrets.TDENGINE_TEST_PASSWORD }}
+        run: |
+          source $VENV
+          echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH"
+          ls -l /usr/local/lib
+          ps aux | grep taos
+          python -c "import ctypes; print(ctypes.CDLL('/usr/local/lib/libtaos.dylib'))"
+          poetry run pip install psutil pandas "numpy<2.0.0" shapely
+          poetry run pytest tests
+
+      - name: Build Artifacts
+        run: poetry build

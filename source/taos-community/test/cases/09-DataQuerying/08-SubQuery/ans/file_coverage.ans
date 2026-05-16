@@ -1,0 +1,27 @@
+
+taos> CREATE DATABASE IF NOT EXISTS file_src_db;
+Create OK, 0 row(s) affected 
+
+taos> USE file_src_db;
+Database changed.
+
+taos> SELECT ts, c1, c2 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_widecols.csv', 'ts TIMESTAMP, c1 INT, c2 INT') f_narrow ORDER BY ts;
+           ts            |     c1      |     c2      |
+======================================================
+ 2026-03-01 00:00:01.000 |          10 |          20 |
+ 2026-03-01 00:00:02.000 |          11 |          21 |
+ 2026-03-01 00:00:03.000 |          12 |          22 |
+
+taos> SELECT c1, c2 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_bad_types.csv', 'ts TIMESTAMP, c1 INT, c2 BOOL') f_bad ORDER BY ts;
+     c1      |  c2   |
+======================
+           0 | false |
+           0 | false |
+
+taos> SELECT c1, c7 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_widecols.csv', 'ts TIMESTAMP, c1 INT, c2 INT, c3 INT, c4 INT, c5 INT, c6 INT, c7 INT') f_wide ORDER BY ts;
+     c1      |     c7      |
+============================
+          10 |          70 |
+          11 |          71 |
+          12 |          72 |
+

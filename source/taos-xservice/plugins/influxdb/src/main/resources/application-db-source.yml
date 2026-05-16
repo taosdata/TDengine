@@ -1,0 +1,13 @@
+# influx (test based on version 3.0.2.2)
+influx:
+  url: http://192.168.217.138:8186
+  version: 1.7
+  username: taosdata
+  password: taosdata
+  token: _FnpTYi30Mc4eCZcuATp4AkUMf6Yp3xI4blP_zkXhwh3fgK3wHe2y6TOjnjGS8kEFM9Pm2NKRY1sOnkJeTtLTg==
+  orgId: f3af42a3895a5e33
+  addDbrp: false
+  maxTotal: 20
+  maxIdle: 10
+  minIdle: 5
+  initialSize: 5

@@ -1,0 +1,78 @@
+!INCLUDE ..\win32\common.mak
+
+sasl_apps=saslpasswd2.exe sasldblistusers2.exe testsuite.exe pluginviewer.exe
+sasl_out=saslpasswd2.pdb sasldblistusers2.pdb testsuite.pdb pluginviewer.pdb
+
+saslpwd_objs = saslpasswd.obj
+sasldblistusers_objs = sasldblistusers.obj
+testsuite_objs = testsuite.obj
+pluginviewer_objs = pluginviewer.obj
+
+all_objs = $(saslpwd_objs) $(sasldblistusers_objs) $(testsuite_objs) $(pluginviewer_objs)
+all_out = $(sasl_apps) $(sasl_out)
+
+DB_FLAGS = /I "$(DB_INCLUDE)" /I "..\sasldb"
+CPPFLAGS = /I "..\win32\include" /I "." /I "..\include" $(DB_FLAGS) $(COMMON_CPPFLAGS)
+CPPFLAGS = $(CPPFLAGS) /DNEED_GETOPT
+
+
+DB_LIBS="/libpath:$(DB_LIBPATH)" "$(DB_LIB)"
+SASL_LIB=/libpath:"..\lib" libsasl.lib
+SASL_DB_LIB=/libpath:"..\plugins" saslSASLDB.lib
+
+# EXTRA_LIBS is automatically included into LINK32EXE_FLAGS/LINK32DLL_FLAGS
+EXTRA_LIBS=$(SASL_LIB) 
+
+# Where to install files from this directory
+bindir = $(prefix)\bin
+
+
+all : all-recursive
+
+#
+# /I flag to xcopy tells to treat the last parameter as directory and create all missing levels
+#
+# In order to force xcopy not to confirm if the second parameter is file or directory,
+# the first parameter has to contain a wildcard character. For example, we use libsasl.l*,
+# instead of libsasl.lib. Ugly, but works!
+#
+# Note, that we will copy all executabless here, not just $(sasl_apps). This is a bug, but it allows
+# us to copy optionally built executables, which might not be in $(sasl_apps). The latter is a feature.
+#
+install: $(sasl_apps)
+	@xcopy *.exe "$(bindir)" /I /F /Y
+
+all-recursive : $(sasl_apps)
+
+saslpasswd2.exe: $(saslpwd_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"saslpasswd2.pdb" /out:"saslpasswd2.exe" $(saslpwd_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+sasldblistusers2.exe: $(sasldblistusers_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) $(SASL_DB_LIB) /pdb:"sasldblistusers2.pdb" /out:"sasldblistusers2.exe" $(sasldblistusers_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+testsuite.exe: $(testsuite_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"testsuite.pdb" /out:"testsuite.exe" $(testsuite_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+pluginviewer.exe: $(pluginviewer_objs)
+	$(LINK32EXE) @<< $(LINK32EXE_FLAGS) /pdb:"pluginviewer.pdb" /out:"pluginviewer.exe" $(pluginviewer_objs)
+<<
+	IF EXIST $@.manifest mt -manifest $@.manifest -outputresource:$@;1
+
+CLEAN :
+	-@erase $(all_objs)
+	-@erase "*.idb"
+	-@erase "*.pch"
+	-@erase "*.pdb"
+	-@erase "*.manifest"
+	-@erase $(all_out)
+
+.c.obj::
+   $(CPP) @<<
+   $(CPP_PROJ) $< 
+<<

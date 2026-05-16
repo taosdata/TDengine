@@ -1,0 +1,860 @@
+use core::panic;
+use std::{
+    any::{Any, TypeId},
+    borrow::Cow,
+};
+
+use arrow::{
+    array::{
+        ArrayBuilder, BinaryBuilder, ListBuilder, StringBuilder, StructBuilder,
+        TimestampMicrosecondBuilder, TimestampMillisecondBuilder, TimestampNanosecondBuilder,
+        TimestampSecondBuilder, make_builder,
+    },
+    datatypes::{Field, TimeUnit},
+    error::ArrowError,
+};
+
+use arrow::datatypes::DataType as ArrowDataType;
+
+pub struct ListOfStructBuilder {
+    fields: Vec<Field>,
+    builder: ListBuilder<StructBuilder>,
+    batch: usize,
+    index: Option<usize>,
+}
+
+impl ListOfStructBuilder {
+    pub fn new(fields: Vec<Field>, capacity: usize) -> Self {
+        let field_builders = fields
+            .iter()
+            .map(|f| make_builder(f.data_type(), capacity))
+            .collect();
+        let values_builder = StructBuilder::new(fields.clone(), field_builders);
+        let builder = ListBuilder::new(values_builder);
+        Self {
+            fields,
+            builder,
+            batch: 0,
+            index: None,
+        }
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.builder.len()
+    }
+
+    pub fn values(&mut self) -> &mut StructBuilder {
+        self.builder.values()
+    }
+
+    pub fn append_null_row(&mut self) -> &mut Self {
+        self.next_n(1);
+        for _i in 0..self.fields.len() {
+            self.append_null();
+        }
+        self
+    }
+
+    /// Fill nulls to the end of row.
+    pub fn fill_nulls_to_end(&mut self) -> &mut Self {
+        if let Some(index) = self.index {
+            for _ in index..self.fields.len() {
+                self.append_null();
+            }
+        }
+        self
+    }
+
+    pub fn append_null(&mut self) -> &mut Self {
+        let idx = match self.index {
+            None => {
+                self.next_n(1);
+                0
+            }
+            Some(i) => {
+                if i >= self.fields.len() {
+                    self.next_n(1);
+                    0
+                } else {
+                    self.index.unwrap()
+                }
+            }
+        };
+        let dt = self.fields[idx].data_type();
+
+        macro_rules! primitive_append {
+            ($a:ident, $t:ident) => {{
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<arrow::array::$a>(idx)
+                    .unwrap();
+                b.append_null();
+            }};
+        }
+        match dt {
+            ArrowDataType::Null => todo!(),
+            ArrowDataType::Boolean => primitive_append!(BooleanBuilder, bool),
+            ArrowDataType::Int8 => primitive_append!(Int8Builder, i8),
+            ArrowDataType::Int16 => primitive_append!(Int16Builder, i16),
+            ArrowDataType::Int32 => primitive_append!(Int32Builder, i32),
+            ArrowDataType::Int64 => primitive_append!(Int64Builder, i64),
+            ArrowDataType::UInt8 => primitive_append!(UInt8Builder, u8),
+            ArrowDataType::UInt16 => primitive_append!(UInt16Builder, u16),
+            ArrowDataType::UInt32 => primitive_append!(UInt32Builder, u32),
+            ArrowDataType::UInt64 => primitive_append!(UInt64Builder, u64),
+            ArrowDataType::Float16 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float32 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float64 => primitive_append!(Float64Builder, f64),
+            ArrowDataType::Timestamp(unit, _) => match unit {
+                TimeUnit::Microsecond => self
+                    .builder
+                    .values()
+                    .field_builder::<TimestampMicrosecondBuilder>(idx)
+                    .unwrap()
+                    .append_null(),
+                TimeUnit::Second => self
+                    .builder
+                    .values()
+                    .field_builder::<TimestampSecondBuilder>(idx)
+                    .unwrap()
+                    .append_null(),
+                TimeUnit::Millisecond => self
+                    .builder
+                    .values()
+                    .field_builder::<TimestampMillisecondBuilder>(idx)
+                    .unwrap()
+                    .append_null(),
+                TimeUnit::Nanosecond => self
+                    .builder
+                    .values()
+                    .field_builder::<TimestampNanosecondBuilder>(idx)
+                    .unwrap()
+                    .append_null(),
+            },
+            ArrowDataType::Binary => self
+                .builder
+                .values()
+                .field_builder::<BinaryBuilder>(idx)
+                .unwrap()
+                .append_null(),
+            ArrowDataType::Utf8 => {
+                // dbg!(&self.builder);
+                self.builder
+                    .values()
+                    .field_builder::<StringBuilder>(idx)
+                    .unwrap()
+                    .append_null();
+            }
+            _ => {
+                panic!("Unsupported data type: {dt:?}");
+            }
+        };
+        self.index.replace(idx + 1);
+
+        self
+    }
+
+    pub fn append(&mut self, value: &dyn Any) -> Result<&mut Self, ArrowError> {
+        let idx = match self.index {
+            None => {
+                self.next_n(1);
+                0
+            }
+            Some(i) => {
+                if i >= self.fields.len() {
+                    self.next_n(1);
+                    0
+                } else {
+                    self.index.unwrap()
+                }
+            }
+        };
+        let dt = self.fields[idx].data_type();
+
+        macro_rules! primitive_append {
+            ($a:ident, $t:ident) => {{
+                let v = value.downcast_ref::<$t>().unwrap();
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<arrow::array::$a>(idx)
+                    .unwrap();
+                b.append_value(*v);
+            }};
+        }
+        match dt {
+            ArrowDataType::Null => todo!(),
+            ArrowDataType::Boolean => primitive_append!(BooleanBuilder, bool),
+            ArrowDataType::Int8 => primitive_append!(Int8Builder, i8),
+            ArrowDataType::Int16 => primitive_append!(Int16Builder, i16),
+            ArrowDataType::Int32 => primitive_append!(Int32Builder, i32),
+            ArrowDataType::Int64 => primitive_append!(Int64Builder, i64),
+            ArrowDataType::UInt8 => primitive_append!(UInt8Builder, u8),
+            ArrowDataType::UInt16 => primitive_append!(UInt16Builder, u16),
+            ArrowDataType::UInt32 => primitive_append!(UInt32Builder, u32),
+            ArrowDataType::UInt64 => primitive_append!(UInt64Builder, u64),
+            ArrowDataType::Float16 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float32 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float64 => primitive_append!(Float64Builder, f64),
+            ArrowDataType::Timestamp(unit, _) => {
+                let v = value.downcast_ref::<i64>().unwrap();
+                match unit {
+                    TimeUnit::Microsecond => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampMicrosecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                    TimeUnit::Second => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampSecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                    TimeUnit::Millisecond => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampMillisecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                    TimeUnit::Nanosecond => {
+                        let b = self
+                            .builder
+                            .values()
+                            .field_builder::<TimestampNanosecondBuilder>(idx)
+                            .unwrap();
+                        b.append_value(*v);
+                    }
+                }
+            }
+            ArrowDataType::Binary => {
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<BinaryBuilder>(idx)
+                    .unwrap();
+                match value.type_id() {
+                    t if t == TypeId::of::<&str>() => {
+                        b.append_value(value.downcast_ref::<&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(value.downcast_ref::<&&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(value.downcast_ref::<String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(value.downcast_ref::<&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(value.downcast_ref::<&&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<[u8]>() => {
+                        b.append_value(value.downcast_ref::<&[u8]>().unwrap())
+                    }
+                    t => panic!("Unsupported binary input type: {t:?}, {value:?}"),
+                }
+            }
+            ArrowDataType::Utf8 => {
+                // let v = value.downcast::<String>().unwrap();
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<StringBuilder>(idx)
+                    .unwrap();
+
+                match value.type_id() {
+                    t if t == TypeId::of::<&str>() => {
+                        b.append_value(value.downcast_ref::<&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(value.downcast_ref::<&&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(value.downcast_ref::<String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(value.downcast_ref::<&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(value.downcast_ref::<&&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<Box<[u8]>>() => b.append_value({
+                        std::str::from_utf8(value.downcast_ref::<&[u8]>().unwrap()).unwrap()
+                    }),
+                    t => panic!("Unsupported binary input type: {t:?}, {value:?}"),
+                }
+            }
+            _ => {
+                return Err(ArrowError::NotYetImplemented(format!(
+                    "Unsupported data type: {dt:?}"
+                )));
+            }
+        };
+        if let Some(v) = self.index.as_mut() {
+            *v += 1
+        }
+
+        Ok(self)
+    }
+
+    pub fn append_values(&mut self, value: &dyn Any, len: usize) -> Result<&mut Self, ArrowError> {
+        let idx = match self.index {
+            None => {
+                self.next_n(len);
+                0
+            }
+            Some(i) => {
+                if i >= self.fields.len() {
+                    self.next_n(len);
+                    0
+                } else {
+                    self.index.unwrap()
+                }
+            }
+        };
+        let dt = self.fields[idx].data_type();
+        // self.index += 1;
+        macro_rules! primitive_append {
+            ($a:ident, $t:ident) => {{
+                let v = value.downcast_ref::<&[$t]>().unwrap();
+                let builder = self
+                    .builder
+                    .values()
+                    .field_builder::<arrow::array::$a>(idx)
+                    .unwrap();
+                let is_valid = vec![true; v.len()];
+                let _ = builder.append_values(*v, &is_valid);
+            }};
+        }
+        match dt {
+            ArrowDataType::Boolean => primitive_append!(BooleanBuilder, bool),
+            ArrowDataType::Int8 => primitive_append!(Int8Builder, i8),
+            ArrowDataType::Int16 => primitive_append!(Int16Builder, i16),
+            ArrowDataType::Int32 => primitive_append!(Int32Builder, i32),
+            ArrowDataType::Int64 => primitive_append!(Int64Builder, i64),
+            ArrowDataType::UInt8 => primitive_append!(UInt8Builder, u8),
+            ArrowDataType::UInt16 => primitive_append!(UInt16Builder, u16),
+            ArrowDataType::UInt32 => primitive_append!(UInt32Builder, u32),
+            ArrowDataType::UInt64 => primitive_append!(UInt64Builder, u64),
+            ArrowDataType::Float16 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float32 => primitive_append!(Float32Builder, f32),
+            ArrowDataType::Float64 => primitive_append!(Float64Builder, f64),
+            ArrowDataType::Timestamp(unit, _) => {
+                let v = value.downcast_ref::<&[i64]>().unwrap();
+                let is_valid = vec![true; v.len()];
+                match unit {
+                    TimeUnit::Microsecond => self
+                        .builder
+                        .values()
+                        .field_builder::<TimestampMicrosecondBuilder>(idx)
+                        .unwrap()
+                        .append_values(v, &is_valid),
+                    TimeUnit::Second => self
+                        .builder
+                        .values()
+                        .field_builder::<TimestampSecondBuilder>(idx)
+                        .unwrap()
+                        .append_values(v, &is_valid),
+                    TimeUnit::Millisecond => self
+                        .builder
+                        .values()
+                        .field_builder::<TimestampMillisecondBuilder>(idx)
+                        .unwrap()
+                        .append_values(v, &is_valid),
+                    TimeUnit::Nanosecond => self
+                        .builder
+                        .values()
+                        .field_builder::<TimestampNanosecondBuilder>(idx)
+                        .unwrap()
+                        .append_values(v, &is_valid),
+                }
+            }
+            ArrowDataType::Binary => {
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<BinaryBuilder>(idx)
+                    .unwrap();
+                macro_rules! append {
+                    ($t:ty) => {{
+                        for v in *value.downcast_ref::<$t>().unwrap() {
+                            b.append_value(*v)
+                        }
+                    }};
+                }
+                match value.type_id() {
+                    t if t == TypeId::of::<&[&str]>() => append!(&[&str]),
+                    t if t == TypeId::of::<&&str>() => {
+                        b.append_value(value.downcast_ref::<&&str>().unwrap())
+                    }
+                    t if t == TypeId::of::<String>() => {
+                        b.append_value(value.downcast_ref::<String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&String>() => {
+                        b.append_value(value.downcast_ref::<&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<&&String>() => {
+                        b.append_value(value.downcast_ref::<&&String>().unwrap())
+                    }
+                    t if t == TypeId::of::<[u8]>() => {
+                        b.append_value(value.downcast_ref::<&[u8]>().unwrap())
+                    }
+                    t => panic!("Unsupported binary input type: {t:?}, {value:?}"),
+                }
+            }
+            ArrowDataType::Utf8 => {
+                // let v = value.downcast::<String>().unwrap();
+                let b = self
+                    .builder
+                    .values()
+                    .field_builder::<StringBuilder>(idx)
+                    .unwrap();
+                macro_rules! append {
+                    ($t:ty) => {{
+                        for v in value.downcast_ref::<$t>().unwrap().iter() {
+                            b.append_value(v)
+                        }
+                    }};
+                }
+                macro_rules! append_bytes {
+                    ($t:ty) => {{
+                        for v in value.downcast_ref::<$t>().unwrap().iter() {
+                            b.append_value(unsafe { std::str::from_utf8_unchecked(v) })
+                        }
+                    }};
+                }
+                match value.type_id() {
+                    t if t == TypeId::of::<Vec<&str>>() => append!(Vec<&str>),
+                    t if t == TypeId::of::<Vec<String>>() => append!(Vec<String>),
+                    t if t == TypeId::of::<&[&str]>() => append!(&[&str]),
+                    t if t == TypeId::of::<&[&String]>() => append!(&[&String]),
+                    t if t == TypeId::of::<Vec<&[u8]>>() => append_bytes!(Vec<&[u8]>),
+                    t if t == TypeId::of::<Vec<Vec<u8>>>() => append_bytes!(Vec<Vec<u8>>),
+                    t if t == TypeId::of::<Vec<&Vec<u8>>>() => append_bytes!(Vec<&Vec<u8>>),
+                    t if t == TypeId::of::<&&[&str]>() => append!(&&[&str]),
+                    t if t == TypeId::of::<Vec<Cow<str>>>() => append!(Vec<Cow<str>>),
+                    t => panic!(
+                        "Unsupported binary input type: {t:?}, {value:?}, use &Vec<String>, &Vec<&str>, &[&str] or &[&[u8]]"
+                    ),
+                }
+            }
+            _ => {
+                return Err(ArrowError::NotYetImplemented(format!(
+                    "Unsupported data type: {dt:?}"
+                )));
+            }
+        };
+        self.index.replace(idx + 1);
+        Ok(self)
+    }
+
+    pub fn finish(&mut self) -> arrow::array::GenericListArray<i32> {
+        if self.builder.len() == 0 {
+            self.builder.append(true);
+        }
+        self.builder.finish()
+    }
+
+    #[inline]
+    fn next_n(&mut self, n: usize) -> &mut Self {
+        if !self.index.map(|index| index == 0).unwrap_or_default() {
+            for _ in 0..n {
+                self.builder.values().append(true);
+            }
+            self.batch = n;
+            self.index = Some(0);
+        }
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{
+        Array, BinaryArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array,
+        StringArray, StructArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        TimestampNanosecondArray, TimestampSecondArray, UInt8Array, UInt64Array,
+    };
+    use arrow::datatypes::DataType;
+
+    fn assert_not_yet_implemented<T>(result: Result<T, ArrowError>, expected: &str) {
+        if let Err(ArrowError::NotYetImplemented(message)) = result {
+            assert!(
+                message.contains(expected),
+                "error message {message:?} should mention {expected:?}"
+            );
+        } else {
+            ::core::panic!("expected ArrowError::NotYetImplemented");
+        }
+    }
+
+    #[test]
+    fn builder() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("value", DataType::Int32, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+
+        dbg!(["abc", "def"].type_id());
+
+        // A two-rows item.
+        builder
+            .append_null_row()
+            // .next_item()
+            .append_null()
+            .append_null()
+            // next row
+            .next_n(1) // the builder will call it under the hood so this is optional
+            .append(&"Hello" as &dyn Any)?
+            .append(&1i32 as _)?
+            .append_values(&vec!["abc", "def"], 2)?
+            .append_values(&[1i32, 2].as_slice(), 2)?
+            .append_values(&vec!["abc".to_string(), "def".to_string()], 2)?
+            .append_values(&[1i32, 2].as_slice(), 2)?
+            .append_values(&["abc", "def"].as_slice(), 2)?
+            .append_values(&[1i32, 2].as_slice(), 2)?
+            .append_values(&vec![b"abc".as_slice(), b"def".as_slice()], 2)?
+            .append_values(&[1i32, 2].as_slice(), 2)?
+            .append_values(&vec![b"abc".as_slice(), b"def".as_slice()], 2)?
+            .append_values(&[1i32, 2].as_slice(), 2)?;
+
+        let array = builder.finish();
+        // assert!(array.value_length(0) == 2);
+        dbg!(&array);
+        Ok(())
+    }
+
+    #[test]
+    fn append_more_types_and_finish_empty() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("b", DataType::Boolean, true),
+            Field::new("i", DataType::Int32, true),
+            Field::new(
+                "ts_ns",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+            Field::new("s", DataType::Utf8, true),
+            Field::new("bin", DataType::Binary, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+
+        // First row with explicit values
+        builder
+            .append(&true as &dyn Any)?
+            .append(&7i32 as &dyn Any)?
+            .append(&(999_999i64) as &dyn Any)?
+            .append(&"hi" as &dyn Any)?
+            .append(&"bb".to_string() as &dyn Any)?;
+
+        // Close current row and create another row with nulls
+        builder.fill_nulls_to_end();
+        builder.append_null_row();
+
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+
+        // Empty builder should still finish with one element
+        let fields2 = vec![Field::new("v", DataType::Utf8, true)];
+        let mut builder2 = ListOfStructBuilder::new(fields2, 1);
+        let list2 = builder2.finish();
+        assert_eq!(list2.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn fill_nulls_and_append_null_row() {
+        // Validate null handling paths
+        let fields = vec![
+            Field::new("u8", DataType::UInt8, true),
+            Field::new("f64", DataType::Float64, true),
+            Field::new(
+                "ts_ms",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            ),
+            Field::new("s", DataType::Utf8, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+        builder.append_null_row().fill_nulls_to_end();
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+    }
+
+    #[test]
+    fn append_timestamps_and_numbers() -> anyhow::Result<()> {
+        // Cover timestamp microsecond/second and numeric types
+        let fields = vec![
+            Field::new(
+                "ts_us",
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+                true,
+            ),
+            Field::new("ts_s", DataType::Timestamp(TimeUnit::Second, None), true),
+            Field::new("u16", DataType::UInt16, true),
+            Field::new("f64", DataType::Float64, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+        builder
+            .append(&(123_456i64) as &dyn Any)?
+            .append(&(789i64) as &dyn Any)?
+            .append(&(42u16) as &dyn Any)?
+            .append(&(std::f64::consts::PI) as &dyn Any)?;
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn append_nulls_and_fill_nulls_keep_list_struct_row_boundaries() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("name", DataType::Utf8, true),
+            Field::new("value", DataType::Int32, true),
+            Field::new("payload", DataType::Binary, true),
+            Field::new(
+                "observed_at",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 3);
+
+        builder
+            .append(&"first" as &dyn Any)?
+            .append(&10i32 as &dyn Any)?
+            .fill_nulls_to_end()
+            .append_null_row()
+            .append(&"third" as &dyn Any)?
+            .append_null()
+            .append(&"bytes" as &dyn Any)?
+            .append(&9_999i64 as &dyn Any)?;
+
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+        assert!(list.is_valid(0));
+        assert_eq!(list.value_length(0), 3);
+
+        let values = list.value(0);
+        let rows = values.as_any().downcast_ref::<StructArray>().unwrap();
+        assert_eq!(rows.len(), 3);
+
+        let names = rows
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(names.value(0), "first");
+        assert!(names.is_null(1));
+        assert_eq!(names.value(2), "third");
+
+        let numbers = rows
+            .column(1)
+            .as_any()
+            .downcast_ref::<Int32Array>()
+            .unwrap();
+        assert_eq!(numbers.value(0), 10);
+        assert!(numbers.is_null(1));
+        assert!(numbers.is_null(2));
+
+        let payloads = rows
+            .column(2)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert!(payloads.is_null(0));
+        assert!(payloads.is_null(1));
+        assert_eq!(payloads.value(2), b"bytes");
+
+        let timestamps = rows
+            .column(3)
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert!(timestamps.is_null(0));
+        assert!(timestamps.is_null(1));
+        assert_eq!(timestamps.value(2), 9_999);
+
+        Ok(())
+    }
+
+    #[test]
+    fn append_values_aligns_supported_columns_inside_single_list() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("flag", DataType::Boolean, true),
+            Field::new("i16", DataType::Int16, true),
+            Field::new("u8", DataType::UInt8, true),
+            Field::new("u64", DataType::UInt64, true),
+            Field::new("f32", DataType::Float32, true),
+            Field::new("f64", DataType::Float64, true),
+            Field::new("ts_s", DataType::Timestamp(TimeUnit::Second, None), true),
+            Field::new(
+                "ts_us",
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+                true,
+            ),
+            Field::new(
+                "ts_ms",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            ),
+            Field::new(
+                "ts_ns",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+            Field::new("label", DataType::Utf8, true),
+            Field::new("payload", DataType::Binary, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+        let labels = vec![Cow::Borrowed("left"), Cow::Owned("right".to_string())];
+
+        builder
+            .append_values(&[true, false].as_slice(), 2)?
+            .append_values(&[-16i16, 16i16].as_slice(), 2)?
+            .append_values(&[8u8, 9u8].as_slice(), 2)?
+            .append_values(&[64u64, 65u64].as_slice(), 2)?
+            .append_values(&[1.25f32, -2.5f32].as_slice(), 2)?
+            .append_values(&[3.5f64, -4.75f64].as_slice(), 2)?
+            .append_values(&[11i64, 22i64].as_slice(), 2)?
+            .append_values(&[1_100i64, 2_200i64].as_slice(), 2)?
+            .append_values(&[1_001i64, 2_002i64].as_slice(), 2)?
+            .append_values(&[1_000_000i64, 2_000_000i64].as_slice(), 2)?
+            .append_values(&labels, 2)?
+            .append_values(&["bin-left", "bin-right"].as_slice(), 2)?;
+
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list.value_length(0), 2);
+
+        let values = list.value(0);
+        let rows = values.as_any().downcast_ref::<StructArray>().unwrap();
+        assert_eq!(rows.len(), 2);
+
+        let flags = rows
+            .column(0)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert!(flags.value(0));
+        assert!(!flags.value(1));
+
+        let i16s = rows
+            .column(1)
+            .as_any()
+            .downcast_ref::<Int16Array>()
+            .unwrap();
+        assert_eq!(i16s.value(0), -16);
+        assert_eq!(i16s.value(1), 16);
+
+        let u8s = rows
+            .column(2)
+            .as_any()
+            .downcast_ref::<UInt8Array>()
+            .unwrap();
+        assert_eq!(u8s.value(0), 8);
+        assert_eq!(u8s.value(1), 9);
+
+        let u64s = rows
+            .column(3)
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .unwrap();
+        assert_eq!(u64s.value(0), 64);
+        assert_eq!(u64s.value(1), 65);
+
+        let f32s = rows
+            .column(4)
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap();
+        assert_eq!(f32s.value(0), 1.25);
+        assert_eq!(f32s.value(1), -2.5);
+
+        let f64s = rows
+            .column(5)
+            .as_any()
+            .downcast_ref::<Float64Array>()
+            .unwrap();
+        assert_eq!(f64s.value(0), 3.5);
+        assert_eq!(f64s.value(1), -4.75);
+
+        let seconds = rows
+            .column(6)
+            .as_any()
+            .downcast_ref::<TimestampSecondArray>()
+            .unwrap();
+        assert_eq!(seconds.value(0), 11);
+        assert_eq!(seconds.value(1), 22);
+
+        let micros = rows
+            .column(7)
+            .as_any()
+            .downcast_ref::<TimestampMicrosecondArray>()
+            .unwrap();
+        assert_eq!(micros.value(0), 1_100);
+        assert_eq!(micros.value(1), 2_200);
+
+        let millis = rows
+            .column(8)
+            .as_any()
+            .downcast_ref::<TimestampMillisecondArray>()
+            .unwrap();
+        assert_eq!(millis.value(0), 1_001);
+        assert_eq!(millis.value(1), 2_002);
+
+        let nanos = rows
+            .column(9)
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(nanos.value(0), 1_000_000);
+        assert_eq!(nanos.value(1), 2_000_000);
+
+        let strings = rows
+            .column(10)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(strings.value(0), "left");
+        assert_eq!(strings.value(1), "right");
+
+        let binaries = rows
+            .column(11)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .unwrap();
+        assert_eq!(binaries.value(0), b"bin-left");
+        assert_eq!(binaries.value(1), b"bin-right");
+
+        Ok(())
+    }
+
+    #[test]
+    fn append_and_append_values_report_safe_unsupported_types() {
+        let fields = vec![Field::new("date", DataType::Date32, true)];
+        let mut append_builder = ListOfStructBuilder::new(fields.clone(), 1);
+        assert_not_yet_implemented(
+            append_builder.append(&1i32 as &dyn Any).map(|_| ()),
+            "Date32",
+        );
+
+        let mut append_values_builder = ListOfStructBuilder::new(fields, 2);
+        assert_not_yet_implemented(
+            append_values_builder
+                .append_values(&[1i32, 2i32].as_slice(), 2)
+                .map(|_| ()),
+            "Date32",
+        );
+    }
+}

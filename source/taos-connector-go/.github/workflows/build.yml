@@ -1,0 +1,326 @@
+name: Go
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+  push:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+  workflow_dispatch:
+    inputs:
+      tbBranch:
+        description: 'TDengine branch'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    outputs:
+      commit_id: ${{ steps.get_commit_id.outputs.commit_id }}
+      event_key: ${{ steps.vars.outputs.event_key }}
+    steps:
+      - name: Resolve checkout params
+        id: vars
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request)
+              echo "ref=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+              echo "event_key=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+              ;;
+            push)
+              echo "ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              echo "event_key=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              ;;
+            workflow_dispatch)
+              echo "ref=${{ inputs.tbBranch }}" >> $GITHUB_OUTPUT
+              echo "event_key=${{ inputs.tbBranch }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Checkout TDengine
+        uses: actions/checkout@v6
+        with:
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: ${{ steps.vars.outputs.ref }}
+
+      - name: Get commit ID
+        id: get_commit_id
+        run: |
+          cd TDengine
+          echo "commit_id=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Cache server
+        id: cache-server
+        uses: actions/cache@v5
+        with:
+          path: server.tar.gz
+          key: ${{ runner.os }}-build-${{ steps.vars.outputs.event_key }}-${{ steps.get_commit_id.outputs.commit_id }}
+
+      - name: Get CMake
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Cache externals
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        uses: actions/cache@v5
+        with:
+          path: TDengine/.externals
+          key: ${{ runner.os }}-build-ext-${{ hashFiles('TDengine/cmake/external.cmake', 'cmake/in/**') }}-v3
+
+      - name: Build TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: |
+          cd TDengine
+          mkdir -p debug
+          cd debug
+          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DBUILD_DEPENDENCY_TESTS=0
+          make -j 4
+
+      - name: Package TDengine
+        if: steps.cache-server.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ./release
+          cp ./TDengine/debug/build/bin/taos ./release/
+          cp ./TDengine/debug/build/bin/taosd ./release/
+          cp ./TDengine/debug/build/bin/taosadapter ./release/
+          cp ./TDengine/debug/build/lib/libtaos.so ./release/
+          cp ./TDengine/debug/build/lib/libtaosnative.so ./release/
+          cp ./TDengine/include/client/taos.h ./release/
+          cat >./release/install.sh<<EOF
+          chmod +x ./taos
+          chmod +x ./taosd
+          chmod +x ./taosadapter
+          cp ./taos /bin/
+          cp ./taosd /bin/
+          cp ./taosadapter /bin/
+          cp ./libtaos.so /usr/lib
+          cp ./libtaosnative.so /usr/lib
+          cp ./taos.h /usr/include
+          EOF
+          tar -zcvf server.tar.gz ./release
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        go: ['1.14', '1.17', '1.22', 'stable']
+        include:
+          - go: '1.14'
+            coverage_flag: ''
+          - go: '1.17'
+            coverage_flag: ''
+          - go: '1.22'
+            coverage_flag: ''
+          - go: 'stable'
+            coverage_flag: '-coverpkg=./...'
+    name: Test Go ${{ matrix.go }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+
+      - name: Run tests
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+        run: |
+          go version
+          go env
+          packages="./..."
+          if [ "${{ matrix.go }}" = "1.14" ] || [ "${{ matrix.go }}" = "1.17" ]; then
+            packages="$(go list ./... | grep -v '^github.com/taosdata/driver-go/v3/examples/')"
+          fi
+          go test ${{ matrix.coverage_flag }} -v --count=1 -coverprofile=coverage.txt -covermode=atomic $packages
+
+      - name: Upload coverage
+        if: matrix.go == 'stable'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.txt
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
+
+  docs-go:
+    runs-on: ubuntu-latest
+    needs: build
+    name: Docs Go Examples
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run go examples
+        run: |
+          sudo ./examples/go.sh
+
+  race-test:
+    runs-on: ubuntu-latest
+    needs: build
+    name: Race Test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run race tests
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+        run: |
+          go version
+          go env
+          go test -race --count=1 ./ws/... ./taosWS
+
+  ws-reliability:
+    runs-on: ubuntu-latest
+    needs: build
+    name: WS Reliability Gate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run reliability gate
+        run: |
+          go version
+          go env
+          LOOP_COUNT=20 ./ws/reliability_gate.sh full
+
+  ws-failover:
+    runs-on: ubuntu-latest
+    needs: build
+    name: WS Failover Switch
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run failover switch probe
+        run: |
+          sudo PROBE_TOTAL_SEC=20 PROBE_POST_SUCCESS=3 READY_TIMEOUT_SEC=20 bash ./ws/unified/tests/verify_failover_switch.sh
+
+  test-asan:
+    runs-on: ubuntu-latest
+    needs: build
+    name: Test with ASAN
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Run ASAN tests
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+        run: |
+          go version
+          go env
+          go test -v -asan ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: build
+    name: Lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup TDengine
+        uses: ./.github/actions/setup-tdengine
+        with:
+          mode: 'build'
+          commit-id: ${{ needs.build.outputs.commit_id }}
+          event-key: ${{ needs.build.outputs.event_key }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest

@@ -1,0 +1,4 @@
+taostest --setup=common_insert.yaml --case=bug_regression/bug_pi37.py --keep --containers
+
+
+

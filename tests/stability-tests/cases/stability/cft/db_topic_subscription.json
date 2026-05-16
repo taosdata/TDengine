@@ -1,0 +1,27 @@
+{
+	"filetype": "subscribe",
+	"cfgdir": "/root/charles/node1",
+	"host": "u1-35",
+	"port": 6130,
+	"user": "root",
+	"password": "taosdata",
+	"result_file": "./tmq_res.txt",
+	"tmq_info": {
+		"concurrent": 5,
+        "poll_delay": 1000000,
+        "group.id": "test_grpid_01",
+        "client.id": "client_flag",
+        "auto.offset.reset": "earliest",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": 5000,
+        "enable.heartbeat.background": "true",
+        "experimental.snapshot.enable": "true",
+        "msg.with.table.name": "false",
+        "rows_file": "./consume_rows",
+        "expect_rows": -1,
+        "topic_list": [
+            {"name": "cft_topic_1", "sql": "select * from stability_db.st_common;"},
+            {"name": "cft_topic_2", "sql": "select * from stability_db.st_common where ts > '2017-08-12 18:25:58.128Z' and ic > 0;"}
+        ]
+	}
+}

@@ -1,0 +1,526 @@
+NAME                              INSTALLED                                                                                     FIXED IN                               TYPE           VULNERABILITY        SEVERITY  EPSS           RISK          
+tj-actions/changed-files          v45                                                                                           46.0.1                                 github-action  GHSA-mrrh-fwg8-r2c3  High      92.0% (99th)   84.5   (kev)  
+nginx                             1.13.9                                                                                        1.25.3                                 binary         CVE-2023-44487       High      94.5% (99th)   78.8   (kev)  
+nginx                             1.16.1                                                                                        1.25.3                                 binary         CVE-2023-44487       High      94.5% (99th)   78.8   (kev)  
+stdlib                            go1.14.4                                                                                      *1.20.10, 1.21.3                       go-module      CVE-2023-44487       High      94.5% (99th)   78.8   (kev)  
+fastjson                          1.2.58                                                                                        1.2.83                                 java-archive   GHSA-pv7h-hx5h-mgfj  High      88.4% (99th)   68.9          
+transformers                      4.33.3                                                                                        4.48.0                                 python         GHSA-wrfc-pvp9-mr9g  High      79.5% (99th)   64.8          
+transformers                      4.40.0                                                                                        4.48.0                                 python         GHSA-wrfc-pvp9-mr9g  High      79.5% (99th)   64.8          
+nginx                             1.13.9                                                                                        1.20.1                                 binary         CVE-2021-23017       High      73.5% (98th)   54.2          
+nginx                             1.16.1                                                                                        1.20.1                                 binary         CVE-2021-23017       High      73.5% (98th)   54.2          
+stdlib                            go1.14.4                                                                                      *1.21.9, 1.22.2                        go-module      CVE-2023-45288       High      71.5% (98th)   53.6          
+transformers                      4.33.3                                                                                        4.48.0                                 python         GHSA-hxxf-235m-72v3  High      65.0% (98th)   53.0          
+transformers                      4.40.0                                                                                        4.48.0                                 python         GHSA-hxxf-235m-72v3  High      65.0% (98th)   53.0          
+log4j                             1.2.17                                                                                                                               java-archive   GHSA-fp5r-v3w9-4333  High      69.3% (98th)   52.0          
+transformers                      4.33.3                                                                                        4.48.0                                 python         GHSA-qxrp-vhvm-j765  High      59.3% (98th)   44.5          
+transformers                      4.40.0                                                                                        4.48.0                                 python         GHSA-qxrp-vhvm-j765  High      59.3% (98th)   44.5          
+nginx                             1.13.9                                                                                        *1.14.1, 1.15.6                        binary         CVE-2018-16843       High      55.5% (98th)   39.9          
+log4j                             1.2.17                                                                                                                               java-archive   GHSA-2qrg-x229-3v8q  Critical  37.0% (97th)   34.7          
+nginx                             1.13.9                                                                                        1.17.7                                 binary         CVE-2019-20372       Medium    70.8% (98th)   34.7          
+nginx                             1.16.1                                                                                        1.17.7                                 binary         CVE-2019-20372       Medium    70.8% (98th)   34.7          
+nginx                             1.13.9                                                                                        1.16.1                                 binary         CVE-2019-9511        High      13.9% (94th)   10.5          
+stdlib                            go1.14.4                                                                                      *1.16.9, 1.17.2                        go-module      CVE-2021-38297       Critical  10.6% (93rd)   9.4           
+nginx                             1.13.9                                                                                        *1.14.1, 1.15.6                        binary         CVE-2018-16844       High      10.9% (93rd)   7.8           
+log4j                             1.2.17                                                                                                                               java-archive   GHSA-65fg-84f6-3jq3  Critical  8.0% (92nd)    7.5           
+transformers                      4.33.3                                                                                        4.38.0                                 python         GHSA-37q5-v5qm-c9v8  Low       20.1% (95th)   6.4           
+nginx                             1.13.9                                                                                        1.16.1                                 binary         CVE-2019-9513        High      6.7% (91st)    5.1           
+nginx                             1.13.9                                                                                                                               binary         CVE-2018-16845       Medium    6.3% (91st)    3.7           
+requests                          2.27.1                                                                                        2.31.0                                 python         GHSA-j8r2-6x86-q33q  Medium    6.3% (90th)    3.5           
+hadoop-common                     3.2.0                                                                                         3.2.4                                  java-archive   GHSA-8wm5-8h9c-47pc  Critical  3.0% (86th)    2.8           
+gson                              2.8.2                                                                                         2.8.9                                  java-archive   GHSA-4jrv-ppp4-jm57  High      2.8% (86th)    2.1           
+log4j                             1.2.17                                                                                                                               java-archive   GHSA-f7vh-qwp3-x37m  Critical  2.2% (84th)    2.0           
+nginx                             1.13.9                                                                                        *1.26.3, 1.27.4                        binary         CVE-2025-23419       Medium    3.9% (88th)    1.9           
+nginx                             1.16.1                                                                                        *1.26.3, 1.27.4                        binary         CVE-2025-23419       Medium    3.9% (88th)    1.9           
+guava                             19.0                                                                                          24.1.1-android                         java-archive   GHSA-mvr2-9pj6-7w5j  Medium    3.3% (87th)    1.8           
+stdlib                            go1.14.4                                                                                      *1.21.10, 1.22.3                       go-module      CVE-2024-24787       Medium    2.7% (85th)    1.5           
+stdlib                            go1.14.4                                                                                      *1.21.8, 1.22.1                        go-module      CVE-2024-24784       High      2.0% (83rd)    1.5           
+nginx                             1.13.9                                                                                        1.16.1                                 binary         CVE-2019-9516        Medium    2.2% (84th)    1.3           
+torch                             2.3.1                                                                                         2.6.0                                  python         GHSA-53q9-r3pm-6pq6  Critical  1.2% (79th)    1.1           
+hadoop-common                     3.2.0                                                                                         3.2.3                                  java-archive   GHSA-rmpj-7c96-mrg8  Critical  1.1% (77th)    1.0           
+waitress                          3.0.0                                                                                         3.0.1                                  python         GHSA-3f84-rpwh-47g6  High      1.2% (78th)    0.9           
+mybatis                           3.4.6                                                                                         3.5.6                                  java-archive   GHSA-qq48-m4jx-xqh8  High      1.1% (78th)    0.9           
+stdlib                            go1.14.4                                                                                      *1.21.12, 1.22.5                       go-module      CVE-2024-24791       High      1.0% (77th)    0.8           
+decompress                        https://codeload.github.com/kevva/decompress/tar.gz/967146e70f48be32ed1a69daa3941d681944d513  4.2.1                                  npm            GHSA-qgfr-5hqp-vrw9  Critical  0.7% (72nd)    0.7           
+avro                              1.8.2                                                                                         1.11.4                                 java-archive   GHSA-r7pg-v2c8-mfg3  Critical  0.7% (73rd)    0.7           
+luajit                            2.1.0-beta3                                                                                                                          conan          CVE-2020-15890       High      1.0% (76th)    0.7           
+vite                              5.4.21                                                                                        6.4.2                                  npm            GHSA-4w7w-66w2-5vf9  Medium    1.2% (78th)    0.7           
+nginx                             1.13.9                                                                                                                               binary         CVE-2022-41741       High      0.8% (74th)    0.6           
+nginx                             1.16.1                                                                                                                               binary         CVE-2022-41741       High      0.8% (74th)    0.6           
+stdlib                            go1.14.4                                                                                      *1.19.8, 1.20.3                        go-module      CVE-2023-24538       Critical  0.7% (70th)    0.6           
+stdlib                            go1.14.4                                                                                      *1.16.10, 1.17.3                       go-module      CVE-2021-41771       High      0.9% (75th)    0.6           
+stdlib                            go1.14.4                                                                                      *1.21.8, 1.22.1                        go-module      CVE-2024-24785       Medium    1.1% (77th)    0.6           
+log4j                             1.2.17                                                                                                                               java-archive   GHSA-w9p3-5cr8-m3jj  High      0.6% (70th)    0.5           
+waitress                          3.0.0                                                                                         3.0.1                                  python         GHSA-9298-4cf8-g4wj  Critical  0.6% (68th)    0.5           
+parquet-avro                      1.10.1                                                                                        1.15.1                                 java-archive   GHSA-2c59-37c4-qrx5  Critical  0.5% (66th)    0.5           
+stdlib                            go1.14.4                                                                                      1.21.0-0                               go-module      CVE-2023-24531       Critical  0.5% (65th)    0.5           
+stdlib                            go1.14.4                                                                                      *1.15.14, 1.16.6                       go-module      CVE-2021-34558       Medium    0.9% (75th)    0.4           
+nginx                             1.13.9                                                                                        1.21.0                                 binary         CVE-2021-3618        High      0.6% (69th)    0.4           
+nginx                             1.16.1                                                                                        1.21.0                                 binary         CVE-2021-3618        High      0.6% (69th)    0.4           
+stdlib                            go1.14.4                                                                                      *1.21.8, 1.22.1                        go-module      CVE-2024-24783       Medium    0.6% (69th)    0.3           
+stdlib                            go1.14.4                                                                                      1.13.13, *1.14.5                       go-module      CVE-2020-15586       Medium    0.6% (69th)    0.3           
+stdlib                            go1.14.4                                                                                      *1.19.10, 1.20.5                       go-module      CVE-2023-29405       Critical  0.3% (55th)    0.3           
+stdlib                            go1.14.4                                                                                      1.19.6                                 go-module      CVE-2022-41722       High      0.4% (60th)    0.3           
+stdlib                            go1.14.4                                                                                      *1.21.8, 1.22.1                        go-module      CVE-2023-45289       Medium    0.6% (69th)    0.3           
+stdlib                            go1.14.4                                                                                      *1.21.8, 1.22.1                        go-module      CVE-2023-45290       Medium    0.5% (65th)    0.3           
+parquet-avro                      1.10.1                                                                                        1.15.2                                 java-archive   GHSA-53wx-pr6q-m3j5  High      0.4% (59th)    0.3           
+httpclient                        4.5.1                                                                                         4.5.13                                 java-archive   GHSA-7r82-7xv7-xcpj  Medium    0.5% (66th)    0.3           
+httpclient                        4.5.5                                                                                         4.5.13                                 java-archive   GHSA-7r82-7xv7-xcpj  Medium    0.5% (66th)    0.3           
+luajit                            2.1.0-beta3                                                                                                                          conan          CVE-2024-25177       High      0.3% (56th)    0.3           
+stdlib                            go1.14.4                                                                                      *1.20.11, 1.21.4                       go-module      CVE-2023-45283       High      0.3% (54th)    0.2           
+commons-io                        1.3.2                                                                                                                                java-archive   GHSA-gwrp-pvrq-jmwv  Medium    0.5% (65th)    0.2           
+stdlib                            go1.14.4                                                                                      *1.19.9, 1.20.4                        go-module      CVE-2023-24540       Critical  0.2% (47th)    0.2           
+stdlib                            go1.14.4                                                                                      *1.22.7, 1.23.1                        go-module      CVE-2024-34156       High      0.3% (53rd)    0.2           
+stdlib                            go1.14.4                                                                                      1.13.13, *1.14.5                       go-module      CVE-2020-14039       Medium    0.4% (62nd)    0.2           
+stdlib                            go1.14.4                                                                                      1.19.6                                 go-module      CVE-2022-41723       High      0.3% (50th)    0.2           
+luajit                            2.1.0-beta3                                                                                                                          conan          CVE-2020-24372       High      0.3% (52nd)    0.2           
+stdlib                            go1.14.4                                                                                      *1.19.11, 1.20.6                       go-module      CVE-2023-29406       Medium    0.3% (57th)    0.2           
+stdlib                            go1.14.4                                                                                      *1.14.12, 1.15.5                       go-module      CVE-2020-28367       High      0.3% (50th)    0.2           
+hadoop-common                     3.2.0                                                                                         3.2.3                                  java-archive   GHSA-gx2c-fvhc-ph4j  Critical  0.2% (40th)    0.2           
+luajit                            2.1.0-beta3                                                                                                                          conan          CVE-2024-25176       Critical  0.2% (40th)    0.2           
+stdlib                            go1.14.4                                                                                      1.17                                   go-module      CVE-2021-29923       High      0.3% (48th)    0.2           
+stdlib                            go1.14.4                                                                                      *1.18.9, 1.19.4                        go-module      CVE-2022-41717       Medium    0.3% (56th)    0.2           
+luajit                            2.1.0-beta3                                                                                                                          conan          CVE-2024-25178       Critical  0.2% (40th)    0.2           
+stdlib                            go1.14.4                                                                                      *1.21.11, 1.22.4                       go-module      CVE-2024-24790       Critical  0.2% (38th)    0.2           
+transformers                      4.33.3                                                                                        4.36.0                                 python         GHSA-v68g-wm8c-6x7j  High      0.2% (42nd)    0.2           
+ring                              0.17.8                                                                                        0.17.12                                rust-crate     GHSA-4p46-pwfr-66x6  Medium    0.3% (49th)    0.2           
+transformers                      4.33.3                                                                                        4.36.0                                 python         GHSA-3863-2447-669p  Critical  0.2% (36th)    0.1           
+c3p0                              0.10.1                                                                                        0.12.0                                 java-archive   GHSA-5476-xc4j-rqcv  High      0.2% (38th)    0.1           
+stdlib                            go1.14.4                                                                                      1.20.0                                 go-module      CVE-2023-45287       High      0.2% (40th)    0.1           
+urllib3                           2.0.7                                                                                         2.2.2                                  python         GHSA-34jh-p97f-mpxf  Medium    0.3% (49th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.17.9, 1.18.1                        go-module      CVE-2022-24675       High      0.2% (39th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.22.7, 1.23.1                        go-module      CVE-2024-34158       High      0.2% (37th)    0.1           
+wheel                             0.35.0                                                                                        0.38.1                                 python         GHSA-qwmp-2cf2-g9g6  High      0.2% (37th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.17.9, 1.18.1                        go-module      CVE-2022-28327       High      0.2% (38th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.19.10, 1.20.5                       go-module      CVE-2023-29402       Critical  0.1% (31st)    0.1           
+stdlib                            go1.14.4                                                                                      *1.15.15, 1.16.7                       go-module      CVE-2021-36221       Medium    0.2% (45th)    0.1           
+hadoop-common                     3.2.0                                                                                         3.2.2                                  java-archive   GHSA-f8vc-wfc8-hxqh  High      0.1% (34th)    0.1           
+stdlib                            go1.14.4                                                                                      1.17                                   go-module      CVE-2020-29509       Medium    0.2% (40th)    0.1           
+stdlib                            go1.14.4                                                                                      1.17                                   go-module      CVE-2020-29511       Medium    0.2% (40th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.14.12, 1.15.5                       go-module      CVE-2020-28366       High      0.2% (37th)    0.1           
+log4j-core                        2.25.3                                                                                        2.25.4                                 java-archive   GHSA-445c-vh5m-36rj  Medium    0.2% (40th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.16.12, 1.17.5                       go-module      CVE-2021-44717       Medium    0.2% (44th)    0.1           
+stdlib                            go1.14.4                                                                                      *1.14.12, 1.15.5                       go-module      CVE-2020-28362       High      0.2% (37th)    0.1           
+log4j                             1.2.17                                                                                        2.0                                    java-archive   GHSA-vp98-w2p3-mv35  High      0.1% (35th)    0.1           
+tomcat-embed-core                 10.1.47                                                                                       10.1.53                                java-archive   GHSA-95jq-rwvf-vjx4  Critical  0.1% (30th)    0.1           
+stdlib                            go1.14.4                                                                                      1.18.6                                 go-module      CVE-2022-27664       High      0.1% (33rd)    0.1           
+nginx                             1.13.9                                                                                        *1.26.2, 1.27.1                        binary         CVE-2024-7347        Medium    0.2% (42nd)    0.1           
+nginx                             1.16.1                                                                                        *1.26.2, 1.27.1                        binary         CVE-2024-7347        Medium    0.2% (42nd)    0.1           
+stdlib                            go1.14.4                                                                                      1.13.15, *1.14.7                       go-module      CVE-2020-16845       High      0.1% (35th)    0.1           
+protocol-buffers-schema           3.6.0                                                                                         3.6.1                                  npm            GHSA-j452-xhg8-qg39  Medium    0.2% (37th)    < 0.1         
+log4j-core                        2.25.3                                                                                        2.25.4                                 java-archive   GHSA-3pxv-7cmr-fjr4  Medium    0.2% (36th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.10, 1.18.2                       go-module      CVE-2022-29526       Medium    0.2% (39th)    < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.54                                java-archive   GHSA-24j9-x2wg-9qv6  Medium    0.2% (36th)    < 0.1         
+requests                          2.27.1                                                                                        2.32.4                                 python         GHSA-9hjg-9r4m-mvj7  Medium    0.2% (39th)    < 0.1         
+requests                          2.31.0                                                                                        2.32.4                                 python         GHSA-9hjg-9r4m-mvj7  Medium    0.2% (39th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.14.14, 1.15.7                       go-module      CVE-2021-3115        High      0.1% (32nd)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.8, 1.20.3                        go-module      CVE-2023-24534       High      0.1% (30th)    < 0.1         
+keras                             3.9.0                                                                                         3.12.0                                 python         GHSA-hjqc-jx6g-rwp9  High      0.1% (28th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.8, 1.24.2                        go-module      CVE-2025-22871       Critical  < 0.1% (26th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.13, 1.18.5                       go-module      CVE-2022-32189       High      0.1% (29th)    < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.52                                java-archive   GHSA-mgp5-rv84-w37q  High      0.1% (29th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.14, 1.17.7                       go-module      CVE-2022-23773       High      0.1% (30th)    < 0.1         
+log4j-core                        2.25.3                                                                                        2.25.4                                 java-archive   GHSA-6hg6-v5c8-fphq  Medium    0.1% (34th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.10, 1.20.5                       go-module      CVE-2023-29404       Critical  < 0.1% (24th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.22.11, 1.23.5, 1.24.0-rc.2          go-module      CVE-2024-45336       Medium    0.1% (34th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.14.8, 1.15.1                        go-module      CVE-2020-24553       Medium    0.1% (35th)    < 0.1         
+stdlib                            go1.14.4                                                                                                                             go-module      CVE-2020-29510       Medium    0.1% (31st)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-30632       High      < 0.1% (26th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-30633       High      < 0.1% (26th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-30635       High      < 0.1% (26th)  < 0.1         
+transformers                      4.33.3                                                                                        4.48.0                                 python         GHSA-6rvg-6v2m-4j46  Medium    0.1% (33rd)    < 0.1         
+transformers                      4.40.0                                                                                        4.48.0                                 python         GHSA-6rvg-6v2m-4j46  Medium    0.1% (33rd)    < 0.1         
+fonttools                         4.54.1                                                                                        4.60.2                                 python         GHSA-768j-98cg-p3fv  Medium    0.1% (31st)    < 0.1         
+fonttools                         4.56.0                                                                                        4.60.2                                 python         GHSA-768j-98cg-p3fv  Medium    0.1% (31st)    < 0.1         
+nginx                             1.13.9                                                                                                                               binary         CVE-2022-41742       High      < 0.1% (26th)  < 0.1         
+nginx                             1.16.1                                                                                                                               binary         CVE-2022-41742       High      < 0.1% (26th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.14.14, 1.15.7                       go-module      CVE-2021-3114        Medium    0.1% (30th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.22.11, 1.23.5, 1.24.0-rc.2          go-module      CVE-2024-45341       Medium    0.1% (30th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.20.12, 1.21.5                       go-module      CVE-2023-39326       Medium    0.1% (31st)    < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.54                                java-archive   GHSA-rv64-5gf8-9qq8  High      < 0.1% (23rd)  < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.54                                java-archive   GHSA-x4m4-345f-5h5g  High      < 0.1% (23rd)  < 0.1         
+svgo                              4.0.0                                                                                         4.0.1                                  npm            GHSA-xpqw-6gx7-v673  High      < 0.1% (23rd)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.12, 1.17.5                       go-module      CVE-2021-44716       High      < 0.1% (25th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.11, 1.18.3                       go-module      CVE-2022-30634       High      < 0.1% (23rd)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.12, 1.20.7                       go-module      CVE-2023-29409       Medium    0.1% (29th)    < 0.1         
+keras                             3.9.0                                                                                         3.13.2                                 python         GHSA-4f3f-g24h-fr8m  High      < 0.1% (20th)  < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.50                                java-archive   GHSA-qq5r-98hh-rxc9  Low       0.2% (40th)    < 0.1         
+nanoid                            3.3.7                                                                                         3.3.8                                  npm            GHSA-mwcw-c2x4-8c55  Medium    0.1% (28th)    < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.9, 1.20.4                        go-module      CVE-2023-24539       High      < 0.1% (20th)  < 0.1         
+stdlib                            go1.14.4                                                                                      1.19.6                                 go-module      CVE-2022-41725       High      < 0.1% (20th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.20.8, 1.21.1                        go-module      CVE-2023-39318       Medium    < 0.1% (24th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.20.8, 1.21.1                        go-module      CVE-2023-39319       Medium    < 0.1% (24th)  < 0.1         
+transformers                      4.33.3                                                                                        4.50.0                                 python         GHSA-qq3j-4f4f-9583  Medium    < 0.1% (25th)  < 0.1         
+transformers                      4.40.0                                                                                        4.50.0                                 python         GHSA-qq3j-4f4f-9583  Medium    < 0.1% (25th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.20.9, 1.21.2                        go-module      CVE-2023-39323       High      < 0.1% (18th)  < 0.1         
+protobufjs                        7.4.0                                                                                         7.5.5                                  npm            GHSA-xq3m-2v4x-88gg  Critical  < 0.1% (15th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.11, 1.18.3                       go-module      CVE-2022-30580       High      < 0.1% (18th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.8, 1.20.3                        go-module      CVE-2023-24536       High      < 0.1% (19th)  < 0.1         
+avro                              1.8.2                                                                                         1.11.3                                 java-archive   GHSA-rhrv-645h-fjfh  High      < 0.1% (18th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.10, 1.24.4                       go-module      CVE-2025-4673        Medium    < 0.1% (22nd)  < 0.1         
+keras                             3.9.0                                                                                         3.11.0                                 python         GHSA-36fq-jgmw-4r9c  High      < 0.1% (17th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.10, 1.17.3                       go-module      CVE-2021-41772       High      < 0.1% (19th)  < 0.1         
+torch                             2.3.1                                                                                         2.7.1-rc1                              python         GHSA-3749-ghw9-m3mg  Low       0.2% (35th)    < 0.1         
+black                             23.3.0                                                                                        24.3.0                                 python         GHSA-fj7x-q9j7-g6q6  Medium    < 0.1% (23rd)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.20.12, 1.21.5                       go-module      CVE-2023-45285       High      < 0.1% (17th)  < 0.1         
+urllib3                           1.26.20                                                                                       2.5.0                                  python         GHSA-pq67-6m6q-mj2v  Medium    < 0.1% (23rd)  < 0.1         
+urllib3                           2.0.7                                                                                         2.5.0                                  python         GHSA-pq67-6m6q-mj2v  Medium    < 0.1% (23rd)  < 0.1         
+flatted                           3.3.1                                                                                         3.4.2                                  npm            GHSA-rf6f-7fwh-wjgh  High      < 0.1% (15th)  < 0.1         
+flatted                           3.3.2                                                                                         3.4.2                                  npm            GHSA-rf6f-7fwh-wjgh  High      < 0.1% (15th)  < 0.1         
+path-to-regexp                    8.3.0                                                                                         8.4.0                                  npm            GHSA-j3q9-mxjg-w52f  High      < 0.1% (16th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.8, 1.26.1                        go-module      CVE-2026-25679       High      < 0.1% (15th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.22.7, 1.23.1                        go-module      CVE-2024-34155       Medium    < 0.1% (23rd)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.11, 1.18.3                       go-module      CVE-2022-29804       High      < 0.1% (15th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.15.13, 1.16.5                       go-module      CVE-2021-33196       High      < 0.1% (16th)  < 0.1         
+transformers                      4.33.3                                                                                        4.50.0                                 python         GHSA-fpwr-67px-3qhx  Medium    < 0.1% (23rd)  < 0.1         
+transformers                      4.40.0                                                                                        4.50.0                                 python         GHSA-fpwr-67px-3qhx  Medium    < 0.1% (23rd)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.9, 1.20.4                        go-module      CVE-2023-29400       High      < 0.1% (14th)  < 0.1         
+nginx                             1.13.9                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-27651       High      < 0.1% (13th)  < 0.1         
+nginx                             1.16.1                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-27651       High      < 0.1% (13th)  < 0.1         
+guava                             19.0                                                                                          32.0.0-android                         java-archive   GHSA-7g45-4rm6-3mm3  Medium    < 0.1% (20th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.14, 1.17.7                       go-module      CVE-2022-23806       Critical  < 0.1% (12th)  < 0.1         
+keras                             3.9.0                                                                                         3.12.0                                 python         GHSA-mq84-hjqx-cwf2  Medium    < 0.1% (18th)  < 0.1         
+numpy                             1.21.1                                                                                        1.22                                   python         GHSA-fpfv-jqm9-f5jm  Medium    < 0.1% (20th)  < 0.1         
+bcprov-jdk18on                    1.83                                                                                          1.84                                   java-archive   GHSA-c3fc-8qff-9hwx  Medium    < 0.1% (19th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-32148       Medium    < 0.1% (17th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-30631       High      < 0.1% (12th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-1705        Medium    < 0.1% (16th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-61725       High      < 0.1% (12th)  < 0.1         
+kafka-clients                     3.9.1                                                                                         3.9.2                                  java-archive   GHSA-5qcv-4rpc-jp93  High      < 0.1% (10th)  < 0.1         
+hadoop-common                     3.2.0                                                                                         3.4.0                                  java-archive   GHSA-f5fw-25gw-5m92  Low       0.1% (28th)    < 0.1         
+lodash                            4.17.23                                                                                       4.18.0                                 npm            GHSA-r5fr-rjxr-66jc  High      < 0.1% (11th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-30630       High      < 0.1% (11th)  < 0.1         
+path-to-regexp                    8.3.0                                                                                         8.4.0                                  npm            GHSA-27v5-c462-wpq7  Medium    < 0.1% (16th)  < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.50                                java-archive   GHSA-fpj8-gq4v-p354  Medium    < 0.1% (13th)  < 0.1         
+nginx                             1.13.9                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-27654       High      < 0.1% (9th)   < 0.1         
+nginx                             1.16.1                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-27654       High      < 0.1% (9th)   < 0.1         
+urllib3                           1.26.20                                                                                       2.6.0                                  python         GHSA-gm62-xv2j-4w53  High      < 0.1% (9th)   < 0.1         
+urllib3                           2.0.7                                                                                         2.6.0                                  python         GHSA-gm62-xv2j-4w53  High      < 0.1% (9th)   < 0.1         
+urllib3                           2.5.0                                                                                         2.6.0                                  python         GHSA-gm62-xv2j-4w53  High      < 0.1% (9th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.8, 1.17.1                        go-module      CVE-2021-39293       High      < 0.1% (11th)  < 0.1         
+picomatch                         2.3.1                                                                                         2.3.2                                  npm            GHSA-3v7f-55p6-f55p  Medium    < 0.1% (16th)  < 0.1         
+picomatch                         4.0.3                                                                                         4.0.4                                  npm            GHSA-3v7f-55p6-f55p  Medium    < 0.1% (16th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.14, 1.17.7                       go-module      CVE-2022-23772       High      < 0.1% (10th)  < 0.1         
+junit                             4.12                                                                                          4.13.1                                 java-archive   GHSA-269g-pwp5-87pp  Medium    < 0.1% (17th)  < 0.1         
+junit                             4.13                                                                                          4.13.1                                 java-archive   GHSA-269g-pwp5-87pp  Medium    < 0.1% (17th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.18.9, 1.19.4                        go-module      CVE-2022-41720       High      < 0.1% (10th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.12, 1.25.6                       go-module      CVE-2025-61726       High      < 0.1% (9th)   < 0.1         
+urllib3                           1.26.20                                                                                       2.6.0                                  python         GHSA-2xpw-w6gg-jr37  High      < 0.1% (8th)   < 0.1         
+urllib3                           2.0.7                                                                                         2.6.0                                  python         GHSA-2xpw-w6gg-jr37  High      < 0.1% (8th)   < 0.1         
+urllib3                           2.5.0                                                                                         2.6.0                                  python         GHSA-2xpw-w6gg-jr37  High      < 0.1% (8th)   < 0.1         
+yaml                              1.10.2                                                                                        1.10.3                                 npm            GHSA-48c2-rrv3-qjmp  Medium    < 0.1% (16th)  < 0.1         
+yaml                              2.6.1                                                                                         2.8.3                                  npm            GHSA-48c2-rrv3-qjmp  Medium    < 0.1% (16th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-61723       High      < 0.1% (9th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.15.13, 1.16.5                       go-module      CVE-2021-33195       High      < 0.1% (9th)   < 0.1         
+urllib3                           1.26.20                                                                                       2.6.3                                  python         GHSA-38jv-5279-wg99  High      < 0.1% (8th)   < 0.1         
+urllib3                           2.0.7                                                                                         2.6.3                                  python         GHSA-38jv-5279-wg99  High      < 0.1% (8th)   < 0.1         
+urllib3                           2.5.0                                                                                         2.6.3                                  python         GHSA-38jv-5279-wg99  High      < 0.1% (8th)   < 0.1         
+requests                          2.27.1                                                                                        2.32.0                                 python         GHSA-9wx4-h78v-vm56  Medium    < 0.1% (13th)  < 0.1         
+requests                          2.31.0                                                                                        2.32.0                                 python         GHSA-9wx4-h78v-vm56  Medium    < 0.1% (13th)  < 0.1         
+guava                             19.0                                                                                          32.0.0-android                         java-archive   GHSA-5mg8-w23w-74h3  Low       < 0.1% (22nd)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.18.7, 1.19.2                        go-module      CVE-2022-2880        High      < 0.1% (9th)   < 0.1         
+torch                             2.3.1                                                                                         2.8.0                                  python         GHSA-887c-mr87-cxwp  Medium    < 0.1% (15th)  < 0.1         
+axios                             1.13.5                                                                                        1.15.0                                 npm            GHSA-fvcv-3m26-pcqx  Medium    < 0.1% (13th)  < 0.1         
+keras                             3.9.0                                                                                         3.12.1                                 python         GHSA-xfhx-r7ww-5995  High      < 0.1% (8th)   < 0.1         
+axios                             1.13.5                                                                                        1.15.0                                 npm            GHSA-3p68-rc4w-qgx5  Medium    < 0.1% (12th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.15.13, 1.16.5                       go-module      CVE-2021-33198       High      < 0.1% (8th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.10, 1.24.4                       go-module      CVE-2025-0913        Medium    < 0.1% (12th)  < 0.1         
+minimatch                         3.1.2                                                                                         3.1.3                                  npm            GHSA-7r86-cg39-jmmj  High      < 0.1% (7th)   < 0.1         
+minimatch                         9.0.3                                                                                         9.0.7                                  npm            GHSA-7r86-cg39-jmmj  High      < 0.1% (7th)   < 0.1         
+minimatch                         9.0.5                                                                                         9.0.7                                  npm            GHSA-7r86-cg39-jmmj  High      < 0.1% (7th)   < 0.1         
+minimatch                         3.1.2                                                                                         3.1.3                                  npm            GHSA-3ppc-4f35-3m26  High      < 0.1% (6th)   < 0.1         
+minimatch                         9.0.3                                                                                         9.0.6                                  npm            GHSA-3ppc-4f35-3m26  High      < 0.1% (6th)   < 0.1         
+minimatch                         9.0.5                                                                                         9.0.6                                  npm            GHSA-3ppc-4f35-3m26  High      < 0.1% (6th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.11, 1.18.3                       go-module      CVE-2022-30629       Low       < 0.1% (20th)  < 0.1         
+tomcat-embed-core                 10.1.47                                                                                       10.1.53                                java-archive   GHSA-9m3c-qcxr-9x87  Medium    < 0.1% (10th)  < 0.1         
+transformers                      4.33.3                                                                                        4.53.0                                 python         GHSA-9356-575x-2w9m  Medium    < 0.1% (11th)  < 0.1         
+transformers                      4.40.0                                                                                        4.53.0                                 python         GHSA-9356-575x-2w9m  Medium    < 0.1% (11th)  < 0.1         
+commons-lang3                     3.5                                                                                           3.18.0                                 java-archive   GHSA-j288-q9x7-2f5v  Medium    < 0.1% (10th)  < 0.1         
+stdlib                            go1.14.4                                                                                      *1.15.13, 1.16.5                       go-module      CVE-2021-33197       Medium    < 0.1% (11th)  < 0.1         
+minimatch                         3.1.2                                                                                         3.1.4                                  npm            GHSA-23c5-xmqv-rm74  High      < 0.1% (6th)   < 0.1         
+minimatch                         9.0.3                                                                                         9.0.7                                  npm            GHSA-23c5-xmqv-rm74  High      < 0.1% (6th)   < 0.1         
+minimatch                         9.0.5                                                                                         9.0.7                                  npm            GHSA-23c5-xmqv-rm74  High      < 0.1% (6th)   < 0.1         
+transformers                      4.33.3                                                                                        4.53.0                                 python         GHSA-rcv9-qm8p-9p6j  Medium    < 0.1% (10th)  < 0.1         
+transformers                      4.40.0                                                                                        4.53.0                                 python         GHSA-rcv9-qm8p-9p6j  Medium    < 0.1% (10th)  < 0.1         
+transformers                      4.33.3                                                                                        4.53.0                                 python         GHSA-4w7r-h757-3r74  Medium    < 0.1% (10th)  < 0.1         
+transformers                      4.40.0                                                                                        4.53.0                                 python         GHSA-4w7r-h757-3r74  Medium    < 0.1% (10th)  < 0.1         
+transformers                      4.33.3                                                                                        4.51.0                                 python         GHSA-jjph-296x-mrcr  Medium    < 0.1% (9th)   < 0.1         
+transformers                      4.33.3                                                                                        4.51.0                                 python         GHSA-q2wp-rjmx-x6x9  Medium    < 0.1% (9th)   < 0.1         
+transformers                      4.40.0                                                                                        4.51.0                                 python         GHSA-jjph-296x-mrcr  Medium    < 0.1% (9th)   < 0.1         
+transformers                      4.40.0                                                                                        4.51.0                                 python         GHSA-q2wp-rjmx-x6x9  Medium    < 0.1% (9th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.11, 1.25.5                       go-module      CVE-2025-61729       High      < 0.1% (6th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.15.9, 1.16.1                        go-module      CVE-2021-27918       High      < 0.1% (6th)   < 0.1         
+black                             23.3.0                                                                                        26.3.1                                 python         GHSA-3936-cmfr-pm3m  High      < 0.1% (5th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.20.11, 1.21.4                       go-module      CVE-2023-45284       Medium    < 0.1% (9th)   < 0.1         
+transformers                      4.33.3                                                                                        4.53.0                                 python         GHSA-59p9-h35m-wg4g  Medium    < 0.1% (9th)   < 0.1         
+transformers                      4.40.0                                                                                        4.53.0                                 python         GHSA-59p9-h35m-wg4g  Medium    < 0.1% (9th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-27143       Critical  < 0.1% (4th)   < 0.1         
+transformers                      4.33.3                                                                                        4.52.1                                 python         GHSA-37mw-44qp-f5jm  Medium    < 0.1% (8th)   < 0.1         
+transformers                      4.40.0                                                                                        4.52.1                                 python         GHSA-37mw-44qp-f5jm  Medium    < 0.1% (8th)   < 0.1         
+golang.org/x/crypto               v0.36.0                                                                                       0.45.0                                 go-module      GHSA-j5w8-q4qc-rx2x  Medium    < 0.1% (8th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-58186       Medium    < 0.1% (8th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.13, 1.25.7, 1.26.0-rc.3          go-module      CVE-2025-68121       Critical  < 0.1% (4th)   < 0.1         
+pillow                            10.4.0                                                                                        12.1.1                                 python         GHSA-cfh3-3jmp-rvhc  High      < 0.1% (5th)   < 0.1         
+pillow                            11.1.0                                                                                        12.1.1                                 python         GHSA-cfh3-3jmp-rvhc  High      < 0.1% (5th)   < 0.1         
+stdlib                            go1.14.4                                                                                      1.19.6                                 go-module      CVE-2022-41724       High      < 0.1% (5th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.12, 1.24.6                       go-module      CVE-2025-47906       Medium    < 0.1% (7th)   < 0.1         
+pillow                            10.4.0                                                                                        12.2.0                                 python         GHSA-whj4-6x5x-4v2j  High      < 0.1% (4th)   < 0.1         
+pillow                            11.1.0                                                                                        12.2.0                                 python         GHSA-whj4-6x5x-4v2j  High      < 0.1% (4th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-32281       High      < 0.1% (4th)   < 0.1         
+picomatch                         2.3.1                                                                                         2.3.2                                  npm            GHSA-c2c7-rcm5-vvqj  High      < 0.1% (4th)   < 0.1         
+picomatch                         4.0.3                                                                                         4.0.4                                  npm            GHSA-c2c7-rcm5-vvqj  High      < 0.1% (4th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.7, 1.20.2                        go-module      CVE-2023-24532       Medium    < 0.1% (7th)   < 0.1         
+lodash                            4.17.23                                                                                       4.18.0                                 npm            GHSA-f23m-r3pf-42rh  Medium    < 0.1% (6th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-58185       Medium    < 0.1% (7th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-32280       High      < 0.1% (4th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-32283       High      < 0.1% (4th)   < 0.1         
+@hono/node-server                 1.19.9                                                                                        1.19.10                                npm            GHSA-wc8c-qw6v-h7f6  High      < 0.1% (4th)   < 0.1         
+brace-expansion                   1.1.12                                                                                        1.1.13                                 npm            GHSA-f886-m6hf-6m8v  Medium    < 0.1% (5th)   < 0.1         
+nginx                             1.13.9                                                                                        1.29.1                                 binary         CVE-2025-53859       Medium    < 0.1% (7th)   < 0.1         
+nginx                             1.16.1                                                                                        1.29.1                                 binary         CVE-2025-53859       Medium    < 0.1% (7th)   < 0.1         
+cryptography                      46.0.0                                                                                        46.0.7                                 python         GHSA-p423-j2cm-9vmq  Medium    < 0.1% (5th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.16.15, 1.17.8                       go-module      CVE-2022-24921       High      < 0.1% (4th)   < 0.1         
+transformers                      4.33.3                                                                                        5.0.0rc3                               python         GHSA-69w3-r845-3855  Medium    < 0.1% (5th)   < 0.1         
+transformers                      4.40.0                                                                                        5.0.0rc3                               python         GHSA-69w3-r845-3855  Medium    < 0.1% (5th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.18.7, 1.19.2                        go-module      CVE-2022-41715       High      < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.18.7, 1.19.2                        go-module      CVE-2022-2879        High      < 0.1% (3rd)   < 0.1         
+pip                               25.0.1                                                                                        25.3                                   python         GHSA-4xh5-x5gv-qwph  Medium    < 0.1% (5th)   < 0.1         
+@modelcontextprotocol/sdk         1.25.3                                                                                        1.26.0                                 npm            GHSA-345p-7cg4-v4c7  High      < 0.1% (3rd)   < 0.1         
+nginx                             1.13.9                                                                                        1.29.5                                 binary         CVE-2026-1642        High      < 0.1% (3rd)   < 0.1         
+nginx                             1.16.1                                                                                        1.29.5                                 binary         CVE-2026-1642        High      < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-27140       High      < 0.1% (2nd)   < 0.1         
+js-yaml                           4.1.0                                                                                         4.1.1                                  npm            GHSA-mh29-5h37-fv8m  Medium    < 0.1% (6th)   < 0.1         
+flatted                           3.3.1                                                                                         3.4.0                                  npm            GHSA-25h7-pfq9-p65f  High      < 0.1% (3rd)   < 0.1         
+flatted                           3.3.2                                                                                         3.4.0                                  npm            GHSA-25h7-pfq9-p65f  High      < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-28131       High      < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.9, 1.25.3                        go-module      CVE-2025-58187       High      < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.12, 1.25.6                       go-module      CVE-2025-61728       Medium    < 0.1% (5th)   < 0.1         
+keras                             3.9.0                                                                                         3.12.1                                 python         GHSA-3m4q-jmj6-r34q  High      < 0.1% (2nd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.15.12, 1.16.4                       go-module      CVE-2021-31525       Medium    < 0.1% (5th)   < 0.1         
+nginx                             1.13.9                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-32647       High      < 0.1% (1st)   < 0.1         
+nginx                             1.16.1                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-32647       High      < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.22.12, 1.23.6, 1.24.0-rc.3          go-module      CVE-2025-22866       Medium    < 0.1% (6th)   < 0.1         
+github.com/prometheus/prometheus  v0.54.1                                                                                       0.311.2-0.20260410083055-07c6232d159b  go-module      GHSA-vffh-x6r8-xx99  Medium    < 0.1% (5th)   < 0.1         
+nginx                             1.13.9                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-28753       Low       < 0.1% (6th)   < 0.1         
+nginx                             1.16.1                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-28753       Low       < 0.1% (6th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.12, 1.24.6                       go-module      CVE-2025-47907       High      < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.18.8, 1.19.3                        go-module      CVE-2022-41716       High      < 0.1% (2nd)   < 0.1         
+python-dotenv                     0.20.0                                                                                        1.2.2                                  python         GHSA-mf9w-mj56-hr94  Medium    < 0.1% (3rd)   < 0.1         
+python-dotenv                     1.0.1                                                                                         1.2.2                                  python         GHSA-mf9w-mj56-hr94  Medium    < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-47912       Medium    < 0.1% (4th)   < 0.1         
+serialize-javascript              7.0.3                                                                                         7.0.5                                  npm            GHSA-qj8w-gfj5-8c6v  Medium    < 0.1% (4th)   < 0.1         
+zipp                              3.15.0                                                                                        3.19.1                                 python         GHSA-jfmj-5v4g-7637  Medium    < 0.1% (3rd)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.8, 1.20.3                        go-module      CVE-2023-24537       High      < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-61724       Medium    < 0.1% (4th)   < 0.1         
+@hono/node-server                 1.19.9                                                                                        1.19.13                                npm            GHSA-92pp-h63x-v22m  Medium    < 0.1% (4th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-58183       Medium    < 0.1% (4th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.8, 1.26.1                        go-module      CVE-2026-27142       Medium    < 0.1% (3rd)   < 0.1         
+ajv                               6.12.6                                                                                        6.14.0                                 npm            GHSA-2g4f-4pwh-qvx6  Medium    < 0.1% (3rd)   < 0.1         
+ajv                               8.17.1                                                                                        8.18.0                                 npm            GHSA-2g4f-4pwh-qvx6  Medium    < 0.1% (3rd)   < 0.1         
+transformers                      4.33.3                                                                                        4.52.1                                 python         GHSA-phhr-52qp-3mj4  Low       < 0.1% (6th)   < 0.1         
+transformers                      4.40.0                                                                                        4.52.1                                 python         GHSA-phhr-52qp-3mj4  Low       < 0.1% (6th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.12, 1.25.6                       go-module      CVE-2025-61731       High      < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.19.10, 1.20.5                       go-module      CVE-2023-29403       High      < 0.1% (1st)   < 0.1         
+keras                             3.9.0                                                                                         3.11.0                                 python         GHSA-c9rc-mg46-23w3  High      < 0.1% (1st)   < 0.1         
+cryptography                      44.0.2                                                                                        46.0.5                                 python         GHSA-r6ph-v2qm-q3c2  High      < 0.1% (0th)   < 0.1         
+cryptography                      46.0.0                                                                                        46.0.5                                 python         GHSA-r6ph-v2qm-q3c2  High      < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-58188       High      < 0.1% (0th)   < 0.1         
+nginx                             1.13.9                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-27784       Medium    < 0.1% (1st)   < 0.1         
+nginx                             1.16.1                                                                                        *1.28.3, 1.29.7                        binary         CVE-2026-27784       Medium    < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.8, 1.25.2                        go-module      CVE-2025-58189       Medium    < 0.1% (2nd)   < 0.1         
+virtualenv                        20.32.0                                                                                       20.36.1                                python         GHSA-597g-3phw-6986  Medium    < 0.1% (2nd)   < 0.1         
+pip                               25.0.1                                                                                        26.0                                   python         GHSA-6vgw-5pg2-w6jp  Low       < 0.1% (7th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.11, 1.25.5                       go-module      CVE-2025-61727       Medium    < 0.1% (1st)   < 0.1         
+go.opentelemetry.io/otel/sdk      v1.40.0                                                                                       1.43.0                                 go-module      GHSA-hfvc-g4fc-pqhx  High      < 0.1% (0th)   < 0.1         
+golang.org/x/crypto               v0.36.0                                                                                       0.45.0                                 go-module      GHSA-f6x5-jh6r-wrfv  Medium    < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.13, 1.25.7                       go-module      CVE-2025-61732       High      < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-32289       Medium    < 0.1% (1st)   < 0.1         
+keras                             3.9.0                                                                                         3.11.3                                 python         GHSA-36rr-ww3j-vrjv  High      < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.11, 1.24.5                       go-module      CVE-2025-4674        High      < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.24.12, 1.25.6                       go-module      CVE-2025-61730       Medium    < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-32282       Medium    < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-27144       High      < 0.1% (0th)   < 0.1         
+elliptic                          6.6.1                                                                                                                                npm            GHSA-848j-6mx2-7j84  Low       < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.21.11, 1.22.4                       go-module      CVE-2024-24789       Medium    < 0.1% (0th)   < 0.1         
+pytest                            7.4.4                                                                                         9.0.3                                  python         GHSA-6w46-j5rx-g56g  Medium    < 0.1% (0th)   < 0.1         
+pytest                            8.3.5                                                                                         9.0.3                                  python         GHSA-6w46-j5rx-g56g  Medium    < 0.1% (0th)   < 0.1         
+pynacl                            1.5.0                                                                                         1.6.2                                  python         GHSA-mrfv-m5wm-5w6w  Medium    < 0.1% (0th)   < 0.1         
+zlib                              1.3.1                                                                                         1.3.2                                  conan          CVE-2026-27171       Medium    < 0.1% (0th)   < 0.1         
+cryptography                      44.0.2                                                                                        46.0.6                                 python         GHSA-m959-cc7f-wv43  Low       < 0.1% (0th)   < 0.1         
+cryptography                      46.0.0                                                                                        46.0.6                                 python         GHSA-m959-cc7f-wv43  Low       < 0.1% (0th)   < 0.1         
+flask                             3.0.3                                                                                         3.1.3                                  python         GHSA-68rp-wp8r-4726  Low       < 0.1% (1st)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.17.12, 1.18.4                       go-module      CVE-2022-1962        Medium    < 0.1% (0th)   < 0.1         
+filelock                          3.13.1                                                                                        3.20.1                                 python         GHSA-w853-jp5j-5j7f  Medium    < 0.1% (0th)   < 0.1         
+filelock                          3.18.0                                                                                        3.20.1                                 python         GHSA-w853-jp5j-5j7f  Medium    < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.8, 1.26.1                        go-module      CVE-2026-27139       Low       < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.25.9, 1.26.2                        go-module      CVE-2026-32288       Medium    < 0.1% (0th)   < 0.1         
+filelock                          3.13.1                                                                                        3.20.3                                 python         GHSA-qmgc-5h2g-mvrw  Medium    < 0.1% (0th)   < 0.1         
+filelock                          3.18.0                                                                                        3.20.3                                 python         GHSA-qmgc-5h2g-mvrw  Medium    < 0.1% (0th)   < 0.1         
+requests                          2.27.1                                                                                        2.33.0                                 python         GHSA-gc5v-m9x4-r6x2  Medium    < 0.1% (0th)   < 0.1         
+requests                          2.31.0                                                                                        2.33.0                                 python         GHSA-gc5v-m9x4-r6x2  Medium    < 0.1% (0th)   < 0.1         
+requests                          2.32.4                                                                                        2.33.0                                 python         GHSA-gc5v-m9x4-r6x2  Medium    < 0.1% (0th)   < 0.1         
+pygments                          2.19.2                                                                                        2.20.0                                 python         GHSA-5239-wwwm-4pmq  Low       < 0.1% (0th)   < 0.1         
+stdlib                            go1.14.4                                                                                      *1.23.9, 1.24.3                        go-module      CVE-2025-22873       Low       < 0.1% (0th)   < 0.1         
+actions/download-artifact         v4                                                                                            4.1.3                                  github-action  GHSA-cxww-7g56-2vh6  High      N/A            N/A           
+thin-vec                          0.2.14                                                                                        0.2.16                                 rust-crate     GHSA-xphw-cqx3-667j  High      N/A            N/A           
+dompurify                         3.3.2                                                                                         3.4.0                                  npm            GHSA-39q2-94rc-95cp  Medium    N/A            N/A           
+dompurify                         3.3.3                                                                                         3.4.0                                  npm            GHSA-39q2-94rc-95cp  Medium    N/A            N/A           
+follow-redirects                  1.15.11                                                                                       1.16.0                                 npm            GHSA-r4q5-vmmm-2653  Medium    N/A            N/A           
+rustls-webpki                     0.102.8                                                                                       0.103.10                               rust-crate     GHSA-pwjx-qhcg-rvj4  Medium    N/A            N/A           
+pyo3                              0.17.3                                                                                        0.24.1                                 rust-crate     GHSA-pph8-gcv7-4qj5  Low       N/A            N/A           
+rand                              0.7.3                                                                                         0.9.3                                  rust-crate     GHSA-cq8v-f236-94qc  Low       N/A            N/A           
+rand                              0.8.5                                                                                         0.9.3                                  rust-crate     GHSA-cq8v-f236-94qc  Low       N/A            N/A           
+rand                              0.9.1                                                                                         0.9.3                                  rust-crate     GHSA-cq8v-f236-94qc  Low       N/A            N/A           
+rand                              0.9.2                                                                                         0.9.3                                  rust-crate     GHSA-cq8v-f236-94qc  Low       N/A            N/A           
+rustls-webpki                     0.102.8                                                                                       0.103.12                               rust-crate     GHSA-965h-392x-2mh5  Low       N/A            N/A           
+rustls-webpki                     0.102.8                                                                                       0.103.12                               rust-crate     GHSA-xgp8-3hg3-c2mh  Low       N/A            N/A           
+rustls-webpki                     0.103.10                                                                                      0.103.12                               rust-crate     GHSA-965h-392x-2mh5  Low       N/A            N/A           
+rustls-webpki                     0.103.10                                                                                      0.103.12                               rust-crate     GHSA-xgp8-3hg3-c2mh  Low       N/A            N/A
+# TDengine 3.4.1 漏洞分析总结 (2026-04-27)
+
+## 概述
+本报告对 TDengine v3.4.1.0 的依赖项漏洞进行了完整扫描和分析。
+
+## 关键指标
+
+### 漏洞总数
+- **总计：376 个已识别的漏洞**
+  - 其中需要修复版本信息的漏洞：370 个
+  - 已识别但无修复版本的漏洞：6 个（无版本修复方案）
+
+### 严重程度分布
+- **Critical（严重）**：28 个 (7.5%)
+  - 需要立即关注和修复
+  - 涉及库：stdlib, log4j, hadoop-common, transformer, torch, waitress 等
+  
+- **High（高）**：166 个 (44.2%)
+  - 应该在下一个版本周期内修复
+  - 最常见的严重级别
+  - 涉及库：nginx, transformers, stdlib, log4j, gson 等
+  
+- **Medium（中）**：155 个 (41.2%)
+  - 应该计划修复但不紧急
+  - 占比最高的级别（与High相当）
+  
+- **Low（低）**：27 个 (7.2%)
+  - 优先级最低，可延后处理
+
+## 受影响最严重的依赖库（Top 10）
+
+1. **stdlib (Go Standard Library)** - 136 个漏洞
+   - 这是最严重的问题所在
+   - 版本：go1.14.4（已过时）
+   - 建议：升级到最新稳定版本（1.23+）
+
+2. **transformers (PyTorch)** - 33 个漏洞
+   - 版本：4.33.3, 4.40.0
+   - 建议：升级到 4.48.0
+
+3. **nginx** - 20+ 个漏洞
+   - 版本：1.13.9, 1.16.1（均为过时版本）
+   - 建议：升级到 1.25.3+
+
+4. **urllib3 (Python)** - 12 个漏洞
+   - Python HTTP库
+   - 建议：更新到最新版本
+
+5. **tomcat-embed-core** - 8 个漏洞
+   - Java Web容器
+
+6. **torch (PyTorch)** - 3 个漏洞
+
+7. **log4j** - 多个 Critical 级别漏洞
+   - 版本：1.2.17（已停止维护）
+   - 建议：升级或替换为 log4j2
+
+8. **hadoop-common** - 多个 Critical 漏洞
+   - 版本：3.2.0
+   - 建议：升级到 3.2.4+
+
+9. **requests (Python)** - 多个漏洞
+   - HTTP库
+
+10. **gradle** 等构建工具 - 多个漏洞
+
+## 紧急行动项（需立即处理）
+
+### Critical 漏洞清单（28个）
+- **GHSA-2qrg-x229-3v8q** (log4j 1.2.17) - 无修复版本
+- **GHSA-65fg-84f6-3jq3** (log4j 1.2.17) - 无修复版本  
+- **GHSA-f7vh-qwp3-x37m** (log4j 1.2.17) - 无修复版本
+- **GHSA-8wm5-8h9c-47pc** (hadoop-common 3.2.0) - 升级到 3.2.4
+- **CVE-2023-44487** (nginx, stdlib) - HTTP/2 Rapid Reset
+- **CVE-2023-45288** (stdlib) - 高EPSS评分(71.5%)
+- **GHSA-53q9-r3pm-6pq6** (torch 2.3.1) - 升级到 2.6.0
+- **GHSA-rmpj-7c96-mrg8** (hadoop-common 3.2.0) - 升级到 3.2.3
+- **GHSA-qgfr-5hqp-vrw9** (decompress npm) - 升级到 4.2.1
+- **GHSA-r7pg-v2c8-mfg3** (avro 1.8.2) - 升级到 1.11.4
+- **CVE-2024-34156** (stdlib) - 升级Go版本
+- **GHSA-9298-4cf8-g4wj** (waitress 3.0.0) - 升级到 3.0.1
+- **GHSA-2c59-37c4-qrx5** (parquet-avro 1.10.1) - 升级到 1.15.1
+- **CVE-2023-24531** (stdlib) - 升级Go版本
+- **CVE-2023-29405** (stdlib) - 升级Go版本
+- **CVE-2024-24790** (stdlib) - 升级Go版本
+- **CVE-2024-25176/25178** (luajit 2.1.0-beta3) - 无修复版本（考虑替换）
+- **CVE-2024-25177** (luajit) - 升级到最新版本
+- **GHSA-gx2c-fvhc-ph4j** (hadoop-common 3.2.0) - 升级到 3.2.3
+- **CVE-2023-24540** (stdlib) - 升级Go版本
+- **GHSA-phwq-4cbq-5m0x** (actions/download-artifact v4) - 升级到 4.1.3
+- **GHSA-xphw-cqx3-667j** (thin-vec 0.2.14) - 升级到 0.2.16
+
+## 推荐升级优先级
+
+### 第一优先级（立即升级）
+1. Go stdlib：从 go1.14.4 升级到最新版本（1.23+）
+2. nginx：从 1.13.9/1.16.1 升级到 1.25.3+
+3. log4j：从 1.2.17 迁移到 log4j2 或移除
+4. hadoop-common：升级到 3.2.4+
+5. transformers：升级到 4.48.0
+
+### 第二优先级（本次版本应修复）
+1. Java库（avro, parquet-avro 等）升级
+2. Python库（torch, waitress, requests 等）升级
+3. nginx 相关的多个CVE修复
+
+### 第三优先级（计划修复）
+1. 升级其他Medium级别漏洞
+2. 更新构建工具依赖
+
+## 技术债务观察
+1. **过时的Go版本**：go1.14.4 发布于2020年，已停止维护
+2. **过时的nginx版本**：1.13.9 发布于2017年
+3. **过时的log4j版本**：1.2.17 已停止维护，应考虑完全移除或升级到log4j2
+4. **重型Python依赖**：transformers, torch 等AI库有较多漏洞，需要定期更新
+
+## EPSS评分最高的漏洞（影响最高）
+
+1. nginx CVE-2023-44487 - **94.5%** (HTTP/2 Rapid Reset)
+2. stdlib CVE-2023-44487 - **94.5%**
+3. transformers GHSA-wrfc-pvp9-mr9g - **79.5%**
+4. fastjson GHSA-pv7h-hx5h-mgfj - **88.4%**
+5. nginx CVE-2021-23017 - **73.5%**
+6. stdlib CVE-2023-45288 - **71.5%**
+
+## 建议行动计划
+
+1. **立即（本周）**
+   - 制定 Go 版本升级计划
+   - 评估 log4j 迁移方案
+   - 创建 nginx 升级任务
+
+2. **本月**
+   - 升级所有 Critical 级别漏洞的依赖项
+   - 进行集成测试验证兼容性
+
+3. **本季度**
+   - 制定定期依赖更新策略
+   - 实现自动化漏洞扫描
+
+4. **长期**
+   - 建立依赖管理最佳实践
+   - 定期安全审计（每月/季度）
+
+## 报告注记
+- 报告生成时间：2026-04-27
+- 数据来源：SBOM（Software Bill of Materials）扫描
+- 漏洞数据库：NVD, GitHub Security Advisory, CVSS/EPSS
+

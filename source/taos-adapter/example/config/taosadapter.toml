@@ -1,0 +1,371 @@
+# Enable pprof debug mode. If set to true, pprof debugging is enabled.
+debug = true
+
+# The directory where TDengine's configuration file (taos.cfg) is located.
+taosConfigDir = ""
+
+# The port on which the server listens.
+port = 6041
+
+# When the server returns an error, use a non-200 HTTP status code if set to true.
+httpCodeServerError = false
+
+# Automatically create the database when writing data with the schemaless feature if set to true.
+smlAutoCreateDB = false
+
+# Instance ID of the taosAdapter.
+instanceId = 32
+
+# The maximum number of concurrent calls allowed for the C synchronized method.0 means use CPU core count.
+#maxSyncConcurrentLimit = 0
+
+# The maximum number of concurrent calls allowed for the C asynchronous method. 0 means use CPU core count.
+#maxAsyncConcurrentLimit = 0
+
+# List of SQL Reject patterns. If a SQL statement matches any of these patterns, it will be rejected.
+#rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^alter\s+table\s+.*','(?i)^select\s+.*from\s+testdb.*']
+
+[register]
+# The address of this taosAdapter instance. eg: "192.168.1.100:6041" or "https://192.168.1.100:6041" if SSL enabled.
+#instance = "localhost:6041"
+
+# The description of this taosAdapter instance.
+#description = ""
+
+# The registration duration (in seconds). After this duration, the instance will be re-register.
+#duration = 10
+
+# The expiration duration (in seconds). If the instance is not re-registered within this duration, it will be expired. Could not be less than duration.
+#expire = 30
+
+[request]
+# Enable query limiting. If set to true, query limiting is enabled.
+#queryLimitEnable = false
+
+# List of SQL statements that are exempt from query limiting.
+#excludeQueryLimitSql = ["select 1","select server_version()"]
+
+# List of regex patterns for SQL statements that are exempt from query limiting.
+#excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+# Default query limits for users not explicitly defined in the configuration.
+[request.default]
+# Default maximum number of rows returned by a query. 0 means no limit.
+queryLimit = 0
+
+# Default maximum time (in seconds) a query can wait for execution.
+queryWaitTimeout = 900
+
+# Default maximum number of queries that can wait for execution. 0 means no limit.
+queryMaxWait = 0
+
+# Example of user-specific query limits. You can define multiple users with different limits.
+#[request.users.root]
+#queryLimit = 100
+#queryWaitTimeout = 200
+#queryMaxWait = 10
+
+[cors]
+# If set to true, allows cross-origin requests from any origin (CORS).
+allowAllOrigins = true
+
+[pool]
+# The maximum number of connections to the server. If set to 0, use cpu count * 2.
+# maxConnect = 0
+
+# The maximum number of idle connections to the server. Should match maxConnect.
+# maxIdle = 0
+
+# The maximum number of connections waiting to be established. 0 means no limit.
+maxWait = 0
+
+# Maximum time to wait for a connection. 0 means no timeout.
+waitTimeout = 60
+
+[ssl]
+# Enable SSL. Applicable for the Enterprise Edition.
+enable = false
+certFile = ""
+keyFile = ""
+
+[log]
+# The directory where log files are stored.
+# path = "/var/log/taos"
+
+# The log level. Options are: trace, debug, info, warning, error.
+level = "info"
+
+# Number of log file rotations before deletion.
+rotationCount = 3
+
+# The number of days to retain log files.
+keepDays = 3
+
+# The maximum size of a log file before rotation.
+rotationSize = "1GB"
+
+# If set to true, log files will be compressed.
+compress = false
+
+# Minimum disk space to reserve. Log files will not be written if disk space falls below this limit.
+reservedDiskSize = "1GB"
+
+# Enable logging of SQL via HTTP and WebSocket requests to CSV files.
+enableSqlToCsvLogging = false
+
+# Deprecated: use enableSqlToCsvLogging instead.
+#Enable logging of HTTP SQL queries.
+enableRecordHttpSql = false
+
+# Deprecated: use enableSqlToCsvLogging instead.
+# Number of HTTP SQL log rotations before deletion.
+sqlRotationCount = 2
+
+# Deprecated: use enableSqlToCsvLogging instead.
+# Time interval for rotating HTTP SQL logs.
+sqlRotationTime = "24h"
+
+# Deprecated: use enableSqlToCsvLogging instead.
+# Maximum size of HTTP SQL log files before rotation.
+sqlRotationSize = "1GB"
+
+[monitor]
+# If set to true, disables monitoring.
+disable = true
+
+# Interval for collecting metrics.
+collectDuration = "3s"
+
+# Indicates if running inside a Docker container.
+incgroup = false
+
+# When memory usage reaches this percentage, query execution will be paused.
+pauseQueryMemoryThreshold = 70
+
+# When memory usage reaches this percentage, both queries and inserts will be paused.
+pauseAllMemoryThreshold = 80
+
+# The identity of the current instance. If empty, it defaults to 'hostname:port'.
+identity = ""
+
+[uploadKeeper]
+# Enable uploading of metrics to TaosKeeper.
+enable = true
+
+# URL of the TaosKeeper service to which metrics will be uploaded.
+url = "http://127.0.0.1:6043/adapter_report"
+
+# Interval for uploading metrics.
+interval = "15s"
+
+# Timeout for uploading metrics.
+timeout = "5s"
+
+# Number of retries when uploading metrics fails.
+retryTimes = 3
+
+# Interval between retries for uploading metrics.
+retryInterval = "5s"
+
+[opentsdb]
+# Enable the OpenTSDB HTTP plugin.
+enable = true
+
+[influxdb]
+# Enable the InfluxDB plugin.
+enable = true
+
+[statsd]
+# Enable the StatsD plugin.
+enable = false
+
+# The port on which the StatsD plugin listens.
+port = 6044
+
+# The database name used by the StatsD plugin.
+db = "statsd"
+
+# The username used to connect to the TDengine database.
+#user = ""
+
+# The password used to connect to the TDengine database.
+#password = ""
+
+# The token used to connect to the TDengine database. Not the cloud token.
+#token = ""
+
+# The number of worker threads for processing StatsD data.
+worker = 10
+
+# Interval for gathering StatsD metrics.
+gatherInterval = "5s"
+
+# The network protocol used by StatsD (e.g., udp4, tcp).
+protocol = "udp4"
+
+# Maximum number of TCP connections allowed for StatsD.
+maxTCPConnections = 250
+
+# If set to true, enables TCP keep-alive for StatsD connections.
+tcpKeepAlive = false
+
+# Maximum number of pending messages StatsD allows.
+allowPendingMessages = 50000
+
+# If set to true, deletes the counter cache after gathering metrics.
+deleteCounters = true
+
+# If set to true, deletes the gauge cache after gathering metrics.
+deleteGauges = true
+
+# If set to true, deletes the set cache after gathering metrics.
+deleteSets = true
+
+# If set to true, deletes the timing cache after gathering metrics.
+deleteTimings = true
+
+[collectd]
+# Enable the Collectd plugin.
+enable = false
+
+# The port on which the Collectd plugin listens.
+port = 6045
+
+# The database name used by the Collectd plugin.
+db = "collectd"
+
+# The username used to connect to the TDengine database.
+#user = ""
+
+# The password used to connect to the TDengine database.
+#password = ""
+
+# The token used to connect to the TDengine database. Not the cloud token.
+#token = ""
+
+# Number of worker threads for processing Collectd data.
+worker = 10
+
+[opentsdb_telnet]
+# Enable the OpenTSDB Telnet plugin.
+enable = false
+
+# Maximum number of TCP connections allowed for the OpenTSDB Telnet plugin.
+maxTCPConnections = 250
+
+# If set to true, enables TCP keep-alive for OpenTSDB Telnet connections.
+tcpKeepAlive = false
+
+# List of databases to which OpenTSDB Telnet plugin writes data.
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+
+# The ports on which the OpenTSDB Telnet plugin listens, corresponding to each database.
+ports = [6046, 6047, 6048, 6049]
+
+# The username used to connect to the TDengine database.
+#user = ""
+
+# The password used to connect to the TDengine database.
+#password = ""
+
+# The token used to connect to the TDengine database. Not the cloud token.
+#token = ""
+
+# Batch size for processing OpenTSDB Telnet data.
+batchSize = 1
+
+# Interval between flushing data to the database. 0 means no interval.
+flushInterval = "0s"
+
+[node_exporter]
+# Enable the Node Exporter plugin.
+enable = false
+
+# The database name used by the Node Exporter plugin.
+db = "node_exporter"
+
+# The username used to connect to the TDengine database.
+#user = ""
+
+# The password used to connect to the TDengine database.
+#password = ""
+
+# The token used to connect to the TDengine database. Not the cloud token.
+#token = ""
+
+# List of URLs to gather Node Exporter metrics from.
+urls = ["http://localhost:9100"]
+
+# Timeout for waiting for a response from the Node Exporter plugin.
+responseTimeout = "5s"
+
+# Username for HTTP authentication, if applicable.
+httpUsername = ""
+
+# Password for HTTP authentication, if applicable.
+httpPassword = ""
+
+# Bearer token for HTTP requests, if applicable.
+httpBearerTokenString = ""
+
+# Path to the CA certificate file for SSL validation.
+caCertFile = ""
+
+# Path to the client certificate file for SSL validation.
+certFile = ""
+
+# Path to the client key file for SSL validation.
+keyFile = ""
+
+# If set to true, skips SSL certificate verification.
+insecureSkipVerify = true
+
+# Interval for gathering Node Exporter metrics.
+gatherDuration = "5s"
+
+[prometheus]
+# Enable the Prometheus plugin.
+enable = true
+
+# OpenMetrics Configuration
+[open_metrics]
+enable = false  # Enable OpenMetrics data collection
+
+## TDengine connection credentials
+# The username used to connect to the TDengine database.
+#user = ""
+
+# The password used to connect to the TDengine database.
+#password = ""
+
+# The token used to connect to the TDengine database. Not the cloud token.
+#token = ""
+
+## Database configuration
+dbs = ["open_metrics"]  # Target database names for OpenMetrics data
+
+## Endpoint configuration
+urls = ["http://localhost:9100"]  # OpenMetrics endpoints to scrape
+
+## Timeout settings
+responseTimeoutSeconds = [5]  # HTTP response timeout in seconds for OpenMetrics scraping
+
+## Authentication methods
+httpUsernames = []  # Basic auth usernames for protected OpenMetrics endpoints
+httpPasswords = []  # Basic auth passwords for protected OpenMetrics endpoints
+httpBearerTokenStrings = []  # Bearer tokens for OpenMetrics endpoint authentication
+
+## TLS configuration
+caCertFiles = []  # Paths to CA certificate files for TLS verification
+certFiles = []  # Paths to client certificate files for mTLS
+keyFiles = []  # Paths to private key files for mTLS
+insecureSkipVerify = true  # Skip TLS certificate verification (insecure)
+
+## Collection parameters
+gatherDurationSeconds = [5]  # Interval in seconds between OpenMetrics scrapes
+
+## Data retention
+ttl = []  # Time-to-live for OpenMetrics data (0=no expiration)
+
+## Timestamp handling
+ignoreTimestamp = false  # Use server timestamp instead of metrics timestamps

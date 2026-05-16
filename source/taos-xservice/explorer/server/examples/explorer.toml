@@ -1,0 +1,166 @@
+# This is a automacically generated configuration file for Explorer in [TOML](https://toml.io/) format.
+#
+# Here is a full list of available options.
+
+# Explorer server port to listen on.
+# Default is 6060.
+#
+port = 6060
+
+# IPv4 listen address.
+# Default is 0.0.0.0
+addr = "0.0.0.0"
+
+# IPv6 listen address.
+
+# ipv6 = "::1"
+
+# explorer server instance id
+#
+# The instanceId of each instance is unique on the host
+# instanceId = 1
+
+# All data files are stored in this directory
+# data_dir = "/var/lib/taos/explorer" # Default for Linux
+# data_dir = "C:\\TDengine\\data\\explorer" # Default for Windows
+
+# REST API endpoint to connect to the cluster.
+# This configuration is also the target for data migration tasks.
+#
+# Default is "http://localhost:6041" - the default endpoint for REST API.
+#
+cluster = "http://localhost:6041"
+
+# native endpoint to connect to the cluster.
+# Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
+# If you enable it, you will get more performance for data migration tasks.
+# If modify this config item, you must relogin to clear the cache in browser local storage.
+#
+# cluster_native = "taos://localhost:6030"
+
+# CORS configuration switch, it allows cross-origin access
+cors = true
+
+# cloud open api.
+# cloud_open_api = "https://cloud.taosdata.com/openapi"
+
+# Enable ssl
+# If the following two files exist, enable ssl protocol
+#
+[ssl]
+
+# SSL certificate
+#
+# certificate = "/path/to/ca.file" # on linux/macOS
+# certificate = "C:\\path\\to\\ca.file" # on windows
+
+# SSL certificate key
+#
+# certificate_key = "/path/to/key.file" # on linux/macOS
+# certificate_key = "C:\\path\\to\\key.file" # on windows
+
+# log configuration
+[log]
+# All log files are stored in this directory
+#
+# path = "/var/log/taos" # on linux/macOS
+# path = "C:\\TDengine\\log" # on windows
+
+# log filter level
+#
+# level = "info"
+
+# Compress archived log files or not
+#
+# compress = false
+
+# The number of log files retained by the current explorer server instance in the `path` directory
+#
+# rotationCount = 3
+
+# Rotate when the log file reaches this size
+#
+# rotationSize = "1GB"
+
+# Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+#
+# reservedDiskSize = "1GB"
+
+# The number of days log files are retained
+#
+# keepDays = 3
+
+# integrated with Grafana
+[grafana]
+# The token of the Grafana server, which is used to access the Grafana server.
+#token = ""
+
+# The URL of the Grafana dashboard, which is used to display the monitoring data of the TDengine cluster.
+# You can configure multiple Grafana dashboards.
+[grafana.dashboards]
+#TDengine3 = "http://localhost:3000/d/000000001/tdengine3"
+#taosX = "http://localhost:3000/d/000000002/taosx"
+
+# Configuration for monitoring with taosKeeper service
+[monitor]
+# FQDN of taosKeeper service
+fqdn = "localhost"
+# Port of taosKeeper service
+port = 6043
+# Monitor interval in seconds, minimum is 1, maximum is 10
+interval = 10
+
+# Security configurations
+#
+#[security]
+# Encryption key for sensitive data, must be 32 bytes in base64 format
+#
+#encryption_key = "your-base64-encoded-32-bytes-key"
+#
+# Allowed duration (in seconds) for decrypting time-based XOR encrypted passwords during login.
+# Minimum is 10, maximum is 600, default is 300.
+#
+#xor_allowed_duration_secs = 300
+
+# OAuth 2.0 SSO configuration
+#
+#[oauth]
+# Enable OAuth 2.0 SSO
+#enabled = true
+# OAuth 2.0 provider type
+#provider = "oidc" # choices: oidc/plain
+
+# OAuth 2.0 provider display name
+#
+#[oauth.provider_display_name]
+#zh = "统一认证平台"
+#en = "OAuth 2.0"
+
+# OIDC Standard Provider Example
+#
+#[oauth.oidc]
+#client_id = "your-client-id"
+#client_secret = "your-client-secret"
+#issuer_url = "http://localhost:8080/realms/taosdata"
+#scopes = ["openid", "profile", "email"]
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# Example Plain OAuth 2.0 SSO with GitHub
+#
+#[oauth.plain]
+#client_id = "github client id"
+#client_secret = "github client secret"
+
+#authorize_url = "https://github.com/login/oauth/authorize"
+#token_url = "https://github.com/login/oauth/access_token"
+#profile_url = "https://api.github.com/user"
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+#[oauth.user_mapping]
+#username = "username"
+#email = "email"

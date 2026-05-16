@@ -1,0 +1,79 @@
+name: enterprise.yml
+permissions:
+  contents: read
+on:
+  pull_request:
+    branches:
+      - '3.0'
+      - 'main'
+  push:
+    branches:
+      - '3.0'
+      - 'main'
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ Ubuntu-22.04 ]
+        java: [ 8 ]
+        maven: [ '3.6.3' ]
+    name: enterprise-${{ matrix.os }}-${{ matrix.java }}
+    steps:
+
+      - name: Get TDengine
+        run: wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-3.0.tar.gz?v=$(date +%s)" -O tsdb-nightly-3.0.tar.gz
+
+      - name: Install TDengine
+        run: |
+          tar -zxf tsdb-nightly-3.0.tar.gz
+          rm -rf tsdb-nightly-3.0.tar.gz
+          cd tsdb-nightly-3.0
+          sudo ./install.sh -e no
+
+      - name: shell
+        run: |
+          cat >start.sh<<EOF 
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+
+      - name: taosd
+        run: nohup sudo sh ./start.sh &
+
+      - name: start taosadapter
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo taosadapter &
+
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          path: 'jdbc-workspace'
+
+      - name: set up java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin' # See 'Supported distributions' for available options
+          java-version: ${{ matrix.java }}
+          java-package: jdk
+
+      - name: Test
+        working-directory: jdbc-workspace
+        env:
+          TDENGINE_CLOUD_URL: ${{ secrets.TDENGINE_CLOUD_URL }}
+          TDENGINE_HOST: ${{ vars.TDENGINE_HOST }}
+          TDENGINE_JNI_PORT: ${{ vars.TDENGINE_JNI_PORT }}
+          TDENGINE_RS_PORT: ${{ vars.TDENGINE_RS_PORT }}
+          TDENGINE_WS_PORT: ${{ vars.TDENGINE_WS_PORT }}
+          TDENGINE_USER: ${{ secrets.TDENGINE_USER }}
+          TDENGINE_PASSWORD: ${{ secrets.TDENGINE_PASSWORD }}
+          TD_ENTERPRISE_TEST: 'true'
+        run: mvn -B clean verify --file pom.xml -Dtest=com.taosdata.jdbc.ws.*EnterpriseTest -Djacoco.skip=true -Dsurefire.execution.id=parallel-tests
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-logs
+          path: |
+            /var/log/taos/**/*
+          retention-days: 7

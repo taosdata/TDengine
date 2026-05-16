@@ -1,0 +1,11 @@
+packages:
+  - 'taos-ui'
+  - 'taos-ui/assets'
+  - 'taos-ui/utils'
+  - 'taos-ui/locales'
+  - 'taos-ui/constants'
+  - 'taos-ui/components'
+  - 'taos-ui/hooks'
+  - 'taos-ui/config'
+  - 'taos-connector-node/WebSocket'
+

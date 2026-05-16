@@ -1,0 +1,60 @@
+settings:
+  - name: taosd
+    fqdn: [localhost]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: localhost:6030
+      dnodes:
+        - endpoint: localhost:6030
+          config_dir: /root/jayden/config/dnode1
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /root/jayden/lib/taos/dnode1
+            logDir: /root/jayden/log/taos/dnode1
+            qDebugFlag: 131
+            mDebugFlag: 131
+            tqDebugFlag: 131
+            stDebugFlag: 131
+            rpcDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+            checkpointInterval: 60
+      reserve_dnodes:
+        - endpoint: localhost:6031
+          config_dir: /root/jayden/config/dnode2
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /root/jayden/lib/taos/dnode2
+            logDir: /root/jayden/log/taos/dnode2
+            qDebugFlag: 131
+            mDebugFlag: 131
+            tqDebugFlag: 131
+            stDebugFlag: 131
+            rpcDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+            checkpointInterval: 60
+  - name: taosBenchmark
+    fqdn: [localhost]
+    spec:
+      version: 3.0.0.0
+      taos_version: 3.0.0.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: localhost:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+  - name: taospy
+    fqdn: [localhost]
+    spec:
+      version: 3.0.0.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: localhost:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 131
+        asynclog: 0
+        logkeepDays: 2
+        numOfLogLines: 200000000

@@ -1,0 +1,18 @@
+#匿名登录认证, MQTT协议3.1, 单个主题订阅, 日志级别 info
+task_name: mqtt
+task_type: mqtt
+
+from:
+  fromhost: mqtt://{3}
+  topics: testperf::2
+  version: 3.1
+  clean_session: "true"
+  keep_alive: 60
+
+to:
+  target_type: taos
+  target_dbname: mqtt_perf
+
+task_exec_time: 10
+
+jmeter_host: 192.168.2.17

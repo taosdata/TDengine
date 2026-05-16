@@ -1,0 +1,70 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 100,
+    "thread_count": 40,
+    "create_table_thread_count": 40,
+    "result_file": "./insert_res_suit1.txt",
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "compact_test",
+                "drop": "yes",
+                "vgroups": 2,
+                "replica": 1,
+                "precision": "ms",
+                "keep": 3650,
+                "minRows": 200,
+                "maxRows": 4096
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 1000,
+                    "insert_rows": 300,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "insert_interval": 0,
+                    "timestamp_step": 10,
+                    "start_timestamp":1500000000000,
+                    "columns": [
+                        { "type": "tinyint",     "count": 1},
+                        { "type": "smallint",    "count": 1},
+                        { "type": "int",         "count": 1},
+                        { "type": "bigint",      "count": 1},
+                        { "type": "utinyint",    "count": 1},
+                        { "type": "usmallint",   "count": 1},
+                        { "type": "uint",        "count": 1},
+                        { "type": "ubigint",     "count": 1},
+                        { "type": "float",       "count": 1},
+                        { "type": "double",      "count": 1},
+                        { "type": "binary",      "count": 1, "len": 32},
+                        { "type": "nchar",       "count": 1, "len": 32},
+                        { "type": "bool",        "count": 1}
+                    ],
+                    "tags": [
+                        { "type": "tinyint",     "count": 1},
+                        { "type": "smallint",    "count": 1},
+                        { "type": "int",         "count": 1},
+                        { "type": "bigint",      "count": 1},
+                        { "type": "utinyint",    "count": 1},
+                        { "type": "usmallint",   "count": 1},
+                        { "type": "uint",        "count": 1},
+                        { "type": "ubigint",     "count": 1},
+                        { "type": "float",       "count": 1},
+                        { "type": "double",      "count": 1},
+                        { "type": "binary",      "count": 1, "len": 32},
+                        { "type": "nchar",       "count": 1, "len": 32},
+                        { "type": "bool",        "count": 1}
+                    ]
+                }
+            ]
+        }
+    ]
+}

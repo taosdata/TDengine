@@ -1,0 +1,47 @@
+.tip-common {
+  padding: 8px 16px;
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 20px;
+  word-break: keep-all;
+  border-left-style: solid;
+  border-left-width: 5px;
+  border-radius: 4px;
+}
+
+.primary-tip {
+  @extend .tip-common;
+
+  color: #333;
+  background-color: #ecf8ff;
+  border-left-color: #50bfff;
+}
+
+.warning-tip {
+  @extend .tip-common;
+
+  color: #e2a603;
+  background-color: #fff6f7;
+  border-left-color: #e2a603;
+}
+
+.success-tip {
+  @extend .tip-common;
+
+  color: #333;
+  background-color: rgb(254 236 196);
+  border-left-color: #67c23a;
+}
+
+.default-tip {
+  margin: 10px 0;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.simple-tip {
+  padding: 5px;
+  font-size: 14px;
+  color: rgb(163 156 156);
+}

@@ -1,0 +1,8 @@
+[connection]
+server = "192.168.2.149"
+port = 8889
+username = "admin"
+password = "admin888"
+
+[nodes]
+root = 0

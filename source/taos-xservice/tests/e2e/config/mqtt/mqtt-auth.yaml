@@ -1,0 +1,20 @@
+# mqtt server
+MQTTServer:
+  broker: '192.168.1.45'
+  user: taosx
+  passwd: taosx
+  port: 1884
+  keepalive: 60
+  topics:
+    -
+      topicname:
+        - testmqtt/1
+        - testmqtt/2
+      format: json
+      message: {'id': "1",'current': "10.77",'phase': "0.77",'voltage': "220",'groupid': 1,'location': "California.SanDiego",
+      'column1': 9223372036854775807,'column2': 18446744073709551615,'column3': 32767, 'column4': 65535, 'column5': 127,
+      'data': {'column6': 255, 'column7': "true",'column8': "MqttTest"},
+      'column9': "true",'events': [{"price": "28405.2","delta": "6","boolValue": "true"},{"price": "38405.2","delta": "7", "boolValue": "false"}]
+      }
+
+  interval: 1

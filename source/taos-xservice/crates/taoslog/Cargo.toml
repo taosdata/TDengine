@@ -1,0 +1,38 @@
+[package]
+name = "taoslog"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+actix-web.workspace = true
+tracing-actix-web.workspace = true
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt", "std"] }
+chrono.workspace = true
+parking_lot.workspace = true
+snafu.workspace = true
+flate2.workspace = true
+thread-id = "5.0.0"
+regex = "1"
+sysinfo.workspace = true
+flume.workspace = true
+arrow-schema.workspace = true
+http.workspace = true
+nu-ansi-term = { version = "0.50.1", optional = true }
+rayon.workspace = true
+
+[dev-dependencies]
+crossbeam.workspace = true
+log.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true, features = ["log"] }
+tracing-log = "0.2.0"
+criterion.workspace = true
+
+[features]
+ansi = ["dep:nu-ansi-term"]
+
+[[bench]]
+name = "log_write_benchmark"
+harness = false

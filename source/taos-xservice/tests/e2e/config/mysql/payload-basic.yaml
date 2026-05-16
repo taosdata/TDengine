@@ -1,0 +1,71 @@
+# 全类型字段，主键时间戳名称为 ts
+parser:
+  {
+    "parse":{
+      "tint":{"as":"tinyint"},
+      "utint":{"as":"tinyint unsigned"},
+      "sint":{"as":"smallint"},
+      "usint":{"as":"smallint unsigned"},
+      "mint":{"as":"int"},
+      "umint":{"as":"int unsigned"},
+      "iint":{"as":"int"},
+      "uint":{"as":"int unsigned"},
+      "bint":{"as":"bigint"},
+      "ubint":{"as":"bigint unsigned"},
+      "ffloat":{"as":"float"},
+      "ddouble":{"as":"double"},
+      "ddecimal":{"as":"nchar(50)"},
+      "cchar":{"as":"nchar(50)"},
+      "vvarchar":{"as":"nchar(50)"},
+      "ttext":{"as":"nchar(50)"},
+      "test_sam":{"as":"nchar(50)"},
+      "mtext":{"as":"nchar(50)"},
+      "ltext":{"as":"nchar(50)"},
+      "ddate":{"as":"nchar(50)"},
+      "ttime":{"as":"nchar(50)"},
+      "ddatetime":{"as":"timestamp"},
+      "ts":{"as":"timestamp"},
+      "yyear":{"as":"smallint"},
+      "bbit":{"as":"tinyint unsigned"}
+  },
+  "model": {
+      "name": "tb1",
+      "using": "ci_test_mysql",
+      "tags": ["tag_yyear"],
+      "columns": ["ts","tint","utint","sint","usint","mint","umint","iint","uint","bint","ubint",
+        "ffloat","ddouble","ddecimal","cchar","vvarchar","ttext","test_sam","mtext","ltext","ddate","ttime","ddatetime","test_year","yyear","bbit"]
+  },
+  "mutate":[
+    {
+      "map": {
+              "ts": {"cast": "ts","as": "TIMESTAMP"},
+              "tint": {"cast": "tint","as": "tinyint"},
+              "utint": {"cast": "utint","as": "tinyint unsigned"},
+              "sint": {"cast": "sint","as": "smallint"},
+              "usint": {"cast": "usint","as": "smallint unsigned"},
+              "mint": {"cast": "mint","as": "int"},
+              "umint": {"cast": "mint","as": "int unsigned"},
+              "iint": {"cast": "iint","as": "int"},
+              "uint": {"cast": "uint","as": "int unsigned"},
+              "bint": {"cast": "bint","as": "bigint"},
+              "ubint": {"cast": "ubint","as": "bigint unsigned"},
+              "ffloat": {"cast": "ffloat","as": "float"},
+              "ddouble": {"cast": "ddouble","as": "double"},
+              "ddecimal": {"cast": "ddecimal","as": "nchar(50)"},
+              "cchar": {"cast": "cchar","as": "nchar(50)"},
+              "vvarchar": {"cast": "vvarchar","as": "nchar(50)"},
+              "ttext": {"cast": "ttext","as": "nchar(50)"},
+              "test_sam": {"cast": "test_sam","as": "nchar(50)"},
+              "mtext": {"cast": "mtext","as": "nchar(50)"},
+              "ltext": {"cast": "ltext","as": "nchar(50)"},
+              "ddate": {"cast": "ddate","as": "nchar(50)"},
+              "ttime": {"cast": "ttime","as": "nchar(50)"},
+              "ddatetime": {"cast": "ddatetime","as": "timestamp"},
+              "bbit": {"cast": "bbit","as": "tinyint"},
+              "test_year": {"cast": "yyear","as": "smallint"},
+              "yyear": {"cast": "yyear","as": "smallint"},
+              "tag_yyear": {"cast": "yyear","as": "smallint"}
+      }
+    }
+  ]
+  }

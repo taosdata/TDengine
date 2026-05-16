@@ -1,0 +1,49 @@
+task_name: opcua_subscribe
+task_type: opcua
+
+from:
+  fromhost: opcua://{0}/OPCUA/SimulationServer
+  use_csv_config: "false"
+  ua.nodes: ns=3;i=1001::test
+  connect_timeout: 1
+  request_timeout: 1
+  interval: 1
+  collect_mode: observe
+  enable: "true"
+  path: /data/tmp
+  keep: 10
+  opc_table_config: |
+    {
+        "stable_prefix": "stb_ua",
+        "column_configs": [{
+            "column_name": "received_time",
+            "column_type": "timestamp",
+            "column_alias": "rt",
+            "is_primary_key": true
+        }, {
+            "column_name": "original_time",
+            "column_type": "timestamp",
+            "column_alias": "ot",
+            "is_primary_key": false
+        }, {
+            "column_name": "value",
+            "column_alias": "v",
+            "is_primary_key": false
+        }, {
+            "column_name": "quality",
+            "column_type": "int",
+            "column_alias": "q",
+            "is_primary_key": false
+        }]
+    }
+  concurrent: 1
+  batch_size: 1
+  batch_timeout : 1
+  debug: "true"
+
+to:
+  target_type: taos
+  target_dbname: ci_opcua
+
+via: 7
+task_exec_time: 20

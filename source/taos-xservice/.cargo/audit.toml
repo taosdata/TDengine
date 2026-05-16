@@ -1,0 +1,53 @@
+[advisories]
+ignore = [
+  # `rsa` is indirectly referenced by sqlx
+  "RUSTSEC-2023-0071",
+  # `proc-macro-error` is indirectly referenced by utoipa and multi_index_map
+  "RUSTSEC-2024-0370",
+  # `yaml-rust` is indirectly referenced by config
+  "RUSTSEC-2024-0320",
+  # `instant` is unmaintained. It is indirectly referenced by rhai and parking_lot
+  "RUSTSEC-2024-0384",
+  # `dotenv` is used in taosx
+  "RUSTSEC-2021-0141",
+  # derivative is indirectly referenced by ring-channel and mongodb
+  "RUSTSEC-2024-0388",
+  # idna, wait for mongodb / hickory-proto to update
+  "RUSTSEC-2024-0421",
+  # rust-decimal rejected the fix
+  "RUSTSEC-2026-0001",
+  # rustls-webpki 0.102.8: rumqttc 0.25.1 pins ^0.102, fix requires >=0.103.10.
+  # No newer rumqttc release available yet. nats 0.25.0 is optional and not compiled.
+  "RUSTSEC-2026-0049",
+  # rustls-webpki 0.102.8 URI name-constraint advisory: rumqttc 0.25.1 pins ^0.102.
+  # Remove this ignore once upstream allows rustls-webpki >=0.103.10; nats 0.25.0 is optional and not compiled.
+  "RUSTSEC-2026-0098",
+  # rustls-webpki 0.102.8 wildcard name-constraint advisory: rumqttc 0.25.1 pins ^0.102.
+  # Remove this ignore once upstream allows rustls-webpki >=0.103.12; nats 0.25.0 is optional and not compiled.
+  "RUSTSEC-2026-0099",
+  # rand 0.7/0.8/0.9 unsound with custom logger reseeding; indirect dep, no custom logger in taosx.
+  "RUSTSEC-2026-0097",
+  # rustls-pemfile unmaintained; indirect dep via multiple crates, migration not trivial.
+  "RUSTSEC-2025-0134",
+  # async-std discontinued; indirect dep via nats (optional).
+  "RUSTSEC-2025-0052",
+  # bincode unmaintained; used by taosx-ipc, no drop-in replacement yet.
+  "RUSTSEC-2025-0141",
+  # fxhash unmaintained; indirect dep via swc/rhai.
+  "RUSTSEC-2025-0057",
+  # json crate unmaintained; indirect dep via influxdb line-protocol parsing.
+  "RUSTSEC-2022-0081",
+  # paste unmaintained; indirect dep via multiple crates.
+  "RUSTSEC-2024-0436",
+  # hickory-proto 0.25.2 NSEC3 closest-encloser proof validation unbounded loop.
+  # No fixed version available. Transitive dep via mongodb. taosx does not perform NSEC3 validation.
+  # Fix blocked on upstream hickory-dns release and mongodb adopting it.
+  "RUSTSEC-2026-0118",
+  # hickory-proto 0.25.2 O(n²) CPU exhaustion during message encoding. Fix at >=0.26.1.
+  # Transitive dep via mongodb 3.6.0 (latest) which requires hickory-proto ^0.25.
+  # Fix blocked on mongodb migrating to hickory 0.26+.
+  "RUSTSEC-2026-0119",
+]
+
+[output]
+quiet = false

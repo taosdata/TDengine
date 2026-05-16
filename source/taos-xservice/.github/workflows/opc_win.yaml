@@ -1,0 +1,71 @@
+name: OPC_PLUGIN_WIN
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/opc_win.yaml"
+      - "plugins/opc/**"
+  pull_request:
+    paths:
+      - ".github/workflows/opc_win.yaml"
+      - "plugins/opc/**"
+
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        go: ["1.20", "stable"]
+
+    name: opc_build ${{ matrix.go }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: plugins/opc/go.sum
+
+      - name: build
+        env:
+          GOARCH: 386
+        working-directory: plugins/opc
+        run: go build
+
+  test:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        go: ["1.20", "stable"]
+
+    name: opc_test ${{ matrix.go }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: plugins/opc/go.sum
+
+      - name: copy dll
+        run: cp packaging\append\opc_gdba_32\gbda_aut.dll C:\Windows\SysWOW64
+
+      - name: register
+        run: C:\Windows\SysWOW64\regsvr32.exe C:\Windows\SysWOW64\gbda_aut.dll
+
+      - name: install da simulator
+        run: |
+          Start-BitsTransfer -Source https://github.com/huskar-t/opcdatest/releases/download/simulation/gbopcsim18.msi
+          msiexec /norestart /quiet /i "gbopcsim18.msi"
+
+      - name: Test OPCDA
+        env:
+          GOARCH: 386
+        working-directory: plugins/opc/client/opcda
+        run: go test -v --count=1 ./...

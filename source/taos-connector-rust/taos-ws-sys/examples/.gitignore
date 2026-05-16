@@ -1,0 +1,3 @@
+show-databases
+ws-run-sql
+target/

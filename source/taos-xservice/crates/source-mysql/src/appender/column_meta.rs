@@ -1,0 +1,357 @@
+use arrow::datatypes::{DataType, TimeUnit};
+use taosx_ipc::stream::writer::IpcDataType;
+
+// use taosx_ipc::prelude::IpcDataType;
+
+#[allow(dead_code)]
+pub struct ColumnMeta {
+    pub column_name: String,
+    pub type_name: String,
+}
+
+impl ColumnMeta {
+    pub fn try_new(column_name: String, type_name: String) -> anyhow::Result<Self> {
+        Ok(Self {
+            column_name,
+            type_name,
+        })
+    }
+
+    pub fn get_ipc_type(&self) -> anyhow::Result<IpcDataType> {
+        match self.type_name.as_str() {
+            // 整型数
+            "TINYINT" => Ok(IpcDataType::Int8),
+            "TINYINT UNSIGNED" => Ok(IpcDataType::UInt8),
+            "SMALLINT" => Ok(IpcDataType::Int16),
+            "SMALLINT UNSIGNED" => Ok(IpcDataType::UInt16),
+            "MEDIUMINT" => Ok(IpcDataType::Int32),
+            "MEDIUMINT UNSIGNED" => Ok(IpcDataType::UInt32),
+            "INT" => Ok(IpcDataType::Int32),
+            "INT UNSIGNED" => Ok(IpcDataType::UInt32),
+            "BIGINT" => Ok(IpcDataType::Int64),
+            "BIGINT UNSIGNED" => Ok(IpcDataType::UInt64),
+            // 浮点数
+            "FLOAT" => Ok(IpcDataType::Float32),
+            "DOUBLE" => Ok(IpcDataType::Float64),
+            "DECIMAL" => Ok(IpcDataType::NChar(50)),
+            // 字符串
+            "CHAR" => Ok(IpcDataType::NChar(50)),
+            "VARCHAR" => Ok(IpcDataType::NChar(50)),
+            // Blob
+            "TINYBLOB" => Ok(IpcDataType::Blob),
+            "BLOB" => Ok(IpcDataType::Blob),
+            "MEDIUMBLOB" => Ok(IpcDataType::Blob),
+            "LONGBLOB" => Ok(IpcDataType::Blob),
+            // 文本
+            "TINYTEXT" => Ok(IpcDataType::NChar(50)),
+            "TEXT" => Ok(IpcDataType::NChar(50)),
+            "MEDIUMTEXT" => Ok(IpcDataType::NChar(50)),
+            "LONGTEXT" => Ok(IpcDataType::NChar(50)),
+            // 字节数组
+            "BINARY" => Ok(IpcDataType::VarBinary(50)),
+            "VARBINARY" => Ok(IpcDataType::VarBinary(50)),
+            // 日期时间
+            "DATE" => Ok(IpcDataType::NChar(50)),
+            "TIME" => Ok(IpcDataType::NChar(50)),
+            "DATETIME" => Ok(IpcDataType::NChar(50)),
+            "TIMESTAMP" => Ok(IpcDataType::Timestamp(TimeUnit::Nanosecond)),
+            "YEAR" => Ok(IpcDataType::Int16),
+            // 二进制
+            "BIT" => Ok(IpcDataType::UInt8),
+            "BOOLEAN" => Ok(IpcDataType::Bool),
+            // 其他
+            _ => anyhow::bail!("unsupported data type: {}", self.type_name),
+        }
+    }
+}
+
+pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
+    match type_name.as_str() {
+        // 整型数
+        "TINYINT" => Ok(DataType::Int8),
+        "TINYINT UNSIGNED" => Ok(DataType::UInt8),
+        "SMALLINT" => Ok(DataType::Int16),
+        "SMALLINT UNSIGNED" => Ok(DataType::UInt16),
+        "MEDIUMINT" => Ok(DataType::Int32),
+        "MEDIUMINT UNSIGNED" => Ok(DataType::UInt32),
+        "INT" => Ok(DataType::Int32),
+        "INT UNSIGNED" => Ok(DataType::UInt32),
+        "BIGINT" => Ok(DataType::Int64),
+        "BIGINT UNSIGNED" => Ok(DataType::UInt64),
+        // 浮点数
+        "FLOAT" => Ok(DataType::Float32),
+        "DOUBLE" => Ok(DataType::Float64),
+        "DECIMAL" => Ok(DataType::Utf8),
+        // 字符串
+        "CHAR" => Ok(DataType::Utf8),
+        "VARCHAR" => Ok(DataType::Utf8),
+        // blob
+        "TINYBLOB" => Ok(DataType::LargeBinary),
+        "BLOB" => Ok(DataType::LargeBinary),
+        "MEDIUMBLOB" => Ok(DataType::LargeBinary),
+        "LONGBLOB" => Ok(DataType::LargeBinary),
+        "TINYTEXT" => Ok(DataType::Utf8),
+        "TEXT" => Ok(DataType::Utf8),
+        "MEDIUMTEXT" => Ok(DataType::Utf8),
+        "LONGTEXT" => Ok(DataType::Utf8),
+        // 字节数组
+        "BINARY" => Ok(DataType::Binary),
+        "VARBINARY" => Ok(DataType::Binary),
+        // 日期时间
+        "DATE" => Ok(DataType::Utf8),
+        "TIME" => Ok(DataType::Utf8),
+        "DATETIME" => Ok(DataType::Utf8),
+        "TIMESTAMP" => Ok(DataType::Timestamp(TimeUnit::Nanosecond, None)),
+        "YEAR" => Ok(DataType::UInt16),
+        // 二进制
+        "BIT" => Ok(DataType::UInt8),
+        "BOOLEAN" => Ok(DataType::Boolean),
+        // 其他
+        _ => anyhow::bail!("unsupported data type: {}", type_name),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_column_meta() {
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TINYINT".to_string()).unwrap();
+        assert_eq!(column_meta.column_name, "id");
+        assert_eq!(column_meta.type_name, "TINYINT");
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int8);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "TINYINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt8);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "SMALLINT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int16);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "SMALLINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt16);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMINT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int32);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "MEDIUMINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt32);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "INT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int32);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "INT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt32);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BIGINT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int64);
+
+        let column_meta =
+            ColumnMeta::try_new("id".to_string(), "BIGINT UNSIGNED".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt64);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "FLOAT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Float32);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DOUBLE".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Float64);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DECIMAL".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "CHAR".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "VARCHAR".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BINARY".to_string()).unwrap();
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "VARBINARY".to_string()).unwrap();
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TINYBLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMBLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "LONGBLOB".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Blob);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TINYTEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "MEDIUMTEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "LONGTEXT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DATE".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TIME".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "DATETIME".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "TIMESTAMP".to_string()).unwrap();
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::Timestamp(TimeUnit::Nanosecond)
+        );
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "YEAR".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::Int16);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "BIT".to_string()).unwrap();
+        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::UInt8);
+
+        let column_meta = ColumnMeta::try_new("id".to_string(), "UNKNOWN".to_string()).unwrap();
+        assert!(column_meta.get_ipc_type().is_err());
+    }
+
+    #[test]
+    fn test_to_arrow_data_type() {
+        assert_eq!(
+            to_arrow_data_type("TINYINT".to_string()).unwrap(),
+            DataType::Int8
+        );
+        assert_eq!(
+            to_arrow_data_type("TINYINT UNSIGNED".to_string()).unwrap(),
+            DataType::UInt8
+        );
+        assert_eq!(
+            to_arrow_data_type("SMALLINT".to_string()).unwrap(),
+            DataType::Int16
+        );
+        assert_eq!(
+            to_arrow_data_type("SMALLINT UNSIGNED".to_string()).unwrap(),
+            DataType::UInt16
+        );
+        assert_eq!(
+            to_arrow_data_type("MEDIUMINT".to_string()).unwrap(),
+            DataType::Int32
+        );
+        assert_eq!(
+            to_arrow_data_type("MEDIUMINT UNSIGNED".to_string()).unwrap(),
+            DataType::UInt32
+        );
+        assert_eq!(
+            to_arrow_data_type("INT".to_string()).unwrap(),
+            DataType::Int32
+        );
+        assert_eq!(
+            to_arrow_data_type("INT UNSIGNED".to_string()).unwrap(),
+            DataType::UInt32
+        );
+        assert_eq!(
+            to_arrow_data_type("BIGINT".to_string()).unwrap(),
+            DataType::Int64
+        );
+        assert_eq!(
+            to_arrow_data_type("BIGINT UNSIGNED".to_string()).unwrap(),
+            DataType::UInt64
+        );
+        assert_eq!(
+            to_arrow_data_type("FLOAT".to_string()).unwrap(),
+            DataType::Float32
+        );
+        assert_eq!(
+            to_arrow_data_type("DOUBLE".to_string()).unwrap(),
+            DataType::Float64
+        );
+        assert_eq!(
+            to_arrow_data_type("DECIMAL".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("CHAR".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("VARCHAR".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("BINARY".to_string()).unwrap(),
+            DataType::Binary
+        );
+        assert_eq!(
+            to_arrow_data_type("VARBINARY".to_string()).unwrap(),
+            DataType::Binary
+        );
+        assert_eq!(
+            to_arrow_data_type("TINYBLOB".to_string()).unwrap(),
+            DataType::LargeBinary
+        );
+        assert_eq!(
+            to_arrow_data_type("BLOB".to_string()).unwrap(),
+            DataType::LargeBinary
+        );
+        assert_eq!(
+            to_arrow_data_type("MEDIUMBLOB".to_string()).unwrap(),
+            DataType::LargeBinary
+        );
+        assert_eq!(
+            to_arrow_data_type("LONGBLOB".to_string()).unwrap(),
+            DataType::LargeBinary
+        );
+        assert_eq!(
+            to_arrow_data_type("TINYTEXT".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("TEXT".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("MEDIUMTEXT".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("LONGTEXT".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("DATE".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("TIME".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("DATETIME".to_string()).unwrap(),
+            DataType::Utf8
+        );
+        assert_eq!(
+            to_arrow_data_type("TIMESTAMP".to_string()).unwrap(),
+            DataType::Timestamp(TimeUnit::Nanosecond, None)
+        );
+        assert_eq!(
+            to_arrow_data_type("BIT".to_string()).unwrap(),
+            DataType::UInt8
+        );
+        assert!(to_arrow_data_type("UNKNOWN".to_string()).is_err());
+    }
+}

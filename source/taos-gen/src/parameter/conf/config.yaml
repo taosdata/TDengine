@@ -1,0 +1,325 @@
+global:
+  confirm_prompt: false
+  log_dir: log/
+  cfg_dir: /etc/taos/
+
+  # Common structure definition (can be reused by anchor)
+  connection_info: &db_conn
+    host: 127.0.0.1
+    port: 6030
+    user: root
+    password: taosdata
+
+    data_format: &data_format
+      format_type: sql
+    data_channel: &data_channel
+      channel_type: native
+
+  database_info: &db_info
+    name: testdb
+    drop_if_exists: true
+    precision: us
+    properties: vgroups 20 replica 3 keep 3650
+
+  super_table_info: &stb_info
+    name: points
+    columns: &columns_info
+      - name: latitude
+        type: float
+      - name: longitude
+        type: float
+      - name: quality
+        type: varchar(50)
+    tags: &tags_info
+      - name: type
+        type: varchar(7)
+      - name: name
+        type: varchar(20)
+      - name: department
+        type: varchar(7)
+
+
+concurrency: 4
+
+jobs:
+  # Create database job
+  create-database:
+    name: Create Database
+    needs: []
+    steps:
+      - name: Create Database
+        uses: actions/create-database
+        with:
+          connection_info: *db_conn             # Inherit global connection info, default property, can be omitted
+          database_info:
+            name: testdb
+            drop_if_exists: true
+            precision: us
+            properties: vgroups 20 replica 3 keep 3650
+
+
+  # Create super table job
+  create-super-table:                           # Can be merged with create-database job, just append steps
+    name: Create Super Table
+    needs: [create-database]
+    steps:
+      - name: Create Super Table
+        uses: actions/create-super-table
+        with:
+          connection_info: *db_conn             # Inherit global connection info, default property, can be omitted
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+            columns: *columns_info            # Anchor reference to normal columns
+            tags: *tags_info                  # Anchor reference to tag columns
+
+
+  # Create second-level child table job
+  create-second-child-table:
+    name: Create Second Child Table
+    needs: [create-super-table]
+    steps:
+      - name: Create Second Child Table
+        uses: actions/create-child-table
+        with:
+          connection_info: *db_conn             # Inherit global connection info, default property, can be omitted
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+          child_table_info:
+            table_name:
+              source_type: generator            # Child table name data source: generator or csv
+              generator:
+                prefix: s
+                count: 10000
+                from: 200
+            tags:
+              source_type: csv                  # Tag column data source: generator or csv
+              csv:
+                file_path: /root/meta/cnnc_csv_1s.csv
+                has_header: true
+          batch:
+            size: 1000
+            concurrency: 10
+
+
+  # Create minute-level child table job
+  create-minute-child-table:
+    name: Create Minute Child Table
+    needs: [create-super-table]
+    steps:
+      - name: Create Minute Child Table
+        uses: actions/create-child-table
+        with:
+          connection_info: *db_conn             # Inherit global connection info, default property, can be omitted
+          database_info:
+            name: testdb
+          super_table_info:
+            name: points
+          child_table_info:
+            table_name:
+              source_type: generator            # Child table name data source: generator or csv
+              generator:
+                prefix: m
+                count: 10000
+                from: 200
+            tags:
+              source_type: csv                  # Tag column data source: generator or csv
+              csv:
+                file_path: /root/meta/cnnc_csv_1m.csv
+                has_header: true
+          batch:
+            size: 1000
+            concurrency: 10
+
+
+  # Insert second-level data job
+  insert-second-data:
+    name: Insert Second-Level Data
+    needs: [create-second-child-table]
+    steps:
+      - name: Insert Second-Level Data
+        uses: actions/insert
+        with:
+          # source
+          source:
+            table_name:
+              source_type: generator              # Child table name data source: generator or csv
+              generator:
+                prefix: s
+                count: 10000
+                from: 200
+            columns:                              # Normal column data source: generator or csv
+              source_type: csv
+              csv:
+                file_path: /root/data/cnnc_csv_1s/
+                has_header: true
+
+                timestamp_strategy:
+                  strategy_type: original
+                  original:
+                    column_index: 0
+                    precision: us
+
+          # target
+          target:
+            target_type: tdengine
+            tdengine:
+              connection_info: *db_conn           # Inherit global connection info, default property, can be omitted
+              database_info:
+                name: testdb
+                precision: us
+
+              super_table_info:
+                name: points
+                columns: *columns_info            # Anchor reference to normal columns
+                tags: *tags_info                  # Anchor reference to tag columns
+
+          # control
+          control: &insert_second_control
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            data_generation:
+              interlace_mode:
+                enabled: true
+                rows: 60
+              generate_threads: 8
+              rows_per_table: 10000
+            insert_control:
+              per_request_rows: 10000
+              auto_create_table: false
+              insert_threads: 8
+              thread_allocation: vgroup_binding
+            time_interval:
+              enabled: true
+              interval_strategy: first_to_first
+
+
+
+  # Insert minute-level data job
+  insert-minute-data:
+    name: Insert Minute-Level Data
+    needs: [create-minute-child-table]
+    steps:
+      - name: Insert Minute-Level Data
+        uses: actions/insert
+        with:
+          # source
+          source:
+            table_name:
+              source_type: generator              # Child table name data source: generator or csv
+              generator:
+                prefix: m
+                count: 10000
+                from: 200
+            columns:                              # Normal column data source: generator or csv
+              source_type: csv
+              csv:
+                file_path: /root/data/cnnc_csv_1m/
+                has_header: true
+
+                timestamp_strategy:
+                  strategy_type: original
+                  original:
+                    column_index: 0
+                    precision: ms
+
+          # target
+          target:
+            target_type: tdengine
+            tdengine:
+              connection_info: *db_conn           # Inherit global connection info, default property, can be omitted
+              database_info:
+                name: testdb
+                precision: us
+
+              super_table_info:
+                name: points
+                columns: *columns_info          # Anchor reference to normal columns
+                tags: *tags_info                # Anchor reference to tag columns
+
+          # control
+          control: *insert_second_control         # Reuse configuration
+
+
+  # Super table query job
+  query-super-table:
+    name: Query Super Table
+    needs:
+      - create-second-child-table
+      - create-minute-child-table
+    steps:
+      - name: query-super-table
+        uses: tdengine/query
+        with:
+          # source
+          source:
+            connection_info: *db_conn             # Inherit global connection info, default property, can be omitted
+
+          # control
+          control:
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            query_control:
+              execution:
+                mode: parallel_per_group
+                threads: 10
+                times: 50
+                interval: 100
+              query_type: super_table
+              super_table:
+                database_name: testdb
+                super_table_name: points
+                placeholder: ${child_table}
+                templates:
+                  - sql_template: select count(*) from ${child_table}
+                    output_file: stb_result.txt
+
+
+
+  # Data subscription job
+  subscribe-data:
+    name: Subscribe Data
+    needs:
+      - create-second-child-table
+      - create-minute-child-table
+    steps:
+      - name: subscribe-data
+        uses: tdengine/subscribe
+        with:
+          # source
+          source:
+            connection_info: *db_conn             # Inherit global connection info, default property, can be omitted
+
+          # control
+          control:
+            data_format:
+              format_type: sql
+            data_channel:
+              channel_type: native
+            subscribe_control:
+              execution:
+                consumer_concurrency: 5
+                poll_timeout: 500
+              topics:
+                - name: topic1
+                  sql: select * from testdb.points
+              commit:
+                mode: auto
+              group_id:
+                strategy: custom
+                custom_id: custom_group
+              output:
+                path: out
+                file_prefix: subscribe_data_
+                expected_rows: 10000
+              advanced:
+                client.id: benchmark_client
+                auto.offset.reset: earliest
+                msg.with.table.name: true

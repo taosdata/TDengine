@@ -1,0 +1,281 @@
+parser: {
+    "input": [
+            {
+                "VVARCHAR": "abcde",
+                "NNVARCHAR": "abc",
+                "NNUMBER": "477.6",
+                "FFLOAT": "598.544",
+                "LLONG": "123.71",
+                "DDATE": "2024-05-29 10:24:33",
+                "B_FLOAT": "555.4719848632812",
+                "B_DOUBLE": -119.279,
+                "T_TIME": "2024-05-29T10:24:33",
+                "T_TIME_Z": null,
+                "T_TIME_LZ": null,
+                "INTV_YM": null,
+                "INTV_DS": null,
+                "CCLOB": null,
+                "NNCLOB": null,
+                "BBLOB": null,
+                "CCHAR": null,
+                "NNCHAR": null
+            },
+            {
+                "VVARCHAR": "abcde",
+                "NNVARCHAR": "abc",
+                "NNUMBER": "675.6",
+                "FFLOAT": "902.849",
+                "LLONG": "-573.73",
+                "DDATE": "2024-05-29 10:24:34",
+                "B_FLOAT": "-278.3420104980469",
+                "B_DOUBLE": 834.94,
+                "T_TIME": "2024-05-29T10:24:34",
+                "T_TIME_Z": null,
+                "T_TIME_LZ": null,
+                "INTV_YM": null,
+                "INTV_DS": null,
+                "CCLOB": null,
+                "NNCLOB": null,
+                "BBLOB": null,
+                "CCHAR": null,
+                "NNCHAR": null
+            },
+            {
+                "VVARCHAR": "abcde",
+                "NNVARCHAR": "abc",
+                "NNUMBER": "837",
+                "FFLOAT": "857.958",
+                "LLONG": "-71.228",
+                "DDATE": "2024-05-29 10:24:34",
+                "B_FLOAT": "-89.23300170898438",
+                "B_DOUBLE": 920.614,
+                "T_TIME": "2024-05-29T10:24:34",
+                "T_TIME_Z": null,
+                "T_TIME_LZ": null,
+                "INTV_YM": null,
+                "INTV_DS": null,
+                "CCLOB": null,
+                "NNCLOB": null,
+                "BBLOB": null,
+                "CCHAR": null,
+                "NNCHAR": null
+            },
+            {
+                "VVARCHAR": "abcde",
+                "NNVARCHAR": "abc",
+                "NNUMBER": "10.8",
+                "FFLOAT": "-627.811",
+                "LLONG": "-486.479",
+                "DDATE": "2024-05-29 10:24:34",
+                "B_FLOAT": "8.848999977111816",
+                "B_DOUBLE": -941.45,
+                "T_TIME": "2024-05-29T10:24:34",
+                "T_TIME_Z": null,
+                "T_TIME_LZ": null,
+                "INTV_YM": null,
+                "INTV_DS": null,
+                "CCLOB": null,
+                "NNCLOB": null,
+                "BBLOB": null,
+                "CCHAR": null,
+                "NNCHAR": null
+            },
+            {
+                "VVARCHAR": "abcde",
+                "NNVARCHAR": "abc",
+                "NNUMBER": "-840.2",
+                "FFLOAT": "-432.762",
+                "LLONG": "496.872",
+                "DDATE": "2024-05-29 10:24:34",
+                "B_FLOAT": "281.1730041503906",
+                "B_DOUBLE": 635.822,
+                "T_TIME": "2024-05-29T10:24:34",
+                "T_TIME_Z": null,
+                "T_TIME_LZ": null,
+                "INTV_YM": null,
+                "INTV_DS": null,
+                "CCLOB": null,
+                "NNCLOB": null,
+                "BBLOB": null,
+                "CCHAR": null,
+                "NNCHAR": null
+            }
+    ],
+    "format": {
+        "pageCount": 20,
+        "pageSize": 20,
+        "currentPage": 1
+    },
+    "parser": {
+            "parse": {
+                "VVARCHAR": {
+                    "as": "nchar(50)"
+                },
+                "NNVARCHAR": {
+                    "as": "nchar(50)"
+                },
+                "NNUMBER": {
+                    "as": "nchar(50)"
+                },
+                "FFLOAT": {
+                    "as": "nchar(50)"
+                },
+                "LLONG": {
+                    "as": "nchar(50)"
+                },
+                "DDATE": {
+                    "as": "nchar(50)"
+                },
+                "B_FLOAT": {
+                    "as": "float"
+                },
+                "B_DOUBLE": {
+                    "as": "double"
+                },
+                "T_TIME": {
+                    "as": "nchar(50)"
+                },
+                "T_TIME_Z": {
+                    "as": "timestamp(ns)"
+                },
+                "T_TIME_LZ": {
+                    "as": "timestamp(ns)"
+                },
+                "INTV_YM": {
+                    "as": "nchar(50)"
+                },
+                "INTV_DS": {
+                    "as": "nchar(50)"
+                },
+                "CCLOB": {
+                    "as": "nchar(50)"
+                },
+                "NNCLOB": {
+                    "as": "nchar(50)"
+                },
+                "BBLOB": {
+                    "as": "nchar(50)"
+                },
+                "CCHAR": {
+                    "as": "nchar(50)"
+                },
+                "NNCHAR": {
+                    "as": "nchar(50)"
+                }
+            },
+            "model": {
+                "name": "test_3",
+                "using": "test_oracle3",
+                "tags": [
+                    "gid"
+                ],
+                "columns": [
+                    "ts",
+                    "vvarchar",
+                    "nnvarchar",
+                    "nnumber",
+                    "ffloat",
+                    "llong",
+                    "ddate",
+                    "b_float",
+                    "b_double",
+                    "t_time",
+                    "t_time_z",
+                    "t_time_lz",
+                    "intv_ym",
+                    "intv_ds",
+                    "cclob",
+                    "nnclob",
+                    "bblob",
+                    "cchar",
+                    "nnchar"
+                ]
+            },
+            "mutate": [
+                {
+                    "map": {
+                        "ts": {
+                            "cast": "T_TIME",
+                            "as": "TIMESTAMP"
+                        },
+                        "vvarchar": {
+                            "cast": "VVARCHAR",
+                            "as": "VARCHAR(128)"
+                        },
+                        "nnvarchar": {
+                            "cast": "NNVARCHAR",
+                            "as": "VARCHAR(128)"
+                        },
+                        "nnumber": {
+                            "cast": "NNUMBER",
+                            "as": "VARCHAR(128)"
+                        },
+                        "ffloat": {
+                            "cast": "FFLOAT",
+                            "as": "VARCHAR(128)"
+                        },
+                        "llong": {
+                            "cast": "LLONG",
+                            "as": "VARCHAR(128)"
+                        },
+                        "ddate": {
+                            "cast": "DDATE",
+                            "as": "VARCHAR(128)"
+                        },
+                        "b_float": {
+                            "cast": "B_FLOAT",
+                            "as": "FLOAT"
+                        },
+                        "b_double": {
+                            "cast": "B_DOUBLE",
+                            "as": "DOUBLE"
+                        },
+                        "t_time": {
+                            "cast": "T_TIME",
+                            "as": "VARCHAR(128)"
+                        },
+                        "t_time_z": {
+                            "cast": "T_TIME_Z",
+                            "as": "TIMESTAMP"
+                        },
+                        "t_time_lz": {
+                            "cast": "T_TIME_LZ",
+                            "as": "TIMESTAMP"
+                        },
+                        "intv_ym": {
+                            "cast": "INTV_YM",
+                            "as": "VARCHAR(128)"
+                        },
+                        "intv_ds": {
+                            "cast": "INTV_DS",
+                            "as": "VARCHAR(128)"
+                        },
+                        "cclob": {
+                            "cast": "CCLOB",
+                            "as": "VARCHAR(128)"
+                        },
+                        "nnclob": {
+                            "cast": "NNCLOB",
+                            "as": "VARCHAR(128)"
+                        },
+                        "bblob": {
+                            "cast": "BBLOB",
+                            "as": "VARCHAR(128)"
+                        },
+                        "cchar": {
+                            "cast": "CCHAR",
+                            "as": "VARCHAR(128)"
+                        },
+                        "nnchar": {
+                            "cast": "NNCHAR",
+                            "as": "VARCHAR(128)"
+                        },
+                        "gid": {
+                            "value": "11111",
+                            "as": "INT"
+                        }
+                    }
+                }
+            ]
+    }
+}

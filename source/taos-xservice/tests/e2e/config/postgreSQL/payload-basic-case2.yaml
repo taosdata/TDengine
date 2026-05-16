@@ -1,0 +1,35 @@
+"parser": {
+    "format": {
+        "pageCount": 4,
+        "pageSize": 20,
+        "currentPage": 1
+    },
+    "input": [
+        {"sint": 32767, "ts": "2024-04-22T17:35:32.063921+08:00"},
+        {"sint": 32767, "ts": "2024-04-22T17:35:37.500981+08:00"},
+        {"sint": 32767, "ts": "2024-04-22T17:35:39.387523+08:00"},
+        {"sint": 1, "ts": "2024-04-22T23:59:59+08:00"},
+        {"sint": 1,"ts": "2024-04-22T10:00:00+08:00"}
+    ],
+    "parser": {
+        "model": {
+            "columns": [ "ts", "sint"],
+            "name": "tb1",
+            "tags": ["gid"],
+            "using": "pgstb"
+        },
+        "mutate": [
+            {
+                "map": {
+                    "ts": {"cast": "ts", "as": "TIMESTAMP"},
+                    "sint": {"cast": "sint","as": "SMALLINT"},
+                    "gid": {"value": "12345","as": "INT"}
+                }
+            }
+        ],
+        "parse": {
+            "sint": { "as": "smallint"},
+            "ts": {"as": "nchar(50)"}
+        }
+    }
+}

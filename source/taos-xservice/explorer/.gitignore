@@ -1,0 +1,46 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+target
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+types
+public/version.txt
+
+.eslintrc-auto-import.json
+types/auto-imports.d.ts
+types/components.d.ts
+.vite
+.pnpm-store
+vite.config.ts.*
+.env.dev
+taos-connector-node/typescript-rest/package-lock.json
+taos-connector-node/WebSocket/pnpm-lock.yaml
+taos-connector-node/WebSocket/package-lock.json
+
+# Playwright
+playwright-report/
+test-results/
+tests/.auth/
+.playwright

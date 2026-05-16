@@ -1,0 +1,82 @@
+[package]
+name = "tokio-cron-scheduler"
+version = "0.13.0"
+authors = ["Michael van Niekerk <mike@agri-io.co.za>"]
+edition = "2018"
+autoexamples = false
+
+documentation = "https://docs.rs/tokio_cron_scheduler/"
+repository = "https://github.com/mvniekerk/tokio-cron-scheduler"
+
+description = "Schedule tasks on tokio using cron-like annotation, at an instant or repeat them at a fixed duration. Tasks can optionally be persisted using PostgreSQL."
+
+license = "MIT/Apache-2.0"
+
+readme = "README.md"
+keywords = ["cron", "scheduler", "tokio", "postgres"]
+
+categories = ["date-and-time"]
+
+[dependencies]
+tokio = { workspace = true, features = ["time", "rt", "sync"] }
+croner = "2.0.5"
+chrono = { version = "0.4", default-features = false }
+english-to-cron = { version = "0.1", optional = true }
+uuid = { workspace = true, features = ["v4"] }
+prost = { version = "0.13", optional = true }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, optional = true }
+
+num-traits = "0.2"
+num-derive = "0.4"
+
+[dependencies.postgres-openssl]
+version = "0.5.0"
+optional = true
+
+[dependencies.postgres-native-tls]
+version = "0.5.0"
+optional = true
+
+[dependencies.tokio-postgres]
+version = "0.7"
+optional = true
+features = ["with-uuid-1"]
+
+[dev-dependencies]
+anyhow.workspace = true
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+chrono-tz.workspace = true
+
+[build-dependencies]
+prost-build = { version = "0.13", optional = true }
+
+[features]
+signal = ["tokio/signal"]
+has_bytes = ["prost-build", "prost"]
+english = ["english-to-cron"]
+postgres_storage = ["tokio-postgres", "has_bytes"]
+postgres_native_tls = ["postgres_storage", "postgres-native-tls"]
+postgres_openssl = ["postgres_storage", "postgres-openssl"]
+log = ["tracing/log", "tracing/log-always"]
+
+default = []
+
+[[example]]
+name = "simple"
+path = "examples/simple_job.rs"
+required-features = ["tracing-subscriber"]
+
+[[example]]
+name = "simple-tokio-in-a-thread"
+path = "examples/simple_job_tokio_in_a_thread.rs"
+required-features = ["tracing-subscriber"]
+
+[[example]]
+name = "postgres"
+path = "examples/postgres_job.rs"
+required-features = ["postgres_storage", "tracing-subscriber"]
+
+[[example]]
+name = "repeated-with-start-at"
+path = "examples/repeated_with_start_at.rs"

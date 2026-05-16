@@ -50,7 +50,8 @@ variables:
   # ── 基础路径配置（按部署环境修改这两个变量即可）──────────────────────────
   CI_BASE_DIR: "/data1/tdengine-ci"        # CI 工作根目录（workspace、platform、fail-logs 均在此）
   CI_CACHE_DIR: "/data/cache/tsdb-builder" # 构建缓存目录（externals stamps、Docker layer 等）
-  BUILDER_IMAGE_TAG: "0.21"                 # 构建镜像版本（切换回 core 镜像时使用：--image core:${BUILDER_IMAGE_TAG}）
+  BUILDER_IMAGE_TAG: "0.21"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
+  BUILDER_SCRIPT_IMAGE: "others:${BUILDER_IMAGE_TAG}" # build.sh --image 参数；切换镜像时改此处即可（如 core:${BUILDER_IMAGE_TAG}）
   BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/others:latest-amd64"
 
 .rules-code-change:
@@ -217,8 +218,27 @@ build-externals:
           done < <(find "${_ext_debug}" -name "CMakeCache.txt" \
                        -exec grep -l "devtoolset-7" {} \; 2>/dev/null)
         fi
+        # Integrity check: if an external stamp exists but the installed library
+        # is missing (partial/corrupted previous run), remove the stamp so
+        # ExternalProject rebuilds it from scratch.
+        _ext_ins="${CI_CACHE_DIR}/externals-others-amd64/install"
+        _ext_stamp_base="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
+        for _chk_file in \
+            "ext_gtest/Debug/lib/libgtest_main.a" \
+            "ext_gtest/Debug/lib/libgtest.a" \
+            "ext_arrow/Debug/lib/libarrow.a" \
+            "ext_arrow/Debug/lib/libparquet.a" ; do
+          if [ ! -f "${_ext_ins}/${_chk_file}" ]; then
+            _ext_name=$(echo "${_chk_file}" | cut -d/ -f1)
+            _stamp_dir="${_ext_stamp_base}/${_ext_name}-stamp"
+            if [ -d "${_stamp_dir}" ]; then
+              echo "[build-externals] integrity check: ${_chk_file} missing, removing stamp to force rebuild"
+              rm -rf "${_ext_stamp_base}/${_ext_name}-build" "${_stamp_dir}"
+            fi
+          fi
+        done
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image others:latest \
+          --image ${BUILDER_SCRIPT_IMAGE} \
           --src "${TSDB_SRC}" \
           --cache ${CI_CACHE_DIR}/ \
           --clean \
@@ -278,8 +298,7 @@ build-noasan:
         done
         echo "[build-noasan] externals validation passed"
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image others:latest \
-          --src "${TSDB_SRC}" \
+          --image ${BUILDER_SCRIPT_IMAGE} \
           --cache ${CI_CACHE_DIR}/ \
           --clean \
           -DCMAKE_BUILD_TYPE=Debug \
@@ -336,8 +355,7 @@ build-asan:
         done
         echo "[build-asan] externals validation passed"
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image others:latest \
-          --src "${TSDB_SRC_SAN}" \
+          --image ${BUILDER_SCRIPT_IMAGE} \
           --cache ${CI_CACHE_DIR}/ \
           --clean \
           -DCMAKE_BUILD_TYPE=Debug \

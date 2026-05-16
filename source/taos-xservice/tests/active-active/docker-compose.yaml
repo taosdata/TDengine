@@ -1,0 +1,20 @@
+services:
+  source:
+    image: image.cloud.taosdata.com/taosx/integrated:3.3.5.1-b0a54bdd
+    environment:
+      FQDN: source
+    ports:
+      - 7041:6041
+    volumes:
+    - ./share:/opt/share/
+    - ./source:/var/lib/taos/
+
+  target:
+    image: image.cloud.taosdata.com/taosx/integrated:3.3.5.1-b0a54bdd
+    environment:
+      FQDN: target
+    ports:
+      - 8041:6041
+    volumes:
+    - ./share:/opt/share/
+    - ./target:/var/lib/taos/

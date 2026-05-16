@@ -1,0 +1,71 @@
+name: OPC_PLUGIN_LINUX
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/opc_linux.yaml"
+      - "plugins/opc/**"
+  pull_request:
+    paths:
+      - ".github/workflows/opc_linux.yaml"
+      - "plugins/opc/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        go: ["1.20", "stable"]
+
+    name: opc_build ${{ matrix.go }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: plugins/opc/go.sum
+
+      - name: build
+        working-directory: plugins/opc
+        run: go build
+
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        go: ["1.20", "stable"]
+
+    name: opc_test ${{ matrix.go }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: plugins/opc/go.sum
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11.X"
+          architecture: "x64"
+
+      - name: Install dependencies
+        run: pip3 install opcua
+
+      - name: run ua server
+        run: nohup python3 plugins/opc/test/ua_server.py & disown
+
+      - name: run opc-plc server
+        run: docker run -itd -p 50000:50000 -p 8080:8080 --name opcplc mcr.microsoft.com/iotedge/opc-plc:2.9.9   --pn=50000 --autoaccept --sph --sn=5 --sr=10 --st=uint   --fn=10000 --fr=10 --ft=uint --gn=5 --ut
+
+      - name: Test
+        working-directory: plugins/opc
+        run: go test -v --count=1 ./...

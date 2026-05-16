@@ -1,0 +1,234 @@
+[
+  {
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table t(ts timestamp,name varchar(20),age int,sex varchar(10),birth timestamp,text nchar(3),f float,d double)",
+      "insert into t(ts,name,age,sex,birth,text,f,d) values (now+0s,'name1',10,'male',1665025866843,'中国人',1.23,2.34)",
+      "insert into t(ts,name,age,sex,birth,text,f,d) values (now+1s,'name2',20,'female',1655125866843,'苏州人',3.45,4.56)",
+      "select * from t",
+      {
+        "comment": "weird",
+        "sql":"insert into t (ts, name) values (now, ?)",
+        "executes": [
+          {
+            "params": [{"timestamp":1662961478755},"none0"],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select name from t where age = ?",
+        "executes": [
+          {
+            "params": [10],
+            "rs": [[["name1"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select name from t where age < ?",
+        "executes": [
+          {
+            "params": [11],
+            "rs": [[["name1"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select name from t where age > ?",
+        "executes": [
+          {
+            "params": [9],
+            "rs": [[["name1"],["name2"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select name from t where age = ? and name = ?",
+        "executes": [
+          {
+            "params": [10,"name1"],
+            "rs": [[["name1"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select name from t where age > ? and age < ?",
+        "executes": [
+          {
+            "params": [9,11],
+            "rs": [[["name1"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select ts, name from t where ts = 16678900134 and name = ?",
+        "executes": [
+          {
+            "params": ["none0"],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select name from t where name = ?",
+        "executes": [
+          {
+            "params": ["name2"],
+            "rs": [[["name2"]]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"select ts, name from t where ts = 16678900134",
+        "executes": [
+          {
+            "params": ["none0"],
+            "positive": false
+          }
+        ]
+      },{
+        "comment":"weird",
+        "sql":"insert into t (ts, name) values (now, 'xyz')",
+        "executes": [
+          {
+            "params": [{"timestamp":1662861478799}, "nonex"],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"insert into t (ts, name) values (now, ?)",
+        "executes": [
+          {
+            "params": [],
+            "positive": false
+          }
+        ]
+      },{
+        "sql":"insert into t (ts, name) values (now, ?)",
+        "executes": [
+          {
+            "params": ["hello"],
+            "positive": false
+          }
+        ]
+      },{
+        "comment":"weird",
+        "sql":"insert into t (ts, name) values (now, ?)",
+        "executes": [
+          {
+            "params": [{"timestamp":1662861478889}, "world"],
+            "positive": true
+          }
+        ]
+      },{
+        "sql":"insert into t (ts, name) values (?, 'great')",
+        "executes": [
+          {
+            "params": [[{"timestamp":1662861478890}],[{"timestamp":1662861478891}]],
+            "positive": false
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {"dsn": "TAOS_ODBC_DSN"},
+    "sqls": [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp,name varchar(20))",
+      {
+        "sql": "select table_name, db_name from information_schema.ins_tables t where t.db_name like ?",
+        "executes": [
+          {
+            "params": [
+              ["foo"]
+            ],
+            "rs": [[["t","foo"]]]
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table t(ts timestamp,age double)",
+      {
+        "sql":"insert into t (ts, age) values (?, ?)",
+        "executes": [
+          {
+            "params": [{"timestamp":1662861478799}, 123]
+          }
+        ]
+      },{
+        "sql": "select count(*) from t",
+        "rs": [[1]]
+      },{
+        "sql": "select ts, age from t",
+        "rs": [[1662861478799,123]]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create stable st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "comment":"weird",
+        "sql": "insert into xsuzhou using st tags ('ysuzhou') values (1665226861289, 100)",
+        "executes": [
+          {
+            "params": [[{"timestamp":1665226961289}, {"int":200}]],
+            "positive": true
+          }
+        ]
+      },{
+        "sql": "select count(*) from st",
+        "rs": [[1]],
+        "positive": true
+      }
+    ]
+  },{
+    "conn": {"dsn": "TAOS_ODBC_DSN"},
+    "sqls": [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp,name varchar(20))",
+      {
+        "sql": "select table_name, db_name from (select table_name, db_name from information_schema.ins_tables) t where t.db_name like 'foo'",
+        "rs": [["t","foo"]]
+      }
+    ]
+  },{
+    "conn": {"dsn": "TAOS_ODBC_DSN"},
+    "sqls": [
+      "drop database if exists foo",
+      "create database if not exists foo",
+      "drop table if exists foo.t",
+      "create table foo.t(ts timestamp,name varchar(20))",
+      {
+        "sql": "select table_name, db_name from information_schema.ins_tables t where t.db_name like ?",
+        "executes": [
+          {
+            "params": [
+              ["foo"]
+            ],
+            "rs": [[["t","foo"]]]
+          }
+        ]
+      }
+    ]
+  }
+]
+
+

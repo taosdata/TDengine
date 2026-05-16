@@ -1,0 +1,24 @@
+[package]
+name = "ha-rpc-client"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+arrow.workspace = true
+arrow-flight.workspace = true
+flume.workspace = true
+futures.workspace = true
+ha-core.workspace = true
+snafu.workspace = true
+tokio.workspace = true
+tokio-util = { workspace = true, features = [ "time" ] }
+tonic.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+jsonwebtoken.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

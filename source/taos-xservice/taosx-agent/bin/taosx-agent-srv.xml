@@ -1,0 +1,8 @@
+<service>
+    <id>taosx-agent</id>
+    <name>taosX Agent</name>
+    <description>taosX Agent service powered by WinSW</description>
+    <logpath>C:\TDengine\log</logpath>
+    <logmode>roll</logmode>
+    <executable>C:\TDengine\taosx-agent.exe</executable>
+</service>

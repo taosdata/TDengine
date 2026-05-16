@@ -1,0 +1,63 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "192.168.1.61",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 8,
+    "create_table_thread_count": 8,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 1000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "ctg_res_db",
+                "drop": "yes",
+                "replica": 3,
+                "BUFFER": 32,
+                "CACHESIZE": 1,
+                "CACHEMODEL": "none",
+                "PRECISION": "ms",
+                "WAL_RETENTION_PERIOD": 3600,
+                "vgroups": 10,
+                "S3_CHUNKPAGES": 262144,
+                "S3_COMPACT": 0,
+                "S3_KEEPLOCAL": "5256000m",
+                "STT_TRIGGER": 2
+            },
+            "super_tables": [
+                {
+                    "name": "vehicle",
+                    "childtable_count": 1,
+                    "childtable_prefix": "v",
+                    "data_source": "rand",
+                    "timestamp_step": 5000,
+                    "start_timestamp": "2025-1-1 00:00:00",
+                    "insert_mode": "stmt",
+                    "line_protocol": "line",
+                    "non_stop_mode": "no",
+                    "insert_rows": 10,
+                    "interlace_rows": 1,
+                    "insert_interval": 10,
+                    "child_table_exists": "yes",
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "auto_create_table": "no",
+                    "columns": [
+                        {"name": "f0","type": "FLOAT"}
+                        ],
+                    "tags": [
+                        {"name": "t0","type": "BINARY", "len": 30}
+                        ]
+                }
+            ]
+        }
+    ]
+}

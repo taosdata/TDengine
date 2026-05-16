@@ -1,0 +1,14 @@
+jobs:
+  # TDengine insert job
+  insert-data:
+    steps:
+      - uses: tdengine/create-super-table
+      - uses: tdengine/create-child-table
+        with:
+          batch:
+            size: 1000
+            concurrency: 10
+
+      - uses: tdengine/insert
+        with:
+          concurrency: 8

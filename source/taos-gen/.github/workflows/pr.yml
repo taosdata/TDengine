@@ -1,0 +1,26 @@
+name: taosgen PR
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: Debug
+    secrets: inherit
+
+  release:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: Release
+      package_release: false

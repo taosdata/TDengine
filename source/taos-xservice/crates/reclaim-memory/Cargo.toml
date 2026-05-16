@@ -1,0 +1,21 @@
+[package]
+name = "reclaim-memory"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+libc = { workspace = true }
+libmimalloc-sys = { workspace = true, optional = true, features = ["extended"]}
+tokio = { workspace = true, features = ["time", "rt", "rt-multi-thread"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros"] }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+mimalloc = ["libmimalloc-sys"]

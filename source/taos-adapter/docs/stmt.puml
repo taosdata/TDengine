@@ -1,0 +1,96 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+
+title stmt
+
+note left of WSClient: version
+WSClient->WSServer: get version request
+activate WSServer
+WSServer->taosc:taos_get_client_info
+taosc-->WSServer:client version
+WSServer-->WSClient:client version
+note left of WSClient: connect
+WSClient->WSServer: DB connect request
+WSServer->taosc:taos_connect()
+activate taosc
+taosc-->WSServer: connect pointer
+deactivate taosc
+WSServer-->WSClient:DB connect response
+
+note left of WSClient: init
+WSClient->WSServer: init stmt request
+WSServer->taosc:taos_stmt_init()
+activate taosc
+taosc-->WSServer: stmt pointer
+deactivate taosc
+WSServer-->WSClient: prepare stmt response
+
+note left of WSClient: prepare
+WSClient->WSServer: prepare stmt request
+WSServer->taosc:taos_stmt_prepare()
+activate taosc
+taosc-->WSServer: prepare result
+deactivate taosc
+WSServer-->WSClient: prepare stmt response
+
+
+
+
+alt need set table name
+note left of WSClient: set table name
+WSClient->WSServer: set table name request
+WSServer->taosc:taos_stmt_set_tbname()
+activate taosc
+taosc-->WSServer: set table name result
+deactivate taosc
+WSServer-->WSClient: set table name response
+end
+
+alt need set tags
+    note left of WSClient: set tags
+    WSClient->WSServer: set tags request
+    WSServer->taosc:taos_stmt_get_tag_fields()
+    activate taosc
+taosc-->WSServer: get tag fields
+deactivate taosc
+WSServer->taosc:taos_stmt_set_tags()
+activate taosc
+taosc-->WSServer: set tags result
+deactivate taosc
+WSServer-->WSClient: set tags response
+end
+
+note left of WSClient: bind column
+loop bind column data
+
+    WSClient->WSServer: bind column request
+    WSServer->taosc:taos_stmt_get_col_fields()
+    activate taosc
+taosc-->WSServer: get column fields
+deactivate taosc
+WSServer->taosc:taos_stmt_bind_param_batch()
+activate taosc
+taosc-->WSServer: bind param result
+deactivate taosc
+WSServer-->WSClient: bind column response
+
+end
+
+note left of WSClient: add batch
+WSClient->WSServer: add batch request
+WSServer->taosc:taos_stmt_add_batch()
+activate taosc
+taosc-->WSServer: add batch result
+deactivate taosc
+WSServer-->WSClient: add batch response
+
+note left of WSClient: execute
+WSClient->WSServer: execute request
+WSServer->taosc:taos_stmt_execute()
+activate taosc
+taosc-->WSServer: execute result
+deactivate taosc
+WSServer-->WSClient: execute response
+
+@enduml

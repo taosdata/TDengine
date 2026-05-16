@@ -1,0 +1,29 @@
+name: Security Audit
+
+on:
+  push:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    permissions:
+      checks: write
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Audit check
+        working-directory: nodejs
+        run: npx audit-ci --moderate --allowlist GHSA-f886-m6hf-6m8v
+
+      - name: License check
+        working-directory: nodejs
+        run: |
+          npx license-checker-rseidelsohn \
+            --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;MPL-2.0;CC-BY-4.0;0BSD"

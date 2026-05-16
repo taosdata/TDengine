@@ -1,0 +1,59 @@
+name: sonar
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+      - '3.0'
+    paths-ignore:
+      - 'LICENSE'
+      - '*.md'
+      - '*.txt'
+  pull_request:
+    branches:
+      - main
+      - '3.0'
+    paths-ignore:
+      - 'LICENSE'
+      - '*.md'
+      - '*.txt'
+
+env:
+  CACHE_VERSION: v1  # Update this version when cache strategy needs refresh
+
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout JDBC connector
+        uses: actions/checkout@v4
+        with:
+          path: 'jdbc-workspace'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'zulu' # Alternative distribution options are available.
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      - name: Build and analyze
+        working-directory: jdbc-workspace
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.projectKey=taosdata_taosdata \
+            -DskipTests

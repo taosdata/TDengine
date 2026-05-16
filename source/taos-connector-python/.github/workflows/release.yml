@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Poetry Setup
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.2
+
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: poetry publish --build -n --username __token__ --password "$PYPI_TOKEN"
+
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Build tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential
+
+      - name: Setup Python
+        run: sudo apt-get install -y python3 python3-pip python-is-python3
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.5
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Cache Poetry
+        id: cache-poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ubuntu-22.04-poetry-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cache-poetry.outputs.cache-hit != 'true'
+        run: |
+          sudo apt install -y gnome-keyring
+          pip3 install --upgrade requests
+          poetry install --no-interaction --with=test --no-root
+
+      - name: Install library
+        run: poetry install --no-interaction --with=test
+
+      - name: Build Artifacts
+        run: poetry build
+
+      - name: Generate Changelog
+        run: ./ci/extract-changelog.sh > ${{ github.workflow }}-CHANGELOG.txt
+
+      - name: Create SBOM
+        run: |
+          pip3 install cyclonedx-bom
+          cyclonedx-py environment --output-format JSON --output-file taospy-sbom.cdx.json
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          body_path: ${{ github.workflow }}-CHANGELOG.txt
+          files: |
+            dist/*
+            taospy-sbom.cdx.json

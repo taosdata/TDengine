@@ -1,0 +1,14 @@
+[
+  {
+    conn: {dsn: TAOS_ODBC_DSN}
+  },{
+    conn: {dsn: xTAOS_ODBC_DSN},
+    positive: false
+  },{
+    conn: {connstr: "DSN=TAOS_ODBC_DSN"}
+  },{
+    conn: {connstr: "DSN=xTAOS_ODBC_DSN"},
+    positive: false
+  }
+]
+

@@ -1,0 +1,147 @@
+name: 'Setup TDengine Base'
+description: 'Base action for installing TDengine from local package (internal use)'
+
+inputs:
+  install-package:
+    description: 'Path to TDengine package or directory'
+    required: true
+  package-type:
+    description: 'Type of package: tar.gz or dir'
+    required: false
+    default: 'tar.gz'
+  start-services:
+    description: 'Whether to start taosd and taosadapter'
+    required: false
+    default: 'true'
+  config-files:
+    description: 'Comma-separated list of config files to copy'
+    required: false
+    default: 'taos.cfg,taosadapter.toml'
+  version:
+    description: 'TDengine version for logging'
+    required: false
+    default: 'unknown'
+  install-args:
+    description: 'Extra arguments passed to install.sh'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install TDengine
+      shell: bash
+      run: |
+        set +o pipefail  # Ignore pipe errors (e.g., from head/tail closing pipes early)
+        echo "Installing TDengine ${{ inputs.version }}..."
+
+        case "${{ inputs.package-type }}" in
+          tar.gz)
+            if [ ! -f "${{ inputs.install-package }}" ]; then
+              echo "Error: Package file not found: ${{ inputs.install-package }}"
+              exit 1
+            fi
+            echo "Extracting tarball..."
+            tar -zxf "${{ inputs.install-package }}" 2>&1 | tail -20 || true
+
+            # Find extracted directory
+            echo "Looking for extracted directory..."
+            if [ -d "release" ]; then
+              cd "release"
+            else
+              # Try to find TDengine directory
+              for dir in TDengine-server-* tsdb-nightly-*; do
+                if [ -d "$dir" ]; then
+                  echo "Found directory: $dir"
+                  cd "$dir"
+                  break
+                fi
+              done
+            fi
+            ;;
+          dir)
+            if [ ! -d "${{ inputs.install-package }}" ]; then
+              echo "Error: Package directory not found: ${{ inputs.install-package }}"
+              exit 1
+            fi
+            cd "${{ inputs.install-package }}"
+            ;;
+          *)
+            echo "Error: Unknown package type: ${{ inputs.package-type }}"
+            exit 1
+            ;;
+        esac
+
+        echo "Running install.sh..."
+        if [ -x ./install.sh ] && head -n 1 ./install.sh | grep -q '^#!'; then
+          install_cmd=(sudo ./install.sh)
+        else
+          install_cmd=(sudo sh ./install.sh)
+        fi
+
+        if [ -n "${{ inputs.install-args }}" ]; then
+          # shellcheck disable=SC2206
+          install_args=(${{ inputs.install-args }})
+          "${install_cmd[@]}" "${install_args[@]}"
+        else
+          "${install_cmd[@]}"
+        fi
+        echo "TDengine installed successfully"
+
+    - name: Configure TDengine
+      if: inputs.config-files != ''
+      shell: bash
+      run: |
+        echo "Configuring TDengine..."
+        sudo mkdir -p /etc/taos
+        IFS=',' read -ra configs < <(echo "${{ inputs.config-files }}")
+        for config in "${configs[@]}"; do
+          config_file=".github/workflows/$config"
+          if [ -f "$config_file" ]; then
+            echo "Copying $config..."
+            sudo cp "$config_file" "/etc/taos/$config"
+          else
+            echo "Warning: Config file not found: $config_file"
+          fi
+        done
+        echo "Configuration complete"
+
+    - name: Start TDengine services
+      if: inputs.start-services == 'true'
+      shell: bash
+      run: |
+        echo "Starting TDengine services..."
+
+        # Create start script for taosd
+        cat > start.sh << 'EOF'
+        ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+        EOF
+        chmod +x start.sh
+
+        # Start taosd
+        echo "Starting taosd..."
+        nohup sudo sh ./start.sh >taosd.out 2>&1 &
+        sleep 2
+
+        # Start taosadapter
+        echo "Starting taosadapter..."
+        sudo taosadapter >taosadapter.out 2>&1 &
+        sleep 2
+
+        echo "Services started"
+
+    - name: Wait for services ready
+      if: inputs.start-services == 'true'
+      shell: bash
+      run: |
+        echo "Waiting for taosadapter..."
+        for i in $(seq 1 30); do
+          if curl -sf "http://127.0.0.1:6041/-/ping" >/dev/null 2>&1; then
+            echo "taosadapter is ready"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Warning: taosadapter may not be ready"
+        echo "Last 20 lines of taosd.log:"
+        tail -20 taosd.out 2>/dev/null || true

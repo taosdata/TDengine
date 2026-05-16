@@ -1,0 +1,27 @@
+# file_union.in — FILE source UNION tests
+# Tests: UNION ALL, UNION dedup, FILE+TEXT, FILE+table combinations
+CREATE DATABASE IF NOT EXISTS file_union_db;
+USE file_union_db;
+CREATE STABLE IF NOT EXISTS meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8));
+CREATE TABLE IF NOT EXISTS m1 USING meters TAGS('f1');
+INSERT INTO m1 VALUES ('2026-04-01 00:00:00',100)('2026-04-01 00:01:00',200)('2026-04-01 00:02:00',300);
+# U1-old: no-ts FILE UNION ALL TEXT (now rejected)
+SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f UNION ALL SELECT id FROM TEXT(id INT) VALUES (10)(20) t ORDER BY id;
+# U1: ts FILE UNION ALL TEXT
+SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f UNION ALL SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) VALUES ('2026-02-01 00:00:00',10)('2026-02-02 00:00:00',20) t ORDER BY volt, ts;
+# U2-old: no-ts TEXT UNION ALL ts FILE (now rejected — TEXT side has no ts)
+SELECT volt FROM TEXT(volt INT) VALUES (999)(888) t UNION ALL SELECT volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f ORDER BY volt DESC;
+# U2: TEXT UNION ALL ts FILE ORDER BY volt DESC
+SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) VALUES ('2026-03-01 00:00:00',999)('2026-03-02 00:00:00',888) t UNION ALL SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f ORDER BY volt DESC;
+# U3-old: no-ts FILE UNION ALL FILE (now rejected)
+SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f1 UNION ALL SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f2 ORDER BY id;
+# U3: FILE UNION ALL FILE (same source, doubled)
+SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f1 UNION ALL SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f2 ORDER BY ts, volt;
+# U4-old: no-ts FILE UNION FILE dedup (now rejected)
+SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f1 UNION SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f2 ORDER BY id;
+# U4: FILE UNION FILE (dedup)
+SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f1 UNION SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f2 ORDER BY ts;
+# U5-old: ts FILE UNION ALL real table selecting only non-ts col (still valid — FILE has ts first col)
+SELECT volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f UNION ALL SELECT volt FROM m1 ORDER BY volt;
+# U5: ts FILE UNION ALL real table ORDER BY volt, ts
+SELECT ts, volt FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_basic.csv', 'ts TIMESTAMP, volt INT') f UNION ALL SELECT ts, volt FROM m1 ORDER BY volt, ts;

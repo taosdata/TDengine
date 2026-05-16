@@ -1,0 +1,24 @@
+dsn:
+  tmq:
+    - "tmq+ws://{0}/db_ci_topic"
+  tdengine2.x:
+    - "taos+ws://{0}/test_realtime"
+  pi:
+    - "pi://{0}/Meters?system_configuration=PI Data Archive and Asset Framework (AF) Server&PISystemName=WIN-2OA23UM12TN"
+    - "pi://{0}?system_configuration=PI Data Archive Only"
+  opcua:
+    - "opcua://{0}/OPCUA/SimulationServer"
+  opcda:
+    - "opcda://{0}/Matrikon.OPC.Simulation.1"
+  influxdb:
+    - "influxdb+http://{0}?version=2.7&orgId=17d08ca8b6b9c823&token=4DH05m1CpI41pS2eMXoKPE6cxpMdEpA6a9RQ5HNy6yAFHUIOFwkc9WAdzVTdE6RZoNNoeTRHO4AZiZOgXMk77Q==&addDbrp=false"
+  opentsdb:
+    - "opentsdb+http://{0}"
+  mqtt:
+    - "mqtt://{0}?version=3.1"
+    - "mqtt://{0}?version=3.1.1"
+    - "mqtt://{0}?version=5.0"
+  kafka:
+    - "kafka://{0}?topics=test_taosx&fallback_offset=Earliest&read_concurrency=0"
+  mssql:
+    - "mssql://test:tbase125%21@{0}/ci_test?encryption=Off&trust_cert=true&read_concurrency=0&batch_size=10000"

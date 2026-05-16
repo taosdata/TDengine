@@ -1,0 +1,66 @@
+# TDengine 查询性能测试配置文件
+# 用户可以根据需要修改SQL语句、执行次数和并发参数
+
+# 基础查询配置 - 每个查询将使用JMeter执行指定次数
+basic_queries:
+  # 条件过滤查询
+  condition_filter_queries:
+    - name: "条件过滤查询_ID等值"
+      description: "时序表查询-条件过滤(ID等值查询)"
+      sql: "select * from usecase17 where sid = 600001 limit 10"
+      iterations: 100
+      
+    - name: "条件过滤查询_价格范围"
+      description: "时序表查询-条件过滤(价格范围查询)"
+      sql: "select * from usecase17 where price > 10 limit 10"
+      iterations: 100
+
+  # 多表关联查询
+  join_queries:
+    - name: "多表关联查询"
+      description: "时序表查询-多表关联"
+      sql: "select * from d17_0 a, d17_1 b, d17_2 c where a.ts=b.ts and a.ts=c.ts limit 10"
+      iterations: 100
+
+  # 排序查询
+  order_queries:
+    - name: "字段排序查询"
+      description: "时序表查询-字段排序"
+      sql: "select * from d17_0 order by ts limit 10"
+      iterations: 100
+
+  # 聚合查询
+  aggregate_queries:
+    - name: "字段聚合查询"
+      description: "时序表查询-字段聚合"
+      sql: "select count(*) from d17_0"
+      iterations: 100
+
+# 并发查询配置
+concurrent_query:
+  name: "多表关联并发查询"
+  description: "时序表查询-多表关联并发测试"
+  sql: "select * from d17_0 a, d17_1 b, d17_2 c where a.ts=b.ts and a.ts=c.ts limit 10"
+  concurrency_levels: [10, 50, 100]
+  
+# 全局测试配置
+test_config:
+  # 是否启用SQL验证(在JMeter测试前先验证SQL正确性)
+  enable_sql_validation: true
+  
+  # 验证时使用的limit子句
+  validation_limit: 1
+  
+  # 是否生成截图
+  enable_screenshots: true
+  
+  # JMeter测试超时时间(秒)
+  jmeter_timeout: 3600
+
+# 扩展查询配置 - 用户可以添加自定义查询
+custom_queries:
+  # 示例：可以添加更多自定义查询
+  # - name: "自定义查询1"
+  #   description: "用户自定义查询描述"
+  #   sql: "select * from your_table where condition"
+  #   iterations: 5000 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="192px" height="192px" viewBox="0 0 192 192" enable-background="new 0 0 192 192" xml:space="preserve">
+<rect x="0" y="0" transform="matrix(-1.836970e-16 1 -1 -1.836970e-16 192 -2.131628e-13)" fill="none" width="192" height="192"/>
+<g>
+	<g>
+		<path fill="#669DF6" d="M159,131H98c-14.77,0-23,10.19-23,21c0,10,7,21,23,21h61V131z"/>
+		<circle fill="#1A73E8" cx="159" cy="152" r="21"/>
+	</g>
+	<g>
+		<path fill="#669DF6" d="M96,75H35c-14.77,0-23,10.19-23,21c0,10,7,21,23,21h61V75z"/>
+		<circle fill="#1A73E8" cx="96" cy="96" r="21"/>
+	</g>
+	<g>
+		<path fill="#669DF6" d="M159,19l-61,0c-14.77,0-23,10.19-23,21c0,10,7,21,23,21h61V19z"/>
+		<circle fill="#1A73E8" cx="159" cy="40" r="21"/>
+	</g>
+</g>
+</svg>

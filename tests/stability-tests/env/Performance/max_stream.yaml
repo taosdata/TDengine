@@ -1,0 +1,87 @@
+settings:
+  - name: taosd
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.5.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-53:6030
+      dnodes:
+        - endpoint: u1-53:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 131
+            supportVnodes: 1024
+            # logKeepDays:  -1
+            # numOfRpcSessions: 20000
+  - name: taospy
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.5.0
+      client_version: 3.0.5.0
+      config:
+        firstEP: u1-53:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+        asyncLog: 0
+
+  - name: taosAdapter
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.5.0
+      config_file: /etc/taos/taosadapter.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+          worker: 1000
+
+      taos_config:
+        firstEP: u1-53:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+  - name: taosBenchmark
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.5.0
+      taos_version: 3.0.5.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: u1-53:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+
+  - name: prometheus
+    fqdn: [u1-53]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 1s
+            scrape_interval: 3s
+            scrape_timeout: 3s
+          scrape_configs:
+            job_name: prometheus
+            targets: [192.168.1.53:9090]
+      node_exporter:
+        fqdn: [u1-53]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [u1-53]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd]
+          custom_process:
+            u1-53: [taosd]

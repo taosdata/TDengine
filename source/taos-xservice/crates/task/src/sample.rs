@@ -1,0 +1,142 @@
+use std::time::Duration;
+
+use anyhow::Context;
+use taos::{Dsn, IntoDsn};
+use taosx_core::plugins::transform::sample::DsSamples;
+
+pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSamples> {
+    let dsn = dsn.into_dsn().context("invalid dsn")?;
+    match dsn.driver.as_str() {
+        source_historian::AVEVA_HISTORIAN_ID => source_historian::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        source_kafka::KAFKA_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            source_kafka::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::Simple)
+        }
+        source_mqtt::MQTT_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            source_mqtt::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::Simple)
+        }
+        source_sparkplugb::SPARKPLUGB_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            source_sparkplugb::sample::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::MultiSchema)
+        }
+        source_mysql::MYSQL_ID => source_mysql::get_sample(&dsn).await.map(DsSamples::Simple),
+        source_postgres::POSTGRES_ID => source_postgres::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        source_oracle::ORACLE_ID => source_oracle::get_sample(&dsn).await.map(DsSamples::Simple),
+        source_mssql::MSSQL_ID => source_mssql::get_sample(&dsn).await.map(DsSamples::Simple),
+        source_mongodb::MONGODB_ID => source_mongodb::get_sample(&dsn)
+            .await
+            .map(DsSamples::Simple),
+        source_pulsar::PULSAR_ID | source_pulsar::PULSAR_TUYA_ID => {
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            source_pulsar::get_sample(&dsn, limit, timeout)
+                .await
+                .map(DsSamples::Simple)
+        }
+        s => Err(anyhow::anyhow!(
+            "get sample from data source {s} is unsupported"
+        )),
+    }
+}
+
+fn parse_sample_limit(dsn: &Dsn) -> usize {
+    dsn.params
+        .get("get_sample_limit")
+        .or(dsn.params.get("sample_data_limit"))
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(5)
+}
+
+fn parse_sample_timeout(dsn: &Dsn) -> Duration {
+    dsn.params
+        .get("get_sample_timeout")
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(30))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_parse_sample_limit() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 123);
+
+        let dsn = Dsn::from_str("taos://?get_sample_limit=").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://?get_sample_limit=abc").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 5);
+
+        let dsn = Dsn::from_str("taos://?sample_data_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 123);
+    }
+
+    #[test]
+    fn parse_sample_limit_prefers_get_sample_limit_over_legacy_key() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=7&sample_data_limit=123").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 7);
+    }
+
+    #[test]
+    fn parse_sample_limit_accepts_zero_and_max_values() {
+        let dsn = Dsn::from_str("taos://?get_sample_limit=0").unwrap();
+        assert_eq!(parse_sample_limit(&dsn), 0);
+
+        let dsn = Dsn::from_str(&format!("taos://?get_sample_limit={}", usize::MAX)).unwrap();
+        assert_eq!(parse_sample_limit(&dsn), usize::MAX);
+    }
+
+    #[test]
+    fn test_parse_sample_timeout() {
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=123").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(123));
+
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=abc").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn parse_sample_timeout_accepts_zero_and_ignores_legacy_limit_key() {
+        let dsn = Dsn::from_str("taos://?get_sample_timeout=0").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(0));
+
+        let dsn = Dsn::from_str("taos://?sample_data_timeout=9").unwrap();
+        assert_eq!(parse_sample_timeout(&dsn), Duration::from_secs(30));
+    }
+
+    #[tokio::test]
+    async fn get_sample_rejects_unsupported_driver_without_external_services() {
+        let err = get_sample("unsupported://localhost").await.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("get sample from data source unsupported is unsupported")
+        );
+    }
+}

@@ -1,0 +1,5 @@
+ignore:
+  - "bench"
+  - "benchmark"
+  - "examples"
+  - "ws/unified/tests/cmd"

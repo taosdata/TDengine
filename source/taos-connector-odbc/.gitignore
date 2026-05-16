@@ -1,0 +1,10 @@
+*.swp
+/debug
+/build
+/.externals
+node_modules
+package-lock.json
+package.json
+/.vscode
+.DS_Store
+

@@ -1,0 +1,27 @@
+[package]
+name = "taos-to-local"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+taos.workspace = true
+tokio-process-terminate.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+toml.workspace = true
+tempfile.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+deadpool.workspace = true
+taosx-core.workspace = true
+async-compression.workspace = true
+flume.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
+
+[lints]
+workspace = true

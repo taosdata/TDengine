@@ -1,0 +1,59 @@
+{
+  "producer": {
+    "host": "192.168.17.156",
+    "port": 6041,
+    "user": "root",
+    "password": "tqueue",
+    "charset": "UTF-8",
+    "locale": "en_US.UTF-8",
+    "timezone": "UTC-8",
+    "serializer": "STRING"
+  },
+  "task": {
+    "topic": "tq_test",
+    "partitions": [
+      "1..10"
+    ],
+    "threads": 10
+  },
+  "message": {
+    "total": 10000000,
+    "batchTables": 10,
+    "batchValues": 1,
+    "schema": {
+      "startTime":"2021-01-02 12:00:00.000",
+      "database": {
+        "name": "td_db_1",
+        "precision": "ms"
+      },
+      "stable": {
+        "name": "weather",
+        "tables": 1000000,
+        "columns": [
+          {"name": "ts", "type": "timestamp"},
+          {"name": "c1", "type": "bool"},
+          {"name": "c2", "type": "tinyint"},
+          {"name": "c3", "type": "smallint"},
+          {"name": "c4", "type": "int"},
+          {"name": "c5", "type": "bigint"},
+          {"name": "c6", "type": "float"},
+          {"name": "c7", "type": "double"},
+          {"name": "c8", "type": "binary", "length":32},
+          {"name": "c9", "type": "nchar",  "length":8},
+          {"name": "c10", "type": "timestamp"}
+        ],
+        "tags": [
+          {"name": "t1", "type": "bool"},
+          {"name": "t2", "type": "tinyint"},
+          {"name": "t3", "type": "smallint"},
+          {"name": "t4", "type": "int"},
+          {"name": "t5", "type": "bigint"},
+          {"name": "t6", "type": "float"},
+          {"name": "t7", "type": "double"},
+          {"name": "t8", "type": "binary", "length":32},
+          {"name": "t9", "type": "nchar",  "length":8}
+        ]
+      }
+    }
+  }
+}

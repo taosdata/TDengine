@@ -1,0 +1,52 @@
+settings:
+  - name: taosd
+    fqdn: [ cs215 ]
+    spec:
+      version: 2.4.0.0
+      config:
+        firstEP: cs215:6030
+      dnodes:
+        - endpoint: cs215:6030
+          config_dir: /var/taostest/dnode1/config
+          config:
+            dataDir: /var/taostest/dnode1/data
+            logDir: /var/taostest/dnode1/log
+            debugFlag: 135
+            walLevel: 2
+            fsync: 0
+  - name: taosd
+    fqdn: [ cs215 ]
+    spec:
+      version: 2.4.0.0
+      config:
+        firstEP: cs215:6050
+      dnodes:
+        - endpoint: cs215:6050
+          config_dir: /var/taostest/dnode2/config
+          config: # will write into taos.cfg
+            dataDir: /var/taostest/dnode2/data
+            logDir: /var/taostest/dnode2/log
+            debugFlag: 135
+            walLevel: 2
+            fsync: 0
+
+  - name: taospy
+    fqdn: [ localhost ]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.0
+      config_dir: taospy1
+      config:
+        firstEP: cs215:6030
+        logDir: C:\Users\bo\dev\log\taospy1
+        debugFlag: 131
+  - name: taospy
+    fqdn: [ localhost ]
+    spec:
+      version: 2.2.0
+      client_version: 2.4.0.0
+      config_dir: taospy2
+      config:
+        firstEP: cs215:6050
+        logDir: C:\Users\bo\dev\log\taospy2
+        debugFlag: 131

@@ -1,0 +1,48 @@
+version: "2"
+run:
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+linters:
+  enable:
+    - revive
+  settings:
+    revive:
+      rules:
+        - name: var-naming
+          arguments:
+            - [ "ID","IP","JSON","URL","HTTP","SQL","CPU","URI" ]
+            - [ ]
+            - - skip-package-name-checks: true
+        - name: context-keys-type
+        - name: time-naming
+        - name: var-declaration
+        - name: unexported-return
+        - name: errorf
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: range
+        - name: receiver-naming
+        - name: indent-error-flow
+        - name: unreachable-code
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

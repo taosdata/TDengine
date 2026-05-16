@@ -1,0 +1,173 @@
+name: Enterprise
+
+on:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set timezone
+        run: sudo timedatectl set-timezone Asia/Shanghai
+
+      - name: Get TDengine
+        run: wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-main.tar.gz?v=$(date +%s)" -O tsdb-nightly-main.tar.gz
+
+      - name: Install TDengine
+        run: |
+          tar -zxf tsdb-nightly-main.tar.gz
+          rm -rf tsdb-nightly-main.tar.gz
+          cd tsdb-nightly-main
+          sudo ./install.sh
+
+      - name: Copy taos.cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+
+      - name: Start TDengine
+        run: |
+          mkdir -p /tmp/taos/log /tmp/taos/data
+          taosd &
+          TAOS_ADAPTER_LOG_PATH=/tmp/taos/log taosadapter &
+
+      - name: Start Nginx
+        run: |
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/tls12.conf
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/tls13.conf
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/verify_ca.conf
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/verify_identity.conf
+
+      - name: Set up Rust
+        id: setup-rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Cache .cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Cache target
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-taos-target-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Test C WebSocket version info
+        run: |
+          TD_VERSION=3.9.9.9 cargo nextest run -p taos-ws-sys test_taos_get_client_info_injected -- --ignored
+          TD_VERSION="$(printf '\xff\xfe')" cargo nextest run -p taos-ws-sys test_taos_get_client_info_default
+
+      - name: Generate code coverage
+        env:
+          TDENGINE_CLOUD_URL: ${{ secrets.TDENGINE_CLOUD_URL }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+        run: |
+          sed -i 's/crate-type = \["cdylib", "staticlib"\]/crate-type = ["rlib"]/' taos-ws-sys/Cargo.toml
+          RUST_BACKTRACE=1 cargo llvm-cov nextest -j 4 --workspace \
+            --features ws-rustls-ring-crypto-provider,test-new-feat,test-tls,test-enterprise \
+            --lcov --output-path lcov.info --no-fail-fast
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true
+          verbose: true
+
+  test-asan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set timezone
+        run: sudo timedatectl set-timezone Asia/Shanghai
+
+      - name: Get TDengine
+        run: wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-main.tar.gz?v=$(date +%s)" -O tsdb-nightly-main.tar.gz
+
+      - name: Install TDengine
+        run: |
+          tar -zxf tsdb-nightly-main.tar.gz
+          rm -rf tsdb-nightly-main.tar.gz
+          cd tsdb-nightly-main
+          sudo ./install.sh
+
+      - name: Copy taos.cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+
+      - name: Start TDengine
+        run: |
+          mkdir -p /tmp/taos/log /tmp/taos/data
+          taosd &
+          TAOS_ADAPTER_LOG_PATH=/tmp/taos/log taosadapter &
+
+      - name: Start Nginx
+        run: |
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/tls12.conf
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/tls13.conf
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/verify_ca.conf
+          sudo nginx -p "$PWD" -c taos-ws/tests/nginx/verify_identity.conf
+
+      - name: Set up Rust
+        id: setup-rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Cache .cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Cache target
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-taos-target-${{ steps.setup-rust.outputs.rustc_hash }}
+
+      - name: Run tests with ASAN
+        env:
+          TDENGINE_CLOUD_URL: ${{ secrets.TDENGINE_CLOUD_URL }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+        run: |
+          sed -i 's/crate-type = \["cdylib", "staticlib"\]/crate-type = ["rlib"]/' taos-ws-sys/Cargo.toml
+          RUSTFLAGS="-Zsanitizer=address -C linker=clang" cargo +nightly nextest run -j 4 \
+            --workspace -Z build-std --target x86_64-unknown-linux-gnu \
+            --features ws-rustls-ring-crypto-provider,test-new-feat,test-tls,test-enterprise \
+            --no-fail-fast

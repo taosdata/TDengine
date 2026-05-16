@@ -1,0 +1,15 @@
+task_name: tmq_subscribe
+task_type: tmq
+
+from:
+  fromhost: tmq+ws://root:taosdata@{0}/tmq_source
+  auto.offset.reset: earliest
+  timeout: never
+to:
+  target_type: taos
+  target_dbname: tmq_stable
+
+task_exec_time: 30
+
+source:
+  name: tmq_source

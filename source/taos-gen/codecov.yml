@@ -1,0 +1,11 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        paths:
+          - "src/"
+          - "!src/**/test/**"
+ignore:
+  - "src/**/test/**"
+  - "test/**"

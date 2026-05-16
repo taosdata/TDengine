@@ -1,0 +1,2 @@
+#####
+taostest --containers --disable_collection --setup=cluster/cluster_100_dnodes.yaml --case=stability/insert/insert_test_pro.py --keep --case-param="\"--insert-tmpl-file=cases/stability/insert/meters3.json --insert-cfg-file=cases/stability/insert/write_7.cfg --key REPLICA=3 --check-result --enable-second-round\""

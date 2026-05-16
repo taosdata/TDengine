@@ -1,0 +1,2 @@
+com.taosdata.jdbc.tmq.JNIConsumerFactory
+com.taosdata.jdbc.ws.tmq.WSConsumerFactory

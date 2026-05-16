@@ -1,0 +1,100 @@
+cd ../../../debug; cmake -DCMAKE_BUILD_TYPE=Debug -DVERSION=cluster ..
+cd ../../../debug; make clean
+cd ../../../debug; make
+sudo rm -rf /usr/lib/libtaos.so*
+sudo cp ../../../debug/build/lib/libtaos.so* /usr/lib
+
+../script/test.sh -f cluster/account/account_create.sim
+../script/test.sh -f cluster/account/account_len.sim
+../script/test.sh -f cluster/account/pass_alter.sim
+../script/test.sh -f cluster/account/pass_len.sim
+../script/test.sh -f cluster/account/authority.sim
+../script/test.sh -f cluster/account/account_delete.sim
+../script/test.sh -f cluster/account/user_create.sim
+../script/test.sh -f cluster/account/user_len.sim
+../script/test.sh -f cluster/account/monitor.sim
+
+../script/test.sh -f cluster/big/tcp.sim
+
+../script/test.sh -f lite/cache/cache_balance.sim
+
+../script/test.sh -f cluster/cluster/balance1.sim
+../script/test.sh -f cluster/cluster/balance2.sim
+../script/test.sh -f cluster/cluster/balance3.sim
+../script/test.sh -f cluster/cluster/balance1_bug.sim
+../script/test.sh -f cluster/cluster/balance1_single.sim
+
+../script/test.sh -f cluster/column/replica3.sim
+
+../script/test.sh -f cluster/db/commit.sim
+../script/test.sh -f cluster/db/delete.sim
+../script/test.sh -f cluster/db/delete_part.sim
+../script/test.sh -f cluster/db/replica_add12.sim
+../script/test.sh -f cluster/db/replica_add13.sim
+../script/test.sh -f cluster/db/replica_add23.sim
+../script/test.sh -f cluster/db/replica_part.sim
+../script/test.sh -f cluster/db/replica_reduce21.sim
+../script/test.sh -f cluster/db/replica_reduce32.sim
+../script/test.sh -f cluster/db/replica_reduce31.sim
+
+../script/test.sh -f cluster/dnode/balance1.sim
+../script/test.sh -f cluster/dnode/balance2.sim
+../script/test.sh -f cluster/dnode/balance3.sim
+../script/test.sh -f cluster/dnode/balancex.sim
+../script/test.sh -f cluster/dnode/offline1.sim
+../script/test.sh -f cluster/dnode/offline2.sim
+../script/test.sh -f cluster/dnode/remove1.sim
+../script/test.sh -f cluster/dnode/remove2.sim
+../script/test.sh -f cluster/dnode/vnode_clean.sim
+
+../script/test.sh -f cluster/http/admin.sim
+
+../script/test.sh -f cluster/import/replica2.sim
+../script/test.sh -f cluster/import/replica3.sim
+
+../script/test.sh -f cluster/metrics/dnode2.sim
+../script/test.sh -f cluster/metrics/dnode2_stop.sim
+../script/test.sh -f cluster/metrics/dnode3.sim
+../script/test.sh -f cluster/metrics/replica2_dnode4.sim
+../script/test.sh -f cluster/metrics/replica2_vnode3.sim
+../script/test.sh -f cluster/metrics/replica3_dnode6.sim
+../script/test.sh -f cluster/metrics/replica3_vnode3.sim
+
+../script/test.sh -f cluster/mnode/drop.sim
+../script/test.sh -f cluster/mnode/mgmt22.sim
+../script/test.sh -f cluster/mnode/mgmt23.sim
+../script/test.sh -f cluster/mnode/mgmt24.sim
+../script/test.sh -f cluster/mnode/mgmt25.sim
+../script/test.sh -f cluster/mnode/mgmt26.sim
+../script/test.sh -f cluster/mnode/mgmt33.sim
+../script/test.sh -f cluster/mnode/mgmt34.sim
+../script/test.sh -f cluster/mnode/mgmtr1.sim
+../script/test.sh -f cluster/mnode/mgmtr2.sim
+../script/test.sh -f cluster/mnode/reuse.sim
+../script/test.sh -f cluster/mnode/secondIp.sim
+          
+../script/test.sh -f cluster/stream/metrics_balance.sim
+../script/test.sh -f cluster/stream/metrics_replica1_dnode2.sim
+../script/test.sh -f cluster/stream/metrics_replica2_dnode2.sim
+../script/test.sh -f cluster/stream/metrics_replica2_dnode2_vnoden.sim
+../script/test.sh -f cluster/stream/metrics_replica2_dnode3.sim
+../script/test.sh -f cluster/stream/metrics_replica3_dnode4.sim
+../script/test.sh -f cluster/stream/metrics_vnode_stop.sim
+#../script/test.sh -f cluster/stream/table_balance.sim
+#../script/test.sh -f cluster/stream/table_move.sim
+../script/test.sh -f cluster/stream/table_replica1_dnode2.sim
+../script/test.sh -f cluster/stream/table_replica2_dnode2.sim
+../script/test.sh -f cluster/stream/table_replica2_dnode2_vnoden.sim
+../script/test.sh -f cluster/stream/table_replica2_dnode3.sim
+../script/test.sh -f cluster/stream/table_replica3_dnode4.sim
+../script/test.sh -f cluster/stream/table_vnode_stop.sim
+
+../script/test.sh -f cluster/table/delete_part.sim
+
+../script/test.sh -f cluster/vnode/commit.sim
+../script/test.sh -f cluster/vnode/many.sim
+../script/test.sh -f cluster/vnode/replica2_basic.sim
+../script/test.sh -f cluster/vnode/replica2_basic2.sim
+../script/test.sh -f cluster/vnode/replica2_repeat.sim
+../script/test.sh -f cluster/vnode/replica3_basic.sim
+../script/test.sh -f cluster/vnode/replica3_repeat.sim

@@ -1,0 +1,17 @@
+#匿名登录认证, MQTT协议3.1, 单个主题订阅, 日志级别 info
+task_name: mqtt
+task_type: mqtt
+
+from:
+  fromhost: mqtt://{0}
+  topics: testmqtt/1::2
+  version: 3.1
+  clean_session: "true"
+  client_id: mqtt_test
+  keep_alive: 60
+
+to:
+  target_type: taos
+  target_dbname: ci_db_mqtt
+
+task_exec_time: 10

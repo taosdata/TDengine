@@ -1,0 +1,153 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/data/zhongao/cfg3/cfg1",
+    "host": "localhost",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 100,
+    "create_table_thread_count": 8,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 1000,
+    "num_of_records_per_req": 1000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "iot",
+                "drop": "yes",
+                "replica": 3,
+                "precision": "ms",
+                "vgroups": 16,
+                "DURATION": "144000m",
+                "keep": "5256000m",
+                "minRows": 100,
+                "maxRows": 4096,
+                "cachemodel": "'both'",
+                "CACHESIZE": 100,
+                "STT_TRIGGER": 2,
+                "comp": 2
+            },
+            "super_tables": [
+                {
+                    "name": "iot_qflvf3cywao_1",
+                    "child_table_exists": "no",
+                    "childtable_count": 50000,
+                    "childtable_prefix": "m",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "stmt",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 35000,
+                    "childtable_limit": 10,
+                    "childtable_offset": 100,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 1000,
+                    "start_timestamp": "2024-11-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        { "type": "DOUBLE", "name": "v","count": 100, "max": 100, "min": 0 }
+                    ],
+                    "tags": [
+                        {
+                            "type": "BIGINT",
+                            "name": "tenant_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        },{
+                            "type": "BIGINT",
+                            "name": "product_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        },{
+                            "type": "BIGINT",
+                            "name": "device_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        },{
+                            "type": "BIGINT",
+                            "name": "category_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        }
+                    ]
+                },
+                {
+                    "name": "iot_qflvf3cywao_1_ts",
+                    "child_table_exists": "no",
+                    "childtable_count": 50000,
+                    "childtable_prefix": "ts_m",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "stmt",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 1,
+                    "childtable_limit": 10,
+                    "childtable_offset": 100,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 1000,
+                    "start_timestamp": "2049-10-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        { "type": "TIMESTAMP", "name": "ts_v","count": 100}
+                    ],
+                    "tags": [
+                        {
+                            "type": "BIGINT",
+                            "name": "tenant_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        },{
+                            "type": "BIGINT",
+                            "name": "product_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        },{
+                            "type": "BIGINT",
+                            "name": "device_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        },{
+                            "type": "BIGINT",
+                            "name": "category_id",
+                            "count": 1,
+                            "max": 1000,
+                            "min": 1
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

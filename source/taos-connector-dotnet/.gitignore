@@ -1,0 +1,56 @@
+test/Driver.Test/bin/
+test/Driver.Test/obj/
+test/Driver.Test/doc/
+test/Driver.Test/TestResults/
+test/Benchmark/bin/
+test/Benchmark/obj/
+test/Benchmark/result/
+test/Benchmark/Benchmark.csproj.user
+test/Benchmark/Properties/
+testEnvironments.json
+coveragereport/
+src/bin/
+src/obj/
+NugetPackTest/
+examples/bin/
+examples/obj/
+examples/FrameWork45/Properties/
+examples/FrameWork45/bin/
+examples/FrameWork45/obj/
+examples/NET6Examples/Properties/
+examples/NET6Examples/bin/
+examples/NET6Examples/obj/
+examples/Properties/
+examples/FrameWork45/FrameWork45.csproj.user
+.vs
+.idea
+.config/
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# User-specific files (MonoDevelop/Xamarin Studio)
+*.userprefs
+
+# Mono auto generated files
+mono_crash.*
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+/taos-connector-dotnet.cdx.json

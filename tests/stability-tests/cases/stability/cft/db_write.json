@@ -1,0 +1,93 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/root/charles/node1",
+    "host": "u1-35",
+    "port": 6130,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 10,
+    "create_table_thread_count": 1,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 1,
+    "num_of_records_per_req": 5000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "keep_trying":-1,
+    "trying_interval":1,
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "stability_db",
+                "drop": "yes",
+                "replica": 1,
+                "precision": "ms",
+                "buffer": 256,
+                "stt_trigger": 8,
+                "vgroups": 10,
+                "minRows": 100,
+                "maxRows": 4096,
+                "wal_retention_period": 3600
+            },
+            "super_tables": [
+                {
+                    "name": "st_common",
+                    "child_table_exists": "no",
+                    "childtable_count": 100,
+                    "childtable_prefix": "ct_",
+                    "batch_create_tbl_num":100,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "insert_rows": 200000,
+                    "interlace_rows": 1,
+                    "insert_interval": 0,
+                    "disorder_ratio": 5,
+                    "update_ratio": 2,
+                    "delete_ratio": 1,
+                    "disorder_fill_interval": 300,
+                    "update_fill_interval": 25,
+                    "generate_row_rule": 2,
+                    "start_timestamp": "2021-10-01 08:00:00.000",
+                    "use_sample_ts": "no",
+                    "timestamp_step": 123456,
+                    "keep_trying": -1,
+                    "trying_interval": 0,
+                    "columns": [
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "dc",  "max": 1, "min": 0 },
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": 0 },
+                        { "type": "smallint",    "name": "si",  "max": 100, "min": 0 },
+                        { "type": "int",         "name": "ic",  "max": 100, "min": 0 },
+                        { "type": "bigint",      "name": "bi",  "max": 100, "min": 0 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "usi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "ui",  "max": 100, "min": 0 },
+                        { "type": "ubigint",     "name": "ubi", "max": 100, "min": 0 },
+                        { "type": "binary",      "name": "bin", "len": 32},
+                        { "type": "nchar",       "name": "nch", "len": 64}
+                    ],
+                    "tags": [
+                        {
+                            "type": "tinyint",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "binary",
+                            "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

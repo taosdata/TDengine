@@ -1,0 +1,25 @@
+name: taos-ws-py-audit
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    paths:
+      - "taos-ws-py/**"
+      - ".github/workflows/taos-ws-py*.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-deny:
+    permissions:
+      checks: write
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: taos-ws-py/Cargo.toml

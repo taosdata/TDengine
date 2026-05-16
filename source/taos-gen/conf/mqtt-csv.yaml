@@ -1,0 +1,49 @@
+mqtt:
+  uri: tcp://localhost:1883
+  user: root
+  password: taosdata
+
+schema:
+  name: meters
+  from_csv:
+    tags:
+      file_path: ../conf/ctb-tags.csv
+      tbname_index: 2
+      exclude_indices:
+    columns:
+      loading_mode: preload
+      file_path: ../conf/ctb-data.csv
+      tbname_index : 0
+      timestamp_index: 1
+      repeat_read: true
+  columns:
+    - name: ts
+      type: timestamp
+      start: now
+      precision : ms
+      step: 1
+    - name: current
+      type: float
+    - name: voltage
+      type: int
+    - name: phase
+      type: float
+  tags:
+    - name: groupid
+      type: int
+    - name: location
+      type: binary(24)
+  generation:
+    interlace: 1
+    rows_per_table: 100
+    rows_per_batch: 10000
+
+jobs:
+  # MQTT publish job
+  publish-data:
+    steps:
+      - uses: mqtt/publish
+        with:
+          concurrency: 8
+          topic: tsbench/{table}
+          qos: 0

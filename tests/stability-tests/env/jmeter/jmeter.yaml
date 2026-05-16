@@ -1,0 +1,100 @@
+settings:
+  - name: taosd
+    fqdn: [node230]
+    spec:
+      version: 3.1.1.45  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: node230:6030
+      dnodes:
+        - endpoint: node230:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            qDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+
+
+  - name: taosBenchmark
+    fqdn: [node230]
+    spec:
+      version: 3.1.1.45
+      taos_version: 3.1.1.45
+      config_dir: /root/jayden/config/dnode1
+      taos_config:
+        firstEP: node230:6030
+        logDir: /root/jayden/log/taos/dnode1
+        debugFlag: 131
+
+  - name: taospy
+    fqdn: [node230]
+    spec:
+      version: 3.1.1.45
+      client_version: 3.1.1.45
+      config:
+        firstEP: node230:6030
+        dataDir: /root/jayden/lib/taos/dnode1
+        logDir: /root/jayden/log/taos/dnode1
+        debugFlag: 131
+        asynclog: 0
+
+  - name: jmeter
+    fqdn: [node230]
+    spec:
+      server:
+        version: "5.6.3"
+        offline: false
+        local_package_path: "/tmp"
+        install_java: false
+        run_dir: /opt
+
+        # JMX模板和SQL文件配置
+        jmx_template: "jmetest.jmx"
+        sql_file: "test_sqls.sql"
+
+        # 全局变量配置
+        global_variables:
+          # 数据库连接配置
+          db_host: "192.168.1.230"
+          db_port: "6041"
+          username: "root"
+          password: "taosdata"
+
+          # 性能测试参数
+          thread_count: "5"
+          ramp_time: "0"
+          loop_count: "10"
+          query_timeout: "10"
+          pool_max: "32"
+          connection_timeout: "36000"
+
+        # # 测试场景配置
+        # test_scenarios:
+        #   # 轻量级测试
+        #   - name: "light_load"
+        #     thread_count: "10"
+        #     loop_count: "20"
+        #     ramp_time: "0"
+
+        #   # 中等负载测试
+        #   - name: "medium_load"
+        #     thread_count: "100"
+        #     loop_count: "50"
+        #     ramp_time: "0"
+
+        # 结果收集配置
+        result_config:
+          collect_jtl: true
+          collect_html_report: true
+          collect_logs: true
+
+          # 性能指标阈值
+          performance_thresholds:
+            avg_response_time_ms: 1000    # 平均响应时间阈值(毫秒)
+            max_response_time_ms: 5000    # 最大响应时间阈值(毫秒)
+            error_rate_percent: 1.0       # 错误率阈值(百分比)
+
+      jdbc-driver:
+        version: 3.4.0

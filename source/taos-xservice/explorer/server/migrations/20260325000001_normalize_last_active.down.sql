@@ -1,0 +1,3 @@
+-- No-op: the forward migration is a data fix that cannot be meaningfully reversed.
+-- Rolling back would require the original per-request last_active values which are
+-- not preserved.  The column itself is unchanged.

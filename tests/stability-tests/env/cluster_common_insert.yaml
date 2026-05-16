@@ -1,0 +1,73 @@
+settings:
+  - name: taosd
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-53:6030
+      dnodes:
+        - endpoint: u1-53:6030
+          config_dir: /root/jayden/config/dnode1
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /root/jayden/lib/taos/dnode1
+            logDir: /root/jayden/log/taos/dnode1
+            mdebugflag: 131
+            stdebugflag: 131
+            vdebugflag: 131
+            rpcdebugflag: 131
+            tqDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+            checkpointInterval: 60
+        - endpoint: u1-53:6031
+          config_dir: /root/jayden/config/dnode2
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /root/jayden/lib/taos/dnode2
+            logDir: /root/jayden/log/taos/dnode2
+            mdebugflag: 131
+            stdebugflag: 131
+            vdebugflag: 131
+            rpcdebugflag: 131
+            tqDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+            checkpointInterval: 60
+      reserve_dnodes:
+        - endpoint: u1-53:6035
+          config_dir: /root/jayden/config/dnode6
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /root/jayden/lib/taos/dnode6
+            logDir: /root/jayden/log/taos/dnode6
+            mdebugflag: 131
+            stdebugflag: 131
+            vdebugflag: 131
+            rpcdebugflag: 131
+            tqDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+            checkpointInterval: 60
+  - name: taosBenchmark
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.0.0
+      taos_version: 3.0.0.0
+      config_dir: /root/jayden/config/dnode1
+      taos_config:
+        firstEP: u1-53:6030
+        logDir: /root/jayden/log/taos/dnode1
+        debugFlag: 131
+  - name: taospy
+    fqdn: [u1-53]
+    spec:
+      version: 3.0.0.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: u1-53:6030
+        dataDir: /root/jayden/lib/taos/dnode1
+        logDir: /root/jayden/log/taos/dnode1
+        debugFlag: 131
+        asynclog: 0
+

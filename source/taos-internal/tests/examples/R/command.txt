@@ -1,0 +1,69 @@
+#linux platform
+install.packages('rJDBC', repos='http://cran.us.r-project.org')
+
+#加载RJDBC包
+library('RJDBC')
+#设置工作路径，JDBC驱动存放位置
+setwd('C:/TDengine')
+
+#加载TDengine的JDBC驱动
+drv<-JDBC("com.taosdata.jdbc.TSDBDriver","JDBCDriver-1.0.0-dist.jar", identifier.quote="\"")
+
+#连接数据库
+conn<-dbConnect(drv,"jdbc:TSDB://192.168.1.114:0/?user=root&password=taosdata","root","taosdata")
+
+#获取连接信息
+dbGetInfo(conn)
+
+#使用数据库test
+dbSendUpdate(conn, "use test")
+
+#插入数据
+dbSendUpdate(conn, "insert into t1 values(now, 99)")
+
+#查看所有表
+table1<-dbGetQuery(conn,"show tables") 
+
+#对RJDBC的函数支持
+#列全部表
+dbListTables(conn)
+
+#连接摘要信息
+summary(conn)
+dbGetInfo(conn)
+
+#读取t1表的全部数据
+dbReadTable(conn, "t1")
+
+#删除表t1
+dbRemoveTable(conn,"t1")
+
+dbSendUpdate(conn, "create table t1(a timestamp, b int, c nchar(12))");
+
+#写入数据
+dbWriteTable(conn, "t1", t_demo_n, overwrite=FALSE, append=TRUE)
+
+#使用sql语句按需提取数据
+table(conn, "select k from tu")
+
+#JDBC(驱动,jar包,分隔符)：加载数据库驱动
+
+#dbConnect(驱动参数,url,用户名,密码,其他)：连接数据库
+
+#dbListTables(conn)：显示连接中的所有表
+
+#dbWriteTable(conn, "iris", iris, overwrite=TRUE)：将数据框iris写入表iris中，overwrite覆盖原表
+
+（append=TRUE追加,dbWriteTable(conn, "IRIS", d, overwrite=FALSE,append=TRUE)且d要与表iris的结构一致。）
+
+#dbGetQuery(conn, "select count(*) from iris")：查询语句
+
+#dbSendUpdate(conn,”sql语句”)：执行任何非查询sql语句
+
+#dbReadTable(conn, "iris")：读取表中数据
+
+#dbDisconnect(conn)：关闭连接
+
+#dbExistsTable(conn,”iris”)：是否存在表iris
+
+#dbRemoveTable(conn,”iris”)：删除表iris

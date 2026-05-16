@@ -1,0 +1,309 @@
+{
+  "tasks_num": 1,
+  "export_time": "2026-03-25T15:14:20.101031+08:00",
+  "tasks": [
+    {
+      "id": 1,
+      "name": "kafka",
+      "from": {
+        "type": "kafka",
+        "data": {
+          "host": "localhost",
+          "port": 9092,
+          "endpoint": "localhost:9092",
+          "batch_size": "1000",
+          "busy_threshold": "100%",
+          "char_encoding": "UTF_8",
+          "client_id": "taosx_client_3u7oka6o",
+          "fallback_offset": "Earliest",
+          "group": "taosx_group",
+          "health_check_window_in_second": "0s",
+          "max_errors_in_window": "10",
+          "max_queue_length": "1000",
+          "read_concurrency": "0",
+          "timeout": "0ms",
+          "topics": "abc"
+        }
+      },
+      "to": "taos+http://root:taosdata@localhost:6041/test",
+      "parser": {
+        "parser": {
+          "global": {
+            "cache": {
+              "keep_days": "30d",
+              "max_size": "1GB",
+              "rotate_count": 100,
+              "location": "",
+              "on_fail": "skip"
+            },
+            "archive": {
+              "keep_days": "30d",
+              "max_size": "1GB",
+              "rotate_count": 100,
+              "location": "",
+              "on_fail": "rotate"
+            },
+            "database_connection_error": "cache",
+            "database_not_exist": "break",
+            "table_not_exist": "retry",
+            "primary_timestamp_overflow": "archive",
+            "primary_timestamp_null": "archive",
+            "primary_key_null": "archive",
+            "table_name_length_overflow": "archive",
+            "table_name_contains_illegal_char": {
+              "replace_to": ""
+            },
+            "variable_not_exist_in_table_name_template": {
+              "replace_to": ""
+            },
+            "field_name_not_found": "add_field",
+            "field_name_length_overflow": "archive",
+            "field_length_extend": true,
+            "field_length_overflow": "archive",
+            "ingesting_error": "archive",
+            "connection_timeout_in_second": "30s"
+          },
+          "parse": {
+            "value": {
+              "json": ""
+            }
+          },
+          "rules": [
+            {
+              "matches": {
+                "expr": "modelQualifier == \"air_robot_v\""
+              },
+              "mutate": [
+                {
+                  "extract": {
+                    "reportData": {
+                      "json": ""
+                    }
+                  }
+                },
+                {
+                  "map": {
+                    "ts": {
+                      "cast": "originTime",
+                      "as": "TIMESTAMP(ms)"
+                    },
+                    "DeviceNo": {
+                      "cast": "DeviceNo",
+                      "as": "BIGINT"
+                    },
+                    "originTime": {
+                      "cast": "originTime",
+                      "as": "BIGINT"
+                    },
+                    "RunMode": {
+                      "cast": "RunMode",
+                      "as": "BIGINT"
+                    },
+                    "DStatus": {
+                      "cast": "DStatus",
+                      "as": "BIGINT"
+                    },
+                    "dataQualifier": {
+                      "cast": "dataQualifier",
+                      "as": "VARCHAR"
+                    },
+                    "deviceName": {
+                      "cast": "deviceName",
+                      "as": "VARCHAR"
+                    },
+                    "deviceQualifier": {
+                      "cast": "deviceQualifier",
+                      "as": "VARCHAR"
+                    },
+                    "factoryCode": {
+                      "cast": "factoryCode",
+                      "as": "VARCHAR"
+                    },
+                    "factoryName": {
+                      "cast": "factoryName",
+                      "as": "VARCHAR"
+                    },
+                    "machineType": {
+                      "cast": "machineType",
+                      "as": "BIGINT"
+                    },
+                    "machineTypeName": {
+                      "cast": "machineTypeName",
+                      "as": "VARCHAR"
+                    },
+                    "modelQualifier": {
+                      "cast": "modelQualifier",
+                      "as": "VARCHAR"
+                    },
+                    "uuid": {
+                      "cast": "uuid",
+                      "as": "VARCHAR"
+                    }
+                  }
+                }
+              ],
+              "model": {
+                "name": "robot_${uuid}",
+                "using": "robot",
+                "tags": [
+                  "dataQualifier",
+                  "deviceName",
+                  "deviceQualifier",
+                  "factoryCode",
+                  "factoryName",
+                  "machineType",
+                  "machineTypeName",
+                  "modelQualifier",
+                  "uuid"
+                ],
+                "columns": [
+                  "ts",
+                  "DeviceNo",
+                  "originTime",
+                  "RunMode",
+                  "DStatus"
+                ]
+              }
+            },
+            {
+              "matches": {
+                "expr": "modelQualifier == \"air_conditioner_v\""
+              },
+              "mutate": [
+                {
+                  "extract": {
+                    "reportData": {
+                      "json": ""
+                    }
+                  }
+                },
+                {
+                  "map": {
+                    "ts": {
+                      "cast": "originTime",
+                      "as": "TIMESTAMP(ms)"
+                    },
+                    "DeviceNo": {
+                      "cast": "DeviceNo",
+                      "as": "BIGINT"
+                    },
+                    "HumiSet": {
+                      "cast": "HumiSet",
+                      "as": "BIGINT"
+                    },
+                    "originTime": {
+                      "cast": "originTime",
+                      "as": "BIGINT"
+                    },
+                    "Temp": {
+                      "cast": "Temp",
+                      "as": "DOUBLE"
+                    },
+                    "RunMode": {
+                      "cast": "RunMode",
+                      "as": "BIGINT"
+                    },
+                    "TempSet": {
+                      "cast": "TempSet",
+                      "as": "BIGINT"
+                    },
+                    "DeviceStatus": {
+                      "cast": "DeviceStatus",
+                      "as": "BIGINT"
+                    },
+                    "Humi": {
+                      "cast": "Humi",
+                      "as": "DOUBLE"
+                    },
+                    "dataQualifier": {
+                      "cast": "dataQualifier",
+                      "as": "VARCHAR"
+                    },
+                    "deviceName": {
+                      "cast": "deviceName",
+                      "as": "VARCHAR"
+                    },
+                    "deviceQualifier": {
+                      "cast": "deviceQualifier",
+                      "as": "VARCHAR"
+                    },
+                    "factoryCode": {
+                      "cast": "factoryCode",
+                      "as": "VARCHAR"
+                    },
+                    "factoryName": {
+                      "cast": "factoryName",
+                      "as": "VARCHAR"
+                    },
+                    "machineType": {
+                      "cast": "machineType",
+                      "as": "BIGINT"
+                    },
+                    "machineTypeName": {
+                      "cast": "machineTypeName",
+                      "as": "VARCHAR"
+                    },
+                    "modelQualifier": {
+                      "cast": "modelQualifier",
+                      "as": "VARCHAR"
+                    },
+                    "uuid": {
+                      "cast": "uuid",
+                      "as": "VARCHAR"
+                    }
+                  }
+                }
+              ],
+              "model": {
+                "name": "conditionor_${uuid}",
+                "using": "conditionor",
+                "tags": [
+                  "dataQualifier",
+                  "deviceName",
+                  "deviceQualifier",
+                  "factoryCode",
+                  "factoryName",
+                  "machineType",
+                  "machineTypeName",
+                  "modelQualifier",
+                  "uuid"
+                ],
+                "columns": [
+                  "ts",
+                  "DeviceNo",
+                  "HumiSet",
+                  "originTime",
+                  "Temp",
+                  "RunMode",
+                  "TempSet",
+                  "DeviceStatus",
+                  "Humi"
+                ]
+              }
+            }
+          ]
+        },
+        "format": {
+          "pageCount": 19,
+          "pageSize": 20,
+          "currentPage": 1
+        },
+        "input": [
+          {
+            "value": "{    \"dataQualifier\": \"jobInfo\",    \"deviceName\": \"设备名称详情\",    \"deviceQualifier\": \"air_conditioner$MF202203110001$air_conditioner_plc_protocol0$2\",    \"factoryCode\": \"MF202203110001\",    \"factoryName\": \"北京赢识科技有限公司\",    \"machineType\": 5,    \"machineTypeName\": \"机器人\",    \"modelQualifier\": \"air_robot_v\",    \"reportData\": {            \"DeviceNo\": 2,            \"originTime\": 1766366626844,            \"RunMode\": 0,            \"DStatus\": 4    },    \"uuid\": \"9b1bb91c-1d6d-4bbc-914f-36a066863121\"}"
+          },
+          {
+            "value": "{    \"dataQualifier\": \"jobInfo\",    \"deviceName\": \"设备名称详情\",    \"deviceQualifier\": \"air_conditioner$MF202203110001$air_conditioner_plc_protocol0$2\",    \"factoryCode\": \"MF202203110001\",    \"factoryName\": \"北京赢识科技有限公司\",    \"machineType\": 5,    \"machineTypeName\": \"空调\",    \"modelQualifier\": \"air_conditioner_v\",    \"reportData\": {            \"DeviceNo\": 2,            \"HumiSet\": 0,            \"originTime\": 1766366626844,            \"Temp\": 13.628554344177246,            \"RunMode\": 0,            \"TempSet\": 20,            \"DeviceStatus\": 4,            \"Humi\": 63.07699203491211    },    \"uuid\": \"9b1bb91c-1d6d-4bbc-914f-36a066863121\"}"
+          }
+        ]
+      },
+      "via": null,
+      "created_at": "2026-03-25T06:40:01.314Z",
+      "trigger": null,
+      "labels": {
+        "type": "datain",
+        "user": "root"
+      }
+    }
+  ]
+}

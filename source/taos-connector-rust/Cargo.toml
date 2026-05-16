@@ -1,0 +1,34 @@
+[workspace]
+members = [
+  "mdsn",
+  "taos",
+  "taos-error",
+  "taos-log",
+  "taos-macros",
+  "taos-optin",
+  "taos-query",
+  "taos-ws",
+  "taos-ws-sys",
+]
+
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.12.4"
+
+authors = ["Linhe Huo <linhe.huo@gmail.com>"]
+categories = ["database", "api-bindings", "asynchronous"]
+description = "Driver for TDengine - a timeseries database and analysis platform"
+documentation = "https://docs.rs/taos"
+homepage = "https://tdengine.com"
+keywords = ["timeseries", "database", "tdengine", "taosdata", "connection"]
+license = "MIT OR Apache-2.0"
+readme = "./README.md"
+repository = "https://github.com/taosdata/taos-connector-rust.git"
+rust-version = "1.90.0"
+
+[profile.release]
+lto = true
+panic = "abort"
+overflow-checks = false

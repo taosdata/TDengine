@@ -1,0 +1,49 @@
+settings:
+  - name: taosd
+    fqdn: [u1-41,u1-42,u1-45]
+    spec:
+      version: 3.0.0.1000  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: u1-41:6030
+      dnodes:
+        - endpoint: u1-41:6030
+          config_dir: /root/data/var/3.0/dnode1
+          config: # will write into taos.cfg
+            dataDir: /root/data/var/3.0/dnode1
+            logDir: /root/data/var/3.0/dnode1
+            debugFlag: 135
+        - endpoint: u1-42:6030
+          config_dir: /root/data/var/3.0/dnode2
+          config: # will write into taos.cfg
+            dataDir: /root/data/var/3.0/dnode2
+            logDir: /root/data/var/3.0/dnode2
+            debugFlag: 135
+        - endpoint: u1-45:6030
+          config_dir: /root/data/var/3.0/dnode3
+          config: # will write into taos.cfg
+            dataDir: /root/data/var/3.0/dnode3
+            logDir: /root/data/var/3.0/dnode3
+            debugFlag: 135
+
+  - name: taospy
+    fqdn: [u1-41]
+    spec:
+      version: 3.0.0.1000
+      client_version: 3.0.0.1000
+      config:
+        firstEP: u1-41:6030
+        dataDir: /root/data/var/3.0/dnode1
+        logDir: /root/data/var/3.0/dnode1
+        debugFlag: 135
+        asynclog: 0
+  
+  - name: taosBenchmark
+    fqdn: [u1-40]
+    spec:
+      version: 1.0.0
+      taos_version: 3.0.0.1000
+      config_dir: /root/data/var/3.0/dnode3
+      taos_config:
+        firstEP: u1-41:6030
+        logDir: /root/data/var/3.0/dnode3
+        debugFlag: 131

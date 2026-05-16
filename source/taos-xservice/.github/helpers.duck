@@ -1,0 +1,75 @@
+fn upx_expect_version
+end
+
+fn upx_exe
+end
+
+fn upx_arch
+end
+
+fn upx_run
+  echo "UPX args: ${1} ${2}"
+  fi = set ${1}
+  if not is_file ${fi}
+    echo "File ${fi} not found"
+    exit 1
+  end
+  name = basename ${fi}
+  fo = set ${2}
+  if is_dir ${fo}
+    fo = set "${fo}/${name}"
+  else
+    fod = dirname ${fo}
+    if not is_dir ${fod}
+      mkdir ${fod}
+    fi
+  end
+  echo "Compressing ${fi} to ${fo} using UPX"
+
+  os = os_family
+  upx = which upx
+  upx_dir = get_env "UPX_DIR"
+  use_local_upx = set false
+
+  if is_empty ${upx}
+    echo "UPX not found, use local upx in ${upx_dir}"
+    cm_run_task upx-local
+    upx = set "${upx_dir}/upx"
+    use_local_upx = set true
+  else
+    echo "UPX found: ${upx}"
+  end
+
+  output = exec ${upx} --version
+
+  if contains ${output.stdout} "upx 5"
+    echo "Use upx version: ${stdout}"
+  else
+    echo "${output.stdout}"
+    echo "UPX version not 5, use local upx in ${upx_dir}"
+    if use_local_upx
+      echo "WARN: Local upx is not 5.x, please remove ${upx_dir} and update it"
+      #rm ${upx}
+    end
+    #cm_run_task upx-local
+    upx = set "${upx_dir}/upx"
+  end
+
+  if is_file ${fo}
+    echo "Remove file ${fo}"
+    rm ${fo}
+  end
+
+  exec ${upx} -f ${fi} -o ${fo}
+
+  if not is_file ${fo}
+    echo "UPX failed, fallback to copy"
+    cp ${fi} ${fo}
+  else
+    ver = exec ${fo} -V || true
+    if not contains ${ver.stdout} "version"
+      echo "UPX result file is not ok(-V: ${ver}), fallback to copy"
+      cp ${fi} ${fo}
+    end
+  end
+end

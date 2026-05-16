@@ -1,0 +1,7 @@
+# file_no_ts.in — FILE source with no TIMESTAMP first column (now all rejected)
+# Tests: SELECT all cols, ORDER BY, GROUP BY on non-ts FILE
+CREATE DATABASE IF NOT EXISTS file_nots_db;
+USE file_nots_db;
+SELECT id, score FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f ORDER BY id;
+SELECT id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f ORDER BY score DESC;
+SELECT COUNT(id) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_no_ts.csv', 'id INT, name VARCHAR(16), score FLOAT') f GROUP BY name ORDER BY name;

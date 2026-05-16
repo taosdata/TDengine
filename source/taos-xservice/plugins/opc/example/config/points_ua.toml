@@ -1,0 +1,18 @@
+opc_type = "opcua"
+debug = false
+
+[connect.ua]
+endpoint = "opc.tcp://127.0.0.1:4840"
+connect_timeout = 10
+request_timeout = 10
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+
+[points] # config for collect opc points.
+limit = 200 # max points return in one request
+regex = ".*" # regex for point name
+
+[points.ua]
+root = "i=85"

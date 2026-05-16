@@ -1,0 +1,82 @@
+[
+  {
+    "conn": {},
+    "sqls": [
+      "show databases",
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table t(ts timestamp,name varchar(20),age int,sex varchar(10),birth timestamp,text nchar(3),f float,d double)",
+      "select * from t",
+      {
+        "sql":"insert into t (ts, name) values (?, ?)",
+        "executes": [
+          {
+            "params": [
+              [{"timestamp":1662961478755},"name1"],
+              [{"timestamp":1662961478756},"name2"],
+              [{"timestamp":1662961478757},"name3"]
+            ],
+            "positive": true
+          }
+        ]
+      },{
+        "sql": "select count(*) from t",
+        "rs": [[3]]
+      },
+      "create table st (ts timestamp, age int) tags (name varchar(20))",
+      {
+        "sql": "insert into suzhou using st tags ('shanghai') values (1665226861289, 200)"
+      },{
+        "comments": "if subtable has not been created previously, memleakage might occur because of `taos_stmt_get_tag_fields`",
+        "sql":"insert into ? using st tags (?) values (?, ?)",
+        "executes": [
+          {
+            "params": [
+              ["suzhou","suzhou",{"timestamp":1662961478755},1234],
+              ["suzhou","suzhou",{"timestamp":1662961478756},5678],
+              ["suzhou","suzhou",{"timestamp":1662961478757},null],
+              ["suzhou","suzhou",{"timestamp":1662961478758},9012]
+            ],
+            "positive": true
+          }
+        ]
+      }
+    ]
+  },{
+    "conn": {},
+    "sqls": [
+      "drop database if exists foo",
+      "create database foo",
+      "use foo",
+      "create table st (ts timestamp, age int, name varchar(5)) tags (id int, id2 int)",
+      {
+        "sql": "insert into ? using st tags (?,?) values (?,?,?)",
+        "executes": [
+          {
+            "params": [
+              ["suzhou", {"int":345}, {"int":456}, {"timestamp":1665226961289}, {"int":40}, "name1"],
+              ["suzhou", {"int":345}, {"int":456}, {"timestamp":1665226961290}, {"int":45}, null],
+              ["suzhou", {"int":345}, {"int":456}, {"timestamp":1665226961291}, {"int":50}, "name2"]
+            ],
+            "positive": true
+          }
+        ]
+      },{
+        "sql": "select count(*) from st",
+        "rs": [[3]]
+      },{
+        "sql": "select age from st where age = ?",
+        "executes": [
+          {
+            "params":[[40]],
+            "rs": [[[40]]]
+          }
+        ]
+      }
+    ]
+  }
+]
+
+
+
