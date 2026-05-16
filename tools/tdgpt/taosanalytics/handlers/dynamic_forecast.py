@@ -49,12 +49,13 @@ class DynamicForecastService(AbstractForecastService):
         if algo_name == 'arima':
             forecaster = ArimaModelForecaster(self.config_file_path, df, self.rows, alpha=1 - self.conf)
         else:
-            # Prophet requires tz-naive datetime in its 'ds' column; strip timezone
-            # after converting to the target tz so that local time values are correct.
-            prophet_df = df.rename(columns={'ts': 'ds'}).copy()
-            prophet_df['ds'] = prophet_df['ds'].dt.tz_localize(None)
+            # ProphetModelForecaster expects ts/y columns and renames ts→ds internally.
+            # Strip the timezone from ts so Prophet receives tz-naive datetimes with
+            # local time values already converted to the target tz.
+            df_prophet = df.copy()
+            df_prophet['ts'] = df_prophet['ts'].dt.tz_localize(None)
             forecaster = ProphetModelForecaster(
-                self.config_file_path, prophet_df, self.rows, alpha=1 - self.conf)
+                self.config_file_path, df_prophet, self.rows, alpha=1 - self.conf)
 
         result = forecaster.forecast()
 

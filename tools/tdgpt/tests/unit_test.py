@@ -835,3 +835,42 @@ class ServiceTest(unittest.TestCase):
                 os.remove(config_path)
             if os.path.isdir(temp_dir):
                 os.rmdir(temp_dir)
+
+    def test_dynamic_iforest_execute_returns_one_code_per_point(self):
+        """DynamicAnomalyService.execute() should return one anomaly code per input point."""
+        import os
+        from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        n_points = 20
+        input_data = list(range(n_points))
+        expected_codes = [1] * n_points
+
+        config_path = os.path.join(tempfile.gettempdir(), "iforest_exec_test.json")
+        service_name = "iforest_exec_test"
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._iforest_config_content())
+
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+            service = loader.get_service(service_name)
+            self.assertIsInstance(service, DynamicAnomalyService)
+
+            service.set_input_list(input_data, list(range(n_points)))
+
+            with mock.patch.object(IsolationForestModelDetector, "detect",
+                                   return_value=expected_codes) as mocked_detect:
+                result = service.execute()
+
+            self.assertEqual(len(result), n_points)
+            self.assertEqual(result, expected_codes)
+            mocked_detect.assert_called_once()
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+
+if __name__ == '__main__':
+    unittest.main()
