@@ -517,6 +517,7 @@ func TestGetPointsRegexp(t *testing.T) {
 					NodeType:    "Variable",
 					ParentID:    "ns=2;s=main",
 					Path:        "Objects.main.int32",
+					DataType:    "Int32",
 				},
 				{
 					ID:          "ns=2;s=main",

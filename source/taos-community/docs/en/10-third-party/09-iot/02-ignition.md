@@ -10,7 +10,7 @@ toc_max_heading_level: 5
 
 Ignition supports a variety of SQL databases with its SQL Bridge module, and you can add database connections to your Ignition deployment through JDBC. This article describes how to install TDengine TSDB’s JDBC connector in Ignition and integrate the products, allowing you to work with data from Ignition in [TDengine IDMP](https://tdengine.com/idmp/) and other applications.
 
-![architecture](../../assets/ignition-01.webp)
+![architecture](../../assets/ignition-01.png)
 
 <center>TDengine–Ignition integration architecture</center>
 

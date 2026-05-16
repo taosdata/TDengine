@@ -23,6 +23,7 @@ void test_schemaless_format_single_table() {
     auto* sf = get_schemaless_format_options(format);
     (void)sf;
     assert(sf != nullptr);
+    sf->tbname_key = "id";
 
     InsertDataConfig config;
     config.schema.name = "meters";
@@ -93,6 +94,7 @@ void test_schemaless_format_multiple_tables() {
     DataFormat format;
     format.format_type = "schemaless";
     auto* sf = get_schemaless_format_options(format);
+    sf->tbname_key = "id";
     (void)sf;
     assert(sf != nullptr);
 
@@ -205,11 +207,124 @@ void test_schemaless_format_via_factory() {
     std::cout << "test_schemaless_format_via_factory passed!" << std::endl;
 }
 
+void test_schemaless_format_no_tbname_key() {
+    DataFormat format;
+    format.format_type = "schemaless";
+    auto* sf = get_schemaless_format_options(format);
+    // Default tbname_key is "" — no child table name tag in output
+    (void)sf;
+    assert(sf != nullptr);
+    assert(sf->tbname_key.empty());
+
+    InsertDataConfig config;
+    config.schema.name = "meters";
+    config.timestamp_precision = "ms";
+    set_tdengine_database_sml(config, "test_db");
+
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"current", "FLOAT"});
+    tag_instances.emplace_back(ColumnConfig{"location", "VARCHAR(64)"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({1500000000000, {3.14f}});
+    batch.table_batches.push_back({"d1001", rows});
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    assert(block != nullptr);
+
+    std::vector<ColumnType> tag_values;
+    tag_values.emplace_back(std::string("Beijing"));
+    block->tables[0].tags_ptr = pool.register_table_tags("d1001", tag_values);
+
+    SchemalessInsertDataFormatter formatter(format);
+    formatter.init(config, col_instances, tag_instances);
+    FormatResult result = formatter.format(block);
+
+    assert(std::holds_alternative<InsertFormatResult>(result));
+    const auto& ptr = std::get<InsertFormatResult>(result);
+    auto* base_ptr = ptr.get();
+    assert(base_ptr != nullptr);
+
+    const auto* payload = base_ptr->payload_as<SchemalessInsertData>();
+    assert(payload != nullptr);
+    (void)payload;
+    const std::string& lines = payload->lines;
+    (void)lines;
+    // Should NOT contain any id/table name tag
+    assert(lines.find("id=") == std::string::npos);
+    assert(lines.find("d1001") == std::string::npos);
+    // Should still contain measurement and user tags
+    assert(lines.find("meters,") == 0);
+    assert(lines.find("location=Beijing") != std::string::npos);
+    assert(lines.find("current=") != std::string::npos);
+
+    std::cout << "test_schemaless_format_no_tbname_key passed!" << std::endl;
+}
+
+void test_schemaless_format_custom_tbname_key() {
+    DataFormat format;
+    format.format_type = "schemaless";
+    auto* sf = get_schemaless_format_options(format);
+    sf->tbname_key = "device_id";
+    assert(sf != nullptr);
+
+    InsertDataConfig config;
+    config.schema.name = "meters";
+    config.timestamp_precision = "ms";
+    set_tdengine_database_sml(config, "test_db");
+
+    ColumnConfigInstanceVector col_instances;
+    ColumnConfigInstanceVector tag_instances;
+    col_instances.emplace_back(ColumnConfig{"current", "FLOAT"});
+    tag_instances.emplace_back(ColumnConfig{"location", "VARCHAR(64)"});
+
+    MultiBatch batch;
+    std::vector<RowData> rows;
+    rows.push_back({1500000000000, {3.14f}});
+    batch.table_batches.push_back({"d1001", rows});
+    batch.update_metadata();
+
+    MemoryPool pool(1, 1, 1, col_instances, tag_instances);
+    auto* block = pool.convert_to_memory_block(std::move(batch));
+    assert(block != nullptr);
+
+    std::vector<ColumnType> tag_values;
+    tag_values.emplace_back(std::string("Beijing"));
+    block->tables[0].tags_ptr = pool.register_table_tags("d1001", tag_values);
+
+    SchemalessInsertDataFormatter formatter(format);
+    formatter.init(config, col_instances, tag_instances);
+    FormatResult result = formatter.format(block);
+
+    assert(std::holds_alternative<InsertFormatResult>(result));
+    const auto& ptr = std::get<InsertFormatResult>(result);
+    auto* base_ptr = ptr.get();
+    assert(base_ptr != nullptr);
+
+    const auto* payload = base_ptr->payload_as<SchemalessInsertData>();
+    assert(payload != nullptr);
+    (void)payload;
+    const std::string& lines = payload->lines;
+    (void)lines;
+    // Should use custom tbname_key "device_id"
+    assert(lines.find("device_id=d1001") != std::string::npos);
+    // Should NOT contain ",id=" as a standalone tag key
+    assert(lines.find(",id=") == std::string::npos);
+
+    std::cout << "test_schemaless_format_custom_tbname_key passed!" << std::endl;
+}
+
 int main() {
     test_schemaless_format_single_table();
     test_schemaless_format_multiple_tables();
     test_schemaless_format_empty_rows();
     test_schemaless_format_via_factory();
+    test_schemaless_format_no_tbname_key();
+    test_schemaless_format_custom_tbname_key();
     std::cout << "All schemaless tests passed!" << std::endl;
     return 0;
 }

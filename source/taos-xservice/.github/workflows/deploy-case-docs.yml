@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - 'main'
+      - "main"
     paths:
-      - 'tests/e2e/test_function/*_test.py'
-      - 'explorer/tests/*.spec.ts'
-      - 'tests/integration/**/*.rs'
-      - '.github/workflows/deploy-case-docs.yml'
-      - '.github/scripts/generate_case_md.py'
+      - "tests/e2e/test_function/*_test.py"
+      - "explorer/tests/*.spec.ts"
+      - "tests/integration/**/*.rs"
+      - ".github/workflows/deploy-case-docs.yml"
+      - ".github/scripts/generate_case_md.py"
 
 jobs:
   generate_and_deploy:
@@ -28,11 +28,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install MkDocs and dependencies
-        run: |
-          pip install mkdocs mkdocs-material mike "mkdocstrings[python]" pyyaml
+        run: pip install mkdocs mkdocs-material mike "mkdocstrings[python]" pyyaml
 
       - name: Set target branch name
         run: |
@@ -48,8 +47,7 @@ jobs:
           echo "MIKE_VERSION=$MIKE_VERSION" >> $GITHUB_ENV
 
       - name: Generate markdown documentation
-        run: |
-          python .github/scripts/generate_case_md.py
+        run: python .github/scripts/generate_case_md.py
         shell: bash
 
       - name: Deploy documentation with Mike

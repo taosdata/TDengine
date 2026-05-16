@@ -2,18 +2,22 @@ name: OPC_PLUGIN_WIN
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - 'plugins/opc/**'
+      - ".github/workflows/opc_win.yaml"
+      - "plugins/opc/**"
   pull_request:
     paths:
-      - 'plugins/opc/**'
+      - ".github/workflows/opc_win.yaml"
+      - "plugins/opc/**"
 
 jobs:
   build:
     runs-on: windows-2022
     strategy:
       matrix:
-        go: [ '1.20' , 'stable' ]
+        go: ["1.20", "stable"]
 
     name: opc_build ${{ matrix.go }}
     steps:
@@ -36,7 +40,7 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        go: [ '1.20' , 'stable' ]
+        go: ["1.20", "stable"]
 
     name: opc_test ${{ matrix.go }}
     steps:

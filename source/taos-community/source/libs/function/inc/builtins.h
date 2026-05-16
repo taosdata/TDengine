@@ -30,8 +30,9 @@ typedef int32_t (*FCreateMergeFuncParameters)(SNodeList* pRawParameters, SNode* 
 typedef EFuncDataRequired (*FFuncDynDataRequired)(void* pRes, SDataBlockInfo* pBlocInfo);
 typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
-#define MAX_FUNC_PARA_NUM             16
-#define MAX_FUNC_PARA_FIXED_VALUE_NUM 16
+#define MAX_FUNC_PARA_PATTERN_NUM     2
+#define MAX_FUNC_INPUT_PARA_NUM       8
+#define MAX_FUNC_PARA_FIXED_VALUE_NUM 8
 
 
 typedef struct SParamRange {
@@ -57,7 +58,7 @@ typedef struct SFunctionParaInfo {
   int8_t     minParamNum;
   int8_t     maxParamNum;
   uint8_t    paramInfoPattern;
-  SParamInfo inputParaInfo[MAX_FUNC_PARA_NUM][MAX_FUNC_PARA_NUM];
+  SParamInfo inputParaInfo[MAX_FUNC_PARA_PATTERN_NUM][MAX_FUNC_INPUT_PARA_NUM];
   SParamInfo outputParaInfo;
 } SFunctionParaInfo;
 

@@ -154,7 +154,7 @@ Please refer to:
 
   **Reason**: The program cannot find the required local function library taos.
 
-  **Solution**: On Windows, you can copy C:\TDengine\driver\taos.dll to the C:\Windows\System32\ directory. On Linux, create the following symlink `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so`. On macOS, create a symlink `ln -s /usr/local/lib/libtaos.dylib`.
+  **Solution**: On Windows, you can copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory. On Linux, create the following symlink `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so`. On macOS, create a symlink `ln -s /usr/local/lib/libtaos.dylib`.
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 

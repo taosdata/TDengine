@@ -1238,7 +1238,7 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
     }
   }
 
-  uInfo("load from env variables cfg success");
+  uInfo("load config from env variables success");
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1306,7 +1306,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
     filepath = envFile;
   } else {
     if (!taosCheckExistFile(filepath)) {
-      uInfo("env file:%s not load", filepath);
+      uDebug("env file:%s not load", filepath);
       TAOS_RETURN(TSDB_CODE_SUCCESS);
     }
   }
@@ -1457,10 +1457,10 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   (void)taosCloseFile(&pFile);
 
   if (TSDB_CODE_SUCCESS == code || TSDB_CODE_CFG_NOT_FOUND == code) {
-    uInfo("load from cfg file %s success", filepath);
+    uInfo("load config from cfg file %s success", filepath);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   } else {
-    (void)printf("failed to load from cfg file %s since %s\n", filepath, tstrerror(code));
+    (void)printf("failed to load config from cfg file %s since %s\n", filepath, tstrerror(code));
     TAOS_RETURN(code);
   }
 }

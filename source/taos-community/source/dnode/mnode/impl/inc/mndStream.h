@@ -128,13 +128,13 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define MST_LIST_SIZE(_l) ((_l) ? TD_DLIST_NELES(_l) : 0)
 
 // clang-format off
-#define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
-#define mstError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("MSTM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
-#define mstWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("MSTM WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
-#define mstInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("MSTM INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
-#define mstDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("MSTM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
-#define mstDebugL(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLongString("MSTM DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
-#define mstTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("MSTM TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
+#define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MST FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
+#define mstError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("MST ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
+#define mstWarn(...)  do { if (stDebugFlag & DEBUG_WARN)  { taosPrintLog("MST WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
+#define mstInfo(...)  do { if (stDebugFlag & DEBUG_INFO)  { taosPrintLog("MST INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
+#define mstDebug(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLog("MST DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define mstDebugL(...) do { if (stDebugFlag & DEBUG_DEBUG) { taosPrintLongString("MST DEBUG ", DEBUG_DEBUG, stDebugFlag, __VA_ARGS__); }} while(0)
+#define mstTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("MST TRACE ", DEBUG_TRACE, stDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define msttFatal(param, ...)                                                                               \

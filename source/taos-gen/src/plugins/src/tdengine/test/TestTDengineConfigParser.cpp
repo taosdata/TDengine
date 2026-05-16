@@ -1,6 +1,8 @@
 #include "ConfigParser.hpp"
 #include "TDengineConfigParser.hpp"
 #include "TDengineRegistrar.hpp"
+#include "SchemalessFormatOptions.hpp"
+#include "PluginExtensions.hpp"
 #include <iostream>
 #include <sstream>
 #include <cassert>
@@ -92,10 +94,61 @@ checkpoint:
     assert(idc.checkpoint_info.interval_sec == 5000);
 }
 
+void test_TDengine_schemaless_tbname_key() {
+    // Test default: tbname_key is empty
+    {
+        std::string yaml = R"(
+format: schemaless
+schema:
+  name: meters
+  columns:
+    - name: current
+      type: FLOAT
+  tags:
+    - name: location
+      type: VARCHAR(64)
+)";
+        YAML::Node node = YAML::Load(yaml);
+        InsertDataConfig idc;
+        PluginConfigRegistry::apply_format_decoder("tdengine", node, idc);
+        assert(idc.data_format.format_type == "schemaless");
+        auto* sf = get_format_opt_mut<SchemalessFormatOptions>(idc.data_format, "schemaless");
+        assert(sf != nullptr);
+        (void)sf;
+        assert(sf->tbname_key.empty());
+    }
+
+    // Test custom tbname_key
+    {
+        std::string yaml = R"(
+format: schemaless
+tbname_key: "device_id"
+schema:
+  name: meters
+  columns:
+    - name: current
+      type: FLOAT
+  tags:
+    - name: location
+      type: VARCHAR(64)
+)";
+        YAML::Node node = YAML::Load(yaml);
+        InsertDataConfig idc;
+        PluginConfigRegistry::apply_format_decoder("tdengine", node, idc);
+        auto* sf = get_format_opt_mut<SchemalessFormatOptions>(idc.data_format, "schemaless");
+        assert(sf != nullptr);
+        (void)sf;
+        assert(sf->tbname_key == "device_id");
+    }
+
+    std::cout << "test_TDengine_schemaless_tbname_key PASSED\n";
+}
+
 int main() {
     register_tdengine_plugin_config_hooks();
     test_TDengine();
     test_InsertDataConfig_tdengine();
+    test_TDengine_schemaless_tbname_key();
 
     std::cout << "All ConfigParser YAML tests passed!" << std::endl;
     return 0;

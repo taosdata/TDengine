@@ -2,18 +2,22 @@ name: OPC_PLUGIN_LINUX
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - 'plugins/opc/**'
+      - ".github/workflows/opc_linux.yaml"
+      - "plugins/opc/**"
   pull_request:
     paths:
-      - 'plugins/opc/**'
+      - ".github/workflows/opc_linux.yaml"
+      - "plugins/opc/**"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        go: [ '1.20' , 'stable' ]
+        go: ["1.20", "stable"]
 
     name: opc_build ${{ matrix.go }}
     steps:
@@ -34,7 +38,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        go: [ '1.20' , 'stable' ]
+        go: ["1.20", "stable"]
 
     name: opc_test ${{ matrix.go }}
     steps:
@@ -57,7 +61,7 @@ jobs:
         run: pip3 install opcua
 
       - name: run ua server
-        run:  nohup python3 plugins/opc/test/ua_server.py & disown
+        run: nohup python3 plugins/opc/test/ua_server.py & disown
 
       - name: run opc-plc server
         run: docker run -itd -p 50000:50000 -p 8080:8080 --name opcplc mcr.microsoft.com/iotedge/opc-plc:2.9.9   --pn=50000 --autoaccept --sph --sn=5 --sr=10 --st=uint   --fn=10000 --fr=10 --ft=uint --gn=5 --ut

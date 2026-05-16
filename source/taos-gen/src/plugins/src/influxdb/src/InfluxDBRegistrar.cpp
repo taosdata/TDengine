@@ -21,7 +21,7 @@ void register_influxdb_plugin_config_hooks() {
         [](const YAML::Node& node, InsertDataConfig& cfg) {
             // Detect unknown configuration keys
             static const std::set<std::string> target_keys = {
-                "influxdb", "precision", "batch_size", "gzip"
+                "influxdb", "precision", "batch_size", "gzip", "tbname_key"
             };
             std::set<std::string> valid_keys = YAML::merge_keys<std::string>(
                 {YAML::insert_common_keys, target_keys});
@@ -65,6 +65,10 @@ void register_influxdb_plugin_config_hooks() {
 
             if (node["gzip"]) {
                 fmt->gzip = node["gzip"].as<bool>();
+            }
+
+            if (node["tbname_key"]) {
+                fmt->tbname_key = node["tbname_key"].as<std::string>();
             }
 
             cfg.data_format.format_type = "influxdb";

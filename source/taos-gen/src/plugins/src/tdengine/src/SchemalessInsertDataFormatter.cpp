@@ -43,7 +43,7 @@ FormatResult SchemalessInsertDataFormatter::format(MemoryPool::MemoryBlock* batc
             }
 
             if (!RowSerializer::to_influx_inplace(
-                cols(), tags(), table_block, row_idx, measurement, "id", line_buffer,
+                cols(), tags(), table_block, row_idx, measurement, format_options_->tbname_key, line_buffer,
                 IntSuffixMode::TDENGINE)) {
                 line_buffer.resize(pos_before);
                 continue;
