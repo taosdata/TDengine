@@ -837,7 +837,7 @@ class ServiceTest(unittest.TestCase):
                 os.rmdir(temp_dir)
 
     def test_dynamic_iforest_execute_returns_one_code_per_point(self):
-        """DynamicAnomalyService.execute() should return one anomaly code per input point."""
+        """DynamicAnomalyService.execute() dispatches to IsolationForestModelDetector.detect()."""
         import os
         from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
         from taosanalytics.algo.tool.detector import IsolationForestModelDetector
@@ -870,6 +870,118 @@ class ServiceTest(unittest.TestCase):
             loader.services.pop(service_name, None)
             if os.path.exists(config_path):
                 os.remove(config_path)
+
+    def test_iforest_detector_feature_matrix_and_result_size(self):
+        """IsolationForestModelDetector.detect() exercises feature-matrix construction,
+        sklearn parameter filtering, and per-point result-size validation end-to-end."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        # Build a 30-point series: 28 normal values, 2 obvious spikes.
+        n_points = 30
+        normal = [float(i % 3) for i in range(n_points)]
+        normal[14] = 1000.0
+        normal[15] = 1000.0
+
+        config_path = os.path.join(tempfile.gettempdir(), "iforest_detector_real_test.json")
+        try:
+            config = {
+                "algo": "iforest",
+                "best_params": {
+                    "n_estimators": 10,
+                    "contamination": 0.1,
+                    "window_size": 5,
+                    "stride": 1,
+                    "random_state": 42,
+                    "feature_fns": ["mean", "std"]
+                }
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = IsolationForestModelDetector(
+                path=config_path,
+                input_list=normal,
+                ts_list=list(range(n_points)),
+                valid_code=1,
+            )
+            result = detector.detect()
+
+            # Result must have exactly one code per input point.
+            self.assertEqual(len(result), n_points)
+            # All codes must be either valid_code (1) or anomaly (-1).
+            valid_values = {1, -1}
+            self.assertTrue(all(c in valid_values for c in result),
+                            f"unexpected code values: {set(result) - valid_values}")
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_iforest_detector_result_size_with_stride_gt_1(self):
+        """IsolationForestModelDetector returns one code per point even when stride > 1."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        n_points = 20
+        input_data = [float(i) for i in range(n_points)]
+
+        config_path = os.path.join(tempfile.gettempdir(), "iforest_stride_test.json")
+        try:
+            config = {
+                "algo": "iforest",
+                "best_params": {
+                    "n_estimators": 10,
+                    "contamination": 0.05,
+                    "window_size": 4,
+                    "stride": 3,
+                    "random_state": 0
+                }
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = IsolationForestModelDetector(
+                path=config_path,
+                input_list=input_data,
+                valid_code=1,
+            )
+            result = detector.detect()
+
+            self.assertEqual(len(result), n_points)
+            self.assertTrue(all(c in {1, -1} for c in result))
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_iforest_detector_validates_invalid_window_params(self):
+        """IsolationForestModelDetector raises ValueError for non-positive window_size or stride."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        for bad_params in [
+            {"window_size": 0, "stride": 1},
+            {"window_size": 5, "stride": 0},
+            {"window_size": -1, "stride": 1},
+        ]:
+            config_path = os.path.join(tempfile.gettempdir(), "iforest_invalid_params.json")
+            try:
+                config = {"algo": "iforest", "best_params": dict(bad_params, n_estimators=10, contamination=0.1)}
+                with open(config_path, "w", encoding="utf-8") as handle:
+                    handle.write(json.dumps(config))
+
+                detector = IsolationForestModelDetector(
+                    path=config_path,
+                    input_list=list(range(20)),
+                    valid_code=1,
+                )
+                with self.assertRaises(ValueError):
+                    detector.detect()
+            finally:
+                if os.path.exists(config_path):
+                    os.remove(config_path)
 
 
 if __name__ == '__main__':
