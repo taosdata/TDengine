@@ -3,8 +3,8 @@ name: OpenTSDB
 on:
   pull_request:
     paths:
-    - '.github/workflows/opentsdb.yaml'
-    - 'plugins/opentsdb/**'
+      - ".github/workflows/opentsdb.yaml"
+      - "plugins/opentsdb/**"
   workflow_dispatch:
 
 jobs:
