@@ -2492,30 +2492,29 @@ static int32_t createTagRefSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   if (pSelect != NULL && pSelect->pWhere != NULL && pVirtualTable != NULL) {
     // Create a temporary column node for this tagRef to match conditions in WHERE clause
     SColumnNode* pTagColNode = NULL;
-    if (TSDB_CODE_SUCCESS == nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagColNode)) {
-      pTagColNode->node.resType.type = pSourceSchema->type;
-      pTagColNode->colId = pTagRef->id;
-      tstrncpy(pTagColNode->colName, pTagName, TSDB_COL_NAME_LEN);
-      // Use virtual table info to match WHERE clause references
-      tstrncpy(pTagColNode->dbName, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
-      tstrncpy(pTagColNode->tableName, pVirtualTable->table.tableAlias[0] != '\0' ?
-               pVirtualTable->table.tableAlias : pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN);
-      pTagColNode->colType = COLUMN_TYPE_TAG;
-      pTagColNode->hasRef = true;
-      tstrncpy(pTagColNode->refDbName, pTagRef->refDbName, TSDB_DB_NAME_LEN);
-      tstrncpy(pTagColNode->refTableName, pTagRef->refTableName, TSDB_TABLE_NAME_LEN);
-      tstrncpy(pTagColNode->refColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagColNode));
+    pTagColNode->node.resType.type = pSourceSchema->type;
+    pTagColNode->colId = pTagRef->id;
+    tstrncpy(pTagColNode->colName, pTagName, TSDB_COL_NAME_LEN);
+    // Use virtual table info to match WHERE clause references
+    tstrncpy(pTagColNode->dbName, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pTagColNode->tableName, pVirtualTable->table.tableAlias[0] != '\0' ?
+             pVirtualTable->table.tableAlias : pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN);
+    pTagColNode->colType = COLUMN_TYPE_TAG;
+    pTagColNode->hasRef = true;
+    tstrncpy(pTagColNode->refDbName, pTagRef->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pTagColNode->refTableName, pTagRef->refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pTagColNode->refColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
 
-      // Extract filter conditions for this specific tag reference
-      PLAN_ERR_JRET(extractFilterConditionForSingleRef(pSelect->pWhere, pTagColNode,
-                                                       &pTagRefSource->node.pConditions));
+    // Extract filter conditions for this specific tag reference
+    PLAN_ERR_JRET(extractFilterConditionForSingleRef(pSelect->pWhere, pTagColNode,
+                                                     &pTagRefSource->node.pConditions));
 
-      nodesDestroyNode((SNode*)pTagColNode);
+    nodesDestroyNode((SNode*)pTagColNode);
 
-      if (pTagRefSource->node.pConditions != NULL) {
-        planDebug("Set filter condition on TagRefSource node for tag %s from %s.%s",
-                  pTagName, pTagRef->refDbName, pTagRef->refTableName);
-      }
+    if (pTagRefSource->node.pConditions != NULL) {
+      planDebug("Set filter condition on TagRefSource node for tag %s from %s.%s",
+                pTagName, pTagRef->refDbName, pTagRef->refTableName);
     }
   }
 

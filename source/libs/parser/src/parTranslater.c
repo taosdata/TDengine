@@ -7031,7 +7031,13 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
         int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
         if (rc != TSDB_CODE_SUCCESS) {
           nodesDestroyNode((SNode*)pRefNode);
-          continue;
+          code = rc;
+          taosArrayDestroy(pNextRefs);
+          taosArrayDestroy(pPendingRefs);
+          pCxt->refTable = false;
+          pCxt->pParseCxt->async = tmpAsync;
+          taosHashCleanup(pTagRefDedup);
+          goto _return;
         }
         code = nodesListMakeAppend(&pVTable->refTables, (SNode*)pRefNode);
         if (code != TSDB_CODE_SUCCESS) {
@@ -18882,6 +18888,8 @@ static int32_t createStreamReqBuildTriggerStateWindow(STranslateContext* pCxt, S
     int16_t slotId = (nodeType(pExpr) == QUERY_NODE_COLUMN) ? ((SColumnNode*)pExpr)->slotId : -1;
     void*   p = taosArrayPush(pReq->trigger.stateWin.pSlotIds, &slotId);
     if (p == NULL) {
+      taosArrayDestroy(pReq->trigger.stateWin.pSlotIds);
+      pReq->trigger.stateWin.pSlotIds = NULL;
       return terrno;
     }
   }
@@ -26414,7 +26422,10 @@ static int32_t checkRefChainDepthAndCircular(STranslateContext* pCxt, const char
 
     if (colId < 0) {
       taosMemoryFreeClear(pMeta);
-      break;
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                     "Referenced column \"%s\" not found in table \"%s\".\"%s\"",
+                                     curCol, curDb, curTable);
+      goto _return;
     }
 
     SColRef* refs = isTagRef ? pMeta->tagRef : pMeta->colRef;
@@ -26789,7 +26800,7 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
   return code;
 }
 
-static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -26822,7 +26833,7 @@ _return:
   return code;
 }
 
-static int buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+static int32_t buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                      SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
@@ -26843,7 +26854,7 @@ static int buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
-static int buildAlterTableTagRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+static int32_t buildAlterTableTagRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);

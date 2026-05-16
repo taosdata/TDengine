@@ -242,6 +242,10 @@ int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
 
   return code;
 _return:
+  if (pCtx->pIntermediateBlock) {
+    blockDataDestroy(pCtx->pIntermediateBlock);
+    pCtx->pIntermediateBlock = NULL;
+  }
   qError("failed to load data block from downstream, %s code:%s, line:%d", __func__, tstrerror(code), line);
   return code;
 }

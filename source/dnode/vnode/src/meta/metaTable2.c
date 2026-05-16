@@ -393,7 +393,7 @@ static int32_t metaBuildCreateChildTableRsp(SMeta *pMeta, const SMetaEntry *pEnt
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-  if (NULL == ppRsp) {
+  if (NULL == *ppRsp) {
     return terrno;
   }
 
