@@ -6904,40 +6904,41 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
       if (pRsp && pRsp->numOfTagRefs > 0 && pRsp->pTagRefCols) {
         int32_t  numTags = pVTable->pMeta->tableInfo.numOfTags;
         SColRef* pTagRefs = taosMemoryCalloc(numTags, sizeof(SColRef));
-        if (pTagRefs) {
-          // Initialize all tags as non-ref first
-          SSchema* pTagSchema = pVTable->pMeta->schema + pVTable->pMeta->tableInfo.numOfColumns;
-          for (int32_t i = 0; i < numTags; i++) {
-            pTagRefs[i].hasRef = false;
-            pTagRefs[i].id = pTagSchema[i].colId;
-            tstrncpy(pTagRefs[i].colName, pTagSchema[i].name, sizeof(pTagRefs[i].colName));
-          }
-          // Fill ref info from catalog data, matching by colId
-          for (int32_t r = 0; r < pRsp->numOfTagRefs; r++) {
-            SRefColInfo* pRef = &pRsp->pTagRefCols[r];
-            for (int32_t t = 0; t < numTags; t++) {
-              if (pTagRefs[t].id == pRef->colId) {
-                pTagRefs[t].hasRef = true;
-                tstrncpy(pTagRefs[t].refDbName, pRef->refDbName, sizeof(pTagRefs[t].refDbName));
-                tstrncpy(pTagRefs[t].refTableName, pRef->refTableName, sizeof(pTagRefs[t].refTableName));
-                tstrncpy(pTagRefs[t].refColName, pRef->refColName, sizeof(pTagRefs[t].refColName));
-                break;
-              }
+        if (pTagRefs == NULL) {
+          PAR_ERR_JRET(terrno);
+        }
+        // Initialize all tags as non-ref first
+        SSchema* pTagSchema = pVTable->pMeta->schema + pVTable->pMeta->tableInfo.numOfColumns;
+        for (int32_t i = 0; i < numTags; i++) {
+          pTagRefs[i].hasRef = false;
+          pTagRefs[i].id = pTagSchema[i].colId;
+          tstrncpy(pTagRefs[i].colName, pTagSchema[i].name, sizeof(pTagRefs[i].colName));
+        }
+        // Fill ref info from catalog data, matching by colId
+        for (int32_t r = 0; r < pRsp->numOfTagRefs; r++) {
+          SRefColInfo* pRef = &pRsp->pTagRefCols[r];
+          for (int32_t t = 0; t < numTags; t++) {
+            if (pTagRefs[t].id == pRef->colId) {
+              pTagRefs[t].hasRef = true;
+              tstrncpy(pTagRefs[t].refDbName, pRef->refDbName, sizeof(pTagRefs[t].refDbName));
+              tstrncpy(pTagRefs[t].refTableName, pRef->refTableName, sizeof(pTagRefs[t].refTableName));
+              tstrncpy(pTagRefs[t].refColName, pRef->refColName, sizeof(pTagRefs[t].refColName));
+              break;
             }
           }
-          pVTable->pMeta->tagRef = pTagRefs;
-          pVTable->pMeta->numOfTagRefs = numTags;
-          // Reallocate pMeta with tagRef inline to prevent memory leak.
-          // The node destroy path only frees the base pMeta block, not separately-allocated tagRef.
-          STableMeta* pNewMeta = tableMetaDup(pVTable->pMeta);
-          taosMemoryFree(pTagRefs);
-          if (pNewMeta == NULL) {
-            code = terrno;
-            goto _return;
-          }
-          taosMemoryFree(pVTable->pMeta);
-          pVTable->pMeta = pNewMeta;
         }
+        pVTable->pMeta->tagRef = pTagRefs;
+        pVTable->pMeta->numOfTagRefs = numTags;
+        // Reallocate pMeta with tagRef inline to prevent memory leak.
+        // The node destroy path only frees the base pMeta block, not separately-allocated tagRef.
+        STableMeta* pNewMeta = tableMetaDup(pVTable->pMeta);
+        taosMemoryFree(pTagRefs);
+        if (pNewMeta == NULL) {
+          code = terrno;
+          goto _return;
+        }
+        taosMemoryFree(pVTable->pMeta);
+        pVTable->pMeta = pNewMeta;
       }
     }
   }

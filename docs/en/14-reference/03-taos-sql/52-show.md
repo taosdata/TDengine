@@ -174,6 +174,30 @@ SHOW [db_name.]STABLES [LIKE 'pattern'];
 
 Displays information about all supertables in the current database. You can use LIKE for fuzzy matching of table names.
 
+## SHOW CREATE VTABLE
+
+```sql
+SHOW CREATE VTABLE [db_name.]vtable_name;
+```
+
+Displays the creation statement for a virtual table. For virtual subtables created with tag-ref, the returned statement preserves the tag-ref definition.
+
+## SHOW VTABLES
+
+```sql
+SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
+```
+
+Displays virtual basic tables and virtual subtables in the specified database. `SHOW TABLES` does not return these virtual tables; use `SHOW VTABLES` instead.
+
+## SHOW VTABLE VALIDATE
+
+```sql
+SHOW VTABLE VALIDATE FOR [db_name.]vtable_name;
+```
+
+Validates column/tag references for a virtual basic table or virtual child table. For batch inspection, query `information_schema.ins_virtual_tables_referencing`.
+
 ## SHOW STREAMS
 
 ```sql
@@ -290,6 +314,7 @@ SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 Displays tag information for the child table.
+For a tag-ref virtual child table, the result shows the currently resolved tag values.
 
 ## SHOW TOPICS
 

@@ -186,6 +186,30 @@ SHOW [db_name.]STABLES [LIKE 'pattern'];
 
 显示当前数据库下的所有超级表的信息。可以使用 LIKE 对表名进行模糊匹配。
 
+## SHOW CREATE VTABLE
+
+```sql
+SHOW CREATE VTABLE [db_name.]vtable_name;
+```
+
+显示虚拟表的创建语句。对于使用 tag-ref 的虚拟子表，结果会保留对应的标签引用定义。
+
+## SHOW VTABLES
+
+```sql
+SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
+```
+
+显示指定数据库下的虚拟普通表和虚拟子表。`SHOW TABLES` 不会返回这些虚拟表，请使用 `SHOW VTABLES` 查看。
+
+## SHOW VTABLE VALIDATE
+
+```sql
+SHOW VTABLE VALIDATE FOR [db_name.]vtable_name;
+```
+
+校验虚拟普通表或虚拟子表的列/标签引用关系。若需批量查询校验结果，可查询 `information_schema.ins_virtual_tables_referencing`。
+
 ## SHOW STREAMS
 
 ```sql
@@ -301,6 +325,7 @@ SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 显示子表的标签信息。
+对于使用 tag-ref 的虚拟子表，结果显示的是当前解析后的标签值。
 
 ## SHOW TOPICS
 

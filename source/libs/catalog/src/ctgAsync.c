@@ -266,10 +266,11 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
         if (!tagRefExtracted) {
           *pNumOfTagRefs = pTb->numOfTagRefs;
           *ppTagRefCols = taosMemoryCalloc(pTb->numOfTagRefs, sizeof(SRefColInfo));
-          if (*ppTagRefCols) {
-            memcpy(*ppTagRefCols, pTb->tagRefCols, pTb->numOfTagRefs * sizeof(SRefColInfo));
-            tagRefExtracted = true;
+          if (*ppTagRefCols == NULL) {
+            CTG_ERR_JRET(terrno);
           }
+          memcpy(*ppTagRefCols, pTb->tagRefCols, pTb->numOfTagRefs * sizeof(SRefColInfo));
+          tagRefExtracted = true;
         } else if (pTb->numOfTagRefs == *pNumOfTagRefs) {
           // Check each tag: if the current entry duplicates another tag's source,
           // and this child offers a different source, replace it for diversity.
@@ -3293,6 +3294,9 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       }
     } else  {
       pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize + tagRefSize);
+      if (pOut->tbMeta == NULL) {
+        CTG_ERR_JRET(terrno);
+      }
       TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
       if (colRefSize > 0 && pOut->vctbMeta->colRef) {
