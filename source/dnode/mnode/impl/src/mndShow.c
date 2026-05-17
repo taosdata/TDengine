@@ -320,11 +320,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   // Expand capacity for heavy system tables to reduce retrieve round trips.
   if (pShow->type == TSDB_MGMT_TABLE_STB) {
     // Dedicated fast path for db-scoped stables queries (e.g. show <db>.stables).
-    if (retrieveReq.db[0] != 0) {
-      rowsToRead = SHOW_STABLES_FAST_STEP_SIZE;
-    } else {
-      rowsToRead = SHOW_STABLES_STEP_SIZE;
-    }
+    rowsToRead = SHOW_STABLES_FAST_STEP_SIZE;
   } else if (pShow->type == TSDB_MGMT_TABLE_COL) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
   } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES ||
