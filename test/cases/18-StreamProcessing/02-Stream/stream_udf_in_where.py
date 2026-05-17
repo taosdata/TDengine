@@ -4,6 +4,7 @@ import platform
 import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils.pathFinding import find_proj_path
 
 
 class TestStreamUdfInWhere:
@@ -53,10 +54,7 @@ class TestStreamUdfInWhere:
     def locateUdfLib(self):
         """Locate libudf1.so built by the project (already produced by CI build)."""
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        else:
-            projPath = selfPath[: selfPath.find("tests") if "tests" in selfPath else selfPath.find("test")]
+        projPath = find_proj_path(selfPath)
 
         if platform.system().lower() == "windows":
             cmd = (

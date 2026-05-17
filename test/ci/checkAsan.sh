@@ -88,7 +88,7 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 # this is NOT a product bug — it's an artifact of running gcov-compiled binaries via LD_PRELOAD ASAN.
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
-  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/)" |
+  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/|/mnt/tsdb/source/taos-community/)" |
   grep -E -v "venv|taosws.abi3.so|__gcov|gcov_do_dump|_GLOBAL__sub_D|sml_test|tmq_get_meta_json|replay_test|tmq_sim|tmq_taosx_ci" |
   wc -l
 )
@@ -143,8 +143,8 @@ if [ $errors -eq 0 ]; then
 else
   echo -e "\033[44;31;1m"asan total errors: $errors"\033[0m"
   if [ "$python_error" -ne 0 ] || [ "$python_taos_error" -ne 0 ] ; then
-    cat "${LOG_DIR}"/*.info |grep "#" | grep -w "TDinternal"
+    cat "${LOG_DIR}"/*.info |grep "#" | grep -wE "TDinternal|taos-community"
   fi
-  cat "${LOG_DIR}"/*.asan |grep "#" | grep -w "TDinternal"
+  cat "${LOG_DIR}"/*.asan |grep "#" | grep -wE "TDinternal|taos-community"
   exit 1
 fi
