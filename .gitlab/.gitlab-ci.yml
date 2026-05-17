@@ -149,7 +149,7 @@ prepare-workspace:
     - |
       # 确保 platform 工具仓库存在并为最新；flock 防止多 MR 并发时同时 clone/pull
       PLATFORM_DIR="${CI_BASE_DIR}/platform"
-      PLATFORM_BRANCH="feat/add_make_target"
+      PLATFORM_BRANCH="feat/cpp-cache-strategy"
       mkdir -p "$(dirname "${PLATFORM_DIR}")"
       (
         flock -x 9
