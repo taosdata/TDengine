@@ -1,0 +1,2 @@
+class NotFoundDynamicModelError(Exception):
+    pass
