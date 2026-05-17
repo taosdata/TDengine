@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from taosanalytics.conf import Configure
+from taosanalytics.exception import NotFoundDynamicModelError
 from taosanalytics.log import AppLogger
 from taosanalytics.service_registry import loader
 
@@ -20,11 +21,12 @@ def do_handle_dynamic_model(request):
     """
     Handle dynamic model operations, e.g. load model to memory, warm up model, etc.
     {
-    "model_name": "sample_ad_model",
-    "config": {
-        "algo": "arima",
-        "best_params": {
-            "p": 3,
+        "model_name": "sample_ad_model_test",
+        "config": {
+            "algo": "arima",
+            "best_params": {
+            "p": 3
+            }
         }
     }
 
@@ -99,17 +101,21 @@ def do_handle_dynamic_model(request):
         loader.register_service_from_file(full_path)
         AppLogger.info("Model %s deployed successfully", raw_model_name)
     except Exception as e:
-        AppLogger.error("Error deploying dynamic model:%s, remove file, error:%s", raw_model_name, str(e))
-        try:
-            if Path(full_path).exists():
-                os.unlink(full_path)
-        except Exception as cleanup_error:
-            pass
+        # Check if another worker already registered this model via sync_dynamic_services
+        if raw_model_name in loader.services:
+            AppLogger.info("Model %s was already registered by another worker, treating as success", raw_model_name)
+        else:
+            AppLogger.error("Error deploying dynamic model:%s, remove file, error:%s", raw_model_name, str(e))
+            try:
+                if Path(full_path).exists():
+                    os.unlink(full_path)
+            except Exception as cleanup_error:
+                pass
 
-        return {
-            'status': 'error',
-            'error': f"Error deploying model {raw_model_name}: {str(e)}"
-        }, 400
+            return {
+                'status': 'error',
+                'error': f"Error deploying model {raw_model_name}: {str(e)}"
+            }, 400
 
     return {
         'status': 'success',
@@ -151,16 +157,53 @@ def do_handle_undeploy_model(request):
         loader.unregister_dynamic_service(model_name)
 
         if Path(str(full_path)).exists():
-            os.remove(full_path)
+            try:
+                os.remove(full_path)
+            except FileNotFoundError:
+                # Another worker removed the file between exists() and remove()
+                AppLogger.warning("Model %s config file was already removed by another worker during undeploy", model_name)
         else:
             AppLogger.warning("Model configuration file for model %s not found during undeploy, maybe already removed", model_name)
-        
+
         AppLogger.info("Model %s configuration file is removed successfully", model_name)
         return {
             'status': 'success',
             'message': f"Model {model_name} undeployed successfully"
         }, 200
     except Exception as e:
+        if isinstance(e, NotFoundDynamicModelError):
+            if Path(str(full_path)).exists():
+                try:
+                    os.remove(full_path)
+                    AppLogger.warning(
+                        "Model %s not found in memory during undeploy, but config file existed and was removed",
+                        model_name
+                    )
+                except FileNotFoundError:
+                    # Another worker already removed the file between the exists() check
+                    # and the remove() call — the model is already undeployed, treat as success.
+                    AppLogger.warning(
+                        "Model %s config file was already removed by another worker during undeploy",
+                        model_name
+                    )
+                except Exception as cleanup_error:
+                    AppLogger.error("Error removing model %s config file during undeploy: %s",
+                                    model_name, str(cleanup_error))
+                    return {
+                        'status': 'error',
+                        'error': f"Error undeploying model {model_name}: {str(cleanup_error)}"
+                    }, 500
+                return {
+                    'status': 'success',
+                    'message': f"Model {model_name} undeployed successfully"
+                }, 200
+
+            AppLogger.warning("Model %s not found during undeploy, maybe already undeployed", model_name)
+            return {
+                'status': 'error',
+                'error': f"Model {model_name} not found for undeployment"
+            }, 404
+
         AppLogger.error("Error undeploying model %s: %s", model_name, str(e))
         return {
             'status': 'error',
