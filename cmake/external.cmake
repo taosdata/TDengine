@@ -400,16 +400,17 @@ if(BUILD_MSVCREGEX)      # {
         "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest/libgnurx-msvc-1a6514d.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
     )
+    set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-master")
     ExternalProject_Add(ext_msvcregex
         URL ${_url}
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""
         BUILD_COMMAND
-            COMMAND nmake /f NMakefile all test test2 test3
+            COMMAND "${CMAKE_COMMAND}" -E chdir "${ext_msvcregex_archive_source}" nmake /f NMakefile all test test2 test3
         INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/regex.h" "${_ins}/include/regex.h"
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/${ext_msvcregex_static}" "${_ins}/lib/${ext_msvcregex_static}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_archive_source}/regex.h" "${_ins}/include/regex.h"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_archive_source}/${ext_msvcregex_static}" "${_ins}/lib/${ext_msvcregex_static}"
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
