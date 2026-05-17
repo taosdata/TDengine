@@ -1,5 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
+from new_test_framework.utils.pathFinding import find_proj_root
 from decimal import Decimal
 import os
 import random
@@ -11,16 +12,11 @@ import time
 import shutil
 
 class TestCase:
-    path_parts = os.getcwd().split(os.sep)
-    try:
-        tdinternal_index = path_parts.index("TDinternal")
-    except ValueError:
-        raise ValueError("The specified directory 'TDinternal' was not found in the path.")
-    TDinternal = os.sep.join(path_parts[:tdinternal_index + 1])
-    dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
+    _proj_root = find_proj_root(os.path.dirname(os.path.realpath(__file__)))
+    dnode1Path = os.path.join(_proj_root, "sim", "dnode1")
     configFile = os.path.join(dnode1Path, "cfg", "taos.cfg")
     hostPath = os.path.join(dnode1Path, "multi")
-    localSSPath = os.path.join(TDinternal, "sim", "localSS") # shared storage path for local test
+    localSSPath = os.path.join(_proj_root, "sim", "localSS") # shared storage path for local test
     clientCfgDict = {'debugFlag': 135}
     encryptConfig = {
         "svrKey": "1234567890",
@@ -286,7 +282,15 @@ class TestCase:
            - Or the database is created with 'is_audit 1' option
         """
         # Dynamically parse system supertable arrays from vnodeQuery.c
-        vnodeQueryPath = os.path.join(self.TDinternal, "community", "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
+        # Probe multiple layouts: TDinternal CI, tsdb CI, TDengine CI
+        vnodeQueryPath = None
+        for _sub in ("community", os.path.join("source", "taos-community"), "."):
+            _candidate = os.path.join(self._proj_root, _sub, "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
+            if os.path.exists(_candidate):
+                vnodeQueryPath = _candidate
+                break
+        if vnodeQueryPath is None:
+            raise FileNotFoundError(f"vnodeQuery.c not found under {self._proj_root}")
         tkLogStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkLogStb")
         tkAuditStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkAuditStb")
         tdLog.info(f"Parsed tkLogStb ({len(tkLogStb)} items): {tkLogStb}")

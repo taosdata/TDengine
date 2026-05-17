@@ -11,7 +11,8 @@ enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../..
 
 # Check if enterprise downloader exists
 if not os.path.exists(enterprise_downloader_path):
-    raise FileNotFoundError(f"Enterprise package downloader not found at: {enterprise_downloader_path}")
+    import pytest
+    pytest.skip("Enterprise package downloader not available (community-only CI)", allow_module_level=True)
 
 # Load the module
 spec = importlib.util.spec_from_file_location("download_enterprise_package", enterprise_downloader_path)
@@ -112,10 +113,7 @@ class TestNewStreamCompatibility:
         buildPath = tdCom.getBuildPath()
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            cfgPath = buildPath + "/../sim/dnode1/cfg/"
-        else:
-            cfgPath = buildPath + "/../sim/dnode1/cfg/"
+        cfgPath = buildPath + "/../sim/dnode1/cfg/"
 
         return cfgPath
 

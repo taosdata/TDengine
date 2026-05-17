@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils.pathFinding import find_proj_path
 import os
 import random
 import socket
@@ -435,10 +436,7 @@ class TestTagIndexAdvance:
         # calc
         selfPath = os.path.dirname(os.path.realpath(__file__))
         projPath = ""
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
+        projPath = find_proj_path(selfPath)
 
         # total
         vnode2_size = pathSize(projPath + "sim/dnode2/data/vnode/vnode2/")
