@@ -28,41 +28,37 @@ SANITIZER="${SANITIZER:-n}"
 # 这样 10 条并行 PR 和 1 条 PR 都能得到合理的并发数，互不踩踏。
 _CI_LOCK_DIR="/data1/tdengine-ci"
 mkdir -p "${_CI_LOCK_DIR}" 2>/dev/null || true
-_CI_COUNTER_FILE="${_CI_LOCK_DIR}/.ci_active_jobs"
+_CI_PID_DIR="${_CI_LOCK_DIR}/.ci_pids"
 _CI_LOCK_FILE="${_CI_LOCK_DIR}/.ci_active_jobs.lock"
+mkdir -p "${_CI_PID_DIR}" 2>/dev/null || true
 
-# 原子递增：注册本 job
+# 原子注册：写入本进程 PID 文件，统计存活 job 数
+# 注：bash 子 shell ( ) 中 $$ 展开为父 shell 的 PID（POSIX 规定），
+# 因此即使在 flock 子 shell 里调用，$$ 也是 run-test-dynamic.sh 本体的 PID。
 _ci_register_job() {
     local count
+    # 先写自己的 PID 文件（在 flock 外，确保 kill -0 能看到）
+    echo $$ > "${_CI_PID_DIR}/pid_$$"
     (
         flock -x 9
-        count=$(cat "${_CI_COUNTER_FILE}" 2>/dev/null || echo 0)
-        # 清理已死进程留下的僵尸计数（重启 runner 后 count 可能偏大）
-        # 用 docker ps 统计本机实际在跑的 tdci- 容器作为下限检验
-        local running_c
-        running_c=$(docker ps --filter 'name=tdci-' --format '{{.Names}}' 2>/dev/null | wc -l || echo 0)
-        # 若计数文件值 > 实际在跑容器数 * 2（宽松），则重置为 1
-        if [[ ${count} -gt $(( running_c * 2 + 2 )) ]]; then
-            echo "[run-test-dynamic] counter drift detected (file=${count}, containers=${running_c}), resetting to 1"
-            count=1
-        else
-            count=$(( count + 1 ))
-        fi
-        echo "${count}" > "${_CI_COUNTER_FILE}"
+        count=0
+        for _pf in "${_CI_PID_DIR}"/pid_*; do
+            [[ -f "${_pf}" ]] || continue
+            _pid=$(basename "${_pf}" | sed 's/pid_//')
+            if kill -0 "${_pid}" 2>/dev/null; then
+                count=$(( count + 1 ))
+            else
+                rm -f "${_pf}"   # 清理已死进程的 PID 文件
+            fi
+        done
+        [[ ${count} -lt 1 ]] && count=1
         echo "${count}"
     ) 9>>"${_CI_LOCK_FILE}"
 }
 
-# 原子递减：注销本 job（EXIT / SIGTERM 时调用）
+# 退出时删除 PID 文件
 _ci_unregister_job() {
-    (
-        flock -x 9
-        local count
-        count=$(cat "${_CI_COUNTER_FILE}" 2>/dev/null || echo 1)
-        count=$(( count - 1 ))
-        [[ ${count} -lt 0 ]] && count=0
-        echo "${count}" > "${_CI_COUNTER_FILE}"
-    ) 9>>"${_CI_LOCK_FILE}" 2>/dev/null || true
+    rm -f "${_CI_PID_DIR}/pid_$$" 2>/dev/null || true
 }
 
 # TEST_CONCURRENCY 计算（仅在未显式指定时）
@@ -72,11 +68,16 @@ if [[ -z "${TEST_CONCURRENCY:-}" ]]; then
     # 保留 20% 给 OS / 协调器 / 其他进程，剩余平摊给各 pipeline
     _usable=$(( _ncpus * 8 / 10 ))
     _base=$(( _usable / _active ))
-    # 上限按核数弹性设定：小机器(<=16c)最多16，大机器(>16c)最多 nproc*0.6
-    _max_conc=$(( _ncpus > 16 ? _ncpus * 6 / 10 : 16 ))
+    # 上限按核数弹性设定（CI_SCHED_AGGR=0/1/2 对应大机器 60%/70%/80%，小机器固定 16）
+    case "${CI_SCHED_AGGR:-1}" in
+        0) _max_conc_pct=60 ;;
+        2) _max_conc_pct=80 ;;
+        *) _max_conc_pct=70 ;;   # aggr=1（默认）
+    esac
+    _max_conc=$(( _ncpus > 16 ? _ncpus * _max_conc_pct / 100 : 16 ))
     TEST_CONCURRENCY=$(( _base < 2 ? 2 : (_base > _max_conc ? _max_conc : _base) ))
     echo "[run-test-dynamic] auto TEST_CONCURRENCY=${TEST_CONCURRENCY}" \
-         "(nproc=${_ncpus}, active_pipelines=${_active}, usable=${_usable})"
+         "(nproc=${_ncpus}, active_pipelines=${_active}, usable=${_usable}, aggr=${CI_SCHED_AGGR:-1})"
 else
     # 显式指定时仍注册计数，以便其他 job 感知
     _ci_register_job > /dev/null
@@ -99,7 +100,7 @@ COORDINATOR_URL="${COORDINATOR_URL:-http://192.168.2.207:${_DEFAULT_PORT}}"
 RESULTS_DIR="${CI_PROJECT_DIR}/results"
 LOGS_DIR="${RESULTS_DIR}/logs"
 TDENGINE_DIR="${WORKDIR}/TDinternal/community"
-RUN_CONTAINER="${TDENGINE_DIR}/tests/parallel_test/run_container.sh"
+RUN_CONTAINER="${TDENGINE_DIR}/test/ci/run_container.sh"
 SLOT_DIR="${WORKDIR}/slots-n${NODE_INDEX}"
 
 # ── 失败用例本地保留目录（不被 after_script 清理，用于 HTTP 浏览）──────────
@@ -118,6 +119,16 @@ MY_HOSTNAME=$(hostname)
 # 若没有则回落到第一个 IP
 MY_IP=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep '^192\.168\.' | head -1)
 [ -z "$MY_IP" ] && MY_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+# ── Builder 节点检查：排除 builder 节点作为 test worker ────────────────────
+# Builder 节点（u1-47、u2-104 等）仅用于编译，不应作为 test worker 运行
+# 检查 CI_RUNNER_TAGS 中是否有 tsdb-builder-* 标签，如果有则说明这是 builder 节点
+if [[ "${CI_RUNNER_TAGS}" == *"tsdb-builder"* ]]; then
+  echo "[run-test-dynamic] ERROR: Builder node ${MY_HOSTNAME} should not run as test worker"
+  echo "[run-test-dynamic] This node is reserved for compilation (prepare/build/check/upload/coordinator)"
+  echo "[run-test-dynamic] Exiting..."
+  exit 0  # 用 exit 0 而不是 exit 1，避免 CI job 标记为失败
+fi
 
 # ── 容器命名（含 MR 号） ───────────────────────────────────────────────────────
 _MR_PART="${CI_MERGE_REQUEST_IID:+mr${CI_MERGE_REQUEST_IID}}"
@@ -235,6 +246,7 @@ fail_count=0
 junit_cases=""
 failed_labels=()
 failed_urls=()
+failed_dirs=()
 failed_logs=()
 _coord_gone=0
 in_flight=0
@@ -435,8 +447,14 @@ process_finished_slot() {
         local _sec_title="FAIL [exit=${rc}] ${label}"
 
         # [1] 外层摘要 section（过滤 pip 噪音，只展示核心失败输出，默认展开）
+        local _cur_url="http://${MY_IP}:${FAIL_HTTP_PORT}/job-${CI_JOB_ID:-local}/${_case_slug}/"
+        local _cur_dir="root@${MY_IP}:${FAIL_LOGS_BASE}/job-${CI_JOB_ID:-local}/${_case_slug}/"
         echo -e "\e[0Ksection_start:${_ts}:${_sec_id}[collapsed=true]\r\e[0K\e[31;1m${_sec_title}\e[0m"
         echo "────────────────────────────────────────────────────────────────"
+        echo "Case logs:   ${_cur_url}run.log.txt"
+        echo "Runner logs: ${_cur_url}"
+        echo "Fail dir:    ${_cur_dir}"
+        echo "摘要信息:"
         if [[ -f "${fail_log}" ]]; then
             grep -v -E \
                 '^\s*(Collecting |Downloading |━+|Requirement already|Successfully (installed|uninstalled)|Attempting uninstall|Found existing installation|Uninstalling |WARNING: Running pip|\[notice\]|-----|Looking in indexes)' \
@@ -455,7 +473,7 @@ process_finished_slot() {
         local _tvol="${WORKDIR}/tmp/thread_volume/${_tnum}"
 
         # sim/（保留容器内原始路径结构）
-        # 宿主机 thread_volume/{tnum}/sim/ 挂载到容器 /home/TDinternal/sim/
+        # 宿主机 thread_volume/{tnum}/sim/ 挂载到容器 /mnt/tsdb/sim/
         #   psim/log/     ← 客户端日志 (taoslog0.0, taosSlowLog)
         #   psim/cfg/     ← 客户端配置
         #   dnode*/log/   ← taosd 服务端日志 (taosdlog.0, udfdlog.0)
@@ -489,6 +507,14 @@ process_finished_slot() {
                     if [[ "$(find "${_d}" -type f 2>/dev/null | head -1)" ]]; then
                         mkdir -p "${_sim_dest}/${_dname}"
                         cp -rf "${_d}/." "${_sim_dest}/${_dname}/" 2>/dev/null || true
+                        # ASAN 日志（dnode1.asan、psim.info 等）无扩展名，HTTP/GitLab
+                        # 前端无法内联预览，为每个文件创建 .txt 软链方便直接查看
+                        if [[ "${_dname}" == "asan" ]]; then
+                            find "${_sim_dest}/asan" -maxdepth 1 -type f ! -name '*.txt' 2>/dev/null \
+                                | while IFS= read -r _af; do
+                                    ln -sf "$(basename "${_af}")" "${_af}.txt" 2>/dev/null || true
+                                done
+                        fi
                     fi
                 fi
                 # 跳过 tsim/ 等无用目录
@@ -499,11 +525,13 @@ process_finished_slot() {
         # coredump/（只收实际 core 文件，跳过 TDengine 数据目录）
         # core_pattern 为 /corefile/core_%e-%p，匹配 core_* 和 core.*
         # TDengine 还会在同目录下创建 tdengine_slow_log/ tdengine_stream_data/ 等
+        local _coredump_files_for_gdb=""    # 供后续 GDB 分析
         local _core_src="${_tvol}/coredump"
         if [[ -d "${_core_src}" ]]; then
             local _core_files
             _core_files=$(find "${_core_src}" -maxdepth 2 -type f \( -name 'core_*' -o -name 'core.*' -o -name 'core' \) 2>/dev/null)
             if [[ -n "${_core_files}" ]]; then
+                _coredump_files_for_gdb="${_core_files}"    # 保存原始路径列表
                 echo "[coredump] Core files found:"
                 echo "${_core_files}" | xargs -r ls -lh 2>/dev/null || true
                 local _core_size_kb
@@ -565,6 +593,76 @@ CASETXT
         echo "[retain] Saved to ${_retain_dir}/"
         echo "[retain] Browse: http://${MY_IP}:${FAIL_HTTP_PORT}/job-${CI_JOB_ID:-local}/${_case_slug}/"
 
+        # ── coredump GDB 摘要（retain 已就绪，_debug_bin / _shared_bin 均已定义）──
+        # 识别崩溃进程 → 查找对应 binary → 在容器内运行 gdb --batch 'thread apply all bt'
+        # 结果打印到 job 日志 + 保存到 ${_retain_dir}/coredump/gdb-bt-*.txt
+        if [[ -n "${_coredump_files_for_gdb}" ]]; then
+            local _gdb_dir="${_retain_dir}/coredump"
+            mkdir -p "${_gdb_dir}"
+            local _gdb_ts; _gdb_ts=$(date +%s)
+            local _gdb_sec_id="gdb_n${NODE_INDEX}_${_gdb_ts}"
+            echo -e "\e[0Ksection_start:${_gdb_ts}:${_gdb_sec_id}[collapsed=true]\r\e[0K\U0001F50D Coredump GDB \u2014 ${_case_slug}"
+            while IFS= read -r _cf; do
+                [[ -f "${_cf}" ]] || continue
+                local _cf_name; _cf_name=$(basename "${_cf}")
+                echo "────────────────────────────────────────────────────────────────"
+                echo "Core : ${_cf_name}  ($(du -sh "${_cf}" 2>/dev/null | cut -f1))"
+                # 识别 binary:
+                #   优先: file 命令解析 execfn（实际可执行文件路径，最准确）
+                #   其次: 从文件名 core_%e-%p 提取进程名（%e 可能是线程名如 dnode-mgmt）
+                local _file_out; _file_out=$(file "${_cf}" 2>/dev/null | head -1)
+                local _bin_hint
+                _bin_hint=$(echo "${_file_out}" | grep -oP "execfn: '\K[^']+" | head -1)
+                _bin_hint=$(basename "${_bin_hint:-}")
+                if [[ -z "${_bin_hint}" ]]; then
+                    # core_%e-%p → 去掉 core_ 前缀和 -<digits> 后缀
+                    _bin_hint=$(echo "${_cf_name}" | sed 's/^core_//; s/-[0-9]*$//')
+                fi
+                echo "Binary: '${_bin_hint:-unknown}'"
+                echo "file  : ${_file_out}"
+                # 查找可执行文件（debug_bin → shared_bin）
+                local _exe=""
+                for _bdir in "${_debug_bin}" "${_shared_bin}"; do
+                    [[ -n "${_bin_hint}" && -f "${_bdir}/${_bin_hint}" ]] && { _exe="${_bdir}/${_bin_hint}"; break; }
+                done
+                # fallback: taosd（线程名 dnode-mgmt 等本质上是 taosd 进程）
+                if [[ -z "${_exe}" ]]; then
+                    for _bdir in "${_debug_bin}" "${_shared_bin}"; do
+                        if [[ -f "${_bdir}/taosd" ]]; then
+                            _exe="${_bdir}/taosd"
+                            echo "(binary '${_bin_hint}' not found; falling back to taosd)"
+                            break
+                        fi
+                    done
+                fi
+                local _gdb_out="${_gdb_dir}/gdb-bt-${_cf_name}.txt"
+                if [[ -n "${_exe}" ]]; then
+                    local _exe_real; _exe_real=$(readlink -f "${_exe}" 2>/dev/null || echo "${_exe}")
+                    echo "Exe   : ${_exe_real}"
+                    echo "[GDB] running thread apply all bt (timeout 90s) ..."
+                    timeout 90 docker run --rm \
+                        -v "${_exe_real}:/_exe:ro" \
+                        -v "${_cf}:/_core:ro" \
+                        "${BUILDER_IMAGE}" bash -c '
+                            which gdb >/dev/null 2>&1 || { echo "(gdb not available in image)"; exit 0; }
+                            gdb --batch -q \
+                                -ex "set pagination off" \
+                                -ex "set print thread-events off" \
+                                -ex "thread apply all bt" \
+                                /_exe /_core 2>&1 | head -300
+                        ' 2>/dev/null | tee "${_gdb_out}" \
+                        || echo "[coredump] GDB timed out or failed"
+                else
+                    echo "(binary '${_bin_hint:-unknown}' not found in debug/shared dirs — manual GDB needed)"
+                    echo "  _debug_bin : ${_debug_bin}"
+                    echo "  _shared_bin: ${_shared_bin}"
+                    printf '%s\n' "(binary not found, manual analysis needed)" > "${_gdb_out}"
+                fi
+            done <<< "${_coredump_files_for_gdb}"
+            echo "────────────────────────────────────────────────────────────────"
+            echo -e "\e[0Ksection_end:${_gdb_ts}:${_gdb_sec_id}\r\e[0K"
+        fi
+
         # ── JUnit XML（head -c 8192 保留更多上下文）─────────────────────────
         # 先过滤 pip 噪音、ANSI 转义序列和 XML 1.0 非法控制字符，避免解析失败
         local log_tail
@@ -583,6 +681,7 @@ CASETXT
         junit_cases+="    </testcase>"$'\n'
         failed_labels+=("  [exit=${rc}] (${elapsed_s}s)  ${label}")
         failed_urls+=("http://${MY_IP}:${FAIL_HTTP_PORT}/job-${CI_JOB_ID:-local}/${_case_slug}/")
+        failed_dirs+=("root@${MY_IP}:${FAIL_LOGS_BASE}/job-${CI_JOB_ID:-local}/${_case_slug}/")
         failed_logs+=("${fail_log}")
         fail_count=$(( fail_count + 1 ))
         rm -f "${log_file}" "${SLOT_DIR}/slot-${slot}."* 2>/dev/null
@@ -599,7 +698,7 @@ _start_heartbeat() {
         while true; do
             sleep 30
             curl -sf --max-time 5 \
-                "${COORDINATOR_URL}/api/heartbeat?worker=${MY_HOSTNAME}" \
+                "${COORDINATOR_URL}/api/heartbeat?worker=${MY_HOSTNAME}&job_id=${CI_JOB_ID:-local}&node=${NODE_INDEX}" \
                 >/dev/null 2>&1 || true
         done
     ) &
@@ -797,22 +896,23 @@ echo "========================================"
 
 if [[ ${fail_count} -gt 0 ]]; then
     echo ""
-    echo "──── Failed cases on Node ${NODE_INDEX} ────"
-    for _fi in "${!failed_labels[@]}"; do
-        echo "${failed_labels[$_fi]}"
-        echo "    ${failed_urls[$_fi]:-}"
-    done
-    echo "────────────────────────────────────────"
+    echo "↓ 展开下方折叠条目可查看失败日志及复现方法"
+    echo ""
     # 逐个展开失败详情（collapsed section，点击展开）
     for _fi in "${!failed_labels[@]}"; do
         _fl="${failed_labels[$_fi]}"
         _furl="${failed_urls[$_fi]:-}"
+        _fdir="${failed_dirs[$_fi]:-}"
         _flog="${failed_logs[$_fi]:-}"
         _sec_id="summary_fail_n${NODE_INDEX}_${_fi}"
         _sec_title="SUMMARY ${_fl}"
         _ts=$(date +%s)
         echo -e "\e[0Ksection_start:${_ts}:${_sec_id}[collapsed=true]\r\e[0K\e[31;1m${_sec_title}\e[0m"
+        echo "────────────────────────────────────────────────────────────────"
+        [[ -n "${_furl}" ]] && echo "Case logs:   ${_furl}run.log.txt"
         [[ -n "${_furl}" ]] && echo "Runner logs: ${_furl}"
+        [[ -n "${_fdir}" ]] && echo "Fail dir:    ${_fdir}"
+        echo "摘要信息:"
         if [[ -n "${_flog}" && -f "${_flog}" ]]; then
             grep -v -E \
                 '^\s*(Collecting |Downloading |\u2501+|Requirement already|Successfully (installed|uninstalled)|Attempting uninstall|Found existing installation|Uninstalling |WARNING: Running pip|\[notice\]|-----|Looking in indexes)' \
@@ -822,15 +922,8 @@ if [[ ${fail_count} -gt 0 ]]; then
         else
             echo "(log not available)"
         fi
+        echo "────────────────────────────────────────────────────────────────"
         echo -e "\e[0Ksection_end:${_ts}:${_sec_id}\r\e[0K"
-        # Full log section
-        if [[ -n "${_flog}" && -f "${_flog}" ]]; then
-            _full_id="fulllog_summary_n${NODE_INDEX}_${_fi}"
-            _full_ts=$(( _ts + 1 ))
-            echo -e "\e[0Ksection_start:${_full_ts}:${_full_id}[collapsed=true]\r\e[0K\U0001F4C4 Full log \u2014 ${_fl}"
-            cat "${_flog}"
-            echo -e "\e[0Ksection_end:${_full_ts}:${_full_id}\r\e[0K"
-        fi
     done
     exit 1
 fi
