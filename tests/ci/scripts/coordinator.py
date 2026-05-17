@@ -38,6 +38,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Optional
 
 # ── 配置 ──────────────────────────────────────────────────────────────────────
 PROMETHEUS_URL  = os.environ.get("PROMETHEUS_URL",  "http://192.168.1.42:9090")
@@ -45,13 +46,25 @@ PROM_INTERVAL   = int(os.environ.get("PROM_INTERVAL", "30"))
 SANITIZER       = os.environ.get("SANITIZER", "n")
 MAX_WAIT        = int(os.environ.get("MAX_WAIT_SECONDS", "1200"))   # 无进度最长等待：允许 worker 处理大批量
 RESULTS_DIR     = os.environ.get("RESULTS_DIR", "./results")
-# 单个用例最长运行时间（仅对心跳已超时的 worker 生效）：
-# 如果 worker 心跳正常，说明它还在执行任务，不应按 assigned_at 超时
-# 只有当 worker 心跳也超时时，才按 assigned_at 判定用例超时
-MAX_CASE_TIMEOUT = int(os.environ.get("MAX_CASE_TIMEOUT", "1800"))  # 默认 30 分钟（大批量串行执行需要）
+# 单个用例在 coordinator 视角的最长运行时间（alive+orphaned worker 均适用）：
+# 超过此时间且无新完成记录（_worker_last_done）的 in_flight 用例标记为 TIMEOUT。
+# 对于批量 assigned 的用例，以 max(assigned_at, last_done) 为起点，
+# 避免 assigned_at 早于实际开始时间导致误判。
+MAX_CASE_TIMEOUT = int(os.environ.get("MAX_CASE_TIMEOUT", "1200"))  # 默认 20 分钟
 # Worker 心跳超时：超过此时间未收到心跳的 worker 视为死亡，其 in_flight 用例立即收割
 # Worker 每 30s 发一次心跳，120s 超时 = 容忍 4 次心跳丢失
 WORKER_HEARTBEAT_TIMEOUT = int(os.environ.get("WORKER_HEARTBEAT_TIMEOUT", "120"))
+# 等待第一个 worker 注册的超时（从协调器启动算起）。
+# Worker 启动后需要拉取 Nexus 产物（noasan+asan tar.gz），可能需要数分钟；
+# 此值必须 ≥ worker 实际准备时间，且应与 worker 等待协调器就绪的重试窗口（600s）匹配。
+FIRST_WORKER_TIMEOUT = int(os.environ.get("FIRST_WORKER_TIMEOUT", "600"))
+# Prometheus 评分查询所用的 rate() 窗口长度。
+# [5m] 平滑杀树但也引入 5min 滞后：pipeline 启动初期 cpu 空载时段被平均进来，
+# 导致 score 持续偏低，协调器看到“空闲”却因 idle 系数没吸满资源。
+# 改为 [1m] 后负载上升内 1 分钟即内就能反映到 score，
+# 多 MR 并发时天然限流，单 MR 时初期也能快速填满。
+# 可通过 .gitlab-ci.yml 设置 PROM_RATE_WINDOW 覆盖（如 2m）。
+PROM_RATE_WINDOW = os.environ.get("PROM_RATE_WINDOW", "1m")
 # 端口算法: CI_PIPELINE_ID % 10000 + 20000  (20000-29999)
 # • CI_PIPELINE_ID 在同一 pipeline 内所有 job 相同，不需额外传参
 # • 适用于 MR / schedule / 手动触发，无一例外
@@ -73,6 +86,26 @@ RERUN_MODE = os.environ.get("RERUN_MODE", "auto").strip()
 # 持久化状态目录：每次运行结束保存 results.json，rerun 时读取
 _CI_BASE_DIR = os.environ.get("CI_BASE_DIR", "/data1/tdengine-ci")
 STATE_DIR = os.path.join(_CI_BASE_DIR, "coordinator-state", f"pipeline-{_pipeline_id}")
+
+# ── 调度激进度配置（CI_SCHED_AGGR: 0=保守, 1=折中激进[默认], 2=激进）─────────
+# 在 .gitlab-ci.yml 全局 variables 中设置 CI_SCHED_AGGR 即可一键切换，无需改脚本。
+#
+# 参数含义：
+#   stop     — score 超过此值完全停止分配（为其他并发 MR 留余量）
+#   tiers    — [(score阈值, 分配比例), ...] 从高分到低分匹配；
+#              实际 cap = int(requested * mult * cpu_factor)
+#   idle     — score 低于最低 tier 时（极度空闲），cap = ncpus * cpu_factor * idle
+#   prefetch — max_prefetch = max(4, int(ncpus * prefetch))，预拉取上限系数
+#              prefetch 激活条件同 stop（score < stop 时才预拉）
+#
+# 多 MR 场景下机器 score 自然升高，prefetch/idle 阈值随之收紧，天然退化为保守。
+_SCHED_AGGR = int(os.environ.get("CI_SCHED_AGGR", "1"))
+_SCHED_PROFILES: dict = {
+    0: dict(stop=70, tiers=[(55, 0.30), (40, 0.50), (30, 0.75)], idle=0.50, prefetch=0.50),  # 保守（原始行为）
+    1: dict(stop=80, tiers=[(65, 0.40), (50, 0.65), (35, 0.85)], idle=0.75, prefetch=0.75),  # 折中激进（默认）
+    2: dict(stop=85, tiers=[(70, 0.50), (55, 0.75), (40, 1.00)], idle=1.00, prefetch=1.00),  # 激进
+}
+_SCHED_PROFILE = _SCHED_PROFILES.get(_SCHED_AGGR, _SCHED_PROFILES[1])
 
 # ── 全局状态（线程安全） ───────────────────────────────────────────────────────
 _lock          = threading.Lock()
@@ -106,7 +139,87 @@ _FAIL_RETAIN_BASE = "/data1/tdengine-ci/fail-logs"
 # HTTP 文件服务端口
 _FAIL_HTTP_PORT = 8899
 
-def _make_slug(cmd: str) -> str:
+# ── 复现命令生成 ──────────────────────────────────────────────────────────────
+# WORKSPACE 路径（与 prepare-workspace 中的计算逻辑保持一致）
+_CI_PIPELINE_SOURCE = os.environ.get("CI_PIPELINE_SOURCE", "")
+_CI_MR_IID = os.environ.get("CI_MERGE_REQUEST_IID", "")
+_CI_BRANCH = os.environ.get("CI_COMMIT_BRANCH", "")
+_CI_SHORT_SHA = os.environ.get("CI_COMMIT_SHORT_SHA", "")
+
+def _compute_workspace() -> str:
+    """计算 WORKSPACE 路径（与 .gitlab-ci.yml prepare-workspace 保持一致）。"""
+    if _CI_PIPELINE_SOURCE == "merge_request_event" and _CI_MR_IID:
+        return f"{_CI_BASE_DIR}/mr{_CI_MR_IID}"
+    elif _CI_PIPELINE_SOURCE == "schedule" and _CI_BRANCH:
+        import datetime
+        return f"{_CI_BASE_DIR}/daily-{_CI_BRANCH}-{datetime.date.today():%Y%m%d}"
+    elif _CI_PIPELINE_SOURCE == "web":
+        return f"{_CI_BASE_DIR}/web-{_pipeline_id}"
+    elif _CI_BRANCH:
+        return f"{_CI_BASE_DIR}/push-{_CI_BRANCH}-{_CI_SHORT_SHA}"
+    return ""
+
+_WORKSPACE = _compute_workspace()
+
+
+def _make_repro_cmd(cmd: str) -> str:
+    """从 cases.task 的 cmd 字段生成复现命令（本地直跑 + 容器模式）。
+    仅支持 pytest 类用例，bash 脚本类返回空串。
+    返回多行字符串，每行是一条独立可执行命令。
+
+    cmd 格式举例:
+      ./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_xxx.py -N 5
+      pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
+      bash 83-DocTest/python.sh   (不支持, 返回空)
+    """
+    if not _WORKSPACE or "pytest" not in cmd:
+        return ""
+    # 判断 ASAN: cmd 以 ./ci/pytest.sh 开头
+    is_asan = cmd.startswith("./ci/pytest.sh")
+    # 提取 pytest 后面的参数（测试文件路径 + 额外参数）
+    try:
+        idx = cmd.index("pytest ")
+        test_args = cmd[idx + len("pytest "):]
+    except ValueError:
+        return ""
+
+    lines = []
+
+    import os as _os
+    _host = _os.uname().nodename
+    lines.append(f"# workspace 在 builder 机器 {_host} 上，请 SSH 到该机器执行")
+
+    # ① 本地直跑（非 ASAN，快速验证功能性问题，需宿主机有 Python 依赖）
+    tsdb_dir = f"{_WORKSPACE}/tsdb"
+    host_cmd = (f"cd {tsdb_dir} && "
+                f"TAOS_BIN_PATH=$PWD/debug-others/build/bin "
+                f"./tests/ci/scripts/run_case.sh --clean {test_args}")
+    lines.append("[本地非ASAN]")
+    lines.append(host_cmd)
+
+    # ② 容器模式（与 CI 一致，无需本地装依赖）
+    if is_asan:
+        work_dir = f"{_WORKSPACE}/tsdb-san"
+        san_flag = "-s y"
+        symlink = "ln -sfn debug-others debugSan 2>/dev/null; "
+        label = "[容器ASAN]"
+    else:
+        work_dir = f"{_WORKSPACE}/tsdb"
+        san_flag = "-s n"
+        symlink = "ln -sfn debug-others debugNoSan 2>/dev/null; "
+        label = "[容器非ASAN]"
+    docker_cmd = (
+        f"cd {work_dir} && {symlink}"
+        f"source/taos-community/test/ci/run_container.sh "
+        f"-w {work_dir} {san_flag} -d . -c \"{cmd}\" -t 1"
+    )
+    lines.append(label)
+    lines.append(docker_cmd)
+
+    return "\n".join(lines)
+
+
+def _slug_from_cmd(cmd: str) -> str:
     """从 cmd 字符串中提取用例标识部分并转换为 slug（不含 nN- 前缀）。
     优先匹配 cases/...，fallback 到最后一个路径参数（如 82-UnitTest/test.sh）。
     与 run-test-dynamic.sh 中的 slug 生成逻辑一致（去掉 n${NODE_INDEX}- 前缀）。"""
@@ -133,7 +246,9 @@ def _make_slug(cmd: str) -> str:
 
 def _print_fail_sections(sec_id: str, sec_title: str, log_b64: str,
                          ts: int = 0, label: str = "",
-                         browse_url: str = "") -> None:
+                         browse_url: str = "",
+                         fail_dir: str = "",
+                         repro_cmd: str = "") -> None:
     """打印单个折叠 GitLab section：过滤后的错误摘要。
     完整日志请查看 artifacts 中对应用例目录下的 case.txt，
     或通过 browse_url 直接在 runner 上浏览。"""
@@ -149,9 +264,19 @@ def _print_fail_sections(sec_id: str, sec_title: str, log_b64: str,
 
     print(f"\x1b[0Ksection_start:{ts}:{sec_id}[collapsed=true]\r\x1b[0K\x1b[31;1m{sec_title}\x1b[0m")
     print("\u2500" * 64)
+    # Case logs 直链（有具体 slug 时才生成，方便直接点击查看运行日志）
+    if browse_url and browse_url.count('/') >= 4:
+        print(f"Case logs:   {browse_url}run.log.txt")
     if browse_url:
         print(f"Runner logs: {browse_url}")
+    if fail_dir:
+        print(f"Fail dir:    {fail_dir}")
+    if repro_cmd:
+        print("复现方法:")
+        for _line in repro_cmd.splitlines():
+            print(_line)
     if full_text:
+        print("\u2500" * 64)
         filtered = _filter_pip_noise(full_text)
         flines = filtered.splitlines()
         # 找到最后一个关键错误锚点（pytest 汇总 / AssertionError / Error: / FAILED / exit code）
@@ -169,11 +294,12 @@ def _print_fail_sections(sec_id: str, sec_title: str, log_b64: str,
         else:
             # 无锚点：取最后 80 行
             summary_lines = flines[-80:]
+        print("摘要信息:")
         print("\n".join(summary_lines) if summary_lines else "(no key error lines found)")
     else:
         if browse_url:
             # TIMEOUT/LOST: 无日志但有 browse URL，提示用户浏览目录
-            _hint = _make_slug(label) if label else ""
+            _hint = label.split("/")[-1].rsplit(".", 1)[0] if label else ""
             if _hint:
                 print(f"(no log captured — browse directory listing above, look for *{_hint}*)")
             else:
@@ -194,13 +320,15 @@ _worker_scores  = {}          # worker_hostname → load_score (0-100, 越低越
 _worker_ncpus   = {}          # worker_hostname → logical CPU count (from Prometheus)
 _worker_ips     = {}          # worker_hostname → prometheus instance (ip:9100)
 _worker_last    = {}          # worker_hostname → last_seen timestamp
+_worker_last_done = {}        # worker_hostname → last time a case completion was reported (用于卡死检测)
+_worker_meta    = {}          # worker_hostname → {"job_id": str, "node": str}  (heartbeat 注册)
 _worker_new     = set()       # 还未完成首次 Prometheus 查询的 worker
 _prom_miss_cnt  = {}          # instance → 连续 miss 次数，用于抜制重复告警
 _total_cases   = 0
 _start_time    = time.time()
 
 # ── Prometheus 查询 ───────────────────────────────────────────────────────────
-def prom_query(promql: str) -> float | None:
+def prom_query(promql: str) -> Optional[float]:
     url = f"{PROMETHEUS_URL}/api/v1/query?query={urllib.parse.quote(promql)}"
     try:
         with urllib.request.urlopen(url, timeout=5) as resp:
@@ -219,19 +347,19 @@ def get_load_score(instance: str) -> tuple[float, int]:
     公式: cpu_busy*0.50 + iowait*0.30 + load_ratio*0.20
 
     设计依据:
-    - cpu_busy  : [5m] 窗口平滑毛刺，CPU 是 CI 测试的主要瓶颈，权重最高 (0.50)
-    - iowait    : [5m] 窗口，磁盘 IO 次于 CPU，权重 0.30
+    - cpu_busy  : [PROM_RATE_WINDOW] 窗口（默认 1m）平衡响应速度与毛刺抑制
+    - iowait    : 同窗口，磁盘 IO 次于 CPU，权重 0.30
     - load_ratio: (load1+load5)/2 / ncpus，兼顾短期响应和中期趋势，
                   已按核数归一化，权重 0.20；三者优先级 cpu > io > load，
                   io 与 load 相差 0.10 保持接近
     """
     cpu_busy = prom_query(
         f'100 - (avg by(instance)(rate(node_cpu_seconds_total{{mode="idle",'
-        f'instance="{instance}"}}[5m])) * 100)'
+        f'instance="{instance}"}}[{PROM_RATE_WINDOW}])) * 100)'
     )
     iowait = prom_query(
         f'avg by(instance)(rate(node_cpu_seconds_total{{mode="iowait",'
-        f'instance="{instance}"}}[5m])) * 100'
+        f'instance="{instance}"}}[{PROM_RATE_WINDOW}])) * 100'
     )
     load1 = prom_query(f'node_load1{{instance="{instance}"}}')
     load5 = prom_query(f'node_load5{{instance="{instance}"}}')
@@ -307,32 +435,20 @@ _NCPUS_BASELINE = 8
 def calc_batch_size(worker: str, requested: int) -> int:
     """
     根据 worker 负载评分和 CPU 核数决定实际分配数量。
-
-    score 越低越空闲；当 score < 40% 时允许突破 requested 上限，
-    直接按核数放大（上限 ncpus）以充分利用空闲资源。
-
-    阈值设计（保守策略，适配多 MR 并发）：
-      - score >= 70% 时停止分配，为其它 MR 留余量
-      - score < 30% 时允许适度放大，但上限为 ncpus/2 而非 ncpus
-      - 整体更保守，避免多 MR 并发时用例大批量超时
+    激进度由 CI_SCHED_AGGR (0/1/2) 控制，查 _SCHED_PROFILE 表，无需改代码。
     """
     score = _worker_scores.get(worker, 50.0)
     ncpus = _worker_ncpus.get(worker, _NCPUS_BASELINE)
-    # 核数放大系数：保守模式，上限 1.5×
     cpu_factor = min(1.5, 1.0 + 0.3 * (ncpus / _NCPUS_BASELINE - 1))
+    profile = _SCHED_PROFILE
 
-    if score >= 70:
-        return 0           # 负载较高时完全停止分配
-    elif score >= 55:
-        cap = max(1, int(requested * 0.30 * cpu_factor))
-    elif score >= 40:
-        cap = max(1, int(requested * 0.50 * cpu_factor))
-    elif score >= 30:
-        cap = max(1, int(requested * 0.75 * cpu_factor))
-    else:
-        # 空闲时适度放大，上限 ncpus/2（不吃满资源）
-        cap = max(requested, int(ncpus * cpu_factor / 2))
-    return cap
+    if score >= profile["stop"]:
+        return 0
+    for threshold, mult in profile["tiers"]:
+        if score >= threshold:
+            return max(1, int(requested * mult * cpu_factor))
+    # 低于所有 tier（机器极度空闲）：按 idle 系数放大
+    return max(requested, int(ncpus * cpu_factor * profile["idle"]))
 
 # ── HTTP 请求处理 ──────────────────────────────────────────────────────────────
 class ReusableHTTPServer(HTTPServer):
@@ -404,26 +520,16 @@ class Handler(BaseHTTPRequestHandler):
                 if is_new_worker or worker in _worker_new:
                     allocated = min(2, slots, remaining)
                 else:
-                    # score < 60% 时允许 prefetch：按「空闲余量」计算可预取数。
-                    # prefetch 上限为 ncpus/2，避免多 MR 并发时吃满资源。
-                    #
-                    # 示例：u0-210  score=24%  ncpus=24  slots=1
-                    #   headroom = (60-24)/60 = 0.60
-                    #   max_prefetch = max(4, 24//2) = 12
-                    #   prefetch = min(int(0.60*12), 12) = 7
-                    #   slot_cap = 1+7 = 8
-                    #   calc_batch_size(worker, 8) → score<30 → cap=max(8,int(24*1.2/2))=14
-                    #   allocated = min(14, remaining, 8) = 8  ✓
-                    #
-                    # 多 MR 并行时 score 升至 40-60%+，headroom 缩小或归零，
-                    # prefetch 显著减少，天然退化到保守模式。
+                    # score < stop 时允许 prefetch：按「空闲余量」计算可预取数。
+                    # PROM_RATE_WINDOW=1m 使 score 在 1 分钟内跟上真实负载，
+                    # 无需额外 warmup 旁路，多 MR 并发时各机器 score 同样快速升高，天然限流。
                     worker_score_now = _worker_scores.get(worker, 50.0)
-                    if worker_score_now < 60:
+                    _pf_stop = float(_SCHED_PROFILE["stop"])
+                    if worker_score_now < _pf_stop:
                         ncpus_now = _worker_ncpus.get(worker, _NCPUS_BASELINE)
-                        headroom = (60.0 - worker_score_now) / 60.0
-                        # prefetch 上限：ncpus/2，避免多 MR 并发时分配过多
-                        max_prefetch = max(4, ncpus_now // 2)
-                        prefetch = min(int(headroom * ncpus_now / 2), max_prefetch)
+                        headroom = (_pf_stop - worker_score_now) / _pf_stop
+                        max_prefetch = max(4, int(ncpus_now * _SCHED_PROFILE["prefetch"]))
+                        prefetch = min(int(headroom * max_prefetch), max_prefetch)
                         slot_cap = slots + prefetch
                     else:
                         slot_cap = slots
@@ -489,11 +595,15 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
-        # ── /api/heartbeat?worker=xxx ────────────────────────────────────────
+        # ── /api/heartbeat?worker=xxx&job_id=yyy&node=z ──────────────────────
         if path == "/api/heartbeat":
             worker = params.get("worker", "unknown")
+            job_id = params.get("job_id", "")
+            node   = params.get("node", "")
             with _lock:
                 _worker_last[worker] = time.time()
+                if job_id or node:
+                    _worker_meta[worker] = {"job_id": job_id, "node": node}
             self.send_json(200, {"ok": True})
             return
 
@@ -522,6 +632,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             with _lock:
                 _worker_last[worker] = time.time()
+                _worker_last_done[worker] = time.time()
                 _in_flight.pop(idx, None)
                 # 若该 idx 已被 MAX_CASE_TIMEOUT 收割标为 LOST/TIMEOUT（rc<0），
                 # 以 worker 实际结果覆盖（worker 跑完了就是真实结果）
@@ -566,11 +677,15 @@ class Handler(BaseHTTPRequestHandler):
             sec_id  = f"fail_rt_{worker}_{int(time.time()*1000)}"
             sec_title = f"FAIL [exit={rc}] [{worker}] {label}  ({elapsed/1000:.1f}s)"
             browse_url = ""
+            fail_dir = ""
             if worker_ip and slug:
                 browse_url = f"http://{worker_ip}:{_FAIL_HTTP_PORT}/{slug}/"
+                fail_dir = f"root@{worker_ip}:{_FAIL_RETAIN_BASE}/{slug}/"
             ts = int(time.time())
+            repro_cmd = _make_repro_cmd(cmd)
             _print_fail_sections(sec_id, sec_title, log_b64, ts=ts, label=label,
-                                 browse_url=browse_url)
+                                 browse_url=browse_url, fail_dir=fail_dir,
+                                 repro_cmd=repro_cmd)
             # flush 确保 GitLab 日志实时刷新
             sys.stdout.flush()
             self.send_json(204, {})
@@ -624,6 +739,74 @@ def write_junit(results: list, output_path: str):
     with open(output_path, "wb") as f:
         tree.write(f, encoding="utf-8", xml_declaration=True)
     print(f"[coordinator] JUnit written → {output_path}  ({total} cases, {fails} failures)")
+
+
+def write_case_timing(results: list, output_path: str):
+    """将本次所有用例及耗时写入纯文本文件并打印到日志。
+
+    格式：
+      # case-timing.txt — generated by coordinator
+      # total=915  pass=910  fail=5  elapsed=1500s
+      # columns: status  elapsed_s  worker  case
+      PASS    12.3  u3-141  cases/01-Insert/test_insert.py
+      FAIL   405.6  u3-142  cases/12-UDFs/test_udf_create.py
+      ...
+    """
+    import re as _re3
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    total_elapsed = int(time.time() - _start_time)
+    passes = sum(1 for r in results if r["rc"] == 0)
+    fails  = len(results) - passes
+
+    # 按耗时降序排列，最慢的用例排前面，方便排查瓶颈
+    sorted_results = sorted(results, key=lambda r: r.get("elapsed_ms", 0), reverse=True)
+
+    def _case_display(r: dict) -> str:
+        """从 cmd 提取 cases/... 部分；回退到 path，再回退到 cmd 末尾 token。"""
+        cmd = r.get("cmd", "")
+        m = _re3.search(r'cases/\S+', cmd)
+        if m:
+            return m.group(0)
+        path = r.get("path", "")
+        if path and path not in (".", ""):
+            return path
+        tokens = cmd.strip().split()
+        return tokens[-1] if tokens else "?"
+
+    lines = [
+        "# case-timing.txt — generated by coordinator.py",
+        f"# total={len(results)}  pass={passes}  fail={fails}  elapsed={total_elapsed}s",
+        f"# columns: status  elapsed_s  worker  case",
+        "",
+    ]
+    for r in sorted_results:
+        status    = "PASS" if r["rc"] == 0 else f"FAIL({r['rc']})"
+        elapsed_s = r.get("elapsed_ms", 0) / 1000
+        worker    = r.get("worker", "?")
+        case      = _case_display(r)
+        lines.append(f"{status:<10}  {elapsed_s:8.1f}s  {worker:10s}  {case}")
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"[coordinator] case-timing written → {output_path}  ({len(results)} entries, sorted by elapsed desc)")
+
+    # ── 同时打印到 job 日志（折叠 section，默认折叠）────────────────────────
+    _ts = int(time.time())
+    _sec = f"case_timing_{_ts}"
+    print(f"\033[0Ksection_start:{_ts}:{_sec}[collapsed=true]\r\033[0K"
+          f"⏱ Case Timing — {len(results)} cases, {passes} passed, {fails} failed, "
+          f"total elapsed {total_elapsed}s")
+    # 打印前 3 行注释 + 前 100 条数据行（data_lines 不含空行和注释）
+    data_lines = [l for l in lines if l and not l.startswith("#")]
+    print_lines = lines[:3] + [""] + data_lines[:100]
+    for line in print_lines:
+        print(line)
+    if len(data_lines) > 100:
+        remaining = len(data_lines) - 100
+        print(f"... ({remaining} more rows)")
+        print(f"[coordinator] Full timing: Job artifacts → Browse → results/case-timing.txt")
+    print(f"\033[0Ksection_end:{_ts}:{_sec}\r\033[0K")
+    sys.stdout.flush()
 
 
 def _save_state(results: list):
@@ -709,6 +892,109 @@ def _apply_rerun_filter(all_cases: list, rerun_mode: str, prev_results: list) ->
 
     return filtered
 
+
+def _auto_retry_failed_workers() -> int:
+    """
+    coordinator retry 时自动将本 pipeline 中所有 failed/canceled 的 test-linux-* job
+    一并触发 retry，用户只需点一次 coordinator Retry 即可重新调度所有失败用例。
+
+    认证优先级：GITLAB_CI_TOKEN（PAT/项目 token）> CI_JOB_TOKEN（已无 retry 权限）。
+    GitLab 16.x+ 已限制 CI_JOB_TOKEN 对 Jobs write API 的访问，必须使用 PAT。
+    在 GitLab 项目 Settings → CI/CD → Variables 中添加：
+      GITLAB_CI_TOKEN = <Personal/Project Access Token, scope: api>
+
+    边界行为：
+    - 已 running 的 worker（先 retry worker 再 retry coordinator）：跳过，不重复触发
+    - 已 success 的 worker：跳过
+    - API 失败：打印警告，不影响 coordinator 主流程
+
+    返回值：成功触发的 worker 数量
+    """
+    gitlab_url  = os.environ.get("CI_SERVER_URL", "").rstrip("/")
+    project_id  = os.environ.get("CI_PROJECT_ID", "")
+    pipeline_id = os.environ.get("CI_PIPELINE_ID", str(_pipeline_id))
+    # 必须使用 PAT（GITLAB_CI_TOKEN）；CI_JOB_TOKEN 在 GitLab 16.x+ 无 retry 权限
+    token = os.environ.get("GITLAB_CI_TOKEN", "")
+    if not token:
+        print("[auto-retry] ❌ GITLAB_CI_TOKEN not set — cannot auto-retry workers.")
+        print("[auto-retry]    Add a Project/Personal Access Token (scope: api) as")
+        print("[auto-retry]    CI variable GITLAB_CI_TOKEN in GitLab project settings.")
+        print("[auto-retry]    Falling back: please retry worker jobs manually.")
+        return 0
+    auth_key = "PRIVATE-TOKEN"
+
+    if not all([gitlab_url, project_id, pipeline_id]):
+        print("[auto-retry] Skipped: missing CI_SERVER_URL / CI_PROJECT_ID")
+        return 0
+
+    def _api_get(path: str):
+        url = f"{gitlab_url}/api/v4{path}"
+        req = urllib.request.Request(url, headers={auth_key: token})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                print(f"[auto-retry] ❌ HTTP 401 on GET {path}: token invalid or missing 'api' scope")
+                print("[auto-retry]    Check GITLAB_CI_TOKEN value in project CI variables.")
+            else:
+                print(f"[auto-retry] GET {path}: HTTP {e.code}")
+            return None
+        except Exception as e:
+            print(f"[auto-retry] GET {path}: {e}")
+            return None
+
+    def _api_post(path: str):
+        url = f"{gitlab_url}/api/v4{path}"
+        req = urllib.request.Request(url, method="POST", headers={auth_key: token},
+                                     data=b"")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                print(f"[auto-retry] ❌ HTTP 401 on POST {path}: token invalid or missing 'api' scope")
+            else:
+                print(f"[auto-retry] POST {path}: HTTP {e.code} {e.reason}")
+            return None
+        except Exception as e:
+            print(f"[auto-retry] POST {path}: {e}")
+            return None
+
+    # 列出 pipeline 内所有 job（test stage 最多 15 个 + 其他约 15 个 = < 100）
+    jobs = _api_get(f"/projects/{project_id}/pipelines/{pipeline_id}/jobs?per_page=100")
+    if not isinstance(jobs, list):
+        print("[auto-retry] Failed to list pipeline jobs — skipping auto-retry")
+        return 0
+
+    retried, skipped = [], []
+    for job in jobs:
+        name   = job.get("name", "")
+        status = job.get("status", "")
+        jid    = job.get("id")
+        # 只处理 test-linux-* 系列（含带主机名的 key 如 "test-linux-1 [u3-141]"）
+        if not name.startswith("test-linux-"):
+            continue
+        if status in ("failed", "canceled"):
+            result = _api_post(f"/projects/{project_id}/jobs/{jid}/retry")
+            if result and result.get("id"):
+                retried.append(f"{name}→job-{result['id']}")
+            else:
+                skipped.append(f"{name}[api-failed]")
+        elif status == "running":
+            # 已在运行（用户先 retry 了该 worker），等它自己连上来，无需重复触发
+            skipped.append(f"{name}[already-running]")
+        # success / created / pending 均跳过
+
+    if retried:
+        print(f"[auto-retry] ✅ Triggered retry: {', '.join(retried)}")
+    if skipped:
+        print(f"[auto-retry] ⚠ Skipped: {', '.join(skipped)}")
+    if not retried and not skipped:
+        print("[auto-retry] No failed test-linux-* jobs found in this pipeline")
+    return len(retried)
+
+
 # ── 主逻辑 ────────────────────────────────────────────────────────────────────
 def main():
     global _queue_normal, _queue_largemem, _pos_normal, _pos_largemem, _total_cases
@@ -777,6 +1063,11 @@ def main():
     print(f"[coordinator] Listening on 0.0.0.0:{DEFAULT_PORT}")
     print(f"[coordinator] Results dir: {RESULTS_DIR}")
     print(f"[coordinator] State dir: {STATE_DIR}")
+    print(f"[coordinator] Sched profile: CI_SCHED_AGGR={_SCHED_AGGR}  "
+          f"stop={_SCHED_PROFILE['stop']}%  tiers={_SCHED_PROFILE['tiers']}  "
+          f"idle={_SCHED_PROFILE['idle']}  prefetch={_SCHED_PROFILE['prefetch']}")
+    print(f"[coordinator] Prometheus rate window: {PROM_RATE_WINDOW}  "
+          f"(shorter window = faster score response, set PROM_RATE_WINDOW to override)")
     if effective_rerun:
         print(f"[coordinator] *** RERUN_MODE: {RERUN_MODE} → effective: {effective_rerun} ***")
     else:
@@ -806,10 +1097,22 @@ def main():
     srv_thread = threading.Thread(target=server.serve_forever, daemon=True)
     srv_thread.start()
 
+    # ── 自动 retry 失败的 worker job（仅 rerun 模式）──────────────────────────
+    # server 已就绪 → 先起来再触发 worker，避免 worker 连接时 coordinator 尚未监听
+    if effective_rerun:
+        print("[auto-retry] Coordinator is in rerun mode — triggering failed workers via GitLab API ...")
+        n_retried = _auto_retry_failed_workers()
+        if n_retried > 0:
+            # 成功触发了 worker retry：等待 90s 让 worker 启动并连上来，
+            # 避免只有第一个连上的 worker 独占全部用例
+            print(f"[auto-retry] Waiting 90s for {n_retried} worker(s) to start up ...")
+            time.sleep(90)
+
     # ── 等待所有用例完成 ───────────────────────────────────────────────────────
     last_progress = time.time()
     done_prev = 0
     last_reap_check = time.time()
+    last_tail_print = 0.0   # 尾期 in_flight 上次打印时间
     while True:
         time.sleep(5)
         now = time.time()
@@ -820,6 +1123,7 @@ def main():
 
             # ── 先判定哪些 worker 心跳已超时（死亡 worker）──────────────────
             with _lock:
+                _reap_inflight_cnt = len(_in_flight)
                 alive_workers = set()
                 dead_workers = set()
                 for w, last_ts in _worker_last.items():
@@ -838,15 +1142,25 @@ def main():
                     if info["worker"] in dead_workers
                 ]
 
-                # ── 仅对心跳正常的 worker 做 MAX_CASE_TIMEOUT 检查 ─────────
-                # 如果 worker 心跳正常，说明它还在串行执行批次中的 case，
-                # 不应按 assigned_at 超时。只有超过 MAX_CASE_TIMEOUT 的
-                # 活 worker case 才需要关注（避免真正的单用例卡死）
+                # ── 对非死亡 worker 做 MAX_CASE_TIMEOUT 检查（卡死用例收割）─────
+                # 使用 max(assigned_at, last_done) 作为参考起点：
+                #   - 若 worker 有近期完成记录，说明批量用例在正常推进，以
+                #     最后完成时间为起点更准确（避免批量 assigned_at 导致误判）
+                #   - 若无完成记录（首个用例或 worker 刚注册），退回 assigned_at
+                # 覆盖场景：alive worker（心跳正常但用例卡死）+ orphaned worker
+                # （in_flight 中有记录但 worker 已不在 _worker_last）
                 alive_timed_out = [
                     (idx, info) for idx, info in _in_flight.items()
-                    if info["worker"] in alive_workers
-                    and now - info["assigned_at"] > MAX_CASE_TIMEOUT
+                    if info["worker"] not in dead_workers
+                    and now - max(info["assigned_at"],
+                                  _worker_last_done.get(info["worker"], 0)) > MAX_CASE_TIMEOUT
                 ]
+
+            # diagnostic: log reap check summary
+            if _reap_inflight_cnt > 0 or dead_reap or alive_timed_out:
+                print(f"[coordinator] reap-check: in_flight={_reap_inflight_cnt}"
+                      f"  alive={len(alive_workers)}  dead={len(dead_workers)}"
+                      f"  dead_reap={len(dead_reap)}  alive_timed_out={len(alive_timed_out)}")
 
             # ── 处理死亡 worker 收割 ──────────────────────────────────────
             if dead_reap:
@@ -864,12 +1178,18 @@ def main():
                     with _lock:
                         _in_flight.pop(idx, None)
                         _wip = _worker_ips.get(info["worker"], "").split(":")[0]
+                        _meta = _worker_meta.get(info["worker"], {})
+                        _job_id = _meta.get("job_id", "")
+                        _node   = _meta.get("node", "")
+                        _cmd_slug = _slug_from_cmd(c_cmd) if c_cmd else ""
+                        _computed_slug = (f"job-{_job_id}/n{_node}-{_cmd_slug}"
+                                          if _job_id and _node and _cmd_slug else "")
                         _results.append({
                             "idx": idx, "worker": info["worker"],
                             "path": c_path, "cmd": c_cmd,
                             "rc": -1, "elapsed_ms": elapsed_s * 1000,
                             "log_b64": "", "runner": c_runner,
-                            "worker_ip": _wip, "slug": "",
+                            "worker_ip": _wip, "slug": _computed_slug,
                         })
                     print(f"[coordinator]   DEAD-WORKER-REAP idx={idx}  "
                           f"worker={info['worker']}  {c_path}  (no heartbeat for {elapsed_s}s)")
@@ -889,12 +1209,18 @@ def main():
                     with _lock:
                         _in_flight.pop(idx, None)
                         _wip = _worker_ips.get(info["worker"], "").split(":")[0]
+                        _meta = _worker_meta.get(info["worker"], {})
+                        _job_id = _meta.get("job_id", "")
+                        _node   = _meta.get("node", "")
+                        _cmd_slug = _slug_from_cmd(c_cmd) if c_cmd else ""
+                        _computed_slug = (f"job-{_job_id}/n{_node}-{_cmd_slug}"
+                                          if _job_id and _node and _cmd_slug else "")
                         _results.append({
                             "idx": idx, "worker": info["worker"],
                             "path": c_path, "cmd": c_cmd,
                             "rc": -1, "elapsed_ms": int(MAX_CASE_TIMEOUT * 1000),
                             "log_b64": "", "runner": c_runner,
-                            "worker_ip": _wip, "slug": "",
+                            "worker_ip": _wip, "slug": _computed_slug,
                         })
                     print(f"[coordinator]   TIMEOUT case idx={idx}  "
                           f"worker={info['worker']}  {c_path}")
@@ -918,6 +1244,34 @@ def main():
             done_prev = done
             last_progress = time.time()
 
+        # ── 尾期（≥98%）每隔 PROM_INTERVAL 秒打印 in_flight 明细 ───────────
+        # 队列已空且完成率 ≥98% 时说明整体接近收尾，此时 in_flight 的慢用例
+        # 是唯一拉长 pipeline 的原因，打印出来便于排查
+        pct_now = done * 100 // _total_cases if _total_cases else 0
+        if pct_now >= 98 and left == 0 and inflight > 0:
+            if now - last_tail_print >= PROM_INTERVAL:
+                last_tail_print = now
+                elapsed_total = int(now - _start_time)
+                print(f"[coordinator] ⏳ tail {inflight} in_flight case(s) "
+                      f"(progress {done}/{_total_cases}, elapsed={elapsed_total}s):")
+                with _lock:
+                    snapshot = {idx: dict(info) for idx, info in _in_flight.items()}
+                    all_entries = _queue_normal + _queue_largemem
+                for idx, info in sorted(snapshot.items()):
+                    # 从队列里查出该 idx 对应的 path/cmd
+                    # 注意：path 字段通常是 '.'，有效信息在 cmd（含用例文件路径）
+                    c_cmd = ""
+                    for entry in all_entries:
+                        if entry[0] == idx:
+                            c_cmd = entry[2]   # entry = (idx, path, cmd, runner, san)
+                            break
+                    # 从 cmd 中提取 cases/... 部分，回退到完整 cmd
+                    import re as _re2
+                    _m = _re2.search(r'cases/\S+', c_cmd)
+                    display = _m.group(0) if _m else (c_cmd.strip() or f"idx={idx}")
+                    running_s = int(now - info["assigned_at"])
+                    print(f"[coordinator]   {info['worker']:8s}  {running_s:5d}s  {display}")
+
         # in_flight 不为零时重置 last_progress，防止慢用例被误判为「无进度」
         if inflight > 0:
             last_progress = time.time()
@@ -935,8 +1289,8 @@ def main():
 
         # 超时保护：长时间无活动
         if not workers_seen:
-            if time.time() - _start_time > 120:
-                print("[coordinator] TIMEOUT: no workers registered after 120s, exiting")
+            if time.time() - _start_time > FIRST_WORKER_TIMEOUT:
+                print(f"[coordinator] TIMEOUT: no workers registered after {FIRST_WORKER_TIMEOUT}s, exiting")
                 break
         else:
             if time.time() - last_progress > MAX_WAIT:
@@ -986,25 +1340,10 @@ def main():
     print("="*60)
 
     if fails:
-        print("\nFailed cases:")
-        for r in results:
-            if r["rc"] != 0:
-                _e = r.get('elapsed_ms', 0)
-                _es = f"{_e//1000}.{_e%1000:03d}s"
-                _wip = r.get('worker_ip', '')
-                _slug = r.get('slug', '')  # worker 上报的完整路径: job-{id}/{nN-case_slug}
-                if _wip and _slug:
-                    _url = f"http://{_wip}:{_FAIL_HTTP_PORT}/{_slug}/"
-                elif _wip:
-                    _url = f"http://{_wip}:{_FAIL_HTTP_PORT}/"
-                else:
-                    _url = ""
-                print(f"  [{r['worker']}] exit={r['rc']}  {_es}  {r['path']}::{r['cmd']}")
-                if _url:
-                    print(f"    {_url}")
-
-        # 用 GitLab section 折叠块打印每个失败用例的日志
+        # 用 GitLab section 折叠块打印每个失败用例的日志（展开后含完整信息，无需在前面再列一遍）
         import base64, time as _time
+        print("")
+        print("↓ 展开下方折叠条目可查看失败日志及复现方法")
         print("")
         for r in results:
             if r["rc"] != 0:
@@ -1017,13 +1356,18 @@ def main():
                 _slug = r.get('slug', '')  # worker 上报的完整路径
                 if _wip and _slug:
                     browse_url = f"http://{_wip}:{_FAIL_HTTP_PORT}/{_slug}/"
+                    fail_dir = f"root@{_wip}:{_FAIL_RETAIN_BASE}/{_slug}/"
                 elif _wip:
                     browse_url = f"http://{_wip}:{_FAIL_HTTP_PORT}/"
+                    fail_dir = ""
                 else:
                     browse_url = ""
+                    fail_dir = ""
                 ts = int(_time.time())
+                repro_cmd = _make_repro_cmd(r['cmd'])
                 _print_fail_sections(sec_id, sec_title, r.get("log_b64", ""),
-                                     ts=ts, label=label, browse_url=browse_url)
+                                     ts=ts, label=label, browse_url=browse_url,
+                                     fail_dir=fail_dir, repro_cmd=repro_cmd)
 
     # 保存状态供 rerun 使用
     _save_state(results)
@@ -1032,7 +1376,14 @@ def main():
     junit_path = os.path.join(RESULTS_DIR, "junit-aggregate.xml")
     write_junit(results, junit_path)
 
-    sys.exit(1 if fails else 0)
+    # 写用例耗时汇总
+    write_case_timing(results, os.path.join(RESULTS_DIR, "case-timing.txt"))
+
+    # 失败条件：(1) 有失败的用例，或 (2) 应该执行 cases 但一个都没执行（worker 超时/无法连接）
+    should_fail = fails > 0 or (_total_cases > 0 and len(results) == 0)
+    if _total_cases > 0 and len(results) == 0:
+        print("[coordinator] ERROR: No cases executed (workers timeout or unreachable), exiting with failure")
+    sys.exit(1 if should_fail else 0)
 
 
 if __name__ == "__main__":

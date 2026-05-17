@@ -3,11 +3,16 @@
 
 ## 1. CI 流水线概览
 
-每次向 `main`、`3.0` 或 `3.3.6` 分支提 MR，GitLab 会自动触发一条流水线：
+每次向 `main`、`3.0` 或 `3.3.6` 分支提 MR，GitLab 会自动触发一条流水线，共 8 个阶段：
 
-1. **构建** — 编译 TDengine（普通 + ASAN 两份）
-2. **检查** — 代码质量检查 + 单元测试
-3. **测试** — 在多台 worker 机器上并行运行系统集成测试
+1. **prepare** — 在 builder 机器上克隆源码（两份独立副本，分别用于 NoSan 和 ASAN 编译）
+2. **check** — 代码检查（`check-void` 失败会阻塞构建；`check-enum` 设有 `allow_failure: true`，失败仅为警告，不阻塞 build）
+3. **build** — 编译 TDengine（externals 哨兵快速通道決来 → NoSan 与 ASAN **真并行**编译）
+4. **quality** — 代码质量检查（检查 assert 使用规范）
+5. **verify** — 单元测试（CTest）
+6. **upload** — 产物打包并上传 Nexus
+7. **test** — 分布式集成测试（在 14 台 worker 上并行运行系统集成测试）
+8. **cleanup** — 清理
 
 流水线通过 → MR 可以合并；失败 → 需要排查并修复。
 
@@ -96,6 +101,9 @@ git push gitlab feat/my-feature
 
 **点击具体 Job** — 看实时日志
 
+> **提示**：Test stage 中每个 job 名称直接包含执行机器（如 `coordinator [tsdb-builder-0]`、`test-linux-5 [u1-63]`），
+> 无需点进去就能确认跑在哪台机器上（需 GitLab ≥ 15.9）。
+
 ---
 
 ## 5. 流水线失败怎么办
@@ -109,12 +117,40 @@ MR 页面 → Pipeline → **Tests tab**，直接列出失败用例名和错误�
 点击 `coordinator` job，搜索 `FAIL` 或 `❌`，每个失败用例有一个折叠 section：
 
 ```
-▶ ❌ FAIL  test_benchmark_commandline.py  (worker: u3-141, exit=1, 125s)
-  Runner logs: http://192.168.3.141:8899/job-12345/81-Tools.../
+▶ FAIL [exit=1] [u1-47] .::./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth.py  (430.3s)
+  ────────────────────────────────────────────────────────────────
+  Case logs:   http://192.168.1.47:8899/job-11274/n8-05-VirtualTables_test_vtable_auth/run.log.txt
+  Runner logs: http://192.168.1.47:8899/job-11274/n8-05-VirtualTables_test_vtable_auth/
+  Fail dir:    root@192.168.1.47:/data1/tdengine-ci/fail-logs/job-11274/n8-05-VirtualTables_test_vtable_auth/
+  复现方法:
+  # workspace 在 builder 机器 u1-47 上，请 SSH 到该机器执行
+  [本地非ASAN]
+  cd /data1/tdengine-ci/mr199/tsdb && TAOS_BIN_PATH=$PWD/debug-others/build/bin ./tests/ci/scripts/run_case.sh --clean cases/05-VirtualTables/test_vtable_auth.py
+  [容器ASAN]
+  cd /data1/tdengine-ci/mr199/tsdb-san && ln -sfn debug-others debugSan 2>/dev/null; source/taos-community/test/ci/run_container.sh -w /data1/tdengine-ci/mr199/tsdb-san -s y -d . -c "./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth.py" -t 1
+  摘要信息:
   AssertionError: expected 100 rows, got 0
+  ────────────────────────────────────────────────────────────────
 ```
 
-点击 `Runner logs` 链接可在浏览器中查看完整日志（保留 7 天）。
+- **Case logs** — 直链到 `run.log.txt`，可在浏览器一键查看原始日志；超时/宕机用例也会显示完整 URL
+- **Fail dir** — 失败用例日志保留路径（含 `sim/taosd` 日志），可 SSH 过去查看
+- **复现方法** — 可直接复制粘贴执行的复现命令
+  - `[本地非ASAN]` 宿主机直跑，快速
+  - `[容器ASAN]` 容器内运行，与 CI 环境一致（推荐）
+
+点击 `Case logs` 或 `Runner logs` 链接可在浏览器中查看完整日志（保留 7 天）。
+
+> **Pipeline 快结束时**：当进度达到 98% 且队列已空，coordinator 日志会每隔 30s 打印一次
+> 当前仍在运行的用例及已耗时，便于确认哪个慢用例在拉长 pipeline：
+> ```
+> [coordinator] ⏳ tail 2 in_flight case(s) (progress 913/915, elapsed=1401s):
+> [coordinator]   [u3-146    ]   1040s  cases/99-Stress/test_stress_long.py
+> [coordinator]   [u3-145    ]    587s  cases/05-VirtualTables/test_vtable_perf.py
+> ```
+
+> **`case-timing.txt`**：coordinator artifacts 中（无论成功失败都上传）包含 `results/case-timing.txt`，
+> 列出本次所有用例及耗时（按耗时降序），方便快速定位慢用例和性能退化。
 
 ### 5.3 判断是我的代码问题还是环境问题
 
@@ -123,21 +159,47 @@ MR 页面 → Pipeline → **Tests tab**，直接列出失败用例名和错误�
 | 失败用例与你的改动完全无关 | 环境偶发，重跑一次 |
 | 失败用例刚好涉及你修改的模块 | 代码 bug，需修复 |
 | exit=124（超时） | 可能偶发，先重跑 |
-| 多个用例同时失败 | 可能是 taosd 崩溃，看 taosdlog |
+| 多个用例同时失败 | 可能是 taosd 崩溃，worker job 日志末尾有自动 GDB 摘要（🔍 Coredump GDB 折叠 section），点击展开即可 |
 
 ### 5.4 重跑 Pipeline
 
-方法一：Pipeline 页面右上角点 **Retry**（只重跑失败的 job）
+**推荐：只点 coordinator Retry，自动触发所有失败 worker**
 
-方法二：推一个空 commit
+在 Pipeline 页面找到 `coordinator` job，点击 **Retry**：
+- coordinator 以 `RERUN_MODE=auto` 启动，加载上次所有失败用例
+- HTTP server 就绪后，自动调 GitLab API 触发所有 `failed`/`canceled` 的 `test-linux-*` job
+- 无需逐个点击 worker 的 Retry
+
+方法二：推一个空 commit（触发全新 Pipeline，所有用例从头跑）
 ```bash
 git commit --allow-empty -m "ci: retrigger"
 git push
 ```
 
+> **边界情况**：
+> - **先点 worker 再点 coordinator**：正常。coordinator API 看到该 worker 已是 `running` 状态会跳过它，worker 等到 coordinator 起来后直接连上，共同消费全部失败用例队列。
+> - **只点某个 worker**：worker 会等待 coordinator 最多 10 分钟；若 coordinator 一直未出现则超时退出（日志有提示"请同时 retry coordinator"）。
+
 ---
 
 ## 6. 本地复现失败用例
+
+### 6.1 直接从 Coordinator 输出复现（推荐）
+
+coordinator 日志的 `复现方法:` 块已输出可直接粘贴的命令，无需手动查找路径：
+
+```bash
+# 1. SSH 到 builder 机器（IP 在折叠块标题行或 Fail dir 行可以看到）
+ssh 192.168.1.47
+
+# 2. 复制 [容器ASAN] 行（推荐，与 CI 环境一致）：
+cd /data1/tdengine-ci/mr199/tsdb-san && ln -sfn debug-others debugSan 2>/dev/null; source/taos-community/test/ci/run_container.sh -w /data1/tdengine-ci/mr199/tsdb-san -s y -d . -c "./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth.py" -t 1
+
+# 或复制 [本地非ASAN] 行（快速，无需 Docker）：
+cd /data1/tdengine-ci/mr199/tsdb && TAOS_BIN_PATH=$PWD/debug-others/build/bin ./tests/ci/scripts/run_case.sh --clean cases/05-VirtualTables/test_vtable_auth.py
+```
+
+### 6.2 使用 rerun.sh 复现（适合旧 job）
 
 在 runner 机器上，使用 `rerun.sh` 一键复现：
 
@@ -162,6 +224,10 @@ ${comm_dir}/test/ci/rerun.sh --case "$slug"
 ---
 
 ## 7. 常见问题
+
+**Q: taosd 崩溃（core dump）怎么分析？**
+在失败用例对应的 worker job 日志（如 `test-linux-5 [u1-63]`）末尾，会有一个折叠的 `🔍 Coredump GDB` section，展开可直接看 `thread apply all bt` 输出，无需 SSH 到 worker。
+完整的 core 文件和 `gdb-bt-*.txt` 保留在 HTTP retain 目录（`Runner logs:` 链接下的 `coredump/` 子目录）。详见 [ci-guide.md §7.4–7.6](ci-guide.md)。
 
 **Q: Pipeline 没触发？**
 检查 MR 目标分支是否为 `main`、`3.0` 或 `3.3.6`，是否处于 Draft 状态。也可手动触发：Build → Pipelines → Run Pipeline。
