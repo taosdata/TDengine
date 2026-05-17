@@ -21,8 +21,10 @@
 #include "systable.h"
 #include "tmsg.h"
 
-#define SHOW_STEP_SIZE            100
+#define SHOW_STEP_SIZE            500
 #define SHOW_COLS_STEP_SIZE       4096
+#define SHOW_STABLES_STEP_SIZE    5000
+#define SHOW_STABLES_FAST_STEP_SIZE 50000
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -315,8 +317,15 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  // expend capacity for ins_columns and privileges
-  if (pShow->type == TSDB_MGMT_TABLE_COL) {
+  // Expand capacity for heavy system tables to reduce retrieve round trips.
+  if (pShow->type == TSDB_MGMT_TABLE_STB) {
+    // Dedicated fast path for db-scoped stables queries (e.g. show <db>.stables).
+    if (retrieveReq.db[0] != 0) {
+      rowsToRead = SHOW_STABLES_FAST_STEP_SIZE;
+    } else {
+      rowsToRead = SHOW_STABLES_STEP_SIZE;
+    }
+  } else if (pShow->type == TSDB_MGMT_TABLE_COL) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
   } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES ||
              pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES) {
@@ -376,13 +385,21 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
     rowsRead = 0;
   } else {
+    int64_t retrieveStartMs = taosGetTimestampMs();
     rowsRead = (*retrieveFp)(pReq, pShow, pBlock, rowsToRead);
+    int64_t retrieveCostMs = taosGetTimestampMs() - retrieveStartMs;
     if (rowsRead < 0) {
       code = rowsRead;
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
       mndReleaseShowObj(pShow, true);
       blockDataDestroy(pBlock);
       TAOS_RETURN(code);
+    }
+
+    if (pShow->type == TSDB_MGMT_TABLE_STB) {
+      mInfo("show:0x%" PRIx64 ", stb batch rowsRead:%d rowsToRead:%d totalRows:%d cost:%" PRId64
+            "ms db:%s", pShow->id, rowsRead, rowsToRead, pShow->numOfRows, retrieveCostMs,
+            retrieveReq.db[0] ? retrieveReq.db : "<all>");
     }
 
     pBlock->info.rows = rowsRead;
