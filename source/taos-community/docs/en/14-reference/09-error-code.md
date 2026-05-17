@@ -291,6 +291,7 @@ Below are the business error codes for each module.
 | 0x800003F5 | Stream temporarily does not support source db having replica > 1 | Exceeding limit                                              | Operation not allowed                                        |
 | 0x800003F6 | Too many streams                                             | Exceeding limit                                              | Cannot be modified, code-level restriction                   |
 | 0x800003F7 | Cannot write the same stable as other stream                 | Internal error                                               | Report issue                                                 |
+| 0x800003F9 | Stream has no stored CREATE statement (created before this feature or metadata missing) | Does not exist                                               | Confirm whether the stream was created on an older version without persisted SQL; recreate the stream if needed |
 | 0x8000042E | Failed to load encryption provider   | Failed to load                                               | Confirm if encryptExtDir is configured correctly                          |
 | 0x80000480 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000481 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |

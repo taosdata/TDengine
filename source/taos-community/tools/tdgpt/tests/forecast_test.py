@@ -5,12 +5,11 @@
 import unittest, os.path, sys
 import pandas as pd
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.forecast import draw_fc_results
-from taosanalytics.conf import setup_log_info, app_logger
-from taosanalytics.servicemgmt import loader
-
+from taosanalytics.algo.forecast import draw_forecast_results
+from taosanalytics.service_registry import loader
+from taosanalytics.log import setup_log_info
 
 class ForecastTest(unittest.TestCase):
     """forecast unit test cases"""
@@ -19,7 +18,7 @@ class ForecastTest(unittest.TestCase):
     def setUpClass(cls):
         """ set up the environment for unit test """
         setup_log_info("unit_test.log")
-        loader.load_all_service()
+        loader.register_all_services()
 
     def get_input_list(self):
         """ load data from csv """
@@ -44,7 +43,7 @@ class ForecastTest(unittest.TestCase):
         s.set_params({"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30})
 
         r = s.execute()
-        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
+        draw_forecast_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winters_forecast_2(self):
         """test holt winters with valid parameters"""
@@ -60,7 +59,7 @@ class ForecastTest(unittest.TestCase):
         )
 
         r = s.execute()
-        draw_fc_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
+        draw_forecast_results(data, len(r["res"]) > 2, s.conf, r["res"], "holtwinters")
 
     def test_holt_winter_invalid_params(self):
         """parameters validation check"""
@@ -108,7 +107,7 @@ class ForecastTest(unittest.TestCase):
         r = s.execute()
 
         rows = len(r["res"][0])
-        draw_fc_results(data, len(r["res"]) > 1, s.conf, r["res"], "arima")
+        draw_forecast_results(data, len(r["res"]) > 1, s.conf, r["res"], "arima")
 
 
     def test_gpt_fc(self):
@@ -123,7 +122,7 @@ class ForecastTest(unittest.TestCase):
         # r = s.execute()
         #
         # rows = len(r["res"][0])
-        # draw_fc_results(data, False, r["res"], rows, "gpt")
+        # draw_forecast_results(data, False, r["res"], rows, "gpt")
 
     def test_prophet_forecast(self):
         """prophet algorithm check"""
@@ -144,7 +143,7 @@ class ForecastTest(unittest.TestCase):
         r = s.execute()
 
         rows = len(r["res"][0])
-        draw_fc_results(data, len(r["res"]) > 1, s.conf, r["res"], "prophet")
+        draw_forecast_results(data, len(r["res"]) > 1, s.conf, r["res"], "prophet")
 
 
 if __name__ == '__main__':

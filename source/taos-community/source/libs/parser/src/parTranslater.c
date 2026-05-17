@@ -20342,6 +20342,33 @@ _exit:
 #endif
 }
 
+static int32_t translateShowCreateStream(STranslateContext* pCxt, SShowCreateStreamStmt* pStmt) {
+  int32_t        code = 0;
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+
+  char streamFName[TSDB_STREAM_FNAME_LEN] = {0};
+  SName streamName2 = {0};
+  toName(pParCxt->acctId, pStmt->dbName, pStmt->streamName, &streamName2);
+  code = tNameExtractFullName(&streamName2, streamFName);
+  if (code) {
+    parserError("QID:0x%" PRIx64 ", extract stream name %s error, code:%s", pParCxt->requestId, pStmt->streamName,
+                tstrerror(code));
+    return code;
+  }
+
+  pStmt->sql = NULL;
+  code = catalogGetStreamCreateSQL(pParCxt->pCatalog, &conn, streamFName, &pStmt->sql);
+  if (code) {
+    parserError("QID:0x%" PRIx64 ", get stream %s create SQL error, code:%s", pParCxt->requestId, streamFName,
+                tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
   SColumnNode* pCol = NULL;
   int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -21820,6 +21847,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       code = translateShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pNode);
       break;
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      code = translateShowCreateStream(pCxt, (SShowCreateStreamStmt*)pNode);
+      break;
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       code = translateShowVirtualTableValidate(pCxt, (SShowValidateVirtualTable*)pNode);
       break;
@@ -22293,6 +22323,24 @@ static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractShowCreateStreamResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = SHOW_CREATE_STREAM_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SHOW_CREATE_STREAM_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "Stream", TSDB_COL_NAME_LEN);
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = SHOW_CREATE_STREAM_RESULT_FIELD2_LEN;
+  tstrncpy((*pSchema)[1].name, "Create Stream", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS;  // SHOW_VARIABLES_RESULT_COLS
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -22421,6 +22469,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowCreateViewResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return extractShowCreateRsmaResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return extractShowCreateStreamResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);
@@ -27625,6 +27675,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       pQuery->haveResultSet = true;

@@ -407,6 +407,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be droppe
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB,  "Stream temporarily does not support source db having replica > 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STREAMS,         "Too many streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TARGET_TABLE,     "Cannot write the same stable as other stream")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NO_CREATE_SQL,
+                  "Stream has no stored CREATE statement (created before this feature or metadata missing)")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_ALREADY_EXIST,      "Anode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Anode not there")

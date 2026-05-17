@@ -1,5 +1,5 @@
-import os.path
-import sys
+import argparse
+import os
 
 import torch
 from flask import Flask, request, jsonify
@@ -249,22 +249,6 @@ def download_model(model_name, root_dir, enable_ep=False):
         )
 
 
-def usage():
-    name = os.path.basename(__file__)
-    s = [
-        "Usage:",
-        f"Python {name}                    #use implicit download of small model",
-        f"Python {name} model_index        #specify the model that would load when starting",
-        f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy",
-        "",
-        "Available models as follows:",
-        'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
-        'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
-    ]
-
-    return '\n'.join(s)
-
-
 def main():
     """
     main function
@@ -277,73 +261,90 @@ def main():
         'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
     ]
 
-    # Extract --port from argv so the port can be driven by configuration
-    _port = 6064
-    _new_argv = [sys.argv[0]]
-    _i = 1
-    while _i < len(sys.argv):
-        if sys.argv[_i] == '--port' and _i + 1 < len(sys.argv):
-            _port = int(sys.argv[_i + 1])
-            _i += 2
-        else:
-            _new_argv.append(sys.argv[_i])
-            _i += 1
-    sys.argv = _new_argv
-    num_of_arg = len(sys.argv)
+    parser = argparse.ArgumentParser(
+        description='Moirai forecast model server',
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
 
-    if num_of_arg == 2 and sys.argv[1] == '--help':
-        print(usage())
-        sys.exit(0)
+    source_group = parser.add_mutually_exclusive_group()
+    source_group.add_argument(
+        '-i', '--model-index',
+        type=int,
+        default=0,
+        choices=range(len(model_list)),
+        metavar=f'INDEX (0-{len(model_list) - 1})',
+        help=(
+            'Index of the pretrained model to load from HuggingFace Hub:\n'
+            + '\n'.join(f'  {i}: {m}' for i, m in enumerate(model_list))
+        ),
+    )
+    source_group.add_argument(
+        '-f', '--model-folder',
+        type=str,
+        metavar='FOLDER',
+        help='Local directory that contains (or will store) the model files.',
+    )
 
-    if num_of_arg == 1:
-        # use the implicit download capability
-        pretrained_model = MoiraiMoEModule.from_pretrained(
-            model_list[0]
-        ).to(device)
-    elif num_of_arg == 2:
-        # python moirai-server.py model_index
-        model_index = int(sys.argv[1])
-        if model_index < 0 or model_index >= len(model_list):
-            print(f"invalid model index parameter, valid index:\n 0. {model_list[0]}\n 1. {model_list[1]}")
-            exit(-1)
+    parser.add_argument(
+        '-n', '--model-name',
+        type=str,
+        choices=model_list,
+        metavar='MODEL_NAME',
+        help=(
+            'HuggingFace model name used when downloading to --model-folder.\n'
+            f'Valid values: {model_list}'
+        ),
+    )
+    parser.add_argument(
+        '--enable-ep',
+        action='store_true',
+        default=False,
+        help='Use the HF mirror endpoint (https://hf-mirror.com) when downloading.',
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='0.0.0.0',
+        help='Host address the server listens on (default: 0.0.0.0).',
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=6064,
+        help='Port the server listens on (default: 6064).',
+    )
 
-        pretrained_model = MoiraiMoEModule.from_pretrained(
-            model_list[model_index]
-        ).to(device)
-    elif num_of_arg == 4:
-        # let's load the model file from the user specified directory
-        model_folder = sys.argv[1].strip('\'"')
-        model_name = sys.argv[2].strip('\'"')
-        enable_ep = bool(sys.argv[3])
+    args = parser.parse_args()
 
-        if model_name not in model_list:
-            print(f"invalid model_name, valid model name as follows: {model_list}")
-            exit(-1)
+    if args.model_folder:
+        if not args.model_name:
+            parser.error('--model-name is required when --model-folder is specified.')
+
+        model_folder = args.model_folder
+        model_name = args.model_name
 
         if not os.path.exists(model_folder):
             print(f"the specified folder: {model_folder} not exists, start to create it")
 
-        # check if the model file exists or not
-        model_file = model_folder + '/model.safetensors'
-        model_conf_file = model_folder + '/config.json'
+        model_file = os.path.join(model_folder, 'model.safetensors')
+        model_conf_file = os.path.join(model_folder, 'config.json')
 
         if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
-            download_model(model_name, model_folder, enable_ep=enable_ep)
+            download_model(model_name, model_folder, enable_ep=args.enable_ep)
         else:
             print("model file exists, start directly")
 
-        """load the model from local folder"""
         pretrained_model = MoiraiMoEModule.from_pretrained(
             model_folder
         ).to(device)
     else:
-        print("invalid parameters")
-        print(usage())
-        exit(-1)
+        pretrained_model = MoiraiMoEModule.from_pretrained(
+            model_list[args.model_index]
+        ).to(device)
 
     app.run(
-        host='0.0.0.0',
-        port=_port,
+        host=args.host,
+        port=args.port,
         threaded=True,
         debug=False
     )
