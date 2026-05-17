@@ -91,7 +91,7 @@ class ServiceRegistry:
         """ get specified type service """
         all_items = []
         with self._services_lock:
-            AppLogger.info("Fetching services of type: %s, total: %d, service obj:%s", type_str, len(self.services), hex(id(self.services)))
+            AppLogger.info("Fetching services of type: %s, total: %d", type_str, len(self.services))
             services_snapshot = list(self.services.items())
 
         for key, val in services_snapshot:
