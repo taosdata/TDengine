@@ -42,26 +42,53 @@ else
     exit 1
 fi
 
-if [ $ent -ne 0 ]; then
-    echo "TSDB-Enterprise edition selected"
-    extra_param="$extra_param -e"
-    INTERNAL_REPDIR="$WORKDIR/TDinternal"
-    REPDIR="$INTERNAL_REPDIR/community"
-    REPDIR_DEBUG="$WORKDIR/$DEBUGPATH/"
-    CONTAINER_TESTDIR="/home/TDinternal/community"
-    SIM_DIR="/home/TDinternal/sim"
-    REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+if [ -d "$WORKDIR/TDinternal/enterprise" ]; then
+    # ── TDinternal CI 布局 ──────────────────────────────────────────────
+    if [ $ent -ne 0 ]; then
+        echo "TDinternal-Enterprise edition selected"
+        extra_param="$extra_param -e"
+        INTERNAL_REPDIR="$WORKDIR/TDinternal"
+        REPDIR="$INTERNAL_REPDIR/community"
+        REPDIR_DEBUG="$WORKDIR/$DEBUGPATH/"
+        CONTAINER_TESTDIR="/home/TDinternal/community"
+        SIM_DIR="/home/TDinternal/sim"
+        REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
+        REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
+        REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    else
+        echo "TDinternal-OSS edition selected"
+        REPDIR="$WORKDIR/TDengine"
+        REPDIR_DEBUG="$WORKDIR/$DEBUGPATH/"
+        CONTAINER_TESTDIR="/home/TDengine"
+        SIM_DIR="/home/TDengine/sim"
+        REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
+        REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDengine/debug/"
+        REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDengine/debug/build/lib:ro"
+    fi
 else
-    echo "TSDB-OSS edition selected"
-    REPDIR="$WORKDIR/TDengine"
+    # ── tsdb CI 布局 ────────────────────────────────────────────────────
+    # tsdb 仓库原生路径：脚本位于 tests/parallel_test/run_container.sh
+    # 优先从脚本位置反推，兼容 sparse-checkout 创建的 symlink
+    [ $ent -ne 0 ] && extra_param="$extra_param -e"
+    echo "TSDB edition selected (ent=$ent)"
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+    TSDB_COMMUNITY=$(cd "${SCRIPT_DIR}/../.." && pwd)  # → source/taos-community
+    if [ -d "${TSDB_COMMUNITY}/tests" ] && [ -d "${TSDB_COMMUNITY}/source" ]; then
+        REPDIR="${TSDB_COMMUNITY}"
+    elif [ -d "$WORKDIR/TDengine" ]; then
+        REPDIR="$WORKDIR/TDengine"
+    elif [ -d "$WORKDIR/TDinternal/community" ]; then
+        REPDIR="$WORKDIR/TDinternal/community"
+    else
+        echo "ERROR: Cannot find source directory under $WORKDIR"
+        exit 1
+    fi
     REPDIR_DEBUG="$WORKDIR/$DEBUGPATH/"
-    CONTAINER_TESTDIR="/home/TDengine"
-    SIM_DIR="/home/TDengine/sim"
-    REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDengine/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDengine/debug/build/lib:ro"
+    CONTAINER_TESTDIR="/mnt/tsdb/source/taos-community"
+    SIM_DIR="/mnt/tsdb/sim"
+    REP_MOUNT_PARAM="${REPDIR}:/mnt/tsdb/source/taos-community"
+    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/mnt/tsdb/debug/"
+    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/mnt/tsdb/debug/build/lib:ro"
 fi
 
 ulimit -c unlimited
