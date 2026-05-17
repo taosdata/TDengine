@@ -14,6 +14,7 @@ import configparser
 import shutil
 from .sql import tdSql
 from .log import tdLog
+from .pathFinding import find_proj_path
 from .server.cluster import cluster, clusterDnodes
 from .server.dnodes import tdDnodes
 from .taosadapter import tAdapter
@@ -550,10 +551,7 @@ class BeforeTest:
         else:
             binary_file = binary
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
+        projPath = find_proj_path(selfPath)
 
         paths = []
         debug_path = os.path.join(projPath, "debug", "build", "bin")
@@ -606,12 +604,8 @@ class BeforeTest:
                     path = os.path.dirname(path)
             if workdir is None:
                 selfPath = os.path.dirname(os.path.realpath(__file__))
-                projPath = None
-                if ("community" in selfPath):
-                    projPath = selfPath[:selfPath.find("community")]
-                elif ("TDengine" in selfPath):
-                    projPath = selfPath[:selfPath.find("test")]
-                if projPath is not None:
+                projPath = find_proj_path(selfPath)
+                if projPath:
                     workdir = os.path.join(projPath, "sim")
                 else:
                     workdir = os.path.join(selfPath, "sim")

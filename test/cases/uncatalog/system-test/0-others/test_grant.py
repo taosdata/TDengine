@@ -19,15 +19,10 @@ class MyDnodes(TDDnodes):
         else:
             self.simDeployed = False
 
+from new_test_framework.utils.pathFinding import find_proj_root
+
 class TestGrant:
     noConn = True
-    def getTDinternalPath():
-        path_parts = os.getcwd().split(os.sep)
-        try:
-            tdinternal_index = path_parts.index("TDinternal")
-        except ValueError:
-            raise ValueError("The specified directory 'TDinternal' was not found in the path.")
-        return os.sep.join(path_parts[:tdinternal_index + 1])
         
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
