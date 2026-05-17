@@ -84,6 +84,10 @@ class UtilTest(unittest.TestCase):
         """placeholder for removed legacy helper."""
 
     def test_convert_results_to_windows(self):
+        wins, mask = convert_results_to_windows([1, -1, -1, 1], [10, 20, 30, 40], 1)
+        self.assertListEqual(wins, [[20, 30]])
+        self.assertListEqual(mask, [-1])
+
         windows = convert_results_to_windows([1, -1], [1000], 1)
         self.assertListEqual(windows, [])
 
