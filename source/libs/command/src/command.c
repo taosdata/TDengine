@@ -509,23 +509,24 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE DATABASE `%s`", dbName);
   } else {
-    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' CACHESHARDBITS %d COMP %d DURATION %s "
-                     "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
-                     "PRECISION '%s' REPLICA %d "
-                     "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-                     "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
-                     " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
-                     "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h IS_AUDIT %d SECURE_DELETE %d ALLOW_DROP %d SECURITY_LEVEL %d",
-                     dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->cacheShardBits, pCfg->compression,
-                     durationStr, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str,
-                     keep1Str, keep2Str, pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel,
-                     pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize,
-                     pCfg->walRetentionPeriod, pCfg->walRetentionSize, pCfg->keepTimeOffset,
-                     encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
-                     pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr,
-                     pCfg->compactTimeOffset, pCfg->isAudit, pCfg->secureDelete, pCfg->allowDrop, pCfg->securityLevel);
-
+    len +=
+        tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                  "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' CACHESHARDBITS %d COMP %d DURATION %s "
+                  "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
+                  "PRECISION '%s' REPLICA %d "
+                  "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
+                  "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
+                  " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
+                  "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8
+                  "h IS_AUDIT %d SECURE_DELETE %d ALLOW_DROP %d SECURITY_LEVEL %d",
+                  dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->cacheShardBits,
+                  pCfg->compression, durationStr, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger,
+                  keep0Str, keep1Str, keep2Str, pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel,
+                  pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize,
+                  pCfg->walRetentionPeriod, pCfg->walRetentionSize, pCfg->keepTimeOffset,
+                  encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
+                  pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr, pCfg->compactTimeOffset,
+                  pCfg->isAudit, pCfg->secureDelete, pCfg->allowDrop, pCfg->securityLevel);
 
     if (pRetentions) {
       len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -686,7 +687,8 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     firstRef = false;
   }
   if (!firstRef) {
-    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), ")");
+    *len +=
+        tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), ")");
   }
 }
 
@@ -775,11 +777,10 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
       if (pTagRef->hasRef) {
         char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
         char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
-        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
-                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                         "FROM `%s`.`%s`.`%s`", pTagRef->refDbName,
-                         expandIdentifier(pTagRef->refTableName, expandRefTable),
-                         expandIdentifier(pTagRef->refColName, expandRefCol));
+        *len +=
+            snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                     "FROM `%s`.`%s`.`%s`", pTagRef->refDbName, expandIdentifier(pTagRef->refTableName, expandRefTable),
+                     expandIdentifier(pTagRef->refColName, expandRefCol));
         continue;
       }
     }
@@ -1032,7 +1033,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
 }
 
 extern const char* fmGetFuncName(int32_t funcId);
-static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
+static int32_t     setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
   int32_t       code = 0, lino = 0;
   char*         buf2 = NULL;
   SRsmaInfoRsp* pMeta = pStmt->pRsmaMeta;
@@ -1363,6 +1364,71 @@ static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
+static int32_t buildCreateStreamResultDataBlock(SSDataBlock** pOutput) {
+  QRY_PARAM_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD1_LEN, 1);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    (void)blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+static int32_t setCreateStreamResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateStreamStmt* pStmt) {
+  int32_t code = 0;
+  QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_STREAM_RESULT_FIELD1_LEN + 1] = {0};
+  snprintf(varDataVal(buf1), SHOW_CREATE_STREAM_RESULT_FIELD1_LEN - VARSTR_HEADER_SIZE, "`%s`.`%s`", pStmt->dbName,
+           pStmt->streamName);
+  varDataSetLen(buf1, strlen(varDataVal(buf1)));
+  QRY_ERR_RET(colDataSetVal(pCol1, 0, buf1, false));
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  const char*      sql = pStmt->sql ? pStmt->sql : "";
+  int32_t          sqlLen = (int32_t)strlen(sql);
+  int32_t          bufLen = sqlLen + VARSTR_HEADER_SIZE + 1;
+  char*            buf2 = taosMemoryMalloc(bufLen);
+  if (NULL == buf2) {
+    return terrno;
+  }
+  (void)memcpy(varDataVal(buf2), sql, sqlLen);
+  ((char*)varDataVal(buf2))[sqlLen] = '\0';
+  varDataSetLen(buf2, sqlLen);
+  code = colDataSetVal(pCol2, 0, buf2, false);
+  taosMemoryFree(buf2);
+  return code;
+}
+
+static int32_t execShowCreateStream(SShowCreateStreamStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateStreamResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateStreamResultIntoDataBlock(pBlock, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_STREAM_RESULT_COLS, pRsp);
+  }
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, uint8_t showVarPrivMask, SNode* pStmt,
                      SRetrieveTableRsp** pRsp, int8_t biMode, void* charsetCxt) {
   switch (nodeType(pStmt)) {
@@ -1382,6 +1448,8 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, uint8_t showVarPrivMask
       return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return execShowCreateRsma((SShowCreateRsmaStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      return execShowCreateStream((SShowCreateStreamStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

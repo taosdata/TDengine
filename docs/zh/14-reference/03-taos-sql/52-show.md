@@ -352,3 +352,15 @@ SHOW VNODES [ON DNODE dnode_id];
 ```
 
 显示当前系统中所有 VNODE 或某个 DNODE 的 VNODE 的信息。
+
+## SHOW CREATE STREAM
+
+```sql
+SHOW CREATE STREAM [db_name.]stream_name;
+```
+
+显示 stream_name 指定的流的创建语句。
+
+备注
+
+- v3.4.3.4 开始支持

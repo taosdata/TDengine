@@ -7,10 +7,10 @@ import unittest, sys, os.path
 import numpy as np
 from matplotlib import pyplot as plt
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.conf import setup_log_info, app_logger
-from taosanalytics.servicemgmt import loader
+from taosanalytics.service_registry import loader
+from taosanalytics.log import setup_log_info
 
 def draw_lags_result(lags, ccf_vals, name):
     plt.figure(figsize=(10, 5))
@@ -36,7 +36,7 @@ class CorrelationTest(unittest.TestCase):
     def setUpClass(cls):
         """ set up environment for unit test, set the log file path """
         setup_log_info("unit_test.log")
-        loader.load_all_service()
+        loader.register_all_services()
 
     def test_dtw(self):
         """ dtw unit case"""
