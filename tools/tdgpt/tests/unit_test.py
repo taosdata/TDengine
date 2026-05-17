@@ -73,6 +73,9 @@ class UtilTest(unittest.TestCase):
         }
         self.assertIsNone(validate_pay_load(valid_payload))
 
+        with self.assertRaisesRegex(ValueError, '"data" does not exist in request json'):
+            validate_pay_load({})
+
         with self.assertRaisesRegex(ValueError, "schema is missing"):
             validate_pay_load({"data": [list(range(10)), list(range(10, 20))]})
 
@@ -93,6 +96,7 @@ class UtilTest(unittest.TestCase):
         self.assertListEqual(more_mask, [-1])
 
         empty_windows = convert_results_to_windows([1, -1], [1000], 1)
+        self.assertIsInstance(empty_windows, list)
         self.assertListEqual(empty_windows, [])
 
     def test_is_white_noise(self):
