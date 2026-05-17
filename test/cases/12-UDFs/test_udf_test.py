@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom, TAOS_SYSTEM_ERROR, TSDB_CODE_MND_FUNC_NOT_EXIST, TSDB_CODE_UDF_FUNC_EXEC_FAILURE, TSDB_CODE_TSC_INTERNAL_ERROR
+from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
 import time
@@ -18,10 +19,7 @@ class TestUdfTest:
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
+        projPath = find_proj_path(selfPath)
         print(projPath)
 
         if platform.system().lower() == 'windows':

@@ -113,10 +113,7 @@ class TestStreamCompatibility:
         buildPath = tdCom.getBuildPath()
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            cfgPath = buildPath + "/../sim/dnode1/cfg/"
-        else:
-            cfgPath = buildPath + "/../sim/dnode1/cfg/"
+        cfgPath = buildPath + "/../sim/dnode1/cfg/"
 
         return cfgPath
     

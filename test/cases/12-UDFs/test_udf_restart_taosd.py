@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
 import time
@@ -19,10 +20,7 @@ class TestUdfRestartTaosd:
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
+        projPath = find_proj_path(selfPath)
         print(projPath)
 
         if platform.system().lower() == 'windows':
@@ -42,7 +40,7 @@ class TestUdfRestartTaosd:
     def prepare_perm_entropy_so(self):
         """Locate libperm_entropy.so in the build tree (same approach as libudf1/libudf2)."""
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = selfPath[:selfPath.find("community")] if "community" in selfPath else selfPath[:selfPath.find("tests")]
+        projPath = find_proj_path(selfPath)
         if platform.system().lower() == 'windows':
             self.libperm_entropy = subprocess.Popen(
                 '(for /r %s %%i in ("perm_entropy.d*") do @echo %%i)|grep lib|head -n1' % projPath,

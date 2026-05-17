@@ -5,6 +5,7 @@ import subprocess
 import platform
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes, tmqCom
+from new_test_framework.utils.pathFinding import find_proj_path
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -20,10 +21,7 @@ class TestCase:
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("test")]
+        projPath = find_proj_path(selfPath)
         print(projPath)
 
         if platform.system().lower() == 'windows':
