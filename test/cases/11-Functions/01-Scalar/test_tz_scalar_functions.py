@@ -14,6 +14,7 @@ import pytest
 from new_test_framework.utils import tdLog, tdSql
 
 ERR_INVALID_TIMEZONE = 0x26B2
+ERR_INVALID_FIRST_DAY_OF_WEEK = 0x26B3
 ERR_INVALID_FUNCTION_PARAM = 0x2803
 
 class TestToIso8601Iana:
@@ -691,6 +692,20 @@ class TestTimetruncateWeek:
         result = tdSql.queryResult[0][0]
         assert '2026-03-08T00:00:00' in result, f"1w DST spring: {result}"
 
+    def check_set_first_day_of_week_invalid_error_message(self):
+        """SET FIRST_DAY_OF_WEEK out-of-range should return formatted error message."""
+        self.prepare_data()
+        for v in [-1, 7, 100]:
+            err = tdSql.error(
+                f"SET FIRST_DAY_OF_WEEK {v}",
+                expectedErrno=ERR_INVALID_FIRST_DAY_OF_WEEK,
+                fullMatched=False,
+            )
+            assert f"Invalid firstDayOfWeek: {v}, must be 0-6" in err, (
+                f"unexpected error info for {v}: {err}"
+            )
+            assert "%d" not in err, f"raw placeholder leaked for {v}: {err}"
+
     def test_timetruncate_week(self):
         """summary: TIMETRUNCATE 1w/Nw aligned by firstDayOfWeek (high-risk behavior change).
 
@@ -714,6 +729,7 @@ class TestTimetruncateWeek:
         self.check_timetruncate_1w_with_iana_tz()
         self.check_timetruncate_1w_with_iana_tz_dst_consistency()
         self.check_timetruncate_1w_dst_spring()
+        self.check_set_first_day_of_week_invalid_error_message()
 
 class TestWeekFunctions:
     """WEEK respects firstDayOfWeek; WEEKOFYEAR/DAYOFWEEK/WEEKDAY are fdow-independent."""

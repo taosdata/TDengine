@@ -7228,7 +7228,9 @@ SNode* createSetFirstDayOfWeekStmt(SAstCreateContext* pCxt, const SToken* pVal) 
   CHECK_MAKE_NODE(pStmt);
   int64_t val = taosStr2Int64(pVal->z, NULL, 10);
   if (val < 0 || val > 6) {
-    pCxt->errCode = TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK;
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK,
+                                "Invalid firstDayOfWeek: %.*s, must be 0-6", pVal->n, pVal->z);
     goto _err;
   }
   pStmt->firstDayOfWeek = (int8_t)val;
