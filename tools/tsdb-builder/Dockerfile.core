@@ -1,0 +1,373 @@
+# ============================================================================
+# TDengine Core Build Environment (Dockerfile.core)
+# Produces image: tsdb-builder-core:[amd64|arm64]
+#
+# Base:
+#   amd64: manylinux2014_x86_64 (glibc 2.17, CentOS 7, GCC 7)
+#   arm64: manylinux2014_aarch64 (glibc 2.17, CentOS 7, GCC 7)
+#
+# Components built with this image:
+#   ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX (without EXPLORER_UI)
+#
+# Tools included: gcc/cmake/go/rust/protoc/mold/tini/python
+# Tools excluded: Node.js, JDK+Maven, .NET SDK
+# ============================================================================
+
+# ============================================================================
+# Stage 1: Builder - Architecture variable mapping
+# ============================================================================
+FROM --platform=$BUILDPLATFORM docker.1ms.run/alpine AS builder
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+RUN echo "Building for platform: ${TARGETPLATFORM}"
+
+# Map TARGETPLATFORM to architecture-specific variables
+RUN case "${TARGETPLATFORM}" in \
+  "linux/amd64") \
+    echo MOLD_ARCH=x86_64 > /etc/environment; \
+    echo TINI_ARCH=amd64 >> /etc/environment; \
+    echo PROTOC_ARCH=x86_64 >> /etc/environment; \
+    echo GO_ARCH=amd64 >> /etc/environment; \
+    echo CMAKE_ARCH=x86_64 >> /etc/environment; \
+    echo MANYLINUX_IMAGE=quay.io/pypa/manylinux2014_x86_64 >> /etc/environment; \
+    ;; \
+  "linux/arm64") \
+    echo MOLD_ARCH=aarch64 > /etc/environment; \
+    echo TINI_ARCH=arm64 >> /etc/environment; \
+    echo PROTOC_ARCH=aarch_64 >> /etc/environment; \
+    echo GO_ARCH=arm64 >> /etc/environment; \
+    echo CMAKE_ARCH=aarch64 >> /etc/environment; \
+    echo MANYLINUX_IMAGE=quay.io/pypa/manylinux2014_aarch64 >> /etc/environment; \
+    ;; \
+  *) \
+    echo "Unsupported platform: ${TARGETPLATFORM}"; \
+    exit 1; \
+    ;; \
+  esac
+
+RUN cat /etc/environment
+
+# Cross-compile mage natively (avoids QEMU emulation issues with Go runtime)
+ARG GO_VERSION=1.23.4
+RUN . /etc/environment && \
+    wget -q https://go.dev/dl/go${GO_VERSION}.linux-$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/').tar.gz -O /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && rm /tmp/go.tar.gz && \
+    GOROOT=/usr/local/go GOPROXY=https://goproxy.cn \
+    GOOS=linux GOARCH=${GO_ARCH} CGO_ENABLED=0 \
+    /usr/local/go/bin/go install github.com/magefile/mage@latest && \
+    mv /root/go/bin/linux_${GO_ARCH}/mage /usr/local/bin/mage 2>/dev/null || \
+    mv /root/go/bin/mage /usr/local/bin/mage
+
+# ============================================================================
+# Stage 2: Architecture-specific manylinux2014 base images
+# ============================================================================
+FROM --platform=linux/amd64 quay.io/pypa/manylinux2014_x86_64 AS stage2-amd64
+FROM --platform=linux/arm64 quay.io/pypa/manylinux2014_aarch64 AS stage2-arm64
+
+# ============================================================================
+# Stage 3: mold-builder - Compile mold from source with GCC 10.2
+# mold requires C++20 (GCC ≥ 10.2) but the main image downgrades to GCC 7.3.
+# Build mold here while devtoolset-10 is still available, then COPY the binary.
+# MOLD_MOSTLY_STATIC=ON statically links libstdc++ to avoid runtime dependency.
+# ============================================================================
+FROM stage2-${TARGETARCH} AS mold-builder
+ARG MOLD_VERSION=2.40.3
+ARG CMAKE_VERSION=3.21.5
+COPY --from=builder /etc/environment /etc/
+
+# Install cmake (required to build mold)
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -xzf /mnt/packages/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.tar.gz -C /usr/local && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cmake /usr/local/bin/cmake
+
+# Extract and compile mold from pre-downloaded tarball in packages/
+# GCC 10.2 from devtoolset-10 (pre-installed in manylinux2014) supports C++20.
+# MOLD_MOSTLY_STATIC=ON statically links libstdc++ to avoid runtime dependency.
+# MOLD_USE_MIMALLOC=OFF: mimalloc segfaults on glibc 2.17 arm64; use system malloc.
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    tar -xzf /mnt/packages/mold-${MOLD_VERSION}.tar.gz -C /tmp && \
+    cd /tmp/mold-${MOLD_VERSION} && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DMOLD_MOSTLY_STATIC=ON \
+          -DMOLD_USE_MIMALLOC=OFF \
+          -DCMAKE_INSTALL_PREFIX=/opt/mold \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -B build && \
+    cmake --build build -j$(nproc) && \
+    cmake --install build && \
+    rm -rf /tmp/mold-${MOLD_VERSION}
+
+# ── ccache builder (compile from source for CentOS 7) ────────────────────────
+# CentOS 7 system ccache is 3.x; we need ≥ 4.4 for remote_storage support.
+# devtoolset-10 (pre-installed in manylinux2014) provides C++17 needed by ccache.
+FROM stage2-${TARGETARCH} AS ccache-builder
+ARG CCACHE_VERSION
+RUN source scl_source enable devtoolset-10 && \
+    cd /tmp && \
+    curl -fsSL "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/ccache-${CCACHE_VERSION}.tar.gz" \
+        -o ccache.tar.gz && \
+    tar xf ccache.tar.gz && \
+    cd ccache-${CCACHE_VERSION} && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DZSTD_FROM_INTERNET=ON \
+          -DHIREDIS_FROM_INTERNET=ON \
+          -DENABLE_TESTING=OFF \
+          .. && \
+    make -j$(nproc) && \
+    make install DESTDIR=/opt/ccache-install && \
+    rm -rf /tmp/ccache*
+
+# ============================================================================
+# Stage 4: Main - Build environment
+# ============================================================================
+FROM stage2-${TARGETARCH}
+
+WORKDIR /home
+
+# ============================================================================
+# Build-time arguments for version management
+# ============================================================================
+
+# Development Tools Versions
+ARG GO_VERSION=1.23.4
+ARG CMAKE_VERSION=3.21.5
+ARG RUST_VERSION=1.90.0
+# Python: use manylinux2014 pre-installed Python (format: 3.12 → cp312-cp312)
+ARG PYTHON_VERSION=3.12
+ARG MOLD_VERSION=2.40.3
+ARG PROTOC_VERSION=33.0
+ARG TINI_VERSION=v0.19.0
+ARG CCACHE_VERSION=4.10.2
+
+# Python Package Versions
+ARG TAOSPY_VERSION=2.8.8
+ARG TAOS_WS_PY_VERSION=0.6.5
+
+# Mirror Configuration
+ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
+ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
+ARG GO_PROXY=https://goproxy.cn
+ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+
+# Timezone Configuration
+ARG TIMEZONE=Asia/Shanghai
+
+# Copy architecture variables from builder stage
+COPY --from=builder /etc/environment /etc/
+
+# Copy verification script into the image
+COPY verify-image.sh /usr/local/bin/verify-image.sh
+RUN chmod +x /usr/local/bin/verify-image.sh
+
+# ============================================================================
+# Set environment variables
+# ============================================================================
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup \
+    RUSTUP_DIST_SERVER=https://rsproxy.cn
+
+
+# ============================================================================
+# Layer 1: System base - yum repos + base packages
+# amd64: replaces repos with aliyun CentOS 7 mirror
+# arm64: uses archive.kernel.org/centos-vault/altarch/7 (aliyun has no arm64 CentOS 7)
+# ============================================================================
+RUN ARCH=$(uname -m) && \
+    echo "retries=10" >> /etc/yum.conf && \
+    echo "timeout=60" >> /etc/yum.conf && \
+    if [ "$ARCH" = "aarch64" ]; then \
+      BASE_URL="http://archive.kernel.org/centos-vault/altarch/7"; \
+    else \
+      BASE_URL="https://mirrors.aliyun.com/centos/7"; \
+    fi && \
+    { \
+      echo "[base]"; \
+      echo "name=CentOS-7 - Base"; \
+      echo "baseurl=${BASE_URL}/os/\$basearch/"; \
+      echo "gpgcheck=0"; \
+      echo "enabled=1"; \
+      echo ""; \
+      echo "[updates]"; \
+      echo "name=CentOS-7 - Updates"; \
+      echo "baseurl=${BASE_URL}/updates/\$basearch/"; \
+      echo "gpgcheck=0"; \
+      echo "enabled=1"; \
+      echo ""; \
+      echo "[extras]"; \
+      echo "name=CentOS-7 - Extras"; \
+      echo "baseurl=${BASE_URL}/extras/\$basearch/"; \
+      echo "gpgcheck=0"; \
+      echo "enabled=1"; \
+    } > /etc/yum.repos.d/CentOS-Base.repo && \
+    yum makecache fast && \
+    yum install -y \
+      git wget curl unzip tar gzip bzip2 \
+      libatomic openssl-devel zlib-devel libffi-devel \
+      perl perl-IPC-Cmd perl-Time-Piece perl-Digest-SHA \
+      automake autoconf libtool && \
+    ln -sf /usr/bin/aclocal /usr/bin/aclocal-1.16 && \
+    ln -sf /usr/bin/automake /usr/bin/automake-1.16 && \
+    # Replace devtoolset-10 (GCC 10.2) with devtoolset-7 (GCC 7.3) for Kylin V10 compatibility
+    yum remove -y devtoolset-10-\* && \
+    yum install -y \
+      devtoolset-7-gcc devtoolset-7-gcc-c++ \
+      devtoolset-7-binutils \
+      devtoolset-7-libstdc++-devel \
+      devtoolset-7-libatomic-devel && \
+    yum install -y \
+      devtoolset-10-libasan-devel \
+      devtoolset-10-libubsan-devel && \
+    yum clean all && \
+    rm -rf /var/cache/yum
+
+# Override devtoolset-10 paths inherited from base image with devtoolset-7
+ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# ============================================================================
+# Layer 2: Go toolchain (from packages build context)
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -C /usr/local -xzf /mnt/packages/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
+    rm -rf /usr/local/go/test/ /usr/local/go/api/ /usr/local/go/doc/
+
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/root/go
+ENV GOPROXY=${GO_PROXY}
+ENV PATH=${GOROOT}/bin:${GOPATH}/bin:${PATH}
+
+# mage is cross-compiled in the builder stage (native arch) to avoid QEMU issues
+COPY --from=builder /usr/local/bin/mage ${GOPATH}/bin/mage
+
+# ============================================================================
+# Layer 3: CMake (from packages build context)
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -xzf /mnt/packages/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.tar.gz -C /usr/local && \
+    rm -rf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/doc/ \
+           /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/man/ && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cmake /usr/local/bin/cmake && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/ctest /usr/local/bin/ctest && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cpack /usr/local/bin/cpack
+
+# ============================================================================
+# Layer 4: Rust toolchain
+# ============================================================================
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain ${RUST_VERSION}
+
+ENV PATH=/root/.cargo/bin:${PATH}
+
+# Copy Cargo configuration
+COPY .cargo/config.toml /root/.cargo/config.toml
+
+# ============================================================================
+# Layer 5: Python environment
+# manylinux2014 ships Python 3.8-3.14 pre-installed at /opt/python/cpXXX-cpXXX/
+# ============================================================================
+RUN PY_TAG=$(echo ${PYTHON_VERSION} | tr -d '.') && \
+    PYTHON_PATH="/opt/python/cp${PY_TAG}-cp${PY_TAG}" && \
+    test -d "${PYTHON_PATH}" || { echo "ERROR: Python ${PYTHON_VERSION} not found at ${PYTHON_PATH}"; exit 1; } && \
+    ln -sf ${PYTHON_PATH}/bin/python3   /usr/local/bin/python3 && \
+    ln -sf ${PYTHON_PATH}/bin/python3   /usr/local/bin/python && \
+    ln -sf ${PYTHON_PATH}/bin/pip3      /usr/local/bin/pip3 && \
+    ln -sf ${PYTHON_PATH}/bin/pip3      /usr/local/bin/pip && \
+    ln -sf ${PYTHON_PATH}/bin/conan     /usr/local/bin/conan && \
+    echo "Python ${PYTHON_VERSION} linked from ${PYTHON_PATH}"
+
+# Configure pip mirror
+RUN pip3 config set global.index-url ${PYPI_MIRROR} && \
+    pip3 config set global.trusted-host ${PYPI_TRUSTED_HOST}
+
+# Install uv (modern Python package manager)
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    taospy==${TAOSPY_VERSION} \
+    taos-ws-py==${TAOS_WS_PY_VERSION} \
+    conan && \
+    conan profile detect --force && \
+    conan remote add nexus ${CONAN_REMOTE_URL} --index 0 && \
+    sed -i 's/compiler.cppstd=gnu14/compiler.cppstd=gnu17/' /root/.conan2/profiles/default
+
+# ============================================================================
+# Layer 6: Modern tools (mold + protoc + tini)
+# ============================================================================
+# mold: compiled from source in mold-builder stage (glibc 2.17 compatible, mimalloc disabled)
+COPY --from=mold-builder /opt/mold/bin/mold /usr/bin/mold
+COPY --from=mold-builder /opt/mold/lib/mold/ /usr/lib/mold/
+RUN ln -sf mold /usr/bin/ld.mold && \
+    mkdir -p /usr/libexec/mold && \
+    ln -sf ../../bin/mold /usr/libexec/mold/ld && \
+    update-alternatives --install /usr/bin/ld ld /usr/bin/ld.mold 100 && \
+    ln -sf /usr/bin/mold /opt/rh/devtoolset-7/root/etc/alternatives/ld
+
+# ccache: compiled from source in ccache-builder stage (≥ 4.4 for remote_storage)
+COPY --from=ccache-builder /opt/ccache-install/usr/local/bin/ccache /usr/local/bin/ccache
+RUN mkdir -p /usr/lib64/ccache && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/gcc && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/g++ && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/cc && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/c++
+
+RUN . /etc/environment && \
+    # Install tini
+    wget -O /bin/tini https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TINI_ARCH} && \
+    chmod +x /bin/tini && \
+    # Install protoc
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip && \
+    unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ && \
+    chmod +x /usr/bin/protoc && \
+    rm -f protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip
+
+# ============================================================================
+# Layer 7: Environment configuration and final setup
+# ============================================================================
+RUN echo "export PATH=/usr/local/go/bin:/root/go/bin:/root/.cargo/bin:${PATH}" >> /etc/profile && \
+    echo "export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}" >> /etc/profile && \
+    mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config && \
+    mkdir -p /etc/taos && \
+    rm -f /etc/localtime && \
+    ln -s /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && \
+    echo "${TIMEZONE}" > /etc/timezone && \
+    git config --global --add safe.directory /app
+
+# Set working directory
+WORKDIR /app
+
+# Set entrypoint to tini
+ENTRYPOINT ["/bin/tini", "--"]
+
+# ============================================================================
+# Layer 8: Final verification
+# ============================================================================
+RUN echo "============================================================" && \
+    echo "  tsdb-builder-core Verification" && \
+    echo "============================================================" && \
+    echo "glibc  : $(ldd --version 2>&1 | head -1)" && \
+    echo "gcc    : $(gcc --version | head -1)" && \
+    echo "g++    : $(g++ --version | head -1)" && \
+    echo "python : $(python3 --version)" && \
+    echo "pip    : $(pip3 --version)" && \
+    echo "go     : $(go version)" && \
+    echo "cmake  : $(cmake --version | head -1)" && \
+    echo "rustc  : $(rustc --version)" && \
+    echo "cargo  : $(cargo --version)" && \
+    echo "mold   : $(mold --version 2>&1 | head -1)" && \
+    mold --version > /dev/null 2>&1 && \
+    echo "protoc : $(protoc --version)" && \
+    echo "tini   : $(tini --version 2>&1 | head -1)" && \
+    echo "arch   : $(uname -m)" && \
+    echo "============================================================" && \
+    echo "  All verifications passed!" && \
+    echo "============================================================"

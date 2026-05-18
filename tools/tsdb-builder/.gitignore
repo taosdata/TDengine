@@ -1,0 +1,4 @@
+installers/
+.worktrees/
+!installers/.cargo/
+!installers/.cargo/**
