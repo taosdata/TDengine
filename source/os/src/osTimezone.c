@@ -854,6 +854,30 @@ static int32_t parseTimezoneOffset(const char* tzname, int64_t* offset_seconds, 
     return parseOffsetString(tzname, offset_seconds, display_name, name_len);
   }
 
+  // 2b. Handle POSIX-style format from normalizeOffsetTzCommon: "<+0800>-8" or "<-0530>+5:30"
+  //     The angle-bracket part is the display abbreviation; the offset after '>'
+  //     uses POSIX convention (east-negative, west-positive).
+  if (tzname[0] == '<') {
+    const char *gt = strchr(tzname, '>');
+    if (gt != NULL && (gt[1] == '+' || gt[1] == '-')) {
+      char posixSign = gt[1];
+      int hours = 0, minutes = 0;
+      if (sscanf(gt + 2, "%d:%d", &hours, &minutes) >= 1 && hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+        int64_t offset = (int64_t)hours * 3600 + (int64_t)minutes * 60;
+        // POSIX sign: east-negative, west-positive.
+        // WindowsTimezoneObj.offset_seconds uses POSIX convention (east-negative).
+        *offset_seconds = (posixSign == '+') ? offset : -offset;
+        if (display_name != NULL) {
+          // Display: invert sign back to ISO direction for user-facing string
+          char isoSign = (posixSign == '+') ? '-' : '+';
+          snprintf(display_name, name_len, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
+                   isoSign, hours, minutes, isoSign, hours, minutes);
+        }
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
   // 3. Search for IANA timezone name (e.g., "Asia/Shanghai")
   for (size_t i = 0; i < W_TZ_CITY_NUM; i++) {
     if (strcmp(tz_win[i][0], tzname) == 0) {

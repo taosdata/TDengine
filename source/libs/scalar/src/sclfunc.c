@@ -4618,14 +4618,17 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       goto _return;
     }
     /*
-     * If the injected timezone is an IANA name (contains '/') or 'UTC',
-     * use DST-aware truncation just like the explicit string-tz path.
-     * Fixed-offset strings (+0800 etc.) fall through to offsetFromTz().
+     * If the injected timezone is an IANA name (contains '/'), 'UTC', or a
+     * fixed-offset string (+0800 / -0530), create a timezone handle so that
+     * calendar-aware truncation (week/day/month/year) uses taosLocalTime +
+     * taosMktime for correct local-midnight alignment.
      *
-     * Skip IANA detection when user explicitly set use_current_timezone=0
+     * Skip when user explicitly set use_current_timezone=0
      * (inputNum==7 && !useCurrentTz), which means truncate by UTC epoch.
      */
-    if (useCurrentTz && (strchr(timezoneStr, '/') != NULL || strcmp(timezoneStr, "UTC") == 0)) {
+    if (useCurrentTz && (strchr(timezoneStr, '/') != NULL ||
+                         strcmp(timezoneStr, "UTC") == 0 ||
+                         timezoneStr[0] == '+' || timezoneStr[0] == '-')) {
       int32_t tzCode = taosValidateTimezone(timezoneStr, &explicitTz);
       if (tzCode == TSDB_CODE_SUCCESS) {
         hasStringTz = true;
