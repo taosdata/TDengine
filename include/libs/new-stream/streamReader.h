@@ -38,12 +38,20 @@ typedef struct SVTableResolveResult {
   SSHashObj *tagMap;    // key: virtual tag cid (col_id_t), value: STagValue*
 } SVTableResolveResult;
 
+// Per-table resolved column ref cache entry. Keyed by "dbName\0tableName" in
+// tblRefCache. Each entry stores per-column resolve results so that duplicate
+// work items referencing the same table skip RPC entirely.
+typedef struct STableRefCacheEntry {
+  SHashObj *colResults;       // key: colName (TSDB_COL_NAME_LEN), value: SVTableRefResolveRspItem
+} STableRefCacheEntry;
+
 typedef struct SStreamVTableInfoCache {
   SRWLatch    lock;
   SArray     *reqColCids;     // SArray<col_id_t>
   SArray     *reqTagCids;     // SArray<col_id_t>
   SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
   SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
+  SHashObj   *tblRefCache;    // key: "dbName\0tableName", value: STableRefCacheEntry
   int64_t     lastCheckMs;
   // Sliced recheck cursor: every throttle tick scans at most
   // STREAM_VTB_RECHECK_SLICE_SIZE uids from uidSlice[sliceCursor..]; when the
@@ -57,6 +65,9 @@ typedef struct SStreamVTableInfoCache {
 int32_t streamVTableInfoCacheInit   (SStreamVTableInfoCache *pCache);
 void    streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache);
 void    streamVTableResolveResultDestroy(SVTableResolveResult *pRes);
+void    streamDestroyUid2ResultMap(SSHashObj **ppMap);
+void    streamTblRefCacheDestroy(SHashObj **ppCache);
+void    streamTblRefCacheInvalidate(SStreamVTableInfoCache *pCache);
 
 typedef struct SStreamTableKeyInfo {
   int64_t uid;

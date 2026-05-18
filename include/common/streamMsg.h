@@ -864,9 +864,22 @@ typedef struct SVTableRefResolveItem {
   char    refColName  [TSDB_COL_NAME_LEN];
 } SVTableRefResolveItem;
 
+// Per-column spec within a table-grouped request item.
+typedef struct SVTableRefResolveColSpec {
+  char    colName[TSDB_COL_NAME_LEN];
+  int8_t  kind;                                  // EStreamVRefKind
+} SVTableRefResolveColSpec;
+
+// Table-grouped request item: one (db, table) with multiple columns to resolve.
+typedef struct SVTableRefResolveGroupItem {
+  char    dbName   [TSDB_DB_NAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  SArray *cols;                                  // SArray<SVTableRefResolveColSpec>
+} SVTableRefResolveGroupItem;
+
 typedef struct SVTableRefResolveReq {
   int64_t  ver;
-  SArray  *items;                                // SArray<SVTableRefResolveItem>
+  SArray  *groups;                               // SArray<SVTableRefResolveGroupItem> (table-grouped)
 } SVTableRefResolveReq;
 
 typedef struct SVTableRefResolveRspItem {

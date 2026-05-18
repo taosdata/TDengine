@@ -534,11 +534,12 @@ int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   // which only protects diff/commit. Use HASH_ENTRY_LOCK so per-bucket access is
   // safe across these paths.
   pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pCache->tblRefCache = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   pCache->uidSlice    = taosArrayInit(64, sizeof(int64_t));
   pCache->sliceCursor = 0;
   pCache->lastCheckMs = 0;
   pCache->valid       = false;
-  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice) {
+  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice || !pCache->tblRefCache) {
     streamVTableInfoCacheDestroy(pCache);
     return terrno;
   }
@@ -567,6 +568,49 @@ void streamVTableResolveResultDestroy(SVTableResolveResult *pRes) {
   taosMemoryFree(pRes);
 }
 
+void streamDestroyUid2ResultMap(SSHashObj **ppMap) {
+  if (ppMap == NULL || *ppMap == NULL) return;
+  SSHashObj *pMap = *ppMap;
+  void *iter = NULL;  int32_t it = 0;
+  while ((iter = tSimpleHashIterate(pMap, iter, &it)) != NULL) {
+    SVTableResolveResult **pp = (SVTableResolveResult **)iter;
+    if (pp && *pp) streamVTableResolveResultDestroy(*pp);
+  }
+  tSimpleHashCleanup(pMap);
+  *ppMap = NULL;
+}
+
+static void tblRefCacheEntryFree(void *param) {
+  STableRefCacheEntry *e = (STableRefCacheEntry *)param;
+  if (e && e->colResults) {
+    void *iter = taosHashIterate(e->colResults, NULL);
+    while (iter != NULL) {
+      SVTableRefResolveRspItem *p = (SVTableRefResolveRspItem *)iter;
+      taosMemoryFreeClear(p->tagData);
+      iter = taosHashIterate(e->colResults, iter);
+    }
+    taosHashCleanup(e->colResults);
+    e->colResults = NULL;
+  }
+}
+
+void streamTblRefCacheDestroy(SHashObj **ppCache) {
+  if (ppCache == NULL || *ppCache == NULL) return;
+  void *iter = taosHashIterate(*ppCache, NULL);
+  while (iter != NULL) {
+    tblRefCacheEntryFree(iter);
+    iter = taosHashIterate(*ppCache, iter);
+  }
+  taosHashCleanup(*ppCache);
+  *ppCache = NULL;
+}
+
+void streamTblRefCacheInvalidate(SStreamVTableInfoCache *pCache) {
+  if (pCache == NULL) return;
+  streamTblRefCacheDestroy(&pCache->tblRefCache);
+  pCache->tblRefCache = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+}
+
 void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
   if (!pCache) return;
   if (pCache->uid2Result) {
@@ -588,10 +632,12 @@ void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
     }
     taosHashCleanup(pCache->dbVgInfo);
   }
+  streamTblRefCacheDestroy(&pCache->tblRefCache);
   pCache->uid2Result  = NULL;
   pCache->reqColCids  = NULL;
   pCache->reqTagCids  = NULL;
   pCache->dbVgInfo    = NULL;
+  pCache->tblRefCache = NULL;
   pCache->uidSlice    = NULL;
   pCache->sliceCursor = 0;
   pCache->valid       = false;

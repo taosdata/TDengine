@@ -4739,15 +4739,20 @@ int32_t tSerializeSVTableRefResolveReq(void *buf, int32_t bufLen, const SVTableR
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->ver));
 
-  int32_t n = (pReq->items != NULL) ? taosArrayGetSize(pReq->items) : 0;
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, n));
-  for (int32_t i = 0; i < n; ++i) {
-    SVTableRefResolveItem *p = taosArrayGet(pReq->items, i);
-    TAOS_CHECK_EXIT(tEncodeI8 (&encoder, p->kind));
-    TAOS_CHECK_EXIT(tEncodeBool(&encoder, p->hasRef));
-    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->refDbName));
-    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->refTableName));
-    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, p->refColName));
+  // Table-grouped format: each group = (dbName, tableName, cols[])
+  int32_t nGroups = (pReq->groups != NULL) ? taosArrayGetSize(pReq->groups) : 0;
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, nGroups));
+  for (int32_t i = 0; i < nGroups; ++i) {
+    SVTableRefResolveGroupItem *g = taosArrayGet(pReq->groups, i);
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, g->dbName));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, g->tableName));
+    int32_t nCols = (g->cols != NULL) ? taosArrayGetSize(g->cols) : 0;
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, nCols));
+    for (int32_t j = 0; j < nCols; ++j) {
+      SVTableRefResolveColSpec *c = taosArrayGet(g->cols, j);
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, c->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, c->kind));
+    }
   }
 
   tEndEncode(&encoder);
@@ -4772,24 +4777,41 @@ int32_t tDeserializeSVTableRefResolveReq(void *buf, int32_t bufLen, SVTableRefRe
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->ver));
 
-  int32_t n = 0;
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &n));
-  if (n > 0) {
-    pReq->items = taosArrayInit(n, sizeof(SVTableRefResolveItem));
-    if (pReq->items == NULL) {
+  // Table-grouped format
+  int32_t nGroups = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nGroups));
+  if (nGroups > 0) {
+    pReq->groups = taosArrayInit(nGroups, sizeof(SVTableRefResolveGroupItem));
+    if (pReq->groups == NULL) {
       code = terrno;
       goto _exit;
     }
   }
 
-  for (int32_t i = 0; i < n; ++i) {
-    SVTableRefResolveItem item = {0};
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &item.kind));
-    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &item.hasRef));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.refDbName));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.refTableName));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, item.refColName));
-    if (taosArrayPush(pReq->items, &item) == NULL) {
+  for (int32_t i = 0; i < nGroups; ++i) {
+    SVTableRefResolveGroupItem g = {0};
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, g.dbName));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, g.tableName));
+    int32_t nCols = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &nCols));
+    if (nCols > 0) {
+      g.cols = taosArrayInit(nCols, sizeof(SVTableRefResolveColSpec));
+      if (g.cols == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    for (int32_t j = 0; j < nCols; ++j) {
+      SVTableRefResolveColSpec c = {0};
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, c.colName));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &c.kind));
+      if (taosArrayPush(g.cols, &c) == NULL) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+    if (taosArrayPush(pReq->groups, &g) == NULL) {
+      if (g.cols != NULL) taosArrayDestroy(g.cols);
       code = terrno;
       goto _exit;
     }
@@ -4799,9 +4821,13 @@ int32_t tDeserializeSVTableRefResolveReq(void *buf, int32_t bufLen, SVTableRefRe
 
 _exit:
   if (code) {
-    if (pReq->items != NULL) {
-      taosArrayDestroy(pReq->items);
-      pReq->items = NULL;
+    if (pReq->groups != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pReq->groups); ++i) {
+        SVTableRefResolveGroupItem *g = taosArrayGet(pReq->groups, i);
+        taosArrayDestroy(g->cols);
+      }
+      taosArrayDestroy(pReq->groups);
+      pReq->groups = NULL;
     }
     tDecoderClear(&decoder);
     return -1;
@@ -4812,8 +4838,14 @@ _exit:
 
 void tFreeSVTableRefResolveReq(SVTableRefResolveReq *pReq) {
   if (pReq == NULL) return;
-  taosArrayDestroy(pReq->items);
-  pReq->items = NULL;
+  if (pReq->groups != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->groups); ++i) {
+      SVTableRefResolveGroupItem *g = taosArrayGet(pReq->groups, i);
+      taosArrayDestroy(g->cols);
+    }
+    taosArrayDestroy(pReq->groups);
+    pReq->groups = NULL;
+  }
 }
 
 int32_t tSerializeSVTableRefResolveRsp(void *buf, int32_t bufLen, const SVTableRefResolveRsp *pRsp) {

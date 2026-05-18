@@ -1103,8 +1103,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
-       pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS ||
-       pMsg->msgType == TDMT_VND_VTABLE_REF_RESOLVE) &&
+       pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -1139,8 +1138,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetVSubtablesMeta(pVnode, pMsg);
     case TDMT_VND_VSTB_REF_DBS:
       return vnodeGetVStbRefDbs(pVnode, pMsg);
-    case TDMT_VND_VTABLE_REF_RESOLVE:
-      return vnodeProcessVTableRefResolveReq(pVnode, pMsg);
     case TDMT_VND_QUERY_SCAN_PROGRESS:
       return vnodeQueryScanProgress(pVnode, pMsg);
 #ifdef TD_ENTERPRISE
