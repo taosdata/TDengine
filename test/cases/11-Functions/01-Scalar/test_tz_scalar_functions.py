@@ -866,6 +866,37 @@ class TestWeekFunctions:
         self.check_weekday_known_values()
         self.check_week_from_table()
 
+class TestSessionFirstDayOfWeekFunction:
+    """System info function first_day_of_week() should reflect current session setting."""
+
+    def check_first_day_of_week_reflects_session(self):
+        for fdow in [0, 1, 3, 6]:
+            tdSql.execute(f"SET FIRST_DAY_OF_WEEK {fdow}")
+            tdSql.query("select first_day_of_week()")
+            assert tdSql.queryResult[0][0] == fdow, (
+                f"first_day_of_week() expected {fdow}, got {tdSql.queryResult[0][0]}"
+            )
+
+    def test_first_day_of_week_function(self):
+        """summary: select first_day_of_week() returns current session firstDayOfWeek.
+
+        description: select first_day_of_week() returns current session firstDayOfWeek.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:first_day_of_week
+
+        History:
+            - 2026-05-18: Copilot added
+
+        """
+        self.check_first_day_of_week_reflects_session()
+
 class TestDstEdge:
     """DST edge cases: spring-forward gap, fall-back overlap, write-path regression.
 

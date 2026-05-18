@@ -2322,6 +2322,7 @@ trim_specification_type(A) ::= LEADING.                                         
 noarg_func(A) ::= NOW(B).                                                         { A = B; }
 noarg_func(A) ::= TODAY(B).                                                       { A = B; }
 noarg_func(A) ::= TIMEZONE(B).                                                    { A = B; }
+noarg_func(A) ::= FIRST_DAY_OF_WEEK(B).                                           { A = B; }
 noarg_func(A) ::= DATABASE(B).                                                    { A = B; }
 noarg_func(A) ::= CLIENT_VERSION(B).                                              { A = B; }
 noarg_func(A) ::= SERVER_VERSION(B).                                              { A = B; }

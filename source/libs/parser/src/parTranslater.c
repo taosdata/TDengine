@@ -4371,6 +4371,26 @@ static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
   return code;
 }
 
+static int32_t rewriteFirstDayOfWeekFunc(STranslateContext* pCxt, SNode** pNode) {
+  char    fdowBuf[8] = {0};
+  int32_t fdow = (pCxt->pParseCxt->firstDayOfWeek >= 0 && pCxt->pParseCxt->firstDayOfWeek <= 6)
+                     ? pCxt->pParseCxt->firstDayOfWeek
+                     : tsFirstDayOfWeek;
+
+  if (snprintf(fdowBuf, sizeof(fdowBuf), "%d", fdow) <= 0) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char* pFdow = taosStrdup(fdowBuf);
+  if (pFdow == NULL) {
+    return terrno;
+  }
+
+  int32_t code = rewriteFuncToValue(pCxt, &pFdow, pNode);
+  taosMemoryFree(pFdow);
+  return code;
+}
+
 static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
   char* pCurrDb = NULL;
   if (NULL != pCxt->pParseCxt->db) {
@@ -4449,6 +4469,8 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
       return rewriteUserFunc(pCxt, pNode);
     case FUNCTION_TYPE_TIMEZONE:
       return rewriteTimezoneFunc(pCxt, pNode);
+    case FUNCTION_TYPE_FIRST_DAY_OF_WEEK:
+      return rewriteFirstDayOfWeekFunc(pCxt, pNode);
     default:
       break;
   }

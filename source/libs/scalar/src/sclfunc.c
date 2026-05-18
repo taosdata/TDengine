@@ -4845,6 +4845,18 @@ int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t firstDayOfWeekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int64_t fdow = (pInput->firstDayOfWeek >= 0 && pInput->firstDayOfWeek <= 6) ? pInput->firstDayOfWeek :
+                 tsFirstDayOfWeek;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    colDataSetInt64(pOutput->columnData, i, &fdow);
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, bool startFromZero) {
   int32_t type = GET_PARAM_TYPE(&pInput[0]);
 
