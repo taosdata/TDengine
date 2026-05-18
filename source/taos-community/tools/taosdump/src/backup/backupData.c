@@ -186,6 +186,8 @@ static void* backDataThread(void *arg) {
     // query child table names — with retry on transient network errors
     TAOS* conn = getConnection(&thread->code);
     if (!conn) {
+        taosMemoryFree(thread->writeBuf);
+        thread->writeBuf = NULL;
         return NULL;
     }
     TAOS_RES *res = NULL;
@@ -206,8 +208,11 @@ static void* backDataThread(void *arg) {
             logInfo("retry query child table names: %s.%s, attempt: %d", thread->dbInfo->dbName, thread->stbInfo->stbName, attempt);
             releaseConnectionBad(conn);
             conn = getConnection(&thread->code);
-            if (!conn) 
+            if (!conn) {
+                taosMemoryFree(thread->writeBuf);
+                thread->writeBuf = NULL;
                 return NULL;
+            }
             sleepMs(retrySleepMs);
         }
     }
@@ -216,6 +221,8 @@ static void* backDataThread(void *arg) {
         if (res) 
             taos_free_result(res);
         releaseConnection(conn);
+        taosMemoryFree(thread->writeBuf);
+        thread->writeBuf = NULL;
         return NULL;
     }
 

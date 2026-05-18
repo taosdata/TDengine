@@ -333,6 +333,7 @@ static int32_t extractTagByType(AvroFieldInfo *fi, avro_value_t *fieldVal,
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_GEOMETRY:
         case TSDB_DATA_TYPE_BLOB:
+        case TSDB_DATA_TYPE_MEDIUMBLOB:
             return extractTagNChar(fi, fieldVal, sqlstr, sqlPos);
         case TSDB_DATA_TYPE_TIMESTAMP:
             return extractTagTimestamp(fi, fieldVal, sqlstr, sqlPos);
@@ -481,11 +482,13 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                 if (mallocDes && (strlen(tableDes->name) == 0
                         || strcmp(tableDes->name, stbName) != 0)) {
                     if (avroGetTableDes(ctx->conn, ctx->targetDb, stbName, mallocDes, false) < 0) {
+                        if (ctx->looseMode && stbName) taosMemoryFree(stbName);
                         if (mallocDes) avroFreeTableDes(mallocDes, true);
                         taosMemoryFree(sqlstr);
                         avroFreeRecordSchema(rs);
                         avro_value_decref(&value);
                         avro_value_iface_decref(iface);
+                        avro_schema_decref(schema);
                         avro_file_reader_close(reader);
                         return -1;
                     }

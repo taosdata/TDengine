@@ -20,7 +20,235 @@
 // ----------------------------------- FUNCTION --------------------------------------
 //
 
+// Threshold for detecting truncated SHOW CREATE TABLE results.
+// TDengine returns DDL as VARCHAR(65517); if result length is near this limit,
+// it's likely truncated. Use 64000 as a safe detection threshold.
+#define DDL_TRUNCATION_THRESHOLD 64000
 
+// Check if a data type needs a length suffix in CREATE SQL (e.g. BINARY(20))
+static bool typeNeedsLength(int8_t type) {
+    return (type == TSDB_DATA_TYPE_VARCHAR  ||
+            type == TSDB_DATA_TYPE_NCHAR    ||
+            type == TSDB_DATA_TYPE_JSON     ||
+            type == TSDB_DATA_TYPE_VARBINARY||
+            type == TSDB_DATA_TYPE_GEOMETRY);
+}
+
+// Check if a data type is DECIMAL (needs precision,scale suffix)
+static bool typeIsDecimal(int8_t type) {
+    return (type == TSDB_DATA_TYPE_DECIMAL ||
+            type == TSDB_DATA_TYPE_DECIMAL64);
+}
+
+// Convert TDengine type code to SQL type string
+static const char *tdTypeToStr(int8_t type) {
+    switch (type) {
+        case TSDB_DATA_TYPE_BOOL:       return "BOOL";
+        case TSDB_DATA_TYPE_TINYINT:    return "TINYINT";
+        case TSDB_DATA_TYPE_SMALLINT:   return "SMALLINT";
+        case TSDB_DATA_TYPE_INT:        return "INT";
+        case TSDB_DATA_TYPE_BIGINT:     return "BIGINT";
+        case TSDB_DATA_TYPE_FLOAT:      return "FLOAT";
+        case TSDB_DATA_TYPE_DOUBLE:     return "DOUBLE";
+        case TSDB_DATA_TYPE_VARCHAR:    return "VARCHAR";
+        case TSDB_DATA_TYPE_TIMESTAMP:  return "TIMESTAMP";
+        case TSDB_DATA_TYPE_NCHAR:      return "NCHAR";
+        case TSDB_DATA_TYPE_UTINYINT:   return "TINYINT UNSIGNED";
+        case TSDB_DATA_TYPE_USMALLINT:  return "SMALLINT UNSIGNED";
+        case TSDB_DATA_TYPE_UINT:       return "INT UNSIGNED";
+        case TSDB_DATA_TYPE_UBIGINT:    return "BIGINT UNSIGNED";
+        case TSDB_DATA_TYPE_JSON:       return "JSON";
+        case TSDB_DATA_TYPE_VARBINARY:  return "VARBINARY";
+        case TSDB_DATA_TYPE_GEOMETRY:   return "GEOMETRY";
+        case TSDB_DATA_TYPE_BLOB:       return "BLOB";
+        case TSDB_DATA_TYPE_MEDIUMBLOB: return "MEDIUMBLOB";
+        case TSDB_DATA_TYPE_DECIMAL:    return "DECIMAL";
+        case TSDB_DATA_TYPE_DECIMAL64:  return "DECIMAL";
+        default:                        return "UNKNOWN";
+    }
+}
+
+// Build CREATE TABLE/STABLE SQL from DESCRIBE result.
+// Used as fallback when SHOW CREATE TABLE is truncated (>= 64000 bytes).
+// Returns dynamically allocated SQL string; caller must free with taosMemoryFree().
+// Returns NULL on failure.
+static char *buildCreateSqlFromDescribe(TAOS *conn, const char *dbName, const char *tbName) {
+    char sql[512];
+    snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, tbName);
+
+    TAOS_RES *res = taos_query(conn, sql);
+    int code = taos_errno(res);
+    if (code != 0) {
+        logError("DESCRIBE `%s`.`%s` failed (0x%08X): %s", dbName, tbName, code, taos_errstr(res));
+        if (res) taos_free_result(res);
+        return NULL;
+    }
+
+    // DESCRIBE returns: field, type, length, note
+    // note == "TAG" for tag columns, empty for normal columns
+    typedef struct {
+        char    field[TSDB_COL_NAME_LEN + 1];
+        char    typeStr[32];
+        int8_t  tdType;
+        int32_t length;
+        bool    isTag;
+    } DescCol;
+
+    int capacity = 4224;  // max cols + tags (4096 + 128)
+    DescCol *descs = (DescCol *)taosMemoryCalloc(capacity, sizeof(DescCol));
+    if (!descs) {
+        logError("malloc failed in buildCreateSqlFromDescribe");
+        taos_free_result(res);
+        return NULL;
+    }
+
+    int totalCols = 0;
+    int tagCount = 0;
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res)) != NULL && totalCols < capacity) {
+        int32_t *lens = taos_fetch_lengths(res);
+        if (!row[0] || !row[1]) continue;
+
+        DescCol *col = &descs[totalCols];
+        memset(col, 0, sizeof(DescCol));
+
+        // field name
+        int flen = lens[0] < TSDB_COL_NAME_LEN ? lens[0] : TSDB_COL_NAME_LEN;
+        memcpy(col->field, (char *)row[0], flen);
+        col->field[flen] = '\0';
+
+        // type string
+        int tlen = lens[1] < 31 ? lens[1] : 30;
+        memcpy(col->typeStr, (char *)row[1], tlen);
+        col->typeStr[tlen] = '\0';
+
+        // length
+        if (row[2]) {
+            col->length = *(int32_t *)row[2];
+        }
+
+        // note (TAG or empty)
+        if (row[3] && lens[3] > 0) {
+            char note[32] = {0};
+            int nlen = lens[3] < 31 ? lens[3] : 30;
+            memcpy(note, (char *)row[3], nlen);
+            col->isTag = (strcasecmp(note, "TAG") == 0);
+            if (col->isTag) tagCount++;
+        }
+
+        // Convert type string to type code
+        // For DECIMAL types the typeStr is like "DECIMAL(10, 5)"
+        if (strncasecmp(col->typeStr, "DECIMAL", 7) == 0) {
+            const char *paren = strchr(col->typeStr, '(');
+            int precision = 38;
+            if (paren) sscanf(paren + 1, " %d", &precision);
+            col->tdType = (precision <= 18) ? TSDB_DATA_TYPE_DECIMAL64 : TSDB_DATA_TYPE_DECIMAL;
+        } else if (strcasecmp(col->typeStr, "BOOL") == 0) col->tdType = TSDB_DATA_TYPE_BOOL;
+        else if (strcasecmp(col->typeStr, "TINYINT") == 0) col->tdType = TSDB_DATA_TYPE_TINYINT;
+        else if (strcasecmp(col->typeStr, "SMALLINT") == 0) col->tdType = TSDB_DATA_TYPE_SMALLINT;
+        else if (strcasecmp(col->typeStr, "INT") == 0) col->tdType = TSDB_DATA_TYPE_INT;
+        else if (strcasecmp(col->typeStr, "BIGINT") == 0) col->tdType = TSDB_DATA_TYPE_BIGINT;
+        else if (strcasecmp(col->typeStr, "FLOAT") == 0) col->tdType = TSDB_DATA_TYPE_FLOAT;
+        else if (strcasecmp(col->typeStr, "DOUBLE") == 0) col->tdType = TSDB_DATA_TYPE_DOUBLE;
+        else if (strcasecmp(col->typeStr, "BINARY") == 0) col->tdType = TSDB_DATA_TYPE_BINARY;
+        else if (strcasecmp(col->typeStr, "VARCHAR") == 0) col->tdType = TSDB_DATA_TYPE_VARCHAR;
+        else if (strcasecmp(col->typeStr, "TIMESTAMP") == 0) col->tdType = TSDB_DATA_TYPE_TIMESTAMP;
+        else if (strcasecmp(col->typeStr, "NCHAR") == 0) col->tdType = TSDB_DATA_TYPE_NCHAR;
+        else if (strcasecmp(col->typeStr, "TINYINT UNSIGNED") == 0) col->tdType = TSDB_DATA_TYPE_UTINYINT;
+        else if (strcasecmp(col->typeStr, "SMALLINT UNSIGNED") == 0) col->tdType = TSDB_DATA_TYPE_USMALLINT;
+        else if (strcasecmp(col->typeStr, "INT UNSIGNED") == 0) col->tdType = TSDB_DATA_TYPE_UINT;
+        else if (strcasecmp(col->typeStr, "BIGINT UNSIGNED") == 0) col->tdType = TSDB_DATA_TYPE_UBIGINT;
+        else if (strcasecmp(col->typeStr, "JSON") == 0) col->tdType = TSDB_DATA_TYPE_JSON;
+        else if (strcasecmp(col->typeStr, "VARBINARY") == 0) col->tdType = TSDB_DATA_TYPE_VARBINARY;
+        else if (strcasecmp(col->typeStr, "GEOMETRY") == 0) col->tdType = TSDB_DATA_TYPE_GEOMETRY;
+        else if (strcasecmp(col->typeStr, "BLOB") == 0) col->tdType = TSDB_DATA_TYPE_BLOB;
+        else if (strcasecmp(col->typeStr, "MEDIUMBLOB") == 0) col->tdType = TSDB_DATA_TYPE_MEDIUMBLOB;
+        else col->tdType = -1;
+
+        totalCols++;
+    }
+    taos_free_result(res);
+
+    if (totalCols == 0) {
+        logError("DESCRIBE returned no columns for `%s`.`%s`", dbName, tbName);
+        taosMemoryFree(descs);
+        return NULL;
+    }
+
+    // Estimate buffer size: header + per-column ~(65 name + 20 type + 10 length + 10 punctuation)
+    int bufSize = 256 + totalCols * 110;
+    char *csql = (char *)taosMemoryCalloc(1, bufSize);
+    if (!csql) {
+        logError("malloc CREATE SQL buffer failed for `%s`.`%s`", dbName, tbName);
+        taosMemoryFree(descs);
+        return NULL;
+    }
+
+    int pos = 0;
+    bool isStable = (tagCount > 0);
+
+    // Header: match SHOW CREATE TABLE format — no IF NOT EXISTS, no db prefix
+    if (isStable) {
+        pos += snprintf(csql + pos, bufSize - pos,
+            "CREATE STABLE `%s` (", tbName);
+    } else {
+        pos += snprintf(csql + pos, bufSize - pos,
+            "CREATE TABLE `%s` (", tbName);
+    }
+
+    // Columns (non-tag)
+    bool first = true;
+    for (int i = 0; i < totalCols; i++) {
+        if (descs[i].isTag) continue;
+        if (!first) pos += snprintf(csql + pos, bufSize - pos, ", ");
+
+        if (typeIsDecimal(descs[i].tdType)) {
+            // DECIMAL type: DESCRIBE returns type string like "DECIMAL(10, 5)"
+            // Use the original type string directly since it contains precision,scale
+            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
+                descs[i].field, descs[i].typeStr);
+        } else if (typeNeedsLength(descs[i].tdType)) {
+            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s(%d)",
+                descs[i].field, tdTypeToStr(descs[i].tdType), descs[i].length);
+        } else {
+            pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
+                descs[i].field, tdTypeToStr(descs[i].tdType));
+        }
+        first = false;
+    }
+    pos += snprintf(csql + pos, bufSize - pos, ")");
+
+    // Tags
+    if (isStable) {
+        pos += snprintf(csql + pos, bufSize - pos, " TAGS (");
+        first = true;
+        for (int i = 0; i < totalCols; i++) {
+            if (!descs[i].isTag) continue;
+            if (!first) pos += snprintf(csql + pos, bufSize - pos, ", ");
+
+            if (typeIsDecimal(descs[i].tdType)) {
+                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
+                    descs[i].field, descs[i].typeStr);
+            } else if (typeNeedsLength(descs[i].tdType)) {
+                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s(%d)",
+                    descs[i].field, tdTypeToStr(descs[i].tdType), descs[i].length);
+            } else {
+                pos += snprintf(csql + pos, bufSize - pos, "`%s` %s",
+                    descs[i].field, tdTypeToStr(descs[i].tdType));
+            }
+            first = false;
+        }
+        pos += snprintf(csql + pos, bufSize - pos, ")");
+    }
+
+    taosMemoryFree(descs);
+
+    logWarn("Used DESCRIBE fallback to build CREATE %s SQL for `%s`.`%s` "
+        "(SHOW CREATE TABLE result was truncated at 65535 bytes)",
+        isStable ? "STABLE" : "TABLE", dbName, tbName);
+
+    return csql;
+}
 
 
 //
@@ -73,12 +301,32 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     int      ddlLen  = lengths[1];
     char    *ddl     = (char *)row[1];
 
+    // Check if DDL result is truncated (VARCHAR max is 65535)
+    // If length >= DDL_TRUNCATION_THRESHOLD, use DESCRIBE fallback
+    char *fallbackDdl = NULL;
+    if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
+        logWarn("SHOW CREATE TABLE result for `%s`.`%s` is %d bytes "
+            "(likely truncated at 65535), using DESCRIBE fallback",
+            dbName, stbName, ddlLen);
+        taos_free_result(res);
+        fallbackDdl = buildCreateSqlFromDescribe(conn, dbName, stbName);
+        if (!fallbackDdl) {
+            logError("DESCRIBE fallback also failed for `%s`.`%s`", dbName, stbName);
+            releaseConnection(conn);
+            return TSDB_CODE_FAILED;
+        }
+        ddl = fallbackDdl;
+        ddlLen = (int)strlen(ddl);
+        res = NULL;  // already freed
+    }
+
     // Open stb.sql in APPEND mode so multiple STBs accumulate.
     // The caller is responsible for truncating the file before the STB loop starts.
     TdFilePtr fp = taosOpenFile(sqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
     if (!fp) {
         logError("open stb.sql for append failed: %s", sqlFile);
-        taos_free_result(res);
+        if (fallbackDdl) taosMemoryFree(fallbackDdl);
+        if (res) taos_free_result(res);
         releaseConnection(conn);
         return TSDB_CODE_BCK_CREATE_FILE_FAILED;
     }
@@ -107,7 +355,8 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     }
 
     taosCloseFile(&fp);
-    taos_free_result(res);
+    if (fallbackDdl) taosMemoryFree(fallbackDdl);
+    if (res) taos_free_result(res);
     releaseConnection(conn);
     return writeCode;
 }
@@ -441,15 +690,38 @@ int backNormalTablesSql(const char *dbName) {
         TAOS_ROW row = taos_fetch_row(res);
         if (row && row[1]) {
             int32_t *lens = taos_fetch_lengths(res);
-            if (taosWriteFile(fp, row[1], lens[1]) != lens[1] ||
+            int32_t  ddlLen = lens[1];
+            char    *ddl    = (char *)row[1];
+            char    *fallbackDdl = NULL;
+
+            // Check if DDL result is truncated
+            if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
+                logWarn("SHOW CREATE TABLE result for `%s`.`%s` is %d bytes "
+                    "(likely truncated), using DESCRIBE fallback",
+                    dbName, ntbNames[i], ddlLen);
+                taos_free_result(res);
+                res = NULL;
+                fallbackDdl = buildCreateSqlFromDescribe(conn, dbName, ntbNames[i]);
+                if (!fallbackDdl) {
+                    logError("DESCRIBE fallback also failed for `%s`.`%s`", dbName, ntbNames[i]);
+                    code = TSDB_CODE_FAILED;
+                    break;
+                }
+                ddl = fallbackDdl;
+                ddlLen = (int32_t)strlen(ddl);
+            }
+
+            if (taosWriteFile(fp, ddl, ddlLen) != ddlLen ||
                 taosWriteFile(fp, "\n", 1) != 1) {
                 logError("write ntb sql to file failed: %s", ntbSqlFile);
                 code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
-                taos_free_result(res);
+                if (fallbackDdl) taosMemoryFree(fallbackDdl);
+                if (res) taos_free_result(res);
                 break;
             }
+            if (fallbackDdl) taosMemoryFree(fallbackDdl);
         }
-        taos_free_result(res);
+        if (res) taos_free_result(res);
     }
 
     releaseConnection(conn);
