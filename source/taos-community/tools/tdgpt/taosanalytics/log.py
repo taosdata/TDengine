@@ -53,8 +53,8 @@ class AppLogger():
 
         if has_matching:
             return
-
-        handler = logging.FileHandler(file_path)
+        
+        handler = logging.FileHandler(file_path, encoding='utf-8')
         handler.setFormatter(logging.Formatter(cls._LOG_STR_FORMAT))
 
         logger.addHandler(handler)
