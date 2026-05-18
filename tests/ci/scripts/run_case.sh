@@ -179,7 +179,10 @@ _DEPS_MARKER="${TEST_DIR}/.deps_installed"
 if [[ ! -f "${_DEPS_MARKER}" ]] || \
    [[ "${TEST_DIR}/requirements.txt" -nt "${_DEPS_MARKER}" ]]; then
     echo "[run_case] Installing test dependencies..."
-    pip3 install -r "${TEST_DIR}/requirements.txt" -q 2>&1 | tail -5
+    pip3 install -r "${TEST_DIR}/requirements.txt" -q \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        --trusted-host pypi.tuna.tsinghua.edu.cn \
+        2>&1 | tail -5
     touch "${_DEPS_MARKER}"
 fi
 

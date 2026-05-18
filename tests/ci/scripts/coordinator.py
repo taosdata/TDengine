@@ -54,6 +54,10 @@ MAX_CASE_TIMEOUT = int(os.environ.get("MAX_CASE_TIMEOUT", "1200"))  # 默认 20 
 # Worker 心跳超时：超过此时间未收到心跳的 worker 视为死亡，其 in_flight 用例立即收割
 # Worker 每 30s 发一次心跳，120s 超时 = 容忍 4 次心跳丢失
 WORKER_HEARTBEAT_TIMEOUT = int(os.environ.get("WORKER_HEARTBEAT_TIMEOUT", "120"))
+# 等待第一个 worker 注册的超时（从协调器启动算起）。
+# Worker 启动后需要拉取 Nexus 产物（noasan+asan tar.gz），可能需要数分钟；
+# 此值必须 ≥ worker 实际准备时间，且应与 worker 等待协调器就绪的重试窗口（600s）匹配。
+FIRST_WORKER_TIMEOUT = int(os.environ.get("FIRST_WORKER_TIMEOUT", "600"))
 # Prometheus 评分查询所用的 rate() 窗口长度。
 # [5m] 平滑杀树但也引入 5min 滞后：pipeline 启动初期 cpu 空载时段被平均进来，
 # 导致 score 持续偏低，协调器看到“空闲”却因 idle 系数没吸满资源。
@@ -1285,8 +1289,8 @@ def main():
 
         # 超时保护：长时间无活动
         if not workers_seen:
-            if time.time() - _start_time > 120:
-                print("[coordinator] TIMEOUT: no workers registered after 120s, exiting")
+            if time.time() - _start_time > FIRST_WORKER_TIMEOUT:
+                print(f"[coordinator] TIMEOUT: no workers registered after {FIRST_WORKER_TIMEOUT}s, exiting")
                 break
         else:
             if time.time() - last_progress > MAX_WAIT:

@@ -283,6 +283,17 @@ build-externals:
           fi
         fi
         echo "[build-externals] starting build..."
+        # cmake 3.21 bug 预处理：在 cmake configure 运行前，提前为 external.cmake 中所有
+        # ExternalProject_Add 目标创建 PREFIX/tmp/ 目录。
+        # cmake 3.21 在 configure 阶段会向 PREFIX/tmp/ 写 git clone/update 脚本，但不会
+        # 自动先 mkdir（cmake 3.25+ 已修复）。若目录不存在则 configure_file 失败，build.sh
+        # 非零返回，set -e 终止脚本，导致后面的 sentinel 写入和 post-cmake 补偿循环都跑不到。
+        # 此处在 cmake 运行前统一预创建，彻底消除首次构建（空缓存）时的失败。
+        _ext_debug_dir_pre="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
+        while IFS= read -r _ext_name; do
+          mkdir -p "${_ext_debug_dir_pre}/${_ext_name}/tmp" 2>/dev/null || true
+        done < <(grep -oP 'ExternalProject_Add\(\Kext_\S+' "${_cmake_file}" 2>/dev/null)
+        echo "[build-externals] pre-created tmp/ for all ExternalProject_Add targets (cmake 3.21 pre-fix)"
         # 清理 externals 缓存中残留的 devtoolset-7 CMakeCache（来自旧 core: 镜像）。
         # others:latest 用 gcc-toolset-14，路径不同；stale cache 会导致 ext_libs3 等
         # ExternalProject configure 步骤报 "compiler not found" 并失败。
@@ -305,7 +316,9 @@ build-externals:
         _ext_stamp_base="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
         for _chk_file in \
             "ext_gtest/Debug/lib/libgtest_main.a" \
-            "ext_gtest/Debug/lib/libgtest.a" ; do
+            "ext_gtest/Debug/lib/libgtest.a" \
+            "ext_arrow/Debug/lib/libarrow.a" \
+            "ext_arrow/Debug/lib/libparquet.a" ; do
           if [ ! -f "${_ext_ins}/${_chk_file}" ]; then
             _ext_name=$(echo "${_chk_file}" | cut -d/ -f1)
             _stamp_dir="${_ext_stamp_base}/${_ext_name}-stamp"
@@ -327,25 +340,25 @@ build-externals:
           -DBUILD_ENTERPRISE=ON \
           -DBUILD_ENGINE=ON \
           -DBUILD_ASSERT_NOT_CORE=OFF \
-          -DBUILD_TOOLS=ON \
           -DBUILD_KEEPER=ON \
           -DBUILD_ADAPTER=ON \
           -DBUILD_RUST=ON \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
           -DBUILD_SANITIZER=OFF \
-          -DBUILD_CONTRIB=ON
+          -DBUILD_CONTRIB=ON \
+          -DBUILD_TOOLS=ON
         # 构建成功，更新哨兵文件（供本分支后续 MR 快速跳过）
         md5sum "${_cmake_file}" > "${_sentinel}"
         echo "[build-externals] sentinel updated for branch '${_branch_slug}': ${_sentinel}"
-        # cmake 3.21 bug：ExternalProject_Add 在 configure 阶段就尝试写 gitupdate 脚本到
-        # PREFIX/tmp/ 目录，但 cmake 3.21 不会自动先 mkdir。多 MR 并发时同时 cmake configure
-        # 均遇到 tmp/ 不存在，就有其中一个会崩溃（cmake 3.25+ 已修复）。
-        # 在 flock -x 内统一创建所有 ext_* 的 tmp/ src/ ，确保后续并发 cmake configure 安全。
+        # cmake 3.21 并发兜底：build-noasan/asan cmake configure 与 build-externals 并发时，
+        # 若 build-externals 的 cmake 刚创建了新的 ext_*/ 目录但还未写入 tmp/，另一个 MR 的
+        # noasan/asan cmake configure 可能先于此处运行而看不到 tmp/。
+        # 在 flock -x 内补一遍，确保独占锁释放后所有 ext_*/tmp/ 均存在。
         _ext_debug_dir="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
         for _ext_dir in "${_ext_debug_dir}"/ext_*/; do
           [ -d "${_ext_dir}" ] && mkdir -p "${_ext_dir}/tmp" "${_ext_dir}/src" 2>/dev/null || true
         done
-        echo "[build-externals] pre-created tmp/src dirs for all ext_* (cmake 3.21 workaround)"
+        echo "[build-externals] post-cmake: ensured tmp/src for all ext_* (concurrency safety)"
       ) 9>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-externals] Externals done ==="
       # 若切换回 --image core:${BUILDER_IMAGE_TAG}，需要将 externals-core-amd64 符号链接到 externals-others-amd64：
