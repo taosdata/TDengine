@@ -391,7 +391,7 @@ int32_t tsCountAlwaysReturnValue = 1;
 // first day of week for week-based functions and INTERVAL(w), 0=Sunday ... 6=Saturday
 // default matches legacy epoch-modulo alignment at Unix epoch
 // int32_t (not int8_t) because the config framework writes via *(int32_t*) pointer
-int32_t tsDefaultFirstDayOfWeek = 1 << 2;
+int32_t tsDefaultFirstDayOfWeek = 4;  /* Thursday: Unix epoch (1970-01-01) alignment */
 int32_t tsFirstDayOfWeek = 0;
 
 // 1 ms for sliding time, the value will changed in case of time precision changed

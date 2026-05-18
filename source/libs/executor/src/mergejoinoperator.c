@@ -989,19 +989,18 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
   }
 
   pCtx->truncateUnit = pUnit->typeData;
+  pCtx->precision = pFunc->node.resType.precision;
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) &&
       pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
     char    *tzStr = varDataVal(pTimeZone->datum.p);
     int64_t  factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
 
+    /* IANA names need a DST-aware handle; fixed-offset strings use
+     * the existing modulo path. */
     if (strchr(tzStr, '/') != NULL || strcmp(tzStr, "UTC") == 0) {
       timezone_t tz = NULL;
       if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
-        int64_t offsetSeconds = 0;
-        if (taosGetTimezoneOffsetAtSeconds((time_t)0, tz, &offsetSeconds) == TSDB_CODE_SUCCESS) {
-          pCtx->timezoneUnit = offsetSeconds * factor;
-        }
-        tzfree(tz);
+        pCtx->tz = tz;
       }
     } else {
       pCtx->timezoneUnit = offsetFromTz(tzStr, factor);
@@ -1176,7 +1175,26 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
         return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
 
-      if (0 != pCtx->timezoneUnit) {
+      if (pCtx->tz != NULL) {
+        /* DST-aware truncation for IANA timezone with day-or-larger units */
+        int64_t factor = TSDB_TICK_PER_SECOND(pCtx->precision);
+        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+          int64_t ts = ((int64_t*)pPrimIn->pData)[i];
+          time_t  t = (time_t)(ts / factor);
+          if (ts < 0 && ts % factor != 0) t--;
+          struct tm tmInfo;
+          if (taosLocalTime(&t, &tmInfo, NULL, 0, pCtx->tz) == NULL) {
+            ((int64_t*)pPrimOut->pData)[i] = ts;
+            continue;
+          }
+          tmInfo.tm_hour = 0;
+          tmInfo.tm_min  = 0;
+          tmInfo.tm_sec  = 0;
+          tmInfo.tm_isdst = -1;
+          time_t truncated = taosMktime(&tmInfo, pCtx->tz);
+          ((int64_t*)pPrimOut->pData)[i] = (truncated != (time_t)-1) ? truncated * factor : ts;
+        }
+      } else if (0 != pCtx->timezoneUnit) {
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           ((int64_t*)pPrimOut->pData)[i] =
               ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
@@ -1974,6 +1992,10 @@ void destroyGrpArray(void* ppArray) {
 void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
   if (NULL == pTable) {
     return;
+  }
+  if (pTable->primCtx.tz != NULL) {
+    tzfree(pTable->primCtx.tz);
+    pTable->primCtx.tz = NULL;
   }
   mJoinDestroyCreatedBlks(pTable->createdBlks);
   taosArrayDestroy(pTable->createdBlks);

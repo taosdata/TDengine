@@ -1454,11 +1454,17 @@ char* formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, time
   size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
 
   if (precision == TSDB_TIME_PRECISION_MICRO) {
-    snprintf(buf + pos, cap - (pos), ".%06d", (int)(val % 1000000));
+    int frac = (int)(val % 1000000);
+    if (frac < 0) frac += 1000000;
+    snprintf(buf + pos, cap - (pos), ".%06d", frac);
   } else if (precision == TSDB_TIME_PRECISION_NANO) {
-    snprintf(buf + pos, cap - (pos), ".%09d", (int)(val % 1000000000));
+    int frac = (int)(val % 1000000000);
+    if (frac < 0) frac += 1000000000;
+    snprintf(buf + pos, cap - (pos), ".%09d", frac);
   } else {
-    snprintf(buf + pos, cap - (pos), ".%03d", (int)(val % 1000));
+    int frac = (int)(val % 1000);
+    if (frac < 0) frac += 1000;
+    snprintf(buf + pos, cap - (pos), ".%03d", frac);
   }
 
   return buf;

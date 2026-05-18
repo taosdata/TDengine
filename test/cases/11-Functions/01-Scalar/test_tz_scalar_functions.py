@@ -1090,3 +1090,196 @@ class TestDstEdge:
         self.check_write_with_explicit_offset()
         self.check_no_dst_timezone_unaffected()
 
+
+@SKIP_WINDOWS_SET_TIMEZONE
+class TestToIso8601FixedOffset:
+    """Regression: TO_ISO8601 with fixed-offset tz param uses the useFixedOffset path."""
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+        cls.dbname = 'db_tz_fixedoff'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.ts = 1642248000000  # 2022-01-15 12:00:00 UTC
+
+    def prepare_data(self):
+        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.ntbname}')
+        tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
+        tdSql.execute(f'insert into {self.ntbname} values ({self.ts}, 1)')
+
+    def check_fixed_offset_plus(self):
+        """TO_ISO8601 with '+0800' should output at UTC+8 with +0800 suffix."""
+        self.prepare_data()
+        tdSql.query(f"select to_iso8601(ts, '+0800') from {self.ntbname}")
+        result = tdSql.queryResult[0][0]
+        assert '+0800' in result, f"Expected +0800 in '{result}'"
+        assert '20:00:00' in result, f"Expected 20:00:00 for UTC+8 in '{result}'"
+
+    def check_fixed_offset_minus(self):
+        """TO_ISO8601 with '-0500' should output at UTC-5 with -0500 suffix."""
+        self.prepare_data()
+        tdSql.query(f"select to_iso8601(ts, '-0500') from {self.ntbname}")
+        result = tdSql.queryResult[0][0]
+        assert '-0500' in result, f"Expected -0500 in '{result}'"
+        assert '07:00:00' in result, f"Expected 07:00:00 for UTC-5 in '{result}'"
+
+    def check_fixed_offset_z(self):
+        """TO_ISO8601 with 'Z' should output UTC time with Z suffix."""
+        self.prepare_data()
+        tdSql.query(f"select to_iso8601(ts, 'Z') from {self.ntbname}")
+        result = tdSql.queryResult[0][0]
+        assert result.endswith('Z'), f"Expected Z suffix in '{result}'"
+        assert '12:00:00' in result, f"Expected 12:00:00 for UTC in '{result}'"
+
+    def check_fixed_offset_colon(self):
+        """TO_ISO8601 with '+05:30' should output at UTC+5:30 with original suffix."""
+        self.prepare_data()
+        tdSql.query(f"select to_iso8601(ts, '+05:30') from {self.ntbname}")
+        result = tdSql.queryResult[0][0]
+        assert '+05:30' in result, f"Expected +05:30 in '{result}'"
+        assert '17:30:00' in result, f"Expected 17:30:00 for UTC+5:30 in '{result}'"
+
+    def test_to_iso8601_fixed_offset(self):
+        """summary: Regression test for TO_ISO8601 fixed-offset timezone path.
+
+        description: Verifies that TO_ISO8601 correctly handles fixed-offset
+            timezone strings (+0800, -0500, Z, +05:30) using the useFixedOffset
+            code path. Previously this path was dead code (useFixedOffset was
+            never set to true).
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2025-07-15: Tony Zhang created
+
+        """
+        self.check_fixed_offset_plus()
+        self.check_fixed_offset_minus()
+        self.check_fixed_offset_z()
+        self.check_fixed_offset_colon()
+
+
+@SKIP_WINDOWS_SET_TIMEZONE
+class TestJoinDst:
+    """Regression: JOIN on TIMETRUNCATE(ts, 1d) must be DST-aware for IANA timezones."""
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+        cls.dbname = 'db_join_dst'
+
+    def prepare_data(self):
+        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.dbname}.t1')
+        tdSql.execute(f'drop table if exists {self.dbname}.t2')
+        tdSql.execute(f'create table {self.dbname}.t1 (ts timestamp, v1 int)')
+        tdSql.execute(f'create table {self.dbname}.t2 (ts timestamp, v2 int)')
+
+        # 2026-03-08 is the spring-forward day in America/New_York (EST -> EDT)
+        # Insert timestamps on the same calendar day in New York local time
+        # but straddling the DST transition.
+        # 2026-03-08 01:00 EST = 2026-03-08 06:00 UTC = 1741413600000
+        # 2026-03-08 10:00 EDT = 2026-03-08 14:00 UTC = 1741442400000
+        ts_before = 1741413600000  # 06:00 UTC (01:00 EST, before spring-forward)
+        ts_after  = 1741442400000  # 14:00 UTC (10:00 EDT, after spring-forward)
+
+        tdSql.execute(f'insert into {self.dbname}.t1 values ({ts_before}, 1)')
+        tdSql.execute(f'insert into {self.dbname}.t2 values ({ts_after}, 2)')
+
+    def check_join_dst_day_truncate(self):
+        """Both timestamps fall on the same local day (2026-03-08 in New_York),
+        so INNER JOIN on timetruncate(ts, 1d) should produce 1 row when using
+        America/New_York timezone."""
+        self.prepare_data()
+        tdSql.execute("SET TIMEZONE 'America/New_York'")
+        # merge join path (default)
+        tdSql.query(
+            f"select t1.v1, t2.v2 from {self.dbname}.t1 t1 "
+            f"inner join {self.dbname}.t2 t2 "
+            f"on timetruncate(t1.ts, 1d) = timetruncate(t2.ts, 1d)"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 2)
+        # hash join doesn't support using timetruncate as hash key
+        tdSql.error(
+            f"select /*+ hash_join() */ t1.v1, t2.v2 from {self.dbname}.t1 t1 "
+            f"inner join {self.dbname}.t2 t2 "
+            f"on timetruncate(t1.ts, 1d) = timetruncate(t2.ts, 1d)"
+        )
+
+    def check_join_no_dst_same_day(self):
+        """With a non-DST timezone (Asia/Shanghai), both timestamps land on
+        the same calendar day, so the join should still match."""
+        self.prepare_data()
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        # 06:00 UTC = 14:00 CST, 14:00 UTC = 22:00 CST, both on 2026-03-08
+        tdSql.query(
+            f"select t1.v1, t2.v2 from {self.dbname}.t1 t1 "
+            f"inner join {self.dbname}.t2 t2 "
+            f"on timetruncate(t1.ts, 1d) = timetruncate(t2.ts, 1d)"
+        )
+        tdSql.checkRows(1)
+
+    def check_join_dst_different_days(self):
+        """When timestamps fall on different calendar days in the local timezone,
+        the join should produce 0 rows."""
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.dbname}.t3')
+        tdSql.execute(f'drop table if exists {self.dbname}.t4')
+        tdSql.execute(f'create table {self.dbname}.t3 (ts timestamp, v1 int)')
+        tdSql.execute(f'create table {self.dbname}.t4 (ts timestamp, v2 int)')
+        # 2026-03-08 04:00 UTC = 2026-03-07 23:00 EST (day before)
+        # 2026-03-08 14:00 UTC = 2026-03-08 10:00 EDT (day of DST switch)
+        ts_day_before = 1741406400000  # 04:00 UTC
+        ts_day_of     = 1741442400000  # 14:00 UTC
+        tdSql.execute(f'insert into {self.dbname}.t3 values ({ts_day_before}, 1)')
+        tdSql.execute(f'insert into {self.dbname}.t4 values ({ts_day_of}, 2)')
+        tdSql.execute("SET TIMEZONE 'America/New_York'")
+        # merge join
+        tdSql.query(
+            f"select * from {self.dbname}.t3 t3 "
+            f"inner join {self.dbname}.t4 t4 "
+            f"on timetruncate(t3.ts, 1d) = timetruncate(t4.ts, 1d)"
+        )
+        tdSql.checkRows(0)
+        # hash join doesn't support using timetruncate as hash key
+        tdSql.error(
+            f"select /*+ hash_join() */ * from {self.dbname}.t3 t3 "
+            f"inner join {self.dbname}.t4 t4 "
+            f"on timetruncate(t3.ts, 1d) = timetruncate(t4.ts, 1d)"
+        )
+
+    def test_join_dst(self):
+        """summary: Regression test for DST-aware JOIN on TIMETRUNCATE(ts, 1d).
+
+        description: Verifies that merge join correctly uses DST-aware day
+            truncation when the session timezone is an IANA name. Previously,
+            join operators resolved the IANA timezone offset at epoch time
+            (time_t 0), producing a fixed offset that ignored DST transitions.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2025-07-15: Tony Zhang created
+
+        """
+        self.check_join_dst_day_truncate()
+        self.check_join_no_dst_same_day()
+        self.check_join_dst_different_days()
+

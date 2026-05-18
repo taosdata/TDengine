@@ -249,6 +249,20 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
     }
   }
 
+  /* Normalize bare +HH / -HH (3 chars) to +HHMM so the ISO8601 suffix is
+   * canonical when the connection timezone was set with a short form like
+   * SET TIMEZONE '+08'.  Explicit user-supplied params in to_iso8601(ts, '+06')
+   * are NOT injected here and are preserved as-is by the scalar function. */
+  {
+    size_t blen = strlen(buf);
+    if (blen == 3 && (buf[0] == '+' || buf[0] == '-') &&
+        buf[1] >= '0' && buf[1] <= '9' && buf[2] >= '0' && buf[2] <= '9') {
+      buf[3] = '0';
+      buf[4] = '0';
+      buf[5] = '\0';
+    }
+  }
+
   int32_t len = (int32_t)strlen(buf);
   SValueNode* pVal = NULL;
   code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);

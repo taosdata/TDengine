@@ -97,6 +97,8 @@ typedef struct SMJoinPrimExprCtx {
   // FOR TIMETRUNCATE
   int64_t       truncateUnit;
   int64_t       timezoneUnit;
+  timezone_t    tz;           /* DST-aware IANA handle, NULL → fixed offset */
+  int32_t       precision;
   int32_t       targetSlotId;
 
   // FOR VALUE

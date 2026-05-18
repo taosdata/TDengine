@@ -4026,7 +4026,6 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
   timezone_t explicitTz = NULL;
   bool       useFixedOffset = false;
   int64_t    fixedOffset = 0;
-  bool       useUserTzString = false;
 
   if (hasTzParam) {
     code = extractTimezoneParamString(pInput, 1, tzStr, sizeof(tzStr));
@@ -4036,10 +4035,22 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     /* check if timezone is 'z'/'Z' or a fixed offset format (+hh, +hh:mm, +hhmm, -hh, etc.) */
     if (strcmp(tzStr, "z") == 0 || strcmp(tzStr, "Z") == 0) {
-      useUserTzString = true;  /* will output the user-provided string */
-    } else if (strchr(tzStr, '+') != NULL || strchr(tzStr, '-') != NULL) {
-      /* looks like user-provided offset format — use it directly */
-      useUserTzString = true;
+      useFixedOffset = true;
+      fixedOffset = 0;
+    } else if (tzStr[0] == '+' || tzStr[0] == '-') {
+      /* fixed-offset format — parse the POSIX offset for time adjustment,
+       * and preserve the original user string for the ISO8601 suffix */
+      int64_t parsedOffset = 0;
+      if (offsetOfTimezone(tzStr, &parsedOffset) == 0) {
+        useFixedOffset = true;
+        fixedOffset = parsedOffset;
+      } else {
+        /* unparseable offset string; try as IANA name */
+        code = taosValidateTimezone(tzStr, &explicitTz);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _return;
+        }
+      }
     } else {
       /* IANA name or other format — try to validate and use DST-aware conversion */
       code = taosValidateTimezone(tzStr, &explicitTz);
@@ -4110,46 +4121,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       }
       len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
       len += snprintf(buf + len, fractionLen, format, mod);
-      /* build normalized ISO8601 suffix from fixedOffset (seconds, POSIX sign)
-       * fixedOffset sign is POSIX-inverted vs ISO8601:
-       *   UTC+8 → fixedOffset = -28800, output '+08:00'
-       *   UTC-5 → fixedOffset = +18000, output '-05:00'
-       */
-      {
-        if (fixedOffset == 0) {
-          len += snprintf(buf + len, sizeof(buf) - len, "+0000");
-        } else {
-          char sign = (fixedOffset <= 0) ? '+' : '-';
-          long absOff = (fixedOffset <= 0) ? -fixedOffset : fixedOffset;
-          int  offH = (int)(absOff / 3600);
-          int  offM = (int)((absOff % 3600) / 60);
-          len += snprintf(buf + len, sizeof(buf) - len, "%c%02d%02d", sign, offH, offM);
-        }
-      }
-    } else if (useUserTzString) {
-      /* User-provided timezone string (z/Z/+hh/+hhmm/+hh:mm/etc.) — output as-is */
-      int64_t userOffset = 0;
-      bool userTzValid = false;
-      
-      /* try to parse user timezone offset */
-      if (strcmp(tzStr, "z") == 0 || strcmp(tzStr, "Z") == 0) {
-        userOffset = 0;  /* z/Z means UTC */
-        userTzValid = true;
-      } else {
-        /* try to parse fixed offset from user string */
-        if (offsetOfTimezone(tzStr, &userOffset) == 0) {
-          userTzValid = true;
-        }
-      }
-      
-      /* adjust time to the user-specified timezone */
-      int64_t adjQuot = userTzValid ? (quot - userOffset) : quot;
-      if (taosGmTimeR((const time_t *)&adjQuot, &tmInfo) == NULL) {
-        goto _end;
-      }
-      len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
-      len += snprintf(buf + len, fractionLen, format, mod);
-      /* append user-provided timezone string directly */
+      /* append user-provided timezone string directly to preserve original format */
       len += snprintf(buf + len, sizeof(buf) - len, "%s", tzStr);
     } else {
       /* IANA timezone (explicit or connection) — DST-aware */
