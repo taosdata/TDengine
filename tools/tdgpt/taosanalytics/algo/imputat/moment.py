@@ -75,6 +75,10 @@ class _MomentImputationService(AbstractImputationService):
                                  self.freq, self.precision)
 
     def get_status(self) -> str:
+        if self.service_host is None:
+            AppLogger.error("moment tsfm imputation service host is not specified yet")
+            return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
+
         try:
             _ = requests.get(self.service_host, headers=self.headers, timeout=5)
         except Exception as e:
