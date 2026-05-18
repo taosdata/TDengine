@@ -19,7 +19,11 @@ impl TimeBasedXor {
             .parse::<i64>()
             .map_err(|_| XorError::InvalidTimestamp)?;
         let current_time = Local::now().timestamp();
-        if current_time - timestamp > self.allowed_duration_in_seconds as i64 {
+        let allowed_duration_in_seconds =
+            i64::try_from(self.allowed_duration_in_seconds).unwrap_or(i64::MAX);
+        if current_time.saturating_sub(timestamp) > allowed_duration_in_seconds
+            || timestamp.saturating_sub(current_time) > allowed_duration_in_seconds
+        {
             return Err(XorError::Expired);
         }
         let bytes = BASE64_STANDARD.decode(encrypted_data)?;
@@ -62,6 +66,18 @@ pub enum XorError {
     Expired,
 }
 
+impl XorError {
+    pub const fn code(&self) -> i32 {
+        match self {
+            XorError::Base64(_)
+            | XorError::InvalidData
+            | XorError::InvalidTimestamp
+            | XorError::Expired => 0x2701,
+            XorError::Utf8(_) => 0x2702,
+        }
+    }
+}
+
 pub fn decrypt_xor(key: &[u8], data: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(data.len());
     let mut key_index = 0;
@@ -92,6 +108,12 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+
+    fn encrypt_at(timestamp: i64, data: &[u8]) -> String {
+        let key = TimeBasedXor::gen_key(timestamp);
+        let encrypted = encrypt_xor(&key, data);
+        format!("{}.{}", timestamp, BASE64_STANDARD.encode(encrypted))
+    }
 
     #[test]
     fn test_xor() {
@@ -134,6 +156,29 @@ mod tests {
 
         let decrypted = xor.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted.as_bytes(), data);
+    }
+
+    #[test]
+    fn test_time_based_xor_rejects_future_timestamp_outside_allowed_window() {
+        let xor = TimeBasedXor::new(300);
+        let encrypted = encrypt_at(Local::now().timestamp() + 3600, b"hello");
+
+        let err = xor
+            .decrypt(&encrypted)
+            .expect_err("future timestamp should be rejected");
+        assert!(matches!(err, XorError::Expired));
+    }
+
+    #[test]
+    fn xor_error_code_should_match_rest_proxy_error_codes() {
+        let invalid_base64 = BASE64_STANDARD.decode("invalid").unwrap_err();
+        let invalid_utf8 = String::from_utf8(vec![0xff]).unwrap_err();
+
+        assert_eq!(XorError::Base64(invalid_base64).code(), 0x2701);
+        assert_eq!(XorError::InvalidData.code(), 0x2701);
+        assert_eq!(XorError::InvalidTimestamp.code(), 0x2701);
+        assert_eq!(XorError::Expired.code(), 0x2701);
+        assert_eq!(XorError::Utf8(invalid_utf8).code(), 0x2702);
     }
 
     #[test]
