@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from taosanalytics.conf import app_logger
+from taosanalytics.log import AppLogger
 
 class ModelInfo:
     def __init__(self):
@@ -21,7 +21,7 @@ class ModelInfo:
     @classmethod
     def create_model_info(cls, model_name: str, path: str, time: datetime, note: str, el:int, service: str, model: Any):
         if model is None:
-            app_logger.log_inst.error(f"empty model, create {model_name} model info failed")
+            AppLogger.error(f"empty model, create {model_name} model info failed")
             return None
 
         info = ModelInfo()
@@ -44,7 +44,7 @@ class ModelInfo:
             'note':self.note
         }
 
-class ModelManager:
+class ModelFileManager:
     _instance = None
     _lock = threading.Lock()
 
@@ -56,7 +56,7 @@ class ModelManager:
                 cls._instance._model_locks = {}
             return cls._instance
 
-    def load_model(self, model_name: str, model_path: str, model_loader, class_name:str):
+    def load_model_file(self, model_name: str, model_path: str, model_loader, class_name:str):
         """load the model on demand"""
         if model_name not in self._models:
             with self._lock:
@@ -67,7 +67,7 @@ class ModelManager:
             with self._model_locks[model_name]:
                 # protect the load procedure
                 if model_name not in self._models:
-                    app_logger.log_inst.info("try to load module:%s", model_path)
+                    AppLogger.info("try to load module:%s", model_path)
 
                     model, model_desc = None, ''
                     elapsed = 0
@@ -77,12 +77,12 @@ class ModelManager:
                         model, model_desc = model_loader(model_path)
                         elapsed = (int) ((time.time() - st) * 1000)
                     except Exception as e:
-                        app_logger.log_inst.error(
+                        AppLogger.error(
                             "failed to load model from disk: %s for %s model, code:%s, continue...",
                             model_path, model_name, str(e))
 
                     if model is not None:
-                        app_logger.log_inst.info("%s load model %s in file: %s completed, elapsed time:%.2fs, total loaded models:%d",
+                        AppLogger.info("%s load model %s in file: %s completed, elapsed time:%.2fs, total loaded models:%d",
                                                  class_name, model_name, model_path,
                                                  elapsed/1000.0, len(self._models) + 1)
 
@@ -115,11 +115,16 @@ class ModelManager:
             try:
                 msg[key] = info.__json__()
             except Exception as e:
-                app_logger.log_inst.error(
+                AppLogger.error(
                     "failed to serialize loaded model: %s, code:%s, continue...",
                     key, str(e))
 
         return msg
 
+    @classmethod
+    def get_instance(cls) -> 'ModelFileManager':
+        """return the singleton instance"""
+        if cls._instance is None:
+            cls()
 
-model_manager = ModelManager()
+        return cls._instance
