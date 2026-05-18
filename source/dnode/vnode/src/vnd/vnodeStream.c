@@ -5813,10 +5813,21 @@ static void streamTblRefCacheInsert(SStreamVTableInfoCache *pCache,
     if (pEntry == NULL) return;
   }
   int32_t colKeyLen = (int32_t)strlen(colName);
-  // Store a copy (tagData is not deep-copied: tag results are consumed immediately by caller)
+  // Store a deep copy including tagData
   SVTableRefResolveRspItem copy = *pItem;
-  copy.tagData = NULL;  // tag ownership stays with caller
-  copy.tagLen  = 0;
+  if (pItem->tagData != NULL && pItem->tagLen > 0) {
+    copy.tagData = taosMemoryMalloc(pItem->tagLen);
+    if (copy.tagData != NULL) {
+      memcpy(copy.tagData, pItem->tagData, pItem->tagLen);
+      copy.tagLen = pItem->tagLen;
+    } else {
+      copy.tagData = NULL;
+      copy.tagLen  = 0;
+    }
+  } else {
+    copy.tagData = NULL;
+    copy.tagLen  = 0;
+  }
   taosHashPut(pEntry->colResults, colName, colKeyLen, &copy, sizeof(copy));
 }
 
@@ -5870,11 +5881,20 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     SVTableRefResolveRspItem *cached = streamTblRefCacheLookup(pCache, w->refDbName, w->refTableName,
                                                                w->refColName, w->kind);
     if (cached != NULL) {
-      // Cache hit: copy result directly to outRspItems[i]
+      // Cache hit: deep copy result to outRspItems[i]
       SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
       *dst = *cached;
-      dst->tagData = NULL;  // tag data is not stored in cache
-      dst->tagLen  = 0;
+      if (cached->tagData != NULL && cached->tagLen > 0) {
+        dst->tagData = taosMemoryMalloc(cached->tagLen);
+        if (dst->tagData != NULL) {
+          memcpy(dst->tagData, cached->tagData, cached->tagLen);
+        } else {
+          dst->tagLen = 0;
+        }
+      } else {
+        dst->tagData = NULL;
+        dst->tagLen  = 0;
+      }
       origToDedupIdx[i] = -1;
       cacheHits++;
       continue;
