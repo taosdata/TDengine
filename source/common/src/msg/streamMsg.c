@@ -4895,7 +4895,15 @@ int32_t tDeserializeSVTableRefResolveRsp(void *buf, int32_t bufLen, SVTableRefRe
         code = terrno;
         goto _exit;
       }
-      TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, (uint8_t*)item.tagData, item.tagLen));
+      // Free the just-allocated tagData on decode failure: the stack-local
+      // `item` is not in pRsp->items yet, so the _exit cleanup loop would
+      // otherwise miss it and leak this buffer.
+      code = tDecodeBinaryTo(&decoder, (uint8_t*)item.tagData, item.tagLen);
+      if (code) {
+        taosMemoryFreeClear(item.tagData);
+        lino = __LINE__;
+        goto _exit;
+      }
     } else {
       item.tagData = NULL;
     }
