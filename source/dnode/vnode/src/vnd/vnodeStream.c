@@ -6057,39 +6057,22 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     streamTblRefCacheInsert(pCache, w->refDbName, w->refTableName, w->refColName, w->kind, rsp);
   }
 
+  // Scatter dedup results back to original positions with deep-copied tagData.
   for (int32_t i = 0; i < n; ++i) {
     int32_t dedupIdx = origToDedupIdx[i];
     if (dedupIdx < 0) continue;  // was served from cache
     SVTableRefResolveRspItem *src = taosArrayGet(dedupRspItems, dedupIdx);
     SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
     *dst = *src;
-    // tagData ownership: only the first consumer takes it; others get NULL
-    // (TAG results produce only one terminal entry per originCid anyway, and
-    // dedup groups only identical (db,table,col,kind) tuples).
-  }
-  // Transfer tagData ownership: for TAG kind, only dedupRspItems still owns
-  // the tagData pointer. We need to give it to the *first* outRspItems entry
-  // that maps to each dedupIdx.
-  {
-    bool *tagTaken = taosMemoryCalloc(dedupN, sizeof(bool));
-    if (tagTaken != NULL) {
-      for (int32_t i = 0; i < n; ++i) {
-        int32_t dedupIdx = origToDedupIdx[i];
-        if (dedupIdx < 0) continue;
-        SVTableRefResolveRspItem *src = taosArrayGet(dedupRspItems, dedupIdx);
-        SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
-        if (src->tagData != NULL && !tagTaken[dedupIdx]) {
-          dst->tagData = src->tagData;
-          dst->tagLen  = src->tagLen;
-          src->tagData = NULL;
-          src->tagLen  = 0;
-          tagTaken[dedupIdx] = true;
-        } else {
-          dst->tagData = NULL;
-          dst->tagLen  = 0;
-        }
+    if (src->tagData != NULL && src->tagLen > 0) {
+      dst->tagData = taosMemoryMalloc(src->tagLen);
+      if (dst->tagData != NULL) {
+        memcpy(dst->tagData, src->tagData, src->tagLen);
+      } else {
+        dst->tagLen = 0;
       }
-      taosMemoryFree(tagTaken);
+    } else {
+      dst->tagData = NULL;
     }
   }
 
