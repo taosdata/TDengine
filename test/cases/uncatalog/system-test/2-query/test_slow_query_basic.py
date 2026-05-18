@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils.pathFinding import find_proj_path
 
 import string
 import platform
@@ -18,10 +19,7 @@ class TestSlowQueryBasic:
             tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
+        projPath = find_proj_path(selfPath)
 
         paths = []
         for root, dirs, files in os.walk(projPath):

@@ -10,14 +10,10 @@ import taos
 import threading
 import time
 import shutil
+from new_test_framework.utils.pathFinding import find_proj_root
 
 class TestCase:
-    path_parts = os.getcwd().split(os.sep)
-    try:
-        tdinternal_index = path_parts.index("TDinternal")
-    except ValueError:
-        raise ValueError("The specified directory 'TDinternal' was not found in the path.")
-    TDinternal = os.sep.join(path_parts[:tdinternal_index + 1])
+    TDinternal = find_proj_root()
     dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
     configFile = os.path.join(dnode1Path, "cfg", "taos.cfg")
     hostPath = os.path.join(dnode1Path, "multi")

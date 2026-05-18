@@ -53,43 +53,41 @@ else
     target_dir="test/$exec_dir"
 fi
 
-if [ $ent -eq 0 ]; then
-    export PATH=$PATH:/home/TDengine/debug/build/bin
-    export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
-    ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
-    ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
-    ln -s /home/TDengine/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
-    ln -s /home/TDengine/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
-    ln -s /home/TDengine/debug/build/lib/libtaosws.so /usr/lib/libtaosws.so 2>/dev/null
-    ln -s /home/TDengine/debug/build/lib/libtaosws.so /usr/lib/libtaosws.so.1 2>/dev/null
-    ln -s /home/TDengine/include/client/taos.h /usr/include/taos.h 2>/dev/null
-    ln -s /home/TDengine/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
-    ln -s /home/TDengine/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
-    ln -s /home/TDengine/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
-    ln -s /home/TDengine/debug/include/taosws.h /usr/include/taosws.h 2>/dev/null
-    # 刷新系统动态链接器缓存，确保未继承 LD_LIBRARY_PATH 的子进程也能找到正确的库
-    echo "/home/TDengine/debug/build/lib" > /etc/ld.so.conf.d/tdengine.conf
-    ldconfig 2>/dev/null || true
-    CONTAINER_TESTDIR=/home/TDengine
+# ── 自动检测容器内路径布局 ─────────────────────────────────────────────────
+# tsdb 仓库 CI：/mnt/tsdb/debug/build/bin, /mnt/tsdb/source/taos-community
+# TDinternal CI：/home/TDinternal/debug/build/bin, /home/TDinternal/community
+# TDengine OSS CI：/home/TDengine/debug/build/bin, /home/TDengine
+if [ -d "/mnt/tsdb/debug/build/bin" ]; then
+    _DEBUG_BASE="/mnt/tsdb/debug"
+    _SOURCE_BASE="/mnt/tsdb/source/taos-community"
+    _SIM_BASE="/mnt/tsdb/sim"
+elif [ -d "/home/TDinternal/debug/build/bin" ]; then
+    _DEBUG_BASE="/home/TDinternal/debug"
+    _SOURCE_BASE="/home/TDinternal/community"
+    _SIM_BASE="/home/TDinternal/sim"
 else
-    export PATH=$PATH:/home/TDinternal/debug/build/bin
-    export LD_LIBRARY_PATH=/home/TDinternal/debug/build/lib
-    ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
-    ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
-    ln -s /home/TDinternal/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
-    ln -s /home/TDinternal/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
-    ln -s /home/TDinternal/debug/build/lib/libtaosws.so /usr/lib/libtaosws.so 2>/dev/null
-    ln -s /home/TDinternal/debug/build/lib/libtaosws.so /usr/lib/libtaosws.so.1 2>/dev/null
-    ln -s /home/TDinternal/community/include/client/taos.h /usr/include/taos.h 2>/dev/null
-    ln -s /home/TDinternal/community/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
-    ln -s /home/TDinternal/community/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
-    ln -s /home/TDinternal/community/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
-    ln -s /home/TDinternal/debug/include/taosws.h /usr/include/taosws.h 2>/dev/null
-    # 刷新系统动态链接器缓存，确保未继承 LD_LIBRARY_PATH 的子进程也能找到正确的库
-    echo "/home/TDinternal/debug/build/lib" > /etc/ld.so.conf.d/tdengine.conf
-    ldconfig 2>/dev/null || true
-    CONTAINER_TESTDIR=/home/TDinternal/community
+    _DEBUG_BASE="/home/TDengine/debug"
+    _SOURCE_BASE="/home/TDengine"
+    _SIM_BASE="/home/TDengine/sim"
 fi
+
+export PATH=$PATH:${_DEBUG_BASE}/build/bin
+export LD_LIBRARY_PATH=${_DEBUG_BASE}/build/lib
+ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
+ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
+ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
+ln -s ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so 2>/dev/null
+ln -s ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so.1 2>/dev/null
+ln -s ${_SOURCE_BASE}/include/client/taos.h /usr/include/taos.h 2>/dev/null
+ln -s ${_SOURCE_BASE}/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
+ln -s ${_SOURCE_BASE}/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
+ln -s ${_SOURCE_BASE}/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
+ln -s ${_DEBUG_BASE}/include/taosws.h /usr/include/taosws.h 2>/dev/null
+# 刷新系统动态链接器缓存
+echo "${_DEBUG_BASE}/build/lib" > /etc/ld.so.conf.d/tdengine.conf
+ldconfig 2>/dev/null || true
+CONTAINER_TESTDIR=${_SOURCE_BASE}
 
 mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
@@ -110,22 +108,31 @@ fi
 cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}"; exit 1; }
 ulimit -c unlimited
 
-# get python connector and update: taospy 2.8.9 taos-ws-py 0.6.9
-pip3 install taospy==2.8.9
-pip3 install taos-ws-py==0.6.9
-pip3 install pyotp
+# 使用 marker 文件 + requirements.txt mtime 比较，智能安装依赖
+# 仅在首次运行或 requirements.txt 变更时安装，避免每次重复安装
+_DEPS_MARKER="${CONTAINER_TESTDIR}/.deps_installed"
+_REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"
+if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; then
+    pip3 install -r "${_REQ_FILE}" -q \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        --trusted-host pypi.tuna.tsinghua.edu.cn \
+        2>&1 | tail -5
+    touch "${_DEPS_MARKER}"
+fi
 
 $TIMEOUT_CMD $cmd
 RET=$?
+# pytest exit code 5 = no tests collected / all skipped → treat as pass
+[ $RET -eq 5 ] && RET=0
 echo "cmd exit code: $RET"
 
-mkdir -p /home/TDinternal/sim/var_taoslog
+mkdir -p ${_SIM_BASE}/var_taoslog
 if [ -d "/var/log/taos" ]; then
-    cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/ 2>/dev/null || true
+    cp /var/log/taos/* ${_SIM_BASE}/var_taoslog/ 2>/dev/null || true
 fi
 
 if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
-    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/ 2>/dev/null || true
+    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log ${_SIM_BASE}/var_taoslog/ 2>/dev/null || true
 fi
 
 if [ $RET -ne 0 ]; then

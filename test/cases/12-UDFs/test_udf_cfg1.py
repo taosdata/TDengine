@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
 import time
@@ -18,10 +19,7 @@ class TestUdfCfg1:
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
+        projPath = find_proj_path(selfPath)
         print(projPath)
 
         if platform.system().lower() == 'windows':
