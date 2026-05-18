@@ -1,5 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
+from new_test_framework.utils.pathFinding import find_proj_root
 from decimal import Decimal
 import os
 import random
@@ -9,14 +10,13 @@ import taos
 import threading
 import time
 import shutil
-from new_test_framework.utils.pathFinding import find_proj_root
 
 class TestCase:
-    TDinternal = find_proj_root()
-    dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
+    _proj_root = find_proj_root(os.path.dirname(os.path.realpath(__file__)))
+    dnode1Path = os.path.join(_proj_root, "sim", "dnode1")
     configFile = os.path.join(dnode1Path, "cfg", "taos.cfg")
     hostPath = os.path.join(dnode1Path, "multi")
-    localSSPath = os.path.join(TDinternal, "sim", "localSS") # shared storage path for local test
+    localSSPath = os.path.join(_proj_root, "sim", "localSS") # shared storage path for local test
     clientCfgDict = {'debugFlag': 135}
     encryptConfig = {
         "svrKey": "1234567890",
@@ -285,12 +285,12 @@ class TestCase:
         # Probe multiple layouts: TDinternal CI, tsdb CI, TDengine CI
         vnodeQueryPath = None
         for _sub in ("community", os.path.join("source", "taos-community"), "."):
-            _candidate = os.path.join(self.TDinternal, _sub, "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
+            _candidate = os.path.join(self._proj_root, _sub, "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
             if os.path.exists(_candidate):
                 vnodeQueryPath = _candidate
                 break
         if vnodeQueryPath is None:
-            raise FileNotFoundError(f"vnodeQuery.c not found under {self.TDinternal}")
+            raise FileNotFoundError(f"vnodeQuery.c not found under {self._proj_root}")
         tkLogStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkLogStb")
         tkAuditStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkAuditStb")
         tdLog.info(f"Parsed tkLogStb ({len(tkLogStb)} items): {tkLogStb}")
