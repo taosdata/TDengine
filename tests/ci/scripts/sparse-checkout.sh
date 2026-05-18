@@ -2,21 +2,20 @@
 # =============================================================================
 # sparse-checkout.sh — 在测试 worker 上获取测试代码
 # =============================================================================
-# 目标目录结构（供 run_container.sh OSS 模式使用）：
-#   $WORKDIR/TDengine/               → 软链接到 source/taos-community
-#   $WORKDIR/TDengine/tests/army/    → 实际测试用例
-#   $WORKDIR/TDengine/tests/parallel_test/cases.task
+# 目标目录结构（供 run_container.sh 使用）：
+#   $WORKDIR/TDinternal/community/   → 软链接到 source/taos-community
+#   run_container.sh 将其挂载为容器内 /mnt/source/taos-community
 #
 # 实现方式：
 #   1. 优先：CI_PROJECT_DIR 已有 source/taos-community/ 且含 cases.task
-#      → $WORKDIR/TDengine 软链接到 CI_PROJECT_DIR/source/taos-community
+#      → $WORKDIR/TDinternal/community 软链接到 CI_PROJECT_DIR/source/taos-community
 #   2. Fallback：稀疏检出目标分支的 source/taos-community/ 子目录
 # =============================================================================
 set -euo pipefail
 
 WORKDIR="${WORKDIR:?WORKDIR is required}"
 SRC_SUBDIR="source/taos-community"   # tsdb 仓库中社区版代码的路径
-TDINTERNAL_DIR="${WORKDIR}/TDinternal"   # 模拟企业版目录结构
+TDINTERNAL_DIR="${WORKDIR}/TDinternal"   # 兼容 run_container.sh -e 的目录结构
 TDENGINE_DIR="${TDINTERNAL_DIR}/community"  # run_container.sh -e 时期望的路径
 
 echo "[sparse-checkout] WORKDIR=${WORKDIR}"

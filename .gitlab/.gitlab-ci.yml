@@ -25,14 +25,46 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible   # 新 commit 推送时自动取消标记了 interruptible 的旧 pipeline
   rules:
-    # MR 流水线：目标分支为 main / 3.3.6 系列 / 3.0 系列
-    # main/3.3.6/3.0 均为受保护分支，不允许直接 push，无需 push 触发规则
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.3\.6/
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.0/
-    # 定时调度 (daily build) / 手动触发 (release / web)
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
+    # ── Builder 亲和性路由 ────────────────────────────────────────────────────
+    # 通过 workflow:rules:variables 设置 TSDB_BUILDER_TAG，保证同一 pipeline 内
+    # 所有 builder job（prepare / build / check / unit-test / upload / coordinator）
+    # 落在同一台机器上，避免跨节点找不到 workspace。
+    #
+    # 路由策略：MR IID 末位数字 % N → 固定 builder（同一 MR 始终同一台）。
+    # 扩展步骤：
+    #   1. 新 runner 注册唯一 tag（如 tsdb-builder-2）
+    #   2. 在下方「路由区」加一行 if + 对应数字组
+    #   3. 调整已有行的数字分组（10 个数字均分给 N 台）
+    # 示例（6 台）：
+    #   /[01]$/→0  /[23]$/→1  /[45]$/→2  /[67]$/→3  /[8]$/→4  /[9]$/→5
+    # ─────────────────────────────────────────────────────────────────────────
+    # ①【分支过滤区】—— MR 目标分支不在白名单内则不创建 pipeline
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME != "main" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME !~ /^3\.3\.6/ && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME !~ /^3\.0/
+      when: never
+    # Draft MR 不触发 CI（标题以 "Draft:" 或 "WIP:" 开头时跳过）
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TITLE =~ /^(Draft:|WIP:)/
+      when: never
+    # ②【路由区】—— MR 按 IID 末位路由（与分支无关，加 builder 只改这里）
+    # TSDB_BUILDER_TAG 即 coordinator 主机名（需在各 worker /etc/hosts 中注册），无需额外 IP 映射
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_IID =~ /[01234]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-0"    # u1-47
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_IID =~ /[56789]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-1"    # u2-104
+    # ③ schedule / web 按 pipeline ID 末位路由
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PIPELINE_ID =~ /[01234]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-0"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PIPELINE_ID =~ /[56789]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-1"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PIPELINE_ID =~ /[01234]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-0"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PIPELINE_ID =~ /[56789]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-1"
 
 stages:
   - prepare
@@ -47,12 +79,21 @@ stages:
 variables:
   NEXUS_URL: "https://nexus.tdengine.net"
   NEXUS_REPO: "tdtest"
+  # ── Builder 亲和性标签（由 workflow:rules:variables 按 MR 路由覆盖）─────
+  # COORDINATOR_HOST 由 prepare-workspace 在 builder 上自动探测 IP 并写入 build.env
+  TSDB_BUILDER_TAG: "tsdb-builder-0"      # 默认 fallback，正常情况被 workflow:rules 覆盖
   # ── 基础路径配置（按部署环境修改这两个变量即可）──────────────────────────
   CI_BASE_DIR: "/data1/tdengine-ci"        # CI 工作根目录（workspace、platform、fail-logs 均在此）
   CI_CACHE_DIR: "/data/cache/tsdb-builder" # 构建缓存目录（externals stamps、Docker layer 等）
-  BUILDER_IMAGE_TAG: "0.21"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
+  BUILDER_IMAGE_TAG: "0.3.1"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
   BUILDER_SCRIPT_IMAGE: "others:${BUILDER_IMAGE_TAG}" # build.sh --image 参数；切换镜像时改此处即可（如 core:${BUILDER_IMAGE_TAG}）
-  BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/others:latest-amd64"
+  BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/others:${BUILDER_IMAGE_TAG}-amd64"
+  # ── 调度激进度（0=保守, 1=折中激进[默认], 2=激进）───────────────────────────
+  # 同时控制 coordinator 批量分配阈值和 worker TEST_CONCURRENCY 上限系数：
+  #   0: stop=70%  tiers=30/50/75%   idle=ncpus*0.50  max_conc=nproc*0.6
+  #   1: stop=80%  tiers=40/65/85%   idle=ncpus*0.75  max_conc=nproc*0.7  ← 推荐
+  #   2: stop=85%  tiers=50/75/100%  idle=ncpus*1.00  max_conc=nproc*0.8
+  CI_SCHED_AGGR: "1"
 
 .rules-code-change:
   rules:
@@ -73,7 +114,7 @@ variables:
 # =============================================================================
 prepare-workspace:
   stage: prepare
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 10 minutes
   interruptible: true
   extends: .rules-code-change
@@ -97,6 +138,16 @@ prepare-workspace:
       echo "WORKSPACE=${WORKSPACE}"     > build.env
       echo "TSDB_SRC=${TSDB_SRC}"      >> build.env
       echo "TSDB_SRC_SAN=${TSDB_SRC_SAN}" >> build.env
+      # 自动探测本机 IP（就是 coordinator 将要监听的 IP），写入 dotenv 供 test-linux 继承
+      _SELF_IP=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep '^192\.168\.' | head -1)
+      [ -z "${_SELF_IP}" ] && _SELF_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+      echo "COORDINATOR_HOST=${_SELF_IP}" >> build.env
+      echo "[prepare] COORDINATOR_HOST=${_SELF_IP} (written to build.env)"
+
+    - |
+      # 确保 git server 的 host key 已添加（新节点部署后可能缺失）
+      mkdir -p ~/.ssh && chmod 700 ~/.ssh
+      ssh-keyscan git.tdengine.net >> ~/.ssh/known_hosts 2>/dev/null || true
 
     - |
       # 清理旧 workspace（Docker 容器可能产生 root 所有的文件，普通用户无法直接删除）
@@ -149,7 +200,7 @@ prepare-workspace:
     - |
       # 确保 platform 工具仓库存在并为最新；flock 防止多 MR 并发时同时 clone/pull
       PLATFORM_DIR="${CI_BASE_DIR}/platform"
-      PLATFORM_BRANCH="feat/add_make_target"
+      PLATFORM_BRANCH="main"
       mkdir -p "$(dirname "${PLATFORM_DIR}")"
       (
         flock -x 9
@@ -159,9 +210,10 @@ prepare-workspace:
             git@git.tdengine.net:rd-public/platform.git "${PLATFORM_DIR}"
         else
           echo "[prepare] Updating platform repo (branch: ${PLATFORM_BRANCH})..."
-          git -C "${PLATFORM_DIR}" fetch origin
-          git -C "${PLATFORM_DIR}" checkout "${PLATFORM_BRANCH}"
-          git -C "${PLATFORM_DIR}" pull --ff-only origin "${PLATFORM_BRANCH}" || true
+          git -C "${PLATFORM_DIR}" fetch origin --prune
+          git -C "${PLATFORM_DIR}" checkout "${PLATFORM_BRANCH}" 2>/dev/null \
+            || git -C "${PLATFORM_DIR}" checkout -b "${PLATFORM_BRANCH}" "origin/${PLATFORM_BRANCH}"
+          git -C "${PLATFORM_DIR}" reset --hard "origin/${PLATFORM_BRANCH}"
         fi
       ) 9>${CI_BASE_DIR}/.platform-clone.lock
 
@@ -187,7 +239,7 @@ prepare-workspace:
 # =============================================================================
 build-externals:
   stage: build
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 60 minutes
   interruptible: true
   needs: [prepare-workspace, check-void, check-enum]
@@ -196,12 +248,52 @@ build-externals:
   script:
     - |
       echo "=== [build-externals] Pre-building all external dependencies ==="
-      # flock: 多 MR 并发时排队，防止同时写入同一 externals 缓存目录导致踩踏
-      # 使用 exclusive lock 保证写入互斥；build-noasan / build-asan 同样用 exclusive lock
-      # 因为 cmake configure 也会向 externals stamp 目录写临时文件，必须串行
+      # 哨兵文件快速通道：若本分支的 external.cmake 自上次构建以来未变化，直接跳过 flock + cmake。
+      # 不同分支（main/3.0/3.3.6）的 external.cmake 内容不同（如 main 无 ext_arrow），
+      # 各分支独立维护一个哨兵文件，避免分支间互相误判造成不必要的重建。
+      _branch_slug="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_COMMIT_REF_NAME}}"
+      _branch_slug="${_branch_slug//[^a-zA-Z0-9._-]/_}"
+      _cmake_file="${CI_PROJECT_DIR}/source/taos-community/cmake/external.cmake"
+      _sentinel="${CI_CACHE_DIR}/externals-others-amd64/.externals-ready.${_branch_slug}.md5"
+      if [ -f "${_sentinel}" ] && [ -f "${_cmake_file}" ]; then
+          _expected=$(md5sum "${_cmake_file}" | awk '{print $1}')
+          _actual=$(awk '{print $1}' "${_sentinel}" 2>/dev/null)
+          if [ "${_expected}" = "${_actual}" ]; then
+              echo "[build-externals] sentinel match (branch=${_branch_slug}), externals up-to-date, skipping"
+              exit 0
+          fi
+          echo "[build-externals] sentinel mismatch (branch=${_branch_slug}), proceeding with build"
+      else
+          echo "[build-externals] no sentinel for branch '${_branch_slug}', proceeding with build"
+      fi
+      # flock: 多 MR 并发时排队，防止同时写入同一 externals 缓存目录导致踩踏。
+      # 通过哨兵快速通道后，绝大多数 MR 在进入此处之前已 exit 0。
       (
         flock -x 9
-        echo "[build-externals] acquired exclusive lock, starting build..."
+        echo "[build-externals] acquired exclusive lock, checking sentinel again..."
+        # 拿到锁后再次检查哨兵（双重检查锁定）：
+        # 当多个 MR 并发时均未命中哨兵而进入此处，第一个 MR 完成构建并更新哨兵后，
+        # 后续 MR 拿到锁再次检查，发现哨兵已匹配则直接跳过，避免重复构建。
+        if [ -f "${_sentinel}" ] && [ -f "${_cmake_file}" ]; then
+          _expected2=$(md5sum "${_cmake_file}" | awk '{print $1}')
+          _actual2=$(awk '{print $1}' "${_sentinel}" 2>/dev/null)
+          if [ "${_expected2}" = "${_actual2}" ]; then
+            echo "[build-externals] sentinel match after lock (branch=${_branch_slug}), skipping rebuild"
+            exit 0
+          fi
+        fi
+        echo "[build-externals] starting build..."
+        # cmake 3.21 bug 预处理：在 cmake configure 运行前，提前为 external.cmake 中所有
+        # ExternalProject_Add 目标创建 PREFIX/tmp/ 目录。
+        # cmake 3.21 在 configure 阶段会向 PREFIX/tmp/ 写 git clone/update 脚本，但不会
+        # 自动先 mkdir（cmake 3.25+ 已修复）。若目录不存在则 configure_file 失败，build.sh
+        # 非零返回，set -e 终止脚本，导致后面的 sentinel 写入和 post-cmake 补偿循环都跑不到。
+        # 此处在 cmake 运行前统一预创建，彻底消除首次构建（空缓存）时的失败。
+        _ext_debug_dir_pre="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
+        while IFS= read -r _ext_name; do
+          mkdir -p "${_ext_debug_dir_pre}/${_ext_name}/tmp" 2>/dev/null || true
+        done < <(grep -oP 'ExternalProject_Add\(\Kext_\S+' "${_cmake_file}" 2>/dev/null)
+        echo "[build-externals] pre-created tmp/ for all ExternalProject_Add targets (cmake 3.21 pre-fix)"
         # 清理 externals 缓存中残留的 devtoolset-7 CMakeCache（来自旧 core: 镜像）。
         # others:latest 用 gcc-toolset-14，路径不同；stale cache 会导致 ext_libs3 等
         # ExternalProject configure 步骤报 "compiler not found" 并失败。
@@ -253,7 +345,20 @@ build-externals:
           -DBUILD_RUST=ON \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
           -DBUILD_SANITIZER=OFF \
-          -DBUILD_CONTRIB=ON
+          -DBUILD_CONTRIB=ON \
+          -DBUILD_TOOLS=ON
+        # 构建成功，更新哨兵文件（供本分支后续 MR 快速跳过）
+        md5sum "${_cmake_file}" > "${_sentinel}"
+        echo "[build-externals] sentinel updated for branch '${_branch_slug}': ${_sentinel}"
+        # cmake 3.21 并发兜底：build-noasan/asan cmake configure 与 build-externals 并发时，
+        # 若 build-externals 的 cmake 刚创建了新的 ext_*/ 目录但还未写入 tmp/，另一个 MR 的
+        # noasan/asan cmake configure 可能先于此处运行而看不到 tmp/。
+        # 在 flock -x 内补一遍，确保独占锁释放后所有 ext_*/tmp/ 均存在。
+        _ext_debug_dir="${CI_CACHE_DIR}/externals-others-amd64/build/Debug"
+        for _ext_dir in "${_ext_debug_dir}"/ext_*/; do
+          [ -d "${_ext_dir}" ] && mkdir -p "${_ext_dir}/tmp" "${_ext_dir}/src" 2>/dev/null || true
+        done
+        echo "[build-externals] post-cmake: ensured tmp/src for all ext_* (concurrency safety)"
       ) 9>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-externals] Externals done ==="
       # 若切换回 --image core:${BUILDER_IMAGE_TAG}，需要将 externals-core-amd64 符号链接到 externals-others-amd64：
@@ -269,7 +374,7 @@ build-externals:
 
 build-noasan:
   stage: build
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 60 minutes
   interruptible: true
   needs: [prepare-workspace, build-externals]
@@ -278,13 +383,15 @@ build-noasan:
   script:
     - |
       echo "=== [build-noasan] Building NoSan ==="
-      # exclusive lock: cmake configure 会向共享的 externals stamp 目录写临时文件
-      # （git-update 脚本、CMakeTmp/），多 MR 并发时会互删导致 configure_file 报错。
-      # 整个 build（cmake configure + make）串行化，彻底消除竞态。
       _EXT_INSTALL="${CI_CACHE_DIR}/externals-others-amd64/install"
+      # 读写锁模式：共享锁（flock -s）持有 **整个 build 过程**。
+      # 多个共享锁可以并存 → 同一台 builder 上所有 MR 的 noasan/asan 可以同时运行。
+      # build-externals（独占锁）必须等待所有共享锁释放后才能写入 externals 缓存，
+      # noasan/asan 也会等待 build-externals 的独占锁释放后才开始读取。
+      # 这样无论多少 MR 并发，都不会出现 build-externals 写入时 noasan/asan 正在链接的竞态。
       (
-        flock -x 9
-        echo "[build-noasan] acquired exclusive lock on externals"
+        flock -s 9
+        echo "[build-noasan] acquired shared lock (held for entire build)"
         # 验证关键 externals 文件存在（提前失败，避免晦涩的链接错误）
         for _p in ext_libs3/Debug/lib/liblibs3.a ext_curl/Debug/lib/libcurl.a ext_zlib/Debug/lib/libz.a; do
           if [ ! -f "${_EXT_INSTALL}/${_p}" ]; then
@@ -294,27 +401,27 @@ build-noasan:
             exit 1
           fi
         done
-        echo "[build-noasan] externals validation passed"
+        echo "[build-noasan] externals validation passed, starting build"
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image ${BUILDER_SCRIPT_IMAGE} \
-          --src "${TSDB_SRC}" \
-          --cache ${CI_CACHE_DIR}/ \
-          --clean \
-          -DCMAKE_BUILD_TYPE=Debug \
-          -DBUILD_TEST=ON \
-          -DBUILD_COVERAGE=ON \
-          -DBUILD_ENTERPRISE=ON \
-          -DBUILD_ENGINE=ON \
-          -DBUILD_ASSERT_NOT_CORE=OFF \
-          -DBUILD_TOOLS=ON \
-          -DBUILD_KEEPER=ON \
-          -DBUILD_ADAPTER=ON \
-          -DBUILD_RUST=ON \
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-          -DBUILD_SANITIZER=OFF \
-          -DROCKSDB_USE_DEPS=OFF \
-          -DTD_EXTERNALS_USE_ONLY=ON
-      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+            --image ${BUILDER_SCRIPT_IMAGE} \
+            --src "${TSDB_SRC}" \
+            --cache ${CI_CACHE_DIR}/ \
+            --clean \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TEST=ON \
+            -DBUILD_COVERAGE=ON \
+            -DBUILD_ENTERPRISE=ON \
+            -DBUILD_ENGINE=ON \
+            -DBUILD_ASSERT_NOT_CORE=OFF \
+            -DBUILD_TOOLS=ON \
+            -DBUILD_KEEPER=ON \
+            -DBUILD_ADAPTER=ON \
+            -DBUILD_RUST=ON \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_SANITIZER=OFF \
+            -DROCKSDB_USE_DEPS=OFF \
+            -DTD_EXTERNALS_USE_ONLY=ON
+      ) 9>>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-noasan] NoSan done: $(ls ${TSDB_SRC}/debug-others/build/bin | wc -l) binaries ==="
 
   after_script:
@@ -329,7 +436,7 @@ build-noasan:
 
 build-asan:
   stage: build
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 90 minutes
   interruptible: true
   needs: [prepare-workspace, build-externals]
@@ -338,12 +445,13 @@ build-asan:
   script:
     - |
       echo "=== [build-asan] Building ASAN ==="
-      # exclusive lock: 同 build-noasan，cmake configure 写共享 stamp 目录，必须串行
       _EXT_INSTALL="${CI_CACHE_DIR}/externals-others-amd64/install"
+      # 同 build-noasan：共享锁（flock -s）持有**整个 build 过程**，实现读写锁语义。
+      # 多个 noasan/asan（来自不同 MR）可同时持共享锁，互不干扰。
+      # build-externals（独占锁）与所有 noasan/asan（共享锁）互斥，保证 externals 缓存一致性。
       (
-        flock -x 9
-        echo "[build-asan] acquired exclusive lock on externals"
-        # 验证关键 externals 文件存在
+        flock -s 9
+        echo "[build-asan] acquired shared lock (held for entire build)"
         for _p in ext_libs3/Debug/lib/liblibs3.a ext_curl/Debug/lib/libcurl.a ext_zlib/Debug/lib/libz.a; do
           if [ ! -f "${_EXT_INSTALL}/${_p}" ]; then
             echo "FATAL: Missing external: ${_EXT_INSTALL}/${_p}"
@@ -352,27 +460,27 @@ build-asan:
             exit 1
           fi
         done
-        echo "[build-asan] externals validation passed"
+        echo "[build-asan] externals validation passed, starting build"
         ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
-          --image ${BUILDER_SCRIPT_IMAGE} \
-          --src "${TSDB_SRC_SAN}" \
-          --cache ${CI_CACHE_DIR}/ \
-          --clean \
-          -DCMAKE_BUILD_TYPE=Debug \
-          -DBUILD_TEST=OFF \
-          -DBUILD_ENTERPRISE=ON \
-          -DBUILD_ENGINE=ON \
-          -DBUILD_ASSERT_NOT_CORE=OFF \
-          -DBUILD_TOOLS=ON \
-          -DBUILD_KEEPER=ON \
-          -DBUILD_ADAPTER=ON \
-          -DBUILD_RUST=ON \
-          -DBUILD_SANITIZER=ON \
-          -DTOOLS_SANITIZE=ON \
-          -DJEMALLOC_ENABLED=0 \
-          -DROCKSDB_USE_DEPS=OFF \
-          -DTD_EXTERNALS_USE_ONLY=ON
-      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+            --image ${BUILDER_SCRIPT_IMAGE} \
+            --src "${TSDB_SRC_SAN}" \
+            --cache ${CI_CACHE_DIR}/ \
+            --clean \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TEST=OFF \
+            -DBUILD_ENTERPRISE=ON \
+            -DBUILD_ENGINE=ON \
+            -DBUILD_ASSERT_NOT_CORE=OFF \
+            -DBUILD_TOOLS=ON \
+            -DBUILD_KEEPER=ON \
+            -DBUILD_ADAPTER=ON \
+            -DBUILD_RUST=ON \
+            -DBUILD_SANITIZER=ON \
+            -DTOOLS_SANITIZE=ON \
+            -DJEMALLOC_ENABLED=0 \
+            -DROCKSDB_USE_DEPS=OFF \
+            -DTD_EXTERNALS_USE_ONLY=ON
+      ) 9>>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-asan] ASAN done: $(ls ${TSDB_SRC_SAN}/debug-others/build/bin | wc -l) binaries ==="
 
   after_script:
@@ -390,7 +498,7 @@ build-asan:
 # =============================================================================
 check-assert:
   stage: quality
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 10 minutes
   interruptible: true
   needs: [prepare-workspace, build-noasan]
@@ -420,7 +528,7 @@ check-assert:
 
 check-void:
   stage: check
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 10 minutes
   interruptible: true
   needs: [prepare-workspace]
@@ -448,9 +556,10 @@ check-void:
 
 check-enum:
   stage: check
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 15 minutes
   interruptible: true
+  allow_failure: true    # enum 检查失败不阻塞 build 阶段，仅警告
   needs: []
   extends: .rules-code-change
 
@@ -507,7 +616,7 @@ check-enum:
 # =============================================================================
 unit-test:
   stage: verify
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 40 minutes
   interruptible: true
   needs: [prepare-workspace, build-noasan, check-assert, check-void]
@@ -627,7 +736,7 @@ unit-test:
 # =============================================================================
 upload-nexus:
   stage: upload
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 30 minutes
   # unit-test 与 upload-nexus 均在 quality 通过后并行执行。
   needs: [prepare-workspace, build-noasan, build-asan, check-assert, check-void]
@@ -828,7 +937,7 @@ upload-nexus:
 .test-linux-base:
   stage: test
   timeout: 240 minutes
-  needs: [upload-nexus]
+  needs: [upload-nexus, prepare-workspace]
   extends: .rules-code-change
   interruptible: true
 
@@ -841,8 +950,7 @@ upload-nexus:
     # 如需手动覆盖，在具体 job 的 variables 中设置 TEST_CONCURRENCY: "N"。
     POLL_INTERVAL: "3"
     MAX_IDLE_SECONDS: "1200"
-    # 协调器地址：默认指向 builder u2-207
-    COORDINATOR_HOST: "192.168.2.104"
+    # COORDINATOR_HOST 由 prepare-workspace 自动探测 builder IP 并写入 build.env dotenv
 
   script:
     - export WORKDIR="${CI_BASE_DIR}/job-${CI_JOB_ID}"
@@ -868,17 +976,26 @@ upload-nexus:
     - bash "${CI_PROJECT_DIR}/tests/ci/scripts/pull-artifacts.sh"
     - |
       # ── Step 3: 等待协调器就绪 ──────────────────────────────────────────
+      # COORDINATOR_HOST 由 prepare-workspace 在 builder 上自动探测本机 IP 并写入
+      # build.env dotenv artifact，test-linux 通过 needs 继承，无需任何手动配置。
       _COORD_PORT=$(( CI_PIPELINE_ID % 10000 + 20000 ))
       export COORDINATOR_URL="http://${COORDINATOR_HOST}:${_COORD_PORT}"
       echo "Waiting for coordinator at ${COORDINATOR_URL}/api/status ..."
-      for i in $(seq 1 30); do
+      _wait_ok=0
+      for i in $(seq 1 120); do
         if curl -sf --max-time 3 "${COORDINATOR_URL}/api/status" >/dev/null 2>&1; then
           echo "Coordinator is ready."
+          _wait_ok=1
           break
         fi
-        echo "  attempt ${i}/30, retrying in 5s..."
+        echo "  attempt ${i}/120, retrying in 5s..."
         sleep 5
       done
+      if [[ "${_wait_ok}" == "0" ]]; then
+        echo "ERROR: coordinator did not become available after 600s (120 × 5s)."
+        echo "  If you only retried this worker job, please also retry the coordinator job."
+        exit 1
+      fi
     - bash "${CI_PROJECT_DIR}/tests/ci/scripts/run-test-dynamic.sh"
 
   artifacts:
@@ -886,7 +1003,8 @@ upload-nexus:
     reports:
       junit: "results/junit-*.xml"
     paths:
-      - "results/"
+      - "results/logs/*/run.log.txt"   # 每个失败用例的运行日志
+      - "results/junit-*.xml"          # JUnit 报告
     expire_in: 7 days
 
   after_script:
@@ -936,6 +1054,14 @@ upload-nexus:
                   if [[ -n "${dest}" ]]; then
                     mkdir -p "${dest}/sim/${_sn}"
                     cp -rn "${_sd}/." "${dest}/sim/${_sn}/" 2>/dev/null || true
+                    # ASAN 日志（dnode1.asan、psim.info 等）无扩展名，GitLab artifact
+                    # 浏览器无法内联预览，为每个文件创建 .txt 软链方便直接查看
+                    if [[ "${_sn}" == "asan" ]]; then
+                      find "${dest}/sim/asan" -maxdepth 1 -type f ! -name '*.txt' 2>/dev/null \
+                        | while IFS= read -r _af; do
+                            ln -sf "$(basename "${_af}")" "${_af}.txt" 2>/dev/null || true
+                          done
+                    fi
                   else
                     find "${_sd}" -type f 2>/dev/null | while IFS= read -r f; do
                       cp "$f" "${LOGS_DIR}/t${tnum}-$(basename "$f")" 2>/dev/null || true
@@ -964,10 +1090,12 @@ upload-nexus:
 # =============================================================================
 # coordinator — 运行于 test-builder，为所有 worker 提供用例队列服务
 # 端口 = CI_PIPELINE_ID % 10000 + 20000（所有 job 中相同）
+# coordinator 跟随 TSDB_BUILDER_TAG 路由，与 prepare/build/upload 落在同一台 builder
+# test-linux worker 在 step 3 通过 case 语句从 TSDB_BUILDER_TAG 推导 coordinator 主机名
 # =============================================================================
 coordinator:
   stage: test
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 300 minutes
   needs: [upload-nexus]
   extends: .rules-code-change
@@ -979,6 +1107,11 @@ coordinator:
     SANITIZER: "n"
     PROMETHEUS_URL: "http://192.168.1.42:9090"
     PROM_INTERVAL: "30"
+    # Prometheus rate() 窗口长度：[1m] 使 score 在 1 分钟内跟上真实负载变化，
+    # 消除 [5m] 窗口的滞后（pipeline 刚起来时 cpu_busy 被历史空载数据拉低，
+    # 导致初期分配量被 idle 系数限制而用不满资源）。
+    # 多 MR 并发时各机器负载 1 分钟内反映到 score，天然限流无需额外旁路逻辑。
+    PROM_RATE_WINDOW: "1m"
     PYTHONUNBUFFERED: "1"   # 确保 Python print() 即时刷出，GitLab section 标记不被缓冲截断
     # ── Rerun 模式（Retry 时自动生效，无需额外操作）──────────────────────
     # auto = 自动检测：存在上次结果时仅重跑失败 case，否则全量（默认）
@@ -1001,96 +1134,98 @@ coordinator:
     - python3 "${CI_PROJECT_DIR}/tests/ci/scripts/coordinator.py"
 
   artifacts:
-    when: on_failure   # reports.junit 不受 when 限制，始终上传；paths 仅在失败时上传，避免 413
+    when: always       # case-timing.txt 无论成功失败均上传；reports.junit 始终上传
     reports:
       junit: "results/junit-aggregate.xml"
     paths:
-      - "results/"
+      - "results/logs/*/run.log.txt"   # 每个失败用例的运行日志
+      - "results/junit-*.xml"          # JUnit 报告
+      - "results/case-timing.txt"      # 所有用例耗时汇总（按耗时降序）
     expire_in: 14 days
 
 # test-linux-1~14 均为纯 worker
-test-linux-1:
+"test-linux-1 [u3-141]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-141]
   variables:
     CI_NODE_INDEX: "1"
 
-test-linux-2:
+"test-linux-2 [u3-142]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-142]
   variables:
     CI_NODE_INDEX: "2"
 
-test-linux-3:
+"test-linux-3 [u3-143]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-143]
   variables:
     CI_NODE_INDEX: "3"
 
-test-linux-4:
+"test-linux-4 [u0-210]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u0-210]
   variables:
     CI_NODE_INDEX: "4"
 
-test-linux-5:
+"test-linux-5 [u1-63]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u1-63]
   variables:
     CI_NODE_INDEX: "5"
     WORKER_CAPS: "large-mem"    # u1-63 负责执行大内存用例
 
-test-linux-6:
+"test-linux-6 [u1-59]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u1-59]
   variables:
     CI_NODE_INDEX: "6"
     WORKER_CAPS: "large-mem"    # u1-59 负责执行大内存用例
 
-test-linux-7:
+"test-linux-7 [u0-212]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u0-212]
   variables:
     CI_NODE_INDEX: "7"
 
-test-linux-8:
+"test-linux-8 [u1-47]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u1-47]
   variables:
     CI_NODE_INDEX: "8"
     WORKER_CAPS: "large-mem"    # u1-47 负责执行大内存用例
 
-test-linux-9:
+"test-linux-9 [u3-145]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-145]
   variables:
     CI_NODE_INDEX: "9"
 
-test-linux-10:
+"test-linux-10 [u3-146]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-146]
   variables:
     CI_NODE_INDEX: "10"
 
-test-linux-11:
+"test-linux-11 [u3-147]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u3-147]
   variables:
     CI_NODE_INDEX: "11"
 
-test-linux-12:
+"test-linux-12 [u2-205]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u2-205]
   variables:
     CI_NODE_INDEX: "12"
 
-test-linux-13:
+"test-linux-13 [u2-210]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u2-210]
   variables:
     CI_NODE_INDEX: "13"
 
-test-linux-14:
+"test-linux-14 [u2-217]":
   extends: .test-linux-base
   tags: [X64, Linux, worker, TSDB-CI, u2-217]
   variables:
@@ -1102,7 +1237,7 @@ test-linux-14:
 # cleanup-workspace 暂时禁用（隐藏 job，不会被 GitLab 执行），待后续决定是否启用
 .cleanup-workspace:
   stage: cleanup
-  tags: [tsdb-builder]
+  tags: [$TSDB_BUILDER_TAG]
   timeout: 5 minutes
   when: manual   # 手动触发：调试期间保留工作区，调试完毕后手动运行此 job 清理
   needs:

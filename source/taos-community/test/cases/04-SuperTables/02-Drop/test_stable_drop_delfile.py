@@ -13,6 +13,7 @@
 
 
 from new_test_framework.utils import tdLog, tdSql, AutoGen
+from new_test_framework.utils.pathFinding import find_proj_path
 
 import random
 import time
@@ -29,10 +30,7 @@ class TestDeleteCheck:
         cls.autoGen = AutoGen()
         # init cluster path
         cls.selfPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in cls.selfPath):
-            projPath = cls.selfPath[:cls.selfPath.find("community")]
-        else:
-            projPath = cls.selfPath[:cls.selfPath.find("tests")]
+        projPath = find_proj_path(cls.selfPath)
         cls.projDir = f"{projPath}sim/"
         tdLog.info(f" init projPath={cls.projDir}")
 

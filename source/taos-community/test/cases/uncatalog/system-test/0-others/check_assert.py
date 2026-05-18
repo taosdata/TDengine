@@ -13,6 +13,7 @@
 
 '''
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.pathFinding import find_proj_path
 
 '''
 
@@ -214,10 +215,7 @@ class TestCheckAssert:
         # calc
         selfPath = os.path.dirname(os.path.realpath(__file__))
         projPath = ""
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
+        projPath = find_proj_path(selfPath)
 
         src = self.projPath + "src/"
         self.checker.checkAssert(src)    

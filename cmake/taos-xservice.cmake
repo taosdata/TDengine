@@ -252,17 +252,26 @@ if(_taosx_need_binaries AND _taosx_enable_upx)
     endif()
     set(_taosx_upx_archive "${_taosx_upx_dir}/upx.tar.xz")
     set(_taosx_upx_url "https://github.com/upx/upx/releases/download/v${_taosx_upx_version}/upx-${_taosx_upx_version}-${_taosx_upx_arch}_linux.tar.xz")
-    find_program(WGET_EXECUTABLE wget REQUIRED)
-    find_program(TAR_EXECUTABLE tar REQUIRED)
-    add_custom_command(
-      OUTPUT "${_taosx_upx_binary}"
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_upx_dir}"
-      COMMAND "${WGET_EXECUTABLE}" -O "${_taosx_upx_archive}" "${_taosx_upx_url}"
-      COMMAND "${CMAKE_COMMAND}" -E sha256sum "${_taosx_upx_archive}" > "${_taosx_upx_dir}/_upx_checksum.txt"
-      COMMAND "${TAR_EXECUTABLE}" -xf "${_taosx_upx_archive}" --strip-components=1 -C "${_taosx_upx_dir}"
-      COMMAND "${CMAKE_COMMAND}" -E rm -f "${_taosx_upx_archive}"
-      COMMENT "Downloading UPX ${_taosx_upx_version}"
-      VERBATIM
+    if(EXISTS "${_taosx_upx_binary}")
+      message(STATUS "UPX binary already exists: ${_taosx_upx_binary}")
+    else()
+      find_program(WGET_EXECUTABLE wget REQUIRED)
+      find_program(TAR_EXECUTABLE tar REQUIRED)
+      add_custom_command(
+        OUTPUT "${_taosx_upx_binary}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_upx_dir}"
+        COMMAND "${WGET_EXECUTABLE}" -O "${_taosx_upx_archive}" "${_taosx_upx_url}"
+        COMMAND "${CMAKE_COMMAND}" -E sha256sum "${_taosx_upx_archive}" > "${_taosx_upx_dir}/_upx_checksum.txt"
+        COMMAND "${TAR_EXECUTABLE}" -xf "${_taosx_upx_archive}" --strip-components=1 -C "${_taosx_upx_dir}"
+        COMMAND "${CMAKE_COMMAND}" -E rm -f "${_taosx_upx_archive}"
+        COMMENT "Downloading UPX ${_taosx_upx_version}"
+        VERBATIM
+      )
+    endif()
+  endif()
+  if(_taosx_upx_binary AND NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    add_custom_target(taosx_upx
+      DEPENDS "${_taosx_upx_binary}"
     )
   endif()
 endif()
@@ -287,7 +296,10 @@ if(_taosx_need_binaries)
 
   set(_taosx_binary_extra_deps)
   if(_taosx_upx_binary AND NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    list(APPEND _taosx_binary_extra_deps "${_taosx_upx_binary}")
+    list(APPEND _taosx_binary_extra_deps
+      "${_taosx_upx_binary}"
+      taosx_upx
+    )
   endif()
 
   set(_taosx_component_targets)

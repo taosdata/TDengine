@@ -65,6 +65,8 @@ set(BUILD_VER_CPUTYPE "" CACHE STRING "CPU type override")
 set(BUILD_VER_OSTYPE "" CACHE STRING "OS type override")
 set(BUILD_GITINFO "" CACHE STRING "Git commit ID override")
 set(BUILD_GITINFOI "" CACHE STRING "Internal git commit ID override")
+set(BUILD_DEPS_MIRROR_URL "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest" CACHE STRING
+  "URL prefix for downloading ExternalProject dependency tarballs from internal mirror (e.g. GitLab Package Registry)")
 
 include(cmake/build-config.cmake)
 

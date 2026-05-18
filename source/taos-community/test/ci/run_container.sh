@@ -79,24 +79,57 @@ else
     exit 1
 fi
 
-if [ $ent -ne 0 ]; then
-    extra_param="$extra_param -e"
-    INTERNAL_REPDIR=$WORKDIR/TDinternal
-    REPDIR=$(realpath ${INTERNAL_REPDIR}/community)
-    REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
-    CONTAINER_TESTDIR=/home/TDinternal/community
-    SIM_DIR=/home/TDinternal/sim
-    REP_MOUNT_PARAM="${REPDIR}:/home/TDinternal/community"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+# 容器内路径布局，区分两种 CI 环境：
+#   TDinternal CI（$WORKDIR/TDinternal/enterprise 存在）：
+#     企业版 → 挂载整个 TDinternal 到 /home/TDinternal（包含 enterprise/、community/）
+#     社区版 → 挂载 TDengine 到 /home/TDengine
+#   tsdb CI（无 enterprise/ 目录）：
+#     统一挂载到 /mnt/tsdb/source/taos-community、/mnt/tsdb/debug、/mnt/tsdb/sim
+#   run_case.sh 通过自动检测选择容器内对应路径。
+if [ -d "$WORKDIR/TDinternal/enterprise" ]; then
+    # ── TDinternal CI 布局（同步回 TDinternal 后原样工作）────────────────
+    if [ $ent -ne 0 ]; then
+        extra_param="$extra_param -e"
+        INTERNAL_REPDIR=$WORKDIR/TDinternal
+        REPDIR=$INTERNAL_REPDIR/community
+        REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
+        CONTAINER_TESTDIR=/home/TDinternal/community
+        SIM_DIR=/home/TDinternal/sim
+        REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
+        REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
+        REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    else
+        REPDIR=$WORKDIR/TDengine
+        REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
+        CONTAINER_TESTDIR=/home/TDengine
+        SIM_DIR=/home/TDengine/sim
+        REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
+        REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDengine/debug/"
+        REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDengine/debug/build/lib:ro"
+    fi
 else
-    REPDIR=$WORKDIR/TDengine
+    # ── tsdb CI 布局 ────────────────────────────────────────────────────
+    # tsdb 仓库原生路径：脚本自身位于 source/taos-community/test/ci/run_container.sh
+    # 优先从脚本位置反推，兼容 sparse-checkout 创建的 symlink
+    [ $ent -ne 0 ] && extra_param="$extra_param -e"
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+    TSDB_COMMUNITY=$(cd "${SCRIPT_DIR}/../.." && pwd)  # → source/taos-community
+    if [ -d "${TSDB_COMMUNITY}/test" ] && [ -d "${TSDB_COMMUNITY}/source" ]; then
+        REPDIR=${TSDB_COMMUNITY}
+    elif [ -d "$WORKDIR/TDengine" ]; then
+        REPDIR=$WORKDIR/TDengine
+    elif [ -d "$WORKDIR/TDinternal/community" ]; then
+        REPDIR=$WORKDIR/TDinternal/community
+    else
+        echo "ERROR: Cannot find source directory under $WORKDIR"
+        exit 1
+    fi
     REPDIR_DEBUG=$WORKDIR/$DEBUGPATH/
-    CONTAINER_TESTDIR=/home/TDinternal/community
-    SIM_DIR=/home/TDinternal/sim
-    REP_MOUNT_PARAM="$REPDIR:/home/TDinternal/community"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    CONTAINER_TESTDIR=/mnt/tsdb/source/taos-community
+    SIM_DIR=/mnt/tsdb/sim
+    REP_MOUNT_PARAM="${REPDIR}:/mnt/tsdb/source/taos-community"
+    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/mnt/tsdb/debug/"
+    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/mnt/tsdb/debug/build/lib:ro"
 fi
 
 ulimit -c unlimited
@@ -134,8 +167,7 @@ fi
 
 # MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/test/$exec_dir"
 MOUNT_SOURCE="${TMP_DIR}/thread_volume/${thread_no}"
-MOUNT_TARGET="${CONTAINER_TESTDIR}/test"
-MOUNT_DIR="${MOUNT_SOURCE}:${MOUNT_TARGET}"
+MOUNT_DIR="${MOUNT_SOURCE}:${CONTAINER_TESTDIR}/test"
 echo "$thread_no -> ${exec_dir}:$cmd"
 coredump_dir=$(cat /proc/sys/kernel/core_pattern | xargs dirname)
 if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then

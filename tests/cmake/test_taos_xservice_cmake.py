@@ -45,6 +45,36 @@ def test_build_taosx_binary_also_builds_and_deploys_xnoded():
     assert '"${_taosx_xnoded_binary_output}"' in block
 
 
+def test_upx_download_is_serialized_through_single_custom_target():
+    cmake_file = (
+        Path(__file__).resolve().parents[2]
+        / "cmake"
+        / "taos-xservice.cmake"
+    )
+
+    text = cmake_file.read_text(encoding="utf-8")
+    upx_setup_block = text[
+        text.index("if(_taosx_need_binaries AND _taosx_enable_upx)"):
+        text.index("# ── Helper: deploy command for a single binary")
+    ]
+
+    assert 'add_custom_target(taosx_upx' in text
+    assert 'DEPENDS "${_taosx_upx_binary}"' in text
+    assert 'if(_taosx_upx_binary AND NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")\n    add_custom_target(taosx_upx' in upx_setup_block
+    assert 'list(APPEND _taosx_binary_extra_deps\n      "${_taosx_upx_binary}"\n      taosx_upx\n    )' in text
+
+    taosx_block = text[text.index("if(BUILD_TAOSX_BINARY)"):text.index("if(BUILD_TAOSX_AGENT)")]
+    agent_block = text[text.index("if(BUILD_TAOSX_AGENT)"):text.index("if(BUILD_EXPLORER)")]
+    explorer_block = text[text.index("if(BUILD_EXPLORER)"):text.index("add_custom_target(taosx ALL")]
+
+    assert '${_deploy_cmd_taosx}' in taosx_block
+    assert 'DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}' in taosx_block
+    assert '${_deploy_cmd_agent}' in agent_block
+    assert 'DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}' in agent_block
+    assert '${_deploy_cmd_explorer}' in explorer_block
+    assert 'DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps} "${_explorer_dist_dir}/index.html"' in explorer_block
+
+
 def test_explorer_ui_build_exports_oem_metadata_in_ci_mode():
     cmake_file = (
         Path(__file__).resolve().parents[2]

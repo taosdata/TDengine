@@ -10,6 +10,7 @@ from taos.error import *
 from taos.tmq import Consumer
 
 from new_test_framework.utils import tdCom, tdLog, tdSql
+from new_test_framework.utils.pathFinding import find_proj_path
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -34,11 +35,7 @@ class TestCase:
         if platform.system().lower() == "windows":
             tool = tool + ".exe"
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = (
-            selfPath[: selfPath.find("community")]
-            if "community" in selfPath
-            else selfPath[: selfPath.find("test")]
-        )
+        projPath = find_proj_path(selfPath)
         paths = []
         for root, dirs, files in os.walk(projPath):
             if tool in files:
