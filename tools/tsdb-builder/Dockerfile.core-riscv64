@@ -1,0 +1,204 @@
+# ============================================================================
+# TDengine Core Build Environment - RISC-V 64 (Dockerfile.core-riscv64)
+# Produces image: tsdb-builder-core:[riscv64]
+#
+# Base:
+#   riscv64: debian:trixie (Debian 13, glibc 2.41+)
+#
+# NOTE: manylinux2014 (CentOS 7) does not support riscv64. This image uses
+#       Debian trixie as the base, which has a newer glibc. Binaries built
+#       with this image require a modern riscv64 Linux distribution.
+#
+# Components built with this image:
+#   ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX (without EXPLORER_UI)
+#
+# Tools included: gcc/cmake/go/rust/protoc/mold/tini/python
+# Tools excluded: Node.js, JDK+Maven, .NET SDK
+# ============================================================================
+
+# ============================================================================
+# Stage 1: go-installer - Extract Go and compile mage
+# ============================================================================
+FROM debian:trixie AS go-installer
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY packages/ /tmp/packages/
+
+ARG GO_VERSION=1.23.4
+RUN tar -C /usr/local -xzf /tmp/packages/go${GO_VERSION}.linux-riscv64.tar.gz && \
+    rm -rf /usr/local/go/test/ /usr/local/go/api/ /usr/local/go/doc/ /tmp/packages/
+
+ENV GOROOT=/usr/local/go
+ENV PATH=${GOROOT}/bin:${PATH}
+
+ARG GO_PROXY=https://goproxy.cn
+RUN GOPROXY=${GO_PROXY} CGO_ENABLED=0 go install github.com/magefile/mage@latest
+
+# ============================================================================
+# Stage 2: Main - Build environment
+# ============================================================================
+FROM debian:trixie
+
+WORKDIR /home
+
+# ============================================================================
+# Build-time arguments for version management
+# ============================================================================
+
+# Development Tools Versions
+ARG GO_VERSION=1.23.4
+ARG RUST_VERSION=1.90.0
+
+# Python Package Versions
+ARG TAOSPY_VERSION=2.8.9
+ARG TAOS_WS_PY_VERSION=0.6.9
+
+# Mirror Configuration
+ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
+ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
+ARG GO_PROXY=https://goproxy.cn
+ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+
+# Timezone Configuration
+ARG TIMEZONE=Asia/Shanghai
+
+# Copy verification script into the image
+COPY verify-image.sh /usr/local/bin/verify-image.sh
+RUN chmod +x /usr/local/bin/verify-image.sh
+
+# ============================================================================
+# Set environment variables
+# ============================================================================
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup \
+    RUSTUP_DIST_SERVER=https://rsproxy.cn
+
+# ============================================================================
+# Layer 1: System base - Debian packages
+# Replaces CentOS 7 yum + devtoolset-7 with Debian trixie apt packages.
+# GCC version will be whatever Debian trixie ships (14.x as of 2025).
+# ============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gcc g++ make binutils \
+      libstdc++-14-dev \
+      libasan8 libubsan1 \
+      git wget curl unzip tar gzip bzip2 \
+      libatomic1 libatomic-ops-dev libssl-dev zlib1g-dev libffi-dev \
+      perl libdigest-sha-perl \
+      pkg-config \
+      python3 python3-pip python3-venv python3-dev \
+      cmake \
+      protobuf-compiler \
+      mold \
+      tini \
+      ccache \
+      ca-certificates openssh-client \
+      locales tzdata \
+    && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Register mold as available linker (NOT default)
+# NOTE: mold is NOT set as the default linker because Go CGO binaries linked
+# with mold on riscv64 crash at runtime (SIGSEGV in runtime[pclntab] during
+# Go runtime initialization). GNU ld remains the default so that Go/CGO
+# components (taosadapter, keeper) link correctly. C/C++ targets use mold
+# via cmake -DCMAKE_LINKER=mold passed by build.sh.
+RUN ln -sf /usr/bin/mold /usr/bin/ld.mold && \
+    mkdir -p /usr/libexec/mold && \
+    ln -sf ../../bin/mold /usr/libexec/mold/ld
+
+# ccache: installed via apt; create compiler symlinks so prepending
+# /usr/lib/ccache to PATH transparently wraps gcc/g++
+RUN mkdir -p /usr/lib/ccache && \
+    ln -sf /usr/bin/ccache /usr/lib/ccache/gcc && \
+    ln -sf /usr/bin/ccache /usr/lib/ccache/g++ && \
+    ln -sf /usr/bin/ccache /usr/lib/ccache/cc && \
+    ln -sf /usr/bin/ccache /usr/lib/ccache/c++
+
+# ============================================================================
+# Layer 2: Go toolchain (from go-installer stage)
+# ============================================================================
+COPY --from=go-installer /usr/local/go /usr/local/go
+COPY --from=go-installer /root/go/bin/mage /root/go/bin/mage
+
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/root/go
+ENV GOPROXY=${GO_PROXY}
+ENV PATH=${GOROOT}/bin:${GOPATH}/bin:${PATH}
+
+# ============================================================================
+# Layer 3: Rust toolchain
+# ============================================================================
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain ${RUST_VERSION}
+
+ENV PATH=/root/.cargo/bin:${PATH}
+
+# Copy Cargo configuration
+COPY .cargo/config.toml /root/.cargo/config.toml
+
+# ============================================================================
+# Layer 4: Python environment
+# Debian trixie ships Python 3.12; use --break-system-packages for pip.
+# ============================================================================
+RUN pip3 config set global.index-url ${PYPI_MIRROR} && \
+    pip3 config set global.trusted-host ${PYPI_TRUSTED_HOST}
+
+# Install uv (modern Python package manager)
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+
+# Install Python packages
+RUN pip3 install --no-cache-dir --break-system-packages \
+    taospy==${TAOSPY_VERSION} \
+    taos-ws-py==${TAOS_WS_PY_VERSION} \
+    conan && \
+    conan profile detect --force && \
+    conan remote add nexus ${CONAN_REMOTE_URL} --index 0
+
+# ============================================================================
+# Layer 5: Environment configuration and final setup
+# ============================================================================
+RUN echo "export PATH=/usr/local/go/bin:/root/go/bin:/root/.cargo/bin:${PATH}" >> /etc/profile && \
+    echo "export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}" >> /etc/profile && \
+    mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config && \
+    mkdir -p /etc/taos && \
+    rm -f /etc/localtime && \
+    ln -s /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && \
+    echo "${TIMEZONE}" > /etc/timezone && \
+    git config --global --add safe.directory /app
+
+# Set working directory
+WORKDIR /app
+
+# Set entrypoint to tini
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+# ============================================================================
+# Layer 6: Final verification
+# ============================================================================
+RUN echo "============================================================" && \
+    echo "  tsdb-builder-core (riscv64) Verification" && \
+    echo "============================================================" && \
+    echo "glibc  : $(ldd --version 2>&1 | head -1)" && \
+    echo "gcc    : $(gcc --version | head -1)" && \
+    echo "g++    : $(g++ --version | head -1)" && \
+    echo "python : $(python3 --version)" && \
+    echo "pip    : $(pip3 --version)" && \
+    echo "go     : $(go version)" && \
+    echo "cmake  : $(cmake --version | head -1)" && \
+    echo "rustc  : $(rustc --version)" && \
+    echo "cargo  : $(cargo --version)" && \
+    echo "mold   : $(mold --version 2>&1 | head -1)" && \
+    echo "ccache : $(ccache --version | head -1)" && \
+    echo "protoc : $(protoc --version)" && \
+    echo "tini   : $(tini --version 2>&1 | head -1)" && \
+    echo "arch   : $(uname -m)" && \
+    echo "============================================================" && \
+    echo "  All verifications passed!" && \
+    echo "============================================================"

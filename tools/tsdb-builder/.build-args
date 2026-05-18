@@ -1,0 +1,45 @@
+# ============================================================================
+# Docker Build Arguments Configuration
+# ============================================================================
+# Defines default values for all ARGs declared in the Dockerfile.
+# Edit this file to change tool versions or mirror settings globally.
+#
+# Usage:
+#   Values here are read by build.sh and passed to Docker as --build-arg flags.
+#   To override a single value without editing this file, use build-custom:
+#     ./build.sh build-custom GO_VERSION=1.24.0
+#
+# Architecture note:
+#   JDK version is selected automatically by the Dockerfile builder stage:
+#     AMD64 → JDK_VERSION_AMD64   (installers/jdk-8u144-linux-x64.tar.gz)
+#     ARM64 → JDK_VERSION_ARM64   (installers/jdk-8u441-linux-aarch64.tar.gz)
+# ============================================================================
+
+# Development Tools Versions
+GO_VERSION=1.23.4
+MAVEN_VERSION=3.8.4
+CMAKE_VERSION=3.21.5
+JDK_VERSION_AMD64=8u144
+JDK_VERSION_ARM64=8u441
+RUST_VERSION=1.90.0
+PYTHON_VERSION=3.12
+DOTNET_VERSION=6.0.428
+MOLD_VERSION=2.40.3
+PROTOC_VERSION=33.0
+TINI_VERSION=v0.19.0
+CCACHE_VERSION=4.10.2
+NODE_VERSION=22.14.0
+PNPM_VERSION=10.33.2
+
+# Python Package Versions
+TAOSPY_VERSION=2.8.9
+TAOS_WS_PY_VERSION=0.6.9
+
+# Mirror Configuration (国内加速)
+PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
+PYPI_TRUSTED_HOST=mirrors.aliyun.com
+GO_PROXY=https://goproxy.cn
+CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+
+# Timezone
+TIMEZONE=Asia/Shanghai

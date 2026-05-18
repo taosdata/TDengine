@@ -1,0 +1,450 @@
+# ============================================================================
+# TDengine Others Build Environment (Dockerfile.others)
+# Produces image: tsdb-builder-others:[amd64|arm64]
+#
+# Base:
+#   amd64: manylinux_2_28_x86_64  (glibc 2.28, AlmaLinux 8, GCC 14)
+#   arm64: manylinux_2_28_aarch64 (glibc 2.28, AlmaLinux 8, GCC 14)
+#
+# Components built with this image:
+#   INSIGHT, EXPLORER_UI
+#   Connectors: DOTNET, GO, JDBC, NODE, PYTHON, RUST, ODBC
+#
+# Tools included: all core tools + Node.js 22, JDK 8+Maven, .NET 6
+# glibc 2.28 is required by:
+#   - Node.js 22 arm64 official binary (needs GLIBC_2.25+)
+#   - .NET 6 arm64
+# ============================================================================
+
+# ============================================================================
+# Stage 1: Builder - Architecture variable mapping
+# ============================================================================
+FROM --platform=$BUILDPLATFORM docker.1ms.run/alpine AS builder
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETVARIANT
+ARG JDK_VERSION_AMD64=8u144
+ARG JDK_VERSION_ARM64=8u441
+
+RUN echo "Building for platform: ${TARGETPLATFORM}"
+
+# Map TARGETPLATFORM to architecture-specific variables
+RUN case "${TARGETPLATFORM}" in \
+  "linux/amd64") \
+    echo MOLD_ARCH=x86_64 > /etc/environment; \
+    echo TINI_ARCH=amd64 >> /etc/environment; \
+    echo PROTOC_ARCH=x86_64 >> /etc/environment; \
+    echo GO_ARCH=amd64 >> /etc/environment; \
+    echo JDK_ARCH=x64 >> /etc/environment; \
+    echo JDK_VERSION=${JDK_VERSION_AMD64} >> /etc/environment; \
+    echo CMAKE_ARCH=x86_64 >> /etc/environment; \
+    echo DOTNET_ARCH=x64 >> /etc/environment; \
+    echo NODE_ARCH=x64 >> /etc/environment; \
+    echo MANYLINUX_IMAGE=quay.io/pypa/manylinux_2_28_x86_64 >> /etc/environment; \
+    ;; \
+  "linux/arm64") \
+    echo MOLD_ARCH=aarch64 > /etc/environment; \
+    echo TINI_ARCH=arm64 >> /etc/environment; \
+    echo PROTOC_ARCH=aarch_64 >> /etc/environment; \
+    echo GO_ARCH=arm64 >> /etc/environment; \
+    echo JDK_ARCH=aarch64 >> /etc/environment; \
+    echo JDK_VERSION=${JDK_VERSION_ARM64} >> /etc/environment; \
+    echo CMAKE_ARCH=aarch64 >> /etc/environment; \
+    echo DOTNET_ARCH=arm64 >> /etc/environment; \
+    echo NODE_ARCH=arm64 >> /etc/environment; \
+    echo MANYLINUX_IMAGE=quay.io/pypa/manylinux_2_28_aarch64 >> /etc/environment; \
+    ;; \
+  *) \
+    echo "Unsupported platform: ${TARGETPLATFORM}"; \
+    exit 1; \
+    ;; \
+  esac
+
+RUN cat /etc/environment
+
+# ============================================================================
+# Stage 2: Architecture-specific manylinux_2_28 base images
+# ============================================================================
+FROM --platform=linux/amd64 quay.io/pypa/manylinux_2_28_x86_64 AS stage2-amd64
+FROM --platform=linux/arm64 quay.io/pypa/manylinux_2_28_aarch64 AS stage2-arm64
+
+# ============================================================================
+# Stage 3: mold-builder - Compile mold from source
+# mold release binaries require glibc ≥ 2.31 on arm64, but manylinux_2_28
+# only has glibc 2.28. Build from source to ensure compatibility on both arches.
+# MOLD_MOSTLY_STATIC=ON statically links libstdc++ to avoid runtime dependency.
+# ============================================================================
+FROM stage2-${TARGETARCH} AS mold-builder
+ARG MOLD_VERSION=2.40.3
+ARG CMAKE_VERSION=3.21.5
+COPY --from=builder /etc/environment /etc/
+
+# Install cmake (required to build mold)
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -xzf /mnt/packages/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.tar.gz -C /usr/local && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cmake /usr/local/bin/cmake
+
+# Download and compile mold from source (with vendored third-party deps)
+# GCC 14 (pre-installed in manylinux_2_28) supports C++20.
+# MOLD_MOSTLY_STATIC=ON statically links libstdc++ to avoid runtime dependency.
+RUN git clone --depth 1 --branch v${MOLD_VERSION} --recurse-submodules --shallow-submodules \
+      https://github.com/rui314/mold.git /tmp/mold && \
+    cd /tmp/mold && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DMOLD_MOSTLY_STATIC=ON \
+          -DCMAKE_INSTALL_PREFIX=/opt/mold \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -B build && \
+    cmake --build build -j$(nproc) && \
+    cmake --install build && \
+    rm -rf /tmp/mold
+
+# ── ccache builder (compile from source for AlmaLinux 8) ─────────────────────
+# manylinux_2_28 does not include ccache; building from source avoids EPEL.
+# GCC 14 (pre-installed in manylinux_2_28) provides C++17 needed by ccache.
+FROM stage2-${TARGETARCH} AS ccache-builder
+ARG CCACHE_VERSION
+RUN cd /tmp && \
+    curl -fsSL "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/ccache-${CCACHE_VERSION}.tar.gz" \
+        -o ccache.tar.gz && \
+    tar xf ccache.tar.gz && \
+    cd ccache-${CCACHE_VERSION} && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DZSTD_FROM_INTERNET=ON \
+          -DHIREDIS_FROM_INTERNET=ON \
+          -DENABLE_TESTING=OFF \
+          .. && \
+    make -j$(nproc) && \
+    make install DESTDIR=/opt/ccache-install && \
+    rm -rf /tmp/ccache*
+
+# ============================================================================
+# Stage 4: Main - Build environment
+# ============================================================================
+FROM stage2-${TARGETARCH}
+
+WORKDIR /home
+
+# ============================================================================
+# Build-time arguments for version management
+# ============================================================================
+
+# Development Tools Versions
+ARG GO_VERSION=1.23.4
+ARG MAVEN_VERSION=3.8.4
+ARG CMAKE_VERSION=3.21.5
+ARG RUST_VERSION=1.90.0
+# Python: use manylinux_2_28 pre-installed Python (format: 3.12 → cp312-cp312)
+ARG PYTHON_VERSION=3.12
+ARG DOTNET_VERSION=6.0.428
+ARG MOLD_VERSION=2.40.3
+ARG PROTOC_VERSION=33.0
+ARG TINI_VERSION=v0.19.0
+ARG CCACHE_VERSION=4.10.2
+ARG NODE_VERSION=22.14.0
+ARG PNPM_VERSION=10.33.2
+ARG BISON_VERSION=3.8.2
+ARG FLEX_VERSION=2.6.4
+
+# Python Package Versions
+ARG TAOSPY_VERSION=2.8.8
+ARG TAOS_WS_PY_VERSION=0.6.5
+
+# Mirror Configuration
+ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
+ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
+ARG GO_PROXY=https://goproxy.cn
+ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+
+# Timezone Configuration
+ARG TIMEZONE=Asia/Shanghai
+
+# Copy architecture variables from builder stage
+COPY --from=builder /etc/environment /etc/
+
+# Copy verification script into the image
+COPY verify-image.sh /usr/local/bin/verify-image.sh
+RUN chmod +x /usr/local/bin/verify-image.sh
+
+# ============================================================================
+# Set environment variables
+# ============================================================================
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup \
+    RUSTUP_DIST_SERVER=https://rsproxy.cn
+
+
+# ============================================================================
+# Layer 1: System base - base packages
+# Switch to Aliyun mirror (mirrors.almalinux.org unreachable in CN)
+# ============================================================================
+RUN echo "retries=10" >> /etc/yum.conf && \
+    echo "timeout=60" >> /etc/yum.conf && \
+    sed -i \
+        -e 's/^mirrorlist=/#mirrorlist=/g' \
+        -e 's|^# baseurl=https://repo.almalinux.org/almalinux|baseurl=https://mirrors.aliyun.com/almalinux|g' \
+        /etc/yum.repos.d/*.repo && \
+    yum makecache && \
+    yum install -y \
+      git wget curl unzip tar gzip bzip2 xz \
+      libatomic openssl-devel zlib-devel libffi-devel \
+      icu \
+      flex m4 \
+      unixODBC unixODBC-devel \
+      perl perl-IPC-Cmd perl-Time-Piece perl-Digest-SHA \
+      gcc-toolset-14-libasan-devel \
+      gcc-toolset-14-libubsan-devel && \
+    yum clean all && \
+    rm -rf /var/cache/yum
+
+# ============================================================================
+# Layer 1b: Bison (AlmaLinux 8 ships 3.0.4; taos-connector-odbc needs >= 3.6
+#           for --warning=counterexamples support)
+# ============================================================================
+RUN wget https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.gz && \
+    tar -xzf bison-${BISON_VERSION}.tar.gz && \
+    cd bison-${BISON_VERSION} && \
+    ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf bison-${BISON_VERSION} bison-${BISON_VERSION}.tar.gz && \
+    ln -sf /usr/local/bin/bison /usr/bin/bison
+
+# ============================================================================
+# Layer 1c: Flex (AlmaLinux 8 ships 2.6.1; taos-connector-odbc needs >= 2.6.4
+#           which generates #define yyXXX PREFIXED_yyXXX compatibility macros)
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    tar -xzf /mnt/packages/flex-${FLEX_VERSION}.tar.gz && \
+    cd flex-${FLEX_VERSION} && \
+    CFLAGS=-D_GNU_SOURCE ./configure --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf flex-${FLEX_VERSION} && \
+    ln -sf /usr/local/bin/flex /usr/bin/flex
+
+# ============================================================================
+# Layer 2: Go toolchain (from packages build context)
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -C /usr/local -xzf /mnt/packages/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
+    rm -rf /usr/local/go/test/ /usr/local/go/api/ /usr/local/go/doc/
+
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/root/go
+ENV GOPROXY=${GO_PROXY}
+ENV PATH=${GOROOT}/bin:${GOPATH}/bin:${PATH}
+
+RUN go install github.com/magefile/mage@latest
+
+# ============================================================================
+# Layer 3: JDK + Maven (from packages build context)
+# Used by: taos-connector-jdbc
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -xzf /mnt/packages/jdk-${JDK_VERSION}-linux-${JDK_ARCH}.tar.gz -C /usr/local && \
+    tar -xzf /mnt/packages/apache-maven-${MAVEN_VERSION}-bin.tar.gz -C /usr/local && \
+    JDK_DIR=$(ls /usr/local | grep 'jdk1.8' | head -1) && \
+    rm -rf /usr/local/${JDK_DIR}/src.zip \
+           /usr/local/${JDK_DIR}/javafx-src.zip \
+           /usr/local/${JDK_DIR}/man/ && \
+    ln -sf /usr/local/${JDK_DIR} /usr/local/jdk
+
+ENV JAVA_HOME=/usr/local/jdk
+ENV M2_HOME=/usr/local/apache-maven-${MAVEN_VERSION}
+ENV PATH=${JAVA_HOME}/bin:${M2_HOME}/bin:${PATH}
+
+# ============================================================================
+# Layer 4: CMake (from packages build context)
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -xzf /mnt/packages/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.tar.gz -C /usr/local && \
+    rm -rf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/doc/ \
+           /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/man/ && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cmake /usr/local/bin/cmake && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/ctest /usr/local/bin/ctest && \
+    ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cpack /usr/local/bin/cpack
+
+# ============================================================================
+# Layer 5: Rust toolchain
+# Used by: taos-connector-rust
+# ============================================================================
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain ${RUST_VERSION}
+
+ENV PATH=/root/.cargo/bin:${PATH}
+
+# Copy Cargo configuration
+COPY .cargo/config.toml /root/.cargo/config.toml
+
+# ============================================================================
+# Layer 6: Python environment
+# manylinux_2_28 ships Python 3.8-3.14 pre-installed at /opt/python/cpXXX-cpXXX/
+# ============================================================================
+RUN PY_TAG=$(echo ${PYTHON_VERSION} | tr -d '.') && \
+    PYTHON_PATH="/opt/python/cp${PY_TAG}-cp${PY_TAG}" && \
+    test -d "${PYTHON_PATH}" || { echo "ERROR: Python ${PYTHON_VERSION} not found at ${PYTHON_PATH}"; exit 1; } && \
+    ln -sf ${PYTHON_PATH}/bin/python3   /usr/local/bin/python3 && \
+    ln -sf ${PYTHON_PATH}/bin/python3   /usr/local/bin/python && \
+    ln -sf ${PYTHON_PATH}/bin/pip3      /usr/local/bin/pip3 && \
+    ln -sf ${PYTHON_PATH}/bin/pip3      /usr/local/bin/pip && \
+    ln -sf ${PYTHON_PATH}/bin/conan     /usr/local/bin/conan && \
+    echo "Python ${PYTHON_VERSION} linked from ${PYTHON_PATH}"
+
+# Configure pip mirror
+RUN pip3 config set global.index-url ${PYPI_MIRROR} && \
+    pip3 config set global.trusted-host ${PYPI_TRUSTED_HOST}
+
+# Install uv (modern Python package manager)
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    taospy==${TAOSPY_VERSION} \
+    taos-ws-py==${TAOS_WS_PY_VERSION} \
+    conan \
+    maturin && \
+    conan profile detect --force && \
+    conan remote add nexus ${CONAN_REMOTE_URL} --index 0 && \
+    sed -i 's/compiler.cppstd=gnu14/compiler.cppstd=gnu17/' /root/.conan2/profiles/default
+
+# ============================================================================
+# Layer 7: .NET SDK (from packages build context)
+# Used by: taos-connector-dotnet
+# File: dotnet-sdk-${DOTNET_VERSION}-linux-${DOTNET_ARCH}.tar.gz
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    mkdir -p /usr/local/dotnet && \
+    tar -xzf /mnt/packages/dotnet-sdk-${DOTNET_VERSION}-linux-${DOTNET_ARCH}.tar.gz \
+        -C /usr/local/dotnet
+
+ENV DOTNET_ROOT=/usr/local/dotnet
+ENV PATH=${DOTNET_ROOT}:${PATH}
+
+# ============================================================================
+# Layer 8: Node.js 22 + yarn + pnpm (from packages build context)
+# Used by: INSIGHT (taos-insight), EXPLORER_UI (taos-explorer), connector-node
+# Both amd64 and arm64 use official nodejs.org binaries (glibc 2.28 satisfies requirements)
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -xJf /mnt/packages/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz \
+        -C /usr/local --strip-components=1 && \
+    npm install -g yarn pnpm@${PNPM_VERSION}
+
+# ============================================================================
+# Layer 9: Modern tools (mold + protoc + tini)
+# ============================================================================
+# mold: compiled from source in mold-builder stage (glibc 2.28 compatible)
+COPY --from=mold-builder /opt/mold/bin/mold /usr/bin/mold
+COPY --from=mold-builder /opt/mold/lib/mold/ /usr/lib/mold/
+RUN ln -sf mold /usr/bin/ld.mold && \
+    mkdir -p /usr/libexec/mold && \
+    ln -sf ../../bin/mold /usr/libexec/mold/ld && \
+    update-alternatives --install /usr/bin/ld ld /usr/bin/ld.mold 100 && \
+    ln -sf /usr/bin/mold /opt/rh/gcc-toolset-14/root/etc/alternatives/ld
+
+# ccache: compiled from source in ccache-builder stage (no EPEL needed)
+COPY --from=ccache-builder /opt/ccache-install/usr/local/bin/ccache /usr/local/bin/ccache
+RUN mkdir -p /usr/lib64/ccache && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/gcc && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/g++ && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/cc && \
+    ln -sf /usr/local/bin/ccache /usr/lib64/ccache/c++
+
+RUN . /etc/environment && \
+    # Install tini
+    wget -O /bin/tini https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TINI_ARCH} && \
+    chmod +x /bin/tini && \
+    # Install protoc
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip && \
+    unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ && \
+    chmod +x /usr/bin/protoc && \
+    rm -f protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip
+
+# ============================================================================
+# Layer 10: TDengine client headers and libraries (from packages build context)
+# Used by: connectors (DOTNET, GO, JDBC, NODE, PYTHON, RUST, ODBC)
+# These files are NOT stored in the repo — they live in the packages directory.
+# ============================================================================
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    cp /mnt/packages/taos.h           /usr/include/taos.h && \
+    cp /mnt/packages/taosws.h         /usr/include/taosws.h && \
+    cp /mnt/packages/libtaos.so       /usr/lib/libtaos.so && \
+    cp /mnt/packages/libtaosnative.so /usr/lib/libtaosnative.so && \
+    cp /mnt/packages/libtaosws.so     /usr/lib/libtaosws.so && \
+    mkdir -p /usr/lib64 && \
+    ln -sf /usr/lib/libtaos.so       /usr/lib64/libtaos.so && \
+    ln -sf /usr/lib/libtaosnative.so /usr/lib64/libtaosnative.so && \
+    ln -sf /usr/lib/libtaosws.so     /usr/lib64/libtaosws.so && \
+    echo "/usr/lib" > /etc/ld.so.conf.d/taos-client.conf && \
+    echo "/usr/lib64" >> /etc/ld.so.conf.d/taos-client.conf && \
+    ldconfig
+
+ENV LIBRARY_PATH=/usr/lib:/usr/lib64:/lib:/lib64
+ENV LD_LIBRARY_PATH=/usr/lib:/usr/lib64:/lib:/lib64:/usr/local/lib
+
+# ============================================================================
+# Layer 11: Environment configuration and final setup
+# ============================================================================
+RUN echo "export PATH=/usr/local/go/bin:/root/go/bin:/usr/local/jdk/bin:/usr/local/apache-maven-${MAVEN_VERSION}/bin:/root/.cargo/bin:/usr/local/dotnet:${PATH}" >> /etc/profile && \
+    mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config && \
+    mkdir -p /etc/taos && \
+    rm -f /etc/localtime && \
+    ln -s /usr/share/zoneinfo/${TIMEZONE} /etc/localtime && \
+    echo "${TIMEZONE}" > /etc/timezone && \
+    git config --global --add safe.directory /app
+
+# Set working directory
+WORKDIR /app
+
+# Set entrypoint to tini
+ENTRYPOINT ["/bin/tini", "--"]
+
+# ============================================================================
+# Layer 12: Final verification
+# ============================================================================
+RUN echo "============================================================" && \
+    echo "  tsdb-builder-others Verification" && \
+    echo "============================================================" && \
+    echo "glibc  : $(ldd --version 2>&1 | head -1)" && \
+    echo "gcc    : $(gcc --version | head -1)" && \
+    echo "g++    : $(g++ --version | head -1)" && \
+    echo "python : $(python3 --version)" && \
+    echo "pip    : $(pip3 --version)" && \
+    echo "go     : $(go version)" && \
+    echo "java   : $(java -version 2>&1 | head -1)" && \
+    echo "mvn    : $(mvn --version 2>&1 | head -1)" && \
+    echo "cmake  : $(cmake --version | head -1)" && \
+    echo "rustc  : $(rustc --version)" && \
+    echo "cargo  : $(cargo --version)" && \
+    echo "dotnet : $(dotnet --version 2>/dev/null || echo 'N/A')" && \
+    echo "node   : $(node --version)" && \
+    echo "npm    : $(npm --version)" && \
+    echo "yarn   : $(yarn --version)" && \
+    echo "pnpm   : $(pnpm --version)" && \
+    echo "mold   : $(mold --version 2>&1 | head -1)" && \
+    mold --version > /dev/null 2>&1 && \
+    echo "protoc : $(protoc --version)" && \
+    echo "tini   : $(tini --version 2>&1 | head -1)" && \
+    echo "arch   : $(uname -m)" && \
+    echo "taos.h : $(test -f /usr/include/taos.h && echo OK || echo MISSING)" && \
+    echo "taosws.h: $(test -f /usr/include/taosws.h && echo OK || echo MISSING)" && \
+    echo "libtaos: $(test -f /usr/lib/libtaos.so && echo OK || echo MISSING)" && \
+    echo "libtaosnative: $(test -f /usr/lib/libtaosnative.so && echo OK || echo MISSING)" && \
+    echo "libtaosws: $(test -f /usr/lib/libtaosws.so && echo OK || echo MISSING)" && \
+    echo "============================================================" && \
+    echo "  All verifications passed!" && \
+    echo "============================================================"
