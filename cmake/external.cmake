@@ -228,9 +228,10 @@ endmacro()                         # }
 set(LOCAL_REPO "" CACHE STRING "local repositories storage to use")
 set(LOCAL_URL "" CACHE STRING "local archives storage to use")
 
-# Bridge BUILD_DEPS_MIRROR_URL → LOCAL_URL for backward compatibility.
-# tsdb-builder passes BUILD_DEPS_MIRROR_URL; cmake code here uses LOCAL_URL.
-if(DEFINED BUILD_DEPS_MIRROR_URL AND NOT DEFINED LOCAL_URL)
+# BUILD_DEPS_MIRROR_URL takes precedence over LOCAL_URL when both are set.
+# This allows cmake -DBUILD_DEPS_MIRROR_URL=... to control the mirror URL
+# without requiring build.sh to inject -DLOCAL_URL=...
+if(NOT "${BUILD_DEPS_MIRROR_URL}" STREQUAL "")
   set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}")
 endif()
 
