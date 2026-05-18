@@ -20,7 +20,15 @@ class TestUdfRestartTaosd:
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        projPath = find_proj_path(selfPath)
+        if "taos-community" in selfPath:
+            # tsdb 仓库结构: .../tsdb/source/taos-community/...
+            # 截取到仓库根（taos- 之前），确保 find 能搜到 debug-others/build/lib/
+            projPath = selfPath[:selfPath.find("/source/taos-community")]
+        elif "community" in selfPath:
+            # TDinternal 结构: .../TDinternal/community/...
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
         print(projPath)
 
         if platform.system().lower() == 'windows':
