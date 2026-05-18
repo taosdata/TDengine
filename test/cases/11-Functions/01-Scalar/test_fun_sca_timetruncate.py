@@ -262,8 +262,14 @@ class TestFunTimetruncate:
             - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_timetruncate.py
         """
 
-        self.function_check_ntb()
-        self.function_check_stb()
+        tdSql.query("select first_day_of_week()")
+        previous_first_day_of_week = int(tdSql.queryResult[0][0])
+        tdSql.execute("set first_day_of_week 4")
+        try:
+            self.function_check_ntb()
+            self.function_check_stb()
+        finally:
+            tdSql.execute(f"set first_day_of_week {previous_first_day_of_week}")
 
         #tdSql.close()
 
