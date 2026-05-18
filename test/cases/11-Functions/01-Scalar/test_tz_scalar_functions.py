@@ -11,12 +11,20 @@ Covers:
 """
 
 import pytest
+import sys
 from new_test_framework.utils import tdLog, tdSql
 
 ERR_INVALID_TIMEZONE = 0x26B2
 ERR_INVALID_FIRST_DAY_OF_WEEK = 0x26B3
 ERR_INVALID_FUNCTION_PARAM = 0x2803
 
+IS_WINDOWS = sys.platform.startswith('win')
+SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
+    IS_WINDOWS,
+    reason='Windows does not support SET TIMEZONE cases in this suite',
+)
+
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestToIso8601Iana:
     """TO_ISO8601 IANA timezone parameter and DST-aware output."""
 
@@ -144,6 +152,7 @@ class TestToIso8601Iana:
         self.check_to_iso8601_l1_overrides_l2()
         self.check_to_iso8601_us_ns_precision()
 
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestToCharTimezone:
     """TO_CHAR(ts, fmt [, timezone]) third parameter tests."""
 
@@ -244,6 +253,7 @@ class TestToCharTimezone:
         self.check_to_char_l1_overrides_l2()
         self.check_to_char_two_params_compat()
 
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestTimetruncateTz:
     """TIMETRUNCATE third parameter: string timezone, integer 0/1 compat, fallback chain."""
 
@@ -354,6 +364,7 @@ class TestTimetruncateTz:
         self.check_timetruncate_no_param_uses_l2()
         self.check_timetruncate_subday_string_tz_uses_target_offset()
 
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestTimetruncateNaturalUnits:
     """TIMETRUNCATE n/q/y natural units (1n/1q/1y only; Nx is invalid)."""
 
@@ -457,6 +468,7 @@ class TestTimetruncateNaturalUnits:
         self.check_timetruncate_1q_equals_3n_is_invalid()
         self.check_timetruncate_natural_with_tz_param()
 
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestTimetruncateUnitMultiplierValidation:
     """TIMETRUNCATE unit multiplier constraint: only N=1 allowed, Nx (N>1) returns "Invalid time unit"."""
 
@@ -606,6 +618,7 @@ class TestTimetruncateUnitMultiplierValidation:
         self.check_timetruncate_multiplier_with_tz_param_invalid()
         self.check_timetruncate_multiplier_from_table_invalid()
 
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestTimetruncateWeek:
     """TIMETRUNCATE 1w/Nw aligned by firstDayOfWeek (high-risk behavior change)."""
 
@@ -897,6 +910,7 @@ class TestSessionFirstDayOfWeekFunction:
         """
         self.check_first_day_of_week_reflects_session()
 
+@SKIP_WINDOWS_SET_TIMEZONE
 class TestDstEdge:
     """DST edge cases: spring-forward gap, fall-back overlap, write-path regression.
 

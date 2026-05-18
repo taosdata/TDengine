@@ -19,12 +19,21 @@ import os
 import pytest
 import re
 import subprocess
+import sys
 
 ERR_INVALID_TIMEZONE = 0x26B2
 ERR_INVALID_FIRST_DAY_OF_WEEK = 0x26B3
 ERR_INVALID_FUNCTION_PARAM = 0x2803
 ERR_INVALID_DNODE_CFG = 0x03B2
 ERR_INVALID_CFG = 0x0119
+
+IS_WINDOWS = sys.platform.startswith('win')
+SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
+    IS_WINDOWS,
+    reason='Windows does not support SET TIMEZONE cases in this suite',
+)
+
+pytestmark = [SKIP_WINDOWS_SET_TIMEZONE]
 
 class TestSetTimezone:
     """SET TIMEZONE '<timezone_string>' syntax tests."""

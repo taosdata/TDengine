@@ -8,6 +8,16 @@ Covers:
 """
 
 from new_test_framework.utils import tdLog, tdSql
+import pytest
+import sys
+
+IS_WINDOWS = sys.platform.startswith('win')
+SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
+    IS_WINDOWS,
+    reason='Windows does not support SET TIMEZONE cases in this suite',
+)
+
+pytestmark = [SKIP_WINDOWS_SET_TIMEZONE]
 
 def _config_timezone_name(value):
     return str(value).split(' ')[0]
