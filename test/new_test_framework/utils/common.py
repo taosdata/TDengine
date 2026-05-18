@@ -24,7 +24,6 @@ import os
 import platform
 import tempfile
 from .boundary import DataBoundary
-from .pathFinding import find_proj_path
 import taos
 from .log import *
 from .sql import *
@@ -710,7 +709,16 @@ class TDCom:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = find_proj_path(selfPath)
+
+        if "taos-community" in selfPath:
+            # tsdb repo layout: /mnt/tsdb/source/taos-community/test/...
+            projPath = selfPath[: selfPath.find("source/taos-community")]
+        elif "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
+        elif "TDengine" in selfPath:
+            projPath = selfPath[: selfPath.find("TDengine") + len("TDengine")]
+        else:
+            projPath = selfPath[: selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ".git" in root:
