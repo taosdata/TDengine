@@ -42,8 +42,8 @@ In the schemaless writing line protocol, each data item in field_set needs to de
 - If enclosed in double quotes, it represents varchar type, e.g., "abc".
 - If enclosed in double quotes and prefixed with L or l, it represents nchar type, e.g., L" error message ".
 - If enclosed in double quotes and prefixed with G or g, it represents geometry type, e.g., G"Point(4.343 89.342)".
-- If enclosed in double quotes and prefixed with B or b, it represents varbinary type, the double quotes can contain hexadecimal starting with \x or strings, e.g., B"\x98f46e" and B"hello".
-- For spaces, equal signs (=), commas (,), double quotes ("), and backslashes (\), a backslash (\) is needed for escaping (all in half-width English characters). The domain escape rules for the schemaless writing protocol are shown in the following table.
+- If enclosed in double quotes and prefixed with B or b, it represents varbinary type, the double quotes can contain hexadecimal starting with `\x` or strings, e.g., `B"\x98f46e"` and `B"hello"`.
+- For spaces, equal signs (=), commas (,), double quotes ("), and backslashes (\\), a backslash (\\) is needed for escaping (all in half-width English characters). The domain escape rules for the schemaless writing protocol are shown in the following table.
 
 | **Number** | **Field**   | **Characters to Escape**   |
 | -------- | -------- | ---------------- |

@@ -57,7 +57,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -p/--password          | Password for connecting to the server, default is taosdata |
 | -c/--config-file       | Path to the YAML configuration file |
 | -d/--log-dir           | Specify log output directory, default is ./log |
-| -f/--log-file          | Specify complete log file path (overrides --log-dir) |
+| -o/--log-file          | Specify complete log file path (overrides --log-dir), -f is deprecated |
 | -?/--help              | Show help information and exit |
 | -V/--version           | Show version information and exit. Cannot be used with other parameters |
 
@@ -238,6 +238,8 @@ Each column includes:
   - min (float): Minimum value (integer/float only), generated value ≥ min.
   - max (float): Maximum value (integer/float only), generated value < max.
   - values (list): Range of values to randomly select from.
+  - min_length (int): Only applicable to variable-length string types (nchar, varchar or binary). Specifies the minimum length of generated strings. Valid range: 0 ≤ min_length ≤ max_length ≤ capacity. Default behavior: if neither min_length nor max_length is set, generated strings use the type's defined capacity; if only min_length is set, max_length defaults to capacity; if only max_length is set, min_length defaults to 0.
+  - max_length (int): Only applicable to variable-length string types (nchar, varchar or binary). Specifies the maximum length of generated strings. Valid range: min_length ≤ max_length ≤ capacity. When either min_length or max_length is set, each generated string length varies randomly between min_length and max_length after applying the default behavior described above.
 
 - order: Sequential natural number growth (integer only), wraps to min after reaching max
   - min (int): Minimum value, generated value ≥ min.

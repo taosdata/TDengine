@@ -168,8 +168,8 @@ In **Maximum Retention Days**, set the maximum retention days for raw data.
 
 In **Raw Data Storage Directory**, set the path for saving raw data. If using Agent, the storage path refers to the path on the server where Agent is located, otherwise it is on the taosX server. The path can include placeholders `$DATA_DIR` and `:id` as part of the path.
 
-- On Linux platform, `$DATA_DIR` is /var/lib/taos/taosx, by default the storage path is `/var/lib/taos/taosx/tasks/<task_id>/rawdata`.
-- On Windows platform, `$DATA_DIR` is C:\TDengine\data\taosx, by default the storage path is `C:\TDengine\data\taosx\tasks\<task_id>\rawdata`.
+- On Linux platform, `$DATA_DIR` is `/var/lib/taos/taosx`, by default the storage path is `/var/lib/taos/taosx/tasks/<task_id>/rawdata`.
+- On Windows platform, `$DATA_DIR` is `C:\TDengine\data\taosx`, by default the storage path is `C:\TDengine\data\taosx\tasks\<task_id>\rawdata`.
 
 ### Completion
 

@@ -147,3 +147,87 @@ TEST(osSystemTest, systemUUIDTest2) {
   taosGetSystemUUIDLen(uuid9, sizeof(uuid9));
   ASSERT_EQ(strlen(uuid9), sizeof(uuid9) - 1);
 }
+
+// Tests for cgroup-aware resource detection (K8s/container environments)
+TEST(osSystemTest, cgroupCpuCoresTest) {
+  // taosGetCpuCores with physical=false should return cgroup-aware value
+  float cores = 0;
+  int32_t ret = taosGetCpuCores(&cores, false);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GT(cores, 0);
+  (void)printf("cgroup-aware cpu cores: %f\n", cores);
+
+  // physical=true should always return sysconf value
+  float physCores = 0;
+  ret = taosGetCpuCores(&physCores, true);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GT(physCores, 0);
+  (void)printf("physical cpu cores: %f\n", physCores);
+
+  // cgroup-aware cores should be <= physical cores
+  ASSERT_LE(cores, physCores);
+}
+
+TEST(osSystemTest, cgroupTotalMemoryTest) {
+  // Total memory should be positive and cgroup-aware
+  int64_t totalKB = 0;
+  int32_t ret = taosGetTotalMemory(&totalKB);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GT(totalKB, 0);
+  (void)printf("total memory (cgroup-aware): %" PRId64 " KB\n", totalKB);
+}
+
+TEST(osSystemTest, cgroupSysAvailMemoryTest) {
+  int64_t availSize = 0;
+  int32_t ret = taosGetSysAvailMemory(&availSize);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GE(availSize, 0);
+  (void)printf("available memory: %" PRId64 " bytes\n", availSize);
+}
+
+TEST(osSystemTest, cgroupSysMemoryTest) {
+  int64_t usedKB = 0, freeKB = 0, cacheBufferKB = 0;
+  int32_t ret = taosGetSysMemory(&usedKB, &freeKB, &cacheBufferKB);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GE(usedKB, 0);
+  ASSERT_GE(freeKB, 0);
+  ASSERT_GE(cacheBufferKB, 0);
+  (void)printf("sys memory - used: %" PRId64 " KB, free: %" PRId64 " KB, cache: %" PRId64 " KB\n",
+               usedKB, freeKB, cacheBufferKB);
+}
+
+TEST(osSystemTest, cgroupCpuUsageTest) {
+  double cpu_system = 0, cpu_engine = 0;
+
+  // First call to initialize baselines
+  int32_t ret = taosGetCpuUsage(&cpu_system, &cpu_engine);
+  ASSERT_EQ(ret, 0);
+
+  // Second call should compute meaningful deltas
+  ret = taosGetCpuUsage(&cpu_system, &cpu_engine);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GE(cpu_system, 0.0);
+  ASSERT_GE(cpu_engine, 0.0);
+  ASSERT_LE(cpu_system, 100.0);
+  (void)printf("cpu usage - system: %f%%, engine: %f%%\n", cpu_system, cpu_engine);
+}
+
+TEST(osSystemTest, cgroupConsistencyTest) {
+  // Verify basic sanity of memory values across all environments
+  int64_t totalKB = 0;
+  ASSERT_EQ(taosGetTotalMemory(&totalKB), 0);
+  ASSERT_GT(totalKB, 0);
+
+  int64_t usedKB = 0, freeKB = 0, cacheBufferKB = 0;
+  ASSERT_EQ(taosGetSysMemory(&usedKB, &freeKB, &cacheBufferKB), 0);
+
+  (void)printf("consistency check: total=%" PRId64 " KB, used=%" PRId64 " KB, free=%" PRId64 " KB, cache=%" PRId64 " KB\n",
+               totalKB, usedKB, freeKB, cacheBufferKB);
+
+  // These invariants hold regardless of cgroup vs /proc/meminfo source
+  ASSERT_GE(usedKB, 0);
+  ASSERT_GE(freeKB, 0);
+  ASSERT_GE(cacheBufferKB, 0);
+  ASSERT_LE(usedKB, totalKB);
+  ASSERT_LE(freeKB, totalKB);
+}

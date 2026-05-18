@@ -554,7 +554,7 @@ Due to the limited display width in the TDengine CLI terminal, longer table name
 
 ### 8.3 How to fully display field content in TDengine CLI queries?
 
-You can use the \G parameter for vertical display, such as `show databases\G\;` (for ease of input, press TAB after "\" to automatically complete the content).
+You can use the `\G` parameter for vertical display, such as `show databases\G\;` (for ease of input, press TAB after "\" to automatically complete the content).
 
 ### 8.4 What should I do if string data appears garbled in DBeaver?
 

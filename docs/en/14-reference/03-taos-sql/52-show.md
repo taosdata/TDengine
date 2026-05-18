@@ -208,7 +208,7 @@ Displays the data distribution information of the table.
 
 Example explanation:
 
-Statement: show table distributed d0\G;   Displays the BLOCK distribution of table d0 vertically
+Statement: `show table distributed d0\G;`   Displays the BLOCK distribution of table d0 vertically
 
 <details>
  <summary>Display example</summary>
@@ -340,3 +340,15 @@ SHOW VNODES [ON DNODE dnode_id];
 ```
 
 Displays information about all VNODEs or the VNODEs of a specific DNODE in the current system.
+
+## SHOW CREATE STREAM
+
+```sql
+SHOW CREATE STREAM [db_name.]stream_name;
+```
+
+Displays the `CREATE STREAM` statement for the stream identified by `stream_name`.
+
+Notes
+
+- Available since v3.4.1.8

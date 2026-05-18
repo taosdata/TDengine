@@ -157,4 +157,4 @@ There is some impact: overall performance typically decreases by less than 5% (a
 
 #### Operations and upgrades
 
-Dynamic upgrades are not supported.\n
+Dynamic upgrades are not supported.

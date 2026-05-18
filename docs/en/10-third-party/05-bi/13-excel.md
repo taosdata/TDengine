@@ -21,22 +21,22 @@ Prepare the following environment:
 
 **Step 2**, Start Excel in the Windows system environment, then select [Data] -> [Get Data] -> [From Other Sources] -> [From ODBC].
 
-![Get data from ODBC](../../assets/excel-01.webp)
+![Get data from ODBC](../../assets/excel-01.png)
 
 **Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the [OK] button.  
 
-![Select ODBC data source](../../assets/excel-02.webp)
+![Select ODBC data source](../../assets/excel-02.png)
 
 **Step 4**, Enter the username and password for TDengine.
 
-![Configure authentication credentials](../../assets/excel-03.webp)
+![Configure authentication credentials](../../assets/excel-03.png)
 
 **Step 5**, In the pop-up [Navigator] dialog box, select the database tables you want to load, and then click [Load] to complete the data loading.
 
-![Select tables to load](../../assets/excel-04.webp)
+![Select tables to load](../../assets/excel-04.png)
 
 ## Data Analysis
 
 Select the imported data. On the [Insert] tab, choose the column chart, and then configure the data fields in the [PivotChart Fields] pane on the right.
 
-![Configure visualizations](../../assets/excel-05.webp)
+![Configure visualizations](../../assets/excel-05.png)

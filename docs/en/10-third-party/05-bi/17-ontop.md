@@ -148,7 +148,7 @@ Reuse the example content from the [Configure Table Mapping](#configure-table-ma
 
 2. Enter the above statement in the SPARQL query interface, click the "Run" button. Query results are shown below:
 
-   ![Run SPARQL query](../../assets/ontop-01.webp)
+   ![Run SPARQL query](../../assets/ontop-01.png)
 
 3. Results are returned in SPARQL JSON format, containing meter collection timestamps, voltage readings, phase, group ID, and device location information.
 

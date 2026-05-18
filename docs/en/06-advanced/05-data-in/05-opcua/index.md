@@ -56,7 +56,7 @@ When **Security Mode** is `Sign` or `SignAndEncrypt`, both **Secure Channel Cert
 Different OPC UA Server products use different endpoint formats, security policy combinations, and client-certificate trust workflows. If you are connecting to one of the servers below, **read the dedicated integration guide first** for verified settings and the server-side trust flow:
 
 - [Ignition OPC UA Server Integration Guide](./03-ignition.md)
-- [GE Cimplicity OPC UA Server Integration Guide](./04-ge-cimplicity.md)
+- [GE CSS OPC UA Server Integration Guide](./04-ge-opcua-server.md)
 
 For OPC UA Servers from other vendors, follow the generic steps in this section.
 
