@@ -80,6 +80,9 @@ extern "C" {
 #define DID(pRaftId)     (int32_t)((pRaftId)->addr)
 #define SYNC_ADDR(pInfo) (int64_t)(((pInfo)->clusterId << 32) | (pInfo)->nodeId)
 
+extern const char* tsSyncAssignedStepdownGuardTag;
+extern const char* tsSyncAssignedStepdownMetricTag;
+
 void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet);
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId);
 bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);

@@ -1423,6 +1423,41 @@ void syncNodeLogReplDestroy(SSyncNode* pNode) {
   }
 }
 
+ESyncPeerReadyState syncNodeGetPeerReadyState(SSyncNode* pNode, const SRaftId* pDestId) {
+  if (pNode == NULL || pDestId == NULL) {
+    sTrace("vgId:%d, %s, peer readiness unknown since input is null", pNode ? pNode->vgId : -1,
+           tsSyncAssignedStepdownGuardTag);
+    return SYNC_PEER_READY_UNKNOWN;
+  }
+
+  if (syncUtilSameId(&pNode->myRaftId, pDestId)) {
+    sWarn("vgId:%d, %s, unexpected readiness check on self peer, dnode:%d", pNode->vgId, tsSyncAssignedStepdownGuardTag,
+          DID(pDestId));
+    return SYNC_PEER_READY_READY;
+  }
+
+  SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, (SRaftId*)pDestId);
+  if (pMgr == NULL) {
+    sInfo("vgId:%d, %s, peer readiness unknown for dnode:%d (0x%" PRIx64 "), fallback to conservative mode",
+          pNode->vgId, tsSyncAssignedStepdownGuardTag, DID(pDestId), pDestId->addr);
+    return SYNC_PEER_READY_UNKNOWN;
+  }
+
+  if (pMgr->peerId < 0 || pMgr->peerId >= TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA) {
+    sError("vgId:%d, %s, invalid peerId:%d for peer dnode:%d", pNode->vgId, tsSyncAssignedStepdownGuardTag,
+           pMgr->peerId, DID(pDestId));
+  }
+
+  ESyncPeerReadyState state = pMgr->restored ? SYNC_PEER_READY_READY : SYNC_PEER_READY_RESTORING;
+  sTrace("vgId:%d, %s, peer readiness dnode:%d (0x%" PRIx64 "), restored:%d, state:%d", pNode->vgId,
+         tsSyncAssignedStepdownGuardTag, DID(pDestId), pDestId->addr, pMgr->restored, state);
+  return state;
+}
+
+bool syncNodePeerReadyForAssignedStepDown(SSyncNode* pNode, const SRaftId* pDestId) {
+  return syncNodeGetPeerReadyState(pNode, pDestId) == SYNC_PEER_READY_READY;
+}
+
 int32_t syncLogBufferCreate(SSyncLogBuffer** ppBuf) {
   int32_t         code = 0;
   SSyncLogBuffer* pBuf = taosMemoryCalloc(1, sizeof(SSyncLogBuffer));

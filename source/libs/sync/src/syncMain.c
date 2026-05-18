@@ -3896,6 +3896,10 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
   syncIndexMgrIncRecvCount(ths->pMatchIndex, &(pMsg->srcId));
 
+  ESyncPeerReadyState readyState = syncNodeGetPeerReadyState(ths, &pMsg->srcId);
+  sTrace("vgId:%d, %s, heartbeat reply peer:%d readiness state:%d restored:%d", ths->vgId,
+         tsSyncAssignedStepdownGuardTag, DID(&pMsg->srcId), readyState, pMgr->restored);
+
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
 

@@ -26,6 +26,9 @@
 
 #define FQDNRETRYTIMES 100
 
+const char* tsSyncAssignedStepdownGuardTag = "assigned-stepdown-guard";
+const char* tsSyncAssignedStepdownMetricTag = "assigned-stepdown-availability";
+
 static void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
   int32_t len = snprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {

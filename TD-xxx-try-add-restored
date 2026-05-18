@@ -1,0 +1,1 @@
+分析项目代码，分析目前双副本的实现，目前的实现有一个点是在一个副本宕机，比如被kill -9 强行杀掉，另外一个副本变成assigned leader，当另外一个节点重新起来后，在assinged leader副本上的syncNodeOnAppendEntriesReply函数中，会判断commitIndex >= ths->assignedCommitIndex这个条件满足后进行stepdown操作，vgroup开始重新选举，这时另外一个副本如果被选举成leader的话，这副本会有可能进入到restoring状态，导致vgroup无法提供服务。所以请修改一下这个判断条件，加入另外一个副本的状态不在restoring的条件，来避免这个问题的发生。

@@ -107,6 +107,12 @@ typedef struct SPeerState {
   int64_t   lastSendTime;
 } SPeerState;
 
+typedef enum ESyncPeerReadyState {
+  SYNC_PEER_READY_UNKNOWN = 0,
+  SYNC_PEER_READY_RESTORING = 1,
+  SYNC_PEER_READY_READY = 2,
+} ESyncPeerReadyState;
+
 struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
@@ -341,6 +347,8 @@ SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId)
 SSyncTimer*          syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId);
 SPeerState*          syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId);
 bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
+ESyncPeerReadyState  syncNodeGetPeerReadyState(SSyncNode* pNode, const SRaftId* pDestId);
+bool                 syncNodePeerReadyForAssignedStepDown(SSyncNode* pNode, const SRaftId* pDestId);
 
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);

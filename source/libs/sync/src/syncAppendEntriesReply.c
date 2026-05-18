@@ -77,10 +77,20 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely, &pRpcMsg->info.traceId);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
-          sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
-                ", assignedCommitIndex:%" PRId64,
-                ths->vgId, ths->assignedCommitIndex, commitIndex);
-          syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
+          // Keep the guard narrow: assigned leader may step down only when the reply peer is no longer restoring.
+          ESyncPeerReadyState peerReadyState = syncNodeGetPeerReadyState(ths, &pMsg->srcId);
+          if (peerReadyState == SYNC_PEER_READY_READY) {
+            sInfo("vgId:%d, %s, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
+                  ", assignedCommitIndex:%" PRId64 ", peer:%d state:%d",
+                  ths->vgId, tsSyncAssignedStepdownGuardTag, commitIndex, ths->assignedCommitIndex, DID(&pMsg->srcId),
+                  peerReadyState);
+            syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
+          } else {
+            sInfo("vgId:%d, %s, keep assigned leader during peer recovery, commitIndex:%" PRId64
+                  ", assignedCommitIndex:%" PRId64 ", peer:%d state:%d",
+                  ths->vgId, tsSyncAssignedStepdownGuardTag, commitIndex, ths->assignedCommitIndex, DID(&pMsg->srcId),
+                  peerReadyState);
+          }
         }
       } else {
         TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex, &pRpcMsg->info.traceId, "sync-append-entries-reply"));

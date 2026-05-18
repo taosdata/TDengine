@@ -334,6 +334,13 @@ if __name__ == "__main__":
             host = masterIp
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
 
+    case_alias = {
+        "assigned-stepdown-restoring-guard": "2-query/assigned_stepdown_restoring_guard.py",
+        "assigned-stepdown-recovery-loop": "2-query/assigned_stepdown_recovery_loop.py",
+        "assigned-stepdown-healthy-baseline": "2-query/assigned_stepdown_healthy_baseline.py",
+    }
+    fileName = case_alias.get(fileName, fileName)
+
     #
     # do previousCluster option
     #

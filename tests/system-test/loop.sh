@@ -41,6 +41,11 @@ echo LOOP_TIMES ${LOOP_TIMES}
 echo CMD_NAME ${CMD_NAME}
 echo SLEEP_TIME ${SLEEP_TIME}
 
+if [[ "${SYNC_ASSIGNED_STEPDOWN_GUARD_DEMO}" == "1" ]]; then
+    echo "Assigned stepdown recovery loop demo command:"
+    echo "./loop.sh -t 20 -f \"./pytest.sh python3 ./test.py -f 2-query/assigned_stepdown_recovery_loop.py\""
+fi
+
 GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
