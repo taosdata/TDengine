@@ -5624,6 +5624,7 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
   SMsgSendInfo        *pSendInfo = NULL;
   SStreamVgResolveCtx  ctx       = {0};
   bool                 semInited = false;
+  SHashObj            *tblGroupMap = NULL;
 
   int32_t cnt = (int32_t)taosArrayGetSize(indexList);
   stTrace("vgId:%d %s enter: targetVgId=%d ver=%" PRId64 " items=%d", TD_VID(pVnode), __func__,
@@ -5635,7 +5636,7 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
   if (req.groups == NULL) { code = terrno; goto _end; }
 
   // Use a temp hash to map "dbName\0tableName" -> index in req.groups
-  SHashObj *tblGroupMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  tblGroupMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (tblGroupMap == NULL) { code = terrno; goto _end; }
 
   int32_t totalCols = 0;
@@ -5660,15 +5661,21 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
       tstrncpy(g.dbName, w->refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(g.tableName, w->refTableName, TSDB_TABLE_NAME_LEN);
       g.cols = taosArrayInit(4, sizeof(SVTableRefResolveColSpec));
-      if (g.cols == NULL) { code = terrno; taosHashCleanup(tblGroupMap); goto _end; }
+      if (g.cols == NULL) { code = terrno; goto _end; }
       if (taosArrayPush(req.groups, &g) == NULL) {
         taosArrayDestroy(g.cols);
         code = terrno;
-        taosHashCleanup(tblGroupMap);
         goto _end;
       }
       groupIdx = (int32_t)taosArrayGetSize(req.groups) - 1;
-      taosHashPut(tblGroupMap, tblKey, keyLen, &groupIdx, sizeof(groupIdx));
+      // Track the new group index so subsequent items targeting the same table
+      // dedup correctly. On put failure we must abort: otherwise the next item
+      // with the same table will create a duplicate group, breaking the
+      // index/order assumption used by the rsp scatter loop below.
+      if (taosHashPut(tblGroupMap, tblKey, keyLen, &groupIdx, sizeof(groupIdx)) != 0) {
+        code = terrno;
+        goto _end;
+      }
     } else {
       groupIdx = *pGroupIdx;
     }
@@ -5680,14 +5687,11 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
     colSpec.kind = w->kind;
     if (taosArrayPush(gp->cols, &colSpec) == NULL) {
       code = terrno;
-      taosHashCleanup(tblGroupMap);
       goto _end;
     }
 
     totalCols++;
   }
-
-  taosHashCleanup(tblGroupMap);
 
   void *clientRpc = pVnode->msgCb.clientRpc;
   if (clientRpc == NULL) { code = TSDB_CODE_INVALID_PARA; goto _end; }
@@ -5746,6 +5750,7 @@ static int32_t streamSendOneVgResolveRpc(SVnode *pVnode, const SEpSet *pEpSet, i
 
 _end:
   stTrace("vgId:%d %s exit: targetVgId=%d code=0x%x", TD_VID(pVnode), __func__, vgId, code);
+  if (tblGroupMap != NULL) taosHashCleanup(tblGroupMap);
   if (pReqBuf != NULL) taosMemoryFree(pReqBuf);
   if (pSendInfo != NULL) taosMemoryFree(pSendInfo);
   tFreeSVTableRefResolveReq(&req);
@@ -5828,7 +5833,13 @@ static void streamTblRefCacheInsert(SStreamVTableInfoCache *pCache,
     copy.tagData = NULL;
     copy.tagLen  = 0;
   }
-  taosHashPut(pEntry->colResults, colName, colKeyLen, &copy, sizeof(copy));
+  if (taosHashPut(pEntry->colResults, colName, colKeyLen, &copy, sizeof(copy)) != 0) {
+    // Put failed (likely OOM/rehash); release the freshly deep-copied tagData
+    // to avoid leaking it. Cache miss on next lookup will simply re-resolve.
+    stWarn("%s taosHashPut failed for col=%s, code=0x%x", __func__, colName, terrno);
+    taosMemoryFreeClear(copy.tagData);
+    copy.tagLen = 0;
+  }
 }
 
 //
@@ -5853,6 +5864,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
   SHashObj *dedupMap = NULL;  // key: "kind:db\0table\0col", value: int32_t (position in dedupItems)
   SArray   *dedupItems    = NULL;  // SArray<SResolveWorkItem> unique items to send
   SArray   *dedupRspItems = NULL;  // SArray<SVTableRefResolveRspItem> responses for dedup items
+  int32_t  *origToDedupIdx = NULL;  // batch index -> dedupItems index, or -1 if served from cache
 
   int32_t n = (int32_t)taosArrayGetSize(batch);
   stDebug("vgId:%d %s enter: ver=%" PRId64 " batch=%d", TD_VID(pVnode), __func__, ver, n);
@@ -5870,7 +5882,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
   if (dedupMap == NULL || dedupItems == NULL) { code = terrno; goto _end; }
 
   // origToDedupIdx[i] = position in dedupItems for batch[i], or -1 if served from cache.
-  int32_t *origToDedupIdx = taosMemoryCalloc(n, sizeof(int32_t));
+  origToDedupIdx = taosMemoryCalloc(n, sizeof(int32_t));
   if (origToDedupIdx == NULL) { code = terrno; goto _end; }
 
   int32_t cacheHits = 0;
@@ -5922,9 +5934,9 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
       origToDedupIdx[i] = *pExistIdx;
     } else {
       int32_t newIdx = (int32_t)taosArrayGetSize(dedupItems);
-      if (taosArrayPush(dedupItems, w) == NULL) { code = terrno; taosMemoryFree(origToDedupIdx); goto _end; }
+      if (taosArrayPush(dedupItems, w) == NULL) { code = terrno; goto _end; }
       if (taosHashPut(dedupMap, dedupKey, dkLen, &newIdx, sizeof(newIdx)) != 0) {
-        code = terrno; taosMemoryFree(origToDedupIdx); goto _end;
+        code = terrno; goto _end;
       }
       origToDedupIdx[i] = newIdx;
     }
@@ -5934,20 +5946,19 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
 
   int32_t dedupN = (int32_t)taosArrayGetSize(dedupItems);
   if (dedupN == 0) {
-    // All items served from cache
-    taosMemoryFree(origToDedupIdx);
+    // All items served from cache; fall through to centralized cleanup.
     goto _end;
   }
 
   // Phase 2: Route deduplicated items to vgId groups
   vg2Idx = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   vg2Ep  = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  if (vg2Idx == NULL || vg2Ep == NULL) { code = terrno; taosMemoryFree(origToDedupIdx); goto _end; }
+  if (vg2Idx == NULL || vg2Ep == NULL) { code = terrno; goto _end; }
 
   int32_t acctId = 0;
   if (sscanf(pVnode->config.dbname, "%d.", &acctId) != 1) {
     code = TSDB_CODE_INVALID_PARA;
-    taosMemoryFree(origToDedupIdx); goto _end;
+    goto _end;
   }
 
   for (int32_t i = 0; i < dedupN; ++i) {
@@ -5963,7 +5974,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
       stError("vgId:%d %s uid=%" PRId64 " getDbVgInfo db=%s rc=0x%x -> propagate",
               TD_VID(pVnode), __func__, w->originVtbUid, dbFName, rc);
       code = rc;
-      taosMemoryFree(origToDedupIdx); goto _end;
+      goto _end;
     }
 
     int32_t vgId  = 0;
@@ -5977,33 +5988,33 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
       stError("vgId:%d %s uid=%" PRId64 " routeTableToVg db=%s tb=%s rc=0x%x -> propagate",
               TD_VID(pVnode), __func__, w->originVtbUid, dbFName, w->refTableName, rc);
       code = rc;
-      taosMemoryFree(origToDedupIdx); goto _end;
+      goto _end;
     }
 
     SArray **ppList = (SArray **)taosHashGet(vg2Idx, &vgId, sizeof(vgId));
     SArray  *pList  = NULL;
     if (ppList == NULL) {
       pList = taosArrayInit(4, sizeof(int32_t));
-      if (pList == NULL) { code = terrno; taosMemoryFree(origToDedupIdx); goto _end; }
+      if (pList == NULL) { code = terrno; goto _end; }
       if (taosHashPut(vg2Idx, &vgId, sizeof(vgId), &pList, sizeof(pList)) != 0) {
         taosArrayDestroy(pList);
-        code = terrno; taosMemoryFree(origToDedupIdx); goto _end;
+        code = terrno; goto _end;
       }
       if (taosHashPut(vg2Ep, &vgId, sizeof(vgId), &epSet, sizeof(epSet)) != 0) {
-        code = terrno; taosMemoryFree(origToDedupIdx); goto _end;
+        code = terrno; goto _end;
       }
     } else {
       pList = *ppList;
     }
-    if (taosArrayPush(pList, &i) == NULL) { code = terrno; taosMemoryFree(origToDedupIdx); goto _end; }
+    if (taosArrayPush(pList, &i) == NULL) { code = terrno; goto _end; }
   }
 
   // Phase 3: Issue one RPC per vg group using deduplicated items
   dedupRspItems = taosArrayInit(dedupN, sizeof(SVTableRefResolveRspItem));
-  if (dedupRspItems == NULL) { code = terrno; taosMemoryFree(origToDedupIdx); goto _end; }
+  if (dedupRspItems == NULL) { code = terrno; goto _end; }
   for (int32_t i = 0; i < dedupN; ++i) {
     SVTableRefResolveRspItem zero = {0};
-    if (taosArrayPush(dedupRspItems, &zero) == NULL) { code = terrno; taosMemoryFree(origToDedupIdx); goto _end; }
+    if (taosArrayPush(dedupRspItems, &zero) == NULL) { code = terrno; goto _end; }
   }
 
   void *pIter = taosHashIterate(vg2Idx, NULL);
@@ -6044,7 +6055,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
               TD_VID(pVnode), __func__, vgId, (int32_t)taosArrayGetSize(pList), rc);
       taosHashCancelIterate(vg2Idx, pIter);
       code = rc;
-      taosMemoryFree(origToDedupIdx); goto _end;
+      goto _end;
     }
     pIter = taosHashIterate(vg2Idx, pIter);
   }
@@ -6076,11 +6087,9 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
     }
   }
 
-  taosMemoryFree(origToDedupIdx);
-  origToDedupIdx = NULL;
-
 _end:
   stDebug("vgId:%d %s exit: code=0x%x", TD_VID(pVnode), __func__, code);
+  taosMemoryFreeClear(origToDedupIdx);
   if (vg2Idx != NULL) {
     void *p = taosHashIterate(vg2Idx, NULL);
     while (p != NULL) {
