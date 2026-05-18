@@ -905,6 +905,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       code = makeNode(type, sizeof(SShowCreateRsmaStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      code = makeNode(type, sizeof(SShowCreateStreamStmt), &pNode);
+      break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = makeNode(type, sizeof(SShowTableDistributedStmt), &pNode);
       break;
@@ -2156,6 +2159,9 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
+    case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
+      taosMemoryFreeClear(((SShowCreateStreamStmt*)pNode)->sql);
+      break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
       nodesDestroyNode(pStmt->pFromTable);

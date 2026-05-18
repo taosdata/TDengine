@@ -1,7 +1,7 @@
 import numpy as np
 
-from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractCorrelationService
+from taosanalytics.base import AbstractCorrelationService
+from taosanalytics.log import AppLogger
 from fastdtw import fastdtw
 
 
@@ -9,6 +9,7 @@ class _DtwService(AbstractCorrelationService):
     """ dtw analysis """
     name = 'dtw'
     desc = """found the dynamic time wrap for two given time series data"""
+    _builtins = True
 
     def __init__(self):
         super().__init__()
@@ -31,4 +32,4 @@ class _DtwService(AbstractCorrelationService):
                 raise ValueError("radius value out of range, valid range [1, 10]")
 
             self.radius = k
-            app_logger.log_inst.debug("dtw radius is set to: %d", self.radius)
+            AppLogger.debug(f"dtw radius is set to: {self.radius}")
