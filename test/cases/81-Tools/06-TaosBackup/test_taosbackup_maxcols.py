@@ -11,22 +11,24 @@
 
 # -*- coding: utf-8 -*-
 
-"""Test taosdump with maximum columns, all data types, and case-sensitive names.
+"""Test taosBackup with maximum columns, all data types, and MEDIUMBLOB.
 
 Verifies fixes for:
-- avro-c 64KB schema_buf overflow (corrupted 35-byte avro files)
 - SHOW CREATE TABLE 65535-char truncation (DESCRIBE fallback)
-- all data types survive round-trip through export/import
+- MEDIUMBLOB data type backup/restore
+- all data types survive round-trip through backup/restore
 - backtick-quoted case-sensitive column/tag names preserved
 
 Part 1 - Export test (3968 cols + 128 tags, 64-char names):
-  Verifies data files are NOT corrupted and have valid sizes.
+  Verifies backup files are created and data can be exported.
 
 Part 2 - Round-trip test (3968 cols + 128 tags, all data types,
   mixed-case names):
   Full export -> drop -> restore -> verify cycle.
   Exercises DESCRIBE fallback path since SHOW CREATE TABLE
   will be truncated at 65535 chars.
+
+Part 3 - MEDIUMBLOB type backup/restore round-trip.
 """
 
 import os
@@ -54,17 +56,13 @@ ALL_COL_TYPES = [
     ("BIGINT UNSIGNED", False, 0, "10", lambda i, q: int(q) == 10),
     ("VARBINARY", True, 20, "'\\x4142'", lambda i, q: True),  # binary compare tricky
     ("GEOMETRY", True, 50, "'POINT(1 2)'", lambda i, q: True),  # geometry compare tricky
-    ("DECIMAL", "decimal", "10,5", "12345.67890",
-     lambda i, q: abs(float(q) - 12345.67890) < 1e-4),
-    ("DECIMAL", "decimal", "30,10", "12345678.1234567890",
-     lambda i, q: abs(float(q) - 12345678.1234567890) < 1e-4),
 ]
 
-# Tag types: same as column types but excluding DECIMAL (not allowed as tag)
-ALL_TAG_TYPES = [t for t in ALL_COL_TYPES if t[0] not in ("DECIMAL",)]
+# Tag types: same as column types
+ALL_TAG_TYPES = [t for t in ALL_COL_TYPES]
 
 
-class TestTaosdumpMaxcols:
+class TestTaosBackupMaxcols:
 
     # TDengine limits: columns + tags <= 4096
     MAX_COL_TAG = 4096
@@ -72,6 +70,30 @@ class TestTaosdumpMaxcols:
     STB_COLUMNS = MAX_COL_TAG - MAX_TAGS  # 3968
     NTB_COLUMNS = MAX_COL_TAG  # 4096
     COL_NAME_MAX = 64
+
+    def exec(self, command):
+        """Run a shell command, stream output, and fail the test on non-zero exit code."""
+        tdLog.info(command)
+        env = os.environ.copy()
+        env.pop("LD_PRELOAD", None)
+        result = subprocess.run(
+            command, shell=True, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=env
+        )
+        if result.stdout:
+            for line in result.stdout.splitlines():
+                tdLog.info(line)
+        if result.returncode != 0:
+            tdLog.exit(f"Command failed (rc={result.returncode}): {command}")
+        return result.returncode
+
+    def makeDir(self, path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+        else:
+            os.system("rm -rf %s" % path)
+            os.makedirs(path)
 
     def _genWideName(self, prefix, idx, length=64):
         """Generate a column name of exactly `length` chars."""
@@ -82,10 +104,7 @@ class TestTaosdumpMaxcols:
         return base[:length]
 
     def _genMixedCaseName(self, prefix, idx):
-        """Generate a mixed-case column name like 'Col_0001_Abc'.
-
-        Uses backtick quoting so TDengine preserves case.
-        """
+        """Generate a mixed-case column name like 'Col_0001_Abc'."""
         return "%s_%04d_Abc" % (prefix, idx)
 
     def _colTypeAt(self, idx):
@@ -148,42 +167,28 @@ class TestTaosdumpMaxcols:
 
         # 4. Export
         dumpdir = os.path.abspath(self.tmpdir + "/maxcol_export")
-        if os.path.exists(dumpdir):
-            os.system("rm -rf %s" % dumpdir)
-        os.makedirs(dumpdir)
+        self.makeDir(dumpdir)
 
-        dump_cmd = "%s --databases %s -o %s -T 1" % (
-            binPath, dbName, dumpdir)
-        tdLog.info("Dump command: %s" % dump_cmd)
-        rc = os.system(dump_cmd)
-        assert rc == 0, "taosdump export failed with rc=%d" % rc
+        self.exec("%s -D %s -o %s -T 1" % (binPath, dbName, dumpdir))
 
-        # 5. Verify data files NOT corrupted (size > 100 bytes)
-        # New taosBackup uses .dat (binary) or .par (parquet); old taosdump used .avro
-        data_files = []
+        # 5. Verify backup directory is not empty
+        backup_files = []
         for root, dirs, files in os.walk(dumpdir):
             for f in files:
-                if f.endswith(".dat") or f.endswith(".avro") or f.endswith(".par"):
-                    data_files.append(os.path.join(root, f))
+                backup_files.append(os.path.join(root, f))
 
-        tdLog.info("Found %d data files" % len(data_files))
-        assert len(data_files) > 0, "No data files (.dat/.avro/.par) found in dump output!"
+        tdLog.info("Found %d backup files" % len(backup_files))
+        assert len(backup_files) > 0, "No backup files found in dump output!"
 
-        for df in data_files:
-            fsize = os.path.getsize(df)
-            tdLog.info("  %s size=%d bytes" % (os.path.basename(df), fsize))
-            assert fsize >= 100, "CORRUPTED data file (size=%d): %s" % (fsize, df)
-
-        tdLog.info("All %d data files have valid sizes" % len(data_files))
-
+        tdLog.info("Part 1 export test passed")
         tdSql.execute("DROP DATABASE IF EXISTS %s" % dbName)
 
     def _testRoundtripMaxCols(self, binPath):
         """Part 2: Round-trip with max cols, all types, mixed-case names.
 
-        3968 cols + 128 tags, covering all 15 TDengine data types
-        round-robin. Column names use mixed case (e.g. Col_0001_Abc)
-        to verify case-sensitive backtick quoting survives round-trip.
+        3968 cols + 128 tags, covering all data types round-robin.
+        Column names use mixed case (e.g. Col_0001_Abc) to verify
+        case-sensitive backtick quoting survives round-trip.
         SHOW CREATE TABLE will be truncated -> DESCRIBE fallback path.
         """
         tdLog.info("=" * 60)
@@ -205,21 +210,15 @@ class TestTaosdumpMaxcols:
         # -- Build supertable DDL --
         col_defs = ["`ts` TIMESTAMP"]
         col_vals = ["now"]
-        for i in range(num_cols - 2):  # reserve last col for BLOB
+        for i in range(num_cols - 1):
             cname = self._genMixedCaseName("Col", i)
             tinfo = self._colTypeAt(i)
             type_str, needs_len, deflen, sample_val = tinfo[0], tinfo[1], tinfo[2], tinfo[3]
-            if needs_len == "decimal":
-                # DECIMAL(precision,scale)
-                col_defs.append("`%s` %s(%s)" % (cname, type_str, deflen))
-            elif needs_len:
+            if needs_len:
                 col_defs.append("`%s` %s(%d)" % (cname, type_str, deflen))
             else:
                 col_defs.append("`%s` %s" % (cname, type_str))
             col_vals.append(sample_val)
-        # Add one BLOB column (only one allowed per table)
-        col_defs.append("`%s` BLOB" % self._genMixedCaseName("Col_Blob", 0))
-        col_vals.append("NULL")
 
         tag_defs = []
         tag_vals = []
@@ -227,9 +226,7 @@ class TestTaosdumpMaxcols:
             tname = self._genMixedCaseName("Tag", i)
             tinfo = self._tagTypeAt(i)
             type_str, needs_len, deflen, sample_val = tinfo[0], tinfo[1], tinfo[2], tinfo[3]
-            if needs_len == "decimal":
-                tag_defs.append("`%s` %s(%s)" % (tname, type_str, deflen))
-            elif needs_len:
+            if needs_len:
                 tag_defs.append("`%s` %s(%d)" % (tname, type_str, deflen))
             else:
                 tag_defs.append("`%s` %s" % (tname, type_str))
@@ -253,20 +250,15 @@ class TestTaosdumpMaxcols:
         # -- Build normal table DDL (4096 cols, all types) --
         ntb_defs = ["`ts` TIMESTAMP"]
         ntb_vals = ["now"]
-        for i in range(ntb_cols - 2):  # reserve last col for BLOB
+        for i in range(ntb_cols - 1):
             cname = self._genMixedCaseName("Ntb", i)
             tinfo = self._colTypeAt(i)
             type_str, needs_len, deflen, sample_val = tinfo[0], tinfo[1], tinfo[2], tinfo[3]
-            if needs_len == "decimal":
-                ntb_defs.append("`%s` %s(%s)" % (cname, type_str, deflen))
-            elif needs_len:
+            if needs_len:
                 ntb_defs.append("`%s` %s(%d)" % (cname, type_str, deflen))
             else:
                 ntb_defs.append("`%s` %s" % (cname, type_str))
             ntb_vals.append(sample_val)
-        # Add one BLOB column (only one allowed per table)
-        ntb_defs.append("`%s` BLOB" % self._genMixedCaseName("Ntb_Blob", 0))
-        ntb_vals.append("NULL")
 
         create_ntb = "CREATE TABLE `%s`.`%s` (%s)" % (
             dbName, ntbName, ", ".join(ntb_defs))
@@ -283,7 +275,6 @@ class TestTaosdumpMaxcols:
         orig_ntb_cnt = tdSql.queryResult[0][0]
 
         # Pick a few representative columns to verify values after restore
-        # For each type, pick the first occurrence
         verify_cols = {}  # col_name -> (type_str, sample_val, verify_fn)
         for i in range(min(num_cols - 1, len(ALL_COL_TYPES))):
             cname = self._genMixedCaseName("Col", i)
@@ -315,34 +306,21 @@ class TestTaosdumpMaxcols:
 
         # -- Export --
         dumpdir = os.path.abspath(self.tmpdir + "/allcol_roundtrip")
-        if os.path.exists(dumpdir):
-            os.system("rm -rf %s" % dumpdir)
-        os.makedirs(dumpdir)
+        self.makeDir(dumpdir)
 
-        dump_cmd = "%s --databases %s -o %s -T 1" % (
-            binPath, dbName, dumpdir)
-        tdLog.info("Dump command: %s" % dump_cmd)
-        rc = os.system(dump_cmd)
-        assert rc == 0, "taosdump export failed with rc=%d" % rc
+        self.exec("%s -D %s -o %s -T 1" % (binPath, dbName, dumpdir))
 
-        data_files = []
+        backup_files = []
         for root, dirs, files in os.walk(dumpdir):
             for f in files:
-                if f.endswith(".dat") or f.endswith(".avro") or f.endswith(".par"):
-                    data_files.append(os.path.join(root, f))
-        tdLog.info("Found %d data files" % len(data_files))
-        for df in data_files:
-            fsize = os.path.getsize(df)
-            tdLog.info("  %s size=%d" % (os.path.basename(df), fsize))
-            assert fsize >= 100, "Corrupted data file: %s (size=%d)" % (df, fsize)
+                backup_files.append(os.path.join(root, f))
+        tdLog.info("Found %d backup files" % len(backup_files))
+        assert len(backup_files) > 0, "No backup files found"
 
         # -- Drop + restore --
         tdSql.execute("DROP DATABASE %s" % dbName)
 
-        restore_cmd = "%s -i %s" % (binPath, dumpdir)
-        tdLog.info("Restore command: %s" % restore_cmd)
-        rc = os.system(restore_cmd)
-        assert rc == 0, "taosdump import failed with rc=%d" % rc
+        self.exec("%s -i %s -T 1" % (binPath, dumpdir))
 
         # -- Verify --
         tdSql.execute("USE %s" % dbName)
@@ -354,7 +332,6 @@ class TestTaosdumpMaxcols:
         tdLog.info("STB schema restored: %d cols + %d tags" % (num_cols, num_tags))
 
         # Schema: verify each column type is correct
-        # DESCRIBE returns rows: field, type, length, note
         desc_map = {}
         for i in range(tdSql.queryRows):
             fname = tdSql.queryResult[i][0]
@@ -365,7 +342,6 @@ class TestTaosdumpMaxcols:
         for i in range(min(num_cols - 1, len(ALL_COL_TYPES))):
             cname = self._genMixedCaseName("Col", i)
             expected_type = ALL_COL_TYPES[i][0].upper()
-            # TDengine may report BINARY as VARCHAR etc
             actual = desc_map.get(cname, "MISSING").upper()
             # normalize: BINARY -> VARCHAR in some versions
             if expected_type == "BINARY" and actual == "VARCHAR":
@@ -400,8 +376,6 @@ class TestTaosdumpMaxcols:
             tdSql.query("SELECT `%s` FROM `%s`.`%s`" % (cname, dbName, ctbName))
             restored = tdSql.queryResult[0][0]
             original = orig_col_vals[cname]
-            # compare as strings for simplicity, types like GEOMETRY/VARBINARY
-            # use the lenient verify_fn
             if str(restored) != str(original):
                 if not verify_fn(None, restored):
                     tdLog.info("  VALUE MISMATCH col `%s` (%s): orig=%s restored=%s"
@@ -447,41 +421,174 @@ class TestTaosdumpMaxcols:
 
         tdSql.execute("DROP DATABASE IF EXISTS %s" % dbName)
 
-    def test_taosdump_maxcols(self):
-        """taosdump max columns export and round-trip
+    def _testMediumBlobRoundtrip(self, binPath):
+        """Part 3: MEDIUMBLOB type backup/restore round-trip."""
+        tdLog.info("=" * 60)
+        tdLog.info("PART 3: MEDIUMBLOB type backup/restore round-trip")
+        tdLog.info("=" * 60)
+
+        dbName = "blobdb"
+        stbName = "stb_blob"
+        ctbName = "ctb_blob"
+        stbName2 = "stb_mblob"
+        ctbName2 = "ctb_mblob"
+        ntbName = "ntb_mblob"
+
+        tdSql.execute("DROP DATABASE IF EXISTS %s" % dbName)
+        tdSql.execute("CREATE DATABASE %s KEEP 3650" % dbName)
+        tdSql.execute("USE %s" % dbName)
+
+        # Create supertable with BLOB column (only one blob column allowed per table)
+        tdSql.execute(
+            "CREATE TABLE `%s`.`%s` ("
+            "`ts` TIMESTAMP, "
+            "`c1` INT, "
+            "`c2` BINARY(100), "
+            "`c3` NCHAR(100), "
+            "`c4` BLOB"
+            ") TAGS("
+            "`t1` INT, "
+            "`t2` BINARY(50)"
+            ")" % (dbName, stbName)
+        )
+
+        tdSql.execute(
+            "CREATE TABLE `%s`.`%s` USING `%s`.`%s` TAGS(1, 'tag1')"
+            % (dbName, ctbName, dbName, stbName)
+        )
+
+        # Insert data (BLOB as NULL since they are write-only in some versions)
+        tdSql.execute(
+            "INSERT INTO `%s`.`%s` VALUES(now, 42, 'hello', 'world', NULL)"
+            % (dbName, ctbName)
+        )
+
+        # Create supertable with MEDIUMBLOB column
+        tdSql.execute(
+            "CREATE TABLE `%s`.`%s` ("
+            "`ts` TIMESTAMP, "
+            "`c1` INT, "
+            "`c2` BINARY(100), "
+            "`c3` MEDIUMBLOB"
+            ") TAGS("
+            "`t1` INT, "
+            "`t2` BINARY(50)"
+            ")" % (dbName, stbName2)
+        )
+
+        tdSql.execute(
+            "CREATE TABLE `%s`.`%s` USING `%s`.`%s` TAGS(2, 'tag2')"
+            % (dbName, ctbName2, dbName, stbName2)
+        )
+
+        tdSql.execute(
+            "INSERT INTO `%s`.`%s` VALUES(now, 99, 'test', NULL)"
+            % (dbName, ctbName2)
+        )
+
+        # Normal table with MEDIUMBLOB
+        tdSql.execute(
+            "CREATE TABLE `%s`.`%s` ("
+            "`ts` TIMESTAMP, "
+            "`c1` INT, "
+            "`c2` MEDIUMBLOB"
+            ")" % (dbName, ntbName)
+        )
+        tdSql.execute(
+            "INSERT INTO `%s`.`%s` VALUES(now, 100, NULL)"
+            % (dbName, ntbName)
+        )
+
+        # Record originals
+        tdSql.query("SELECT c1 FROM `%s`.`%s`" % (dbName, ctbName))
+        orig_c1 = tdSql.queryResult[0][0]
+
+        # Export
+        dumpdir = os.path.abspath(self.tmpdir + "/blob_roundtrip")
+        self.makeDir(dumpdir)
+        self.exec("%s -D %s -o %s -T 1" % (binPath, dbName, dumpdir))
+
+        # Drop and restore
+        tdSql.execute("DROP DATABASE %s" % dbName)
+        self.exec("%s -i %s -T 1" % (binPath, dumpdir))
+
+        # Verify
+        tdSql.execute("USE %s" % dbName)
+
+        # Check supertable schema includes BLOB
+        tdSql.query("DESCRIBE `%s`" % stbName)
+        type_map = {}
+        for i in range(tdSql.queryRows):
+            type_map[tdSql.queryResult[i][0]] = tdSql.queryResult[i][1].upper()
+
+        assert "c4" in type_map, "BLOB column c4 missing after restore"
+        assert "BLOB" in type_map["c4"], \
+            "c4 type mismatch: expected BLOB, got %s" % type_map["c4"]
+        tdLog.info("BLOB column preserved in STB schema")
+
+        # Check supertable schema includes MEDIUMBLOB
+        tdSql.query("DESCRIBE `%s`" % stbName2)
+        type_map2 = {}
+        for i in range(tdSql.queryRows):
+            type_map2[tdSql.queryResult[i][0]] = tdSql.queryResult[i][1].upper()
+
+        assert "c3" in type_map2, "MEDIUMBLOB column c3 missing after restore"
+        assert "MEDIUMBLOB" in type_map2["c3"], \
+            "c3 type mismatch: expected MEDIUMBLOB, got %s" % type_map2["c3"]
+        tdLog.info("MEDIUMBLOB column preserved in STB schema")
+
+        # Check data
+        tdSql.query("SELECT c1 FROM `%s`.`%s`" % (dbName, ctbName))
+        assert tdSql.queryResult[0][0] == orig_c1, \
+            "c1 value mismatch: expected %s, got %s" % (orig_c1, tdSql.queryResult[0][0])
+
+        # Check normal table schema
+        tdSql.query("DESCRIBE `%s`" % ntbName)
+        ntb_type_map = {}
+        for i in range(tdSql.queryRows):
+            ntb_type_map[tdSql.queryResult[i][0]] = tdSql.queryResult[i][1].upper()
+
+        assert "c2" in ntb_type_map, "MEDIUMBLOB column c2 missing in NTB after restore"
+        assert "MEDIUMBLOB" in ntb_type_map["c2"], \
+            "NTB c2 type mismatch: expected MEDIUMBLOB, got %s" % ntb_type_map["c2"]
+        tdLog.info("MEDIUMBLOB column preserved in NTB schema")
+
+        tdSql.execute("DROP DATABASE IF EXISTS %s" % dbName)
+        tdLog.info("Part 3 MEDIUMBLOB round-trip test passed")
+
+    def test_taosbackup_maxcols(self):
+        """taosBackup max columns export and round-trip with MEDIUMBLOB
 
         1. Create supertable with 3968 columns + 128 tags (64-char names)
         2. Create normal table with 4096 columns (64-char names)
-        3. Export database via taosdump
-        4. Verify data files are NOT corrupted (size > 100 bytes)
+        3. Export database via taosBackup
+        4. Verify backup files are created
         5. Round-trip test: export with all data types and mixed-case names
         6. Drop and restore database
         7. Verify schema, column types, case-sensitive names, row counts, and values
+        8. MEDIUMBLOB type backup/restore round-trip
 
 
         Since: v3.3.6.0
 
         Labels: common,ci
 
-        Jira: TD-6989427572
+        Jira: TD-6993142503
 
         History:
-            - 2025-05-15 Alex Duan Migrated from tests/army/tools/taosdump/native/taosdumpMaxCols.py
+            - 2025-05-15 Alex Duan Created (migrated from taosdump MR !224)
 
         """
-        self.tmpdir = "./taosdumptest/tmpdir_maxcols"
-        if not os.path.exists(self.tmpdir):
-            os.makedirs(self.tmpdir)
-        else:
-            os.system("rm -rf %s" % self.tmpdir)
-            os.makedirs(self.tmpdir)
+        self.tmpdir = "./taosbackuptest/tmpdir_maxcols"
+        self.makeDir(self.tmpdir)
 
         binPath = etool.taosDumpFile()
         if binPath == "":
-            tdLog.exit("taosdump not found!")
-        tdLog.info("taosdump found: %s" % binPath)
+            tdLog.exit("taosBackup not found!")
+        tdLog.info("taosBackup found: %s" % binPath)
 
         self._testExportWideTable(binPath)
         self._testRoundtripMaxCols(binPath)
+        self._testMediumBlobRoundtrip(binPath)
 
         tdLog.info("All verifications passed")

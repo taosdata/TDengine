@@ -229,7 +229,9 @@ static int restoreStbSql(const char *dbName) {
 
         if (lineLen > 0) {
             // Add database prefix: "CREATE STABLE `tbl`" -> "CREATE STABLE `db`.`tbl`"
-            char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+            // Allocate based on actual line length (DDL can exceed TSDB_MAX_SQL_LEN)
+            int fullSqlSize = lineLen + TSDB_DB_NAME_LEN + 16;
+            char *fullSql = (char *)taosMemoryMalloc(fullSqlSize);
             if (fullSql == NULL) {
                 code = TSDB_CODE_BCK_MALLOC_FAILED;
                 break;
@@ -243,10 +245,10 @@ static int restoreStbSql(const char *dbName) {
                 // nameStart now points to "`tableName`"
                 int prefixLen = nameStart - line;
                 const char *targetDb = argRenameDb(dbName);
-                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%.*s`%s`.%s",
+                snprintf(fullSql, fullSqlSize, "%.*s`%s`.%s",
                          prefixLen, line, targetDb, nameStart);
             } else {
-                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%s", line);
+                snprintf(fullSql, fullSqlSize, "%s", line);
             }
 
             logDebug("restore stb sql: %s", fullSql);
@@ -328,7 +330,9 @@ static int restoreNtbSql(const char *dbName) {
         }
 
         if (lineLen > 0) {
-            char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+            // Allocate based on actual line length (DDL can exceed TSDB_MAX_SQL_LEN)
+            int fullSqlSize = lineLen + TSDB_DB_NAME_LEN + 16;
+            char *fullSql = (char *)taosMemoryMalloc(fullSqlSize);
             if (fullSql == NULL) {
                 code = TSDB_CODE_BCK_MALLOC_FAILED;
                 break;
@@ -341,10 +345,10 @@ static int restoreNtbSql(const char *dbName) {
                 while (*nameStart == ' ') nameStart++;
                 int prefixLen = nameStart - line;
                 const char *targetDb = argRenameDb(dbName);
-                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%.*s`%s`.%s",
+                snprintf(fullSql, fullSqlSize, "%.*s`%s`.%s",
                          prefixLen, line, targetDb, nameStart);
             } else {
-                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%s", line);
+                snprintf(fullSql, fullSqlSize, "%s", line);
             }
 
             TAOS_RES *res = taos_query(conn, fullSql);
@@ -379,31 +383,31 @@ static int restoreNtbSql(const char *dbName) {
 // -------------------------------------- META: VTB SQL -----------------------------------------
 //
 
-// Replace all occurrences of srcPat with dstPat in buf (in-place, buf must have TSDB_MAX_SQL_LEN capacity)
-static void replaceAllInSql(char *buf, const char *srcPat, const char *dstPat) {
+// Replace all occurrences of srcPat with dstPat in buf (in-place, buf must have bufSize capacity)
+static void replaceAllInSql(char *buf, int bufSize, const char *srcPat, const char *dstPat) {
     int srcLen = (int)strlen(srcPat);
     int dstLen = (int)strlen(dstPat);
     if (srcLen == 0 || strcmp(srcPat, dstPat) == 0) return;
 
-    char *tmp = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    char *tmp = (char *)taosMemoryMalloc(bufSize);
     if (!tmp) return;
 
     int inPos = 0, outPos = 0;
     int totalLen = (int)strlen(buf);
     while (inPos < totalLen) {
         if (inPos <= totalLen - srcLen && memcmp(buf + inPos, srcPat, srcLen) == 0) {
-            if (outPos + dstLen < TSDB_MAX_SQL_LEN - 1) {
+            if (outPos + dstLen < bufSize - 1) {
                 memcpy(tmp + outPos, dstPat, dstLen);
                 outPos += dstLen;
             }
             inPos += srcLen;
         } else {
-            if (outPos < TSDB_MAX_SQL_LEN - 1) tmp[outPos++] = buf[inPos];
+            if (outPos < bufSize - 1) tmp[outPos++] = buf[inPos];
             inPos++;
         }
     }
     tmp[outPos] = '\0';
-    snprintf(buf, TSDB_MAX_SQL_LEN, "%s", tmp);
+    snprintf(buf, bufSize, "%s", tmp);
     taosMemoryFree(tmp);
 }
 
@@ -958,7 +962,10 @@ static int restoreVtbSql(const char *dbName) {
             while (*nameStart == ' ') nameStart++;
             int prefixLen = (int)(nameStart - line);
 
-            char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+            // Allocate based on actual line length (VTB DDL can exceed TSDB_MAX_SQL_LEN)
+            // Use 2x lineLen to leave room for db-rename replacements
+            int fullSqlSize = lineLen * 2 + 16;
+            char *fullSql = (char *)taosMemoryMalloc(fullSqlSize);
             if (fullSql == NULL) {
                 code = TSDB_CODE_BCK_MALLOC_FAILED;
                 break;
@@ -979,7 +986,7 @@ static int restoreVtbSql(const char *dbName) {
                 char *stbNameStart = usingPos + strlen(" USING ");
                 while (*stbNameStart == ' ') stbNameStart++;
 
-                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%.*s`%s`.%.*s%.*s USING `%s`.%s",
+                snprintf(fullSql, fullSqlSize, "%.*s`%s`.%.*s%.*s USING `%s`.%s",
                          prefixLen, line,
                          targetDb,
                          vtbLen, nameStart,
@@ -987,7 +994,7 @@ static int restoreVtbSql(const char *dbName) {
                          targetDb,
                          stbNameStart);
             } else {
-                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%.*s`%s`.%s",
+                snprintf(fullSql, fullSqlSize, "%.*s`%s`.%s",
                          prefixLen, line, targetDb, nameStart);
             }
 
@@ -997,7 +1004,7 @@ static int restoreVtbSql(const char *dbName) {
                 char dstPat[TSDB_DB_NAME_LEN + 5];
                 snprintf(srcPat, sizeof(srcPat), "`%s`.", dbName);
                 snprintf(dstPat, sizeof(dstPat), "`%s`.", targetDb);
-                replaceAllInSql(fullSql, srcPat, dstPat);
+                replaceAllInSql(fullSql, fullSqlSize, srcPat, dstPat);
             }
 
             if (isChildSkeleton) {

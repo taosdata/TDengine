@@ -796,6 +796,7 @@ int64_t avroRestoreDataImpl(AvroRestoreCtx *ctx,
                     case TSDB_DATA_TYPE_VARBINARY:
                     case TSDB_DATA_TYPE_GEOMETRY:
                     case TSDB_DATA_TYPE_BLOB:
+                    case TSDB_DATA_TYPE_MEDIUMBLOB:
                         extractDataBytes(fi, &fieldVal, &colBufs[n], rowIdx);
                         break;
                     case TSDB_DATA_TYPE_UTINYINT:

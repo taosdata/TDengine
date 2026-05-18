@@ -132,6 +132,23 @@ TaosFile* createTaosFile(const char *fileName, TAOS_FIELD_E* fields, int numFiel
 }
 */
 
+static void destroyTaosFile(TaosFile* taosFile) {
+    if (taosFile == NULL) return;
+    if (taosFile->fp) {
+        taosCloseFile(&taosFile->fp);
+        taosFile->fp = NULL;
+    }
+    if (taosFile->writeBuf && taosFile->writeBufOwned) {
+        taosMemoryFree(taosFile->writeBuf);
+        taosFile->writeBuf = NULL;
+    }
+    if (taosFile->compressBuf) {
+        taosMemoryFree(taosFile->compressBuf);
+        taosFile->compressBuf = NULL;
+    }
+    taosMemoryFree(taosFile);
+}
+
 int closeTaosFile(TaosFile* taosFile) {
     if (taosFile == NULL) {
         return TSDB_CODE_BCK_INVALID_PARAM;
@@ -143,9 +160,7 @@ int closeTaosFile(TaosFile* taosFile) {
             int flushCode = flushWriteBuffer(taosFile);
             if (flushCode != TSDB_CODE_SUCCESS) {
                 logError("flush write buffer failed: %s", taosFile->fileName);
-                taosCloseFile(&taosFile->fp);
-                taosFile->fp = NULL;
-                taosMemoryFree(taosFile);
+                destroyTaosFile(taosFile);
                 return flushCode;
             }
         }
@@ -156,9 +171,7 @@ int closeTaosFile(TaosFile* taosFile) {
         int code = (wl == sizeof(TaosFileHeader)) ? TSDB_CODE_SUCCESS : TSDB_CODE_BCK_WRITE_FILE_FAILED;
         if (code != TSDB_CODE_SUCCESS) {
             logError("update taos file header failed: %s", taosFile->fileName);
-            if (taosFile->fp) taosCloseFile(&taosFile->fp);
-            taosFile->fp = NULL;
-            taosMemoryFree(taosFile);
+            destroyTaosFile(taosFile);
             return code;
         }
         // close file
@@ -166,21 +179,7 @@ int closeTaosFile(TaosFile* taosFile) {
         taosFile->fp = NULL;
     }
 
-    // free write buffer (only if owned)
-    if (taosFile->writeBuf && taosFile->writeBufOwned) {
-        taosMemoryFree(taosFile->writeBuf);
-        taosFile->writeBuf = NULL;
-    }
-
-    // free compress buffer
-    if (taosFile->compressBuf) {
-        taosMemoryFree(taosFile->compressBuf);
-        taosFile->compressBuf = NULL;
-    }
-
-    // free memory
-    taosMemoryFree(taosFile);
-
+    destroyTaosFile(taosFile);
     return TSDB_CODE_SUCCESS;
 }
 
