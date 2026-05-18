@@ -902,3 +902,320 @@ class TestTrueFor:
             time.sleep(1)
             tdSql.query("select ts, te, cnt from out_o9 order by ts")
             tdSql.checkRows(0)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # test_truefor_query_event_window
+    # ════════════════════════════════════════════════════════════════════════
+
+    def test_truefor_query_event_window(self):
+        """true_for start/end streak tests for direct SELECT EVENT_WINDOW queries.
+
+        Catalog:
+            - Streams:Others
+
+        Since: v3.3.3.x
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-05-16 Created
+
+        Unlike stream tests, these use synchronous SELECT … EVENT_WINDOW queries
+        (no CREATE STREAM).  Results are available immediately after INSERT, so
+        no retry loop is needed.
+
+        Query syntax used:
+            SELECT _wstart, _wend, count(voltage) cnt
+            FROM <table>
+            EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220
+            true_for(…)
+
+        Test cases:
+            q1  start(count 2)              : window opens only after 2 consecutive start rows
+            q2  end(count 2)                : window closes only after 2 consecutive end rows
+            q3  start(count 2), end(count 2): both conditions require independent streaks
+            q4  start(2s), end(2s)          : duration-based streaks (2 s timestamp spacing)
+            q5  count 3                     : window_limit — window with < 3 rows is dropped
+        """
+
+        tdSql.execute("create database qdb vgroups 1")
+        tdSql.execute("use qdb")
+        tdSql.execute(
+            "create table tb_q (ts timestamp, voltage int)"
+        )
+
+        # ── q1: start(count 2) ───────────────────────────────────────────────
+        # t01=221 streak=1; t02=100 reset; t03=222 streak=1(firstTs=t03);
+        # t04=223 streak=2 → open skey=t03; t05=100 → close ekey=t05 cnt=3
+        # t06=221 streak=1(firstTs=t06); t07=222 streak=2 → open skey=t06;
+        # t08=100 → close ekey=t08 cnt=3
+        # Expected: 2 windows
+        tdSql.execute("delete from tb_q")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:01', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:02', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:03', 222);",
+            "insert into tb_q values ('2025-01-01 00:00:04', 223);",
+            "insert into tb_q values ('2025-01-01 00:00:05', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:06', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:07', 222);",
+            "insert into tb_q values ('2025-01-01 00:00:08', 100);",
+        ])
+        tdSql.query(
+            "SELECT _wstart ts, _wend te, count(voltage) cnt FROM tb_q "
+            "EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220 "
+            "true_for(start(count 2)) ORDER BY ts"
+        )
+        tdSql.checkRows(2)
+        tdSql.compareData(0, 0, "2025-01-01 00:00:03.000")
+        tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+        tdSql.compareData(0, 2, 3)
+        tdSql.compareData(1, 0, "2025-01-01 00:00:06.000")
+        tdSql.compareData(1, 1, "2025-01-01 00:00:08.000")
+        tdSql.compareData(1, 2, 3)
+
+        # ── q2: end(count 2) ─────────────────────────────────────────────────
+        # t01=221 open(skey=t01); t02=100 end streak=1(firstTs=t02);
+        # t03=221 reset end streak; t04=100 end streak=1(firstTs=t04);
+        # t05=99  end streak=2 → close ekey=t04 cnt=4 [t01..t04]
+        # Expected: 1 window
+        tdSql.execute("delete from tb_q")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:01', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:02', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:03', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:04', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:05',  99);",
+        ])
+        tdSql.query(
+            "SELECT _wstart ts, _wend te, count(voltage) cnt FROM tb_q "
+            "EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220 "
+            "true_for(end(count 2)) ORDER BY ts"
+        )
+        tdSql.checkRows(1)
+        tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+        tdSql.compareData(0, 1, "2025-01-01 00:00:04.000")
+        tdSql.compareData(0, 2, 4)
+
+        # ── q3: start(count 2) + end(count 2) ───────────────────────────────
+        # t01=221 start streak=1; t02=100 reset; t03=222 streak=1(firstTs=t03);
+        # t04=223 streak=2 → open skey=t03; t05=100 end streak=1(firstTs=t05);
+        # t06=221 reset end streak; t07=100 end streak=1(firstTs=t07);
+        # t08=99  end streak=2 → close ekey=t07 cnt=5 [t03..t07]
+        # Expected: 1 window
+        tdSql.execute("delete from tb_q")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:01', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:02', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:03', 222);",
+            "insert into tb_q values ('2025-01-01 00:00:04', 223);",
+            "insert into tb_q values ('2025-01-01 00:00:05', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:06', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:07', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:08',  99);",
+        ])
+        tdSql.query(
+            "SELECT _wstart ts, _wend te, count(voltage) cnt FROM tb_q "
+            "EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220 "
+            "true_for(start(count 2), end(count 2)) ORDER BY ts"
+        )
+        tdSql.checkRows(1)
+        tdSql.compareData(0, 0, "2025-01-01 00:00:03.000")
+        tdSql.compareData(0, 1, "2025-01-01 00:00:07.000")
+        tdSql.compareData(0, 2, 5)
+
+        # ── q4: start(2s), end(2s) ───────────────────────────────────────────
+        # 2-second timestamp spacing: t02, t04, t06, t08, t10, t12, t14, t16, t18
+        # t02=221 start streak=1(firstTs=t02, dur=0s); t04=100 reset;
+        # t06=222 streak=1(firstTs=t06); t08=223 dur=t08-t06=2s → open skey=t06;
+        # t10=224 in-window; t12=100 end streak=1(firstTs=t12, dur=0s);
+        # t14=221 reset end streak; t16=100 end streak=1(firstTs=t16);
+        # t18=99  dur=t18-t16=2s → close ekey=t16 cnt=6 [t06..t16]
+        # Expected: 1 window
+        tdSql.execute("delete from tb_q")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:02', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:04', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:06', 222);",
+            "insert into tb_q values ('2025-01-01 00:00:08', 223);",
+            "insert into tb_q values ('2025-01-01 00:00:10', 224);",
+            "insert into tb_q values ('2025-01-01 00:00:12', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:14', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:16', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:18',  99);",
+        ])
+        tdSql.query(
+            "SELECT _wstart ts, _wend te, count(voltage) cnt FROM tb_q "
+            "EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220 "
+            "true_for(start(2s), end(2s)) ORDER BY ts"
+        )
+        tdSql.checkRows(1)
+        tdSql.compareData(0, 0, "2025-01-01 00:00:06.000")
+        tdSql.compareData(0, 1, "2025-01-01 00:00:16.000")
+        tdSql.compareData(0, 2, 6)
+
+        # ── q5: count 3 (window_limit) ───────────────────────────────────────
+        # Data: t01=221 open, t02=100 → 2-row window → filtered (< 3 rows)
+        #       t03=222 open(no start_limit), t04=223, t05=224, t06=100 → 4-row window passes
+        # Expected: 1 window (the second one, with 4 rows)
+        tdSql.execute("delete from tb_q")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:01', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:02', 100);",
+            "insert into tb_q values ('2025-01-01 00:00:03', 222);",
+            "insert into tb_q values ('2025-01-01 00:00:04', 223);",
+            "insert into tb_q values ('2025-01-01 00:00:05', 224);",
+            "insert into tb_q values ('2025-01-01 00:00:06', 100);",
+        ])
+        tdSql.query(
+            "SELECT _wstart ts, _wend te, count(voltage) cnt FROM tb_q "
+            "EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220 "
+            "true_for(count 3) ORDER BY ts"
+        )
+        tdSql.checkRows(1)
+        tdSql.compareData(0, 0, "2025-01-01 00:00:03.000")
+        tdSql.compareData(0, 1, "2025-01-01 00:00:06.000")
+        tdSql.compareData(0, 2, 4)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # test_truefor_restart_before_close
+    # ════════════════════════════════════════════════════════════════════════
+
+    def test_truefor_restart_before_close(self):
+        """Restart stream (stop/start) while an end-condition streak is in progress.
+
+        Catalog:
+            - Streams:Others
+
+        Since: v3.3.3.x
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-05-18 Created
+
+        Validates the WAL-rewind checkpoint fix: when a group has an in-progress
+        end streak at checkpoint time, doneVer is rewound to just before the
+        streak's first row so the streak is rebuilt from WAL on restart rather
+        than injected from a stale snapshot.
+
+        Test case r1 (EndStreakRestartBeforeClose):
+            Phase 1 — complete window1 so there is a confirmed output row before
+                       the restart.  This also lets check1 act as a synchronisation
+                       barrier: we only proceed once the stream has processed all
+                       Phase-1 rows.
+            Phase 2 — open window2, insert the FIRST end-streak row (streak=1),
+                       then STOP + START the stream.  The checkpoint taken during
+                       STOP must rewind doneVer to just before the streak's first
+                       WAL entry.  On restart the stream replays that entry and
+                       re-builds streak=1 from scratch.  Window2 must NOT close.
+            Phase 3 — insert the SECOND end-streak row (streak=2); window2 must
+                       now close with the correct skey/ekey/cnt.
+
+        Timeline:
+            t=01 v=221  window1 opens  (skey=01)
+            t=02 v=100  end streak=1   (firstTs=02)
+            t=03 v=99   end streak=2   window1 closes ekey=02, cnt=2
+            ── check1: 1 window ────────────────────────────────────────────
+            t=04 v=221  window2 opens  (skey=04)
+            t=05 v=100  end streak=1   (firstTs=05) ← streak in progress
+            STOP stream  (checkpoint: doneVer rewound to before t=05)
+            START stream (WAL replay from rewound doneVer; t=05 re-processed)
+            ── check2: still 1 window (window2 not closed) ─────────────────
+            t=06 v=99   end streak=2   window2 closes ekey=05, cnt=2
+            ── check3: 2 windows ───────────────────────────────────────────
+        """
+
+        tdStream.checkAll([self.EndStreakRestartBeforeClose()])
+
+    # ── r1: end streak restart before close ─────────────────────────────────
+    class EndStreakRestartBeforeClose(StreamCheckItem):
+
+        def __init__(self):
+            self.db = "db_r1"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create stable meters (ts timestamp, voltage int) tags (gid int);")
+            tdSql.execute("create table tb_r using meters tags(1);")
+            tdSql.execute(
+                "create stream s_restart "
+                "EVENT_WINDOW (START WITH voltage >= 220 END WITH voltage < 220) "
+                "true_for(end(count 2)) "
+                "FROM tb_r PARTITION BY tbname "
+                "INTO out_restart "
+                "AS SELECT _twstart ts, _twend te, count(voltage) cnt FROM %%trows;"
+            )
+
+        def insert1(self):
+            # Phase 1: complete window1.
+            # t=01 → opens window, t=02 → end streak=1, t=03 → end streak=2 → closes.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:01', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:02', 100);",
+                "insert into tb_r values ('2025-01-01 00:00:03',  99);",
+            ])
+
+        def check1(self):
+            # Synchronisation barrier: wait until window1 is confirmed closed.
+            # This guarantees the stream has processed t=01..t=03 before we
+            # proceed to the stop/start phase.
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_restart order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:02.000")
+                and tdSql.compareData(0, 2, 2),
+            )
+
+        def insert2(self):
+            import time
+            # Phase 2: open window2 and advance end streak to count=1.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:04', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:05', 100);",
+            ])
+            # Allow the stream to process these two rows so the in-progress streak
+            # is visible at checkpoint time.
+            time.sleep(3)
+            # Stop the stream: triggers a checkpoint.  Our WAL-rewind fix caps
+            # doneVer to just before t=05's WAL entry.
+            tdSql.execute("stop stream s_restart")
+            # Restart: WAL replay begins from the rewound doneVer, re-processing
+            # t=05 and rebuilding streak=1 naturally.
+            tdSql.execute("start stream s_restart")
+
+        def check2(self):
+            import time
+            # Give the stream time to finish WAL replay after restart.
+            # Window2 is open (skey=04) with end streak=1 but not yet closed.
+            # Output must still show only the original window1.
+            time.sleep(3)
+            tdSql.query("select ts, te, cnt from out_restart order by ts")
+            tdSql.checkRows(1)
+
+        def insert3(self):
+            # Phase 3: deliver the second consecutive end-condition row.
+            # This makes end streak=2, satisfying true_for(end(count 2)).
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:06',  99);",
+            ])
+
+        def check3(self):
+            # Both windows must appear: window1 (t01-t02, cnt=2) and
+            # window2 (t04-t05, cnt=2).
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_restart order by ts",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:02.000")
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(1, 2, 2),
+            )
