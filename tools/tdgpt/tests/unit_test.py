@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 from taosanalytics.algo.imputation import check_freq_param
 from taosanalytics.service_registry import loader, ServiceRegistry
 from taosanalytics.util import convert_results_to_windows, is_white_noise, parse_options, is_stationary, \
-    parse_time_delta_string
+    parse_time_delta_string, validate_pay_load
 
 
 class UtilTest(unittest.TestCase):
@@ -56,17 +56,48 @@ class UtilTest(unittest.TestCase):
         wins = convert_results_to_windows(None, [], 1)
         self.assertListEqual(wins, [])
 
+    @pytest.mark.skip(reason="validate_input_data helper is not implemented in taosanalytics.util")
     def test_validate_input_data(self):
-        pass
+        """placeholder for removed legacy helper."""
 
     def test_validate_pay_load(self):
-        pass
+        valid_payload = {
+            "data": [
+                list(range(10)),
+                list(range(10, 20)),
+            ],
+            "schema": [
+                ["ts", "TIMESTAMP", 8],
+                ["val", "DOUBLE", 8],
+            ],
+        }
+        self.assertIsNone(validate_pay_load(valid_payload))
 
+        with self.assertRaisesRegex(ValueError, '"data" does not exist in request json'):
+            validate_pay_load({})
+
+        with self.assertRaisesRegex(ValueError, "schema is missing"):
+            validate_pay_load({"data": [list(range(10)), list(range(10, 20))]})
+
+        with self.assertRaisesRegex(ValueError, "only one column provided"):
+            validate_pay_load({"data": [list(range(10))], "schema": [["val", "DOUBLE", 8]]})
+
+    @pytest.mark.skip(reason="validate_forecast_input_data helper is not implemented in taosanalytics.util")
     def test_validate_forecast_input_data(self):
-        pass
+        """placeholder for removed legacy helper."""
 
     def test_convert_results_to_windows(self):
-        pass
+        wins, mask = convert_results_to_windows([1, -1, -1, 1], [10, 20, 30, 40], 1)
+        self.assertListEqual(wins, [[20, 30]])
+        self.assertListEqual(mask, [-1])
+
+        more_wins, more_mask = convert_results_to_windows([1, 1, -1, 1], [10, 20, 30, 40], 1)
+        self.assertListEqual(more_wins, [[30, 30]])
+        self.assertListEqual(more_mask, [-1])
+
+        empty_windows = convert_results_to_windows([1, -1], [1000], 1)
+        self.assertIsInstance(empty_windows, list)
+        self.assertListEqual(empty_windows, [])
 
     def test_is_white_noise(self):
         """
