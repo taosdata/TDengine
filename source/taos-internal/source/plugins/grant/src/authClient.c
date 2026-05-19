@@ -248,6 +248,7 @@ static int32_t mndSendAuthReq(SMnode *pMnode, int32_t contLen, void *pCont) {
 
 static void *authHBProcessThread(void *param) {
   setThreadName("auth-hb");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SMnode *pMnode = (SMnode *)param;
 
   uInfo("auth heartbeat process thread started");

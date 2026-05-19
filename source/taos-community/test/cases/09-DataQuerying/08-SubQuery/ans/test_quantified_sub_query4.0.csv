@@ -1372,13 +1372,13 @@ taos> select avg(f1) from st1 SESSION(exists (select f1 from db2.tbx), 1d);
 DB error: syntax error near "exists (select f1 from db2.tbx), 1d);" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 < all (select 0 from st1));
 
-DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+DB error: syntax error near "1 < all (select 0 from st1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 > all (select 0 from st1));
 
-DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+DB error: syntax error near "1 > all (select 0 from st1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(NULL = any (select 2 from st1));
 
-DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(exists (select f1 from db2.tbx));
 
 DB error: syntax error near "exists (select f1 from db2.tbx));" [0x80002600] 

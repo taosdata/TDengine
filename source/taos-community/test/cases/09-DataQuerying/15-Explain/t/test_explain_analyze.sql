@@ -98,3 +98,5 @@ explain analyze verbose true select * from meters where cc = 'a' and cc = 'b'\G;
 explain analyze verbose true select * from meters where cc = 'a' and cc != 'b'\G;
 explain analyze verbose true select * from meters where cc = 'a' and cc2 = 'b'\G;
 explain analyze verbose true select * from meters where cc = 'a' and cc2 != 'b'\G;
+explain analyze verbose true select ts, c2 from (select _rowts ts, c2 from d1 where _rowts >= '2022-05-16 00:01:08.000' and _rowts <= '2022-05-22 00:01:08.000' union all select _rowts ts, c2 from d2 where _rowts >= '2022-05-17 00:01:08.000' and _rowts <= '2022-05-23 00:01:08.000') where ts >= '2022-05-18 00:01:08.000' and ts <= '2022-05-21 00:01:08.000'\G;
+explain analyze verbose true select ts, c2 from (select _rowts ts, c2 from d1 where _rowts >= '2022-05-16 00:01:08.000' and _rowts <= '2022-05-22 00:01:08.000' union all select _rowts ts, c2 from d2 where _rowts >= '2022-05-17 00:01:08.000' and _rowts <= '2022-05-23 00:01:08.000') where ts >= '2022-05-18 00:01:08.000' and ts <= '2022-05-21 00:01:08.000' order by ts desc limit 3\G;

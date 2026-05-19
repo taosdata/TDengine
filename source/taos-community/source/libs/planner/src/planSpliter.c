@@ -928,6 +928,13 @@ static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitI
 
   switch (pWin->winType) {
     case WINDOW_TYPE_INTERVAL:
+      // In projection mode (no agg funcs, only scalar projections), interval window reuses
+      // session/state batch split since it only needs partition-level data without time-alignment
+      // or cross-vnode merge that the normal interval split requires.
+      if (!pWin->pFuncs && pWin->pProjs) {
+        return stbSplSplitSessionOrStateForBatch(pCxt, pInfo);
+      }
+      return stbSplSplitIntervalForBatch(pCxt, pInfo);
     case WINDOW_TYPE_EXTERNAL:
       return stbSplSplitIntervalForBatch(pCxt, pInfo);
     case WINDOW_TYPE_SESSION:
@@ -2409,6 +2416,7 @@ static bool vstbIntervalFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubpl
   (void)pCxt;
   if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode) || LIST_LENGTH(pNode->pChildren) != 1 ||
       WINDOW_TYPE_INTERVAL != ((SWindowLogicNode*)pNode)->winType || NULL == pNode->pParent ||
+      ((SWindowLogicNode*)pNode)->indefRowsFunc ||
       QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pNode->pParent) ||
       DYN_QTYPE_VTB_INTERVAL != ((SDynQueryCtrlLogicNode*)pNode->pParent)->qType ||
       !((SDynQueryCtrlLogicNode*)pNode->pParent)->vtbScan.batchProcessChild ||
@@ -2418,6 +2426,7 @@ static bool vstbIntervalFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubpl
 
   pInfo->pWindow = pNode;
   pInfo->pSubplan = pSubplan;
+
   return true;
 }
 

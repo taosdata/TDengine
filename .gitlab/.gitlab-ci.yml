@@ -108,7 +108,7 @@ variables:
   # ── 基础路径配置（按部署环境修改这两个变量即可）──────────────────────────
   CI_BASE_DIR: "/data1/tdengine-ci"        # CI 工作根目录（workspace、platform、fail-logs 均在此）
   CI_CACHE_DIR: "/data/cache/tsdb-builder" # 构建缓存目录（externals stamps、Docker layer 等）
-  BUILDER_IMAGE_TAG: "latest"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
+  BUILDER_IMAGE_TAG: "0.3.1"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
   BUILDER_SCRIPT_IMAGE: "others:${BUILDER_IMAGE_TAG}" # build.sh --image 参数；切换镜像时改此处即可（如 core:${BUILDER_IMAGE_TAG}）
   BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/others:${BUILDER_IMAGE_TAG}-amd64"
   # ── 调度激进度（0=保守, 1=折中激进[默认], 2=激进）───────────────────────────

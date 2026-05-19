@@ -20,6 +20,7 @@ The list of keywords is as follows:
 | AES_ENCRYPT          | 3.4.0.3+ |
 | AFTER                | |
 | AGGREGATE            | |
+| AGG                  | 3.4.2.0+ |
 | ALIAS                | |
 | ALIVE                | |
 | ALL                  | |
@@ -457,6 +458,7 @@ The list of keywords is as follows:
 |Keyword|Description|
 |----------------------|-|
 | S3MIGRATE            | |
+| SCALAR               | 3.4.2.0+ |
 | SCHEMALESS           | |
 | SCORES               | |
 | SECURITY_LEVEL       | 3.4.1.6+ |

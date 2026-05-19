@@ -1,0 +1,72 @@
+
+taos> use text_union_db;
+Database changed.
+
+taos> DROP STABLE IF EXISTS meters;
+Drop OK, 0 row(s) affected 
+
+taos> CREATE STABLE meters(ts TIMESTAMP, volt INT) TAGS(loc NCHAR(8));
+Create OK, 0 row(s) affected 
+
+taos> CREATE TABLE m1 USING meters TAGS('f1');
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO m1 VALUES ('2026-04-01 00:00:00',100)('2026-04-01 00:01:00',200)('2026-04-01 00:02:00',300);
+Insert OK, 3 row(s) affected 
+
+taos> SELECT * FROM (SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (1,'alpha')(2,'beta') t UNION ALL SELECT id, name FROM TEXT(id INT, name VARCHAR(8)) VALUES (3,'gamma')(4,'delta') t2) sub ORDER BY id;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT * FROM (SELECT ts, name FROM TEXT(ts TIMESTAMP, name VARCHAR(8)) VALUES ('2024-01-01 00:00:00','alpha')('2024-01-02 00:00:00','beta') t UNION ALL SELECT ts, name FROM TEXT(ts TIMESTAMP, name VARCHAR(8)) VALUES ('2024-01-03 00:00:00','gamma')('2024-01-04 00:00:00','delta') t2) sub ORDER BY ts;
+           ts            |    name    |
+=======================================
+ 2024-01-01 00:00:00.000 | alpha      |
+ 2024-01-02 00:00:00.000 | beta       |
+ 2024-01-03 00:00:00.000 | gamma      |
+ 2024-01-04 00:00:00.000 | delta      |
+
+taos> SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (1)(2)(2) t UNION SELECT id FROM TEXT(id INT) VALUES (2)(3) t2) sub ORDER BY id;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT * FROM (SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t UNION SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-02 00:00:00',2)('2024-01-03 00:00:00',3) t2) sub ORDER BY id;
+           ts            |     id      |
+========================================
+ 2024-01-01 00:00:00.000 |           1 |
+ 2024-01-02 00:00:00.000 |           2 |
+ 2024-01-03 00:00:00.000 |           3 |
+
+taos> SELECT * FROM (SELECT volt FROM TEXT(volt INT) VALUES (400)(500) t UNION ALL SELECT volt FROM m1) sub ORDER BY volt;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT * FROM (SELECT ts, volt FROM TEXT(ts TIMESTAMP, volt INT) VALUES ('2026-04-01 00:03:00',400)('2026-04-01 00:04:00',500) t UNION ALL SELECT ts, volt FROM m1) sub ORDER BY volt, ts;
+           ts            |    volt     |
+========================================
+ 2026-04-01 00:00:00.000 |         100 |
+ 2026-04-01 00:01:00.000 |         200 |
+ 2026-04-01 00:02:00.000 |         300 |
+ 2026-04-01 00:03:00.000 |         400 |
+ 2026-04-01 00:04:00.000 |         500 |
+
+taos> SELECT * FROM (SELECT id FROM TEXT(id INT) VALUES (3)(1) t UNION ALL SELECT id FROM TEXT(id INT) VALUES (4)(2) t2) sub ORDER BY id;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT * FROM (SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1) t UNION ALL SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-04 00:00:00',4)('2024-01-02 00:00:00',2) t2) sub ORDER BY id;
+           ts            |     id      |
+========================================
+ 2024-01-01 00:00:00.000 |           1 |
+ 2024-01-02 00:00:00.000 |           2 |
+ 2024-01-03 00:00:00.000 |           3 |
+ 2024-01-04 00:00:00.000 |           4 |
+
+taos> SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (1,10)(1,20)(2,30) t GROUP BY id UNION ALL SELECT id, COUNT(*) cnt FROM TEXT(id INT, val INT) VALUES (3,40)(3,50) t2 GROUP BY id ORDER BY id;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, id, COUNT(*) cnt FROM TEXT(ts TIMESTAMP, id INT, val INT) VALUES ('2024-01-01 00:00:00',1,10)('2024-01-01 00:00:01',1,20)('2024-01-01 00:00:02',2,30) t GROUP BY ts, id UNION ALL SELECT ts, id, COUNT(*) cnt FROM TEXT(ts TIMESTAMP, id INT, val INT) VALUES ('2024-01-01 00:00:03',3,40)('2024-01-01 00:00:04',3,50) t2 GROUP BY ts, id ORDER BY id, ts;
+           ts            |     id      |          cnt          |
+================================================================
+ 2024-01-01 00:00:00.000 |           1 |                     1 |
+ 2024-01-01 00:00:01.000 |           1 |                     1 |
+ 2024-01-01 00:00:02.000 |           2 |                     1 |
+ 2024-01-01 00:00:03.000 |           3 |                     1 |
+ 2024-01-01 00:00:04.000 |           3 |                     1 |
+

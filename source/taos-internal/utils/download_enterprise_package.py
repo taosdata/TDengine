@@ -42,7 +42,8 @@ class EnterprisePackageDownloader:
         # Supported enterprise versions
         self.supported_versions = [
             "3.3.3.0", "3.3.4.0", "3.3.5.0", "3.3.6.0",
-            "3.3.7.9", "3.3.8.5", "3.3.8.6"
+            "3.3.7.9", "3.3.8.5", "3.3.8.6",
+            "3.4.1.0"
         ]
     
     def get_package_name(self, version, package_type="enterprise"):

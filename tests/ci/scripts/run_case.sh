@@ -177,7 +177,7 @@ mkdir -p "${WORK_DIR}"
 # 使用 marker 文件 + requirements.txt 的 mtime 判断是否需要重新安装
 _DEPS_MARKER="${TEST_DIR}/.deps_installed"
 if [[ ! -f "${_DEPS_MARKER}" ]] || \
-   [[ "${TEST_DIR}/requirements.txt" -nt "${_DEPS_MARKER}" ]]; then
+   [[  "${TEST_DIR}/requirements.txt" -nt "${_DEPS_MARKER}" ]]; then
     echo "[run_case] Installing test dependencies..."
     pip3 install -r "${TEST_DIR}/requirements.txt" -q \
         -i https://pypi.tuna.tsinghua.edu.cn/simple \

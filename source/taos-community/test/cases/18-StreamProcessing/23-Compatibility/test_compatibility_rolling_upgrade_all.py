@@ -119,7 +119,7 @@ class TestCompatibilityRollingUpgradeAll:
         cPaths = self.getDnodePaths()
         
         # Stop all dnodes
-        tdCb.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         
         # Install old version for rolling upgrade
         baseVersionExist = tdCb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)

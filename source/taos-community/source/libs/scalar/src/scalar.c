@@ -2066,7 +2066,8 @@ void sclGetValueNodeSrcTable(SNode *pNode, char **ppSrcTable, bool *multiTable) 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) {
+  if ((!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) ||
+      fmIsVolatileFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -2833,11 +2834,16 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
 
   int32_t    code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
+
+  void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
+  sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
   if (NULL != pExtra) {
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
     ctx.fetchFp = pExtra->fp;
+    gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
   }
   
   // TODO: OPT performance
@@ -2879,6 +2885,8 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
   }
 
 _return:
+  gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
+  gTaskScalarExtra.isTaskKilled = savedIsKilled;
   sclFreeRes(ctx.pRes);
   return code;
 }

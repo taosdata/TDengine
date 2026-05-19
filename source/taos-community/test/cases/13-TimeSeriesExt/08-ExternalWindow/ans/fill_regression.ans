@@ -1,0 +1,56 @@
+
+taos> use test;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(none) order by ws;
+          ws           |           c           |
+================================================
+         1700400000000 |                     3 |
+         1700400300000 |                     4 |
+         1700400600000 |                     2 |
+         1700400900000 |                     2 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(null) order by ws;
+          ws           |           c           |
+================================================
+         1700400000000 |                     3 |
+         1700400300000 |                     4 |
+         1700400600000 |                     2 |
+         1700400900000 |                     2 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v) as sv from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(value, 0, 0) order by ws;
+          ws           |           c           |          sv           |
+========================================================================
+         1700400000000 |                     3 |                    41 |
+         1700400300000 |                     4 |                    68 |
+         1700400600000 |                     2 |                    37 |
+         1700400900000 |                     2 |                    39 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(prev) order by ws;
+          ws           |           c           |
+================================================
+         1700400000000 |                     3 |
+         1700400300000 |                     4 |
+         1700400600000 |                     2 |
+         1700400900000 |                     2 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) fill(next) order by ws;
+          ws           |           c           |
+================================================
+         1700400000000 |                     3 |
+         1700400300000 |                     4 |
+         1700400600000 |                     2 |
+         1700400900000 |                     2 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w) fill(null) order by t1, ws;
+     t1      |          ws           |           c           |
+==============================================================
+           1 |         1700400000000 |                     2 |
+           1 |         1700400300000 |                     2 |
+           1 |         1700400600000 |                     1 |
+           1 |         1700400900000 |                     1 |
+           2 |         1700400000000 |                     1 |
+           2 |         1700400300000 |                     2 |
+           2 |         1700400600000 |                     1 |
+           2 |         1700400900000 |                     1 |
+
