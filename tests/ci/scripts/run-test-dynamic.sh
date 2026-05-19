@@ -536,16 +536,27 @@ process_finished_slot() {
                 echo "${_core_files}" | xargs -r ls -lh 2>/dev/null || true
                 local _core_size_kb
                 _core_size_kb=$(echo "${_core_files}" | xargs -r du -sk 2>/dev/null | awk '{s+=$1}END{print s+0}')
+                # 始终把 core 文件保留到 FAIL_RETAIN_DIR（不被 after_script 清理）
+                # 小文件（<300MB）同时 cp 到 CI artifact；大文件只做 hardlink（零额外空间）
+                local _core_dest="${CASE_LOGS_DIR}/coredump"
+                mkdir -p "${_core_dest}"
+                local _retain_core_dest="${FAIL_RETAIN_DIR}/${_case_slug}/coredump"
+                mkdir -p "${_retain_core_dest}"
                 if [[ ${_core_size_kb} -lt 307200 ]]; then
-                    local _core_dest="${CASE_LOGS_DIR}/coredump"
-                    mkdir -p "${_core_dest}"
                     echo "${_core_files}" | while IFS= read -r _cf; do
                         cp "${_cf}" "${_core_dest}/" 2>/dev/null || true
                     done
                     echo "[coredump] Collected (${_core_size_kb}KB) → results/logs/${_case_slug}/coredump/"
                 else
                     echo "[coredump] LARGE coredump (${_core_size_kb}KB > 300MB), NOT uploaded to artifacts."
-                    echo "[coredump] Manual retrieval: ${_core_src} on host $(hostname)"
+                    # hardlink 到 FAIL_RETAIN_DIR：同一文件系统下零额外空间，
+                    # after_script 删原文件后 hardlink 仍持有 inode，数据不丢
+                    echo "${_core_files}" | while IFS= read -r _cf; do
+                        ln "${_cf}" "${_retain_core_dest}/" 2>/dev/null \
+                            || cp "${_cf}" "${_retain_core_dest}/" 2>/dev/null || true
+                    done
+                    echo "[coredump] Hardlinked to ${_retain_core_dest}/"
+                    echo "[coredump] Browse: http://${MY_IP}:${FAIL_HTTP_PORT}/job-${CI_JOB_ID:-local}/${_case_slug}/coredump/"
                 fi
             fi
         fi
@@ -576,8 +587,10 @@ CASETXT
         if echo "${cmd}" | grep -qE '\bsan\b|sanitizer'; then
             [[ -d "${WORKDIR}/debugSan/build/bin" ]] && _debug_bin="${WORKDIR}/debugSan/build/bin"
         fi
+        local _debug_lib; _debug_lib="$(dirname "${_debug_bin}")/lib"
         local _shared_bin="${FAIL_RETAIN_DIR}/_shared_bin"
-        mkdir -p "${_shared_bin}"
+        local _shared_lib="${FAIL_RETAIN_DIR}/_shared_lib"
+        mkdir -p "${_shared_bin}" "${_shared_lib}"
         for _bin_name in taosd taos; do
             if [[ -f "${_debug_bin}/${_bin_name}" ]]; then
                 # 只在共享目录中不存在或文件已变化时才复制
@@ -590,6 +603,16 @@ CASETXT
                 ln -sf "${_shared_bin}/${_bin_name}" "${_retain_dir}/build/bin/${_bin_name}" 2>/dev/null || true
             fi
         done
+        # libtaosnative.so 放入共享目录，每个用例做 symlink（供 GDB solib-search-path 使用）
+        local _lib_name="libtaosnative.so"
+        if [[ -f "${_debug_lib}/${_lib_name}" ]]; then
+            if [[ ! -f "${_shared_lib}/${_lib_name}" ]] || \
+               ! cmp -s "${_debug_lib}/${_lib_name}" "${_shared_lib}/${_lib_name}"; then
+                cp "${_debug_lib}/${_lib_name}" "${_shared_lib}/${_lib_name}" 2>/dev/null || true
+            fi
+            mkdir -p "${_retain_dir}/build/lib"
+            ln -sf "${_shared_lib}/${_lib_name}" "${_retain_dir}/build/lib/${_lib_name}" 2>/dev/null || true
+        fi
         echo "[retain] Saved to ${_retain_dir}/"
         echo "[retain] Browse: http://${MY_IP}:${FAIL_HTTP_PORT}/job-${CI_JOB_ID:-local}/${_case_slug}/"
 
@@ -638,18 +661,25 @@ CASETXT
                 local _gdb_out="${_gdb_dir}/gdb-bt-${_cf_name}.txt"
                 if [[ -n "${_exe}" ]]; then
                     local _exe_real; _exe_real=$(readlink -f "${_exe}" 2>/dev/null || echo "${_exe}")
+                    # lib 目录与 bin 目录同级：debugNoSan/build/lib 或 debugSan/build/lib
+                    local _lib_dir; _lib_dir=$(dirname "$(dirname "${_exe_real}")")/lib
                     echo "Exe   : ${_exe_real}"
+                    echo "Lib   : ${_lib_dir}"
                     echo "[GDB] running thread apply all bt (timeout 90s) ..."
+                    local _lib_vol=""
+                    [[ -d "${_lib_dir}" ]] && _lib_vol="-v ${_lib_dir}:/_lib:ro"
                     timeout 90 docker run --rm \
                         -v "${_exe_real}:/_exe:ro" \
                         -v "${_cf}:/_core:ro" \
+                        ${_lib_vol} \
                         "${BUILDER_IMAGE}" bash -c '
                             which gdb >/dev/null 2>&1 || { echo "(gdb not available in image)"; exit 0; }
                             gdb --batch -q \
                                 -ex "set pagination off" \
                                 -ex "set print thread-events off" \
+                                -ex "set solib-search-path /_lib" \
                                 -ex "thread apply all bt" \
-                                /_exe /_core 2>&1 | head -300
+                                /_exe /_core 2>&1 | head -500
                         ' 2>/dev/null | tee "${_gdb_out}" \
                         || echo "[coredump] GDB timed out or failed"
                 else

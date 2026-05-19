@@ -107,6 +107,7 @@ variables:
         - "scripts/**/*"
         - ".gitlab/.gitlab-ci.yml"
         - "source/**/test/ci/cases.task"
+        - "tests/ci/scripts/**"
     - if: $CI_PIPELINE_SOURCE != "merge_request_event"
 
 # =============================================================================
