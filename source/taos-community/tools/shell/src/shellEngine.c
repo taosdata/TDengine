@@ -1134,8 +1134,8 @@ void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
       tsem_post(&dump_info->sem);
     }
   } else {
-    if (num_of_rows < 0) {
-      (void)printf("\033[31masync retrieve failed, code: %d, %s\033[0m\n", num_of_rows, tstrerror(num_of_rows));
+    if (num_of_rows < 0 && num_of_rows != (int32_t)(TSDB_CODE_TSC_QUERY_KILLED)) {
+      uError("async retrieve failed, code: 0x%08X, %s", (uint32_t)num_of_rows, tstrerror(num_of_rows));
     }
     tsem_post(&dump_info->sem);
   }

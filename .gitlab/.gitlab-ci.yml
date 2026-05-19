@@ -1,6 +1,6 @@
-# =============================================================================
+# ======================================================================
 # TDengine TSDB — 调试用完整流水线（基于 .gitlab-ci.yml，含并行双构建 NoSan + San）
-# =============================================================================
+# ======================================================================
 # 改动说明（相比 .gitlab-ci.yml）：
 #   1. 三步构建（build stage）：
 #        build-externals (串行)  → 构建全部第三方库，stamps → externals-others-amd64/
@@ -19,8 +19,7 @@
 #      share/: 随产物一起打包（taosd 配置模板）
 #   3. 测试 job 移除 SANITIZER 变量（现在 cases.task 第3字段 y/n 按用例路由）
 #   4. CI_NO_ASAN=1 始终设置（ASAN 内置于 debugSan 二进制，无需 LD_PRELOAD 注入）
-# =============================================================================
-
+# ======================================================================
 workflow:
   auto_cancel:
     on_new_commit: interruptible   # 新 commit 推送时自动取消标记了 interruptible 的旧 pipeline
@@ -38,6 +37,27 @@ workflow:
     # 示例（6 台）：
     #   /[01]$/→0  /[23]$/→1  /[45]$/→2  /[67]$/→3  /[8]$/→4  /[9]$/→5
     # ─────────────────────────────────────────────────────────────────────────
+    # 子流水线场景：source 会变成 parent_pipeline，需要在这里重新设置 builder 路由。
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_IID =~ /[01234]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-0"
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_IID =~ /[56789]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-1"
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "schedule" && $CI_PIPELINE_ID =~ /[01234]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-0"
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "schedule" && $CI_PIPELINE_ID =~ /[56789]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-1"
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "web" && $CI_PIPELINE_ID =~ /[01234]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-0"
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $PARENT_PIPELINE_SOURCE == "web" && $CI_PIPELINE_ID =~ /[56789]$/
+      variables:
+        TSDB_BUILDER_TAG: "tsdb-builder-1"
+    # 父流水线已完成来源过滤；这里允许子流水线创建。
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
     # ①【分支过滤区】—— MR 目标分支不在白名单内则不创建 pipeline
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME != "main" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME !~ /^3\.3\.6/ && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME !~ /^3\.0/
       when: never
@@ -77,6 +97,9 @@ stages:
   - cleanup
 
 variables:
+  # 子流水线透传：父流水线通过 trigger variables 传入 PARENT_PIPELINE_SOURCE。
+  # 独立运行时（CI 配置文件直接指向本文件）默认值回退到 $CI_PIPELINE_SOURCE，行为不变。
+  PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
   NEXUS_URL: "https://nexus.tdengine.net"
   NEXUS_REPO: "tdtest"
   # ── Builder 亲和性标签（由 workflow:rules:variables 按 MR 路由覆盖）─────
@@ -97,7 +120,7 @@ variables:
 
 .rules-code-change:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $PARENT_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*.{c,h,cpp,cmake}"
         - "CMakeLists.txt"
@@ -105,14 +128,15 @@ variables:
         - "source/**/*"
         - "scripts/**"
         - "scripts/**/*"
+        - ".gitlab-ci.yml"
         - ".gitlab/.gitlab-ci.yml"
         - "source/**/test/ci/cases.task"
         - "tests/ci/scripts/**"
-    - if: $CI_PIPELINE_SOURCE != "merge_request_event"
+    - if: $PARENT_PIPELINE_SOURCE != "merge_request_event"
 
-# =============================================================================
+# ======================================================================
 # Stage: prepare
-# =============================================================================
+# ======================================================================
 prepare-workspace:
   stage: prepare
   tags: [$TSDB_BUILDER_TAG]
@@ -122,11 +146,11 @@ prepare-workspace:
 
   script:
     - |
-      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+      if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
         WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}"
-      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "schedule" ]; then
         WORKSPACE="${CI_BASE_DIR}/daily-${CI_COMMIT_BRANCH}-$(date +%Y%m%d)"
-      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "web" ]; then
         WORKSPACE="${CI_BASE_DIR}/web-${CI_PIPELINE_ID}"
       else
         WORKSPACE="${CI_BASE_DIR}/push-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}"
@@ -165,7 +189,7 @@ prepare-workspace:
         rm -rf "${WORKSPACE}" 2>/dev/null || true
       fi
       mkdir -p "${WORKSPACE}"
-      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+      if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
         _BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
       else
         _BRANCH="${CI_COMMIT_BRANCH}"
@@ -223,9 +247,9 @@ prepare-workspace:
       dotenv: build.env
     expire_in: 1 day
 
-# =============================================================================
+# ======================================================================
 # Stage: build — 串行三步：externals 预构建 → NoSan 与 San 并行
-# =============================================================================
+# ======================================================================
 # 流水线设计：
 #   build-externals (串行) → 构建全部第三方库，stamps 写入 externals-others-amd64/
 #       ↓ needs
@@ -237,7 +261,7 @@ prepare-workspace:
 #   而非 debug/ 内。--clean 只清 debug/，stamps 始终存活。build-externals 完成后，
 #   两个并行 job 的 cmake 均发现 stamps 已存在，跳过所有 externals，仅编译
 #   TDengine 主体代码，彻底消除并行 externals 竞态。
-# =============================================================================
+# ======================================================================
 build-externals:
   stage: build
   tags: [$TSDB_BUILDER_TAG]
@@ -494,9 +518,9 @@ build-asan:
       - build-logs/build-asan.log
     expire_in: 7 days
 
-# =============================================================================
+# ======================================================================
 # Stage: quality — 代码质量检查
-# =============================================================================
+# ======================================================================
 check-assert:
   stage: quality
   tags: [$TSDB_BUILDER_TAG]
@@ -612,9 +636,9 @@ check-enum:
   after_script:
     - rm -f "${CI_PROJECT_DIR}/.enum_check_files" 2>/dev/null || true
 
-# =============================================================================
+# ======================================================================
 # Stage: verify — 单元测试（code-quality 通过后才执行）
-# =============================================================================
+# ======================================================================
 unit-test:
   stage: verify
   tags: [$TSDB_BUILDER_TAG]
@@ -715,9 +739,9 @@ unit-test:
 
 
 
-# =============================================================================
+# ======================================================================
 # Stage: upload — 追加 San 构建，打包两份产物上传 Nexus
-# =============================================================================
+# ======================================================================
 # 产物目录结构（Nexus）：
 #   ${NEXUS_PATH}/nosan/linux-x64-nosan.tar.gz  — 非 ASAN 二进制
 #   ${NEXUS_PATH}/san/linux-x64-san.tar.gz      — ASAN 内置二进制
@@ -734,7 +758,7 @@ unit-test:
 #   debugSan 二进制通过 -DBUILD_SANITIZER=1 内置 ASAN，运行时自动激活，
 #   不需要外部 LD_PRELOAD 注入；而 Python fork + LD_PRELOAD=libasan 在
 #   Ubuntu 24.04（kernel 6.8）会导致死锁，因此两种构建均设置 CI_NO_ASAN=1。
-# =============================================================================
+# ======================================================================
 upload-nexus:
   stage: upload
   tags: [$TSDB_BUILDER_TAG]
@@ -882,11 +906,11 @@ upload-nexus:
         || { echo "[FATAL] platform-cli install failed"; exit 1; }
       export PATH="${_CLI_DIR}:$PATH"
 
-      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+      if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
         NEXUS_PATH="tsdb/ci/mr${CI_MERGE_REQUEST_IID}/linux/x64"
-      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "schedule" ]; then
         NEXUS_PATH="tsdb/daily/$(date +%Y%m%d)/${CI_COMMIT_BRANCH}/linux/x64"
-      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "web" ]; then
         NEXUS_PATH="tsdb/release/${RELEASE_VERSION:-${CI_COMMIT_TAG:-manual}}/linux/x64"
       else
         NEXUS_PATH="tsdb/ci/branch-${CI_COMMIT_BRANCH}/linux/x64"
@@ -926,15 +950,15 @@ upload-nexus:
   artifacts:
     expire_in: 7 days
 
-# =============================================================================
+# ======================================================================
 # Stage: test — 分布式执行系统测试（per-case NoSan/San 路由）
-# =============================================================================
+# ======================================================================
 # 用例路由机制：
 #   cases.task 第3字段 y → run_container.sh 使用 $WORKDIR/debugSan/ 
 #                          (ASAN 内置，不注入 LD_PRELOAD)
 #   cases.task 第3字段 n → run_container.sh 使用 $WORKDIR/debugNoSan/
 #   两种情况均设置 CI_NO_ASAN=1（见 run_container.sh 注释）
-# =============================================================================
+# ======================================================================
 .test-linux-base:
   stage: test
   timeout: 240 minutes
@@ -964,11 +988,11 @@ upload-nexus:
     - bash "${CI_PROJECT_DIR}/tests/ci/scripts/sparse-checkout.sh"
     - |
       # pull-artifacts.sh 自动计算 BASE_PATH，下载 noasan/ 和 asan/ 两份产物
-      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+      if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
         export OVERRIDE_NEXUS_PATH="tsdb/ci/mr${CI_MERGE_REQUEST_IID}/linux/x64"
-      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "schedule" ]; then
         export OVERRIDE_NEXUS_PATH="tsdb/daily/$(date +%Y%m%d)/${CI_COMMIT_BRANCH}/linux/x64"
-      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "web" ]; then
         export OVERRIDE_NEXUS_PATH="tsdb/release/${RELEASE_VERSION:-manual}/linux/x64"
       else
         export OVERRIDE_NEXUS_PATH="tsdb/ci/branch-${CI_COMMIT_BRANCH}/linux/x64"
@@ -1088,12 +1112,12 @@ upload-nexus:
       - runner_system_failure
       - stuck_or_timeout_failure
 
-# =============================================================================
+# ======================================================================
 # coordinator — 运行于 test-builder，为所有 worker 提供用例队列服务
 # 端口 = CI_PIPELINE_ID % 10000 + 20000（所有 job 中相同）
 # coordinator 跟随 TSDB_BUILDER_TAG 路由，与 prepare/build/upload 落在同一台 builder
 # test-linux worker 在 step 3 通过 case 语句从 TSDB_BUILDER_TAG 推导 coordinator 主机名
-# =============================================================================
+# ======================================================================
 coordinator:
   stage: test
   tags: [$TSDB_BUILDER_TAG]
@@ -1232,9 +1256,9 @@ coordinator:
   variables:
     CI_NODE_INDEX: "14"
 
-# =============================================================================
+# ======================================================================
 # Stage: cleanup
-# =============================================================================
+# ======================================================================
 # cleanup-workspace 暂时禁用（隐藏 job，不会被 GitLab 执行），待后续决定是否启用
 .cleanup-workspace:
   stage: cleanup
@@ -1247,11 +1271,11 @@ coordinator:
 
   script:
     - |
-      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ]; then
+      if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
         WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}"
-      elif [ "${CI_PIPELINE_SOURCE}" = "schedule" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "schedule" ]; then
         WORKSPACE="${CI_BASE_DIR}/daily-${CI_COMMIT_BRANCH}-$(date +%Y%m%d)"
-      elif [ "${CI_PIPELINE_SOURCE}" = "web" ]; then
+      elif [ "${PARENT_PIPELINE_SOURCE}" = "web" ]; then
         WORKSPACE="${CI_BASE_DIR}/web-${CI_PIPELINE_ID}"
       else
         WORKSPACE="${CI_BASE_DIR}/push-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}"

@@ -462,7 +462,11 @@ To view the size occupied by a single database, specify the database in the comm
 
 Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](../14-reference/03-taos-sql/52-show.md#show-table-distributed).
 
-### 6.7 What should I do if restarting taosd via systemd fails with "start-limit-hit"?
+### 6.7 How does WAL affect storage space and the observed compression ratio?
+
+The Write-Ahead Log (WAL) is TDengine TSDB's core mechanism for ensuring data durability. Every write is first recorded in the WAL in **raw, uncompressed format** before being flushed to data files. As a result, in the early stages of writing — before WAL files have been cleaned up — the WAL may be larger than the compressed data files, causing total observed storage to **temporarily exceed the compressed data size**. This is expected behavior. As writing continues, old WAL files are cleaned up automatically, and total storage stabilizes near the actual compressed data size.
+
+### 6.8 What should I do if restarting taosd via systemd fails with "start-limit-hit"?
 
 Problem Description:
 In TDengine TSDB 3.3.5.1 and later, the `StartLimitInterval` parameter in `taosd.service` was changed from 60 seconds to 900 seconds. If taosd is restarted 3 times within 900 seconds, subsequent `systemctl restart taosd` calls will fail. Running `systemctl status taosd.service` shows: `Failed with result 'start-limit-hit'`.
@@ -475,7 +479,7 @@ Problem Solution:
 1. **Via systemd**: First reset the failure counter with `systemctl reset-failed taosd.service`, then restart with `systemctl restart taosd.service`. For a permanent adjustment, manually edit `/etc/systemd/system/taosd.service` to lower `StartLimitInterval` or raise `StartLimitBurst` (note: reinstalling taosd will reset this file), then run `systemctl daemon-reload` before restarting.
 2. **Direct invocation**: Run taosd directly (not via systemd) to bypass `StartLimitInterval` and `StartLimitBurst` entirely.
 
-### 6.8 I modified the configuration file, but the parameters didn't take effect. Why?
+### 6.9 I modified the configuration file, but the parameters didn't take effect. Why?
 
 #### Problem Description
 

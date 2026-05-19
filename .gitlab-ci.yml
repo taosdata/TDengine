@@ -1,0 +1,73 @@
+# =============================================================================
+# TSDB 父流水线 — 唯一 CI 入口
+# 触发两个独立子流水线（并行）：
+#   tsdb-ci   →  .gitlab/.gitlab-ci.yml        (代码构建 + 测试)
+#   tsdb-docs →  .gitlab/tsdb-build-docs.yml   (文档 lint + 构建，仅文档变更时)
+# =============================================================================
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.3\.6/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.0/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+stages:
+  - dispatch
+
+tsdb-ci:
+  stage: dispatch
+  trigger:
+    include:
+      - local: .gitlab/.gitlab-ci.yml
+    strategy: depend
+  variables:
+    PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
+  rules:
+    - if: $RUN_TSDB_CI == "true"
+    # MR 场景：仅当代码相关文件变更时触发（排除纯文档/打包/tdgpt 变更）
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - source/taos-community/source/**
+        - source/taos-community/include/**
+        - source/taos-community/cmake/**
+        - source/taos-community/CMakeLists.txt
+        - source/taos-community/contrib/**
+        - source/taos-community/tests/**
+        - source/taos-community/examples/**
+        - source/taos-community/tools/**
+        - source/taos-community/docs/examples/**
+        - source/taos-community/deps/**
+        - source/taos-community/utils/**
+        - source/taos-internal/**
+        - source/taos-adapter/**
+        - cmake/**
+        - CMakeLists.txt
+        - .gitlab/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+tsdb-docs:
+  stage: dispatch
+  trigger:
+    include:
+      - local: .gitlab/tsdb-build-docs.yml
+    strategy: depend
+  rules:
+    - if: >
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        (
+          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main" ||
+          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "3.0" ||
+          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^3\.3\.6/ ||
+          $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "docs-cloud"
+        )
+      changes:
+        - source/taos-community/docs/**
+        - .gitlab/scripts/tsdb-docs-ci/**
+        - tools/ci/tsdb-docs-ci/**
+        - .gitlab/tsdb-build-docs.yml

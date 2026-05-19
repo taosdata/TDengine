@@ -1,0 +1,55 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+
+stages:
+  - check
+  - build
+
+.docs-child-job:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  variables:
+    GIT_DEPTH: "0"
+  after_script:
+    - |
+      if [ "${CI_JOB_STATUS:-}" = "failed" ]; then
+        echo "Docs checks failed. To fix locally, run:"
+        echo "  tools/ci/tsdb-docs-ci/local-validate.sh --fix"
+      fi
+
+check-with-typos:
+  stage: check
+  extends: .docs-child-job
+  tags: [X64, Linux, TSDB-DOCS, u0-30]
+  script:
+    - ': "${DOCS_CI_IMAGE:?set project/group CI variable DOCS_CI_IMAGE}"'
+    - bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/check-typos.sh
+
+check-with-autocorrect:
+  stage: check
+  extends: .docs-child-job
+  tags: [X64, Linux, TSDB-DOCS, u0-30]
+  script:
+    - ': "${DOCS_CI_IMAGE:?set project/group CI variable DOCS_CI_IMAGE}"'
+    - bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/check-autocorrect.sh
+
+check-with-markdownlint:
+  stage: check
+  extends: .docs-child-job
+  tags: [X64, Linux, TSDB-DOCS, u0-30]
+  script:
+    - ': "${DOCS_CI_IMAGE:?set project/group CI variable DOCS_CI_IMAGE}"'
+    - bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/check-markdownlint.sh
+
+build-doc:
+  stage: build
+  extends: .docs-child-job
+  tags: [X64, Linux, TSDB-DOCS, u0-30]
+  needs:
+    - check-with-typos
+    - check-with-autocorrect
+    - check-with-markdownlint
+  script:
+    - ': "${DOCS_CI_IMAGE:?set project/group CI variable DOCS_CI_IMAGE}"'
+    - bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/build-doc.sh

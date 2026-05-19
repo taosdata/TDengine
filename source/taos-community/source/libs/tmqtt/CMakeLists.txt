@@ -39,17 +39,10 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ttq/inc"
 )
 
-if(TD_WINDOWS)
-    target_link_libraries(
-        taosmqtt
-        PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
-    )
-else()
-    target_link_libraries(
-        taosmqtt
-        PRIVATE ${TAOS_NATIVE_LIB} mqtt
-    )
-endif()
+target_link_libraries(
+    taosmqtt
+    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
+)
 
 # topic tool
 add_subdirectory(tools)
