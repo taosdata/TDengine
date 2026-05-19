@@ -35,7 +35,16 @@ trigger_type: {
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
-true_for_expr: {
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
     duration_time
   | COUNT count_val
   | duration_time AND COUNT count_val
@@ -226,20 +235,16 @@ An event window trigger partitions the incoming data of the trigger table into w
 
 - start_condition: Definition of the event start condition. It can be any valid conditional expression.
 - end_condition: Definition of the event end condition. It can be any valid conditional expression.
-- true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
-  - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
-  - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
-  - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
-  - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+- true_for_expr (optional): Specifies window-level filtering conditions and open/close streak thresholds. All three sub-parameters are optional and may appear in any order, at most once each:
+  - **Window-level filter (`limit_expr`)**: Only windows meeting the condition will generate a trigger:
+    - `TRUE_FOR(duration_time)`: The window duration must be greater than or equal to `duration_time`.
+    - `TRUE_FOR(COUNT n)`: The window row count must be greater than or equal to `n`.
+    - `TRUE_FOR(duration_time AND COUNT n)`: Both conditions must be satisfied.
+    - `TRUE_FOR(duration_time OR COUNT n)`: Either condition must be satisfied.
+  - **Open-condition streak threshold (`start(limit_expr)`)**: The `START WITH` expression must be continuously satisfied for `limit_expr` before the window actually opens. `_wstart` is set to the first row of the streak. Streak interruption resets the counter.
+  - **Close-condition streak threshold (`end(limit_expr)`)**: The `END WITH` expression must be continuously satisfied for `limit_expr` before the window actually closes. `_wend` is set to the first row of the close streak. Streak interruption resets the counter; the window stays open.
 
-  Where `duration_time` is a positive time value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 100)`, `TRUE_FOR(10m OR COUNT 100)`.
-
-Usage Notes:
-
-- A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
-- When used with a supertable, it must be combined with PARTITION BY tbname.
-- Supports conditional window triggering after filtering the written data.
-- The start/end condition expressions can reference tag columns visible in the trigger-table context. For example:
+  Where `duration_time` is a positive time value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(start(COUNT 2))`, `TRUE_FOR(end(3s))`, `TRUE_FOR(5s, start(COUNT 2), end(COUNT 3))`. `start(...)` and `end(...)` are only supported for single-condition `EVENT_WINDOW`.
 
 ```sql
 CREATE STREAM s_tag_event
@@ -249,6 +254,13 @@ CREATE STREAM s_tag_event
   INTO meters_event_out
   AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
 ```
+
+Usage Notes:
+
+- A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
+- When used with a supertable, it must be combined with PARTITION BY tbname.
+- Supports conditional window triggering after filtering the written data.
+- The start/end condition expressions can reference tag columns visible in the trigger-table context. For example:
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
 
