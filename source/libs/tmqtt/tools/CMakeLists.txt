@@ -7,7 +7,7 @@ DEP_ext_cjson(topic-test-tool)
 
 target_link_libraries(
     topic-test-tool
-    PRIVATE ${TAOS_NATIVE_LIB}
+    PRIVATE pthread util common ${TAOS_NATIVE_LIB_STATIC}
 )
 
 target_include_directories(
