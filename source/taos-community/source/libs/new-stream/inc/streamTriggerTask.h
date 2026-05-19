@@ -108,10 +108,8 @@ typedef struct SSTriggerRealtimeGroup {
       // streak state (start/end, always scalar — sub-event + start/end is rejected at parse time)
       int32_t startCondCount;
       TSKEY   startCondFirstTs;
-      int64_t startCondFirstVer;   // min WAL ver of batch when start streak began (INT64_MAX = no streak)
       int32_t endCondCount;
       TSKEY   endCondFirstTs;
-      int64_t endCondFirstVer;     // min WAL ver of batch when end streak began (INT64_MAX = no streak)
     };
     int64_t totalCount;  // for count window trigger
   };

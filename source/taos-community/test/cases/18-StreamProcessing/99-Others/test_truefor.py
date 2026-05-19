@@ -1084,7 +1084,7 @@ class TestTrueFor:
     # ════════════════════════════════════════════════════════════════════════
 
     def test_truefor_restart_before_close(self):
-        """Restart stream (stop/start) while an end-condition streak is in progress.
+        """Restart stream (stop/start) while a streak is in progress.
 
         Catalog:
             - Streams:Others
@@ -1098,39 +1098,58 @@ class TestTrueFor:
         History:
             - 2026-05-18 Created
 
-        Validates the WAL-rewind checkpoint fix: when a group has an in-progress
-        end streak at checkpoint time, doneVer is rewound to just before the
-        streak's first row so the streak is rebuilt from WAL on restart rather
-        than injected from a stale snapshot.
+        Validates the doneVer freeze fix: when a group has an in-progress streak
+        at checkpoint time, doneVer is frozen so the streak rows are replayed from
+        WAL on restart and the streak state is rebuilt naturally.
 
-        Test case r1 (EndStreakRestartBeforeClose):
-            Phase 1 — complete window1 so there is a confirmed output row before
-                       the restart.  This also lets check1 act as a synchronisation
-                       barrier: we only proceed once the stream has processed all
-                       Phase-1 rows.
-            Phase 2 — open window2, insert the FIRST end-streak row (streak=1),
-                       then STOP + START the stream.  The checkpoint taken during
-                       STOP must rewind doneVer to just before the streak's first
-                       WAL entry.  On restart the stream replays that entry and
-                       re-builds streak=1 from scratch.  Window2 must NOT close.
-            Phase 3 — insert the SECOND end-streak row (streak=2); window2 must
-                       now close with the correct skey/ekey/cnt.
+        Three streams run in parallel, each covering a different streak scenario:
 
-        Timeline:
+        r1 (EndStreakRestartBeforeClose) — end-only streak, restart during end streak:
             t=01 v=221  window1 opens  (skey=01)
-            t=02 v=100  end streak=1   (firstTs=02)
-            t=03 v=99   end streak=2   window1 closes ekey=02, cnt=2
-            ── check1: 1 window ────────────────────────────────────────────
+            t=02 v=100  end streak=1
+            t=03 v=99   end streak=2   window1 closes (ekey=02, cnt=2)
+            ── check1: 1 window ──────────────────────────────────────────
             t=04 v=221  window2 opens  (skey=04)
-            t=05 v=100  end streak=1   (firstTs=05) ← streak in progress
-            STOP stream  (checkpoint: doneVer rewound to before t=05)
-            START stream (WAL replay from rewound doneVer; t=05 re-processed)
-            ── check2: still 1 window (window2 not closed) ─────────────────
-            t=06 v=99   end streak=2   window2 closes ekey=05, cnt=2
-            ── check3: 2 windows ───────────────────────────────────────────
+            t=05 v=100  end streak=1   ← streak in progress
+            STOP/START  (doneVer frozen before t=05; t=05 replayed)
+            ── check2: 1 window (window2 open, not closed) ───────────────
+            t=06 v=99   end streak=2   window2 closes (ekey=05, cnt=2)
+            ── check3: 2 windows ─────────────────────────────────────────
+
+        r2 (StartStreakRestartBeforeOpen) — start-only streak, restart before window opens:
+            t=01 v=221  start streak=1
+            t=02 v=221  start streak=2
+            t=03 v=221  start streak=3  window1 opens (skey=01)
+            t=04 v=100  end condition   window1 closes (ekey=04, cnt=4)
+            ── check1: 1 window ──────────────────────────────────────────
+            t=05 v=221  start streak=1
+            t=06 v=221  start streak=2  ← streak in progress (window not open)
+            STOP/START  (doneVer frozen before t=05; t=05,t=06 replayed)
+            ── check2: 1 window (window2 not open) ───────────────────────
+            t=07 v=221  start streak=3  window2 opens (skey=05)
+            t=08 v=100  end condition   window2 closes (ekey=08, cnt=4)
+            ── check3: 2 windows ─────────────────────────────────────────
+
+        r3 (BothStreakRestart) — start+end streak, restart during end streak:
+            t=01 v=221  start streak=1
+            t=02 v=221  start streak=2  window1 opens (skey=01)
+            t=03 v=100  end streak=1
+            t=04 v=99   end streak=2    window1 closes (ekey=03, cnt=3)
+            ── check1: 1 window ──────────────────────────────────────────
+            t=05 v=221  start streak=1
+            t=06 v=221  start streak=2  window2 opens (skey=05)
+            t=07 v=100  end streak=1    ← end streak in progress
+            STOP/START  (doneVer frozen before t=07; t=07 replayed)
+            ── check2: 1 window (window2 open, not closed) ───────────────
+            t=08 v=99   end streak=2    window2 closes (ekey=07, cnt=3)
+            ── check3: 2 windows ─────────────────────────────────────────
         """
 
-        tdStream.checkAll([self.EndStreakRestartBeforeClose()])
+        tdStream.checkAll([
+            self.EndStreakRestartBeforeClose(),
+            self.StartStreakRestartBeforeOpen(),
+            self.BothStreakRestart(),
+        ])
 
     # ── r1: end streak restart before close ─────────────────────────────────
     class EndStreakRestartBeforeClose(StreamCheckItem):
@@ -1218,4 +1237,167 @@ class TestTrueFor:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:04.000")
                 and tdSql.compareData(1, 1, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(1, 2, 2),
+            )
+
+    # ── r2: start streak restart before window open ──────────────────────────
+    class StartStreakRestartBeforeOpen(StreamCheckItem):
+
+        def __init__(self):
+            self.db = "db_r2"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create stable meters (ts timestamp, voltage int) tags (gid int);")
+            tdSql.execute("create table tb_r using meters tags(1);")
+            tdSql.execute(
+                "create stream s_r2 "
+                "EVENT_WINDOW (START WITH voltage >= 220 END WITH voltage < 220) "
+                "true_for(start(count 3)) "
+                "FROM tb_r PARTITION BY tbname "
+                "INTO out_r2 "
+                "AS SELECT _twstart ts, _twend te, count(voltage) cnt FROM %%trows;"
+            )
+
+        def insert1(self):
+            # Phase 1: complete window1.
+            # t=01..t=03: start streak=3 → window opens (skey=01); t=04: closes.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:01', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:02', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:03', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:04', 100);",
+            ])
+
+        def check1(self):
+            # Sync barrier: wait for window1 [t01, t04, cnt=4].
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_r2 order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(0, 2, 4),
+            )
+
+        def insert2(self):
+            import time
+            # Phase 2: advance start streak to count=2 (threshold=3, not yet open).
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:05', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:06', 221);",
+            ])
+            # Wait for the stream to process both rows so startCondCount=2 is
+            # stable at checkpoint time.
+            time.sleep(3)
+            # STOP triggers a checkpoint; doneVer must be frozen before t=05.
+            tdSql.execute("stop stream s_r2")
+            # START replays from the frozen doneVer, rebuilding startCondCount=2.
+            tdSql.execute("start stream s_r2")
+
+        def check2(self):
+            import time
+            # After restart streak=2 is rebuilt but window has not opened yet.
+            time.sleep(3)
+            tdSql.query("select ts, te, cnt from out_r2 order by ts")
+            tdSql.checkRows(1)
+
+        def insert3(self):
+            # Phase 3: third streak row satisfies count=3; window opens at skey=05.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:07', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:08', 100);",
+            ])
+
+        def check3(self):
+            # window1: [t01, t04, cnt=4]; window2: [t05, t08, cnt=4].
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_r2 order by ts",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(0, 2, 4)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:08.000")
+                and tdSql.compareData(1, 2, 2),
+            )
+
+    # ── r3: both start+end streak, restart during end streak ─────────────────
+    class BothStreakRestart(StreamCheckItem):
+
+        def __init__(self):
+            self.db = "db_r3"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create stable meters (ts timestamp, voltage int) tags (gid int);")
+            tdSql.execute("create table tb_r using meters tags(1);")
+            tdSql.execute(
+                "create stream s_r3 "
+                "EVENT_WINDOW (START WITH voltage >= 220 END WITH voltage < 220) "
+                "true_for(start(count 2), end(count 2)) "
+                "FROM tb_r PARTITION BY tbname "
+                "INTO out_r3 "
+                "AS SELECT _twstart ts, _twend te, count(voltage) cnt FROM %%trows;"
+            )
+
+        def insert1(self):
+            # Phase 1: complete window1 via both start and end streaks.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:01', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:02', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:03', 100);",
+                "insert into tb_r values ('2025-01-01 00:00:04',  99);",
+            ])
+
+        def check1(self):
+            # Sync barrier: window1 [t01, t03, cnt=3].
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_r3 order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:03.000")
+                and tdSql.compareData(0, 2, 3),
+            )
+
+        def insert2(self):
+            import time
+            # Phase 2: open window2 (start streak satisfied), then first end-streak row.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:05', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:06', 221);",
+                "insert into tb_r values ('2025-01-01 00:00:07', 100);",
+            ])
+            # Wait for the stream to process all three rows so endCondCount=1 is
+            # stable at checkpoint time.
+            time.sleep(3)
+            # STOP triggers checkpoint; doneVer frozen before t=07 (end streak row).
+            tdSql.execute("stop stream s_r3")
+            # START replays from frozen doneVer; t=07 re-processed → endCondCount=1.
+            tdSql.execute("start stream s_r3")
+
+        def check2(self):
+            import time
+            # Window2 is open with endCondCount=1 after replay; not yet closed.
+            time.sleep(3)
+            tdSql.query("select ts, te, cnt from out_r3 order by ts")
+            tdSql.checkRows(1)
+
+        def insert3(self):
+            # Phase 3: second consecutive end-condition row → end streak=2 satisfied.
+            tdSql.executes([
+                "insert into tb_r values ('2025-01-01 00:00:08',  99);",
+            ])
+
+        def check3(self):
+            # window1: [t01, t03, cnt=3]; window2: [t05, t07, cnt=3].
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_r3 order by ts",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:03.000")
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:07.000")
+                and tdSql.compareData(1, 2, 3),
             )

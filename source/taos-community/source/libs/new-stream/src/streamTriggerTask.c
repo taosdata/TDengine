@@ -1347,7 +1347,7 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
 
 #define STREAM_TRIGGER_CHECKPOINT_INIT_VERSION             1
 #define STREAM_TRIGGER_CHECKPOINT_ADD_LAST_SCAN_VERSION    2
-#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION           4
+#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION           2
 
 static int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen, int32_t version) {
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -1377,59 +1377,22 @@ static int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *
   QUERY_CHECK_CODE(code, lino, _end);
   int32_t               iter = 0;
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pWalProgress, NULL, &iter);
-  // Build per-vgId streak rewind map: if any group has in-progress streak, rewind doneVer to before
-  // the first streak row so WAL replay naturally rebuilds the streak state on restore.
-  SSHashObj *pStreakRewindMap = NULL;
-  if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    pStreakRewindMap = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-    if (pStreakRewindMap != NULL) {
-      SSHashObj              *pGroups = pTask->pRealtimeContext->pGroups;
-      int32_t                 giter   = 0;
-      SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pGroups, NULL, &giter);
-      while (ppGroup != NULL) {
-        SSTriggerRealtimeGroup *pGroup = *ppGroup;
-        int32_t                 vgId   = pGroup->vgId;
-        int64_t                 minVer = INT64_MAX;
-        if (pGroup->startCondCount > 0 && pGroup->startCondFirstVer != INT64_MAX)
-          minVer = TMIN(minVer, pGroup->startCondFirstVer);
-        if (pGroup->endCondCount > 0 && pGroup->endCondFirstVer != INT64_MAX)
-          minVer = TMIN(minVer, pGroup->endCondFirstVer);
-        if (minVer != INT64_MAX) {
-          int64_t *pExisting = tSimpleHashGet(pStreakRewindMap, &vgId, sizeof(int32_t));
-          if (pExisting == NULL || minVer < *pExisting)
-            tSimpleHashPut(pStreakRewindMap, &vgId, sizeof(int32_t), &minVer, sizeof(int64_t));
-        }
-        ppGroup = tSimpleHashIterate(pGroups, ppGroup, &giter);
-      }
-    }
-  }
-
   while (pProgress != NULL) {
     int32_t vgId = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
     if (pProgress->startVer == 0) {
       ST_TASK_ILOG("[checkpoint] skip checkpoint since VNode %d start version has not been determined", vgId);
-      tSimpleHashCleanup(pStreakRewindMap);
       goto _end;
     }
     code = tEncodeI32(&encoder, vgId);
     QUERY_CHECK_CODE(code, lino, _end);
     code = tEncodeI64(&encoder, pProgress->startVer);
     QUERY_CHECK_CODE(code, lino, _end);
-    // the stream may be recovering
+    // the stream may be recovering; doneVer already accounts for any in-progress streak rewind
     int64_t doneVer = TMAX(pProgress->savedVer, pProgress->doneVer);
-    // Rewind doneVer if any group on this vnode has an in-progress streak so that WAL replay
-    // starting from doneVer will re-process the streak rows and rebuild state naturally.
-    if (pStreakRewindMap != NULL) {
-      int64_t *pStreakMinVer = tSimpleHashGet(pStreakRewindMap, &vgId, sizeof(int32_t));
-      if (pStreakMinVer != NULL && *pStreakMinVer > 0)
-        doneVer = TMIN(doneVer, *pStreakMinVer - 1);
-    }
     code = tEncodeI64(&encoder, doneVer);
     QUERY_CHECK_CODE(code, lino, _end);
     pProgress = tSimpleHashIterate(pWalProgress, pProgress, &iter);
   }
-  tSimpleHashCleanup(pStreakRewindMap);
-  pStreakRewindMap = NULL;
 
   code = tEncodeI32(&encoder, tSimpleHashGetSize(pTask->pHistoryCutoffTime));
   QUERY_CHECK_CODE(code, lino, _end);
@@ -6455,7 +6418,25 @@ _check:
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
   while (pProgress != NULL) {
     if (forwardDoneVer) {
-      pProgress->doneVer = pProgress->lastScanVer;
+      int64_t newDoneVer = pProgress->lastScanVer;
+      if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+        // Freeze doneVer if any group on this vnode has an active streak so that WAL replay
+        // from doneVer+1 naturally rebuilds the streak state on restart.
+        int32_t                 vgId   = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
+        int32_t                 giter2 = 0;
+        SSTriggerRealtimeGroup **ppGroup =
+            tSimpleHashIterate(pTask->pRealtimeContext->pGroups, NULL, &giter2);
+        while (ppGroup != NULL) {
+          SSTriggerRealtimeGroup *pGroup = *ppGroup;
+          if (pGroup->vgId == vgId &&
+              (pGroup->startCondCount > 0 || pGroup->endCondCount > 0)) {
+            newDoneVer = pProgress->doneVer;  // freeze at current position
+            break;
+          }
+          ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, ppGroup, &giter2);
+        }
+      }
+      pProgress->doneVer = newDoneVer;
     }
     if (pProgress->lastScanVer < pProgress->savedVer) {
       pContext->recovering = true;
@@ -9784,12 +9765,10 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
     pGroup->ds.lastDeferredPartialNullTs = INT64_MIN;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
     // Scalar streak defaults
-    pGroup->startCondCount    = 0;
-    pGroup->startCondFirstTs  = INT64_MIN;
-    pGroup->startCondFirstVer = INT64_MAX;
-    pGroup->endCondCount      = 0;
-    pGroup->endCondFirstTs    = INT64_MIN;
-    pGroup->endCondFirstVer   = INT64_MAX;
+    pGroup->startCondCount   = 0;
+    pGroup->startCondFirstTs = INT64_MIN;
+    pGroup->endCondCount     = 0;
+    pGroup->endCondFirstTs   = INT64_MIN;
   }
   pGroup->prevWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   code = taosObjListInit(&pGroup->windows, &pContext->windowPool);
@@ -10780,21 +10759,6 @@ _end:
   return code;
 }
 
-// Returns the minimum WAL version among all meta entries for the given vgId in this group's current batch.
-// Used to find the rewind point when a streak starts mid-batch.
-static int64_t stGroupGetBatchMinVer(SSTriggerRealtimeGroup *pGroup, int32_t vgId) {
-  SObjList *pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
-  if (pMetas == NULL) return INT64_MAX;
-  int64_t      minVer = INT64_MAX;
-  SObjListIter iter   = {0};
-  taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
-  SSTriggerMetaData *pMeta = NULL;
-  while ((pMeta = taosObjListIterNext(&iter)) != NULL) {
-    if (pMeta->ver < minVer) minVer = pMeta->ver;
-  }
-  return minVer;
-}
-
 static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -10863,7 +10827,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           // sub-event + start/end is rejected at parse time, so checkSubEvent is always false here
           if (!pGroup->startCondCount) {
             pGroup->startCondFirstTs  = pTsData[i];
-            pGroup->startCondFirstVer = stGroupGetBatchMinVer(pGroup, pGroup->vgId);
           }
           pGroup->startCondCount++;
           _startNow = isTrueForSatisfied(&pTask->startTrueForInfo, pGroup->startCondFirstTs, pTsData[i],
@@ -10872,7 +10835,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             _skey = pGroup->startCondFirstTs;  // window starts at FIRST row of streak
             pGroup->startCondCount    = 0;
             pGroup->startCondFirstTs  = INT64_MIN;
-            pGroup->startCondFirstVer = INT64_MAX;
           }
         }
         if (_startNow) {
@@ -10915,7 +10877,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         // Start condition not firing: reset streak state.
         pGroup->startCondCount    = 0;
         pGroup->startCondFirstTs  = INT64_MIN;
-        pGroup->startCondFirstVer = INT64_MAX;
       }
 
       if (pWin == NULL) {
@@ -10961,7 +10922,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         if (pTask->endTrueForInfo.count || pTask->endTrueForInfo.duration) {
           if (!pGroup->endCondCount) {
             pGroup->endCondFirstTs  = pTsData[i];
-            pGroup->endCondFirstVer = stGroupGetBatchMinVer(pGroup, pGroup->vgId);
           }
           pGroup->endCondCount++;
           if (isTrueForSatisfied(&pTask->endTrueForInfo, pGroup->endCondFirstTs, pTsData[i],
@@ -10969,7 +10929,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             _ekey = pGroup->endCondFirstTs;  // window ends at FIRST row of end streak
             pGroup->endCondCount    = 0;
             pGroup->endCondFirstTs  = INT64_MIN;
-            pGroup->endCondFirstVer = INT64_MAX;
             _closeNow = true;
           }
         } else {
@@ -10979,7 +10938,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         // End condition interrupted: reset streak.
         pGroup->endCondCount    = 0;
         pGroup->endCondFirstTs  = INT64_MIN;
-        pGroup->endCondFirstVer = INT64_MAX;
       }
 
       if (_closeNow) {
