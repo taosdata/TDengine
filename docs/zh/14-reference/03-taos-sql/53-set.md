@@ -14,6 +14,7 @@ SET TIMEZONE '<timezone_string>';
 
 该语句仅影响当前连接。
 
+- Windows 平台不支持该命令；执行时返回 `TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS`（`0x8000237`）。
 - 支持 IANA 时区名与固定偏移格式 `[z/Z, +/-hh, +/-hhmm, +/-hh:mm]`。
 - 有歧义的时区缩写（如 `CST`）会被拒绝。
 - 非法值返回 `TSDB_CODE_PAR_INVALID_TIMEZONE`（`0x800026B2`）。
@@ -35,14 +36,13 @@ SET FIRST_DAY_OF_WEEK <0..6>;
 2. 如果未显式设置，客户端在启动时尝试读取操作系统的“每周起始日”设置。
 3. 如果操作系统值不可用，回退到默认值 `4`（周四）。
 
-Linux 与 macOS 的初始化来源：
+如果希望修改默认行为，可按平台先调整操作系统设置；需要只影响当前连接时，再使用 `SET FIRST_DAY_OF_WEEK`：
 
-- Linux（glibc）：从当前 locale 的 `LC_TIME` 中读取首日配置（内部使用 `_NL_TIME_FIRST_WEEKDAY`）。
-- macOS：优先读取系统偏好 `AppleFirstWeekday`；若该项不可用，再回退到当前系统日历的首日设置。
+- Linux：通过 locale 的 `LC_TIME` 配置每周起始日。
+- macOS：通过系统设置修改每周起始日；如需脚本化调整，可修改系统偏好项 `AppleFirstWeekday`。若两者不一致，优先读取 `AppleFirstWeekday`；只有该项不可用时，才回退到当前系统日历设置。
+- Windows：通过系统区域设置修改每周起始日。
 
-可按如下方式检查系统侧设置（用于排查初始化结果）：
+排查初始化结果时，可按如下方式检查系统侧设置：
 
 - Linux：`locale -k LC_TIME | grep first_weekday`
 - macOS：`defaults read -g AppleFirstWeekday`
-
-说明：Windows 路径当前尚未完成手册级验证，后续补充。

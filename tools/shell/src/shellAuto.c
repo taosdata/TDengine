@@ -338,6 +338,7 @@ char* functions[] = {
     "nvl2(",           "isnull(",
     "isnotnull(",      "coalesce(",
     "date(",           "corr(",
+    "first_day_of_week()",
     "cols(",           "find_in_set(",
     "like_in_set(",    "regexp_in_set(",
     "case ",           "when "
@@ -730,6 +731,7 @@ void showHelp() {
     select now();\n\
     select today();\n\
     select timezone();\n\
+    select first_day_of_week();\n\
     set first_day_of_week ...\n\
     set max_binary_display_width ...\n\
     set timezone ...\n\

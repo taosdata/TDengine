@@ -157,7 +157,7 @@ You can use the above syntax to modify the client's configuration parameters, an
 
 To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](../01-components/02-taosc.md)
 
-Session-level commands `SET TIMEZONE`, `SET FIRST_DAY_OF_WEEK`, and `firstDayOfWeek` initialization details are documented in [SET Commands](./53-set.md).
+Connection-level parameter modification commands `SET TIMEZONE` and `SET FIRST_DAY_OF_WEEK` are documented in [SET Commands](./53-set.md).
 
 ## View Client Configuration
 

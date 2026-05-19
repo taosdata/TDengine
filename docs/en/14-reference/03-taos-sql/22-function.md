@@ -1779,6 +1779,7 @@ TO_ISO8601(expr [, timezone])
 **Usage Notes**:
 
 - The `timezone` parameter accepts IANA timezone names (for example `Asia/Shanghai`, `America/New_York`) and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`. The valid offset range is `-14:00` to `+14:00`.
+- If `timezone` is omitted, it uses the current connection timezone.
 - Ambiguous abbreviations (for example `CST`) are rejected.
 - For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
@@ -1886,9 +1887,10 @@ Supported Formats:
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
-- If `timezone` is provided, it accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`.
-- If `timezone` is omitted, it uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
+- If `timezone` is provided, it accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`. The valid offset range is `-14:00` to `+14:00`.
+- If `timezone` is omitted, it uses the current connection timezone.
 - Ambiguous abbreviations (for example `CST`) are rejected.
+- For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
 
 #### TO_TIMESTAMP
@@ -2013,8 +2015,9 @@ TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
 - The third parameter supports both integer flags and timezone strings.
-  - Integer `0/1`: keeps the legacy behavior for backward compatibility.
-  - String timezone: accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`.
+  - Integer `0`: truncates on fixed boundaries on the UTC timeline. For example, `1d` aligns to UTC `00:00`, and `1w` aligns to UTC week boundaries. The returned timestamp is still displayed in the current connection timezone.
+  - Integer `1`: truncates on local calendar boundaries in the current connection timezone.
+  - String timezone: accepts IANA timezone names and fixed-offset formats `[z/Z, +/-hhmm, +/-hh, +/-hh:mm]`. The valid offset range is `-14:00` to `+14:00`.
 - When the third parameter is omitted, it uses the current connection timezone first; if not set, it uses the server default timezone; if still unavailable, it falls back to the system default timezone.
 - For `1w`, week alignment uses `firstDayOfWeek` instead of fixed Thursday alignment. For `firstDayOfWeek` initialization and platform differences, see [SET Commands](./53-set.md).
 - Ambiguous abbreviations (for example `CST`) are rejected.

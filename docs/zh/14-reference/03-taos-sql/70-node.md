@@ -165,7 +165,7 @@ ALTER LOCAL local_option
 
 对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](https://docs.taosdata.com/reference/components/taosc/)
 
-连接级会话命令 `SET TIMEZONE`、`SET FIRST_DAY_OF_WEEK` 及 `firstDayOfWeek` 初始化规则，请参见 [SET 命令](./53-set.md)。
+连接级参数修改命令 `SET TIMEZONE`、`SET FIRST_DAY_OF_WEEK` 请参见 [SET 命令](./53-set.md)。
 
 ## 查看客户端配置
 
