@@ -287,7 +287,7 @@ void shellUpdateBuffer(SShellCmd *cmd) {
 
   /* If regex condition is met, try to append one space to cmd->command safely.
      This mirrors the original intent but avoids buffer overflow. */
-  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) {
+  if (shellRegexMatch(cmd->buffer, "([[:space:]]+$)|(^$)", REG_EXTENDED)) {
     if (cmd_len + 1 < cap) {
       cmd->command[cmd_len] = ' ';
       cmd->command[cmd_len + 1] = '\0';
@@ -325,8 +325,8 @@ bool shellIsReadyGo(SShellCmd *cmd) {
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
   char *reg_str =
-      "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
-      "\\s*clear\\s*$)";
+      "(^.*;[[:space:]]*$)|(^[[:space:]]*$)|(^[[:space:]]*exit[[:space:]]*$)|(^[[:space:]]*q[[:space:]]*$)|(^[[:space:]]*quit[[:space:]]*$)|(^"
+      "[[:space:]]*clear[[:space:]]*$)";
   if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
     taosMemoryFree(total);
     return true;

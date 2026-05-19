@@ -16,11 +16,11 @@
 Verifies fixes for:
 - avro-c 64KB schema_buf overflow (corrupted 35-byte avro files)
 - SHOW CREATE TABLE 65535-char truncation (DESCRIBE fallback)
-- all data types survive round-trip through avro export/import
+- all data types survive round-trip through export/import
 - backtick-quoted case-sensitive column/tag names preserved
 
 Part 1 - Export test (3968 cols + 128 tags, 64-char names):
-  Verifies avro files are NOT corrupted and pass --inspect.
+  Verifies data files are NOT corrupted and have valid sizes.
 
 Part 2 - Round-trip test (3968 cols + 128 tags, all data types,
   mixed-case names):
@@ -158,32 +158,23 @@ class TestTaosdumpMaxcols:
         rc = os.system(dump_cmd)
         assert rc == 0, "taosdump export failed with rc=%d" % rc
 
-        # 5. Verify avro files NOT corrupted (size > 100 bytes)
-        avro_files = []
+        # 5. Verify data files NOT corrupted (size > 100 bytes)
+        # New taosBackup uses .dat (binary) or .par (parquet); old taosdump used .avro
+        data_files = []
         for root, dirs, files in os.walk(dumpdir):
             for f in files:
-                if f.endswith(".avro"):
-                    avro_files.append(os.path.join(root, f))
+                if f.endswith(".dat") or f.endswith(".avro") or f.endswith(".par"):
+                    data_files.append(os.path.join(root, f))
 
-        tdLog.info("Found %d avro files" % len(avro_files))
-        assert len(avro_files) > 0, "No avro files found in dump output!"
+        tdLog.info("Found %d data files" % len(data_files))
+        assert len(data_files) > 0, "No data files (.dat/.avro/.par) found in dump output!"
 
-        for af in avro_files:
-            fsize = os.path.getsize(af)
-            tdLog.info("  %s size=%d bytes" % (os.path.basename(af), fsize))
-            assert fsize >= 100, "CORRUPTED avro (size=%d): %s" % (fsize, af)
+        for df in data_files:
+            fsize = os.path.getsize(df)
+            tdLog.info("  %s size=%d bytes" % (os.path.basename(df), fsize))
+            assert fsize >= 100, "CORRUPTED data file (size=%d): %s" % (fsize, df)
 
-        tdLog.info("All %d avro files have valid sizes" % len(avro_files))
-
-        # 6. Inspect all avro files
-        for af in avro_files:
-            inspect_cmd = "%s --inspect %s 2>&1" % (binPath, af)
-            output = subprocess.check_output(inspect_cmd, shell=True).decode("utf-8")
-            if "ERROR" in output or "Unable" in output or "Cannot" in output:
-                assert False, "Inspect error on %s: %s" % (os.path.basename(af), output[:500])
-            tdLog.info("  Inspect OK: %s" % os.path.basename(af))
-
-        tdLog.info("All avro files pass --inspect")
+        tdLog.info("All %d data files have valid sizes" % len(data_files))
 
         tdSql.execute("DROP DATABASE IF EXISTS %s" % dbName)
 
@@ -334,16 +325,16 @@ class TestTaosdumpMaxcols:
         rc = os.system(dump_cmd)
         assert rc == 0, "taosdump export failed with rc=%d" % rc
 
-        avro_files = []
+        data_files = []
         for root, dirs, files in os.walk(dumpdir):
             for f in files:
-                if f.endswith(".avro"):
-                    avro_files.append(os.path.join(root, f))
-        tdLog.info("Found %d avro files" % len(avro_files))
-        for af in avro_files:
-            fsize = os.path.getsize(af)
-            tdLog.info("  %s size=%d" % (os.path.basename(af), fsize))
-            assert fsize >= 100, "Corrupted avro: %s (size=%d)" % (af, fsize)
+                if f.endswith(".dat") or f.endswith(".avro") or f.endswith(".par"):
+                    data_files.append(os.path.join(root, f))
+        tdLog.info("Found %d data files" % len(data_files))
+        for df in data_files:
+            fsize = os.path.getsize(df)
+            tdLog.info("  %s size=%d" % (os.path.basename(df), fsize))
+            assert fsize >= 100, "Corrupted data file: %s (size=%d)" % (df, fsize)
 
         # -- Drop + restore --
         tdSql.execute("DROP DATABASE %s" % dbName)
@@ -462,11 +453,10 @@ class TestTaosdumpMaxcols:
         1. Create supertable with 3968 columns + 128 tags (64-char names)
         2. Create normal table with 4096 columns (64-char names)
         3. Export database via taosdump
-        4. Verify avro files are NOT corrupted (size > 100 bytes)
-        5. Inspect all avro files with --inspect
-        6. Round-trip test: export with all data types and mixed-case names
-        7. Drop and restore database
-        8. Verify schema, column types, case-sensitive names, row counts, and values
+        4. Verify data files are NOT corrupted (size > 100 bytes)
+        5. Round-trip test: export with all data types and mixed-case names
+        6. Drop and restore database
+        7. Verify schema, column types, case-sensitive names, row counts, and values
 
 
         Since: v3.3.6.0

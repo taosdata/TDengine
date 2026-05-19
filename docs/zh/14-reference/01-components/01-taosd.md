@@ -17,16 +17,19 @@ taosd 命令行参数如下：
 - -e：指定环境变量的字符串，例如 `-e 'TAOS_FQDN=td1'`。
 - -E：指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`。
 - -o：指定日志输入方式，可选 `stdout`、`stderr`、`/dev/null`、`<directory>`、`<directory>/<filename>`、`<filename>`。
-- -r：启动本地修复模式。该参数必须与 `--mode force`、`--node-type vnode` 以及至少一个 `--repair-target` 一起使用。
+- -r：启动修复模式。支持两种模式：`--mode force`（强制本地修复）和 `--mode copy`（从健康的源节点拷贝 vnode 数据）。
 - -k：获取机器码
 - -dm：启用内存调度
 - -V：打印版本信息
 
 ## 修复模式
 
-使用 `taosd -r` 可以进入本地修复模式。当前阶段只支持 `--mode force` 和 `--node-type vnode`。
+使用 `taosd -r` 可以进入修复模式。支持以下两种模式：
 
-### 语法
+- **强制模式（force）**：对本地 vnode 进行原地修复，需要指定修复目标。
+- **拷贝模式（copy）**：当损坏的数据量巨大、常规修复模式的性能无法满足要求时，从健康的源节点直接拷贝指定 vnode 的文件到目标节点。
+
+### 强制模式语法
 
 ```bash
 taosd -r --mode force --node-type vnode [--backup-path <path>] \
@@ -70,14 +73,14 @@ taosd -r --mode force --node-type vnode [--backup-path <path>] \
   - `full_rebuild`：对有效 core block 做 deep scan，并沿用现有 writer 路径重建完整 core 数据。
   - 如果需要处理 size mismatch 这类损坏，请显式使用 `head_only_rebuild` 或 `full_rebuild`。
 
-### 当前限制
+### 强制模式限制
 
-- 当前只支持 `--mode force`。
 - 当前只支持 `--node-type vnode`。
-- `taosd -r` 如果缺少 `--mode`、`--node-type` 或 `--repair-target`，会直接报错。
+- `taosd -r --mode force` 如果缺少 `--node-type` 或 `--repair-target`，会直接报错。
+- `--backup-path` 和 `--repair-target` 不能与 `--mode copy` 一起使用。
 - 旧的修复参数 `--file-type`、`--vnode-id`、`--replica-node` 已经从这套接口中移除。
 
-### 示例
+### 强制模式示例
 
 修复某个 vnode 的 meta，并使用默认策略：
 
@@ -114,6 +117,59 @@ taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
   --repair-target meta:vnode=3 \
   --repair-target tsdb:vnode=5:fileid=1809 \
   --repair-target wal:vnode=6
+```
+
+### 拷贝模式
+
+拷贝模式用于从健康的源节点直接拷贝指定 vnode 的文件到当前（目标）节点。适用于损坏的数据量巨大、常规修复模式的性能无法满足要求的场景。
+
+#### 拷贝模式语法
+
+```bash
+taosd -r --mode copy --node-type vnode --source-cfg <path> \
+  [--source-host <host>] --vnode <id>[,<id>|<id>-<id>]...
+```
+
+#### 拷贝模式参数
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `--source-cfg` | 是 | 源节点 `taos.cfg` 配置文件的路径，也可以指定配置文件所在目录 |
+| `--source-host` | 否 | 源节点的 SSH 主机地址；省略时表示源数据在本地 |
+| `--vnode` | 是 | 要拷贝的 vnode ID 列表，多个 ID 用逗号分隔，支持用 `-` 指定范围（如 `3,5-8,10`） |
+
+#### 拷贝模式限制
+
+- 当前只支持 `--node-type vnode`。
+- Windows 平台暂不支持拷贝模式。
+- `--backup-path` 和 `--repair-target` 不能与 `--mode copy` 一起使用。
+- 远程模式需要 SSH 免密登录（BatchMode）。
+
+#### 拷贝模式示例
+
+从本地源节点拷贝单个 vnode：
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /data/source-cluster/taos.cfg \
+  --vnode 3
+```
+
+从本地源节点拷贝多个 vnode（指定配置目录）：
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/ \
+  --vnode 3,5,8
+```
+
+从远程源节点拷贝 vnode：
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/taos.cfg \
+  --source-host 192.168.1.100 \
+  --vnode 3,5
 ```
 
 ## 配置参数
@@ -2511,6 +2567,52 @@ charset 的有效值是 UTF-8。
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.3.4.5 版本开始引入
 
+### CPU 亲和性
+
+#### enableCpuAffinity
+
+- 说明：CPU 亲和性绑定的主开关。启用（1）时，taosd 线程将按类别（管理、写入、读取）绑定到指定的 CPU 核心。禁用（0，默认值）时，所有线程在所有可用核心上自由运行。CPU 核心不足 3 个的系统将自动禁用亲和性并输出警告日志。
+- 类型：整数；0：禁用，1：启用
+- 默认值：0
+- 最小值：0
+- 最大值：1
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：从 v3.3.6.0 版本开始引入
+
+#### managementCpuCores
+
+- 说明：分配给管理线程（集群协调、网络、系统级任务）的 CPU 核心数量。核心从 core 0 开始顺序分配。仅在 enableCpuAffinity 为 1 时生效。
+- 类型：整数
+- 默认值：1
+- 最小值：1
+- 最大值：256
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：从 v3.3.6.0 版本开始引入
+
+#### readCpuCores
+
+- 说明：分配给读取（查询）线程的 CPU 核心数量。核心在管理线程和写入线程之后顺序分配。仅在 enableCpuAffinity 为 1 时生效。managementCpuCores + readCpuCores + otherCpuCores 之和不得超过系统总 CPU 核心数。
+- 类型：整数
+- 默认值：动态计算，为剩余核心的一半 (totalCores - managementCpuCores) / 2
+- 最小值：1
+- 最大值：256
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：从 v3.3.6.0 版本开始引入
+
+#### otherCpuCores
+
+- 说明：分配给写入线程的 CPU 核心数量。核心在管理线程之后顺序分配。仅在 enableCpuAffinity 为 1 时生效。managementCpuCores + readCpuCores + otherCpuCores 之和不得超过系统总 CPU 核心数。
+- 类型：整数
+- 默认值：动态计算，为剩余核心的另一半
+- 最小值：1
+- 最大值：256
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：从 v3.3.6.0 版本开始引入
+
 ### 压缩参数
 
 #### fPrecision
@@ -2606,6 +2708,17 @@ charset 的有效值是 UTF-8。
 - 参数类型：局部配置参数
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.4.0.0 版本开始引入
+
+#### ignoreNullInGreatest
+
+- 说明：GREATEST、LEAST 函数是否跳过 NULL 参数
+- 类型：整数；0：与 MySQL 一致，任一参数为 NULL 则返回 NULL；1：跳过 NULL 参数，仅在非 NULL 值之间比较，所有参数均为 NULL 时仍返回 NULL。与 compareAsStrInGreatest 正交。
+- 默认值：0
+- 最小值：0
+- 最大值：1
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
 
 #### showFullCreateTableColumn
 

@@ -144,13 +144,16 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
 
-- If any parameter is NULL, the comparison result is NULL.
+- If any parameter is NULL, the comparison result is NULL. (See `ignoreNullInGreatest` below to skip NULL arguments instead.)
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
 - If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
 - In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
 
-**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+**Related configuration items**:
+
+- `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
 
 #### LEAST
 
@@ -864,6 +867,49 @@ LTRIM(expr)
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
 **Applicable to**: Tables and supertables.
+
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**Function Description**: Applies the POSIX extended regular expression `pattern` to `expr` and returns the substring matched by capture group `group_idx`. Returns NULL when there is no match or when `expr` or `pattern` is NULL.
+
+**Return Type**: Same as `expr` (VARCHAR or NCHAR).
+
+**Applicable Data Types**: `expr`: VARCHAR, NCHAR. `pattern`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If omitted, `group_idx` defaults to `1`.
+- If provided as a non-`NULL` value, `group_idx` must be a non-negative integer constant. `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
+- If `group_idx` is SQL `NULL`, the function returns `NULL`.
+- Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
+- `pattern` must be provided as a constant literal or parameter placeholder; it cannot reference a column or be computed from other expressions.
+
+**Example**:
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
 
 #### REGEXP_IN_SET
 
@@ -1896,8 +1942,7 @@ NOW()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units include:
-        b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 
 #### TIMEDIFF
@@ -1926,7 +1971,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - Returns NULL if `expr1` or `expr2` is NULL.
 - Returns NULL if the input contains strings that do not conform to any date-time format.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
-- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - If `time_unit` is NULL, it is equivalent to the time unit not being specified.
 
 **Example**:
@@ -1964,8 +2009,7 @@ use_current_timezone: {
 
 **Usage Instructions**:
 
-- Supported time units `time_unit` include:
-          1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
@@ -2007,8 +2051,7 @@ TODAY()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units include:
-                b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
 
 #### WEEK
@@ -2799,7 +2842,7 @@ LAG(expr, offset[, default_val])
 - `default_val` must be type-compatible with `expr`.
 - `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
 
 ### LEAD
 
@@ -2822,7 +2865,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` must be type-compatible with `expr`.
 - `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
 
 ### MAX
 
@@ -3144,6 +3187,7 @@ MAVG(expr, k)
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
 - Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT
 
@@ -3168,7 +3212,7 @@ STATECOUNT(expr, oper, val)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATECOUNT` counts consecutive records only inside the current window and does not accumulate across windows.
 
 ### STATEDURATION
 
@@ -3194,7 +3238,7 @@ STATEDURATION(expr, oper, val, unit)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATEDURATION` measures continuous duration only inside the current window and does not accumulate across windows.
 
 ### TWA
 
@@ -3251,6 +3295,40 @@ SELECT CURRENT_USER();
 ```
 
 **Description**: Retrieves the current user.
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
+
+**Parameters**:
+
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative or NULL values skip the sleep and return 0
+
+**Return value**: INT - Returns 0 on success or for negative/NULL arguments
+
+**Examples**:
+
+```sql
+-- Sleep for 2 seconds
+SELECT SLEEP(2);
+
+-- Sleep for 500 milliseconds
+SELECT SLEEP(0.5);
+
+-- Negative argument returns 0 immediately
+SELECT SLEEP(-1);
+
+-- NULL argument returns 0 immediately
+SELECT SLEEP(NULL);
+
+-- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- total wait time equals the sum of each row's duration
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## Geometry Functions
 

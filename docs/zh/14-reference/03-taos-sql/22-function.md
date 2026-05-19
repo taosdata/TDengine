@@ -211,13 +211,16 @@ GREATEST(expr1, expr2[, expr]...)
 
 **比较规则**：以下规则描述了比较操作的转换方式：
 
-- 如果有任何一个参数为 NULL，则比较结果为 NULL。
+- 如果有任何一个参数为 NULL，则比较结果为 NULL。（如需跳过 NULL 参数，参见下方 `ignoreNullInGreatest` 配置项。）
 - 如果比较操作中的所有参数都是字符串类型，按照字符串类型比较
 - 如果所有参数都是数值类型，则将它们作为数值类型进行比较。
 - 如果参数中既有字符串类型，也有数值类型，根据 compareAsStrInGreatest 配置项，统一作为字符串或者数值进行比较。默认按照字符串比较。
 - 在所有情况下，不同类型比较，比较类型会选择范围更大的类型进行比较，例如作为整数类型比较时，如果存在 BIGINT 类型，必定会选择 BIGINT 作为比较类型。
 
-**相关配置项**：客户端配置，compareAsStrInGreatest 为 1 表示同时存在字符串类型和数值类型统一转为字符串比较，为 0 表示统一转为数值类型比较。默认为 1。
+**相关配置项**：
+
+- `compareAsStrInGreatest`（客户端配置）：为 `1` 表示同时存在字符串类型和数值类型时统一转为字符串比较，为 `0` 表示统一转为数值类型比较。默认为 `1`。
+- `ignoreNullInGreatest`（客户端配置，自 ver-3.4.2.0 起支持）：为 `0`（默认）时保持与 MySQL 一致的行为，任一参数为 NULL 则结果为 NULL；为 `1` 时跳过 NULL 参数，仅在非 NULL 值之间进行比较，若所有参数均为 NULL 仍返回 NULL。该项与 `compareAsStrInGreatest` 正交，仅影响 NULL 参数的处理，非 NULL 值之间的比较规则不变。
 
 #### LEAST
 
@@ -1042,6 +1045,47 @@ taos> select position('d' in 'cba');
  position('d' in 'cba') |
 =========================
                       0 |
+```
+
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**功能说明**：对 `expr` 应用 POSIX 扩展正则表达式 `pattern`，返回第 `group_idx` 个捕获组匹配的子串。无匹配、`expr` 或 `pattern` 为 NULL 时返回 NULL。
+
+**返回结果类型**：与 `expr` 相同（VARCHAR 或 NCHAR）。
+
+**适用数据类型**：`expr`：VARCHAR、NCHAR；`pattern`：VARCHAR、NCHAR。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- `group_idx` 通常为非负整数常量，默认为 `1`。`0` 返回整个匹配串，`1` 返回第一个捕获组，`2` 返回第二个，以此类推，最大值为 512。若 `group_idx` 为 SQL `NULL`，则返回 `NULL`。
+- 若 `group_idx` 超过 `pattern` 中的捕获组数量，或对应捕获组未参与匹配，返回 NULL。
+- `pattern` 必须为常量（字面量或预处理占位符），不可引用列；不支持 `concat('a','b')` 这类常量表达式。
+
+**举例**：
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
 ```
 
 #### REGEXP_IN_SET
@@ -2019,8 +2063,7 @@ NOW()
 
 **使用说明**：
 
-- 支持时间加减操作，如 NOW() + 1s，支持的时间单位如下：
-        b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+- 支持时间加减操作，如 NOW() + 1s，支持的时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周）。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 #### TIMEDIFF
@@ -2049,7 +2092,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - `expr1` 或 `expr2` 为 NULL，返回 NULL。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
-- 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 `time_unit` 如下：1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。
+- 返回值的时间单位由 `time_unit` 参数指定，最小是数据库的时间分辨率。`time_unit` 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周）。
 - `time_unit` 为 NULL，等同于未指定时间单位。
 
 **举例**：
@@ -2092,7 +2135,7 @@ use_current_timezone: {
 
 **使用说明**：
 
-- 支持的时间单位 time_unit 包括 1b(纳秒)、1u(微秒)、1a(毫秒)、1s(秒)、1m(分)、，1h(小时)、1d(天)、1w(周)。
+- 支持的时间单位 time_unit 参见[时间单位](./01-datatype.md#时间单位)。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
@@ -2134,8 +2177,7 @@ TODAY()
 
 **使用说明**：
 
-- 支持时间加减操作，如 TODAY() + 1s，支持的时间单位如下：
-                b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+- 支持时间加减操作，如 TODAY() + 1s，支持的时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周）。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 #### WEEK
@@ -2382,7 +2424,7 @@ LAG(expr, offset[, default_val])
 - `default_val` 需要与 `expr` 类型兼容。
 - `LAG` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
-- 不支持窗口查询（例如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）。
+- 与窗口一起使用时，`LAG` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口继承上一窗口的状态。
 
 #### LEAD
 
@@ -2405,7 +2447,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` 需要与 `expr` 类型兼容。
 - `LEAD` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
-- 不支持窗口查询（例如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）。
+- 与窗口一起使用时，`LEAD` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口读取下一窗口的数据。
 
 #### MAX
 
@@ -3168,6 +3210,7 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 与窗口一起使用时，`MAVG` 仅在当前窗口内部按样本顺序计算，不会跨窗口延续上一窗口的样本状态。
 
 #### STATECOUNT
 
@@ -3192,7 +3235,7 @@ STATECOUNT(expr, oper, val)
 
 **使用说明**：
 
-- 不能和窗口操作一起使用，例如 `interval/state_window/session_window`。
+- 与窗口一起使用时，`STATECOUNT` 仅统计当前窗口内部的连续记录，不会跨窗口累计。
 
 #### STATEDURATION
 
@@ -3218,7 +3261,7 @@ STATEDURATION(expr, oper, val, unit)
 
 **使用说明**：
 
-- 不能和窗口操作一起使用，例如 interval、state_window、session_window。
+- 与窗口一起使用时，`STATEDURATION` 仅统计当前窗口内部满足条件的连续时长，不会跨窗口累计。
 
 ### 时间加权统计
 
@@ -3329,6 +3372,39 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。如果想要查询集群的状态，推荐使用 `SHOW CLUSTER ALIVE` 与 `SELECT SERVER_STATUS()` 不同，当集群中的部分节点不可用时，它不会返回错误，而是返回不同的状态码，详见：[SHOW CLUSTER ALIVE](https://docs.taosdata.com/reference/taos-sql/show/#show-cluster-alive)
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**说明**：暂停执行指定的秒数。在表查询中，`SLEEP` 对每行各求值一次（MySQL 兼容），总等待时间等于各行 duration 之和。
+
+**参数**：
+
+- `seconds`：DOUBLE - 休眠的秒数（支持小数，如 0.5）；负数或 NULL 跳过休眠并返回 0；非数值类型报类型不匹配错误
+
+**返回值**：INT - 正常结束或参数为负数/NULL 时返回 0
+
+**示例**：
+
+```sql
+-- 休眠 2 秒
+SELECT SLEEP(2);
+
+-- 休眠 500 毫秒
+SELECT SLEEP(0.5);
+
+-- 负数参数立即返回 0
+SELECT SLEEP(-1);
+
+-- NULL 参数立即返回 0
+SELECT SLEEP(NULL);
+
+-- 表查询中对每行各求值一次（MySQL 兼容），此例总等待约 N 秒（N = 行数）
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## 地理信息函数​​
 

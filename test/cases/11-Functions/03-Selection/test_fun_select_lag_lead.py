@@ -270,8 +270,23 @@ class TestFunSelectLagLead:
         tdSql.checkData(2, 2, -1)
 
     def _case_window_query_lag_lead(self):
-        tdSql.error("select _wstart, lag(v, 1, -1) from ct1 interval(1s)")
-        tdSql.error("select _wstart, lead(v, 1, -1) from ct1 interval(1s)")
+        tdSql.query("select _wstart, lag(v, 1, -1) from ct1 interval(1s) order by _wstart")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2025-01-01 00:00:01.000")
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(1, 0, "2025-01-01 00:00:02.000")
+        tdSql.checkData(1, 1, -1)
+        tdSql.checkData(2, 0, "2025-01-01 00:00:03.000")
+        tdSql.checkData(2, 1, -1)
+
+        tdSql.query("select _wstart, lead(v, 1, -1) from ct1 interval(1s) order by _wstart")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2025-01-01 00:00:01.000")
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(1, 0, "2025-01-01 00:00:02.000")
+        tdSql.checkData(1, 1, -1)
+        tdSql.checkData(2, 0, "2025-01-01 00:00:03.000")
+        tdSql.checkData(2, 1, -1)
 
     def _case_order_desc_lag_lead(self):
         tdSql.query("select _rowts, v, lag(v, 1, -1), lead(v, 1, -1) from ct1 order by ts desc")

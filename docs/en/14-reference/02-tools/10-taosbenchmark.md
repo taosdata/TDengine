@@ -545,7 +545,7 @@ Below are a few examples of configuration files:
 
 </details>
 
-[Other json examples](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
+[Other json examples](https://github.com/taosdata/TDengine/tree/main/tools/taosBenchmark/example)
 
 ## Output Performance Indicators
 

@@ -7,7 +7,7 @@ import threading
 import subprocess
 from  datetime import datetime
 
-from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom, tdDnodes, tmqCom
 from taos.tmq import *
 from taos import *
 
@@ -732,6 +732,7 @@ class TestTmqBugs:
     # ------------------- 16 ----------------
     #
     def do_ts7402(self):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'drop topic if exists topic1')
         tdSql.execute(f'drop topic if exists topic2')
         tdSql.execute(f'drop database if exists test')
@@ -787,36 +788,6 @@ class TestTmqBugs:
     #
     # ------------------- 18 ----------------
     #
-    def get_leader(self):
-        tdLog.debug("get leader")
-        tdSql.query("show vnodes")
-        for result in tdSql.queryResult:
-            if result[3] == 'leader':
-                tdLog.debug("leader is %d"%(result[0]))
-                return result[0]
-        return -1
-
-    def balance_vnode(self):
-        leader_before = self.get_leader()
-        
-        while True:
-            leader_after = -1
-            tdLog.info("balancing vgroup leader")
-            tdSql.execute("balance vgroup leader")
-            while True:
-                tdLog.info("get new vgroup leader")
-                leader_after = self.get_leader()
-                if leader_after != -1 :
-                    break
-                else:
-                    time.sleep(1)
-            if leader_after != leader_before:
-                tdLog.info("leader changed")
-                break
-            else :
-                time.sleep(1)
-                tdLog.info("leader not changed")
-
     def do_ts4674(self):
         tdSql.execute(f'create database d1 replica 3 vgroups 1')
         tdSql.execute(f'use d1')
@@ -855,7 +826,7 @@ class TestTmqBugs:
                             # continue
                         else :
                             break
-                    self.balance_vnode()
+                    tmqCom.balance_vnode('d1')
                     balance = True
                     tdSql.execute(f'insert into t1 using st tags(1) values(now+5s, 11) (now+10s, 12)')
                     continue

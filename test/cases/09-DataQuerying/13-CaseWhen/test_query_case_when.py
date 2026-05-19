@@ -1311,74 +1311,81 @@ class TestQueryCaseWhen:
 
     def state_window_list(self):
         a1,a2,a3 = random.randint(-2147483647,2147483647),random.randint(-2147483647,2147483647),random.randint(-2147483647,2147483647)
-        state_window_lists = ['first  case when %d then %d end last' %(a1,a2) ,     #'first  case when 3 then 4 end last' , 
-                        'first  case when 0 then %d end last' %(a1),            #'first  case when 0 then 4 end last' ,
-                        'first  case when null then %d end last' %(a1) ,        #'first  case when null then 4 end last' ,
-                        'first  case when %d-(%d) then 0 end last' %(a1,a1) ,     #'first  case when 1-1 then 0 end last' ,
-                        'first  case when %d+(%d) then 0 end last' %(a1,a1),      #'first  case when 1+1 then 0 end last' ,  
-                        'first  case when %d > 0 then %d < %d end last'  %(a1,a1,a2),   #'first  case when 1 > 0 then 1 < 2 end last' ,
-                        'first  case when %d > %d then %d < %d end last'  %(a1,a2,a1,a2),   #'first  case when 1 > 2 then 1 < 2 end last' ,
-                        'first  case when abs(%d) then abs(-(%d)) end last'  %(a1,a2) ,#'first  case when abs(3) then abs(-1) end last' ,
-                        'first  case when 0 then %d else %d end last'  %(a1,a2),  #'first  case when 0 then 1 else 3 end last' ,
-                        'first  case when 0 then %d when 1 then %d else %d end last'  %(a1,a1,a3),  #'first  case when 0 then 1 when 1 then 0 else 3 end last' ,
-                        'first  case when 0 then %d when 1 then %d when 2 then %d end last' %(a1,a1,a3), #'first  case when 0 then 1 when 1 then 0 when 2 then 3 end last' ,
-                        'first  case when \'a\' then \'b\' when null then 0 end last' ,   #'first  case when \'a\' then \'b\' when null then 0 end last' ,
-                        'first  case when \'%d\' then \'b\' when null then %d end last' %(a1,a2) ,   #'first  case when \'2\' then \'b\' when null then 0 end last' ,
-                        'first  case when \'%d\' then \'b\' else null end last' %(a1), #'first  case when \'0\' then \'b\' else null end last',
-                        'first  case when \'%d\' then \'b\' else %d end last' %(a1,a2), #'first  case when \'0\' then \'b\' else 2 end last',
-                        'first  case when q_int then q_int when q_int + (%d) then cast(q_int + (%d) as int) else q_int is null end last' %(a1,a2) , #'first  case when q_int then q_int when q_int + 1 then q_int + 1 else q_int is null end last' ,
-                        'first  case when q_int then %d when ts then cast(ts as int) end last'  %(a1),  #'first  case when q_int then 3 when ts then ts end last' ,
-                        'first  case when %d then q_int end last'  %(a1),  #'first  case when 3 then q_int end last' ,
-                        'first  case when q_int then %d when %d then %d end last'  %(a1,a1,a3),  #'first  case when q_int then 3 when 1 then 2 end last' ,
-                        'first  case when q_int < %d then %d when q_int >= %d then %d else %d end last' %(a1,a2,a1,a2,a3), #'first  case when q_int < 3 then 1 when q_int >= 3 then 2 else 3 end last' ,
-                        'first  case when q_int is not null then case when q_int <= %d then q_int else cast(q_int * (%d) as int) end else -(%d) end last'  %(a1,a1,a3),  #'first  case when q_int is not null then case when q_int <= 0 then q_int else q_int * 10 end else -1 end last' ,
-                        'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 3 then 4 end last' ,
-                        'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 1 then 4 end last' ,
-                        'first  case %d when %d then %d else %d end last'  %(a1,a1,a2,a3),  # 'first  case 3 when 1 then 4 else 2 end last' ,
-                        'first  case %d when null then %d when \'%d\' then %d end last' %(a1,a1,a2,a3) , # 'first  case 3 when null then 4 when \'3\' then 1 end last' ,
-                        'first  case \'%d\' when null then %d when %d then %d end last'  %(a1,a1,a2,a3), # 'first  case \'3\' when null then 4 when 3 then 1 end last' ,
-                        'first  case null when null then %d when %d then %d end last' %(a1,a2,a3), # 'first  case null when null then 4 when 3 then 1 end last' ,
-                        'first  case %d.0 when null then %d when \'%d\' then %d end last' %(a1,a1,a2,a3) ,  # 'first  case 3.0 when null then 4 when \'3\' then 1 end last' ,
-                        'first  case q_double when \'a\' then %d when \'%d\' then %d end last' %(a1,a2,a3) , # 'first  case q_double when \'a\' then 4 when \'0\' then 1 end last' ,
-                        'first  case q_double when q_int then q_int when q_int - (%d) then q_int else %d end last' %(a1,a2),  # 'first  case q_double when q_int then q_int when q_int - 1 then q_int else 99 end last' ,
-                        'first  case q_int + (%d) when %d then %d when %d then %d else %d end last'  %(a1,a2,a3,a1,a2,a3), #'first  case q_int + 1 when 1 then 1 when 2 then 2 else 3 end last' ,
-                        'first  case when \'a\' then \'b\' when null then %d end last'  %(a1), # 'first  case when \'a\' then \'b\' when null then 0 end last' ,
-                        'first  case when \'%d\' then \'b\' when null then %d end last'  %(a1,a2), # 'first  case when \'2\' then \'b\' when null then 0 end last' ,
-                        'first  case when %d then \'b\' else null end last'  %(a1), # 'first  case when 0 then \'b\' else null end last' ,
-                        'first  case when %d then \'b\' else cast(%d+abs(%d) as int) end last'  %(a1,a2,a3), # 'first  case when 0 then \'b\' else 2+abs(-2) end last' ,
-                        'first  case when %d then %d end last'  %(a1,a2), # 'first  case when 3 then 4 end last' ,
-                        'first  case when %d then %d end last'  %(a1,a2), # 'first  case when 0 then 4 end last' ,
-                        'first  case when null then %d end last'  %(a1), # 'first  case when null then 4 end last' ,
-                        'first  case when %d then cast(%d+(%d) as int) end last'  %(a1,a2,a3), # 'first  case when 1 then 4+1 end last' ,
-                        'first  case when %d-(%d) then %d end last'  %(a1,a2,a3), # 'first  case when 1-1 then 0 end last' ,
-                        'first  case when %d+(%d) then %d end last'  %(a1,a2,a3), # 'first  case when 1+1 then 0 end last' ,
-                        'first  case when abs(%d) then abs(%d) end last' %(a1,a2), # 'first  case when abs(3) then abs(-1) end last' ,
-                        'first  case when abs(%d+(%d)) then cast(abs(%d)+abs(%d) as int) end last'  %(a1,a2,a3,a1), # 'first  case when abs(1+1) then abs(-1)+abs(3) end last' ,
-                        'first  case when %d then %d else %d end last' %(a1,a2,a3), # 'first  case when 0 then 1 else 3 end last' ,
-                        'first  case when %d then %d when %d then %d else %d end last' %(a1,a2,a3,a1,a2), # 'first  case when 0 then 1 when 1 then 0 else 3 end last' ,
-                        'first  case when %d then %d when %d then %d when %d then %d end last' %(a1,a2,a3,a1,a2,a3), # 'first  case when 0 then 1 when 1 then 0 when 2 then 3 end last' ,
-                        'first  case %d when %d then %d end last'  %(a1,a1,a3),  # 'first  case 3 when 3 then 4 end last' ,
-                        'first  case %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case 3 when 1 then 4 end last' ,
-                        'first  case %d when %d then %d else %d end last'  %(a1,a2,a3,a1),  # 'first  case 3 when 1 then 4 else 2 end last' ,
-                        'first  case %d when null then %d when \'%d\' then %d end last'  %(a1,a2,a1,a3),  # 'first  case 3 when null then 4 when \'3\' then 1 end last' ,
-                        'first  case null when null then %d when %d then %d end last'  %(a1,a2,a3),  # 'first  case null when null then 4 when 3 then 1 end last' ,
-                        'first  case %d.0 when null then %d when \'%d\' then %d end last' %(a1,a2,a1,a3),  # 'first  case 3.0 when null then 4 when \'3\' then 1 end last' ,
-                        'first  case null when null then %d when %d then %d end last'  %(a1,a2,a3), #'first  case null when null then 4 when 3 then 1 end last' ,
-                        'first  q_int, case q_int + (%d) when %d then %d when %d then %d else %d end last' %(a1,a1,a1,a2,a2,a3), #'first  q_int, case q_int + 1 when 1 then 1 when 2 then 2 else 3 end last' ,
-                        ]
-        
-        state_window_list = str(random.sample(state_window_lists,50)).replace("[","").replace("]","").replace("'first","").replace("last'","").replace("\"first","").replace("last\"","")
-        
-        return state_window_list
+        state_window_sqls = [
+            'case when q_int then q_int when q_int + (%d) then cast(q_int + (%d) as int) else q_int is null end ' %(a1,a2) , #'first  case when q_int then q_int when q_int + 1 then q_int + 1 else q_int is null end last' ,
+            'case when q_int then %d when ts then cast(ts as int) end '  %(a1),  #'first  case when q_int then 3 when ts then ts end last' ,
+            'case when %d then q_int end '  %(a1),  #'first  case when 3 then q_int end last' ,
+            'case when q_int then %d when %d then %d end '  %(a1,a1,a3),  #'first  case when q_int then 3 when 1 then 2 end last' ,
+            'case when q_int < %d then %d when q_int >= %d then %d else %d end ' %(a1,a2,a1,a2,a3), #'first  case when q_int < 3 then 1 when q_int >= 3 then 2 else 3 end last' ,
+            'case when q_int is not null then case when q_int <= %d then q_int else cast(q_int * (%d) as int) end else -(%d) end '  %(a1,a1,a3),  #'first  case when q_int is not null then case when q_int <= 0 then q_int else q_int * 10 end else -1 end last' ,
+            'case q_double when \'a\' then %d when \'%d\' then %d end ' %(a1,a2,a3) , # 'first  case q_double when \'a\' then 4 when \'0\' then 1 end last' ,
+            'case q_double when q_int then q_int when q_int - (%d) then q_int else %d end ' %(a1,a2),  # 'first  case q_double when q_int then q_int when q_int - 1 then q_int else 99 end last' ,
+            'case q_int + (%d) when %d then %d when %d then %d else %d end '  %(a1,a2,a3,a1,a2,a3), #'first  case q_int + 1 when 1 then 1 when 2 then 2 else 3 end last' ,
+            'q_int, case q_int + (%d) when %d then %d when %d then %d else %d end ' %(a1,a1,a1,a2,a2,a3), #'first  q_int, case q_int + 1 when 1 then 1 when 2 then 2 else 3 end last' ,
+        ]
+
+        error_state_window_sqls = [
+            'case when %d then %d end ' %(a1,a2) ,     #'first  case when 3 then 4 end last' , 
+            'case when 0 then %d end ' %(a1),            #'first  case when 0 then 4 end last' ,
+            'case when null then %d end ' %(a1) ,        #'first  case when null then 4 end last' ,
+            'case when %d-(%d) then 0 end ' %(a1,a1) ,     #'first  case when 1-1 then 0 end last' ,
+            'case when %d+(%d) then 0 end ' %(a1,a1),      #'first  case when 1+1 then 0 end last' ,  
+            'case when %d > 0 then %d < %d end '  %(a1,a1,a2),   #'first  case when 1 > 0 then 1 < 2 end last' ,
+            'case when %d > %d then %d < %d end '  %(a1,a2,a1,a2),   #'first  case when 1 > 2 then 1 < 2 end last' ,
+            'case when abs(%d) then abs(-(%d)) end '  %(a1,a2) ,#'first  case when abs(3) then abs(-1) end last' ,
+            'case when 0 then %d else %d end '  %(a1,a2),  #'first  case when 0 then 1 else 3 end last' ,
+            'case when 0 then %d when 1 then %d else %d end '  %(a1,a1,a3),  #'first  case when 0 then 1 when 1 then 0 else 3 end last' ,
+            'case when 0 then %d when 1 then %d when 2 then %d end ' %(a1,a1,a3), #'first  case when 0 then 1 when 1 then 0 when 2 then 3 end last' ,
+            'case when \'a\' then \'b\' when null then 0 end ' ,   #'first  case when \'a\' then \'b\' when null then 0 end last' ,
+            'case when \'%d\' then \'b\' when null then %d end ' %(a1,a2) ,   #'first  case when \'2\' then \'b\' when null then 0 end last' ,
+            'case when \'%d\' then \'b\' else null end ' %(a1), #'first  case when \'0\' then \'b\' else null end last',
+            'case when \'%d\' then \'b\' else %d end ' %(a1,a2), #'first  case when \'0\' then \'b\' else 2 end last',
+            'case %d when %d then %d end '  %(a1,a2,a3),  # 'first  case 3 when 3 then 4 end last' ,
+            'case %d when %d then %d end '  %(a1,a2,a3),  # 'first  case 3 when 1 then 4 end last' ,
+            'case %d when %d then %d else %d end '  %(a1,a1,a2,a3),  # 'first  case 3 when 1 then 4 else 2 end last' ,
+            'case %d when null then %d when \'%d\' then %d end ' %(a1,a1,a2,a3) , # 'first  case 3 when null then 4 when \'3\' then 1 end last' ,
+            'case \'%d\' when null then %d when %d then %d end '  %(a1,a1,a2,a3), # 'first  case \'3\' when null then 4 when 3 then 1 end last' ,
+            'case null when null then %d when %d then %d end ' %(a1,a2,a3), # 'first  case null when null then 4 when 3 then 1 end last' ,
+            'case %d.0 when null then %d when \'%d\' then %d end ' %(a1,a1,a2,a3) ,  # 'first  case 3.0 when null then 4 when \'3\' then 1 end last' ,
+            'case when \'a\' then \'b\' when null then %d end '  %(a1), # 'first  case when \'a\' then \'b\' when null then 0 end last' ,
+            'case when \'%d\' then \'b\' when null then %d end '  %(a1,a2), # 'first  case when \'2\' then \'b\' when null then 0 end last' ,
+            'case when %d then \'b\' else null end '  %(a1), # 'first  case when 0 then \'b\' else null end last' ,
+            'case when %d then \'b\' else cast(%d+abs(%d) as int) end '  %(a1,a2,a3), # 'first  case when 0 then \'b\' else 2+abs(-2) end last' ,
+            'case when %d then %d end '  %(a1,a2), # 'first  case when 3 then 4 end last' ,
+            'case when %d then %d end '  %(a1,a2), # 'first  case when 0 then 4 end last' ,
+            'case when null then %d end '  %(a1), # 'first  case when null then 4 end last' ,
+            'case when %d then cast(%d+(%d) as int) end '  %(a1,a2,a3), # 'first  case when 1 then 4+1 end last' ,
+            'case when %d-(%d) then %d end '  %(a1,a2,a3), # 'first  case when 1-1 then 0 end last' ,
+            'case when %d+(%d) then %d end '  %(a1,a2,a3), # 'first  case when 1+1 then 0 end last' ,
+            'case when abs(%d) then abs(%d) end ' %(a1,a2), # 'first  case when abs(3) then abs(-1) end last' ,
+            'case when abs(%d+(%d)) then cast(abs(%d)+abs(%d) as int) end '  %(a1,a2,a3,a1), # 'first  case when abs(1+1) then abs(-1)+abs(3) end last' ,
+            'case when %d then %d else %d end ' %(a1,a2,a3), # 'first  case when 0 then 1 else 3 end last' ,
+            'case when %d then %d when %d then %d else %d end ' %(a1,a2,a3,a1,a2), # 'first  case when 0 then 1 when 1 then 0 else 3 end last' ,
+            'case when %d then %d when %d then %d when %d then %d end ' %(a1,a2,a3,a1,a2,a3), # 'first  case when 0 then 1 when 1 then 0 when 2 then 3 end last' ,
+            'case %d when %d then %d end '  %(a1,a1,a3),  # 'first  case 3 when 3 then 4 end last' ,
+            'case %d when %d then %d end '  %(a1,a2,a3),  # 'first  case 3 when 1 then 4 end last' ,
+            'case %d when %d then %d else %d end '  %(a1,a2,a3,a1),  # 'first  case 3 when 1 then 4 else 2 end last' ,
+            'case %d when null then %d when \'%d\' then %d end '  %(a1,a2,a1,a3),  # 'first  case 3 when null then 4 when \'3\' then 1 end last' ,
+            'case null when null then %d when %d then %d end '  %(a1,a2,a3),  # 'first  case null when null then 4 when 3 then 1 end last' ,
+            'case %d.0 when null then %d when \'%d\' then %d end ' %(a1,a2,a1,a3),  # 'first  case 3.0 when null then 4 when \'3\' then 1 end last' ,
+            'case null when null then %d when %d then %d end '  %(a1,a2,a3), #'first  case null when null then 4 when 3 then 1 end last' ,
+        ]
+
+        return state_window_sqls, error_state_window_sqls
            
     def state_window_case(self,database):    
-        for i in range(30):
-            cs = self.state_window_list().split(',')[i] 
-            sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,cs)
-            sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,cs)
+        state_window_sqls, error_state_window_sqls = self.state_window_list()
+        for sql in state_window_sqls:
+            sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,sql)
+            sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,sql)
             self.constant_check(database,sql1,sql2,0)
             self.constant_check(database,sql1,sql2,1)
-            self.constant_check(database,sql1,sql2,2)               
+            self.constant_check(database,sql1,sql2,2)
+
+        for sql in error_state_window_sqls:
+            sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,sql)
+            sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,sql)
+            tdSql.error(sql1)
         
     def constant_check(self,database,sql1,sql2,column):   
         #column =0 代表0列， column = n代表n-1列 
