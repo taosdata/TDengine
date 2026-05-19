@@ -87,7 +87,7 @@ stmt 绑定参数的示例代码如下：
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/stmt_example.js:createConnect}}
+    {{#include docs/examples/node/websocketexample/stmt_example.js}}
 ```
 
 </TabItem>
