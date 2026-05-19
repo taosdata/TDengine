@@ -164,7 +164,23 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
 #endif
 }
 
+/*
+ * Normalize weekday encodings to TDengine convention:
+ * 0-6 where 0=Sunday, 1=Monday, ..., 6=Saturday.
+ */
+static FORCE_INLINE int32_t taosWeekdayMon0ToSun0(int32_t weekday) {
+  return (weekday + 1) % 7;
+}
+
+static FORCE_INLINE int32_t taosWeekdaySun1ToSun0(int32_t weekday) {
+  return weekday - 1;
+}
+
 int32_t taosGetOSFirstDayOfWeek(void) {
+  /*
+   * Return OS first weekday normalized to 0-6 where 0=Sunday.
+   * Return -1 when OS-specific value is unavailable or invalid.
+   */
 #ifdef WINDOWS
   /* Windows LOCALE_IFIRSTDAYOFWEEK is 0-6 where 0=Monday, 6=Sunday.
      Normalize to 0-6 where 0=Sunday. */
@@ -174,7 +190,7 @@ int32_t taosGetOSFirstDayOfWeek(void) {
                       buffer, sizeof(buffer) / sizeof(WCHAR)) > 0) {
     int32_t value = (int32_t)(buffer[0] - L'0');
     if (value >= 0 && value <= 6) {
-      return (value + 1) % 7;
+      return taosWeekdayMon0ToSun0(value);
     }
   }
 
@@ -217,7 +233,7 @@ int32_t taosGetOSFirstDayOfWeek(void) {
     CFRelease(prefValue);
 
     if (gotValue && raw >= 1 && raw <= 7) {
-      return raw - 1;  /* Convert 1-7 to 0-6 */
+      return taosWeekdaySun1ToSun0(raw);  /* Convert 1-7 to 0-6 */
     }
   }
   
@@ -235,7 +251,7 @@ int32_t taosGetOSFirstDayOfWeek(void) {
     return -1;
   }
 
-  return (int32_t)(day - 1);
+  return taosWeekdaySun1ToSun0((int32_t)day);
 
 #elif defined(__GLIBC__)
   /* Linux glibc: first_weekday is 1-7 (1=Sunday, 2=Monday, ...).
@@ -250,7 +266,7 @@ int32_t taosGetOSFirstDayOfWeek(void) {
     return -1;
   }
 
-  return raw - 1;
+  return taosWeekdaySun1ToSun0(raw);
 
 #else
   return -1;

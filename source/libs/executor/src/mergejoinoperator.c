@@ -990,10 +990,17 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
 
   pCtx->truncateUnit = pUnit->typeData;
   pCtx->precision = pFunc->node.resType.precision;
+
+  /* Extract firstDayOfWeek (second-to-last injected param) */
+  int32_t fdowIdx = numOfParams - 2;
+  SValueNode* pFdow = (SValueNode*)nodesListGetNode(pFunc->pParameterList, fdowIdx);
+  pCtx->fdow = pFdow ? (int8_t)(pFdow->typeData & 0x07) : 0;
+
+  int64_t factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
+
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) &&
       pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
     char    *tzStr = varDataVal(pTimeZone->datum.p);
-    int64_t  factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
 
     /* IANA names need a DST-aware handle; fixed-offset strings use
      * the existing modulo path. */
@@ -1178,6 +1185,8 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
       if (pCtx->tz != NULL) {
         /* DST-aware truncation for IANA timezone with day-or-larger units */
         int64_t factor = TSDB_TICK_PER_SECOND(pCtx->precision);
+        int64_t weekUnit = 604800LL * factor;
+        bool    isWeek = (pCtx->truncateUnit == weekUnit);
         for (int32_t i = 0; i < pBlock->info.rows; ++i) {
           int64_t ts = ((int64_t*)pPrimIn->pData)[i];
           time_t  t = (time_t)(ts / factor);
@@ -1187,6 +1196,10 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
             ((int64_t*)pPrimOut->pData)[i] = ts;
             continue;
           }
+          if (isWeek) {
+            int32_t daysBack = (tmInfo.tm_wday - (int32_t)pCtx->fdow + 7) % 7;
+            tmInfo.tm_mday -= daysBack;
+          }
           tmInfo.tm_hour = 0;
           tmInfo.tm_min  = 0;
           tmInfo.tm_sec  = 0;
@@ -1194,14 +1207,20 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
           time_t truncated = taosMktime(&tmInfo, pCtx->tz);
           ((int64_t*)pPrimOut->pData)[i] = (truncated != (time_t)-1) ? truncated * factor : ts;
         }
-      } else if (0 != pCtx->timezoneUnit) {
-        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-          ((int64_t*)pPrimOut->pData)[i] =
-              ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
-        }
       } else {
-        for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-          ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+        int64_t factor = TSDB_TICK_PER_SECOND(pCtx->precision);
+        int64_t weekShift = (pCtx->truncateUnit == 604800LL * factor) ?
+                            ((int64_t)pCtx->fdow - 4) * 86400LL * factor : 0;
+        if (0 != pCtx->timezoneUnit || 0 != weekShift) {
+          for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+            int64_t rem = (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit - weekShift) % pCtx->truncateUnit;
+            if (rem < 0) rem += pCtx->truncateUnit;
+            ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - rem;
+          }
+        } else {
+          for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+            ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+          }
         }
       }
       break;

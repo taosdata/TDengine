@@ -4689,6 +4689,15 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       }
     } else if (useCurrentTz && seconds == 86400) {
       timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+    } else if (seconds == 604800) {
+      /* Week truncation without timezone: align to UTC week boundary honoring firstDayOfWeek.
+       * Epoch (1970-01-01) is Thursday (wday=4); shift so that FDOW becomes the boundary. */
+      int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
+      int64_t rem = (timeVal - weekShift) % timeUnit;
+      if (rem < 0) {
+        rem += timeUnit;
+      }
+      timeVal -= rem;
     } else {
       timeVal = timeVal / timeUnit * timeUnit;
     }
