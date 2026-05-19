@@ -13,12 +13,6 @@ if(TD_ENTERPRISE)
   )
 endif()
 
-if(TD_WINDOWS)
-    set(_TAOSNATIVE_DEP ${TAOS_NATIVE_LIB_STATIC})
-else()
-    set(_TAOSNATIVE_DEP ${TAOS_NATIVE_LIB})
-endif()
-
 target_link_libraries(
-    node_util mnode vnode qnode snode bnode wal sync ${_TAOSNATIVE_DEP} tfs monitor monitorfw metrics
+    node_util mnode vnode qnode snode bnode wal sync ${TAOS_NATIVE_LIB_STATIC} tfs monitor monitorfw metrics
 )
