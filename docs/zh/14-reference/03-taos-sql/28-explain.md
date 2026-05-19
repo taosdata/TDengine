@@ -80,6 +80,8 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 
 `EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一条详细统计信息。
 
+如果优化器在编译阶段已经确定查询结果恒为空，例如 `EXPLAIN SELECT * FROM meters WHERE 0 = 1` 这类常量假条件语句，那么语句会被直接裁剪，不会生成可执行计划，也不会进入实际执行阶段。因此，这类语句通常不会产生可用于诊断的有效 `EXPLAIN` / `EXPLAIN ANALYZE` 输出。
+
 执行计划采用树状结构展示：
 
 - 最上层节点是最终结果的产生位置

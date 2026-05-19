@@ -252,6 +252,7 @@ int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
     }
     if (!hasSlash && tzStr[0] != '+' && tzStr[0] != '-'
         && strcmp(tzStr, "UTC") != 0
+        && strncmp(tzStr, "UTC+", 4) != 0 && strncmp(tzStr, "UTC-", 4) != 0
         && !(tzStr[0] == 'Z' && tzStr[1] == '\0')
         && !(tzStr[0] == 'z' && tzStr[1] == '\0')) {
       TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);

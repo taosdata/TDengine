@@ -288,9 +288,7 @@ TEST(connectionCase, setConnectionOption_Test) {
   check_sql_result(pConn, "select timezone()", "Asia/Kolkata (IST, +0530)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
-  ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
-  check_sql_result(pConn, "select timezone()", "adbc (UTC, +0000)");
+  ASSERT(code != 0);  // invalid timezone is not allowed anymore
 #endif
 
   // test user APP
