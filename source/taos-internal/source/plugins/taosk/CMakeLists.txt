@@ -44,24 +44,15 @@ target_link_libraries(taosk
 )
 
 # Link libraries for the executable
-if(TD_WINDOWS)
-    target_link_libraries(taosk_bin
-        PRIVATE taosk
-        PRIVATE os
-        PRIVATE util
-        PRIVATE common
-        PRIVATE crypt
-        PRIVATE transport
-        PRIVATE grant
-    )
-else()
-    target_link_libraries(taosk_bin
-        PRIVATE taosk
-        PRIVATE ${TAOS_NATIVE_LIB}
-        PRIVATE $<TARGET_FILE:grant>
-    )
-    add_dependencies(taosk_bin grant)
-endif()
+target_link_libraries(taosk_bin
+    PRIVATE taosk
+    PRIVATE os
+    PRIVATE util
+    PRIVATE common
+    PRIVATE crypt
+    PRIVATE transport
+    PRIVATE grant
+)
 
 # Rename the binary to 'taosk' for installation
 set_target_properties(taosk_bin PROPERTIES OUTPUT_NAME taosk)
