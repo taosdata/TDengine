@@ -47,7 +47,7 @@ typedef struct STsdbSnapRAWReader {
   SDataFileRAWReaderIter dataIter[1];
 
   // missing file filter
-  SHashObj* missingFileHash;  // key=(fid,ftype) — per-file filtering (not owned, do not free)
+  SHashObj* missingFileHash;  // key=(fid,ftype,level,minVer,maxVer) — per-file filtering (not owned, do not free)
   SHashObj* fidModeHash;      // key=fid, val=uint8_t mode (not owned, do not free)
   SHashObj* missingSttHash;   // key=(fid,cid) — per-STT filtering (not owned, do not free)
   int32_t*  missingFids;      // FID set for FID-level pre-filtering (owned, copy)
@@ -163,8 +163,9 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
     STFileObj*               fobj = reader->ctx->fset->farr[ftype];
     // per-file filter: skip files not in missing set (only when FILE_LEVEL mode)
     if (!fsetLevel && reader->missingFileHash != NULL) {
-      int64_t mfKey = tsdbMissingFileKey(reader->ctx->fset->fid, ftype);
-      if (taosHashGet(reader->missingFileHash, &mfKey, sizeof(mfKey)) == NULL) {
+      char key[TSDB_SNAP_FILE_KEY_LEN];
+      tsdbSnapFileKeyMake(reader->ctx->fset->fid, ftype, 0, fobj->f->minVer, fobj->f->maxVer, key);
+      if (taosHashGet(reader->missingFileHash, key, sizeof(key)) == NULL) {
         tsdbDebug("vgId:%d, RAW skip file fid:%d ftype:%d not in missing set", TD_VID(reader->tsdb->pVnode),
                   reader->ctx->fset->fid, ftype);
         continue;
@@ -180,7 +181,7 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
     TSDB_CHECK_CODE(code, lino, _exit);
 
     code = TARRAY2_APPEND(reader->dataReaderArr, dataReader);
-    tsdbInfo("vgId:%d, RAW include file fid:%d ftype:%d in missing set", TD_VID(reader->tsdb->pVnode),
+    tsdbInfo("vgId:%d, RAW include file non-stt fid:%d ftype:%d in missing set", TD_VID(reader->tsdb->pVnode),
              reader->ctx->fset->fid, ftype);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -192,12 +193,12 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       // per-file filter: skip stt files not in missing set (only when FILE_LEVEL mode)
       if (!fsetLevel && reader->missingSttHash != NULL) {
-        int64_t sttCid = fobj->f->cid;
-        char    sttKey[TSDB_STT_HASH_KEY_LEN];
-        tsdbSttHashKey(reader->ctx->fset->fid, sttCid, sttKey);
+        char sttKey[TSDB_SNAP_FILE_KEY_LEN];
+        tsdbSnapFileKeyMake(reader->ctx->fset->fid, TSDB_FTYPE_STT, lvl->level, fobj->f->minVer, fobj->f->maxVer,
+                            sttKey);
         if (taosHashGet(reader->missingSttHash, sttKey, sizeof(sttKey)) == NULL) {
           tsdbDebug("vgId:%d, RAW skip stt file fid:%d cid:%" PRId64 " not in missing set",
-                    TD_VID(reader->tsdb->pVnode), reader->ctx->fset->fid, sttCid);
+                    TD_VID(reader->tsdb->pVnode), reader->ctx->fset->fid, fobj->f->cid);
           continue;
         }
       }
@@ -211,7 +212,7 @@ static int32_t tsdbSnapRAWReadFileSetOpenReader(STsdbSnapRAWReader* reader) {
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = TARRAY2_APPEND(reader->dataReaderArr, dataReader);
-      tsdbInfo("vgId:%d, RAW include stt file fid:%d in missing set", TD_VID(reader->tsdb->pVnode),
+      tsdbInfo("vgId:%d, RAW include file stt fid:%d in missing set", TD_VID(reader->tsdb->pVnode),
                reader->ctx->fset->fid);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -328,7 +329,8 @@ static int32_t tsdbSnapRAWReadBegin(STsdbSnapRAWReader* reader) {
       reader->ctx->fset = NULL;
       continue;
     }
-    tsdbInfo("vgId:%d, RAW include fid:%d in missing-fid set", TD_VID(reader->tsdb->pVnode), reader->ctx->fset->fid);
+    tsdbInfo("vgId:%d, RAW include fset fid:%d in missing-fid set", TD_VID(reader->tsdb->pVnode),
+             reader->ctx->fset->fid);
 
     reader->ctx->isDataDone = false;
 

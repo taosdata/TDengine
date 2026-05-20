@@ -56,7 +56,7 @@ struct SVSnapReader {
   int8_t              tsdbRAWDone;
   STsdbSnapRAWReader *pTsdbRAWReader;
   // missing file filter
-  SHashObj *missingFileHash;  // key=(fid,ftype), val=dummy — for RAW mode per-file filtering
+  SHashObj *missingFileHash;  // key=(fid,ftype,level,minVer,maxVer), val=dummy — for RAW mode per-file filtering
   SHashObj *fidModeHash;      // key=fid, val=uint8_t mode (FILE_LEVEL or FSET_LEVEL)
   SHashObj *missingSttHash;   // key=cid, val=dummy — for RAW mode per-STT filtering
   int32_t  *missingFids;      // FID set extracted from file names — for Normal mode FID filtering
@@ -154,8 +154,9 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
             vError("vgId:%d, failed to deserialize missing file list since %s", TD_VID(pVnode), tstrerror(code));
             goto _out;
           }
-          vInfo("vgId:%d, received %d file infos from follower, missing:%d", TD_VID(pVnode), missingFileCount,
-                (pReader->missingFileHash ? (int32_t)taosHashGetSize(pReader->missingFileHash) : 0));
+          vInfo("vgId:%d, received %d file infos from follower, missing file:%d, missing stt file:%d", TD_VID(pVnode),
+                missingFileCount, (pReader->missingFileHash ? (int32_t)taosHashGetSize(pReader->missingFileHash) : 0),
+                (pReader->missingSttHash ? (int32_t)taosHashGetSize(pReader->missingSttHash) : 0));
           // determine sync mode per fid
           if (missingFiles && missingFileCount > 0) {
             code = tsdbDetermineFidSyncMode(pVnode->pTsdb, missingFiles, missingFileCount, &pReader->fidModeHash);
