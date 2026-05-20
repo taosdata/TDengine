@@ -152,6 +152,13 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
  */
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 bool    qTaskIsDone(qTaskInfo_t tinfo);
+
+/**
+ * Update the worker pool callback for a task to match the current executing
+ * thread's pool. Defense-in-depth: even if CQuery routing is correct, this
+ * ensures pWorkerCb always matches the actual executing pool.
+ */
+void    qUpdateWorkerCb(qTaskInfo_t tinfo, void* pWorkerCb);
 /**
  * Set block for sma
  * @param tinfo
