@@ -1,28 +1,28 @@
 import os
 import sys
-from huggingface_hub import snapshot_download
 from tqdm import tqdm
+
+try:
+    from .hf_download import parse_bool, snapshot_download_with_fallback
+except ImportError:
+    from hf_download import parse_bool, snapshot_download_with_fallback
 
 
 def download_model(model_name, model_dir, enable_ep = False):
     # model_list = ['Salesforce/moirai-1.0-R-small']
-    ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
 
     if not os.path.exists(model_dir):
         print(f"create model directory: {model_dir}")
         os.mkdir(model_dir)
 
-    if ep:
-        print(f"set the download ep:{ep}")
-
     for item in tqdm(model_list):
-        snapshot_download(
+        snapshot_download_with_fallback(
             repo_id=item,
             local_dir=model_dir,  # storage directory
+            enable_ep=enable_ep,
             local_dir_use_symlinks=False,   # disable the link
             resume_download=True,
-            endpoint=ep
         )
 
 
@@ -36,10 +36,15 @@ if __name__ == '__main__':
     """
     if len(sys.argv) < 4:
         print("invalid parameters, e.g.,:\n python model_downloader.py model_directory model_name ep_enable")
-        exit(-1)
+        sys.exit(1)
 
     path = sys.argv[1].strip('\'"')
     model_name = sys.argv[2].strip('\'"')
-    ep_enable = bool(sys.argv[3])
+    ep_raw = sys.argv[3]
+    try:
+        ep_enable = parse_bool(ep_raw)
+    except ValueError:
+        print(f"invalid ep_enable parameter: {ep_raw}")
+        sys.exit(1)
 
     do_download_tsfm(path, model_name, ep_enable)

@@ -1,19 +1,21 @@
 import argparse
 import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'misc'))
 
 import torch
 from flask import Flask, request, jsonify
 import timesfm
 import numpy as np
-from huggingface_hub import snapshot_download
 from tqdm import tqdm
 
+from hf_download import snapshot_download_with_fallback
 app = Flask(__name__)
 pretrained_model = None
 
 def download_model(model_name, root_dir, enable_ep = False):
     # model_list = ['google/timesfm-2.0-500m-pytorch']
-    ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
 
     # root_dir = '/var/lib/taos/taosanode/model/timesfm/'
@@ -25,12 +27,12 @@ def download_model(model_name, root_dir, enable_ep = False):
         os.mkdir(dst_folder)
 
     for item in tqdm(model_list):
-        snapshot_download(
+        snapshot_download_with_fallback(
             repo_id=item,
             local_dir=dst_folder,  # storage directory
+            enable_ep=enable_ep,
             local_dir_use_symlinks=False,   # disable the link
             resume_download=True,
-            endpoint=ep
         )
 
 @app.route('/ds_predict', methods=['POST'])
