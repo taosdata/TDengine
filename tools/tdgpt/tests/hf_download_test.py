@@ -53,6 +53,8 @@ def test_resolve_endpoint_env_precedence(monkeypatch):
 
 def test_snapshot_download_with_fallback_accepts_positional_enable(monkeypatch):
     hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
     snapshot_download.return_value = "ok"
 
     result = hf_download.snapshot_download_with_fallback("repo-id", "local-dir", True)
