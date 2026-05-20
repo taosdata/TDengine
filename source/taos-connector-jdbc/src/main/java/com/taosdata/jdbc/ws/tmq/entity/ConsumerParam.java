@@ -36,6 +36,7 @@ public class ConsumerParam {
         knownKeys.add(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_ENABLE_COMPRESSION);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT);
+        knownKeys.add(TSDBDriver.PROPERTY_KEY_ADAPTER_HA);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_HOST);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_PORT);
         knownKeys.add(TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS);

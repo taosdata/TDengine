@@ -1,6 +1,8 @@
 package com.taosdata.jdbc.ws.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.taosdata.jdbc.common.ConnectionParam;
+import com.taosdata.jdbc.utils.JsonUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,6 +37,56 @@ public class ConnectReqTest {
                 .setAppName(TEST_APP)
                 .setAppIp(TEST_IP)
                 .setConnectMode(connectMode).build();
+    }
+
+    @Test
+    public void testListInstancesIsSerializedOnlyWhenAdapterHaEnabled() throws Exception {
+        ConnectionParam adapterHaParam = new ConnectionParam.Builder(new ArrayList<>())
+                .setUserAndPassword(TEST_USER, TEST_PASSWORD)
+                .setAdapterHa(true)
+                .build();
+
+        Request adapterHaRequest = new Request(Action.CONN.getAction(), new ConnectReq(adapterHaParam));
+        JsonNode adapterHaArgs = JsonUtil.getObjectMapper().readTree(adapterHaRequest.toString()).get("args");
+
+        assertTrue(adapterHaArgs.has("list_instances"));
+        assertTrue(adapterHaArgs.get("list_instances").asBoolean());
+        assertFalse(adapterHaArgs.has("instances"));
+
+        Request defaultRequest = new Request(Action.CONN.getAction(), new ConnectReq(buildConnectionParam(0)));
+        JsonNode defaultArgs = JsonUtil.getObjectMapper().readTree(defaultRequest.toString()).get("args");
+
+        assertFalse(defaultArgs.has("list_instances"));
+        assertFalse(defaultArgs.has("instances"));
+    }
+
+    @Test
+    public void testListInstancesCanBeExplicitlyDisabledForAdapterHa() throws Exception {
+        ConnectionParam adapterHaParam = new ConnectionParam.Builder(new ArrayList<>())
+                .setUserAndPassword(TEST_USER, TEST_PASSWORD)
+                .setAdapterHa(true)
+                .build();
+
+        Request request = new Request(Action.CONN.getAction(), new ConnectReq(adapterHaParam, Boolean.FALSE));
+        JsonNode args = JsonUtil.getObjectMapper().readTree(request.toString()).get("args");
+
+        assertTrue(args.has("list_instances"));
+        assertFalse(args.get("list_instances").asBoolean());
+    }
+
+    @Test
+    public void testListInstancesIsOmittedWhenSlaveClusterConfigured() throws Exception {
+        ConnectionParam slaveClusterParam = new ConnectionParam.Builder(new ArrayList<>())
+                .setUserAndPassword(TEST_USER, TEST_PASSWORD)
+                .setAdapterHa(true)
+                .setSlaveClusterHost("slave")
+                .setSlaveClusterPort(6041)
+                .build();
+
+        Request request = new Request(Action.CONN.getAction(), new ConnectReq(slaveClusterParam));
+        JsonNode args = JsonUtil.getObjectMapper().readTree(request.toString()).get("args");
+
+        assertFalse(args.has("list_instances"));
     }
 
     /**

@@ -75,7 +75,7 @@ chmod +x "$TMP/bin/"*
 
 PATH="$TMP/bin:$PATH" \
 CAPTURE_DIR="$TMP/capture" \
-bash "$ROOT/tools/ci/tsdb-docs-ci/local-validate.sh" \
+bash "$ROOT/.gitlab/scripts/tsdb-docs-ci/local-validate.sh" \
   --workdir "$TMP/work" \
   --tsdb-dir "$TMP/work/tsdb" \
   --image-tar "$TMP/docs-ci.tar.gz" \
@@ -105,7 +105,7 @@ fi
 
 PATH="$TMP/bin:$PATH" \
 CAPTURE_DIR="$TMP/capture" \
-bash "$ROOT/tools/ci/tsdb-docs-ci/local-validate.sh" \
+bash "$ROOT/.gitlab/scripts/tsdb-docs-ci/local-validate.sh" \
   --workdir "$TMP/work" \
   --tsdb-dir "$TMP/work/tsdb" \
   --image-tar "$TMP/docs-ci.tar.gz" \
@@ -119,7 +119,7 @@ grep -F "bash .gitlab/scripts/tsdb-docs-ci/autofix.sh" "$TMP/capture/docker.log"
 
 PATH="$TMP/bin:$PATH" \
 CAPTURE_DIR="$TMP/capture" \
-bash "$ROOT/tools/ci/tsdb-docs-ci/local-validate.sh" \
+bash "$ROOT/.gitlab/scripts/tsdb-docs-ci/local-validate.sh" \
   --workdir "$TMP/work" \
   --image-tar "$TMP/docs-ci.tar.gz" \
   --base-ref origin/main \

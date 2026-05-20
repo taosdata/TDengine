@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "query.h"
 #include "streamMsg.h"
 #include "stream.h"
 #include "streamReader.h"
@@ -227,7 +228,16 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       pWorker = &pMgmt->writeWorker;
       break;
     case QUERY_QUEUE:
-      pWorker = &pMgmt->queryWorker;
+      if (pRpc->msgType == TDMT_SCH_QUERY_CONTINUE) {
+        SQueryContinueReq *pReq = (SQueryContinueReq *)pRpc->pCont;
+        if (pReq != NULL && pReq->taskType == TASK_TYPE_HQUERY) {
+          pWorker = &pMgmt->mqueryWorker;
+        } else {
+          pWorker = &pMgmt->queryWorker;
+        }
+      } else {
+        pWorker = &pMgmt->queryWorker;
+      }
       break;
     case FETCH_QUEUE:
       pWorker = &pMgmt->fetchWorker;

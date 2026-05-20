@@ -197,6 +197,7 @@ import i18n from '@/lang';
 import { setLocale } from 'taos-ui/config';
 import Cookies from 'js-cookie';
 import { PENDING_EXPLORER_REDIRECT_KEY } from 'taos-ui/constants/tdengine';
+import { getLoginErrorMessage, isCaptchaLoginError } from './loginError';
 
 const { t } = useI18n();
 const store = useStore();
@@ -573,7 +574,7 @@ async function oauthBindSubmit() {
     } else {
       loading.value = false;
       oauthBind.value = false;
-      $error(res.desc || 'OAuth account binding failed');
+      $error(getLoginErrorMessage(res?.desc, t, 'OAuth account binding failed'));
     }
   } catch (error) {
     loading.value = false;
@@ -635,8 +636,8 @@ async function basicAuthLogin() {
         totpDialogVisible.value = true;
         return;
       }
-      if (res && (res.desc === 'captchaRequired' || res.desc === 'captchaInputError')) {
-        $error(t(`login.${res.desc}`));
+      if (res && isCaptchaLoginError(res.desc)) {
+        $error(getLoginErrorMessage(res.desc, t, t('login.errorTip')));
         dynamicValidateForm.captcha = '';
         captchaForm.captchaCode = '';
         await openCaptchaDialog();
@@ -645,7 +646,7 @@ async function basicAuthLogin() {
       if (res && res.code == 11) {
         $error(t('login.servTaosdTip'));
       } else {
-        $error(res.desc || t('login.errorTip'));
+        $error(getLoginErrorMessage(res?.desc, t, t('login.errorTip')));
       }
     }
   } catch (error) {
@@ -659,7 +660,7 @@ async function basicAuthLogin() {
     }
     if (error.response && error.response.data.desc) {
       console.log('api response:', error.response);
-      $error(error.response.data.desc);
+      $error(getLoginErrorMessage(error.response.data.desc, t, t('login.servExceptionTip')));
     } else {
       $error(t('login.servExceptionTip'));
     }
@@ -823,10 +824,10 @@ async function confirmTotpLogin() {
       await getGrantsFull();
       router.push({ path: '/explorer' });
     } else {
-      ElMessage.error(res?.desc || t('profile.totpVerifyFailed'));
+      ElMessage.error(getLoginErrorMessage(res?.desc, t, t('profile.totpVerifyFailed')));
     }
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.desc || t('profile.totpVerifyFailed'));
+    ElMessage.error(getLoginErrorMessage(err?.response?.data?.desc, t, t('profile.totpVerifyFailed')));
   } finally {
     loading.value = false;
   }

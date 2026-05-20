@@ -5,7 +5,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 
 usage() {
   cat <<'EOF'
-Usage: tools/ci/tsdb-docs-ci/local-validate.sh [options]
+Usage: .gitlab/scripts/tsdb-docs-ci/local-validate.sh [options]
 
 Prepare local docs CI dependencies, then run docs lint and build in Docker.
 

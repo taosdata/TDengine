@@ -603,7 +603,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 连接池中获取客户端
             influxDB = influxdbV1Pool.getPool().borrowObject();
             // 查询语句
-            String sql = "select first() from \"" + measurement + "\" where time >= '" + startTime + "'";
+            String sql = "select * from \"" + escapeInfluxQLIdentifier(measurement) + "\" where time >= '" + startTime + "' order by time asc limit 1";
             // 执行查询
             QueryResult queryResult = influxDB.query(new Query(sql, bucket));
             // 结果空则返回空
@@ -652,17 +652,21 @@ public class InfluxdbServiceImpl implements InfluxdbService {
     }
 
     /**
-     * 获取 tag set
+     * Get the tag set in pages, returning only one page of results at a time to avoid
+     * OOM (Out of Memory) errors caused by high cardinality measurements.
+     * 
      * @param bucket
      * @param measurement
-     * @return
+     * @param limit
+     * @param offset
+     * @return left: tag sets on current page, right: raw series row count on current page
      * @throws ArtificialException
      */
-    public List<List<Pair<String, String>>> getTagSet(String bucket, String measurement) throws ArtificialException {
+    public Pair<List<List<Pair<String, String>>>, Long> getTagSetPage(String bucket, String measurement, long limit, long offset) throws ArtificialException {
         InfluxDB influxDB = null;
         try {
             influxDB = influxdbV1Pool.getPool().borrowObject();
-            return getTagSetV1(influxDB, bucket, measurement);
+            return getTagSetV1Page(influxDB, bucket, measurement, limit, offset);
         } catch (Exception e) {
             handlerException(e);
             throw new ArtificialException(ResEnums.ERR_DATABASE.getCode(), ResEnums.ERR_DATABASE.getMsg(), e);
@@ -1074,21 +1078,24 @@ public class InfluxdbServiceImpl implements InfluxdbService {
     }
 
     /**
-     * 查询tag列表值，适用于v1.7/1.8
+     * Get tag list values ​​(single page), applicable to v1.7/1.8
      *
      * @param influxDB
      * @param bucket
      * @param measurement
-     * @return
+     * @param limit
+     * @param offset
+     * @return left: tag sets on current page, right: raw series row count on current page
      */
-    private List<List<Pair<String, String>>> getTagSetV1(InfluxDB influxDB, String bucket, String measurement) {
+    private Pair<List<List<Pair<String, String>>>, Long> getTagSetV1Page(InfluxDB influxDB, String bucket, String measurement, long limit, long offset) {
         // 返回结果
         List<List<Pair<String, String>>> tagValues = new ArrayList<>();
-        // 查询所有tag
-        QueryResult queryResult = influxDB.query(new Query("show series from \"" + measurement + "\"", bucket));
-        // 结果空则返回空set
+        long rawSeriesCount = 0L;
+        String sql = "show series from \"" + escapeInfluxQLIdentifier(measurement) + "\" limit " + limit + " offset " + offset;
+        QueryResult queryResult = influxDB.query(new Query(sql, bucket));
+        // 结果为空则返回空列表
         if (queryResult == null || queryResult.getResults() == null) {
-            return tagValues;
+            return Pair.of(tagValues, rawSeriesCount);
         }
         for (QueryResult.Result result : queryResult.getResults()) {
             // 空则跳过并继续
@@ -1105,6 +1112,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     if (record == null || record.size() == 0) {
                         continue;
                     }
+                    rawSeriesCount++;
                     List<Pair<String, String>> tags = new ArrayList<>();
                     for (int i = 0; i < record.size(); i++) {
                         String line = record.get(i).toString();
@@ -1136,7 +1144,17 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                 }
             }
         }
-        return tagValues;
+        return Pair.of(tagValues, rawSeriesCount);
+    }
+
+    /**
+     * Escape InfluxQL identifier wrapped by double quotes.
+     * 
+     * @param identifier identifier name
+     * @return escaped identifier
+     */
+    private String escapeInfluxQLIdentifier(String identifier) {
+        return identifier.replace(BACKSLASH, ESCAPE_BACKSLASH).replace("\"", "\\\"");
     }
 
     /**

@@ -11,12 +11,12 @@ grep -F "workflow:" "${ROOT}/.gitlab/tsdb-build-docs.yml"
 grep -F '$CI_PIPELINE_SOURCE == "parent_pipeline"' "${ROOT}/.gitlab/tsdb-build-docs.yml"
 grep -F "extends: .docs-child-job" "${ROOT}/.gitlab/tsdb-build-docs.yml"
 grep -F "tags: [X64, Linux, TSDB-DOCS, u0-30]" "${ROOT}/.gitlab/tsdb-build-docs.yml"
-grep -F "tools/ci/tsdb-docs-ci/local-validate.sh --fix" "${ROOT}/.gitlab/tsdb-build-docs.yml"
+grep -F ".gitlab/scripts/tsdb-docs-ci/local-validate.sh --fix" "${ROOT}/.gitlab/tsdb-build-docs.yml"
 grep -F "bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/check-typos.sh" "${ROOT}/.gitlab/tsdb-build-docs.yml"
 grep -F "bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/check-autocorrect.sh" "${ROOT}/.gitlab/tsdb-build-docs.yml"
 grep -F "bash .gitlab/scripts/tsdb-docs-ci/run-in-docker.sh bash .gitlab/scripts/tsdb-docs-ci/check-markdownlint.sh" "${ROOT}/.gitlab/tsdb-build-docs.yml"
 if grep -F "docs-autofix:" "${ROOT}/.gitlab/tsdb-build-docs.yml"; then
-  echo "docs-autofix must not run in CI; use tools/ci/tsdb-docs-ci/local-validate.sh --fix locally" >&2
+  echo "docs-autofix must not run in CI; use .gitlab/scripts/tsdb-docs-ci/local-validate.sh --fix locally" >&2
   exit 1
 fi
 if grep -F "docs-autofix.patch" "${ROOT}/.gitlab/tsdb-build-docs.yml"; then

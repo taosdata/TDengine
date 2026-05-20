@@ -19,17 +19,18 @@ import (
 )
 
 type connRequest struct {
-	ReqID       uint64 `json:"req_id"`
-	User        string `json:"user"`
-	Password    string `json:"password"`
-	DB          string `json:"db"`
-	Mode        *int   `json:"mode"`
-	TZ          string `json:"tz"`
-	App         string `json:"app"`
-	IP          string `json:"ip"`
-	Connector   string `json:"connector"`
-	TOTPCode    string `json:"totp_code"`
-	BearerToken string `json:"bearer_token"`
+	ReqID         uint64 `json:"req_id"`
+	User          string `json:"user"`
+	Password      string `json:"password"`
+	DB            string `json:"db"`
+	Mode          *int   `json:"mode"`
+	TZ            string `json:"tz"`
+	App           string `json:"app"`
+	IP            string `json:"ip"`
+	Connector     string `json:"connector"`
+	TOTPCode      string `json:"totp_code"`
+	BearerToken   string `json:"bearer_token"`
+	ListInstances bool   `json:"list_instances"`
 }
 
 func (r *connRequest) String() string {
@@ -50,6 +51,7 @@ func (r *connRequest) String() string {
 	_, _ = fmt.Fprintf(builder, "app: %q,", r.App)
 	_, _ = fmt.Fprintf(builder, "ip: %q,", r.IP)
 	_, _ = fmt.Fprintf(builder, "connector: %q,", r.Connector)
+	_, _ = fmt.Fprintf(builder, "list_instances: %t,", r.ListInstances)
 
 	builder.WriteString("totp_code: \"[HIDDEN]\",")
 	builder.WriteString("bearer_token: \"[HIDDEN]\"")
@@ -58,13 +60,16 @@ func (r *connRequest) String() string {
 }
 
 type connResponse struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Action  string `json:"action"`
-	ReqID   uint64 `json:"req_id"`
-	Timing  int64  `json:"timing"`
-	Version string `json:"version"`
+	Code          int       `json:"code"`
+	Message       string    `json:"message"`
+	Action        string    `json:"action"`
+	ReqID         uint64    `json:"req_id"`
+	Timing        int64     `json:"timing"`
+	Version       string    `json:"version"`
+	ListInstances *[]string `json:"list_instances,omitempty"`
 }
+
+var listInstances = syncinterface.TaosListInstances
 
 func (h *messageHandler) connect(ctx context.Context, session *melody.Session, action string, req connRequest, innerReqID uint64, logger *logrus.Entry, isDebug bool) {
 	h.Lock(logger, isDebug)
@@ -213,6 +218,16 @@ func (h *messageHandler) connect(ctx context.Context, session *melody.Session, a
 			return
 		}
 	}
+	var instances *[]string
+	if req.ListInstances {
+		registerType := fmt.Sprintf("%sadapter", version.CUS_PROMPT)
+		list, err := listInstances(registerType, logger, isDebug)
+		if err != nil {
+			logger.Errorf("list instances error:%s", err)
+		} else {
+			instances = &list
+		}
+	}
 	h.conn = conn
 	// save user for record
 	h.user = req.User
@@ -221,10 +236,11 @@ func (h *messageHandler) connect(ctx context.Context, session *melody.Session, a
 	notifyRegistered = true
 	go wstool.WaitSignal(h, conn, h.ip, h.ipStr, h.WhitelistChangeHandle, h.DropUserHandle, h.WhitelistChangeChan, h.DropUserChan, h.exit, h.logger)
 	resp := &connResponse{
-		Action:  action,
-		ReqID:   req.ReqID,
-		Timing:  wstool.GetDuration(ctx),
-		Version: version.TaosClientVersion,
+		Action:        action,
+		ReqID:         req.ReqID,
+		Timing:        wstool.GetDuration(ctx),
+		Version:       version.TaosClientVersion,
+		ListInstances: instances,
 	}
 	wstool.WSWriteJson(session, logger, resp)
 }
