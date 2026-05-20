@@ -58,6 +58,8 @@ tsdb-ci:
         - source/taos-community/utils/**/*
         - source/taos-internal/**/*
         - source/taos-adapter/**/*
+        - "source/taos-community/test/**/*"
+        - "tests/ci/scripts/**/*"
         - cmake/**/*
         - CMakeLists.txt
         - .gitlab/.gitlab-ci.yml
