@@ -618,8 +618,8 @@ static bool atomicCompareExchangeActive(int64_t *ptr, int32_t *expectedVal, int3
   int32_t running = GET_RUNNING_N(*ptr);
   oldVal64 <<= 32;
   newVal64 <<= 32;
-  oldVal64 |= running;
-  newVal64 |= running;
+  oldVal64 |= (int64_t)(uint32_t)running;
+  newVal64 |= (int64_t)(uint32_t)running;
   int64_t actualNewVal64 = atomic_val_compare_exchange_64(ptr, oldVal64, newVal64);
   if (actualNewVal64 == oldVal64) {
     return true;
@@ -630,7 +630,7 @@ static bool atomicCompareExchangeActive(int64_t *ptr, int32_t *expectedVal, int3
 }
 
 static int64_t atomicCompareExchangeRunning(int64_t *ptr, int32_t *expectedVal, int32_t newVal) {
-  int64_t oldVal64 = *expectedVal, newVal64 = newVal;
+  int64_t oldVal64 = (int64_t)(uint32_t)*expectedVal, newVal64 = (int64_t)(uint32_t)newVal;
   int64_t activeShifted = GET_ACTIVE_N(*ptr);
   activeShifted <<= 32;
   oldVal64 |= activeShifted;
@@ -648,9 +648,9 @@ static int64_t atomicCompareExchangeActiveAndRunning(int64_t *ptr, int32_t *expe
                                                      int32_t *expectedRunning, int32_t newRunning) {
   int64_t oldVal64 = *expectedActive, newVal64 = newActive;
   oldVal64 <<= 32;
-  oldVal64 |= *expectedRunning;
+  oldVal64 |= (int64_t)(uint32_t)*expectedRunning;
   newVal64 <<= 32;
-  newVal64 |= newRunning;
+  newVal64 |= (int64_t)(uint32_t)newRunning;
   int64_t actualNewVal64 = atomic_val_compare_exchange_64(ptr, oldVal64, newVal64);
   if (actualNewVal64 == oldVal64) {
     return true;
@@ -659,6 +659,20 @@ static int64_t atomicCompareExchangeActiveAndRunning(int64_t *ptr, int32_t *expe
     *expectedRunning = GET_RUNNING_N(actualNewVal64);
     return false;
   }
+}
+
+// Safe running counter decrement: uses CAS to ensure running never goes below 0.
+// Returns true if successfully decremented, false if running was already at floor.
+static bool atomicSafeDecRunning(SQueryAutoQWorkerPool *pPool, const char *caller) {
+  int64_t val64 = pPool->activeRunningN;
+  int32_t running = GET_RUNNING_N(val64);
+  while (running > 0) {
+    if (atomicCompareExchangeRunning(&pPool->activeRunningN, &running, running - 1)) {
+      return true;
+    }
+  }
+  uError("worker:%s %s: running(%d) already at floor, skip decrement", pPool->name, caller, running);
+  return false;
 }
 
 static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
@@ -753,12 +767,34 @@ static bool tQueryAutoQWorkerTrySignalWaitingBeforeProcess(void *p) {
   return ret;
 }
 
+// Self-healing: detect and correct negative running counter.
+// Returns true if correction was performed.
+static bool tQueryAutoQWorkerHealRunning(SQueryAutoQWorkerPool *pPool, const char *caller) {
+  int64_t val64 = pPool->activeRunningN;
+  int32_t running = GET_RUNNING_N(val64);
+  if (running >= 0) return false;
+  int32_t active = GET_ACTIVE_N(val64);
+  uError("worker:%s %s: anomalous running=%d active=%d, resetting running to 0",
+         pPool->name, caller, running, active);
+  int32_t maxRetry = 1000;
+  while (running < 0 && maxRetry-- > 0) {
+    if (atomicCompareExchangeRunning(&pPool->activeRunningN, &running, 0)) {
+      return true;
+    }
+    if (running >= 0) return false;  // corrected by another thread
+  }
+  if (maxRetry <= 0) {
+    uError("worker:%s %s: healRunning CAS exhausted retries, running=%d", pPool->name, caller, running);
+  }
+  return false;
+}
+
 static bool tQueryAutoQWorkerTryDecActive(void *p, int32_t minActive) {
   SQueryAutoQWorkerPool *pPool = p;
   bool                   ret = false;
   int64_t                val64 = pPool->activeRunningN;
   int32_t                active = GET_ACTIVE_N(val64), running = GET_RUNNING_N(val64);
-  while (active > minActive) {
+  while (active > minActive && running > 0) {
     if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active - 1, &running, running - 1))
       return true;
   }
@@ -767,13 +803,18 @@ static bool tQueryAutoQWorkerTryDecActive(void *p, int32_t minActive) {
 
 static void tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
   while (1) {
+    // Self-healing: correct negative running to prevent CAS livelock
+    tQueryAutoQWorkerHealRunning(pPool, "waitingCheck");
+
     int64_t val64 = pPool->activeRunningN;
     int32_t running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
     while (running < pPool->num) {
       if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active, &running, running + 1)) {
         return;
       }
+      if (running < 0) break;  // re-enter outer loop for healing
     }
+    if (running < 0) continue;
     if (atomicCompareExchangeActive(&pPool->activeRunningN, &active, active - 1)) {
       break;
     }
@@ -836,7 +877,7 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
 
     return true;
   } else {
-    (void)atomicFetchSubRunning(&pPool->activeRunningN, 1);
+    atomicSafeDecRunning(pPool, "recycleWorker");
     return true;
   }
 }
@@ -1094,7 +1135,7 @@ static int32_t tQueryAutoQWorkerBeforeBlocking(void *p) {
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    (void)atomicFetchSubRunning(&pPool->activeRunningN, 1);
+    atomicSafeDecRunning(pPool, "beforeBlocking");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1105,6 +1146,14 @@ static int32_t tQueryAutoQWorkerRecoverFromBlocking(void *p) {
   int64_t                val64 = pPool->activeRunningN;
   int32_t                running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
   while (running < pPool->num) {
+    // Self-healing: correct negative running to prevent CAS livelock
+    if (running < 0) {
+      tQueryAutoQWorkerHealRunning(pPool, "recoverFromBlocking");
+      val64 = pPool->activeRunningN;
+      running = GET_RUNNING_N(val64);
+      active = GET_ACTIVE_N(val64);
+      continue;
+    }
     if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active + 1, &running, running + 1)) {
       return TSDB_CODE_SUCCESS;
     }

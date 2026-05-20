@@ -553,7 +553,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
-    QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
+    QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo, ctx->taskType));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1041,6 +1041,19 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
+    // Defense-in-depth: sync pWorkerCb to the current executing thread's pool.
+    // The primary fix is routing CQuery to the correct pool (via taskType in
+    // SQueryContinueReq), but this guards against any future cross-pool dispatch.
+    {
+      qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
+      if (taskHandle && qwMsg->node) {
+        SReadHandle* pHandle = (SReadHandle*)qwMsg->node;
+        if (pHandle->pWorkerCb) {
+          qUpdateWorkerCb(taskHandle, pHandle->pWorkerCb);
+        }
+      }
+    }
+
     atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
@@ -1215,7 +1228,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
                                      ctx->dynamicTask));
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
-      QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
+      QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo, ctx->taskType));
     }
   }
 
