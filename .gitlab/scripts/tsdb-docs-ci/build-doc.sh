@@ -33,6 +33,11 @@ ln -sfn tsdb "${DOCS_CI_WORKDIR}/TDengine"
 
 eval "$(changed_doc_languages)"
 
+if [ "${FORCE_BUILD_ALL:-}" = "1" ]; then
+  zh=true
+  en=true
+fi
+
 if [ "${zh}" = "true" ]; then
   run_docs_build "${ZH_DOC_DIR}" "${TSDB_DIR}" "${TSDB_DOCS_DIR}/zh"
 fi
