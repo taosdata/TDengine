@@ -20,6 +20,9 @@ Options:
   --tsdb-branch BRANCH   Branch used for tsdb; specified tsdb dirs are left as-is unless this is set
   --docs-branch BRANCH   Branch used for both docs repos (default: feat/tsdb-path-env)
   --fix                  Run autocorrect and markdownlint fixes before validation
+  --preview              After validation succeeds, build both zh & en sites and serve them locally
+  --zh-port N            Host port for the zh preview site (default: 3000)
+  --en-port N            Host port for the en preview site (default: 3001)
   -h, --help             Show this help
 EOF
 }
@@ -40,6 +43,9 @@ TSDB_BRANCH="${TSDB_BRANCH:-}"
 ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-feat/tsdb-path-env}"
 EN_DOC_BRANCH="${EN_DOC_BRANCH:-feat/tsdb-path-env}"
 FIX=false
+PREVIEW=false
+ZH_PORT=3000
+EN_PORT=3001
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -84,6 +90,18 @@ while [ "$#" -gt 0 ]; do
     --fix)
       FIX=true
       shift
+      ;;
+    --preview)
+      PREVIEW=true
+      shift
+      ;;
+    --zh-port)
+      ZH_PORT="$2"
+      shift 2
+      ;;
+    --en-port)
+      EN_PORT="$2"
+      shift 2
       ;;
     -h | --help)
       usage
@@ -166,6 +184,7 @@ run_in_docs_image() {
   EN_DOC_BRANCH="${EN_DOC_BRANCH}" \
   CI_MERGE_REQUEST_DIFF_BASE_SHA="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" \
   CI_COMMIT_SHA="${CI_COMMIT_SHA:-}" \
+  FORCE_BUILD_ALL="${FORCE_BUILD_ALL:-}" \
   bash "${ROOT}/.gitlab/scripts/tsdb-docs-ci/run-in-docker.sh" "$@"
 }
 
@@ -197,3 +216,39 @@ run_in_docs_image bash .gitlab/scripts/tsdb-docs-ci/check-markdownlint.sh
 run_in_docs_image bash .gitlab/scripts/tsdb-docs-ci/build-doc.sh
 
 echo "docs local validation passed"
+
+if [ "${PREVIEW}" = true ]; then
+  echo "==========================================================="
+  echo "building both zh & en sites for preview ..."
+  echo "==========================================================="
+  FORCE_BUILD_ALL=1 run_in_docs_image bash .gitlab/scripts/tsdb-docs-ci/build-doc.sh
+
+  serve_one() {
+    local doc_dir="$1"
+    local host_port="$2"
+    docker run -d --rm \
+      -p "${host_port}:3000" \
+      -v "${doc_dir}:/site" \
+      -w /site \
+      "${DOCS_CI_IMAGE}" \
+      bash -lc "yarn serve --host 0.0.0.0 --port 3000 --no-open"
+  }
+
+  ZH_CID=$(serve_one "${ZH_DOC_DIR}" "${ZH_PORT}")
+  EN_CID=$(serve_one "${EN_DOC_DIR}" "${EN_PORT}")
+
+  cleanup_preview() {
+    docker stop "${ZH_CID}" "${EN_CID}" >/dev/null 2>&1 || true
+  }
+  trap cleanup_preview EXIT INT TERM
+
+  cat <<EOF
+==========================================================
+docs preview ready (Ctrl+C to stop both servers)
+  中文站点: http://localhost:${ZH_PORT}
+  English : http://localhost:${EN_PORT}
+==========================================================
+EOF
+
+  docker wait "${ZH_CID}" "${EN_CID}" >/dev/null
+fi
