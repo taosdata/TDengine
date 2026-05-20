@@ -84,13 +84,13 @@ bash "$ROOT/.gitlab/scripts/tsdb-docs-ci/local-validate.sh" \
 grep -F "git clone https://github.com/taosdata/docs.taosdata.com.git $TMP/work/docs.taosdata.com" "$TMP/capture/git.log"
 grep -F "git clone https://github.com/taosdata/docs.tdengine.com.git $TMP/work/docs.tdengine.com" "$TMP/capture/git.log"
 ! grep -F "git -C $TMP/work/tsdb checkout -B" "$TMP/capture/git.log" || (echo "specified tsdb repo should not be checked out" && false)
-grep -F "git -C $TMP/work/docs.taosdata.com checkout -B feat/tsdb-path-env origin/feat/tsdb-path-env" "$TMP/capture/git.log"
-grep -F "git -C $TMP/work/docs.tdengine.com checkout -B feat/tsdb-path-env origin/feat/tsdb-path-env" "$TMP/capture/git.log"
+grep -F "git -C $TMP/work/docs.taosdata.com checkout -B master origin/master" "$TMP/capture/git.log"
+grep -F "git -C $TMP/work/docs.tdengine.com checkout -B main origin/main" "$TMP/capture/git.log"
 
 grep -F "docker load -i $TMP/docs-ci.tar.gz" "$TMP/capture/docker.log"
 grep -F "docker tag docs-ci:latest docs-ci:local" "$TMP/capture/docker.log"
-! grep -F "ZH_DOC_BRANCH=feat/tsdb-path-env" "$TMP/capture/docker.log" || (echo "docs branch selection should stay on the host" && false)
-! grep -F "EN_DOC_BRANCH=feat/tsdb-path-env" "$TMP/capture/docker.log" || (echo "docs branch selection should stay on the host" && false)
+! grep -F "ZH_DOC_BRANCH=master" "$TMP/capture/docker.log" || (echo "docs branch selection should stay on the host" && false)
+! grep -F "EN_DOC_BRANCH=main" "$TMP/capture/docker.log" || (echo "docs branch selection should stay on the host" && false)
 grep -F "TSDB_DIR=$TMP/work/tsdb" "$TMP/capture/docker.log"
 grep -F "bash .gitlab/scripts/tsdb-docs-ci/check-typos.sh" "$TMP/capture/docker.log"
 grep -F "bash .gitlab/scripts/tsdb-docs-ci/check-autocorrect.sh" "$TMP/capture/docker.log"

@@ -144,16 +144,16 @@ bash "$ROOT/.gitlab/scripts/tsdb-docs-ci/run-in-docker.sh" bash .gitlab/scripts/
 cat >"$SCRATCH/buildprep/expected.git.args" <<EOF
 git clone https://github.com/taosdata/docs.taosdata.com.git $SCRATCH/buildprep/work/docs.taosdata.com
 git -C $SCRATCH/buildprep/work/docs.taosdata.com remote set-url origin https://github.com/taosdata/docs.taosdata.com.git
-git -C $SCRATCH/buildprep/work/docs.taosdata.com fetch origin feat/tsdb-path-env --prune
+git -C $SCRATCH/buildprep/work/docs.taosdata.com fetch origin master --prune
 git -C $SCRATCH/buildprep/work/docs.taosdata.com reset --hard FETCH_HEAD
 git -C $SCRATCH/buildprep/work/docs.taosdata.com clean -fd
-git -C $SCRATCH/buildprep/work/docs.taosdata.com checkout -B feat/tsdb-path-env FETCH_HEAD
+git -C $SCRATCH/buildprep/work/docs.taosdata.com checkout -B master FETCH_HEAD
 git clone https://github.com/taosdata/docs.tdengine.com.git $SCRATCH/buildprep/work/docs.tdengine.com
 git -C $SCRATCH/buildprep/work/docs.tdengine.com remote set-url origin https://github.com/taosdata/docs.tdengine.com.git
-git -C $SCRATCH/buildprep/work/docs.tdengine.com fetch origin feat/tsdb-path-env --prune
+git -C $SCRATCH/buildprep/work/docs.tdengine.com fetch origin main --prune
 git -C $SCRATCH/buildprep/work/docs.tdengine.com reset --hard FETCH_HEAD
 git -C $SCRATCH/buildprep/work/docs.tdengine.com clean -fd
-git -C $SCRATCH/buildprep/work/docs.tdengine.com checkout -B feat/tsdb-path-env FETCH_HEAD
+git -C $SCRATCH/buildprep/work/docs.tdengine.com checkout -B main FETCH_HEAD
 EOF
 
 cmp -s "$SCRATCH/buildprep/expected.git.args" "$SCRATCH/buildprep/capture/git.args"
