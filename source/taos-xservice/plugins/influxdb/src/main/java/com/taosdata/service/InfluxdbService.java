@@ -101,13 +101,16 @@ public interface InfluxdbService {
     String getInfluxdbVersion();
 
     /**
-     * 获取 tag set
+     * Get the tag set in pagination, returning only one page of results at a time.
+     * 
      * @param bucket
      * @param measurement
-     * @return
+     * @param limit
+     * @param offset
+     * @return left: tag sets on current page, right: raw series row count on current page
      * @throws ArtificialException
      */
-    List<List<Pair<String, String>>> getTagSet(String bucket, String measurement) throws ArtificialException;
+    Pair<List<List<Pair<String, String>>>, Long> getTagSetPage(String bucket, String measurement, long limit, long offset) throws ArtificialException;
 
     /**
      * 获取influxdb中指定bucket、measurement与时间段的数据，适用于v1.7/1.8

@@ -32,6 +32,8 @@ export default {
     captchaTips: "Please enter the captcha",
     captchaRequired: "Please get and enter the captcha first",
     captchaInputError: "Captcha input error, please re-enter",
+    clockOutOfSync: "The client and server clocks are out of sync or the request has expired. Please contact your administrator to synchronize time.",
+    invalidEncryptedPassword: "The encrypted login password is invalid. Refresh the page and try again.",
     oldPass: "Old Password",
     newPass: "New Password",
     oldPassError: "Old password is wrong",

@@ -36,6 +36,8 @@ public class MessageDecoder extends ByteToMessageDecoder {
         messageDto.setBody(bytes);
         out.add(messageDto);
         // 将字节流输出到log文件
-        logger.debug("receive byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(bytes));
+        if (logger.isDebugEnabled()) {
+            logger.debug("receive byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(bytes));
+        }
     }
 }

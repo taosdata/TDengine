@@ -22,6 +22,8 @@ public class MessageEncoder extends MessageToByteEncoder<byte[]> {
         // TODO 目前仅发送apache arrow字节流
         out.writeBytes(bytes);
         // 将字节流输出到log文件
-        logger.debug("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(bytes));
+        if (logger.isDebugEnabled()) {
+            logger.debug("push byte array on socket: {}, bytes: {}", channelHandlerContext.channel().id(), Arrays.toString(bytes));
+        }
     }
 }
