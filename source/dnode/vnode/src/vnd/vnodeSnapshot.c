@@ -150,7 +150,7 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
           void   *missingFiles = NULL;
           int32_t missingFileCount = 0;
           code = tDeserializeMissingFileList(buf, bufLen, &missingFiles, &missingFileCount, &pReader->missingFileHash,
-                                             &pReader->missingSttHash);
+                                             &pReader->missingSttHash, TD_VID(pVnode));
           if (code) {
             vError("vgId:%d, failed to deserialize missing file list since %s", TD_VID(pVnode), tstrerror(code));
             goto _out;
