@@ -470,11 +470,21 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         pInfo->endCondCount   = 0;
         pInfo->endCondFirstTs = INT64_MIN;
         int32_t endRowIndex = rowIndex - (endStreakCount - 1);
-        if (endRowIndex < startIndex) endRowIndex = startIndex;
-        code = doEventWindowAggImpl(pInfo, pSup, startIndex, endRowIndex, pBlock, tsList, pTaskInfo);
+        // Aggregate rows in [startIndex, endRowIndex] of this block only when the
+        // end streak's first row resides in THIS block (i.e. endRowIndex >= startIndex).
+        // If the streak started in a prior block (endRowIndex < startIndex), every row
+        // from startIndex through rowIndex is part of the end streak (matched end_cond)
+        // and lies past endFirstTs, so the window must not include any of them.
+        // NOTE: rows in the prior block that lay after endFirstTs were already aggregated
+        // by the trailing "aggregate rest of block" path; eliminating that residual
+        // over-aggregation requires holding streak-tail rows back per block, which is
+        // a non-trivial refactor tracked separately.
+        if (endRowIndex >= startIndex) {
+          code = doEventWindowAggImpl(pInfo, pSup, startIndex, endRowIndex, pBlock, tsList, pTaskInfo);
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
         // Override ekey with the first-row timestamp of the end streak.
         pRowSup->win.ekey = endFirstTs;
-        QUERY_CHECK_CODE(code, lino, _return);
         if (pInfo->indefRowsMode) {
           SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, pInfo->groupId, pRowSup->win.skey);
           if (pState == NULL) {

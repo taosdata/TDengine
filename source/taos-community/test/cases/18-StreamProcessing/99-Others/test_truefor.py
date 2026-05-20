@@ -937,6 +937,11 @@ class TestTrueFor:
             q3  start(count 2), end(count 2): both conditions require independent streaks
             q4  start(2s), end(2s)          : duration-based streaks (2 s timestamp spacing)
             q5  count 3                     : window_limit — window with < 3 rows is dropped
+            q6  end(count 2) cross-block    : regression — end streak's firstTs lies in a
+                                              prior SSDataBlock (forced via flush database).
+                                              Without the fix the executor over-counts the
+                                              row that satisfies the streak in the new block,
+                                              producing cnt = expected+1.
         """
 
         tdSql.execute("create database qdb vgroups 1")
@@ -1077,6 +1082,40 @@ class TestTrueFor:
         tdSql.compareData(0, 0, "2025-01-01 00:00:03.000")
         tdSql.compareData(0, 1, "2025-01-01 00:00:06.000")
         tdSql.compareData(0, 2, 4)
+
+        # ── q6: end(count 2) — end-streak first row in a prior SSDataBlock ──
+        # Force a block split via `flush database` between t03 and t04 so the
+        # scan returns rows [t01..t03] in block 1 and [t04] in block 2.
+        # Sequence (with true_for(end(count 2))):
+        #   t01=221 → open(skey=t01)
+        #   t02=222 → in-window
+        #   t03=100 → end streak count=1 (firstTs=t03)
+        #   [FLUSH — block boundary]
+        #   t04=100 → end streak count=2 → close, ekey MUST be t03
+        # Expected window: skey=t01, ekey=t03, cnt=3 (t01,t02,t03).
+        # Pre-fix behaviour: the new block's satisfy-handler ran
+        #   doEventWindowAggImpl(startIndex=0, endRowIndex=clamp(0-1)=0, …)
+        # which over-counted t04, producing cnt=4. The fix skips the
+        # current-block aggregate when endRowIndex < startIndex.
+        tdSql.execute("delete from tb_q")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:01', 221);",
+            "insert into tb_q values ('2025-01-01 00:00:02', 222);",
+            "insert into tb_q values ('2025-01-01 00:00:03', 100);",
+        ])
+        tdSql.execute("flush database qdb")
+        tdSql.executes([
+            "insert into tb_q values ('2025-01-01 00:00:04', 100);",
+        ])
+        tdSql.query(
+            "SELECT _wstart ts, _wend te, count(voltage) cnt FROM tb_q "
+            "EVENT_WINDOW START WITH voltage >= 220 END WITH voltage < 220 "
+            "true_for(end(count 2)) ORDER BY ts"
+        )
+        tdSql.checkRows(1)
+        tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+        tdSql.compareData(0, 1, "2025-01-01 00:00:03.000")
+        tdSql.compareData(0, 2, 3)
 
     # ════════════════════════════════════════════════════════════════════════
     # test_truefor_restart_before_close
@@ -1317,7 +1356,7 @@ class TestTrueFor:
                 and tdSql.compareData(0, 2, 4)
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(1, 1, "2025-01-01 00:00:08.000")
-                and tdSql.compareData(1, 2, 2),
+                and tdSql.compareData(1, 2, 4),
             )
 
     # ── r3: both start+end streak, restart during end streak ─────────────────

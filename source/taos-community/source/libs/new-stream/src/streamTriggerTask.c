@@ -6414,6 +6414,27 @@ _check:
     forwardDoneVer = (nRunningReq == 0);
   }
   pContext->recovering = false;
+  // For STREAM_TRIGGER_EVENT, pre-compute the set of vgIds that currently have at
+  // least one group with an active start/end streak. This replaces an O(G) scan
+  // per progress entry (total O(G x V)) with a single O(G) build + O(1) lookup
+  // per progress entry (total O(G + V)).
+  SHashObj *pFrozenVgIds = NULL;
+  if (forwardDoneVer && pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pRealtimeContext != NULL &&
+      pTask->pRealtimeContext->pGroups != NULL) {
+    pFrozenVgIds = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (pFrozenVgIds != NULL) {
+      int32_t                  giter = 0;
+      SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, NULL, &giter);
+      while (ppGroup != NULL) {
+        SSTriggerRealtimeGroup *pGroup = *ppGroup;
+        if (pGroup != NULL && (pGroup->startCondCount > 0 || pGroup->endCondCount > 0)) {
+          int32_t vgId = pGroup->vgId;
+          (void)taosHashPut(pFrozenVgIds, &vgId, sizeof(int32_t), &vgId, sizeof(int32_t));
+        }
+        ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, ppGroup, &giter);
+      }
+    }
+  }
   int32_t               iter = 0;
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
   while (pProgress != NULL) {
@@ -6422,18 +6443,9 @@ _check:
       if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
         // Freeze doneVer if any group on this vnode has an active streak so that WAL replay
         // from doneVer+1 naturally rebuilds the streak state on restart.
-        int32_t                 vgId   = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
-        int32_t                 giter2 = 0;
-        SSTriggerRealtimeGroup **ppGroup =
-            tSimpleHashIterate(pTask->pRealtimeContext->pGroups, NULL, &giter2);
-        while (ppGroup != NULL) {
-          SSTriggerRealtimeGroup *pGroup = *ppGroup;
-          if (pGroup->vgId == vgId &&
-              (pGroup->startCondCount > 0 || pGroup->endCondCount > 0)) {
-            newDoneVer = pProgress->doneVer;  // freeze at current position
-            break;
-          }
-          ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, ppGroup, &giter2);
+        int32_t vgId = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
+        if (pFrozenVgIds != NULL && taosHashGet(pFrozenVgIds, &vgId, sizeof(int32_t)) != NULL) {
+          newDoneVer = pProgress->doneVer;  // freeze at current position
         }
       }
       pProgress->doneVer = newDoneVer;
@@ -6442,6 +6454,10 @@ _check:
       pContext->recovering = true;
     }
     pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+  if (pFrozenVgIds != NULL) {
+    taosHashCleanup(pFrozenVgIds);
+    pFrozenVgIds = NULL;
   }
 
   if (IS_PATCHING_VITRUAL_TABLE(pContext)) {
