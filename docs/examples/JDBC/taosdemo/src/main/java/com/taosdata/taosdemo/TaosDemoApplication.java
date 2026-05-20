@@ -63,7 +63,7 @@ public class TaosDemoApplication {
         long end = System.currentTimeMillis();
         logger.info(">>> create database time cost : " + (end - start) + " ms.");
         /**********************************************************************************/
-        // 构造超级表的meta
+        // 构造超级表的 meta
         SuperTableMeta superTableMeta;
         // create super table
         if (config.superTableSQL != null) {
