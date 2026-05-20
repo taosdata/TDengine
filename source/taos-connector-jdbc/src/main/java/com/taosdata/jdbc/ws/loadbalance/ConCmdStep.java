@@ -19,7 +19,8 @@ class ConCmdStep implements Step {
         }
 
         // send query
-        ConnectReq connectReq = new ConnectReq(context.getParam());
+        ConnectReq connectReq = new ConnectReq(context.getParam(),
+                context.getParam().isAdapterHa() ? Boolean.FALSE : null);
 
         Request request = new Request(Action.CONN.getAction(), connectReq);
         String reqString = request.toString();

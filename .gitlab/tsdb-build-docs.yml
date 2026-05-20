@@ -15,7 +15,7 @@ stages:
     - |
       if [ "${CI_JOB_STATUS:-}" = "failed" ]; then
         echo "Docs checks failed. To fix locally, run:"
-        echo "  tools/ci/tsdb-docs-ci/local-validate.sh --fix"
+        echo "  .gitlab/scripts/tsdb-docs-ci/local-validate.sh --fix"
       fi
 
 check-with-typos:

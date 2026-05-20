@@ -143,6 +143,20 @@ public class ConnectionParamTest {
 
         connectionParam.setRebalanceConBaseCount(30);
         assertEquals(30, connectionParam.getRebalanceConBaseCount());
+
+        connectionParam.setAdapterHa(true);
+        assertTrue(connectionParam.isAdapterHa());
+    }
+
+    @Test
+    public void testAdapterHaDefaultFalseAndParsesTrue() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, TestEnvUtil.getUser());
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, TestEnvUtil.getPassword());
+        assertFalse(ConnectionParam.getParam(properties).isAdapterHa());
+
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_ADAPTER_HA, "true");
+        assertTrue(ConnectionParam.getParam(properties).isAdapterHa());
     }
 
     // Health check parameter invalid value tests

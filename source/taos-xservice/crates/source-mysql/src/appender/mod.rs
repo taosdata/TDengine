@@ -635,49 +635,50 @@ mod tests {
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
-        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
-        match result {
-            Ok(query) => {
-                let sql_drop_table = format!("drop table if exists {table_name}");
-                let _ = query.pool.execute(sql_drop_table.as_str()).await;
-                let sql_create_table = format!(
-                    "create table if not exists {table_name} (id int primary key auto_increment, name varchar(255), value double, ts timestamp, v_tinyint tinyint, v_tinyint_unsigned tinyint unsigned, v_smallint smallint, v_smallint_unsigned smallint unsigned, v_mediumint mediumint, v_mediumint_unsigned mediumint unsigned, v_int int, v_int_unsigned int unsigned, v_bigint bigint, v_bigint_unsigned bigint unsigned, v_float float, v_double double, v_decimal decimal(10, 2), v_char char(10), v_varchar varchar(255), v_binary binary(10), v_varbinary varbinary(255), v_date date, v_time time, v_datetime datetime, v_timestamp timestamp, v_year year, v_bit bit(8))"
-                );
-                let _ = query.pool.execute(sql_create_table.as_str()).await;
-            }
-            Err(e) => {
-                println!("error: {:?}", e);
-            }
-        }
+        let query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .expect("failed to connect to mysql for test setup");
+        let sql_drop_table = format!("drop table if exists {table_name}");
+        query
+            .pool
+            .execute(sql_drop_table.as_str())
+            .await
+            .expect("failed to drop table in test setup");
+        let sql_create_table = format!(
+            "create table if not exists {table_name} (id int primary key auto_increment, name varchar(255), value double, ts timestamp, v_tinyint tinyint, v_tinyint_unsigned tinyint unsigned, v_smallint smallint, v_smallint_unsigned smallint unsigned, v_mediumint mediumint, v_mediumint_unsigned mediumint unsigned, v_int int, v_int_unsigned int unsigned, v_bigint bigint, v_bigint_unsigned bigint unsigned, v_float float, v_double double, v_decimal decimal(10, 2), v_char char(10), v_varchar varchar(255), v_binary binary(10), v_varbinary varbinary(255), v_date date, v_time time, v_datetime datetime, v_timestamp timestamp, v_year year, v_bit bit(8))"
+        );
+        query
+            .pool
+            .execute(sql_create_table.as_str())
+            .await
+            .expect("failed to create table in test setup");
     }
 
     async fn test_insert_data(table_name: &str, len: usize) {
-        let _ = test_create_table(table_name).await;
+        test_create_table(table_name).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
 
-        let result = MySqlQuery::try_new(config, String::from("+08:00")).await;
-        match result {
-            Ok(query) => {
-                let sql_insert_data = format!(
-                    "insert into {table_name} (name, value, ts, v_tinyint, v_tinyint_unsigned, v_smallint, v_smallint_unsigned, v_mediumint, v_mediumint_unsigned, v_int, v_int_unsigned, v_bigint, v_bigint_unsigned, v_float, v_double, v_decimal, v_char, v_varchar, v_binary, v_varbinary, v_date, v_time, v_datetime, v_timestamp, v_year, v_bit) values ('cpu', 0.8, now(), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 1.0, 'a', 'a', 'a', 'a', '2021-01-01', '12:00:00', '2021-01-01 12:00:00', '2021-01-01 12:00:00', 2021, 1)"
-                );
-                for _ in 0..len {
-                    let _ = query.pool.execute(sql_insert_data.as_str()).await;
-                }
-                // insert null
-                let _ = query
-                    .pool
-                    .execute(
-                        format!("insert into {table_name}(name) values ('null_values')").as_str(),
-                    )
-                    .await;
-            }
-            Err(e) => {
-                println!("error: {:?}", e);
-            }
+        let query = MySqlQuery::try_new(config, String::from("+08:00"))
+            .await
+            .expect("failed to connect to mysql for test setup");
+        let sql_insert_data = format!(
+            "insert into {table_name} (name, value, ts, v_tinyint, v_tinyint_unsigned, v_smallint, v_smallint_unsigned, v_mediumint, v_mediumint_unsigned, v_int, v_int_unsigned, v_bigint, v_bigint_unsigned, v_float, v_double, v_decimal, v_char, v_varchar, v_binary, v_varbinary, v_date, v_time, v_datetime, v_timestamp, v_year, v_bit) values ('cpu', 0.8, now(), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 1.0, 'a', 'a', 'a', 'a', '2021-01-01', '12:00:00', '2021-01-01 12:00:00', '2021-01-01 12:00:00', 2021, 1)"
+        );
+        for _ in 0..len {
+            query
+                .pool
+                .execute(sql_insert_data.as_str())
+                .await
+                .expect("failed to insert data in test setup");
         }
+        // insert null
+        query
+            .pool
+            .execute(format!("insert into {table_name}(name) values ('null_values')").as_str())
+            .await
+            .expect("failed to insert null data in test setup");
     }
 
     async fn test_clear_data(table_name: &str) {
@@ -761,8 +762,8 @@ mod tests {
     #[tokio::test]
     async fn test_to_record_batches() {
         // prepare data
-        let _ = test_clear_data("test_to_record_batch").await;
-        let _ = test_insert_data("test_to_record_batch", 7).await;
+        let _ = test_clear_data("test_to_record_batches").await;
+        test_insert_data("test_to_record_batches", 7).await;
 
         let dsn = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci").unwrap();
         let config = ConnectConfig::from_dsn(&dsn).unwrap();
@@ -771,7 +772,7 @@ mod tests {
             .unwrap();
 
         let rows = query
-            .select_all("select * from test_to_record_batch")
+            .select_all("select * from test_to_record_batches")
             .await
             .unwrap();
 
@@ -781,7 +782,7 @@ mod tests {
         dbg!(&batches.len());
         // assert_eq!(batches.len(), 3);
         // clear data
-        let _ = test_clear_data("test_to_record_batch").await;
+        let _ = test_clear_data("test_to_record_batches").await;
     }
 
     #[test]

@@ -1408,6 +1408,29 @@ struct LoginOptions {
     captcha_enabled: bool,
 }
 
+const CLOCK_OUT_OF_SYNC_DESC: &str = "clockOutOfSync";
+const INVALID_ENCRYPTED_PASSWORD_DESC: &str = "invalidEncryptedPassword";
+
+fn encrypted_password_error_response(err: &utils::xor::XorError) -> RestErrResponse {
+    let desc = match err {
+        utils::xor::XorError::Expired => CLOCK_OUT_OF_SYNC_DESC,
+        utils::xor::XorError::Base64(_)
+        | utils::xor::XorError::Utf8(_)
+        | utils::xor::XorError::InvalidData
+        | utils::xor::XorError::InvalidTimestamp => INVALID_ENCRYPTED_PASSWORD_DESC,
+    };
+    RestErrResponse::new(desc)
+}
+
+fn log_encrypted_password_login_failure(target: &str, err: &utils::xor::XorError) {
+    error!(
+        "Login failed, target: {}, errno: 0x{:04X}({})",
+        target,
+        err.code(),
+        err
+    );
+}
+
 #[instrument(skip_all)]
 async fn login_options(args: web::Data<Args>) -> impl Responder {
     HttpResponse::Ok().json(R::success(LoginOptions {
@@ -1449,11 +1472,12 @@ async fn login(
         password
     } else if let Some(encrypted_password) = body.encrypted_password {
         // XOR-encrypted password (from web UI)
-        if let Ok(password) = xor_decoder.decrypt(&encrypted_password) {
-            password
-        } else {
-            tracing::warn!("Invalid login: {}", username);
-            return HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid password"));
+        match xor_decoder.decrypt(&encrypted_password) {
+            Ok(password) => password,
+            Err(err) => {
+                log_encrypted_password_login_failure(&username, &err);
+                return HttpResponse::Unauthorized().json(encrypted_password_error_response(&err));
+            }
         }
     } else {
         return HttpResponse::Unauthorized().json(RestErrResponse::new(
@@ -1783,9 +1807,9 @@ async fn totp_enable(
             let xor = TimeBasedXor::new(args.security.xor_allowed_duration_secs());
             match xor.decrypt(encrypted) {
                 Ok(p) => p,
-                Err(_) => {
+                Err(err) => {
                     return HttpResponse::BadRequest()
-                        .json(RestErrResponse::new("Invalid password"));
+                        .json(encrypted_password_error_response(&err));
                 }
             }
         } else if !password.starts_with("__token__") {
@@ -1961,8 +1985,8 @@ async fn totp_disable(
     let xor = TimeBasedXor::new(args.security.xor_allowed_duration_secs());
     let real_password = match xor.decrypt(&body.encrypted_password) {
         Ok(p) => p,
-        Err(_) => {
-            return HttpResponse::BadRequest().json(RestErrResponse::new("Invalid password"));
+        Err(err) => {
+            return HttpResponse::BadRequest().json(encrypted_password_error_response(&err));
         }
     };
 
@@ -3044,12 +3068,18 @@ pub fn get_main_version_from_server_version(version: &String) -> anyhow::Result<
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, str::FromStr};
+    use std::{
+        io::{self, Write},
+        path::PathBuf,
+        str::FromStr,
+        sync::{Arc, Mutex},
+    };
 
     use chrono::TimeZone;
     use clap::CommandFactory;
     use log::LevelFilter;
     use taos::*;
+    use tracing_subscriber::fmt::MakeWriter;
 
     use super::*;
     use crate::Args;
@@ -3163,6 +3193,69 @@ mod tests {
             value.get("timing").is_some(),
             "rest/sql response should include timing field"
         );
+    }
+
+    #[test]
+    fn encrypted_password_error_response_should_distinguish_clock_skew_from_bad_password() {
+        let resp = encrypted_password_error_response(&utils::xor::XorError::Expired);
+
+        assert_eq!(resp.desc, CLOCK_OUT_OF_SYNC_DESC);
+    }
+
+    #[test]
+    fn encrypted_password_error_response_should_distinguish_invalid_payload_from_bad_password() {
+        let resp = encrypted_password_error_response(&utils::xor::XorError::InvalidData);
+
+        assert_eq!(resp.desc, INVALID_ENCRYPTED_PASSWORD_DESC);
+    }
+
+    #[derive(Clone, Default)]
+    struct SharedLogWriter(Arc<Mutex<Vec<u8>>>);
+
+    struct SharedLogWriteGuard(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for SharedLogWriteGuard {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<'a> MakeWriter<'a> for SharedLogWriter {
+        type Writer = SharedLogWriteGuard;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            SharedLogWriteGuard(self.0.clone())
+        }
+    }
+
+    #[test]
+    fn encrypted_password_login_failure_log_should_follow_taos_style() {
+        let writer = SharedLogWriter::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(writer.clone())
+            .without_time()
+            .with_ansi(false)
+            .finish();
+
+        tracing::subscriber::with_default(subscriber, || {
+            log_encrypted_password_login_failure("root", &utils::xor::XorError::Expired);
+        });
+
+        let logs = String::from_utf8(writer.0.lock().unwrap().clone()).unwrap();
+        assert!(logs.contains("ERROR"));
+        assert!(!logs.contains(" WARN "));
+        assert!(!logs.contains(" INFO "));
+        assert!(!logs.contains(" qid="));
+        assert!(!logs.contains("target=\"root\""));
+        assert!(!logs.contains("login_target"));
+        assert!(logs.contains("Login failed, target: root, errno: 0x2701("));
+        assert!(!logs.contains("errno: 0x2701 ("));
     }
 
     #[test]

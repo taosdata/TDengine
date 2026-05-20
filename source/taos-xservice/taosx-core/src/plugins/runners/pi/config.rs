@@ -79,7 +79,11 @@ pub struct PiConfig {
     // log level
     #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
     log_level: Option<String>,
-    #[serde(rename = "TaskID", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "TaskID",
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_task_job_id"
+    )]
     task_job_id: Option<(i64, i64)>,
 
     #[serde(rename = "SyncAddElement", skip_serializing_if = "Option::is_none")]
@@ -99,6 +103,20 @@ pub struct PiConfig {
 
     #[serde(rename = "SyncDeleteData", skip_serializing_if = "Option::is_none")]
     sync_delete_data: Option<bool>,
+}
+
+/// Serialize `task_job_id` as a string containing only the task_id.
+/// The C# PI Connector (`AppSettings.cs`) declares `TaskID` as `string` and uses it
+/// solely for log file naming (`logFileName += "." + tomlConfig.TaskID`), so job_id
+/// is intentionally omitted.
+fn serialize_task_job_id<S: serde::Serializer>(
+    value: &Option<(i64, i64)>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    match value {
+        Some((task_id, _job_id)) => serializer.collect_str(task_id),
+        None => serializer.serialize_none(),
+    }
 }
 
 impl PiConfig {
@@ -1017,6 +1035,36 @@ mod tests {
         assert!(!table.contains_key("TemplateForAFElement"));
         assert!(!table.contains_key("ElementIDList"));
         assert!(!table.contains_key("PointList"));
+        assert!(!table.contains_key("TaskID"));
+    }
+
+    #[test]
+    fn test_task_job_id_serializes_as_string() {
+        let dsn = "pi://WIN-2OA23UM12TN?PIDataPipesInstances=1"
+            .into_dsn()
+            .unwrap();
+        let mut config =
+            PiConfig::parse_connection(&dsn, "test_db".to_string(), 6041, 6042).unwrap();
+        config.task_job_id = Some((42, -1));
+
+        let toml_str = toml::to_string(&config).unwrap();
+        let table: toml::Value = toml::from_str(&toml_str).unwrap();
+        let table = table.as_table().unwrap();
+
+        assert_eq!(table["TaskID"].as_str(), Some("42"));
+    }
+
+    #[test]
+    fn test_task_job_id_none_is_omitted() {
+        let dsn = "pi://WIN-2OA23UM12TN?PIDataPipesInstances=1"
+            .into_dsn()
+            .unwrap();
+        let config = PiConfig::parse_connection(&dsn, "test_db".to_string(), 6041, 6042).unwrap();
+
+        let toml_str = toml::to_string(&config).unwrap();
+        let table: toml::Value = toml::from_str(&toml_str).unwrap();
+        let table = table.as_table().unwrap();
+
         assert!(!table.contains_key("TaskID"));
     }
 }

@@ -83,5 +83,4 @@ tsdb-docs:
       changes:
         - source/taos-community/docs/**/*
         - .gitlab/scripts/tsdb-docs-ci/**/*
-        - tools/ci/tsdb-docs-ci/**/*
         - .gitlab/tsdb-build-docs.yml
