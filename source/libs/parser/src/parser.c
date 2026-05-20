@@ -885,6 +885,35 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
       return TSDB_CODE_BLOB_NOT_SUPPORT;  // BLOB data type is not supported in stmt2
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      // Auto-detect source precision from the magnitude of the int64 value.
+      //
+      // Thresholds (absolute value):
+      //   < 10^13 → milliseconds
+      //   < 10^16 → microseconds
+      //   otherwise → nanoseconds
+      //
+      // The raw (unconverted) value is stored together with the detected source
+      // precision in pVal->node.resType.precision.  The actual conversion to the
+      // DB's target precision is deferred to translateValueImpl(), which runs
+      // after the statement is fully translated and SSelectStmt::precision is set.
+      int64_t tsVal = *(int64_t*)pParam->buffer;
+      int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
+      uint8_t srcPrecision;
+      if (absVal < 10000000000000LL) {  // < 10^13
+        srcPrecision = TSDB_TIME_PRECISION_MILLI;
+      } else if (absVal < 10000000000000000LL) {  // < 10^16
+        srcPrecision = TSDB_TIME_PRECISION_MICRO;
+      } else {  // >= 10^16
+        srcPrecision = TSDB_TIME_PRECISION_NANO;
+      }
+      pVal->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+      pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      pVal->node.resType.precision = srcPrecision;  // deferred; converted in translateValueImpl
+      pVal->datum.i = tsVal;
+      *(int64_t*)&pVal->typeData = tsVal;
+      break;
+    }
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {
@@ -921,6 +950,38 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
     rewriteExprAlias(pQuery->pRoot);
   }
   return code;
+}
+
+// Walker callback: convert auto-detected source precision to the DB's target precision
+// for TIMESTAMP placeholder value nodes.  Called after translation when the DB precision
+// is already encoded in the SSelectStmt (or other statement) precision field.
+typedef struct SFixTsPhCtx {
+  uint8_t dstPrecision;
+} SFixTsPhCtx;
+
+static EDealRes fixTsPlaceholderWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_VALUE != nodeType(pNode)) return DEAL_RES_CONTINUE;
+  SValueNode* pVal = (SValueNode*)pNode;
+  if (pVal->placeholderNo <= 0 || TSDB_DATA_TYPE_TIMESTAMP != pVal->node.resType.type) return DEAL_RES_CONTINUE;
+  SFixTsPhCtx* pCxt = (SFixTsPhCtx*)pContext;
+  uint8_t      srcPrecision = pVal->node.resType.precision;
+  uint8_t      dstPrecision = pCxt->dstPrecision;
+  if (srcPrecision != dstPrecision) {
+    pVal->datum.i = convertTimePrecision(pVal->datum.i, srcPrecision, dstPrecision);
+    *(int64_t*)&pVal->typeData = pVal->datum.i;
+    pVal->node.resType.precision = dstPrecision;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+// After translate(), walk the bound SELECT AST and apply precision conversion to any
+// TIMESTAMP placeholder whose source precision differs from the statement's DB precision.
+static void fixTimestampPlaceholderPrecision(SQuery* pQuery) {
+  if (NULL == pQuery->pRoot || QUERY_NODE_SELECT_STMT != nodeType(pQuery->pRoot)) return;
+  SSelectStmt* pSelect = (SSelectStmt*)pQuery->pRoot;
+  if (NULL == pSelect->pWhere) return;
+  SFixTsPhCtx cxt = {pSelect->precision};
+  nodesWalkExpr(pSelect->pWhere, fixTsPlaceholderWalker, &cxt);
 }
 
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMetaData) {
@@ -961,6 +1022,7 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMeta
 
   code = translate(pCxt, pQuery, &metaCache);
   if (TSDB_CODE_SUCCESS == code) {
+    fixTimestampPlaceholderPrecision(pQuery);
     code = calculateConstant(pCxt, pQuery);
   }
   destoryParseMetaCache(&metaCache, false);
