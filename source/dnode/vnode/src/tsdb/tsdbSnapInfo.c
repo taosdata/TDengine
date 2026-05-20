@@ -18,11 +18,13 @@
 
 #define TSDB_SNAP_MSG_VER 2
 
-// file info for snapshot sync: (fid, ftype, level, cid, size, isMissing)
+// file info for snapshot sync: (fid, ftype, level, minVer, maxVer, cid, size, isMissing)
 typedef struct {
   int32_t fid;
   int32_t ftype;      // tsdb_ftype_t
   int32_t level;      // STT level (0/1/2), farr files use 0
+  int64_t minVer;     // min version in file
+  int64_t maxVer;     // max version in file
   int64_t cid;        // commit id
   int64_t size;       // file size
   int8_t  isMissing;  // 1=missing, 0=present
@@ -536,9 +538,9 @@ int32_t tMissingFileListDataLenCalc(int32_t fileCount) {
   hdrLen += sizeof(msgVer);
   datLen += hdrLen;
   datLen += sizeof(int32_t);  // fileCount
-  // fid + ftype + level + cid + size + isMissing = 4+4+4+8+8+1 = 29 bytes per record
-  datLen += fileCount *
-            (sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int64_t) + sizeof(int64_t) + sizeof(int8_t));
+  // fid + ftype + level + minVer + maxVer + cid + size + isMissing = 4+4+4+8+8+8+8+1 = 45 bytes per record
+  datLen += fileCount * (sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int64_t) + sizeof(int64_t) +
+                         sizeof(int64_t) + sizeof(int64_t) + sizeof(int8_t));
   return datLen;
 }
 
@@ -556,6 +558,8 @@ int32_t tSerializeMissingFileList(void* buf, int32_t bufLen, const STsdbSnapFile
     if ((code = tEncodeI32(&encoder, files[i].fid))) goto _err;
     if ((code = tEncodeI32(&encoder, files[i].ftype))) goto _err;
     if ((code = tEncodeI32(&encoder, files[i].level))) goto _err;
+    if ((code = tEncodeI64(&encoder, files[i].minVer))) goto _err;
+    if ((code = tEncodeI64(&encoder, files[i].maxVer))) goto _err;
     if ((code = tEncodeI64(&encoder, files[i].cid))) goto _err;
     if ((code = tEncodeI64(&encoder, files[i].size))) goto _err;
     if ((code = tEncodeI8(&encoder, files[i].isMissing))) goto _err;
@@ -595,7 +599,7 @@ int32_t tDeserializeMissingFileList(void* buf, int32_t bufLen, void** ppFiles, i
     goto _err;
   }
   if (fileCount > 0) {
-    pHash = taosHashInit(fileCount * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+    pHash = taosHashInit(fileCount * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     if (pHash == NULL) {
       code = terrno;
       goto _err;
@@ -614,25 +618,29 @@ int32_t tDeserializeMissingFileList(void* buf, int32_t bufLen, void** ppFiles, i
       if ((code = tDecodeI32(&decoder, &files[i].fid))) goto _err;
       if ((code = tDecodeI32(&decoder, &files[i].ftype))) goto _err;
       if ((code = tDecodeI32(&decoder, &files[i].level))) goto _err;
+      if ((code = tDecodeI64(&decoder, &files[i].minVer))) goto _err;
+      if ((code = tDecodeI64(&decoder, &files[i].maxVer))) goto _err;
       if ((code = tDecodeI64(&decoder, &files[i].cid))) goto _err;
       if ((code = tDecodeI64(&decoder, &files[i].size))) goto _err;
       if ((code = tDecodeI8(&decoder, &files[i].isMissing))) goto _err;
 
-      tsdbDebug("FileInfo fid:%d ftype:%d level:%d cid:%" PRId64 " size:%" PRId64 " isMissing:%d", files[i].fid,
-                files[i].ftype, files[i].level, files[i].cid, files[i].size, files[i].isMissing);
+      tsdbDebug("FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " cid:%" PRId64 " size:%" PRId64
+                " isMissing:%d",
+                files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, files[i].cid,
+                files[i].size, files[i].isMissing);
 
       if (files[i].isMissing) {
         char    dummy = 0;
-        int64_t key = tsdbMissingFileKey(files[i].fid, files[i].ftype);
-        if (taosHashPut(pHash, &key, sizeof(key), &dummy, sizeof(dummy)) != 0) {
+        char    key[TSDB_SNAP_FILE_KEY_LEN];
+        tsdbSnapFileKeyMake(files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, key);
+
+        if (taosHashPut(pHash, key, sizeof(key), &dummy, sizeof(dummy)) != 0) {
           code = terrno;
           goto _err;
         }
-        // for STT files, also put into missingSttHash keyed by (fid, cid)
+        // for STT files, also put into missingSttHash keyed by 5-tuple (fid, ftype, level, minVer, maxVer)
         if (files[i].ftype == TSDB_FTYPE_STT) {
-          char sttKey[TSDB_STT_HASH_KEY_LEN];
-          tsdbSttHashKey(files[i].fid, files[i].cid, sttKey);
-          if (taosHashPut(pSttHash, sttKey, sizeof(sttKey), &dummy, sizeof(dummy)) != 0) {
+          if (taosHashPut(pSttHash, key, sizeof(key), &dummy, sizeof(dummy)) != 0) {
             code = terrno;
             goto _err;
           }
@@ -664,12 +672,13 @@ int32_t tsdbExtractMissingFids(STsdb* pTsdb, SHashObj* missingFileHash, int32_t*
   int32_t  fidCount = 0;
   int32_t* fids = NULL;
 
-  // extract unique fids from hash keys (key = (fid << 32) | ftype)
+  // extract unique fids from hash keys (key = 5-tuple binary: fid, ftype, level, minVer, maxVer)
   void* pIter = NULL;
   while ((pIter = taosHashIterate(missingFileHash, pIter)) != NULL) {
-    size_t   keyLen = 0;
-    int64_t* pKey = taosHashGetKey(pIter, &keyLen);
-    int32_t  fid = (int32_t)(*pKey >> 32);
+    size_t keyLen = 0;
+    char*  pKey = taosHashGetKey(pIter, &keyLen);
+    int32_t fid;
+    memcpy(&fid, pKey, sizeof(fid));
 
     // check if fid already exists
     bool exists = false;
@@ -717,6 +726,9 @@ int32_t tsdbExtractMissingFids(STsdb* pTsdb, SHashObj* missingFileHash, int32_t*
 int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fileCount, SHashObj** ppFidModeHash) {
   int32_t                  code = 0;
   SHashObj*                pFidModeHash = NULL;
+  SHashObj*                pLeaderKeyHash = NULL;
+  SHashObj*                pFollowerKeyHash = NULL;
+  SHashObj*                pFollowerFidSet = NULL;
   const STsdbSnapFileInfo* files = (const STsdbSnapFileInfo*)pFileArr;
 
   if (fileCount <= 0 || files == NULL) {
@@ -729,146 +741,185 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
     return terrno;
   }
 
+  // build leader file key hash: key=(fid,ftype,level,minVer,maxVer) -> (cid, size)
+  pLeaderKeyHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pLeaderKeyHash == NULL) {
+    code = terrno;
+    goto _out;
+  }
+
+  typedef struct {
+    int64_t cid;
+    int64_t size;
+  } SLeaderFileVal;
+
   (void)taosThreadMutexLock(&pTsdb->mutex);
 
-  for (int32_t i = 0; i < fileCount; ++i) {
-    int32_t fid = files[i].fid;
-
-    // check if already marked as FSET_LEVEL — skip further checks for this fid
-    uint8_t* pExistMode = taosHashGet(pFidModeHash, &fid, sizeof(fid));
-    if (pExistMode != NULL && *pExistMode == TSDB_SNAP_SYNC_FSET_LEVEL) {
-      continue;
-    }
-
-    // only process present files (isMissing=0) for content comparison
-    if (files[i].isMissing) continue;
-
-    int32_t ftype = files[i].ftype;
-    int64_t followerCid = files[i].cid;
-    int64_t followerSize = files[i].size;
-
-    // find leader's corresponding file
-    bool    found = false;
-    int64_t leaderCid = 0;
-    int64_t leaderSize = 0;
-
+  // populate leader key hash
+  {
     STFileSet* fset;
     TARRAY2_FOREACH(pTsdb->pFS->fSetArr, fset) {
-      if (fset->fid != fid) continue;
-
-      if (ftype == TSDB_FTYPE_STT) {
-        // search STT files by cid
-        SSttLvl* lvl;
-        TARRAY2_FOREACH(fset->lvlArr, lvl) {
-          STFileObj* fobj;
-          TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-            if (fobj->f->cid == followerCid) {
-              found = true;
-              leaderCid = fobj->f->cid;
-              leaderSize = fobj->f->size;
-              break;
-            }
-          }
-          if (found) break;
-        }
-      } else if (ftype >= 0 && ftype < TSDB_FTYPE_MAX) {
+      for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
         if (fset->farr[ftype] != NULL) {
-          found = true;
-          leaderCid = fset->farr[ftype]->f->cid;
-          leaderSize = fset->farr[ftype]->f->size;
+          char key[TSDB_SNAP_FILE_KEY_LEN];
+          tsdbSnapFileKeyMake(fset->fid, ftype, 0, fset->farr[ftype]->f->minVer, fset->farr[ftype]->f->maxVer, key);
+          SLeaderFileVal val = {.cid = fset->farr[ftype]->f->cid, .size = fset->farr[ftype]->f->size};
+          if (taosHashPut(pLeaderKeyHash, key, TSDB_SNAP_FILE_KEY_LEN, &val, sizeof(val)) != 0) {
+            code = terrno;
+            goto _unlock;
+          }
         }
       }
-      break;  // found the fid
-    }
-
-    // determine mode
-    uint8_t mode = TSDB_SNAP_SYNC_FILE_LEVEL;
-    if (!found) {
-      // follower has a file that leader doesn't — content mismatcah
-      tsdbInfo("leader doesn't have file fid:%d, ftype:%d", files[i].fid, files[i].ftype);
-      mode = TSDB_SNAP_SYNC_FSET_LEVEL;
-    } else if (leaderCid != followerCid || leaderSize != followerSize) {
-      tsdbInfo("leader doesn't have different file fid:%d, ftype:%d, l-cid:%" PRId64 ", l-size:%" PRId64
-               ", f-cid:%" PRId64 ", f-size:%" PRId64,
-               files[i].fid, files[i].ftype, leaderCid, leaderSize, followerCid, followerSize);
-      mode = TSDB_SNAP_SYNC_FSET_LEVEL;
-    }
-
-    if (mode == TSDB_SNAP_SYNC_FSET_LEVEL) {
-      if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
-        code = terrno;
-        (void)taosThreadMutexUnlock(&pTsdb->mutex);
-        taosHashCleanup(pFidModeHash);
-        return code;
-      }
-      continue;
-    }
-
-    // ensure fid has an entry (FILE_LEVEL if not already set)
-    if (pExistMode == NULL) {
-      if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
-        code = terrno;
-        (void)taosThreadMutexUnlock(&pTsdb->mutex);
-        taosHashCleanup(pFidModeHash);
-        return code;
+      SSttLvl* lvl;
+      TARRAY2_FOREACH(fset->lvlArr, lvl) {
+        STFileObj* fobj;
+        TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+          char key[TSDB_SNAP_FILE_KEY_LEN];
+          tsdbSnapFileKeyMake(fset->fid, TSDB_FTYPE_STT, lvl->level, fobj->f->minVer, fobj->f->maxVer, key);
+          SLeaderFileVal val = {.cid = fobj->f->cid, .size = fobj->f->size};
+          if (taosHashPut(pLeaderKeyHash, key, TSDB_SNAP_FILE_KEY_LEN, &val, sizeof(val)) != 0) {
+            code = terrno;
+            goto _unlock;
+          }
+        }
       }
     }
   }
 
-  // second pass: check leader STT files that follower doesn't know about at all
-  STFileSet* fset;
-  TARRAY2_FOREACH(pTsdb->pFS->fSetArr, fset) {
-    int32_t fid = fset->fid;
+  // first pass: check each follower present file against leader
+  for (int32_t i = 0; i < fileCount; ++i) {
+    if (files[i].isMissing) continue;
 
+    int32_t fid = files[i].fid;
+
+    // skip if already FSET_LEVEL
     uint8_t* pExistMode = taosHashGet(pFidModeHash, &fid, sizeof(fid));
     if (pExistMode != NULL && *pExistMode == TSDB_SNAP_SYNC_FSET_LEVEL) {
       continue;
     }
 
-    // check if this fid has any file info from follower
-    bool fidHasInfo = false;
-    for (int32_t i = 0; i < fileCount; ++i) {
-      if (files[i].fid == fid) {
-        fidHasInfo = true;
-        break;
-      }
-    }
-    if (!fidHasInfo) continue;
+    char key[TSDB_SNAP_FILE_KEY_LEN];
+    tsdbSnapFileKeyMake(fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, key);
 
-    // for each leader STT file, check if follower reported it (either present or missing)
-    SSttLvl* lvl;
-    TARRAY2_FOREACH(fset->lvlArr, lvl) {
-      STFileObj* fobj;
-      TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-        int64_t leaderCid = fobj->f->cid;
-        bool    followerKnows = false;
-        for (int32_t i = 0; i < fileCount; ++i) {
-          if (files[i].fid == fid && files[i].ftype == TSDB_FTYPE_STT && files[i].cid == leaderCid) {
-            followerKnows = true;
-            break;
-          }
-        }
-        if (!followerKnows) {
-          // leader has STT file that follower doesn't know about — need FSET_LEVEL
-          tsdbInfo("follower doesn't have stt file fid:%d, cid:%" PRId64, fid, leaderCid);
-          uint8_t mode = TSDB_SNAP_SYNC_FSET_LEVEL;
-          if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
-            code = terrno;
-            (void)taosThreadMutexUnlock(&pTsdb->mutex);
-            taosHashCleanup(pFidModeHash);
-            return code;
-          }
-          goto _next_fset;
-        }
-      }
+    SLeaderFileVal* pLeaderVal = taosHashGet(pLeaderKeyHash, key, TSDB_SNAP_FILE_KEY_LEN);
+
+    uint8_t mode = TSDB_SNAP_SYNC_FILE_LEVEL;
+    if (pLeaderVal == NULL) {
+      tsdbInfo("vgId:%d, snap leader no match key fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64,
+               TD_VID(pTsdb->pVnode), fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer);
+      mode = TSDB_SNAP_SYNC_FSET_LEVEL;
+    } else if (pLeaderVal->size != files[i].size) {
+      tsdbInfo("vgId:%d, snap size mismatch fid:%d ftype:%d level:%d leader-size:%" PRId64 " follower-size:%" PRId64,
+               TD_VID(pTsdb->pVnode), fid, files[i].ftype, files[i].level, pLeaderVal->size, files[i].size);
+      mode = TSDB_SNAP_SYNC_FSET_LEVEL;
+    } else if (llabs(pLeaderVal->cid - files[i].cid) > 10) {
+      tsdbInfo("vgId:%d, snap cid diff>10 fid:%d ftype:%d level:%d leader-cid:%" PRId64 " follower-cid:%" PRId64,
+               TD_VID(pTsdb->pVnode), fid, files[i].ftype, files[i].level, pLeaderVal->cid, files[i].cid);
+      mode = TSDB_SNAP_SYNC_FSET_LEVEL;
     }
-  _next_fset:;
+
+    if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
+      code = terrno;
+      goto _unlock;
+    }
   }
 
+  // second pass: check leader files not known by follower (within reported fids)
+  pFollowerKeyHash =
+      taosHashInit(fileCount * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pFollowerKeyHash == NULL) {
+    code = terrno;
+    goto _unlock;
+  }
+
+  for (int32_t i = 0; i < fileCount; ++i) {
+    char key[TSDB_SNAP_FILE_KEY_LEN];
+    tsdbSnapFileKeyMake(files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, key);
+    char dummy = 0;
+    if (taosHashPut(pFollowerKeyHash, key, TSDB_SNAP_FILE_KEY_LEN, &dummy, sizeof(dummy)) != 0) {
+      code = terrno;
+      goto _unlock;
+    }
+  }
+
+  // collect fids that follower reported
+  pFollowerFidSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (pFollowerFidSet == NULL) {
+    code = terrno;
+    goto _unlock;
+  }
+  for (int32_t i = 0; i < fileCount; ++i) {
+    char dummy = 0;
+    (void)taosHashPut(pFollowerFidSet, &files[i].fid, sizeof(files[i].fid), &dummy, sizeof(dummy));
+  }
+
+  {
+    STFileSet* fset;
+    TARRAY2_FOREACH(pTsdb->pFS->fSetArr, fset) {
+      int32_t fid = fset->fid;
+
+      // skip fids not reported by follower
+      if (taosHashGet(pFollowerFidSet, &fid, sizeof(fid)) == NULL) continue;
+
+      // skip if already FSET_LEVEL
+      uint8_t* pExistMode = taosHashGet(pFidModeHash, &fid, sizeof(fid));
+      if (pExistMode != NULL && *pExistMode == TSDB_SNAP_SYNC_FSET_LEVEL) continue;
+
+      for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+        if (fset->farr[ftype] != NULL) {
+          char key[TSDB_SNAP_FILE_KEY_LEN];
+          tsdbSnapFileKeyMake(fid, ftype, 0, fset->farr[ftype]->f->minVer, fset->farr[ftype]->f->maxVer, key);
+          if (taosHashGet(pFollowerKeyHash, key, TSDB_SNAP_FILE_KEY_LEN) == NULL) {
+            tsdbInfo("vgId:%d, snap follower missing leader file fid:%d ftype:%d minVer:%" PRId64 " maxVer:%" PRId64,
+                     TD_VID(pTsdb->pVnode), fid, ftype, fset->farr[ftype]->f->minVer, fset->farr[ftype]->f->maxVer);
+            uint8_t mode = TSDB_SNAP_SYNC_FSET_LEVEL;
+            if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
+              code = terrno;
+              goto _unlock;
+            }
+            goto _next_fset;
+          }
+        }
+      }
+
+      SSttLvl* lvl;
+      TARRAY2_FOREACH(fset->lvlArr, lvl) {
+        STFileObj* fobj;
+        TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+          char key[TSDB_SNAP_FILE_KEY_LEN];
+          tsdbSnapFileKeyMake(fid, TSDB_FTYPE_STT, lvl->level, fobj->f->minVer, fobj->f->maxVer, key);
+          if (taosHashGet(pFollowerKeyHash, key, TSDB_SNAP_FILE_KEY_LEN) == NULL) {
+            tsdbInfo("vgId:%d, snap follower missing leader stt fid:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64,
+                     TD_VID(pTsdb->pVnode), fid, lvl->level, fobj->f->minVer, fobj->f->maxVer);
+            uint8_t mode = TSDB_SNAP_SYNC_FSET_LEVEL;
+            if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
+              code = terrno;
+              goto _unlock;
+            }
+            goto _next_fset;
+          }
+        }
+      }
+    _next_fset:;
+    }
+  }
+
+_unlock:
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
 
-  *ppFidModeHash = pFidModeHash;
-  return 0;
+_out:
+  if (pFollowerKeyHash) taosHashCleanup(pFollowerKeyHash);
+  if (pFollowerFidSet) taosHashCleanup(pFollowerFidSet);
+  if (pLeaderKeyHash) taosHashCleanup(pLeaderKeyHash);
+
+  if (code != 0) {
+    taosHashCleanup(pFidModeHash);
+    *ppFidModeHash = NULL;
+  } else {
+    tsdbInfo("vgId:%d, Fid mode count %d", TD_VID(pTsdb->pVnode), taosHashGetSize(pFidModeHash));
+    *ppFidModeHash = pFidModeHash;
+  }
+  return code;
 }
 
 static int32_t tsdbCollectAllFileInfo(SVnode* pVnode, STsdbSnapFileInfo** ppFiles, int32_t* pFileCount) {
@@ -901,6 +952,8 @@ static int32_t tsdbCollectAllFileInfo(SVnode* pVnode, STsdbSnapFileInfo** ppFile
         files[fileCount].fid = fset->fid;
         files[fileCount].ftype = ftype;
         files[fileCount].level = 0;
+        files[fileCount].minVer = fset->farr[ftype]->f->minVer;
+        files[fileCount].maxVer = fset->farr[ftype]->f->maxVer;
         files[fileCount].cid = fset->farr[ftype]->f->cid;
         files[fileCount].size = fset->farr[ftype]->f->size;
         files[fileCount].isMissing = !taosCheckExistFile(fset->farr[ftype]->fname) ? 1 : 0;
@@ -926,6 +979,8 @@ static int32_t tsdbCollectAllFileInfo(SVnode* pVnode, STsdbSnapFileInfo** ppFile
         files[fileCount].fid = fset->fid;
         files[fileCount].ftype = TSDB_FTYPE_STT;
         files[fileCount].level = lvl->level;
+        files[fileCount].minVer = fobj->f->minVer;
+        files[fileCount].maxVer = fobj->f->maxVer;
         files[fileCount].cid = fobj->f->cid;
         files[fileCount].size = fobj->f->size;
         files[fileCount].isMissing = !taosCheckExistFile(fobj->fname) ? 1 : 0;
