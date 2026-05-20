@@ -32,6 +32,8 @@ export default {
     captchaTips: "请输入图形验证码",
     captchaRequired: "请先获取并输入图形验证码",
     captchaInputError: "图形验证码错误，请重新输入",
+    clockOutOfSync: "客户端与服务器时钟不同步或请求已过期，请联系运维同步时间",
+    invalidEncryptedPassword: "登录密码加密数据非法，请刷新页面后重试",
     oldPass: "旧密码",
     newPass: "新密码",
     oldPassError: "旧密码错误",

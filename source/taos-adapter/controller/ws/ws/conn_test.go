@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"strconv"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/taosdata/taosadapter/v3/driver/wrapper"
 	"github.com/taosdata/taosadapter/v3/tools/otp"
 	"github.com/taosdata/taosadapter/v3/tools/testtools"
 	"github.com/taosdata/taosadapter/v3/tools/testtools/testenv"
@@ -45,6 +48,11 @@ func TestWSConnect(t *testing.T) {
 	connReq = connRequest{ReqID: 1, User: "root", Password: "taosdata"}
 	resp, err = doWebSocket(ws, Connect, &connReq)
 	assert.NoError(t, err)
+	var connRespMap map[string]interface{}
+	err = json.Unmarshal(resp, &connRespMap)
+	assert.NoError(t, err)
+	assert.NotContains(t, connRespMap, "list_instances")
+	assert.NotContains(t, connRespMap, "instances")
 	err = json.Unmarshal(resp, &connResp)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), connResp.ReqID)
@@ -59,6 +67,154 @@ func TestWSConnect(t *testing.T) {
 	assert.Equal(t, 0xffff, connResp.Code)
 	assert.Equal(t, "duplicate connections", connResp.Message)
 	assert.Equal(t, version.TaosClientVersion, connResp.Version)
+}
+
+func TestWSConnectListInstances(t *testing.T) {
+	instanceID := fmt.Sprintf("ws-list-instances-%d", time.Now().UnixNano())
+	code := wrapper.TaosRegisterInstance(instanceID, "taosadapter", "ws list instances test", 10)
+	assert.Equal(t, int32(0), code, wrapper.TaosErrorStr(nil))
+	defer wrapper.TaosRegisterInstance(instanceID, "taosadapter", "", -1)
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(s.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer func() {
+		err = ws.Close()
+		assert.NoError(t, err)
+	}()
+
+	connReq := map[string]interface{}{
+		"req_id":         uint64(1),
+		"user":           "root",
+		"password":       "taosdata",
+		"list_instances": true,
+	}
+	resp, err := doWebSocket(ws, Connect, connReq)
+	assert.NoError(t, err)
+	var connResp struct {
+		connResponse
+		ListInstances []string `json:"list_instances"`
+	}
+	err = json.Unmarshal(resp, &connResp)
+	assert.NoError(t, err)
+	var connRespMap map[string]interface{}
+	err = json.Unmarshal(resp, &connRespMap)
+	assert.NoError(t, err)
+	assert.Contains(t, connRespMap, "list_instances")
+	assert.NotContains(t, connRespMap, "instances")
+	assert.Equal(t, uint64(1), connResp.ReqID)
+	assert.Equal(t, 0, connResp.Code, connResp.Message)
+	assert.Contains(t, connResp.ListInstances, instanceID)
+}
+
+func TestWSConnectListInstancesErrorDoesNotFailConnect(t *testing.T) {
+	origin := listInstances
+	listInstances = func(_ string, _ *logrus.Entry, _ bool) ([]string, error) {
+		return nil, errors.New("list instances unavailable")
+	}
+	t.Cleanup(func() {
+		listInstances = origin
+	})
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+	ws, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(s.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer func() {
+		err = ws.Close()
+		assert.NoError(t, err)
+	}()
+
+	connReq := map[string]interface{}{
+		"req_id":         uint64(1),
+		"user":           "root",
+		"password":       "taosdata",
+		"list_instances": true,
+	}
+	resp, err := doWebSocket(ws, Connect, connReq)
+	assert.NoError(t, err)
+	var connResp connResponse
+	err = json.Unmarshal(resp, &connResp)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), connResp.ReqID)
+	assert.Equal(t, 0, connResp.Code, connResp.Message)
+	assert.Nil(t, connResp.ListInstances)
+	var connRespMap map[string]interface{}
+	err = json.Unmarshal(resp, &connRespMap)
+	assert.NoError(t, err)
+	assert.NotContains(t, connRespMap, "list_instances")
+}
+
+func TestWSConnectListInstancesBackwardCompatibility(t *testing.T) {
+	type oldConnRequest struct {
+		ReqID       uint64 `json:"req_id"`
+		User        string `json:"user"`
+		Password    string `json:"password"`
+		DB          string `json:"db"`
+		Mode        *int   `json:"mode"`
+		TZ          string `json:"tz"`
+		App         string `json:"app"`
+		IP          string `json:"ip"`
+		Connector   string `json:"connector"`
+		TOTPCode    string `json:"totp_code"`
+		BearerToken string `json:"bearer_token"`
+	}
+
+	currentReq := []byte(`{
+		"req_id": 1,
+		"user": "root",
+		"password": "taosdata",
+		"db": "test",
+		"app": "compat-test",
+		"list_instances": true
+	}`)
+	var oldReq oldConnRequest
+	err := json.Unmarshal(currentReq, &oldReq)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), oldReq.ReqID)
+	assert.Equal(t, "root", oldReq.User)
+	assert.Equal(t, "taosdata", oldReq.Password)
+	assert.Equal(t, "test", oldReq.DB)
+	assert.Equal(t, "compat-test", oldReq.App)
+
+	oldResp := []byte(`{
+		"code": 0,
+		"message": "",
+		"action": "conn",
+		"req_id": 1,
+		"timing": 1,
+		"version": "3.3.6.0"
+	}`)
+	var currentResp connResponse
+	err = json.Unmarshal(oldResp, &currentResp)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, currentResp.Code, currentResp.Message)
+	assert.Equal(t, uint64(1), currentResp.ReqID)
+	assert.Nil(t, currentResp.ListInstances)
+}
+
+func TestConnRequestStringIncludesListInstances(t *testing.T) {
+	req := connRequest{
+		ReqID:         1,
+		User:          "root",
+		Password:      "secret-password",
+		TOTPCode:      "123456",
+		BearerToken:   "bearer-secret-token",
+		ListInstances: true,
+	}
+
+	got := req.String()
+	assert.Contains(t, got, "list_instances: true")
+	assert.NotContains(t, got, "secret-password")
+	assert.NotContains(t, got, "123456")
+	assert.NotContains(t, got, "bearer-secret-token")
 }
 
 func TestMode(t *testing.T) {

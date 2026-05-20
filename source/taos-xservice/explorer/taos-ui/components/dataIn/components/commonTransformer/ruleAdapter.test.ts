@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { checkParseData } from './util';
-import { getTransformCapabilities, toBackendPayload, toRuleFormState, updateConditionExprText } from './ruleAdapter';
+import {
+  getParserDisplayConfig,
+  getTransformCapabilities,
+  stripParserRuntimeOptions,
+  toBackendPayload,
+  toRuleFormState,
+  updateConditionExprText
+} from './ruleAdapter';
 
 describe('ruleAdapter', () => {
   it('wraps legacy parser config into one default Kafka rule block', () => {
@@ -256,5 +263,22 @@ describe('ruleAdapter', () => {
       expr: 'value > 2',
       null_if_error: false
     });
+  });
+
+  it('ignores UDT runtime options when restoring parser display config', () => {
+    const script = 'let result = #{ temperature: data["temperature"] }; [result]';
+
+    expect(getParserDisplayConfig({ udt: script, early_break: true })).toEqual({
+      type: 'udt',
+      expression: script
+    });
+  });
+
+  it('strips parser runtime options before persisting preview parser state', () => {
+    const config = { udt: 'raw', early_break: true };
+
+    stripParserRuntimeOptions(config);
+
+    expect(config).toEqual({ udt: 'raw' });
   });
 });

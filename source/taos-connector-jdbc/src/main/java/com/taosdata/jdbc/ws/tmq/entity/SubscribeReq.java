@@ -41,6 +41,8 @@ public class SubscribeReq extends Payload implements Printable {
     private String bearerToken;
     @JsonProperty("config")
     private HashMap<String, String> config = new HashMap<>();
+    @JsonProperty("list_instances")
+    private Boolean listInstances;
 
     public String getUser() {
         return user;
@@ -178,6 +180,14 @@ public class SubscribeReq extends Payload implements Printable {
         this.bearerToken = bearerToken;
     }
 
+    public Boolean getListInstances() {
+        return listInstances;
+    }
+
+    public void setListInstances(Boolean listInstances) {
+        this.listInstances = listInstances;
+    }
+
     public String toPrintString() {
 
         String topicsStr = this.topics == null ? "" : String.join(",", this.topics);
@@ -198,6 +208,7 @@ public class SubscribeReq extends Payload implements Printable {
                 .append(", app='").append(app).append('"')
                 .append(", ip='").append(ip).append('"')
                 .append(", connector='").append(connector).append('"')
+                .append(", listInstances=").append(listInstances)
                 .append(", reqId=").append(getReqId())
                 .append('}')
                 .toString();

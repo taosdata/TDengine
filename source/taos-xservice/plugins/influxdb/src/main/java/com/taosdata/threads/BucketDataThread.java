@@ -72,6 +72,11 @@ public class BucketDataThread implements Runnable {
      */
     private Map<String, Long> cond_last_time;
 
+    /**
+     * Whether the first full scan of all tag sets has finished.
+     */
+    private boolean first_scan_completed = false;
+
     public BucketDataThread(String orgId, String bucket, String measurement, String startTime, String stopTime) {
         this.orgId = orgId;
         this.bucket = bucket;
@@ -120,37 +125,53 @@ public class BucketDataThread implements Runnable {
                 // 数据量
                 AtomicLong amount = new AtomicLong();
 
-                boolean is_first_time = this.cond_last_time.isEmpty();
+                boolean is_first_time = !this.first_scan_completed;
                 if (influxdbService.getInfluxdbVersion().startsWith("1")) {
-                    List<List<Pair<String, String>>> tagSet = influxdbService.getTagSet(bucket, measurement);
-                    // 按 tag set 去查询
-                    for (List<Pair<String, String>> tagkv : tagSet) {
-                        StringBuilder sb = new StringBuilder();
-                        for (Pair<String, String> p : tagkv) {
-                            String tag = p.getLeft();
-                            String v = p.getRight();
-                            sb.append(" and ");
-                            sb.append(String.format("\"%s\"='%s'", tag, v));
+                    long tagPageSize = 10000L;
+                    long tagOffset = 0L;
+                    while (true) {
+                        Pair<List<List<Pair<String, String>>>, Long> tagSetPageResult = influxdbService.getTagSetPage(bucket, measurement, tagPageSize, tagOffset);
+                        List<List<Pair<String, String>>> tagSetPage = tagSetPageResult.getLeft();
+                        long rawSeriesCount = tagSetPageResult.getRight();
+                        if (rawSeriesCount == 0L) {
+                            break;
                         }
-                        String tagCondition = sb.substring(5);
-                        try {
-                            long last_time = this.cond_last_time.getOrDefault(tagCondition, -1L);
-                            if (is_first_time || last_time != -1) {
-//                                List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset);
+                        // 按 tag set 去查询
+                        for (List<Pair<String, String>> tagkv : tagSetPage) {
+                            StringBuilder sb = new StringBuilder();
+                            for (Pair<String, String> p : tagkv) {
+                                String tag = p.getLeft();
+                                String v = p.getRight();
+                                sb.append(" and ");
+                                sb.append(String.format("\"%s\"='%s'", tag, v));
+                            }
+                            String tagCondition = sb.substring(5);
+                            try {
+                                Long lastTimeValue = this.cond_last_time.get(tagCondition);
+                                if (!is_first_time && lastTimeValue == null) {
+                                    continue;
+                                }
+                                long last_time = lastTimeValue == null ? -1L : lastTimeValue;
                                 List<InfluxdbBucketDataEntity> entityList = influxdbService.selectBucketDataV1(this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, queryLimit, this.offset, last_time);
                                 addToBucketDataCache(entityList, amount, start);
-                                long time = -1;
                                 logger.debug("tagset query result compare: tag {}, entityList size: {}, query limit: {}, fieldMap size: {}", tagCondition, entityList.size(), queryLimit, fieldMap.size());
                                 if (!entityList.isEmpty()) {
                                     InfluxdbBucketDataEntity last_one = entityList.get(entityList.size() - 1);
-                                    time = last_one.getTime().getEpochSecond() * 1000_000_000L + last_one.getTime().getNano();
+                                    long time = last_one.getTime().getEpochSecond() * 1000_000_000L + last_one.getTime().getNano();
+                                    this.cond_last_time.put(tagCondition, time);
+                                } else {
+                                    this.cond_last_time.remove(tagCondition);
                                 }
-                                this.cond_last_time.put(tagCondition, time);
+                            } catch (ArtificialException ae) {
+                                logger.error("querying data from InfluxDB v1.x occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, ae);
                             }
-                        } catch (ArtificialException ae) {
-                            logger.error("querying data from InfluxDB v1.x occurred error, {}:{}:{}:{}-{}", this.bucket, this.measurement, tagCondition, this.startTime, this.stopTime, ae);
                         }
+                        if (rawSeriesCount < tagPageSize) {
+                            break;
+                        }
+                        tagOffset += tagPageSize;
                     }
+                    this.first_scan_completed = true;
                 } else {
                     // 遍历字段，使查询条件更精细化，提高整体响应速度
                     for (String field : fieldMap.keySet()) {

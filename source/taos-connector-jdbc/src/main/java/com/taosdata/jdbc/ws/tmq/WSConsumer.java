@@ -90,6 +90,8 @@ public class WSConsumer<V> implements Consumer<V> {
                     + "), message: " + response.getMessage());
         }
 
+        transport.mergeDiscoveredEndpoints(response.getListInstances());
+
         String version = response.getVersion();
         if (version == null) {
             version = VersionUtil.getVersion(transport);

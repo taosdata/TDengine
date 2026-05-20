@@ -807,9 +807,11 @@ import DocsContent from 'components/MdRender.vue';
 import CusSelect from './cusSelect.vue';
 import CreateStable from './createSTB.vue';
 import {
+  getParserDisplayConfig,
   getConditionExprText,
   getTransformCapabilities,
   normalizeConditionExpr,
+  stripParserRuntimeOptions,
   toBackendPayload,
   toRuleFormState,
   updateConditionExprText
@@ -1634,14 +1636,12 @@ async function handleParseResult(topParser: TopParseType) {
     return;
   }
 
-  const reqData = cloneDeep(topParser);
+  const reqData = topParser;
+  const stateData = cloneDeep(topParser);
   if (parseruleForm.type == 'udt') {
-    const config = topParser?.parser?.parse?.value;
-    if (config && 'early_break' in config) {
-      delete config.early_break;
-    }
+    Object.values(stateData?.parser?.parse || {}).forEach(config => stripParserRuntimeOptions(config as Recordable));
   }
-  transformerState.topParse = topParser;
+  transformerState.topParse = stateData;
   const result = await dataInProps.transform.api.getParser(reqData);
   if (result.message) {
     resetTransformerPreviewState();
@@ -2003,20 +2003,15 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
         break;
     }
     if (tagKey !== '') {
-      const tagKeys = parse?.parser.parse[tagKey];
-      if (tagKeys) {
-        const keys = Object.keys(tagKeys);
-        if (keys.includes('plugin_type')) {
-          parseruleForm.type = parse?.parser.parse[tagKey]['plugin_type'];
-          parseruleForm.expression = parse?.parser.parse[tagKey]['plugin_params'];
-        } else {
-          parseruleForm.type = keys.filter(item => item != 'depth' && item != 'keep').toString();
+      const tagConfig = parse?.parser.parse[tagKey];
+      if (tagConfig) {
+        const parserDisplayConfig = getParserDisplayConfig(tagConfig);
+        parseruleForm.type = parserDisplayConfig.type;
+        parseruleForm.expression = parserDisplayConfig.expression;
 
-          if (parseruleForm.type == 'json') {
-            parseruleForm.depth = parse?.parser.parse[tagKey]['depth'];
-            parseruleForm.keep = parse?.parser.parse[tagKey]['keep'];
-          }
-          parseruleForm.expression = parse?.parser.parse[tagKey][parseruleForm.type].toString();
+        if (parseruleForm.type == 'json') {
+          parseruleForm.depth = tagConfig['depth'];
+          parseruleForm.keep = tagConfig['keep'];
         }
       }
     }

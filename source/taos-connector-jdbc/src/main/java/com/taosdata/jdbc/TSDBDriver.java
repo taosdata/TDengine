@@ -134,6 +134,8 @@ public class TSDBDriver extends AbstractDriver {
 
     public static final String PROPERTY_KEY_ENABLE_AUTO_RECONNECT = "enableAutoReconnect";
 
+    public static final String PROPERTY_KEY_ADAPTER_HA = "adapterHA";
+
     public static final String PROPERTY_KEY_SLAVE_CLUSTER_HOST = "slaveClusterHost";
     public static final String PROPERTY_KEY_SLAVE_CLUSTER_PORT = "slaveClusterPort";
     public static final String PROPERTY_KEY_RECONNECT_INTERVAL_MS = "reconnectIntervalMs";

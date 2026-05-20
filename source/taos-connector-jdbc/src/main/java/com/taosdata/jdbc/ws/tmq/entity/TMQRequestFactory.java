@@ -53,6 +53,9 @@ public class TMQRequestFactory {
         subscribeReq.setIp(param.getConnectionParam().getAppIp());
         subscribeReq.setConnector(ProductUtil.getWsConnectorVersion());
         subscribeReq.setEnableBatchMeta(param.getEnableBatchMeta());
+        if (param.getConnectionParam().isAdapterHa()) {
+            subscribeReq.setListInstances(true);
+        }
         subscribeReq.setConfig(param.getConfig());
 
         return new Request(ConsumerAction.SUBSCRIBE.getAction(), subscribeReq);

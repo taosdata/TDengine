@@ -8,6 +8,9 @@ import type {
 } from './type';
 
 const DEFAULT_RULE_MATCHES = { expr: 'true' } satisfies ConditionExpr;
+const PARSER_RUNTIME_KEYS = new Set(['early_break']);
+const PARSER_OPTION_KEYS = new Set(['depth', 'keep', ...PARSER_RUNTIME_KEYS]);
+
 type SerializedConditionExprWrapper = {
   expr: ConditionExprInput;
   null_if_error?: boolean;
@@ -26,6 +29,58 @@ type ConditionExprInput =
 
 function buildRuleId(index: number) {
   return `rule-${index + 1}`;
+}
+
+function stringifyParserExpression(value: unknown): string {
+  if (value == null) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.toString();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+export function stripParserRuntimeOptions(config?: Recordable) {
+  if (!config) {
+    return;
+  }
+
+  PARSER_RUNTIME_KEYS.forEach(key => {
+    delete config[key];
+  });
+}
+
+export function getParserDisplayConfig(config?: Recordable) {
+  if (!config) {
+    return {
+      type: '',
+      expression: ''
+    };
+  }
+
+  if (config.plugin_type) {
+    return {
+      type: String(config.plugin_type),
+      expression: stringifyParserExpression(config.plugin_params)
+    };
+  }
+
+  const type = Object.keys(config).filter(key => !PARSER_OPTION_KEYS.has(key))[0] || '';
+  return {
+    type,
+    expression: stringifyParserExpression(config[type])
+  };
 }
 
 export function normalizeConditionExpr(expr?: ConditionExprInput): ConditionExpr {

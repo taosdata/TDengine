@@ -113,11 +113,12 @@ public abstract class AbstractDriver implements Driver {
             throw new SQLException("(0x" + Integer.toHexString(auth.getCode()) + "):" + "auth failure:" + auth.getMessage());
         }
 
+        transport.mergeDiscoveredEndpoints(auth.getListInstances());
+
         String version = auth.getVersion();
-        if (version == null){
+        if (version == null) {
             version = VersionUtil.getVersion(transport);
         }
-
         if (!VersionUtil.checkVersion(version)) {
             transport.close();
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_VERSION_INCOPMATIABLE, "minimal supported version is " + MIN_SUPPORT_VERSION + ", but got " + version);

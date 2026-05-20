@@ -5,6 +5,7 @@ import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.enums.WSFunction;
 import com.taosdata.jdbc.common.ConnectionParam;
+import com.taosdata.jdbc.common.Endpoint;
 import com.taosdata.jdbc.utils.StringUtils;
 import com.taosdata.jdbc.utils.Utils;
 import io.netty.bootstrap.Bootstrap;
@@ -343,6 +344,10 @@ public class WSClient implements AutoCloseable {
         this.close();
     }
     public static WSClient getInstance(ConnectionParam params, int endpointIndex, WSFunction function) throws SQLException {
+        return getInstance(params, params.getEndpoints().get(endpointIndex), function);
+    }
+
+    static WSClient getInstance(ConnectionParam params, Endpoint endpoint, WSFunction function) throws SQLException {
         if (Strings.isNullOrEmpty(function.getFunction())) {
             throw new SQLException("websocket url error");
         }
@@ -351,15 +356,15 @@ public class WSClient implements AutoCloseable {
             protocol = "wss";
         }
         String port = "";
-        if (params.getEndpoints().get(endpointIndex).getPort() != 0) {
-            port = ":" + params.getEndpoints().get(endpointIndex).getPort();
+        if (endpoint.getPort() != 0) {
+            port = ":" + endpoint.getPort();
         }
 
         String wsFunction = "/ws";
         if (function.equals(WSFunction.TMQ)){
             wsFunction = "/rest/tmq";
         }
-        String loginUrl = protocol + "://" + params.getEndpoints().get(endpointIndex).getHost() + port + wsFunction;
+        String loginUrl = protocol + "://" + endpoint.getHost() + port + wsFunction;
 
         if (null != params.getCloudToken()) {
             loginUrl = loginUrl + "?token=" + params.getCloudToken();

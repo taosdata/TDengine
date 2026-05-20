@@ -13,6 +13,8 @@ import com.taosdata.jdbc.ws.entity.Request;
 import com.taosdata.jdbc.ws.entity.Response;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.concurrent.CompletableFuture;
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit;
  * Delegates connection management to WSConnectionManager.
  */
 public class Transport implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(Transport.class);
 
     /** Error code indicating RPC network unavailability */
     public static final int TSDB_CODE_RPC_NETWORK_UNAVAIL = 0x0B;
@@ -485,6 +488,19 @@ public class Transport implements AutoCloseable {
      */
     public final ConnectionParam getConnectionParam() {
         return connectionManager.getConnectionParam();
+    }
+
+    public void mergeDiscoveredEndpoints(String[] instances) {
+        ConnectionParam connectionParam = connectionManager.getConnectionParam();
+        if (!connectionParam.isAdapterHa()) {
+            return;
+        }
+        if (instances == null || instances.length == 0) {
+            log.warn("Adapter HA is enabled, but adapter response did not include list_instances; "
+                    + "dynamic adapter endpoint discovery is disabled.");
+            return;
+        }
+        connectionManager.mergeDiscoveredEndpoints(instances);
     }
 
     /**

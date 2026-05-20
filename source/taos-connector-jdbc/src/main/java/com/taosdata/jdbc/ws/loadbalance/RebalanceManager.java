@@ -14,6 +14,8 @@ import com.taosdata.jdbc.ws.entity.FetchBlockHealthCheckResp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -236,13 +238,102 @@ public class RebalanceManager {
      *
      * @param endpoints List of endpoints in the new cluster
      */
-    public void newCluster(List<Endpoint> endpoints) {
+    public synchronized void newCluster(List<Endpoint> endpoints) {
+        if (endpoints == null || endpoints.isEmpty()) {
+            return;
+        }
         Cluster cluster = new Cluster(endpoints.toArray(new Endpoint[0]));
         if (null == this.clusterRebalanceMap.putIfAbsent(cluster, new AtomicBoolean(false))) {
             // Initialize endpoint info only for newly registered clusters
             for (Endpoint endpoint : endpoints) {
                 this.endpointInfoMap.putIfAbsent(endpoint, new EndpointInfo());
                 this.endpointClusterMap.putIfAbsent(endpoint, cluster);
+            }
+        }
+    }
+
+    public synchronized void expandCluster(List<Endpoint> endpoints) {
+        if (endpoints == null || endpoints.isEmpty()) {
+            return;
+        }
+
+        Cluster expandedCluster = new Cluster(endpoints.toArray(new Endpoint[0]));
+        Set<Cluster> clustersToReplace = new HashSet<>();
+        boolean hasKnownCluster = false;
+        for (Endpoint endpoint : endpoints) {
+            Cluster currentCluster = this.endpointClusterMap.get(endpoint);
+            if (currentCluster == null) {
+                continue;
+            }
+            hasKnownCluster = true;
+            if (!expandedCluster.getEndpoints().containsAll(currentCluster.getEndpoints())) {
+                return;
+            }
+            clustersToReplace.add(currentCluster);
+        }
+
+        if (!hasKnownCluster) {
+            newCluster(endpoints);
+            return;
+        }
+
+        AtomicBoolean expandedRebalancing = this.clusterRebalanceMap.get(expandedCluster);
+        if (expandedRebalancing == null) {
+            AtomicBoolean newRebalancing = new AtomicBoolean(false);
+            AtomicBoolean existing = this.clusterRebalanceMap.putIfAbsent(expandedCluster, newRebalancing);
+            expandedRebalancing = existing == null ? newRebalancing : existing;
+        }
+
+        for (Cluster oldCluster : clustersToReplace) {
+            AtomicBoolean oldRebalancing = this.clusterRebalanceMap.get(oldCluster);
+            if (oldRebalancing != null && oldRebalancing.get()) {
+                expandedRebalancing.set(true);
+                this.globalRebalancing.set(true);
+            }
+        }
+
+        for (Endpoint endpoint : endpoints) {
+            this.endpointInfoMap.putIfAbsent(endpoint, new EndpointInfo());
+            this.endpointClusterMap.put(endpoint, expandedCluster);
+        }
+        removeUnreferencedClusters(clustersToReplace, expandedCluster);
+    }
+
+    public synchronized List<Endpoint> expandEndpointsIfKnown(List<Endpoint> endpoints) {
+        if (endpoints == null || endpoints.isEmpty()) {
+            return endpoints;
+        }
+
+        Cluster knownCluster = null;
+        for (Endpoint endpoint : endpoints) {
+            Cluster endpointCluster = this.endpointClusterMap.get(endpoint);
+            if (endpointCluster == null) {
+                continue;
+            }
+            if (knownCluster == null) {
+                knownCluster = endpointCluster;
+            } else if (!knownCluster.equals(endpointCluster)) {
+                return endpoints;
+            }
+        }
+
+        if (knownCluster == null) {
+            return endpoints;
+        }
+
+        List<Endpoint> expanded = new ArrayList<>(endpoints);
+        for (Endpoint endpoint : knownCluster.getEndpoints()) {
+            if (!expanded.contains(endpoint)) {
+                expanded.add(endpoint);
+            }
+        }
+        return expanded;
+    }
+
+    private void removeUnreferencedClusters(Set<Cluster> clustersToReplace, Cluster expandedCluster) {
+        for (Cluster oldCluster : clustersToReplace) {
+            if (!oldCluster.equals(expandedCluster) && !this.endpointClusterMap.containsValue(oldCluster)) {
+                this.clusterRebalanceMap.remove(oldCluster);
             }
         }
     }
