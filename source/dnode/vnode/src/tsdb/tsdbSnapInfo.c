@@ -576,7 +576,7 @@ _err:
 }
 
 int32_t tDeserializeMissingFileList(void* buf, int32_t bufLen, void** ppFiles, int32_t* pFileCount, SHashObj** ppHash,
-                                    SHashObj** ppSttHash) {
+                                    SHashObj** ppSttHash, int32_t vgId) {
   int32_t            code = 0;
   SDecoder           decoder = {0};
   int8_t             msgVer = 0;
@@ -624,9 +624,9 @@ int32_t tDeserializeMissingFileList(void* buf, int32_t bufLen, void** ppFiles, i
       if ((code = tDecodeI64(&decoder, &files[i].size))) goto _err;
       if ((code = tDecodeI8(&decoder, &files[i].isMissing))) goto _err;
 
-      tsdbInfo("FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " cid:%" PRId64 " size:%" PRId64
-               " isMissing:%d",
-               files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, files[i].cid,
+      tsdbInfo("vgId:%d, FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " cid:%" PRId64
+               " size:%" PRId64 " isMissing:%d",
+               vgId, files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, files[i].cid,
                files[i].size, files[i].isMissing);
 
       if (files[i].isMissing) {
@@ -764,6 +764,10 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
           char key[TSDB_SNAP_FILE_KEY_LEN];
           tsdbSnapFileKeyMake(fset->fid, ftype, 0, fset->farr[ftype]->f->minVer, fset->farr[ftype]->f->maxVer, key);
           SLeaderFileVal val = {.cid = fset->farr[ftype]->f->cid, .size = fset->farr[ftype]->f->size};
+          tsdbInfo("vgId:%d, leader FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64
+                   " cid:%" PRId64 " size:%" PRId64,
+                   TD_VID(pTsdb->pVnode), fset->fid, ftype, 0, fset->farr[ftype]->f->minVer,
+                   fset->farr[ftype]->f->maxVer, fset->farr[ftype]->f->cid, fset->farr[ftype]->f->size);
           if (taosHashPut(pLeaderKeyHash, key, TSDB_SNAP_FILE_KEY_LEN, &val, sizeof(val)) != 0) {
             code = terrno;
             goto _unlock;
@@ -777,6 +781,10 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
           char key[TSDB_SNAP_FILE_KEY_LEN];
           tsdbSnapFileKeyMake(fset->fid, TSDB_FTYPE_STT, lvl->level, fobj->f->minVer, fobj->f->maxVer, key);
           SLeaderFileVal val = {.cid = fobj->f->cid, .size = fobj->f->size};
+          tsdbInfo("vgId:%d, leader FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64
+                   " cid:%" PRId64 " size:%" PRId64,
+                   TD_VID(pTsdb->pVnode), fset->fid, TSDB_FTYPE_STT, lvl->level, fobj->f->minVer, fobj->f->maxVer,
+                   fobj->f->cid, fobj->f->size);
           if (taosHashPut(pLeaderKeyHash, key, TSDB_SNAP_FILE_KEY_LEN, &val, sizeof(val)) != 0) {
             code = terrno;
             goto _unlock;
