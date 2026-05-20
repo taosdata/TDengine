@@ -298,6 +298,7 @@ properties 中的配置参数如下：
     > **注意**：启用自动重连对获取结果集无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
+- TSDBDriver.PROPERTY_KEY_ADAPTER_HA [`adapterHA`]：是否启用 `adapter` 高可用。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。启用后连接成功即可获取集群所有 `adapter` 端点列表用于负载均衡，需要 TDengine 版本大于等于 `3.4.2.0` 才能支持此特性。
 
 ---
 
