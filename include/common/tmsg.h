@@ -4383,6 +4383,7 @@ typedef struct {
   uint64_t clientId;
   uint64_t taskId;
   int32_t  execId;
+  int32_t  taskType;
 } SQueryContinueReq;
 
 typedef struct {
