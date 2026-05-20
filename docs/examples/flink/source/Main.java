@@ -210,7 +210,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
     
     //ANCHOR: source_custom_type_test
     void testCustomTypeSource() throws Exception {
-        System.out.println("testTDengineSourceByTimeSplit start！");
+        System.out.println("testTDengineSourceByTimeSplit start!");
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
@@ -319,7 +319,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         resultStream.print();
         JobClient jobClient = env.executeAsync("Flink test cdc Example");
         Thread.sleep(5000L);
-        // The task submitted by Flink UI cannot be cancle and needs to be stopped on the UI page.
+        // The task submitted by Flink UI cannot be cancel and needs to be stopped on the UI page.
         jobClient.cancel().get();
     }
     //ANCHOR_END: cdc_source
@@ -370,7 +370,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
 
     //ANCHOR: cdc_custom_type_test
     static void testCustomTypeCdc() throws Exception {
-        System.out.println("testCustomTypeTDengineCdc start！");
+        System.out.println("testCustomTypeTDengineCdc start!");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(3);
         env.enableCheckpointing(100, AT_LEAST_ONCE);
@@ -439,7 +439,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
 
     //ANCHOR: CdcRowDataToSink
     static void testCdcToSink() throws Exception {
-        System.out.println("testTDengineCdcToTdSink start！");
+        System.out.println("testTDengineCdcToTdSink start!");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(3);
         env.enableCheckpointing(500, CheckpointingMode.AT_LEAST_ONCE);
@@ -472,13 +472,13 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         JobClient jobClient = env.executeAsync("Flink test cdc Example");
         Thread.sleep(6000L);
         jobClient.cancel().get();
-        System.out.println("testTDengineCdcToTdSink finish！");
+        System.out.println("testTDengineCdcToTdSink finish!");
     }
     //ANCHOR_END: CdcRowDataToSink
 
     //ANCHOR: source_table
     static void testTableToSink() throws Exception {
-        System.out.println("testTableToSink start！");
+        System.out.println("testTableToSink start!");
         EnvironmentSettings fsSettings = EnvironmentSettings.newInstance().inStreamingMode().build();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(3);
