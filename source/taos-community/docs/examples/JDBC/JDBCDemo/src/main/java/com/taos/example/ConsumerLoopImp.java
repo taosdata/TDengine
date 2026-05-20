@@ -40,7 +40,7 @@ public class ConsumerLoopImp {
         };
 
 
-        // 创建并启动第1个线程
+        // 创建并启动第 1 个线程
         Thread thread1 = new Thread(() -> {
             // 在这里执行你的代码
             try {
@@ -51,7 +51,7 @@ public class ConsumerLoopImp {
         });
         thread1.start();
 
-        // 创建并启动第2个线程
+        // 创建并启动第 2 个线程
         Thread thread2 = new Thread(() -> {
             Scanner scanner = new Scanner(System.in);
             System.out.println("输入任何字符结束程序：");

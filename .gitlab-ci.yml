@@ -4,6 +4,20 @@
 #   tsdb-ci   →  .gitlab/.gitlab-ci.yml        (代码构建 + 测试)
 #   tsdb-docs →  .gitlab/tsdb-build-docs.yml   (文档 lint + 构建，仅文档变更时)
 # =============================================================================
+# ⚠️ 重要：rules:changes 路径写法约定（误用会导致整个 pipeline 不创建）
+# -----------------------------------------------------------------------------
+# GitLab rules:changes 使用 doublestar glob，路径末尾的 `**` 只匹配"目录路径段"，
+# 不匹配该目录下的文件。例如 `source/taos-community/docs/**` 不会匹配到
+# `source/taos-community/docs/zh/30-idmp.md`，导致 changes 永远不命中、job 不会被
+# 创建，进而（当所有 trigger job 都未命中时）整个 pipeline 都不会创建。
+#
+# 正确写法：
+#   ✅  source/taos-community/docs/**/*   ← 匹配目录下所有层级的文件
+#   ✅  source/taos-community/docs/**/*.md
+#   ❌  source/taos-community/docs/**     ← 不会匹配文件，慎用！
+#
+# 新增/修改 changes: 列表时请遵循此规则。已在 MR !300/!302 排查确认。
+# =============================================================================
 
 workflow:
   auto_cancel:
@@ -31,20 +45,20 @@ tsdb-ci:
     # MR 场景：仅当代码相关文件变更时触发（排除纯文档/打包/tdgpt 变更）
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
-        - source/taos-community/source/**
-        - source/taos-community/include/**
-        - source/taos-community/cmake/**
+        - source/taos-community/source/**/*
+        - source/taos-community/include/**/*
+        - source/taos-community/cmake/**/*
         - source/taos-community/CMakeLists.txt
-        - source/taos-community/contrib/**
-        - source/taos-community/tests/**
-        - source/taos-community/examples/**
-        - source/taos-community/tools/**
-        - source/taos-community/docs/examples/**
-        - source/taos-community/deps/**
-        - source/taos-community/utils/**
-        - source/taos-internal/**
-        - source/taos-adapter/**
-        - cmake/**
+        - source/taos-community/contrib/**/*
+        - source/taos-community/tests/**/*
+        - source/taos-community/examples/**/*
+        - source/taos-community/tools/**/*
+        - source/taos-community/docs/examples/**/*
+        - source/taos-community/deps/**/*
+        - source/taos-community/utils/**/*
+        - source/taos-internal/**/*
+        - source/taos-adapter/**/*
+        - cmake/**/*
         - CMakeLists.txt
         - .gitlab/.gitlab-ci.yml
         - .gitlab-ci.yml
@@ -67,7 +81,7 @@ tsdb-docs:
           $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "docs-cloud"
         )
       changes:
-        - source/taos-community/docs/**
-        - .gitlab/scripts/tsdb-docs-ci/**
-        - tools/ci/tsdb-docs-ci/**
+        - source/taos-community/docs/**/*
+        - .gitlab/scripts/tsdb-docs-ci/**/*
+        - tools/ci/tsdb-docs-ci/**/*
         - .gitlab/tsdb-build-docs.yml
