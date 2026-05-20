@@ -40,7 +40,6 @@ def is_official_endpoint(endpoint: Optional[str]) -> bool:
 def snapshot_download_with_fallback(
     repo_id: str,
     local_dir: str,
-    *,
     enable_ep: object = False,
     **kwargs: Any,
 ) -> str:
