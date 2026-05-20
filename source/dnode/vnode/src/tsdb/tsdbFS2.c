@@ -607,6 +607,14 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
   current_fname(pTsdb, mCurrent, TSDB_FCURRENT_M);
 
   if (taosCheckExistFile(fCurrent)) {  // current.json exists
+    {
+      char   *pData = NULL;
+      int32_t dataLen = 0;
+      if (taosReadCfgFile(fCurrent, &pData, &dataLen) == 0 && pData != NULL) {
+        tsdbInfoL("vgId:%d, open_fs read %s content: %s", TD_VID(pTsdb->pVnode), fCurrent, pData);
+        taosMemoryFree(pData);
+      }
+    }
     code = load_fs(pTsdb, fCurrent, fs->fSetArr);
     TSDB_CHECK_CODE(code, lino, _exit);
 

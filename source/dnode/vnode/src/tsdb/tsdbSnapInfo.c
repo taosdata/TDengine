@@ -624,10 +624,10 @@ int32_t tDeserializeMissingFileList(void* buf, int32_t bufLen, void** ppFiles, i
       if ((code = tDecodeI64(&decoder, &files[i].size))) goto _err;
       if ((code = tDecodeI8(&decoder, &files[i].isMissing))) goto _err;
 
-      tsdbDebug("FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " cid:%" PRId64 " size:%" PRId64
-                " isMissing:%d",
-                files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, files[i].cid,
-                files[i].size, files[i].isMissing);
+      tsdbInfo("FileInfo fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " cid:%" PRId64 " size:%" PRId64
+               " isMissing:%d",
+               files[i].fid, files[i].ftype, files[i].level, files[i].minVer, files[i].maxVer, files[i].cid,
+               files[i].size, files[i].isMissing);
 
       if (files[i].isMissing) {
         char    dummy = 0;
@@ -957,6 +957,11 @@ static int32_t tsdbCollectAllFileInfo(SVnode* pVnode, STsdbSnapFileInfo** ppFile
         files[fileCount].cid = fset->farr[ftype]->f->cid;
         files[fileCount].size = fset->farr[ftype]->f->size;
         files[fileCount].isMissing = !taosCheckExistFile(fset->farr[ftype]->fname) ? 1 : 0;
+        tsdbInfo("vgId:%d, collect all file info, fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64
+                 " cid:%" PRId64 " size:%" PRId64 " isMissing:%d",
+                 TD_VID(pVnode), files[fileCount].fid, files[fileCount].ftype, files[fileCount].level,
+                 files[fileCount].minVer, files[fileCount].maxVer, files[fileCount].cid, files[fileCount].size,
+                 files[fileCount].isMissing);
         fileCount++;
       }
     }

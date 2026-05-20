@@ -34,6 +34,8 @@ extern "C" {
 #define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD INFO  ", DEBUG_INFO,  255,           __VA_ARGS__); }} while(0)
 #define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD DEBUG ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD TRACE ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+
+#define tsdbInfoL(...) { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLongString("TSD INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : tsdbDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
 typedef struct TSDBROW          TSDBROW;
