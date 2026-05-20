@@ -70,7 +70,7 @@ SELECT TIMEZONE();
 
 在 `taos.cfg` 中配置全局时区：
 
-```text
+```
 timezone Asia/Shanghai
 timezone UTC-8
 timezone GMT-8
@@ -94,13 +94,13 @@ SET FIRST_DAY_OF_WEEK 0;  -- 周日起始
 SET FIRST_DAY_OF_WEEK 1;  -- 周一起始（默认）
 ```
 
-取值范围 0-6:0=周日，1=周一，..., 6=周六。
+取值范围 0-6：0=周日, 1=周一, ..., 6=周六。
 
 ### 配置文件设置 [v3.4.2]
 
 在服务端侧 `taos.cfg` 中配置：
 
-```text
+```
 firstDayOfWeek 1
 ```
 
@@ -109,7 +109,6 @@ firstDayOfWeek 1
 ### 影响范围 [v3.4.2]
 
 `firstDayOfWeek` 影响所有以 `w`（周）为单位的操作：
-
 - `TIMETRUNCATE(ts, 1w)` 的对齐日
 - `INTERVAL(1w)` 的窗口起始日
 - `PERIOD(1w)` 的触发日 **[v3.4.3]**
@@ -153,7 +152,7 @@ SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- 指定时区 [v3
 | `d` | 天 | 对齐到当天 00:00:00 | 已支持 |
 | `w` | 周 | 对齐到一周起始日（由 `firstDayOfWeek` 决定）00:00:00 | 已支持，v3.4.2 起尊重 firstDayOfWeek |
 | `n` | 月 | 对齐到当月 1 日 00:00:00 | **v3.4.2** |
-| `q` | 季度 | 对齐到当季首月 1 日 00:00:00（Q1=1 月，Q2=4 月，Q3=7 月，Q4=10 月） | **v3.4.2** |
+| `q` | 季度 | 对齐到当季首月 1 日 00:00:00（Q1=1月, Q2=4月, Q3=7月, Q4=10月） | **v3.4.2** |
 | `y` | 年 | 对齐到当年 1 月 1 日 00:00:00 | **v3.4.2** |
 
 **示例**：
@@ -217,7 +216,7 @@ SELECT _wstart, SUM(energy) FROM meters
 **多倍数窗口**：
 
 ```sql
-INTERVAL(2q)   -- 半年窗口：[1 月，7 月), [7 月，次年 1 月) [v3.4.2]
+INTERVAL(2q)   -- 半年窗口：[1月,7月), [7月,次年1月) [v3.4.2]
 INTERVAL(3n)   -- 季度窗口（等价 1q）：1/4/7/10 月 [v3.4.2]
 INTERVAL(2w)   -- 双周窗口 [v3.4.2]
 ```
