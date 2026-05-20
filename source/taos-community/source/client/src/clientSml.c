@@ -1024,7 +1024,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
     SML_CHECK_NULL(kv);
     SSchema *sTmp = taosHashGet(hashTmp, kv->key, kv->keyLen);
     if (sTmp == NULL) {
-      SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
     }
     if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
         (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
@@ -1737,7 +1737,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
   do {
     code = smlModifyDBSchemas(info);
     if (code != TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER && code != TSDB_CODE_SDB_OBJ_CREATING && code != TSDB_CODE_SYN_NOT_LEADER &&
-        code != TSDB_CODE_MND_TRANS_CONFLICT) {
+        code != TSDB_CODE_MND_TRANS_CONFLICT && code != TSDB_CODE_MND_INVALID_SCHEMA_VER) {
       break;
     }
     taosMsleep(100);
