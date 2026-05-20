@@ -1000,6 +1000,11 @@ static int32_t tsdbCollectAllFileInfo(SVnode* pVnode, STsdbSnapFileInfo** ppFile
         files[fileCount].cid = fobj->f->cid;
         files[fileCount].size = fobj->f->size;
         files[fileCount].isMissing = !taosCheckExistFile(fobj->fname) ? 1 : 0;
+        tsdbInfo("vgId:%d, collect all file info, fid:%d ftype:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64
+                 " cid:%" PRId64 " size:%" PRId64 " isMissing:%d",
+                 TD_VID(pVnode), files[fileCount].fid, files[fileCount].ftype, files[fileCount].level,
+                 files[fileCount].minVer, files[fileCount].maxVer, files[fileCount].cid, files[fileCount].size,
+                 files[fileCount].isMissing);
         fileCount++;
       }
     }
