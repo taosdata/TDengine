@@ -773,6 +773,12 @@ int32_t qExecutorInit(void) {
   return TSDB_CODE_SUCCESS;
 }
 
+void qUpdateWorkerCb(qTaskInfo_t task, void* pWorkerCb) {
+  if (task == NULL) return;
+  SExecTaskInfo* pTask = (SExecTaskInfo*)task;
+  pTask->pWorkerCb = (SQueryAutoQWorkerPoolCB*)pWorkerCb;
+}
+
 int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SExecTaskInfo* pTask = (SExecTaskInfo*)task;
