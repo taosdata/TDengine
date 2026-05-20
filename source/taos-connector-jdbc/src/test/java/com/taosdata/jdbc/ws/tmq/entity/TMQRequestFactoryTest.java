@@ -66,6 +66,8 @@ public class TMQRequestFactoryTest {
         Assert.assertEquals("192.168.1.1", req.getIp());
         Assert.assertTrue(req.getConnector().startsWith("jdbc-"));
         Assert.assertTrue(req.getConnector().length() > 5);
+        Assert.assertFalse(jsonObject.get("args").has("list_instances"));
+        Assert.assertFalse(jsonObject.get("args").has("instances"));
     }
 
     @Test
@@ -136,6 +138,25 @@ public class TMQRequestFactoryTest {
         // Verify the JSON field name is "td.connect.token"
         Assert.assertTrue("args should contain td.connect.token field", argsNode.has("td.connect.token"));
         Assert.assertEquals("my-token", argsNode.get("td.connect.token").asText());
+    }
+
+    @Test
+    @Description("Generate Subscribe with list_instances when adapter HA is enabled")
+    public void testGenerateSubscribeWithAdapterHa() throws JsonProcessingException, SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TMQConstants.CONNECT_USER, "user");
+        properties.setProperty(TMQConstants.CONNECT_PASS, "pass");
+        properties.setProperty(TMQConstants.GROUP_ID, "gId");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_ADAPTER_HA, "true");
+
+        ConsumerParam param = new ConsumerParam(properties);
+
+        Request request = factory.generateSubscribe(param, new String[]{"topic_1"}, null);
+        JsonNode argsNode = objectMapper.readTree(request.toString()).get("args");
+
+        Assert.assertTrue(argsNode.has("list_instances"));
+        Assert.assertTrue(argsNode.get("list_instances").asBoolean());
+        Assert.assertFalse(argsNode.has("instances"));
     }
 
     @Test

@@ -51,8 +51,19 @@ public class WSConnectionManager implements AutoCloseable {
         this.wsFunction = function;
         this.inFlightRequest = inFlightRequest;
         this.defaultTimeout = param.getRequestTimeout();
+        expandEndpointsFromKnownCluster();
         initializeClients();
         rebalanceManager.newCluster(param.getEndpoints());
+    }
+
+    private void expandEndpointsFromKnownCluster() {
+        if (!connectionParam.isAdapterHa() || !StringUtils.isEmpty(connectionParam.getSlaveClusterHost())) {
+            return;
+        }
+        List<Endpoint> expanded = rebalanceManager.expandEndpointsIfKnown(connectionParam.getEndpoints());
+        if (expanded != null && expanded.size() > connectionParam.getEndpoints().size()) {
+            connectionParam.setEndpoints(new ArrayList<>(expanded));
+        }
     }
 
     /**
@@ -166,7 +177,7 @@ public class WSConnectionManager implements AutoCloseable {
      * @throws SQLException if authentication request fails
      */
     public boolean authenticateAfterReconnect(Transport transport) throws SQLException {
-        ConnectReq connectReq = new ConnectReq(connectionParam);
+        ConnectReq connectReq = newConnectReqWithoutListInstances();
         ConnectResp auth;
         try {
             auth = (ConnectResp) transport.sendWithoutRetry(new Request(Action.CONN.getAction(), connectReq), defaultTimeout);
@@ -308,7 +319,7 @@ public class WSConnectionManager implements AutoCloseable {
 
         currentNodeIndex = toIndex;
         try {
-            ConnectReq connectReq = new ConnectReq(connectionParam);
+            ConnectReq connectReq = newConnectReqWithoutListInstances();
             ConnectResp auth = (ConnectResp) transport.sendWithoutRetry(
                     new Request(Action.CONN.getAction(), connectReq), defaultTimeout);
 
@@ -326,6 +337,10 @@ public class WSConnectionManager implements AutoCloseable {
         clientArr.get(backCurrentIndex).closeBlocking();
         rebalanceManager.incrementConnectionCount(connectionParam.getEndpoints().get(currentNodeIndex));
         rebalanceManager.decrementConnectionCount(connectionParam.getEndpoints().get(backCurrentIndex));
+    }
+
+    private ConnectReq newConnectReqWithoutListInstances() {
+        return new ConnectReq(connectionParam, connectionParam.isAdapterHa() ? Boolean.FALSE : null);
     }
 
     /**
@@ -371,6 +386,62 @@ public class WSConnectionManager implements AutoCloseable {
      */
     public ConnectionParam getConnectionParam() {
         return connectionParam;
+    }
+
+    public synchronized void mergeDiscoveredEndpoints(String[] instances) {
+        if (!connectionParam.isAdapterHa() || !StringUtils.isEmpty(connectionParam.getSlaveClusterHost())
+                || instances == null || instances.length == 0) {
+            return;
+        }
+
+        List<Endpoint> currentEndpoints = connectionParam.getEndpoints();
+        List<Endpoint> newEndpoints = new ArrayList<>();
+        List<WSClient> newClients = new ArrayList<>();
+        for (String instance : instances) {
+            Endpoint endpoint = parseDiscoveredEndpoint(instance);
+            if (endpoint == null || currentEndpoints.contains(endpoint) || newEndpoints.contains(endpoint)) {
+                continue;
+            }
+
+            try {
+                WSClient client = WSClient.getInstance(connectionParam, endpoint, wsFunction);
+                newEndpoints.add(endpoint);
+                newClients.add(client);
+            } catch (SQLException e) {
+                log.warn("Ignore invalid adapter HA endpoint: {}", instance, e);
+            }
+        }
+
+        if (!newEndpoints.isEmpty()) {
+            List<Endpoint> merged = new ArrayList<>(currentEndpoints.size() + newEndpoints.size());
+            merged.addAll(currentEndpoints);
+            merged.addAll(newEndpoints);
+            connectionParam.setEndpoints(new ArrayList<>(merged));
+            clientArr.addAll(newClients);
+            rebalanceManager.expandCluster(connectionParam.getEndpoints());
+        }
+    }
+
+    private Endpoint parseDiscoveredEndpoint(String instance) {
+        if (StringUtils.isEmpty(instance) || StringUtils.isEmpty(instance.trim())) {
+            return null;
+        }
+
+        try {
+            List<Endpoint> endpoints = StringUtils.parseEndpoints(instance.trim());
+            if (endpoints.size() != 1) {
+                log.debug("Ignore invalid adapter HA endpoint: {}", instance);
+                return null;
+            }
+            return endpoints.get(0);
+        } catch (SQLException | RuntimeException e) {
+            log.debug("Ignore invalid adapter HA endpoint: {}", instance, e);
+            return null;
+        }
+    }
+
+    int getClientCountForTest() {
+        return clientArr.size();
     }
 
     /**

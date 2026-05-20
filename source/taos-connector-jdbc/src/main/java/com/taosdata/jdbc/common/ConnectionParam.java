@@ -62,6 +62,7 @@ public class ConnectionParam {
     private int healthCheckRecoveryInterval;
     private int rebalanceThreshold;
     private int rebalanceConBaseCount;
+    private boolean adapterHa;
     private Consumer<String> textMessageHandler;
     private Consumer<ByteBuf> binaryMessageHandler;
     static public final int CONNECT_MODE_BI = 1;
@@ -108,6 +109,7 @@ public class ConnectionParam {
         this.healthCheckRecoveryInterval = builder.healthCheckRecoveryInterval;
         this.rebalanceThreshold = builder.rebalanceThreshold;
         this.rebalanceConBaseCount = builder.rebalanceConBaseCount;
+        this.adapterHa = builder.adapterHa;
     }
 
     public void setEndpoints(List<Endpoint> endpoints) {
@@ -262,6 +264,10 @@ public class ConnectionParam {
     public void setRebalanceConBaseCount(int rebalanceConBaseCount) {
         this.rebalanceConBaseCount = rebalanceConBaseCount;
     }
+
+    public void setAdapterHa(boolean adapterHa) {
+        this.adapterHa = adapterHa;
+    }
     public List<Endpoint> getEndpoints() {
         return endpoints;
     }
@@ -399,6 +405,11 @@ public class ConnectionParam {
     public int getRebalanceConBaseCount() {
         return rebalanceConBaseCount;
     }
+
+    public boolean isAdapterHa() {
+        return adapterHa;
+    }
+
     public Consumer<String> getTextMessageHandler() {
         return textMessageHandler;
     }
@@ -626,6 +637,7 @@ public class ConnectionParam {
         if (rebalanceConBaseCount <= 0){
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid para PROPERTY_KEY_REBALANCE_CON_BASE_COUNT, must be positive integer");
         }
+        boolean adapterHa = Boolean.parseBoolean(properties.getProperty(TSDBDriver.PROPERTY_KEY_ADAPTER_HA, "false"));
 
         return new Builder(endpoints)
                 .setDatabase(database)
@@ -665,6 +677,7 @@ public class ConnectionParam {
                 .setHealthCheckRecoveryInterval(healthCheckRecoveryInterval)
                 .setRebalanceThreshold(rebalanceThreshold)
                 .setRebalanceConBaseCount(rebalanceConBaseCount)
+                .setAdapterHa(adapterHa)
                 .build();
     }
 
@@ -714,6 +727,7 @@ public class ConnectionParam {
         sb.append(", healthCheckRecoveryInterval=").append(healthCheckRecoveryInterval);
         sb.append(", rebalanceThreshold=").append(rebalanceThreshold);
         sb.append(", rebalanceConBaseCount=").append(rebalanceConBaseCount);
+        sb.append(", adapterHa=").append(adapterHa);
         sb.append('}');
         return sb.toString();
     }
@@ -760,6 +774,7 @@ public class ConnectionParam {
         private int healthCheckRecoveryInterval;
         private int rebalanceThreshold;
         private int rebalanceConBaseCount;
+        private boolean adapterHa;
         private Consumer<String> textMessageHandler;
         private Consumer<ByteBuf> binaryMessageHandler;
 
@@ -946,6 +961,10 @@ public class ConnectionParam {
             this.rebalanceConBaseCount = rebalanceConBaseCount;
             return this;
         }
+        public Builder setAdapterHa(boolean adapterHa) {
+            this.adapterHa = adapterHa;
+            return this;
+        }
         public Builder setTextMessageHandler(Consumer<String> textMessageHandler) {
             this.textMessageHandler = textMessageHandler;
             return this;
@@ -1002,6 +1021,7 @@ public class ConnectionParam {
                 .setHealthCheckRecoveryInterval(original.getHealthCheckRecoveryInterval())
                 .setRebalanceThreshold(original.getRebalanceThreshold())
                 .setRebalanceConBaseCount(original.getRebalanceConBaseCount())
+                .setAdapterHa(original.isAdapterHa())
                 .setTextMessageHandler(original.getTextMessageHandler())
                 .setBinaryMessageHandler(original.getBinaryMessageHandler());
     }

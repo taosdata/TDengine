@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.ws.loadbalance;
 
+import com.taosdata.jdbc.common.Cluster;
 import com.taosdata.jdbc.common.Endpoint;
 import com.taosdata.jdbc.common.EndpointInfo;
 import com.taosdata.jdbc.common.ConnectionParam;
@@ -12,7 +13,9 @@ import org.mockito.MockitoAnnotations;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -28,6 +31,7 @@ public class RebalanceManagerTest {
     private final Endpoint endpoint1 = new Endpoint("endpoint1", 6041, false);
     private final Endpoint endpoint2 = new Endpoint("endpoint2", 6042, false);
     private final Endpoint endpoint3 = new Endpoint("endpoint3", 6043, true);
+    private final Endpoint endpoint4 = new Endpoint("endpoint4", 6044, false);
     @Mock
     private ConnectionParam connectionParam;
     private RebalanceManager rebalanceManager;
@@ -74,12 +78,16 @@ public class RebalanceManagerTest {
      * Clear private ConcurrentHashMap (instance field) via reflection
      */
     private static void clearPrivateMap(Object instance, Class<?> clazz, String fieldName) {
+        getPrivateMap(instance, clazz, fieldName).clear();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <K, V> ConcurrentHashMap<K, V> getPrivateMap(Object instance, Class<?> clazz, String fieldName) {
         try {
             Field field = getPrivateField(clazz, fieldName);
-            ConcurrentHashMap<?, ?> map = (ConcurrentHashMap<?, ?>) field.get(instance);
-            map.clear();
+            return (ConcurrentHashMap<K, V>) field.get(instance);
         } catch (IllegalAccessException e) {
-            throw new RuntimeException("Failed to clear private map '" + fieldName + "'", e);
+            throw new RuntimeException("Failed to get private map '" + fieldName + "'", e);
         }
     }
 
@@ -134,6 +142,70 @@ public class RebalanceManagerTest {
         rebalanceManager.newCluster(testEndpoints);
 
         assertEquals(initialCount, rebalanceManager.getEndpointInfo(endpoint1).getConnectCount());
+    }
+
+    @Test
+    public void expandCluster_ShouldUpgradeSeedClusterAndPreserveEndpointState() {
+        List<Endpoint> seedEndpoints = Arrays.asList(endpoint1, endpoint2);
+        List<Endpoint> fullEndpoints = Arrays.asList(endpoint1, endpoint2, endpoint3);
+        rebalanceManager.newCluster(seedEndpoints);
+        EndpointInfo endpointInfo = rebalanceManager.getEndpointInfo(endpoint1);
+        rebalanceManager.incrementConnectionCount(endpoint1);
+        Cluster oldCluster = getEndpointCluster(endpoint1);
+        getClusterRebalanceMap().get(oldCluster).set(true);
+
+        rebalanceManager.expandCluster(fullEndpoints);
+
+        Cluster fullCluster = getEndpointCluster(endpoint1);
+        assertSame(endpointInfo, rebalanceManager.getEndpointInfo(endpoint1));
+        assertEquals(1, rebalanceManager.getEndpointInfo(endpoint1).getConnectCount());
+        assertNotNull(rebalanceManager.getEndpointInfo(endpoint3));
+        assertEquals(fullCluster, getEndpointCluster(endpoint2));
+        assertEquals(fullCluster, getEndpointCluster(endpoint3));
+        assertTrue(rebalanceManager.isRebalancing(endpoint1));
+        assertTrue(rebalanceManager.isRebalancing(endpoint3));
+        assertFalse(getClusterRebalanceMap().containsKey(oldCluster));
+    }
+
+    @Test
+    public void expandCluster_ShouldNotShrinkExistingCluster() {
+        List<Endpoint> seedEndpoints = Arrays.asList(endpoint1, endpoint2);
+        List<Endpoint> fullEndpoints = Arrays.asList(endpoint1, endpoint2, endpoint3);
+        rebalanceManager.newCluster(fullEndpoints);
+        Cluster fullCluster = getEndpointCluster(endpoint1);
+
+        rebalanceManager.expandCluster(seedEndpoints);
+
+        assertEquals(fullCluster, getEndpointCluster(endpoint1));
+        assertEquals(fullCluster, getEndpointCluster(endpoint2));
+        assertEquals(fullCluster, getEndpointCluster(endpoint3));
+    }
+
+    @Test
+    public void expandEndpointsIfKnown_ShouldAddKnownClusterEndpoints() {
+        List<Endpoint> seedEndpoints = Arrays.asList(endpoint1, endpoint2);
+        List<Endpoint> fullEndpoints = Arrays.asList(endpoint1, endpoint2, endpoint3);
+        rebalanceManager.newCluster(fullEndpoints);
+
+        List<Endpoint> result = rebalanceManager.expandEndpointsIfKnown(seedEndpoints);
+
+        assertEquals(endpoint1, result.get(0));
+        assertEquals(endpoint2, result.get(1));
+        assertEquals(3, result.size());
+        assertTrue(result.containsAll(fullEndpoints));
+    }
+
+    @Test
+    public void expandEndpointsIfKnown_ShouldNotMergeDifferentKnownClusters() {
+        List<Endpoint> clusterA = Arrays.asList(endpoint1, endpoint2);
+        List<Endpoint> clusterB = Arrays.asList(endpoint3, endpoint4);
+        List<Endpoint> mixedEndpoints = Arrays.asList(endpoint1, endpoint3);
+        rebalanceManager.newCluster(clusterA);
+        rebalanceManager.newCluster(clusterB);
+
+        List<Endpoint> result = rebalanceManager.expandEndpointsIfKnown(mixedEndpoints);
+
+        assertEquals(mixedEndpoints, result);
     }
 
     @Test
@@ -339,6 +411,16 @@ public class RebalanceManagerTest {
         for (int i = 0; i < count; i++) {
             rebalanceManager.incrementConnectionCount(endpoint);
         }
+    }
+
+    private Cluster getEndpointCluster(Endpoint endpoint) {
+        Map<Endpoint, Cluster> endpointClusterMap = getPrivateMap(
+                rebalanceManager, RebalanceManager.class, "endpointClusterMap");
+        return endpointClusterMap.get(endpoint);
+    }
+
+    private Map<Cluster, AtomicBoolean> getClusterRebalanceMap() {
+        return getPrivateMap(rebalanceManager, RebalanceManager.class, "clusterRebalanceMap");
     }
 
     @AfterClass
