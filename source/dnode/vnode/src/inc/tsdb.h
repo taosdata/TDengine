@@ -743,13 +743,20 @@ int32_t tsdbDetermineFidSyncMode(STsdb *pTsdb, const void *files, int32_t fileCo
 #define TSDB_SNAP_SYNC_FILE_LEVEL 0
 #define TSDB_SNAP_SYNC_FSET_LEVEL 1
 
-static inline int64_t tsdbMissingFileKey(int32_t fid, int32_t ftype) { return ((int64_t)fid << 32) | (uint32_t)ftype; }
-
-// stt hash key: (fid, cid) composite key to avoid collision across different file sets
-#define TSDB_STT_HASH_KEY_LEN (sizeof(int32_t) + sizeof(int64_t))
-static inline void tsdbSttHashKey(int32_t fid, int64_t cid, char key[TSDB_STT_HASH_KEY_LEN]) {
-  memcpy(key, &fid, sizeof(fid));
-  memcpy(key + sizeof(fid), &cid, sizeof(cid));
+// snap file 5-tuple key for version-range matching: (fid, ftype, level, minVer, maxVer)
+#define TSDB_SNAP_FILE_KEY_LEN (sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(int64_t) + sizeof(int64_t))
+static inline void tsdbSnapFileKeyMake(int32_t fid, int32_t ftype, int32_t level, int64_t minVer, int64_t maxVer,
+                                       char key[TSDB_SNAP_FILE_KEY_LEN]) {
+  int32_t offset = 0;
+  memcpy(key + offset, &fid, sizeof(fid));
+  offset += sizeof(fid);
+  memcpy(key + offset, &ftype, sizeof(ftype));
+  offset += sizeof(ftype);
+  memcpy(key + offset, &level, sizeof(level));
+  offset += sizeof(level);
+  memcpy(key + offset, &minVer, sizeof(minVer));
+  offset += sizeof(minVer);
+  memcpy(key + offset, &maxVer, sizeof(maxVer));
 }
 
 // snap read
