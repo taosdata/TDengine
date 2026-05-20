@@ -415,12 +415,15 @@ HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   DWORD shareMode = FILE_SHARE_READ;
 
   openMode = OPEN_EXISTING;
-  if (tdFileOptions & TD_FILE_CREATE) {
-    openMode = OPEN_ALWAYS;
-  } else if (tdFileOptions & TD_FILE_EXCL) {
-    openMode = CREATE_NEW;
-  } else if ((tdFileOptions & TD_FILE_TRUNC)) {
-    openMode = TRUNCATE_EXISTING;
+  if (tdFileOptions & TD_FILE_EXCL) {
+    openMode = CREATE_NEW;  // fail if exists; equivalent to O_CREAT|O_EXCL
+  } else if ((tdFileOptions & TD_FILE_CREATE) && (tdFileOptions & TD_FILE_TRUNC)) {
+    openMode = CREATE_ALWAYS;  // create or truncate existing; equivalent to O_CREAT|O_TRUNC
+    access |= GENERIC_WRITE;
+  } else if (tdFileOptions & TD_FILE_CREATE) {
+    openMode = OPEN_ALWAYS;  // create if not exists, open if exists; equivalent to O_CREAT
+  } else if (tdFileOptions & TD_FILE_TRUNC) {
+    openMode = TRUNCATE_EXISTING;  // truncate existing; equivalent to O_TRUNC
     access |= GENERIC_WRITE;
   }
   if (tdFileOptions & TD_FILE_APPEND) {
