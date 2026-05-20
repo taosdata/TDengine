@@ -519,8 +519,12 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         pInfo->endCondFirstTs = INT64_MIN;
         rowIndex += 1;
       } else {
-        code = doEventWindowAggImpl(pInfo, pSup, startIndex, pBlock->info.rows - 1, pBlock, tsList, pTaskInfo);
-        QUERY_CHECK_CODE(code, lino, _return);
+        // Guard against startIndex past the last row (happens when the start streak was
+        // satisfied at the final row of this block in a prior loop iteration).
+        if (startIndex < pBlock->info.rows) {
+          code = doEventWindowAggImpl(pInfo, pSup, startIndex, pBlock->info.rows - 1, pBlock, tsList, pTaskInfo);
+          QUERY_CHECK_CODE(code, lino, _return);
+        }
       }
     } else {  // find the first start value satisfying start_limit threshold
       for (; rowIndex < pBlock->info.rows; ++rowIndex) {
@@ -528,32 +532,53 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           // Start condition satisfied for this row: accumulate streak.
           if (pInfo->startCondCount == 0) {
             pInfo->startCondFirstTs = tsList[rowIndex];
+            // Set up window start for tentative aggregation across all blocks.
+            doKeepNewWindowStartInfo(pRowSup, tsList, rowIndex, gid);
+            pRowSup->win.skey = pInfo->startCondFirstTs;
+            if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
+              // pRow already exists from a previous window: reset its agg state.
+              clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
+              pInfo->pRow->nOrigRows = 0;
+            }
           }
           pInfo->startCondCount++;
-          if (isTrueForSatisfied(&pInfo->startTrueForInfo,
-                                 pInfo->startCondFirstTs, tsList[rowIndex],
+          // Aggregate this streak row eagerly so it lands in pInfo->pRow (or the
+          // indefRows window state) regardless of which block it arrived in.
+          // For indefRowsMode: creates/updates the pending window state keyed on
+          // startCondFirstTs.  For !indefRowsMode: allocates pInfo->pRow on first
+          // call (when pRow is NULL) and accumulates into it on subsequent calls.
+          code = doEventWindowAggImpl(pInfo, pSup, rowIndex, rowIndex, pBlock, tsList, pTaskInfo);
+          QUERY_CHECK_CODE(code, lino, _return);
+          if (isTrueForSatisfied(&pInfo->startTrueForInfo, pInfo->startCondFirstTs, tsList[rowIndex],
                                  pInfo->startCondCount)) {
-            // Threshold met: open window at FIRST row of start streak.
-            // Compute the row index of the first streak row in this block.
-            int32_t streakStartIdx = rowIndex - (pInfo->startCondCount - 1);
-            if (streakStartIdx < 0) streakStartIdx = 0;
             TSKEY streakFirstTs = pInfo->startCondFirstTs;
             pInfo->startCondCount   = 0;
             pInfo->startCondFirstTs = INT64_MIN;
-            doKeepNewWindowStartInfo(pRowSup, tsList, streakStartIdx, gid);
-            // Override skey with the first-row timestamp (may be in a previous block).
-            pRowSup->win.skey = streakFirstTs;
             pInfo->inWindow = true;
-            startIndex = streakStartIdx;
-            pInfo->endCondCount     = 0;
-            pInfo->endCondFirstTs   = INT64_MIN;
-            if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
-              clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
-            }
+            pInfo->endCondCount = 0;
+            pInfo->endCondFirstTs = INT64_MIN;
+            // All streak rows are already aggregated tentatively (in pInfo->pRow
+            // for !indefRowsMode, or in the indefRows window state for
+            // indefRowsMode).  Resume from the next row to avoid double-counting.
+            pRowSup->win.skey = streakFirstTs;
+            startIndex = rowIndex + 1;
             break;
           }
         } else {
-          // Start condition interrupted: reset streak.
+          // Start condition interrupted: reset streak and discard tentative agg.
+          if (pInfo->startCondCount > 0) {
+            if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
+              clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
+              pInfo->pRow->nOrigRows = 0;
+            } else if (pInfo->indefRowsMode) {
+              // Drop the tentative indefRows window state for the broken streak.
+              SIndefRowsWindowState* pPendingState =
+                  findIndefRowsWindowState(&pInfo->indefRows, pInfo->groupId, pInfo->startCondFirstTs);
+              if (pPendingState != NULL) {
+                dropIndefRowsWindowState(pOperator, &pInfo->indefRows, pPendingState);
+              }
+            }
+          }
           pInfo->startCondCount   = 0;
           pInfo->startCondFirstTs = INT64_MIN;
         }

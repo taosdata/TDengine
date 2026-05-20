@@ -5,6 +5,7 @@ class TestTrueFor:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+        tdStream.createSnode()
 
     def test_truefor_event_window(self):
         """true_for start/end streak tests for EVENT_WINDOW streams.
@@ -12,7 +13,7 @@ class TestTrueFor:
         Catalog:
             - Streams:Others
 
-        Since: v3.3.3.x
+        Since: v3.4.2.0
 
         Labels: common
 
@@ -51,8 +52,6 @@ class TestTrueFor:
 
         See also: test_truefor_arg_order — covers all 8 new permutations of args.
         """
-
-        tdStream.createSnode()
 
         streams = [
             self.StartCount2(),
@@ -511,7 +510,7 @@ class TestTrueFor:
         Catalog:
             - Streams:Others
 
-        Since: v3.3.3.x
+        Since: v3.4.2.0
 
         Labels: common
 
@@ -913,7 +912,7 @@ class TestTrueFor:
         Catalog:
             - Streams:Others
 
-        Since: v3.3.3.x
+        Since: v3.4.2.0
 
         Labels: common
 
@@ -1089,7 +1088,7 @@ class TestTrueFor:
         Catalog:
             - Streams:Others
 
-        Since: v3.3.3.x
+        Since: v3.4.2.0
 
         Labels: common
 
@@ -1400,4 +1399,240 @@ class TestTrueFor:
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:05.000")
                 and tdSql.compareData(1, 1, "2025-01-01 00:00:07.000")
                 and tdSql.compareData(1, 2, 3),
+            )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # test_truefor_start_streak_cross_block
+    # ════════════════════════════════════════════════════════════════════════
+
+    def test_truefor_start_streak_cross_block(self):
+        """Start-streak rows in separate batches must all contribute to window COUNT.
+
+        Catalog:
+            - Streams:Others
+
+        Since: v3.4.2.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+            - 2026-05-19 Created
+
+        Regression test for the cross-block start-streak aggregation bug:
+        when a start(count N) streak is satisfied across multiple SSDataBlocks,
+        the executor previously clamped streakStartIdx to 0 inside the current
+        block, silently dropping all streak rows from earlier blocks.  The fix
+        aggregates each streak row eagerly (tentative agg) so all rows land in
+        pInfo->pRow regardless of which block they arrived in.
+
+        Three streams run in parallel, each exploiting a different cross-block
+        scenario:
+
+        cb1 (StartStreakSplit2Plus1) — count streak split 2+1:
+            Batch 1: T1(start) T2(start)             → count=2, not satisfied
+            ── check1: 0 windows ──────────────────────────────────────────
+            Batch 2: T3(start) → count=3 opens (skey=T1)  T4(end) → closes
+            ── check2: 1 window [skey=T1, cnt=4] ─────────────────────────
+            Without fix: cnt=2 (only T3+T4 in current block counted).
+            With fix:    cnt=4 (T1+T2 from batch 1 also counted).
+
+        cb2 (StartStreakBreakThenCrossBlock) — streak breaks, retry spans 2 batches:
+            Batch 1: T1(start) T2(start) T3(end-cond) → streak reset at T3
+            ── check1: 0 windows ──────────────────────────────────────────
+            Batch 2: T4(start) T5(start)              → count=2 of 3
+            ── check2: 0 windows ──────────────────────────────────────────
+            Batch 3: T6(start) → count=3 opens (skey=T4)  T7(end) → closes
+            ── check3: 1 window [skey=T4, cnt=4] ─────────────────────────
+            Verifies that tentative agg is correctly discarded on streak break
+            and the subsequent cross-block streak works from a clean state.
+
+        cb3 (StartStreakDurationCrossBlock) — duration streak split across batches:
+            Batch 1: T1(start) at t=01s                          → duration=0 < 2s
+            ── check1: 0 windows ──────────────────────────────────────────
+            Batch 2: T2(start) at t=04s → duration=3s >= 2s  opens (skey=T1)
+                     T3(end)   at t=05s → closes
+            ── check2: 1 window [skey=T1, cnt=3] ─────────────────────────
+            Without fix: cnt=2 (T1 from previous batch lost).
+            With fix:    cnt=3.
+        """
+
+        tdStream.checkAll([
+            self.StartStreakSplit2Plus1(),
+            self.StartStreakBreakThenCrossBlock(),
+            self.StartStreakDurationCrossBlock(),
+        ])
+
+    # ── cb1: count streak split 2+1 across two batches ──────────────────────
+    class StartStreakSplit2Plus1(StreamCheckItem):
+
+        def __init__(self):
+            self.db = "db_cb1"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create stable meters (ts timestamp, voltage int) tags (gid int);")
+            tdSql.execute("create table tb_cb1 using meters tags(1);")
+            tdSql.execute(
+                "create stream s_cb1 "
+                "EVENT_WINDOW (START WITH voltage >= 220 END WITH voltage < 220) "
+                "true_for(start(count 3)) "
+                "FROM tb_cb1 PARTITION BY tbname "
+                "INTO out_cb1 "
+                "AS SELECT _twstart ts, _twend te, count(voltage) cnt FROM %%trows;"
+            )
+
+        def insert1(self):
+            # Batch 1: first two streak rows only (count=2 of 3 needed).
+            tdSql.executes([
+                "insert into tb_cb1 values ('2025-01-01 00:00:01', 221);",
+                "insert into tb_cb1 values ('2025-01-01 00:00:02', 222);",
+            ])
+
+        def check1(self):
+            import time
+            # Allow batch 1 to be fully processed; no window should exist yet.
+            time.sleep(2)
+            tdSql.query("select ts, cnt from out_cb1 order by ts")
+            tdSql.checkRows(0)
+
+        def insert2(self):
+            # Batch 2: third streak row satisfies count=3 (window opens skey=T1),
+            # then end row closes it.
+            tdSql.executes([
+                "insert into tb_cb1 values ('2025-01-01 00:00:03', 223);",
+                "insert into tb_cb1 values ('2025-01-01 00:00:04', 100);",
+            ])
+
+        def check2(self):
+            # Window: skey=T1, ekey=T4.  cnt MUST be 4 (T1+T2 from batch 1 included).
+            # A cnt of 2 (only T3+T4) indicates the cross-block bug is present.
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_cb1 order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(0, 2, 4),
+            )
+
+    # ── cb2: streak breaks, retry new streak spans two batches ───────────────
+    class StartStreakBreakThenCrossBlock(StreamCheckItem):
+
+        def __init__(self):
+            self.db = "db_cb2"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create stable meters (ts timestamp, voltage int) tags (gid int);")
+            tdSql.execute("create table tb_cb2 using meters tags(1);")
+            tdSql.execute(
+                "create stream s_cb2 "
+                "EVENT_WINDOW (START WITH voltage >= 220 END WITH voltage < 220) "
+                "true_for(start(count 3)) "
+                "FROM tb_cb2 PARTITION BY tbname "
+                "INTO out_cb2 "
+                "AS SELECT _twstart ts, _twend te, count(voltage) cnt FROM %%trows;"
+            )
+
+        def insert1(self):
+            # Batch 1: two start rows then an end-condition row that breaks the streak.
+            # This also verifies that tentative agg is correctly discarded on break.
+            tdSql.executes([
+                "insert into tb_cb2 values ('2025-01-01 00:00:01', 221);",
+                "insert into tb_cb2 values ('2025-01-01 00:00:02', 222);",
+                "insert into tb_cb2 values ('2025-01-01 00:00:03', 100);",
+            ])
+
+        def check1(self):
+            import time
+            # Streak was reset at T3; no window should exist.
+            time.sleep(2)
+            tdSql.query("select ts, cnt from out_cb2 order by ts")
+            tdSql.checkRows(0)
+
+        def insert2(self):
+            # Batch 2: start a fresh streak with two rows (count=2 of 3).
+            tdSql.executes([
+                "insert into tb_cb2 values ('2025-01-01 00:00:04', 221);",
+                "insert into tb_cb2 values ('2025-01-01 00:00:05', 222);",
+            ])
+
+        def check2(self):
+            import time
+            # Still count=2 of 3; no window yet.
+            time.sleep(2)
+            tdSql.query("select ts, cnt from out_cb2 order by ts")
+            tdSql.checkRows(0)
+
+        def insert3(self):
+            # Batch 3: third streak row satisfies (skey=T4), end row closes.
+            tdSql.executes([
+                "insert into tb_cb2 values ('2025-01-01 00:00:06', 223);",
+                "insert into tb_cb2 values ('2025-01-01 00:00:07', 100);",
+            ])
+
+        def check3(self):
+            # Window: skey=T4, ekey=T7, cnt=4 (T4+T5 from batch 2, T6+T7 from batch 3).
+            # skey must be T4 (not T1): the broken streak must be fully discarded.
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_cb2 order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:04.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:07.000")
+                and tdSql.compareData(0, 2, 4),
+            )
+
+    # ── cb3: duration-based streak split across two batches ──────────────────
+    class StartStreakDurationCrossBlock(StreamCheckItem):
+
+        def __init__(self):
+            self.db = "db_cb3"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create stable meters (ts timestamp, voltage int) tags (gid int);")
+            tdSql.execute("create table tb_cb3 using meters tags(1);")
+            tdSql.execute(
+                "create stream s_cb3 "
+                "EVENT_WINDOW (START WITH voltage >= 220 END WITH voltage < 220) "
+                "true_for(start(2s)) "
+                "FROM tb_cb3 PARTITION BY tbname "
+                "INTO out_cb3 "
+                "AS SELECT _twstart ts, _twend te, count(voltage) cnt FROM %%trows;"
+            )
+
+        def insert1(self):
+            # Batch 1: single start row; duration=0s < 2s, streak in progress.
+            tdSql.executes([
+                "insert into tb_cb3 values ('2025-01-01 00:00:01', 221);",
+            ])
+
+        def check1(self):
+            import time
+            # 0 elapsed since firstTs=T1; threshold not met.
+            time.sleep(2)
+            tdSql.query("select ts, cnt from out_cb3 order by ts")
+            tdSql.checkRows(0)
+
+        def insert2(self):
+            # Batch 2: second start row at t=4s → duration=3s >= 2s → satisfied
+            #          (skey=T1).  End row at t=5s closes the window.
+            tdSql.executes([
+                "insert into tb_cb3 values ('2025-01-01 00:00:04', 221);",
+                "insert into tb_cb3 values ('2025-01-01 00:00:05', 100);",
+            ])
+
+        def check2(self):
+            # Window: skey=T1(t=01s), ekey=T3(t=05s), cnt=3 (T1 from batch 1 included).
+            # cnt=2 would indicate T1 was dropped (cross-block bug).
+            tdSql.checkResultsByFunc(
+                sql="select ts, te, cnt from out_cb3 order by ts",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(0, 2, 3),
             )

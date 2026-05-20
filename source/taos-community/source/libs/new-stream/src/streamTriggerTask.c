@@ -9886,6 +9886,15 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
     if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
       threshold = TMIN(threshold, pGroup->parentWindow.range.skey - 1);
     }
+    // Preserve WAL metadata covering an in-progress start-condition streak that
+    // spans multiple blocks. Without this, batch N may delete metadata for
+    // earlier streak rows so that when the streak finally satisfies in batch
+    // N+1 the window opens at startCondFirstTs but the data for [startCondFirstTs..]
+    // is no longer available for %%trows fetch.
+    if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->startCondCount > 0 &&
+        pGroup->startCondFirstTs != INT64_MIN) {
+      threshold = TMIN(threshold, pGroup->startCondFirstTs - 1);
+    }
   } else if (pTask->watermark > 0) {
     threshold = pGroup->newThreshold;
   } else {
