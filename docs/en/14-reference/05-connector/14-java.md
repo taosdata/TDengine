@@ -296,6 +296,7 @@ The configuration parameters in properties are as follows:
   > **Note**: Enabling auto-reconnect is not effective for fetching result sets. Auto-reconnect is only effective for connections established through parameters specifying the database, and ineffective for later `use db` statements to switch databases.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
+- TSDBDriver.PROPERTY_KEY_ADAPTER_HA [`adapterHA`]: Whether to enable adapter high availability. Only takes effect when using WebSocket connections. true: enabled, false: not enabled. Default is false. When enabled, upon successful connection, the client can obtain the list of all adapter endpoints in the cluster for load balancing. This feature requires TDengine version `3.4.2.0` or higher.
 
 ---
 

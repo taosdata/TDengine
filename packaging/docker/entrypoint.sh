@@ -76,8 +76,12 @@ execute_startup() {
             echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
             nohup python3 "${model}-server.py" --action server &
         else
-            echo "Running command: nohup python3 ${model}-server.py ${subdir} ${model_name} ${ENDPOINT_ENABLE} &"
-            nohup python3 "${model}-server.py" "${subdir}" "${model_name}" "${ENDPOINT_ENABLE}" &
+            model_args=(--model-folder "${subdir}" --model-name "${model_name}")
+            if [ "${ENDPOINT_ENABLE}" == "True" ]; then
+                model_args+=(--enable-ep)
+            fi
+            echo "Running command: nohup python3 ${model}-server.py ${model_args[*]} &"
+            nohup python3 "${model}-server.py" "${model_args[@]}" &
         fi
         SERVER_PID=$!
         if ps -p ${SERVER_PID} > /dev/null; then
