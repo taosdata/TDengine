@@ -1011,6 +1011,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t groupId;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
+  uint64_t streamGen;
   bool    withExternalWindow;
   bool    isWindowTrigger;
   int8_t  precision;

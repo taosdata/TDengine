@@ -54,7 +54,9 @@ typedef struct SScalarCtx {
   SOperatorValueType type;
   SScalarStreamCtx   stream;
   void*              pSubJobCtx;
+  bool               isStream;
   sclFetchFromRemote fetchFp;
+  uint64_t           streamGen;  // per-invocation generation for cache invalidation
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
