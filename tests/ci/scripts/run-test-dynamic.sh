@@ -338,6 +338,36 @@ count_free_slots() {
     echo $free
 }
 
+# ── 动态扩容：当同机并发 pipeline 数减少时提升 TEST_CONCURRENCY ────────────────
+# 使用与启动时相同的计算公式，每 60s 检查一次（flock 有开销，不宜过频）。
+# find_free_slot / count_free_slots / harvest_one 均动态引用 TEST_CONCURRENCY，
+# 只需扩展 SLOT_PIDS 并更新变量即可立即生效，无需其他改动。
+_last_slot_expand_check=0
+_maybe_expand_slots() {
+    local _now; _now=$(date +%s)
+    [[ $(( _now - _last_slot_expand_check )) -lt 60 ]] && return
+    _last_slot_expand_check=${_now}
+
+    local _cur_active; _cur_active=$(_ci_register_job)
+    local _nc; _nc=$(nproc 2>/dev/null || echo 8)
+    local _usable=$(( _nc * 8 / 10 ))
+    local _new_base=$(( _usable / (_cur_active < 1 ? 1 : _cur_active) ))
+    case "${CI_SCHED_AGGR:-1}" in
+        0) _ep=60 ;; 2) _ep=80 ;; *) _ep=70 ;;
+    esac
+    local _new_max=$(( _nc > 16 ? _nc * _ep / 100 : 16 ))
+    local _new_conc=$(( _new_base < 2 ? 2 : (_new_base > _new_max ? _new_max : _new_base) ))
+
+    if [[ ${_new_conc} -gt ${TEST_CONCURRENCY} ]]; then
+        echo "[run-test-dynamic] expand TEST_CONCURRENCY: ${TEST_CONCURRENCY} → ${_new_conc}" \
+             "(active_pipelines=${_cur_active}, nproc=${_nc})"
+        for (( s=${TEST_CONCURRENCY}; s<_new_conc; s++ )); do
+            SLOT_PIDS[$s]=0
+        done
+        TEST_CONCURRENCY=${_new_conc}
+    fi
+}
+
 harvest_one() {
     # 等待任意一个后台子进程结束，结果写入全局 FINISHED_SLOT
     # 必须直接调用（不用命令替换子 shell），否则 SLOT_PIDS 修改丢失
@@ -376,15 +406,17 @@ process_finished_slot() {
 
     # 上报协调器（coordinator 已退出时跳过）
     if [[ -n "${case_idx}" && ${_coord_gone:-0} -eq 0 ]]; then
-        local log_b64=""
+        local log_b64="" done_log_b64=""
         local _report_slug=""
         [[ -f "${SLOT_DIR}/slot-${slot}.slug" ]] && _report_slug="job-${CI_JOB_ID:-local}/$(cat "${SLOT_DIR}/slot-${slot}.slug")"
         if [[ ${rc} -ne 0 ]]; then
             # fail_log 是已复制到 LOGS_DIR 的 artifact（log_file 在 fail 分支末已 rm -f）
             local _log_src="${fail_log:-}"
             [[ -z "${_log_src}" || ! -f "${_log_src}" ]] && _log_src="${log_file}"
-            # 发送最多 512KB 日志供 coordinator 展示 full log
+            # /api/fail：发送最多 512KB 日志供 coordinator 实时展示（允许大 body，失败仅丢失实时通知）
             [[ -f "${_log_src}" ]] && log_b64=$(tail -c 524288 "${_log_src}" | base64 -w 0 2>/dev/null || true)
+            # /api/done：只发最后 4KB（coordinator 汇总只用 [-4096:]），保证小 body 可靠送达
+            [[ -f "${_log_src}" ]] && done_log_b64=$(tail -c 4096 "${_log_src}" | base64 -w 0 2>/dev/null || true)
             # 立即推送失败通知到协调器（实时可见）
             local _fail_notify
             printf -v _fail_notify \
@@ -403,7 +435,7 @@ process_finished_slot() {
             "$(echo "${path}" | sed 's/"/\\"/g')" \
             "$(echo "${cmd}"  | sed 's/"/\\"/g')" \
             "${_report_slug}" \
-            "${log_b64}"
+            "${done_log_b64}"
         coord_post "${COORDINATOR_URL}/api/done" "${post_body}" || true
     fi
 
@@ -747,6 +779,9 @@ _wait_indicated=0
 _coord_fail_streak=0   # 连续联系失败次数
 
 while [[ ${_all_done} -eq 0 ]]; do
+    # 当同机并发 pipeline 减少时动态扩容 slot 池（每60s检查一次）
+    _maybe_expand_slots
+
     # 计算空闲 slot 数
     free_slots=$(count_free_slots)
 

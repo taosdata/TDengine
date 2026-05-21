@@ -142,18 +142,31 @@ _FAIL_HTTP_PORT = 8899
 # ── 复现命令生成 ──────────────────────────────────────────────────────────────
 # WORKSPACE 路径（与 prepare-workspace 中的计算逻辑保持一致）
 _CI_PIPELINE_SOURCE = os.environ.get("CI_PIPELINE_SOURCE", "")
-_CI_MR_IID = os.environ.get("CI_MERGE_REQUEST_IID", "")
+# 父子流水线架构下，子流水线的 CI_PIPELINE_SOURCE == "parent_pipeline"，
+# 真正的触发源由父流水线通过 PARENT_PIPELINE_SOURCE 变量传入。
+_PARENT_PIPELINE_SOURCE = os.environ.get("PARENT_PIPELINE_SOURCE", "")
+# CI_MERGE_REQUEST_IID：GitLab 不保证将 MR 预定义变量自动导出到子流水线作业环境，
+# 父流水线通过 trigger:variables 显式传入 PARENT_MR_IID 作为 fallback。
+_CI_MR_IID = os.environ.get("CI_MERGE_REQUEST_IID", "") or os.environ.get("PARENT_MR_IID", "")
 _CI_BRANCH = os.environ.get("CI_COMMIT_BRANCH", "")
 _CI_SHORT_SHA = os.environ.get("CI_COMMIT_SHORT_SHA", "")
 
 def _compute_workspace() -> str:
-    """计算 WORKSPACE 路径（与 .gitlab-ci.yml prepare-workspace 保持一致）。"""
-    if _CI_PIPELINE_SOURCE == "merge_request_event" and _CI_MR_IID:
+    """计算 WORKSPACE 路径（与 .gitlab-ci.yml prepare-workspace 保持一致）。
+    兼容两种触发模式：
+    - 直接触发（CI_PIPELINE_SOURCE == merge_request_event/schedule/web）
+    - 父子流水线（CI_PIPELINE_SOURCE == parent_pipeline，真正来源在 PARENT_PIPELINE_SOURCE）
+    """
+    source = _CI_PIPELINE_SOURCE
+    # 子流水线场景：用 PARENT_PIPELINE_SOURCE 替代 parent_pipeline 作为来源判断
+    if source == "parent_pipeline" and _PARENT_PIPELINE_SOURCE:
+        source = _PARENT_PIPELINE_SOURCE
+    if source == "merge_request_event" and _CI_MR_IID:
         return f"{_CI_BASE_DIR}/mr{_CI_MR_IID}"
-    elif _CI_PIPELINE_SOURCE == "schedule" and _CI_BRANCH:
+    elif source == "schedule" and _CI_BRANCH:
         import datetime
         return f"{_CI_BASE_DIR}/daily-{_CI_BRANCH}-{datetime.date.today():%Y%m%d}"
-    elif _CI_PIPELINE_SOURCE == "web":
+    elif source == "web":
         return f"{_CI_BASE_DIR}/web-{_pipeline_id}"
     elif _CI_BRANCH:
         return f"{_CI_BASE_DIR}/push-{_CI_BRANCH}-{_CI_SHORT_SHA}"
@@ -1063,6 +1076,8 @@ def main():
     print(f"[coordinator] Listening on 0.0.0.0:{DEFAULT_PORT}")
     print(f"[coordinator] Results dir: {RESULTS_DIR}")
     print(f"[coordinator] State dir: {STATE_DIR}")
+    print(f"[coordinator] Workspace: {_WORKSPACE!r}  "
+          f"(source={_CI_PIPELINE_SOURCE!r}  parent_src={_PARENT_PIPELINE_SOURCE!r}  mr_iid={_CI_MR_IID!r})")
     print(f"[coordinator] Sched profile: CI_SCHED_AGGR={_SCHED_AGGR}  "
           f"stop={_SCHED_PROFILE['stop']}%  tiers={_SCHED_PROFILE['tiers']}  "
           f"idle={_SCHED_PROFILE['idle']}  prefetch={_SCHED_PROFILE['prefetch']}")
@@ -1143,17 +1158,15 @@ def main():
                 ]
 
                 # ── 对非死亡 worker 做 MAX_CASE_TIMEOUT 检查（卡死用例收割）─────
-                # 使用 max(assigned_at, last_done) 作为参考起点：
-                #   - 若 worker 有近期完成记录，说明批量用例在正常推进，以
-                #     最后完成时间为起点更准确（避免批量 assigned_at 导致误判）
-                #   - 若无完成记录（首个用例或 worker 刚注册），退回 assigned_at
-                # 覆盖场景：alive worker（心跳正常但用例卡死）+ orphaned worker
-                # （in_flight 中有记录但 worker 已不在 _worker_last）
+                # 直接用每个 case 自身的 assigned_at 计算已运行时长，
+                # 超过 MAX_CASE_TIMEOUT 则强制收割。
+                # 不再使用 _worker_last_done 作为参考起点——该启发式会导致
+                # worker 上有快速 case 持续完成时，同机的慢速 case 永远逃脱
+                # 超时检测（_worker_last_done 频繁刷新使阈值形同虚设）。
                 alive_timed_out = [
                     (idx, info) for idx, info in _in_flight.items()
                     if info["worker"] not in dead_workers
-                    and now - max(info["assigned_at"],
-                                  _worker_last_done.get(info["worker"], 0)) > MAX_CASE_TIMEOUT
+                    and now - info["assigned_at"] > MAX_CASE_TIMEOUT
                 ]
 
             # diagnostic: log reap check summary
