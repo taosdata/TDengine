@@ -530,6 +530,7 @@ int32_t shellReadCommand(char *command) {
 
     if ((c & 0x80) != 0) { // For UTF-8
       int32_t count = shellCountPrefixOnes(c);
+      if (count > (int32_t)sizeof(utf8_array)) count = (int32_t)sizeof(utf8_array);
       utf8_array[0] = c;
       for (int32_t k = 1; k < count && k < sizeof(utf8_array); k++) {
         c = taosGetConsoleChar();
