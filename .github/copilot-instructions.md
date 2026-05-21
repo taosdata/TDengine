@@ -66,6 +66,24 @@ cmake 时需自行添加。
 
 跨机器迁移或初次检测错误时，删除 `$TSDB_CACHE_DIR/conan2-{arch}/` 重建。
 
+### `.build-args` dual-purpose design
+
+`.build-args` serves two consumers simultaneously:
+1. **Image build scripts** (`build-*-image.sh`): pass ALL lines as `--build-arg` to Docker
+2. **`build.sh` runtime**: reads specific variables for container compilation config
+
+**Invariant**: Variables that Dockerfiles consume as `ARG` (e.g. `PYPI_MIRROR`) **MUST**
+use publicly reachable URLs — image builds may run outside the internal network.
+Internal-only URLs (e.g. `PYPI_INTERNAL_URL`, `NPM_REGISTRY_URL`, `MAVEN_MIRROR_URL`,
+`NUGET_SOURCE_URL`) are consumed only by `build.sh` at runtime and injected into the
+container after startup.
+
+### sccache on riscv64
+
+sccache does **not** publish prebuilt binaries for riscv64. `Dockerfile.core-riscv64`
+skips the sccache install step. `build.sh` runtime fallback detects sccache absence and
+automatically disables `RUSTC_WRAPPER` — no manual intervention needed.
+
 ### GCC 14 stringop-overflow (others 镜像)
 
 others 镜像中编译含 core 组件时，GCC 14 可能将 `stringop-overflow` 误报升级为
@@ -643,66 +661,51 @@ creates maintenance burden and inconsistencies.
 
 ---
 
-## 13. Transitive Header Dependencies Must Be Declared Explicitly
+## 13. ExternalProject Mirror Bridge: LOCAL_URL CACHE Variable
 
 | Applies to | main ✅ | 3.3.6 — verify if applicable |
-|----------|---------|----------|
+|------------|---------|----------|
 
 ### Rule
 
-When a target includes a header that transitively pulls in ExternalProject
-headers (e.g. `geos_c.h`, `pcre2.h`), the target **MUST** declare the
-include dependency via `DEP_ext_*_INC()`, even if it does not directly
-link the library.
+The `BUILD_DEPS_MIRROR_URL` → `LOCAL_URL` bridge in `external.cmake` **MUST**
+check for empty string, **NOT** use `DEFINED`:
 
-Relying on transitive `PUBLIC` include propagation through shared library
-targets (`target_link_libraries(... PRIVATE <shared_lib>)`) does **NOT**
-forward include directories — only static library or `PUBLIC` link
-propagation does.
+```cmake
+# ✅ CORRECT: Check empty string, FORCE overwrite CACHE
+if(DEFINED BUILD_DEPS_MIRROR_URL AND "${LOCAL_URL}" STREQUAL "")
+  set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}" CACHE STRING "local archives storage to use" FORCE)
+endif()
+```
+
+### Why
+
+`set(LOCAL_URL "" CACHE STRING ...)` at the top of `external.cmake` makes
+`LOCAL_URL` "defined" (even with empty value). The condition
+`NOT DEFINED LOCAL_URL` is always FALSE, so `BUILD_DEPS_MIRROR_URL` passed
+from `build.sh` via `-D` never propagates to `LOCAL_URL`. This causes all
+`get_from_local_if_exists()` calls to fall back to the original GitHub URLs.
+
+Additionally, plain `set(LOCAL_URL ...)` (without `CACHE ... FORCE`) cannot
+overwrite a CACHE variable — CMake silently ignores the assignment.
 
 ### Anti-patterns — DO NOT
 
 ```cmake
-# ❌ WRONG: taosmqtt includes geos_c.h transitively via geosWrapper.h → tgeosctx.h
-# but doesn't declare geos include dependency — fails with BUILD_CONTRIB=ON
-add_executable(taosmqtt ${MQTT_SRC})
-target_link_libraries(taosmqtt PRIVATE ${TAOS_NATIVE_LIB} mqtt)
-# Missing: DEP_ext_geos_INC(taosmqtt)
-# Missing: DEP_ext_pcre2_INC(taosmqtt)
+# ❌ WRONG: LOCAL_URL is already DEFINED by CACHE declaration (empty but defined)
+if(DEFINED BUILD_DEPS_MIRROR_URL AND NOT DEFINED LOCAL_URL)
+  set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}")
+endif()
+
+# ❌ WRONG: Plain set cannot overwrite CACHE variable
+if(DEFINED BUILD_DEPS_MIRROR_URL AND "${LOCAL_URL}" STREQUAL "")
+  set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}")  # silently ignored!
+endif()
 ```
-
-### Correct pattern
-
-```cmake
-# ✅ CORRECT: Declare all transitively-included ExternalProject headers
-add_executable(taosmqtt ${MQTT_SRC})
-DEP_ext_cjson(taosmqtt)
-DEP_ext_libuv(taosmqtt)
-DEP_ext_geos_INC(taosmqtt)     # for geos_c.h via tgeosctx.h
-DEP_ext_pcre2_INC(taosmqtt)    # for pcre2.h via tpcre2.h
-target_link_libraries(taosmqtt PRIVATE ${TAOS_NATIVE_LIB} mqtt)
-```
-
-### How to diagnose
-
-1. Build fails with `fatal error: <header>.h: No such file or directory`
-2. The header exists in `.externals/install/ext_*/Release/include/`
-3. `compile_commands.json` for the failing target does NOT contain the
-   `-I.../ext_*/Release/include` path
-4. **Fix**: add `DEP_ext_*_INC(<target>)` for each missing ExternalProject include
-
-### Why
-
-The include chain `tmqttCtx.c → geosWrapper.h → tgeosctx.h` pulls in
-both `geos_c.h` and `tpcre2.h → pcre2.h`. These headers live in
-ExternalProject install directories, not system paths. On Linux,
-`taosmqtt` links `taosnative` as `PRIVATE`, so even though `taosnative`
-→ `util` → `DEP_ext_geos(util)` sets PUBLIC includes, the PRIVATE link
-boundary blocks propagation to `taosmqtt`.
 
 ### Reference Commits
 
-- `93c553967f3` — add `DEP_ext_geos_INC` and `DEP_ext_pcre2_INC` for taosmqtt
+- `156ec64d507` — fix LOCAL_URL bridge: check empty string + FORCE overwrite CACHE
 
 ---
 
@@ -722,4 +725,4 @@ boundary blocks propagation to `taosmqtt`.
 | 10. Conan macro overrides | ✅ Fixed | Verify | May differ in conan.cmake |
 | 11. Build option defaults | ✅ insight/odbc/dotnet=OFF | Verify | May differ |
 | 12. `DEP_td_rocksdb` uniform | ✅ Always via macro | ✅ Same | Identical logic |
-| 13. Transitive header deps | ✅ `DEP_ext_*_INC()` | Verify | taosmqtt needs geos+pcre2 INC |
+| 13. LOCAL_URL CACHE bridge | ✅ Empty-string check + FORCE | Verify | CACHE var was always defined, blocking bridge |

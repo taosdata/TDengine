@@ -12,7 +12,7 @@ repository.workspace = true
 [dependencies]
 anyhow = "1"
 async-trait = { version = "0.1.80" }
-bytes = "1.11.1"
+bytes = "1.1.0"
 byteorder = "1.5.0"
 cfg-if = "1"
 chrono-tz = "0.10.4"
@@ -24,8 +24,7 @@ futures = { version = "0.3" }
 futures-util = "0.3.31"
 itertools = "0.13.0"
 once_cell = "1"
-rand = "0.9.4"
-rustls = { version = "0.23.35", features = ["tls12"], default-features = false }
+rand = "0.9.1"
 scc = "2.1.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
@@ -46,18 +45,14 @@ tokio-util = "0.7.16"
 tracing = { version = "0.1", features = ["log"] }
 
 [dependencies.tokio-tungstenite]
-git = "https://github.com/taosdata/tokio-tungstenite.git"
-version = "0.23.1"
+git = "https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git"
 rev = "3420353"
 
 [dev-dependencies]
+criterion = { version = "0.5.1", features = ["stable"] }
 pretty_env_logger = "0.5.0"
-tracing-subscriber = { version = "0.3.20", default-features = false, features = [
+tracing-subscriber = { version = "0.3.18", default-features = false, features = [
     "fmt",
-] }
-taos-query = { version = "0.12.4", path = "../taos-query", default-features = false, features = [
-    "async",
-    "test",
 ] }
 warp = "0.3.7"
 
@@ -79,4 +74,3 @@ rustls-ring-crypto-provider = [
 ]
 deflate = ["tokio-tungstenite/deflate", "tokio-tungstenite/rustls-dangerous"]
 test-new-feat = []
-test-enterprise = []

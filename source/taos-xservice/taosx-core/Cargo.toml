@@ -37,12 +37,13 @@ strum = { workspace = true, features = ["derive"] }
 paste.workspace = true
 half = "2.3"
 humantime.workspace = true
-clap.workspace = true
+clap = { workspace = true, features = ["default", "derive"] }
 convert_case = "0.8"
 csv-async.workspace = true
 flate2.workspace = true
 futures = { workspace = true, features = ["thread-pool"] }
-itertools.workspace = true
+itertools = { workspace = true }
+lazy_static.workspace = true
 linked-hash-map.workspace = true
 log.workspace = true
 fundu.workspace = true
@@ -68,7 +69,7 @@ tokio-util = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["time"] }
 toml.workspace = true
 either = "1.8"
-tinytemplate = { git = "https://github.com/bitcapybara/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
+tinytemplate = { git = "https://git.tdengine.net/taosdata/rust-deps/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
 serde_json_path = "0.7"
 csv.workspace = true
 glob.workspace = true
@@ -106,6 +107,7 @@ rumqttc.workspace = true
 opendal = { workspace = true, features = ["services-s3"] }
 taoslog.workspace = true
 bitfield.workspace = true
+file-guard = "0.2.0"
 config = "0.14.0"
 snafu.workspace = true
 parking_lot.workspace = true
@@ -113,26 +115,21 @@ lz4.workspace = true
 snap.workspace = true
 zstd.workspace = true
 hex.workspace = true
+persist-queue = { path = "../crates/persist-queue" }
+archive = { workspace = true }
 serde_regex = "1"
 dateparser = "0.2.1"
-
-persist-queue = { path = "../crates/persist-queue" }
-archive.workspace = true
-taosx-utils.workspace = true
-ha-core.workspace = true
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
-openssl = "0.10.78"
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
+openssl = "0.10.55"
 
 [target.'cfg(all(unix, not(target_arch = "loongarch64")))'.dependencies]
-openssl = { version = "0.10.78", features = ["vendored"] }
+openssl = { version = "0.10.55", features = ["vendored"] }
 
 [target.'cfg(target_arch="loongarch64")'.dependencies]
-openssl = "0.10.78"
+openssl = { version = "0.10.55" }
 
 [features]
 default = ["optin", "native-tls"]
@@ -143,7 +140,7 @@ disable-enterprise-only-validation = []
 disable-enterprise-connector-validation = []
 
 [build-dependencies]
-dotenv.workspace = true
+dotenv = "0.15.0"
 shadow-rs = { workspace = true }
 
 [dev-dependencies]

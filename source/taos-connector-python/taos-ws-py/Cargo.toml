@@ -28,17 +28,20 @@ version = "0.17.3"
 features = ["extension-module", "anyhow", "chrono", "abi3-py37"]
 
 [target.'cfg(windows)'.dependencies]
-taos = { git = "https://github.com/taosdata/taos-connector-rust.git", branch = "main", default-features = false, version = "0.12.3", features = [
+taos = { path = "../../taos-connector-rust/taos", default-features = false, version = "0.12.3", features = [
 	"optin",
 	"ws-rustls",
 	"ws-rustls-aws-lc-crypto-provider",
 ] }
 [target.'cfg(unix)'.dependencies]
-taos = { git = "https://github.com/taosdata/taos-connector-rust.git", branch = "main", default-features = false, version = "0.12.3", features = [
+taos = { path = "../../taos-connector-rust/taos", default-features = false, version = "0.12.3", features = [
 	"optin",
 	"ws-rustls",
 	"ws-rustls-ring-crypto-provider",
 ] }
 
 [patch.crates-io]
-ring = { git = "https://github.com/taosdata/ring.git", branch = "fix/loongarch" }
+ring = { git = "https://git.tdengine.net/taosdata/rust-deps/ring.git", branch = "fix/loongarch" }
+
+[patch.'https://github.com/taosdata/tungstenite-rs.git']
+tungstenite = { git = "https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git", branch = "feat/taosdata/permessage-deflate" }

@@ -7,7 +7,6 @@ description = "TDengine Explorer UI"
 [dependencies]
 actix-cors.workspace = true
 actix-files.workspace = true
-actix-multipart.workspace = true
 actix-web.workspace = true
 actix-ws.workspace = true
 awc.workspace = true
@@ -16,10 +15,6 @@ futures-util.workspace = true
 bytes.workspace = true
 rustls = { workspace = true, default-features = false, features = ["ring"] }
 rustls-pemfile.workspace = true
-tokio-rustls = { workspace = true }
-hyper = "1"
-hyper-util = { version = "0.1", features = ["tokio"] }
-tower = "0.5"
 reqwest = { workspace = true, default-features = false, features = [
   "stream",
   "json",
@@ -28,8 +23,7 @@ reqwest = { workspace = true, default-features = false, features = [
 ] }
 clap-verbosity-flag = { workspace = true }
 anyhow.workspace = true
-clap.workspace = true
-dotenv.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
 sqlx = { workspace = true, features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
@@ -44,15 +38,16 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
-tracing-actix-web.workspace = true
+tracing-actix-web = "0.7.11"
 tracing-subscriber.workspace = true
 sha1 = "0.10.6"
 rand.workspace = true
+lazy_static.workspace = true
 captcha = "1"
 deadpool.workspace = true
 const_format.workspace = true
 shadow-rs = { workspace = true }
-geos = { git = "https://github.com/georust/geos", rev = "47afbad2483e489911ddb456417808340e9342c3", features = [
+geos = { git = "https://git.tdengine.net/taosdata/rust-deps/geos", rev = "47afbad2483e489911ddb456417808340e9342c3", features = [
   "static",
 ] }
 hex.workspace = true
@@ -74,7 +69,7 @@ sysinfo.workspace = true
 metrics.workspace = true
 taosx-metrics.workspace = true
 gethostname = "1"
-openidconnect = "4.0.1"
+openidconnect = "3.5.0"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
 url = "2.5"
 uuid = { version = "1.19.0", features = ["v4", "serde"] }
@@ -86,27 +81,9 @@ cbc = { version = "0.1.2", features = ["std"] }
 aes = "0.8.4"
 hkdf = "0.12.4"
 hmac = "0.12.1"
-litcrypt = "0.4.0"
 mime_guess = "2.0.5"
-
-tonic.workspace = true
-flume.workspace = true
-arrow.workspace = true
-arrow-flight.workspace = true
-itertools.workspace = true
-source-csv.workspace = true
-zip.workspace = true
-tempfile.workspace = true
-csv.workspace = true
-csv-async.workspace = true
-
-ha-core.workspace = true
-ha-rpc-client.workspace = true
-taosx-core.workspace = true
-taosx-utils.workspace = true
-futures-ext.workspace = true
-tmq-to-local.workspace = true
-tmq-to-td.workspace = true
+litcrypt = "0.4.0"
+dotenv = "0.15.0"
 
 [dependencies.taos]
 workspace = true

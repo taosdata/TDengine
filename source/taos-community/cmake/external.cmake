@@ -3,15 +3,13 @@ option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main p
 option(EXTERNALS_USE_CCACHE "Use ccache for ExternalProject builds (set OFF if ccache corrupts .o files)" ON)
 
 # When EXTERNALS_USE_CCACHE is OFF, prepend CCACHE_DISABLE=1 to external
-# build commands so ccache passes compilations through without caching.
-# Two forms: _EXT_ENV_PREFIX for direct COMMAND, _EXT_CCACHE_EXPORT for sh -c.
+# project build commands so that ccache never runs, even if it is in PATH.
 if(EXTERNALS_USE_CCACHE)
-    set(_EXT_ENV_PREFIX)
-    set(_EXT_CCACHE_EXPORT "")
+  set(_EXT_ENV_PREFIX "")
+  set(_EXT_CCACHE_EXPORT "")
 else()
-    set(_EXT_ENV_PREFIX ${CMAKE_COMMAND} -E env CCACHE_DISABLE=1)
-    set(_EXT_CCACHE_EXPORT "export CCACHE_DISABLE=1 && ")
-    message(STATUS "ccache disabled for ExternalProject builds (EXTERNALS_USE_CCACHE=OFF)")
+  set(_EXT_ENV_PREFIX env CCACHE_DISABLE=1)
+  set(_EXT_CCACHE_EXPORT "export CCACHE_DISABLE=1 &&")
 endif()
 
 # Keep TD_EXTERNALS_USE_ONLY synchronized with BUILD_CONTRIB across re-configures.
@@ -100,7 +98,8 @@ macro(DEP_td_rocksdb tgt)   # {
             DEP_ext_rocksdb(${tgt})
         elseif(TD_ROCKSDB_USE_DEPS)
             target_include_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
-            target_link_libraries(${tgt} PRIVATE "${TD_ROCKSDB_DEPS_DIR}/librocksdb.a")
+            target_link_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
+            target_link_libraries(${tgt} PRIVATE rocksdb)
         endif()
     endif()
 endmacro()                  # }
@@ -121,7 +120,7 @@ macro(INIT_EXT name)               # {
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_have_dev          FALSE)
-    set(${name}_build_contrib     FALSE)
+    set(${name}_build_contrib     FALsE)
 
     set(options)
     set(oneValueArgs INC_DIR)
@@ -222,13 +221,6 @@ macro(INIT_EXT name)               # {
                 target_link_directories(${tgt} PUBLIC "${BREW_PREFIX}/lib")
             endif()
         endif()
-
-        if(${TD_WINDOWS})
-            if("z${name}" STREQUAL "zext_curl")
-                target_link_libraries(${tgt} PRIVATE crypt32 wldap32 normaliz secur32 bcrypt)
-            endif()
-        endif()
-
         add_definitions(-D_${name})
     endmacro()                               # }
 endmacro()                         # }
@@ -236,11 +228,14 @@ endmacro()                         # }
 set(LOCAL_REPO "" CACHE STRING "local repositories storage to use")
 set(LOCAL_URL "" CACHE STRING "local archives storage to use")
 
-# BUILD_DEPS_MIRROR_URL takes precedence over LOCAL_URL when both are set.
-# This allows cmake -DBUILD_DEPS_MIRROR_URL=... to control the mirror URL
-# without requiring build.sh to inject -DLOCAL_URL=...
-if(NOT "${BUILD_DEPS_MIRROR_URL}" STREQUAL "")
-  set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}")
+# Bridge BUILD_DEPS_MIRROR_URL → LOCAL_URL for backward compatibility.
+# tsdb-builder passes BUILD_DEPS_MIRROR_URL; cmake code here uses LOCAL_URL.
+if(DEFINED BUILD_DEPS_MIRROR_URL AND "${LOCAL_URL}" STREQUAL "")
+  set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}" CACHE STRING "local archives storage to use" FORCE)
+endif()
+
+if(NOT "${LOCAL_URL}" STREQUAL "")
+  message(STATUS "ExternalProject mirror: ${LOCAL_URL}")
 endif()
 
 # get_from_local_repo_if_exists/get_from_local_if_exists
@@ -296,6 +291,8 @@ INIT_EXT(ext_zlib
     LIB              lib/${ext_zlib_static}
     CHK_NAME         ZLIB
 )
+# GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
+# GIT_TAG        v1.3.1
 get_from_local_if_exists(
     "https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz"
     "zlib-v1.3.1.tar.gz"
@@ -304,16 +301,17 @@ ExternalProject_Add(ext_zlib
     URL ${_url}
     URL_HASH SHA256=17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c
     PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}       # use configure-time value so stamp files detect build type changes
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}                # let default INSTALL step use
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DINSTALL_BIN_DIR:PATH=${_ins}/bin
     CMAKE_ARGS -DINSTALL_LIB_DIR:PATH=${_ins}/lib
     CMAKE_ARGS -DINSTALL_INC_DIR:PATH=${_ins}/include
     CMAKE_ARGS -DINSTALL_MAN_DIR:PATH=${_ins}/share/man
     CMAKE_ARGS -DINSTALL_PKGCONFIG_DIR:PATH=${_ins}/share/pkgconfig
-    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
     CMAKE_ARGS -DZLIB_BUILD_TESTING:BOOL=OFF
+    BUILD_BYPRODUCTS "${TD_EXTERNALS_BASE_DIR}/install/ext_zlib/${CMAKE_BUILD_TYPE}/lib/${ext_zlib_static}"
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
@@ -329,6 +327,8 @@ if(BUILD_PTHREAD)        # {
         INC_DIR          include
         LIB              lib/${ext_pthread_static}
     )
+    # GIT_REPOSITORY https://github.com/GerHobbelt/pthread-win32
+    # GIT_TAG v3.0.3.1
     get_from_local_if_exists(
         "https://github.com/GerHobbelt/pthread-win32/archive/3309f4d6e7538f349ae450347b02132ecb0606a7.tar.gz"
         "pthread-win32-3309f4d.tar.gz"
@@ -364,6 +364,8 @@ if(BUILD_WITH_ICONV)     # {
         INC_DIR          include
         LIB              lib/${ext_iconv_static}
     )
+    # GIT_REPOSITORY https://github.com/win-iconv/win-iconv.git
+    # GIT_TAG v0.0.8
     get_from_local_if_exists(
         "https://github.com/win-iconv/win-iconv/archive/9f98392dfecadffd62572e73e9aba878e03496c4.tar.gz"
         "win-iconv-9f98392.tar.gz"
@@ -395,7 +397,8 @@ if(BUILD_MSVCREGEX)      # {
         INC_DIR          include
         LIB              lib/${ext_msvcregex_static}
     )
-    # Originally from https://gitee.com/l0km/libgnurx-msvc (mirrored on GitLab)
+    # GIT_REPOSITORY https://gitee.com/l0km/libgnurx-msvc.git
+    # GIT_TAG master
     get_from_local_if_exists(
         "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest/libgnurx-msvc-1a6514d.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
@@ -426,6 +429,8 @@ if(BUILD_WCWIDTH)        # {
         INC_DIR          include
         LIB              lib/${ext_wcwidth_static}
     )
+    # GIT_REPOSITORY https://github.com/fumiyas/wcwidth-cjk.git
+    # GIT_TAG master
     get_from_local_if_exists(
         "https://github.com/fumiyas/wcwidth-cjk/archive/a1b1e2c346a563f6538e46e1d29c265bdd5b1c9a.tar.gz"
         "wcwidth-cjk-a1b1e2c.tar.gz"
@@ -456,6 +461,8 @@ if(BUILD_WINGETOPT)      # {
         INC_DIR          include
         LIB              lib/${ext_wingetopt_static}
     )
+    # GIT_REPOSITORY https://github.com/alex85k/wingetopt.git
+    # GIT_TAG master
     get_from_local_if_exists(
         "https://github.com/alex85k/wingetopt/archive/e8531ed21b44f5a723c1dd700701b2a58ce3ea01.tar.gz"
         "wingetopt-e8531ed.tar.gz"
@@ -492,6 +499,8 @@ if(BUILD_TEST)           # {
         LIB              lib/${ext_gtest_main}
                          lib/${ext_gtest_static}
     )
+    # GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
+    # GIT_TAG release-1.11.0
     get_from_local_if_exists(
         "https://github.com/google/googletest/archive/refs/tags/release-1.12.0.tar.gz"
         "googletest-release-1.12.0.tar.gz"
@@ -502,7 +511,6 @@ if(BUILD_TEST)           # {
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
@@ -529,6 +537,9 @@ if(BUILD_TEST)           # {
     INIT_EXT(ext_cppstub
         INC_DIR          include
     )
+    # GIT_REPOSITORY https://github.com/coolxv/cpp-stub.git
+    # GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
+    # GIT_SUBMODULES "src"
     get_from_local_if_exists(
         "https://github.com/coolxv/cpp-stub/archive/3137465194014d66a8402941e80d2bccc6346f51.tar.gz"
         "cpp-stub-3137465.tar.gz"
@@ -563,6 +574,8 @@ INIT_EXT(ext_lz4
     LIB              lib/${ext_lz4_static}
     CHK_NAME         LZ4
 )
+# GIT_REPOSITORY https://github.com/taosdata-contrib/lz4.git
+# GIT_TAG v1.9.3
 get_from_local_if_exists(
     "https://github.com/lz4/lz4/archive/refs/tags/v1.10.0.tar.gz"
     "lz4-v1.10.0.tar.gz"
@@ -598,6 +611,8 @@ INIT_EXT(ext_cjson
     INC_DIR          include/cjson           # TODO: tweak in this way to hack #include <cJSON.h> in source codes
     LIB              lib/${ext_cjson_static}
 )
+# GIT_REPOSITORY https://github.com/taosdata-contrib/cJSON.git
+# GIT_TAG v1.7.15
 get_from_local_if_exists(
     "https://github.com/DaveGamble/cJSON/archive/12c4bf1986c288950a3d06da757109a6aa1ece38.tar.gz"
     "cJSON-12c4bf1986c2.tar.gz"
@@ -639,6 +654,8 @@ INIT_EXT(ext_xz
     # debugging github working flow
     # CHK_NAME         LZMA
 )
+# GIT_REPOSITORY https://github.com/xz-mirror/xz.git
+# GIT_TAG v5.4.4
 get_from_local_if_exists(
     "https://github.com/tukaani-project/xz/archive/refs/tags/v5.8.1.tar.gz"
     "xz-v5.8.1.tar.gz"
@@ -732,6 +749,7 @@ if(TD_LINUX)
         INC_DIR          usr/local/include
         LIB              usr/local/lib/${ext_lzma2_static}
     )
+    # GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
     get_from_local_if_exists(
         "https://github.com/conor42/fast-lzma2/archive/ded964d203cabe1a572d2c813c55e8a94b4eda48.tar.gz"
         "fast-lzma2-ded964d203ca.tar.gz"
@@ -771,6 +789,8 @@ if(BUILD_WITH_UV)        # {
         LIB              lib/${ext_libuv_static}
         CHK_NAME         LIBUV
     )
+    # GIT_REPOSITORY https://github.com/libuv/libuv.git
+    # GIT_TAG v1.49.2
     get_from_local_if_exists(
         "https://github.com/libuv/libuv/archive/refs/tags/v1.49.2.tar.gz"
         "libuv-v1.49.2.tar.gz"
@@ -799,16 +819,18 @@ endif()     # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DTHREAD_SAFE=1)
+        set(_c_flags_list -fPIC)
     elseif(TD_DARWIN)
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
+        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0) # TODO: brew install gettext?
     endif()
     INIT_EXT(ext_tz
         INC_DIR          include
         LIB              usr/lib/${ext_tz_static}
     )
     string(JOIN " " _c_flags ${_c_flags_list})
+    # GIT_REPOSITORY https://github.com/eggert/tz.git
+    # GIT_TAG main
     get_from_local_if_exists(
         "https://github.com/eggert/tz/archive/refs/tags/2025a.tar.gz"
         "tz-2025a.tar.gz"
@@ -850,6 +872,8 @@ if(BUILD_JEMALLOC)     # {
         INC_DIR          include
         LIB              lib/${ext_jemalloc_static}
     )
+    # GIT_REPOSITORY https://github.com/jemalloc/jemalloc.git
+    # GIT_TAG 5.3.0
     get_from_local_if_exists(
         "https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.tar.gz"
         "jemalloc-5.3.0.tar.gz"
@@ -891,6 +915,8 @@ if(BUILD_WITH_SQLITE)    # {
         LIB              lib/${ext_sqlite_static}
         CHK_NAME         SQLITE3
     )
+    # GIT_REPOSITORY https://github.com/sqlite/sqlite.git
+    # GIT_TAG version-3.36.0
     get_from_local_if_exists(
         "https://github.com/sqlite/sqlite/archive/refs/tags/version-3.36.0.tar.gz"
         "sqlite-version-3.36.0.tar.gz"
@@ -920,6 +946,8 @@ if(BUILD_CRASHDUMP)      # {
         INC_DIR          include
         LIB              lib/${ext_crashdump_static}
     )
+    # GIT_REPOSITORY https://github.com/Arnavion/crashdump.git
+    # GIT_TAG master
     get_from_local_if_exists(
         "https://github.com/Arnavion/crashdump/archive/149b43c10debdf28a2c50d79dee5ff344d83bd06.tar.gz"
         "crashdump-149b43c.tar.gz"
@@ -968,26 +996,23 @@ if(NOT TD_WINDOWS)       # {
         "https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz"
         "openssl-3.1.3.tar.gz"
     )
-    # Docker Desktop for Mac uses VirtioFS for bind-mount volumes.  Under heavy
-    # ccache corrupts certain OpenSSL .o files (cipher_aria.o becomes "data"
-    # instead of ELF) when gcc-toolset-14 is used via ccache symlinks.
-    # _EXT_CCACHE_EXPORT conditionally sets CCACHE_DISABLE=1.
-    # MAKEFLAGS is unset to prevent the parent cmake make's flags (e.g. -s -j1)
-    # from leaking into OpenSSL's own make invocation.
     ExternalProject_Add(ext_ssl
         URL ${_url}
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
+        # GIT_SHALLOW TRUE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
+            # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
             COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
         BUILD_COMMAND
             COMMAND sh -c "unset MAKEFLAGS && ${_EXT_CCACHE_EXPORT}make -j4"
         INSTALL_COMMAND
             COMMAND sh -c "unset MAKEFLAGS && make install_sw -j4"
         EXCLUDE_FROM_ALL TRUE
+        VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
 endif()    # }
@@ -996,56 +1021,16 @@ endif()    # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list -fPIC -Wno-implicit-function-declaration)
     elseif(TD_DARWIN)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list -Wno-implicit-function-declaration)
     endif()
-else()
-    set(ext_curl_static libcurl$<$<STREQUAL:${TD_CONFIG_NAME},Debug>:-d>.lib)
-    set(_c_flags_list)
-endif()
-
-INIT_EXT(ext_curl
-    INC_DIR          include
-    LIB              lib/${ext_curl_static}
-    # currently: tqStreamNotify.c uses curl_ws_send, but CURL4_OPENSSL exports curl_easy_send
-    #            libcurl4-openssl-dev on ubuntu 22.04 is too old
-    # CHK_NAME         CURL4_OPENSSL
-)
-
-if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
-    get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+    INIT_EXT(ext_curl
+        INC_DIR          include
+        LIB              lib/${ext_curl_static}
+        # currently: tqStreamNotify.c uses curl_ws_send, but CURL4_OPENSSL exports curl_easy_send
+        #            libcurl4-openssl-dev on ubuntu 22.04 is too old
+        # CHK_NAME         CURL4_OPENSSL
     )
-    ExternalProject_Add(ext_curl
-        URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
-        CMAKE_ARGS -DBUILD_CURL_EXE:BOOL=OFF
-        CMAKE_ARGS -DENABLE_WEBSOCKETS:BOOL=ON
-        CMAKE_ARGS -DCURL_USE_SCHANNEL:BOOL=ON
-        CMAKE_ARGS -DCURL_USE_OPENSSL:BOOL=OFF
-        CMAKE_ARGS -DCURL_ZLIB:BOOL=OFF
-        CMAKE_ARGS -DCURL_DISABLE_LDAP:BOOL=ON
-        CMAKE_ARGS -DCURL_DISABLE_LDAPS:BOOL=ON
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-else()
-    string(JOIN " " _c_flags ${_c_flags_list})
     # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
     # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
     get_from_local_if_exists(
@@ -1063,7 +1048,7 @@ else()
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=${_c_flags}" "CXXFLAGS=${_c_flags}" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=-fPIC -Wno-implicit-function-declaration" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
@@ -1075,8 +1060,8 @@ else()
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
-endif()
-add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
+    add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
+endif()    # }
 
 # geos
 if(BUILD_GEOS)           # {
@@ -1096,6 +1081,8 @@ if(BUILD_GEOS)           # {
                          lib/${ext_geos_static}
         CHK_NAME         GEOS
     )
+    # GIT_REPOSITORY https://github.com/libgeos/geos.git
+    # GIT_TAG 3.12.0
     get_from_local_if_exists(
         "https://github.com/libgeos/geos/archive/refs/tags/3.12.0.tar.gz"
         "geos-3.12.0.tar.gz"
@@ -1149,6 +1136,8 @@ if(BUILD_ADDR2LINE)      # {
     endif()                # }
     string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
 
+    # GIT_REPOSITORY https://github.com/davea42/libdwarf-code.git
+    # GIT_TAG libdwarf-0.3.1
     get_from_local_if_exists(
         "https://github.com/davea42/libdwarf-code/archive/refs/tags/libdwarf-0.3.1.tar.gz"
         "libdwarf-code-libdwarf-0.3.1.tar.gz"
@@ -1190,6 +1179,8 @@ if(BUILD_ADDR2LINE)      # {
         INC_DIR          include
         LIB              lib/${ext_addr2line_static}
     )
+    # GIT_REPOSITORY https://github.com/davea42/libdwarf-addr2line.git
+    # GIT_TAG main
     get_from_local_if_exists(
         "https://github.com/davea42/libdwarf-addr2line/archive/9d76b420f9d1261fa7feada3a209e605f54ba859.tar.gz"
         "libdwarf-addr2line-9d76b420f9d1.tar.gz"
@@ -1229,6 +1220,8 @@ if(BUILD_PCRE2)          # {
         INC_DIR          include
         LIB              lib/${ext_pcre2_static}
     )
+    # GIT_REPOSITORY https://github.com/PCRE2Project/pcre2.git
+    # GIT_TAG pcre2-10.43
     get_from_local_if_exists(
         "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.45.tar.gz"
         "pcre2-pcre2-10.45.tar.gz"
@@ -1258,8 +1251,6 @@ if(BUILD_PCRE2)          # {
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
 endif()                     # }
 
-include(GNUInstallDirs)
-message(STATUS "Using libdir: ${CMAKE_INSTALL_LIBDIR}")
 if(TD_ROCKSDB_USE_EXTERNAL)         # {
     if(TD_LINUX)
         set(ext_rocksdb_static librocksdb.a)
@@ -1275,6 +1266,12 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
 
     if(TD_ROCKSDB_BUILD_FROM_SOURCE)
         # BUILD_CONTRIB=ON + BUILD_ROCKSDB=ON: download and compile RocksDB
+        # On some 64-bit Linux systems (e.g. CentOS 7 / manylinux2014), cmake
+        # installs libraries into lib64/ instead of lib/. Force lib/ so the
+        # path in INIT_EXT matches the actual install location.
+        if(NOT DEFINED _rocksdb_libdir_flag)
+            set(_rocksdb_libdir_flag "-DCMAKE_INSTALL_LIBDIR:STRING=lib")
+        endif()
         # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
         # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
         get_from_local_if_exists(
@@ -1288,7 +1285,7 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
             PREFIX "${_base}"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-            CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+            CMAKE_ARGS ${_rocksdb_libdir_flag}
             CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
             CMAKE_ARGS -DPORTABLE:BOOL=ON
             CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
@@ -1312,36 +1309,18 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
         )
         add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
     else()
-        # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts.
+        # ROCKSDB_USE_DEPS=OFF + BUILD_ROCKSDB=OFF: reuse cached ExternalProject artifacts
         # Validate that the cached library actually exists.
-        #
-        # INIT_EXT declares LIB as "lib/librocksdb.a" and ExternalProject forces
-        # -DCMAKE_INSTALL_LIBDIR:PATH=lib, so the primary check uses "lib/".
-        # For backward compatibility with caches built before this fix (where
-        # CMAKE_INSTALL_LIBDIR may have resolved to "lib64" on x86_64), we also
-        # check the CMAKE_INSTALL_LIBDIR path as a fallback and update
-        # ext_rocksdb_libs so the linker can find the library.
-        set(_rocksdb_install_prefix "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}")
-        set(_rocksdb_check_path "${_rocksdb_install_prefix}/lib/${ext_rocksdb_static}")
+        # Use TD_CONFIG_NAME_RESOLVED because ext_rocksdb_libs contains generator
+        # expressions that are not evaluated at configure time.
+        set(_rocksdb_check_path "${TD_EXTERNALS_BASE_DIR}/install/ext_rocksdb/${TD_CONFIG_NAME_RESOLVED}/lib/${ext_rocksdb_static}")
         if(NOT EXISTS "${_rocksdb_check_path}")
-            # Fallback: older caches may have installed into CMAKE_INSTALL_LIBDIR (e.g. lib64)
-            set(_rocksdb_found FALSE)
-            if(NOT "${CMAKE_INSTALL_LIBDIR}" STREQUAL "lib")
-                set(_rocksdb_check_alt "${_rocksdb_install_prefix}/${CMAKE_INSTALL_LIBDIR}/${ext_rocksdb_static}")
-                if(EXISTS "${_rocksdb_check_alt}")
-                    set(ext_rocksdb_libs "${_rocksdb_check_alt}")
-                    set(_rocksdb_found TRUE)
-                    message(STATUS "[rocksdb] Found cached library at legacy path: ${_rocksdb_check_alt}")
-                endif()
-            endif()
-            if(NOT _rocksdb_found)
-                message(FATAL_ERROR
-                    "[rocksdb] Expecting cached ExternalProject artifact at:\n"
-                    "  ${_rocksdb_check_path}\n"
-                    "  but it does not exist. Either:\n"
-                    "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
-                    "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
-            endif()
+            message(FATAL_ERROR
+                "[rocksdb] Expecting cached ExternalProject artifact at:\n"
+                "  ${_rocksdb_check_path}\n"
+                "  but it does not exist. Either:\n"
+                "  - Run with -DBUILD_CONTRIB=ON -DBUILD_ROCKSDB=ON to build from source, or\n"
+                "  - Set -DROCKSDB_USE_DEPS=ON to use prebuilt deps/.")
         endif()
     endif()
 endif()                                          # }
@@ -1401,6 +1380,7 @@ if(TD_TAOS_TOOLS)
     ExternalProject_Add(ext_snappy
         URL ${_url}
         URL_HASH SHA256=677d1dd8172bac1862e6c8d7bbe1fe9fb2320cfd11ee04756b1ef8b3699c6135
+        GIT_SUBMODULES ""
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1451,7 +1431,8 @@ if(TD_TAOS_TOOLS)
         "avro-7b106b12ae22.tar.gz"
     )
     message(STATUS
-      "[external] ext_avro: fetching '${_url}'"
+      "[external] ext_avro: fetching repository '${_git_url}' "
+      "(tag=7b106b12ae22853c977259710d92a237d76f2236, shallow=FALSE)"
     )
     ExternalProject_Add(ext_avro
         URL ${_url}
@@ -1509,6 +1490,8 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include/libxml2
         LIB              lib/${ext_libxml2_static}
     )
+    # URL https://github.com/GNOME/libxml2/archive/refs/tags/v2.10.4.tar.gz
+    # URL_HASH SHA256=6f6fb27f91bb65f9d7196e3c616901b3e18a7dea31ccc2ae857940b125faa780
     get_from_local_if_exists(
         "https://github.com/GNOME/libxml2/archive/refs/tags/v2.14.0.tar.gz"
         "libxml2-v2.14.0.tar.gz"
@@ -1548,6 +1531,7 @@ if(NOT TD_WINDOWS)        # {
         LIB              lib/${ext_libs3_static}
     )
     string(JOIN " " _ssl_libs ${ext_ssl_libs})
+    # GIT_REPOSITORY https://github.com/bji/libs3
     get_from_local_if_exists(
         "https://github.com/bji/libs3/archive/98f667b248a7288c1941582897343171cfdf441c.tar.gz"
         "libs3-98f667b248a7.tar.gz"
@@ -1637,13 +1621,14 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include
         LIB              lib/${ext_mxml_static}
     )
+    # GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
+    # GIT_TAG v2.12
     get_from_local_if_exists(
         "https://github.com/michaelrsweet/mxml/archive/refs/tags/v2.12.tar.gz"
         "mxml-v2.12.tar.gz"
     )
     ExternalProject_Add(ext_mxml
         URL ${_url}
-        # NOTE: if you change the version, refer to the comments below!!!
         URL_HASH SHA256=4d850d15cdd4fdb9e82817eb069050d7575059a9a2729c82b23440e4445da199
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
@@ -1786,6 +1771,8 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include
         LIB              lib/${ext_cos_static}
     )
+    # GIT_REPOSITORY https://github.com/tencentyun/cos-c-sdk-v5.git
+    # GIT_TAG v5.0.16
     get_from_local_if_exists(
         "https://github.com/tencentyun/cos-c-sdk-v5/archive/refs/tags/v5.0.16.tar.gz"
         "cos-c-sdk-v5-v5.0.16.tar.gz"
@@ -1814,215 +1801,3 @@ if(NOT TD_WINDOWS)        # {
     )
     add_dependencies(build_externals ext_cos)
 endif()                      # }
-
-if(TD_LINUX AND TD_ENTERPRISE)        # {
-if(${BUILD_LIBSASL})      # {
-    if(${TD_LINUX})
-        set(ext_sasl2 libsasl2.a)
-        set(_c_flags_list -fPIC)
-    endif()
-
-    INIT_EXT(ext_sasl2
-        INC_DIR          include
-        LIB              lib/${ext_sasl2}
-    )
-    get_from_local_if_exists(
-        "https://github.com/cyrusimap/cyrus-sasl/archive/refs/tags/cyrus-sasl-2.1.27.tar.gz"
-        "cyrus-sasl-cyrus-sasl-2.1.27.tar.gz"
-    )
-    ExternalProject_Add(ext_sasl2
-        URL ${_url}
-        URL_HASH SHA256=b564d773803dc4cff42d2bdc04c80f2b105897a724c247817d4e4a99dd6b9976
-        PREFIX "${_base}"
-        BUILD_IN_SOURCE TRUE
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        PATCH_COMMAND
-            COMMAND ./autogen.sh
-            COMMAND sed -i "s/#define PROTOTYPES 0/#define PROTOTYPES 1/" include/makemd5.c saslauthd/md5global.h
-        CONFIGURE_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -E env
-                CC=gcc
-                CC_FOR_BUILD=gcc
-                CFLAGS=-Wno-missing-braces
-                CXXFLAGS=-Wno-missing-braces
-                ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
-        BUILD_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make
-        INSTALL_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make install
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
-endif(${BUILD_LIBSASL})   # }
-endif()
-
-if(TD_TAOS_TOOLS)
-# arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
-# Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
-# Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
-if(${TD_WINDOWS})
-    INIT_EXT(ext_arrow
-        INC_DIR  include
-        LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
-    )
-else()
-    INIT_EXT(ext_arrow
-        INC_DIR  include
-        LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
-    )
-endif()
-get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
-# Platform-specific cmake args for the Arrow sub-build
-set(ARROW_EXTRA_CMAKE_ARGS "")
-if(NOT ${TD_WINDOWS})
-    set(_arrow_c_flags "-ffunction-sections -fdata-sections")
-    if(${TD_DARWIN})
-        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
-    else()
-        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
-    endif()
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
-        "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
-    )
-    # GCC 14 changed inlining behaviour for functions carrying both
-    # __attribute__((always_inline)) and __attribute__((target("sse2"))).
-    # Under -Og the compiler emits a hard compilation error (not a warning)
-    # when it cannot inline such a function, which breaks the vendored xxhash
-    # SSE2 helpers (XXH3_scrambleAcc_sse2 / XXH3_accumulate_sse2).
-    # Switching to -O1 avoids the restriction while still producing debuggable
-    # binaries.  -O1 is strictly better than -Og here because -Og explicitly
-    # disables optimisations that would allow inlining across target boundaries.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
-    )
-    # Arrow's SetupCxxFlags.cmake appends -Werror to DEBUG builds when the
-    # warning level is CHECKIN (the default).  Use PRODUCTION to keep the
-    # build clean without -Werror.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
-    )
-    # -Os replaces the default -O3 in Release builds, shrinking Arrow's
-    # code sections by ~15-20 %.  Specified via the build-type-specific variable
-    # so it unambiguously overrides the compiler's Release default.
-    # CMAKE_INTERPROCEDURAL_OPTIMIZATION enables LTO across Arrow and its
-    # bundled deps (snappy, thrift …), letting the linker dead-strip at a finer
-    # granularity than --gc-sections alone.
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        list(APPEND ARROW_EXTRA_CMAKE_ARGS
-            "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
-            "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
-            "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
-            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
-        )
-    endif()
-else()
-    # Match the MSVC DLL CRT (/MD) used by the rest of the project
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        -DARROW_USE_STATIC_CRT:BOOL=OFF
-    )
-    # Disable ccache/sccache detection in Arrow sub-build.
-    # Strawberry Perl ships ccache.exe but it mishandles MSVC response-file
-    # /Fo output, causing .obj files to disappear silently (LNK1181).
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        -DARROW_USE_CCACHE:BOOL=OFF
-        -DARROW_USE_SCCACHE:BOOL=OFF
-    )
-    # Explicitly forward compiler/linker/make so ExternalProject_Add
-    # CMake configure step does not depend on having cl.exe in PATH.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
-        "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
-        "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
-        "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
-        "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
-    )
-    # Arrow 19.0.1 bug on MSVC: parquet/size_statistics.cc uses std::array
-    # without #include <array>.  GCC/Clang pick it up transitively via other
-    # standard headers; MSVC does not.
-    # IMPORTANT: ARROW_CXX_FLAGS_* is inside if(NOT MSVC) in Arrow's
-    # SetupCxxFlags.cmake and has NO effect on MSVC builds.  We must set
-    # CMAKE_CXX_FLAGS_* directly, repeating the MSVC platform defaults so
-    # cmake does not lose them:
-    #   Debug defaults:          /Zi /Ob0 /Od /RTC1
-    #   Release defaults:        /O2 /Ob2 /DNDEBUG  (we replace /O2 with /O1)
-    #   RelWithDebInfo defaults: /Zi /O2 /Ob1 /DNDEBUG  (replace /O2 with /O1)
-    # Additional MSVC size-reduction flags:
-    #   /FI array  = force-include <array> (fixes size_statistics.cc)
-    #   /O1        = minimize size (replaces default /O2 in Release builds)
-    #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
-    #   /Gw        = data-level COMDAT (equivalent of -fdata-sections)
-    # Arrow's bundled Thrift (TSocketPool.cpp) calls std::random_shuffle which
-    # was removed in C++17.  _HAS_AUTO_PTR_ETC=1 tells MSVC's STL to keep the
-    # removed C++17 APIs (random_shuffle, auto_ptr, etc.) available.
-    # We set CMAKE_CXX_FLAGS (base, no build-type suffix) so that Arrow's
-    # ThirdpartyToolchain forwards it to all sub-ExternalProjects (Thrift,
-    # Snappy, Boost …) via EP_CXX_FLAGS → EP_COMMON_CMAKE_ARGS.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
-        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
-        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
-        "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
-        "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
-        "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
-    )
-endif()
-ExternalProject_Add(ext_arrow
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG        apache-arrow-19.0.1
-    GIT_SHALLOW    TRUE
-    # parquet-testing and arrow-testing are only used by Arrow's own unit
-    # tests.  Skipping them saves ~200 MB of clone traffic.
-    GIT_SUBMODULES  ""
-    PREFIX         "${_base}"
-    SOURCE_SUBDIR  cpp
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
-    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-    CMAKE_ARGS -DCMAKE_CXX_STANDARD:STRING=17
-    CMAKE_ARGS -DARROW_BUILD_STATIC:BOOL=ON
-    CMAKE_ARGS -DARROW_BUILD_SHARED:BOOL=OFF
-    CMAKE_ARGS -DARROW_PARQUET:BOOL=ON
-    CMAKE_ARGS -DARROW_IPC:BOOL=ON
-    CMAKE_ARGS -DARROW_COMPUTE:BOOL=OFF
-    CMAKE_ARGS -DARROW_DATASET:BOOL=OFF
-    CMAKE_ARGS -DARROW_FLIGHT:BOOL=OFF
-    CMAKE_ARGS -DARROW_FILESYSTEM:BOOL=OFF
-    CMAKE_ARGS -DARROW_S3:BOOL=OFF
-    CMAKE_ARGS -DARROW_WITH_SNAPPY:BOOL=ON
-    CMAKE_ARGS -DARROW_WITH_ZLIB:BOOL=OFF
-    CMAKE_ARGS -DARROW_WITH_ZSTD:BOOL=OFF
-    CMAKE_ARGS -DARROW_WITH_LZ4:BOOL=OFF
-    CMAKE_ARGS -DARROW_WITH_BZ2:BOOL=OFF
-    CMAKE_ARGS -DARROW_BUILD_TESTS:BOOL=OFF
-    CMAKE_ARGS -DARROW_BUILD_BENCHMARKS:BOOL=OFF
-    CMAKE_ARGS -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
-    CMAKE_ARGS -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
-    CMAKE_ARGS -DARROW_JEMALLOC:BOOL=OFF
-    CMAKE_ARGS -DARROW_BUILD_UTILITIES:BOOL=OFF
-    CMAKE_ARGS -DARROW_USE_GLOG:BOOL=OFF
-    CMAKE_ARGS -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
-    CMAKE_ARGS -DARROW_SIMD_LEVEL:STRING=NONE
-    CMAKE_ARGS -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
-    CMAKE_ARGS -DBUILD_WARNING_LEVEL:STRING=PRODUCTION
-    CMAKE_ARGS ${ARROW_EXTRA_CMAKE_ARGS}
-    BUILD_COMMAND
-        # Windows/jom: multiple parallel jom child processes share the same
-        # jom.exe image on disk, triggering ERROR_SHARING_VIOLATION when one
-        # process tries to map the file while another holds it open.
-        # Serialise the Arrow sub-build to avoid this.  Linux/macOS are not
-        # affected so they keep the original level of parallelism.
-        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-                --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
-    INSTALL_COMMAND
-        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-    EXCLUDE_FROM_ALL TRUE
-    VERBATIM
-)
-add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
-endif(TD_TAOS_TOOLS)

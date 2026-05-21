@@ -1,8 +1,21 @@
 [source.crates-io]
-replace-with = 'rsproxy-sparse'
+replace-with = 'internal'
 
-[source.rsproxy-sparse]
-registry = "sparse+https://rsproxy.cn/index/"
+[source.internal]
+registry = "sparse+https://nora.tdengine.net/cargo/index/"
 
-[registries.rsproxy]
-index = "sparse+https://rsproxy.cn/index/"
+# Fallback mirrors (uncomment one to switch):
+# [source.crates-io]
+# replace-with = 'rsproxy-sparse'
+# [source.rsproxy-sparse]
+# registry = "sparse+https://rsproxy.cn/index/"
+
+[registries.internal]
+index = "sparse+https://nora.tdengine.net/cargo/index/"
+
+[http]
+multiplexing = false
+timeout = 120
+
+[net]
+git-fetch-with-cli = true

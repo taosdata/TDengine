@@ -78,7 +78,6 @@ set(_taosx_artifact_dir "${_taosx_target_dir}/${_taosx_cargo_profile_dir}")
 # ── Output artifact paths (same as taosd: build/bin) ───────────────────────
 set(_taosx_bin_output_dir "${CMAKE_BINARY_DIR}/build/bin")
 set(_taosx_binary_output "${_taosx_bin_output_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}")
-set(_taosx_xnoded_binary_output "${_taosx_bin_output_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}")
 set(_taosx_agent_binary_output "${_taosx_bin_output_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}")
 set(_taosx_explorer_binary_output "${_taosx_bin_output_dir}/taos-explorer${CMAKE_EXECUTABLE_SUFFIX}")
 
@@ -99,7 +98,6 @@ message(STATUS "  taos-explorer binary    = ${_taosx_explorer_binary_output}")
 file(GLOB_RECURSE _taosx_rust_sources CONFIGURE_DEPENDS
   "${TD_TAOSX_DIR}/src/*.rs"
   "${TD_TAOSX_DIR}/crates/**/*.rs"
-  "${TD_TAOSX_DIR}/xnoded/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-agent/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-core/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-ipc/**/*.rs"
@@ -157,13 +155,12 @@ if(BUILD_EXPLORER_UI)
   find_program(PNPM_EXECUTABLE pnpm REQUIRED)
   add_custom_command(
     OUTPUT "${_explorer_dist_dir}/index.html"
-    COMMAND "${CMAKE_COMMAND}" -E env CI=true "${PNPM_EXECUTABLE}" install --frozen-lockfile
+    COMMAND "${PNPM_EXECUTABLE}" install --frozen-lockfile
     COMMAND "${CMAKE_COMMAND}" -E env
-            CI=true
-            "CUS_PROMPT=${BUILD_CUS_PROMPT}"
-            "CUS_NAME=${BUILD_CUS_NAME}"
-            "VER_NUMBER=${BUILD_VER_NUMBER}"
-            "${PNPM_EXECUTABLE}" run build
+          "CUS_PROMPT=${BUILD_CUS_PROMPT}"
+          "CUS_NAME=${BUILD_CUS_NAME}"
+          "VER_NUMBER=${BUILD_VER_NUMBER}"
+          "${PNPM_EXECUTABLE}" run build
     WORKING_DIRECTORY "${_explorer_ui_dir}"
     DEPENDS "${_explorer_docs_stamp}"
     COMMENT "Building taos-explorer frontend UI"
@@ -217,7 +214,12 @@ if(_taosx_need_binaries AND _taosx_enable_upx)
   if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(_taosx_upx_binary "${_taosx_upx_dir}/upx.exe")
     set(_taosx_upx_archive "${_taosx_upx_dir}/upx.zip")
-    set(_taosx_upx_url "https://github.com/upx/upx/releases/download/v${_taosx_upx_version}/upx-${_taosx_upx_version}-win64.zip")
+    set(_taosx_upx_filename "upx-${_taosx_upx_version}-win64.zip")
+    if(DEFINED BUILD_DEPS_MIRROR_URL AND NOT "${BUILD_DEPS_MIRROR_URL}" STREQUAL "")
+      set(_taosx_upx_url "${BUILD_DEPS_MIRROR_URL}/${_taosx_upx_filename}")
+    else()
+      set(_taosx_upx_url "https://github.com/upx/upx/releases/download/v${_taosx_upx_version}/${_taosx_upx_filename}")
+    endif()
     set(_taosx_upx_sha256 "c288989437ce70646a62799a4dcf25b4ec7ad8fbb4f93a29e25c14856659c1a4")
     find_program(WGET_EXECUTABLE wget REQUIRED)
     find_program(POWERSHELL_EXECUTABLE powershell REQUIRED)
@@ -251,7 +253,12 @@ if(_taosx_need_binaries AND _taosx_enable_upx)
       set(_taosx_upx_sha256 "7b9f0634c8b7bce06d88811c85686050ba29534e40371f23d062115176cc7a07")
     endif()
     set(_taosx_upx_archive "${_taosx_upx_dir}/upx.tar.xz")
-    set(_taosx_upx_url "https://github.com/upx/upx/releases/download/v${_taosx_upx_version}/upx-${_taosx_upx_version}-${_taosx_upx_arch}_linux.tar.xz")
+    set(_taosx_upx_filename "upx-${_taosx_upx_version}-${_taosx_upx_arch}_linux.tar.xz")
+    if(DEFINED BUILD_DEPS_MIRROR_URL AND NOT "${BUILD_DEPS_MIRROR_URL}" STREQUAL "")
+      set(_taosx_upx_url "${BUILD_DEPS_MIRROR_URL}/${_taosx_upx_filename}")
+    else()
+      set(_taosx_upx_url "https://github.com/upx/upx/releases/download/v${_taosx_upx_version}/${_taosx_upx_filename}")
+    endif()
     if(EXISTS "${_taosx_upx_binary}")
       message(STATUS "UPX binary already exists: ${_taosx_upx_binary}")
     else()
@@ -316,38 +323,28 @@ if(_taosx_need_binaries)
     _taosx_deploy_command(taosx
       "${_taosx_artifact_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}"
       "${_taosx_deploy_dir}/taosx")
-    _taosx_deploy_command(xnoded
-      "${_taosx_artifact_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}"
-      "${_taosx_deploy_dir}/xnoded")
     add_custom_command(
-      OUTPUT "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"
+      OUTPUT "${_taosx_binary_output}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_deploy_dir}"
       COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
               "${CARGO_EXECUTABLE}" build -p taosx ${_taosx_cargo_profile_args}
                                     --target-dir "${_taosx_target_dir}"
-      COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
-              "${CARGO_EXECUTABLE}" build -p xnoded ${_taosx_cargo_profile_args}
-                                    --target-dir "${_taosx_target_dir}"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}"
               "${_taosx_binary_output}"
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-              "${_taosx_artifact_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}"
-              "${_taosx_xnoded_binary_output}"
       ${_deploy_cmd_taosx}
-      ${_deploy_cmd_xnoded}
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/${BUILD_CUS_PROMPT}x.service"
               "${_taosx_deploy_dir}/taosx.service"
       WORKING_DIRECTORY "${TD_TAOSX_DIR}"
       DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}
       VERBATIM
-      COMMENT "Building taosx+xnoded binaries (${_taosx_cargo_profile}) → ${_taosx_bin_output_dir}"
+      COMMENT "Building taosx binary (${_taosx_cargo_profile}) → ${_taosx_binary_output}"
     )
     add_custom_target(taosx_binary
-      DEPENDS "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"
+      DEPENDS "${_taosx_binary_output}"
     )
     list(APPEND _taosx_component_targets taosx_binary)
   endif()

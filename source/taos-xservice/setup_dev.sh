@@ -380,7 +380,7 @@ deploy_go() {
     add_config_if_not_exist "export GOPATH=$GOPATH_DIR" $BASH_RC
     add_config_if_not_exist "export PATH=\$PATH:\$GOROOT/bin" $BASH_RC
     add_config_if_not_exist "export GO111MODULE=on" $BASH_RC
-    add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" $BASH_RC
+    add_config_if_not_exist "export GOPROXY=https://nexus.tdengine.net/repository/goproxy/,direct" $BASH_RC
 
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
