@@ -78,6 +78,7 @@ set(_taosx_artifact_dir "${_taosx_target_dir}/${_taosx_cargo_profile_dir}")
 # ── Output artifact paths (same as taosd: build/bin) ───────────────────────
 set(_taosx_bin_output_dir "${CMAKE_BINARY_DIR}/build/bin")
 set(_taosx_binary_output "${_taosx_bin_output_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}")
+set(_taosx_xnoded_binary_output "${_taosx_bin_output_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}")
 set(_taosx_agent_binary_output "${_taosx_bin_output_dir}/taosx-agent${CMAKE_EXECUTABLE_SUFFIX}")
 set(_taosx_explorer_binary_output "${_taosx_bin_output_dir}/taos-explorer${CMAKE_EXECUTABLE_SUFFIX}")
 
@@ -98,6 +99,7 @@ message(STATUS "  taos-explorer binary    = ${_taosx_explorer_binary_output}")
 file(GLOB_RECURSE _taosx_rust_sources CONFIGURE_DEPENDS
   "${TD_TAOSX_DIR}/src/*.rs"
   "${TD_TAOSX_DIR}/crates/**/*.rs"
+  "${TD_TAOSX_DIR}/xnoded/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-agent/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-core/**/*.rs"
   "${TD_TAOSX_DIR}/taosx-ipc/**/*.rs"
@@ -155,12 +157,13 @@ if(BUILD_EXPLORER_UI)
   find_program(PNPM_EXECUTABLE pnpm REQUIRED)
   add_custom_command(
     OUTPUT "${_explorer_dist_dir}/index.html"
-    COMMAND "${PNPM_EXECUTABLE}" install --frozen-lockfile
+    COMMAND "${CMAKE_COMMAND}" -E env CI=true "${PNPM_EXECUTABLE}" install --frozen-lockfile
     COMMAND "${CMAKE_COMMAND}" -E env
-          "CUS_PROMPT=${BUILD_CUS_PROMPT}"
-          "CUS_NAME=${BUILD_CUS_NAME}"
-          "VER_NUMBER=${BUILD_VER_NUMBER}"
-          "${PNPM_EXECUTABLE}" run build
+            CI=true
+            "CUS_PROMPT=${BUILD_CUS_PROMPT}"
+            "CUS_NAME=${BUILD_CUS_NAME}"
+            "VER_NUMBER=${BUILD_VER_NUMBER}"
+            "${PNPM_EXECUTABLE}" run build
     WORKING_DIRECTORY "${_explorer_ui_dir}"
     DEPENDS "${_explorer_docs_stamp}"
     COMMENT "Building taos-explorer frontend UI"
@@ -323,28 +326,38 @@ if(_taosx_need_binaries)
     _taosx_deploy_command(taosx
       "${_taosx_artifact_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}"
       "${_taosx_deploy_dir}/taosx")
+    _taosx_deploy_command(xnoded
+      "${_taosx_artifact_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}"
+      "${_taosx_deploy_dir}/xnoded")
     add_custom_command(
-      OUTPUT "${_taosx_binary_output}"
+      OUTPUT "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_target_dir}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_bin_output_dir}"
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_taosx_deploy_dir}"
       COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
               "${CARGO_EXECUTABLE}" build -p taosx ${_taosx_cargo_profile_args}
                                     --target-dir "${_taosx_target_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E env ${_taosx_cargo_env}
+              "${CARGO_EXECUTABLE}" build -p xnoded ${_taosx_cargo_profile_args}
+                                    --target-dir "${_taosx_target_dir}"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/taosx${CMAKE_EXECUTABLE_SUFFIX}"
               "${_taosx_binary_output}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+              "${_taosx_artifact_dir}/xnoded${CMAKE_EXECUTABLE_SUFFIX}"
+              "${_taosx_xnoded_binary_output}"
       ${_deploy_cmd_taosx}
+      ${_deploy_cmd_xnoded}
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different
               "${_taosx_artifact_dir}/${BUILD_CUS_PROMPT}x.service"
               "${_taosx_deploy_dir}/taosx.service"
       WORKING_DIRECTORY "${TD_TAOSX_DIR}"
       DEPENDS ${_taosx_dep_files} ${_taosx_binary_extra_deps}
       VERBATIM
-      COMMENT "Building taosx binary (${_taosx_cargo_profile}) → ${_taosx_binary_output}"
+      COMMENT "Building taosx+xnoded binaries (${_taosx_cargo_profile}) → ${_taosx_bin_output_dir}"
     )
     add_custom_target(taosx_binary
-      DEPENDS "${_taosx_binary_output}"
+      DEPENDS "${_taosx_binary_output}" "${_taosx_xnoded_binary_output}"
     )
     list(APPEND _taosx_component_targets taosx_binary)
   endif()
