@@ -112,7 +112,7 @@ class TestNewStreamCompatibility:
 
             self.prepareDataOnOldVersion(base_version)
 
-            tdCb.killAllDnodes()
+            tdCb.stopTaosdCompletely()
 
             tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
 
