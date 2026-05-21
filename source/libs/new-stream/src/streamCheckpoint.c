@@ -143,6 +143,7 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   char*     encryptedData = NULL;
   int64_t   originalLen = 0;
   int64_t   readLen = 0;
+  int64_t   fileSize = 0;
 
   STREAM_CHECK_NULL_GOTO(data, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(dataLen, TSDB_CODE_INVALID_PARA);
@@ -152,8 +153,29 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   pFile = taosOpenFile(filepath, TD_FILE_READ);
   STREAM_CHECK_NULL_GOTO(pFile, 0);
 
-  // Read original length (unencrypted metadata)
-  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, &originalLen, sizeof(int64_t)) != sizeof(int64_t), terrno);
+  STREAM_CHECK_RET_GOTO(taosFStatFile(pFile, &fileSize, NULL));
+
+  // Read candidate length header (new format has an 8-byte originalLen prefix)
+  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, &originalLen, sizeof(int64_t)) != sizeof(int64_t),
+                              TSDB_CODE_FILE_CORRUPTED);
+
+  // Detect format: new format satisfies fileSize == sizeof(int64_t) + originalLen (plain)
+  // or fileSize == sizeof(int64_t) + ENCRYPTED_LEN(originalLen) (encrypted).
+  // Otherwise fall back to the old format where the entire file is plain data.
+  if (originalLen <= 0 || (fileSize != (int64_t)sizeof(int64_t) + originalLen &&
+                           fileSize != (int64_t)sizeof(int64_t) + (int64_t)ENCRYPTED_LEN(originalLen))) {
+    // Old format: entire file is plain data; seek back to beginning
+    stDebug("[checkpoint] old-format checkpoint detected for streamId:%" PRIx64 ", fileSize:%" PRId64, streamId,
+            fileSize);
+    STREAM_CHECK_CONDITION_GOTO(taosLSeekFile(pFile, 0, SEEK_SET) < 0, terrno);
+    encryptedData = taosMemoryMalloc(fileSize);
+    STREAM_CHECK_NULL_GOTO(encryptedData, terrno);
+    STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, encryptedData, fileSize) != fileSize, TSDB_CODE_FILE_CORRUPTED);
+    *data = encryptedData;
+    *dataLen = fileSize;
+    encryptedData = NULL;  // Transfer ownership
+    goto end;
+  }
 
   // Calculate read length (encrypted or plain)
   readLen = originalLen;
@@ -164,7 +186,7 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   encryptedData = taosMemoryMalloc(readLen);
   STREAM_CHECK_NULL_GOTO(encryptedData, terrno);
 
-  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, encryptedData, readLen) != readLen, terrno);
+  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, encryptedData, readLen) != readLen, TSDB_CODE_FILE_CORRUPTED);
 
   // Wait for keys to be loaded (reference: sdbFile.c line 400)
   if (taosWaitCfgKeyLoaded() != 0) {
