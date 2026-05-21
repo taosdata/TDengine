@@ -175,6 +175,7 @@ typedef struct SRemoteValueListNode {
   int32_t    filterValueType;
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
+  uint64_t   streamGen;  // generation when hash was last built (stream mode)
 } SRemoteValueListNode;
 
 typedef struct SRemoteRowNode {
