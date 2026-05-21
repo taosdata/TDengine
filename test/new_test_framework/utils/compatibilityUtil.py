@@ -14,6 +14,7 @@ import taos
 import taosws
 import sys
 import os
+import re
 import time
 import platform
 import subprocess
@@ -26,6 +27,45 @@ from .common import *
 from taos.tmq import Consumer
 from new_test_framework.utils import clusterComCheck
 from taos.error import TmqError
+
+
+def _create_so_symlinks(lib_dir: str) -> None:
+    """为 lib_dir 内所有 libXXX.so.VER 创建不带版本号的符号链接 libXXX.so。
+
+    包里只提供 libtaos.so.3.3.7.9 这类带版本号的文件，但 taos 二进制链接的是
+    不带版本号的 libtaos.so 或 SONAME（如 libtaos.so.1）。若没有对应符号链接，
+    LD_LIBRARY_PATH 指向该目录时动态链接器无法找到库，会回退到系统路径。
+    """
+    import re as _re
+    import subprocess as _sp
+    p = Path(lib_dir)
+    for versioned in p.glob("lib*.so.*"):
+        if not versioned.is_file():
+            continue
+        name = versioned.name
+        dot_so = name.find(".so.")
+        if dot_so == -1:
+            continue
+        # 1. 不带版本号链接：libtaos.so -> libtaos.so.3.3.7.9
+        unversioned = p / (name[: dot_so + 3])
+        if not unversioned.exists():
+            unversioned.symlink_to(versioned.name)
+        # 2. SONAME 链接：libtaos.so.1 -> libtaos.so.3.3.5.0（旧版本 soname）
+        try:
+            out = _sp.run(
+                ["readelf", "-d", str(versioned)],
+                capture_output=True, text=True, timeout=10
+            ).stdout
+            for line in out.splitlines():
+                if "SONAME" in line:
+                    m = _re.search(r'\[([^\]]+)\]', line)
+                    if m:
+                        soname_link = p / m.group(1)
+                        if not soname_link.exists():
+                            soname_link.symlink_to(versioned.name)
+                    break
+        except Exception:
+            pass
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -101,8 +141,9 @@ class CompatibilityBase:
             
         tdLog.info(f"wget {download_url}")
         
-        # Extract package name without extension for installation
-        packageTPath = packageName.replace("-linux-x64.tar.gz", "")
+        # Compute extracted directory name (strip "-linux-{arch}.tar.gz")
+        packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
+        extract_dir = os.path.join(packagePath, packageTPath)
         my_file = Path(f"{packagePath}/{packageName}")
         if not my_file.exists():
             print(f"{packageName} is not exists")
@@ -117,25 +158,49 @@ class CompatibilityBase:
                 return False
         else: 
             print(f"{packageName} has been exists")
-            
-        install_ret = os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
-        if install_ret != 0:
-            return False
-        
+
+        # Extract without running install.sh to avoid overwriting system binaries
+        if not Path(extract_dir).exists():
+            extract_ret = os.system(f"cd {packagePath} && tar xf {packageName} > /dev/null 2>&1")
+            if extract_ret != 0:
+                return False
+
+        # The outer archive contains package.tar.gz with the actual bin/ tree.
+        # Extract it if bin/ is not yet present.
+        bin_dir = os.path.join(extract_dir, "bin")
+        if not Path(bin_dir).exists():
+            inner_pkg = os.path.join(extract_dir, "package.tar.gz")
+            if not Path(inner_pkg).exists():
+                tdLog.error(f"Neither bin/ nor package.tar.gz found in: {extract_dir}")
+                return False
+            extract_ret = os.system(f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1")
+            if extract_ret != 0:
+                return False
+
+        self.old_bin_dir = bin_dir
+        # Libraries are in driver/ (not lib/) for this package layout.
+        lib_dir = os.path.join(extract_dir, "driver")
+        if not Path(lib_dir).exists():
+            lib_dir = os.path.join(extract_dir, "lib")
+        self.old_lib_dir = lib_dir
+        _create_so_symlinks(lib_dir)
+
         for dnodePath in dnodePaths:
-            tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
-            os.system(f"rm -rf {dnodePath}data/* && nohup /usr/bin/taosd -c {dnodePath}cfg/ &")
+            tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {dnodePath}cfg/ &")
+            os.system(f"rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {dnodePath}cfg/ &")
             os.system(f"killall taosadapter")
-            os.system(f"cp /etc/taos/taosadapter.toml {dnodePath}cfg/taosadapter.toml")
-            taosadapter_cfg = dnodePath + "cfg/taosadapter.toml"
-            taosadapter_log_path = dnodePath + "log/"
-            print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
-            self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
-            self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{dnodePath}cfg/\"")
-            print("/usr/bin/taosadapter --version")
-            os.system(f"/usr/bin/taosadapter --version")
-            print(f"LD_LIBRARY_PATH=/usr/lib -c {taosadapter_cfg} 2>&1 &")
-            os.system(f"LD_LIBRARY_PATH=/usr/lib /usr/bin/taosadapter -c {taosadapter_cfg} 2>&1 &")
+            taosadapter_toml_src = "/etc/taos/taosadapter.toml"
+            if os.path.exists(taosadapter_toml_src):
+                os.system(f"cp {taosadapter_toml_src} {dnodePath}cfg/taosadapter.toml")
+                taosadapter_cfg = dnodePath + "cfg/taosadapter.toml"
+                taosadapter_log_path = dnodePath + "log/"
+                print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
+                self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
+                self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{dnodePath}cfg/\"")
+                print(f"{self.old_bin_dir}/taosadapter --version")
+                os.system(f"{self.old_bin_dir}/taosadapter --version")
+                print(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
+                os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
             time.sleep(5)
         
         return True
@@ -154,9 +219,6 @@ class CompatibilityBase:
             else:
                 packageName = f"tdengine-tsdb-oss-{base_version}-linux-x64.tar.gz"
                 download_url = f"https://downloads.taosdata.com/tdengine-tsdb-oss/{base_version}/{packageName}"
-            
-            # Extract package name without extension for installation
-            packageTPath = packageName.replace("-linux-x64.tar.gz", "")
         else:
             # Use old download URL format for versions before 3.3.7.0
             if platform.system() == "Linux" and platform.machine() == "aarch64":
@@ -166,7 +228,6 @@ class CompatibilityBase:
                 
             # Determine download URL
             download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
-            packageTPath = packageName.split("-Linux-")[0]
             
         tdLog.info(f"wget {download_url}")
         
@@ -177,27 +238,49 @@ class CompatibilityBase:
             os.system(f"cd {packagePath} && wget {download_url}")
         else: 
             print(f"{packageName} has been exists")
-            
-        os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
-        
+
+        # Compute extracted directory name and extract without running install.sh
+        packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
+        extract_dir = os.path.join(packagePath, packageTPath)
+        if not Path(extract_dir).exists():
+            os.system(f"cd {packagePath} && tar xf {packageName} > /dev/null 2>&1")
+
+        # The outer archive contains package.tar.gz with the actual bin/ tree.
+        # Extract it if bin/ is not yet present.
+        bin_dir = os.path.join(extract_dir, "bin")
+        if not Path(bin_dir).exists():
+            inner_pkg = os.path.join(extract_dir, "package.tar.gz")
+            if Path(inner_pkg).exists():
+                os.system(f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1")
+
+        self.old_bin_dir = bin_dir
+        # Libraries are in driver/ (not lib/) for this package layout.
+        lib_dir = os.path.join(extract_dir, "driver")
+        if not Path(lib_dir).exists():
+            lib_dir = os.path.join(extract_dir, "lib")
+        self.old_lib_dir = lib_dir
+        _create_so_symlinks(lib_dir)
+
         os.system(f"pkill -9 taosd")
         self.checkProcessPid("taosd")
 
-        print(f"start taosd: rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
-        os.system(f"rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
+        print(f"start taosd: rm -rf {dataPath}/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {cPath} &")
+        os.system(f"rm -rf {dataPath}/* && LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {cPath} &")
         os.system(f"killall taosadapter")
         self.checkProcessPid("taosadapter")
-        
-        os.system(f"cp /etc/taos/taosadapter.toml {cPath}/taosadapter.toml")
-        taosadapter_cfg = cPath + "/taosadapter.toml"
-        taosadapter_log_path = cPath + "/../log/"
-        print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
-        self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
-        self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{cPath}\"")
-        print("/usr/bin/taosadapter --version")
-        os.system(f"/usr/bin/taosadapter --version")
-        print(f"LD_LIBRARY_PATH=/usr/lib -c {taosadapter_cfg} 2>&1 &")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib /usr/bin/taosadapter -c {taosadapter_cfg} 2>&1 &")
+
+        taosadapter_toml_src = "/etc/taos/taosadapter.toml"
+        if os.path.exists(taosadapter_toml_src):
+            os.system(f"cp {taosadapter_toml_src} {cPath}/taosadapter.toml")
+            taosadapter_cfg = cPath + "/taosadapter.toml"
+            taosadapter_log_path = cPath + "/../log/"
+            print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
+            self.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
+            self.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{cPath}\"")
+            print(f"{self.old_bin_dir}/taosadapter --version")
+            os.system(f"{self.old_bin_dir}/taosadapter --version")
+            print(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
+            os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} 2>&1 &")
         time.sleep(5)
 
 
@@ -241,40 +324,44 @@ class CompatibilityBase:
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
         time.sleep(5)
         global dbname, stb, first_consumer_rows
+        # Use extracted old-version binaries to avoid polluting system paths
+        _old_taos = f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taos"
+        _old_bench = f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosBenchmark"
+        _old_adapter_bin = f"{self.old_bin_dir}/taosadapter"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
-        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database test   keep 365000 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database test  cachemodel \"both\" '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select last(*) from test.meters '")        
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+1s, 11, 190, 0.21), (now+2s, 11, 190, 0.21), (now+3s, 11, 190, 0.21), ('2015-07-14 08:39:59.001', 11, 190, 0.21), ('2032-08-14 08:39:59.001 ', 11, 190, 0.21) test.d3  values  (now+6s, 11, 190, 0.21), (now+7s, 11, 190, 0.21), (now+8s, 11, 190, 0.21), ('2033-07-14 08:39:59.000', 119, 191, 0.25) test.d3  (ts) values ('2033-07-14 08:39:58.000');\"")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select last(*) from test.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database test '")
+        tdLog.info(f" {_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
+        os.system(f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y  ")
+        os.system(f"{_old_taos} -s 'alter database test   keep 365000 '")
+        os.system(f"{_old_taos} -s 'alter database test  cachemodel \"both\" '")
+        os.system(f"{_old_taos} -s 'select last(*) from test.meters '")
+        os.system(f"{_old_taos} -s 'flush database test '")
+        os.system(f"{_old_taos} -s \"insert into test.d1 values (now+1s, 11, 190, 0.21), (now+2s, 11, 190, 0.21), (now+3s, 11, 190, 0.21), ('2015-07-14 08:39:59.001', 11, 190, 0.21), ('2032-08-14 08:39:59.001 ', 11, 190, 0.21) test.d3  values  (now+6s, 11, 190, 0.21), (now+7s, 11, 190, 0.21), (now+8s, 11, 190, 0.21), ('2033-07-14 08:39:59.000', 119, 191, 0.25) test.d3  (ts) values ('2033-07-14 08:39:58.000');\"")
+        os.system(f"{_old_taos} -s 'select last(*) from test.meters '")
+        os.system(f"{_old_taos} -s 'flush database test '")
 
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database curdb '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'alter database curdb  cachemodel \"both\" '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select count(*) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select last(*) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select sum(fc) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select avg(ic) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select min(ui) from curdb.meters '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'select max(bi) from curdb.meters '")
+        os.system(f"{_old_taos} -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
+        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y")
+        os.system(f"{_old_taos} -s 'flush database curdb '")
+        os.system(f"{_old_taos} -s 'alter database curdb  cachemodel \"both\" '")
+        os.system(f"{_old_taos} -s 'select count(*) from curdb.meters '")
+        os.system(f"{_old_taos} -s 'select last(*) from curdb.meters '")
+        os.system(f"{_old_taos} -s 'select sum(fc) from curdb.meters '")
+        os.system(f"{_old_taos} -s 'select avg(ic) from curdb.meters '")
+        os.system(f"{_old_taos} -s 'select min(ui) from curdb.meters '")
+        os.system(f"{_old_taos} -s 'select max(bi) from curdb.meters '")
 
         # Stream processing functionality removed - migrated to new stream computing framework
 
         # create db/stb/select topic
-        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {db_topic} with meta as database test" ')
+        os.system(f'{_old_taos} -s  "create topic if not exists {db_topic} with meta as database test" ')
 
-        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {stable_topic}  as stable test.meters where tbname like \\"d3\\";" ')
+        os.system(f'{_old_taos} -s  "create topic if not exists {stable_topic}  as stable test.meters where tbname like \\"d3\\";" ')
 
         
-        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists {select_topic}  as {topic_select_sql}" ')
+        os.system(f'{_old_taos} -s  "create topic if not exists {select_topic}  as {topic_select_sql}" ')
 
-        os.system('LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
-        os.system(f"  /usr/bin/taosadapter --version " )        
+        os.system(f'{_old_taos} -s  "use test;show topics;" ')
+        os.system(f"  {_old_adapter_bin} --version " )
         consumer_dict = {
             "group.id": "g1",
             "td.connect.websocket.scheme": "ws",
@@ -304,15 +391,15 @@ class CompatibilityBase:
 
         consumer.close()
         
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f cases/18-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
+        tdLog.info(f" {_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y  ")
+        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/compa4096.json -y")
+        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/all_insertmode_alltypes.json -y")
 
-        # os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f cases/18-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
+        # os.system(f"{_old_taos} -s 'flush database db4096 '")
+        os.system(f"{_old_taos} -f cases/18-StreamProcessing/30-OldPyCases/json/TS-3131.tsql")
 
         # add deleted  data
-        os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s "{deletedDataSql}" ')
+        os.system(f'{_old_taos} -s "{deletedDataSql}" ')
 
         if corss_major_version:
             cmd = f" LD_LIBRARY_PATH={bPath}/build/lib  {bPath}/build/bin/taos -h localhost ;"
@@ -426,7 +513,7 @@ class CompatibilityBase:
         tdsql=tdCom.newTdSql()
         print(tdsql)
         if corss_major_version:
-            cmd = f" LD_LIBRARY_PATH=/usr/lib  taos -h localhost ;"
+            cmd = f" LD_LIBRARY_PATH={self.old_lib_dir}  {self.old_bin_dir}/taos -h localhost ;"
             print(os.system(cmd))
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
