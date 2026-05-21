@@ -243,6 +243,8 @@ SNode*     createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNo
 SNode*     createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount);
 SNode*     createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
 SNode*     createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
+SNode*     createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration);
+SNode*     createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit);
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
                                  SNodeList* pColList);
 SNode*     createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* args);

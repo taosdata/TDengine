@@ -84,6 +84,14 @@ typedef struct SStateDeferredState {
   bool    hasPendingPartialNull;
 } SStateDeferredState;
 
+// Per-group streak state saved/restored across restarts (event window only)
+typedef struct SSTriggerGroupStreakState {
+  int32_t startCondCount;    // consecutive rows satisfying start condition (0 = no streak)
+  TSKEY   startCondFirstTs;  // timestamp of first row in current start streak
+  int32_t endCondCount;      // consecutive rows satisfying end condition (0 = no streak)
+  TSKEY   endCondFirstTs;    // timestamp of first row in current end streak
+} SSTriggerGroupStreakState;
+
 typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   int64_t                          gid;
@@ -104,6 +112,11 @@ typedef struct SSTriggerRealtimeGroup {
       char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      // streak state (start/end, always scalar — sub-event + start/end is rejected at parse time)
+      int32_t startCondCount;
+      TSKEY   startCondFirstTs;
+      int32_t endCondCount;
+      TSKEY   endCondFirstTs;
     };
     int64_t totalCount;  // for count window trigger
   };
@@ -411,6 +424,8 @@ typedef struct SStreamTriggerTask {
       SNodeList   *pStartCondCols;
       SNodeList   *pEndCondCols;
       STrueForInfo eventTrueForInfo;
+      STrueForInfo startTrueForInfo;  // start condition consecutive-streak limit
+      STrueForInfo endTrueForInfo;    // end condition consecutive-streak limit
     };
   };
   int32_t trigTsIndex;
@@ -487,6 +502,8 @@ typedef struct SStreamTriggerTask {
 
   // boundary between realtime and history
   SSHashObj *pHistoryCutoffTime;
+  // per-group start/end streak state for checkpoint restore (event window only)
+  SSHashObj *pGroupStreakState;  // SSHashObj<gid, SSTriggerGroupStreakState>
 
   // calc request pool
   SRWLatch   calcPoolLock;

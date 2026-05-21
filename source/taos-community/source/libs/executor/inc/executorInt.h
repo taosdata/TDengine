@@ -696,6 +696,12 @@ typedef struct SEventWindowOperatorInfo {
   SIndefRowsRuntime  indefRows;
   struct SOperatorInfo*     pOperator;
   STrueForInfo              trueForInfo;
+  STrueForInfo  startTrueForInfo;
+  int32_t       startCondCount;     // consecutive start-condition row count (across blocks)
+  int64_t       startCondFirstTs;   // ts of first row in current start-condition streak (INT64_MIN if none)
+  STrueForInfo  endTrueForInfo;
+  int32_t       endCondCount;       // consecutive end-condition row count (across blocks)
+  int64_t       endCondFirstTs;     // ts of first row in current end-condition streak (INT64_MIN if none)
 } SEventWindowOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)

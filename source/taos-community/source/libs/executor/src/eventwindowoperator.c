@@ -42,6 +42,10 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
   pEvent->inWindow = false;
+  pEvent->startCondCount   = 0;
+  pEvent->startCondFirstTs = INT64_MIN;
+  pEvent->endCondCount     = 0;
+  pEvent->endCondFirstTs   = INT64_MIN;
   pEvent->winSup.lastTs = INT64_MIN;
   resetIndefRowsRuntime(&pEvent->indefRows, pOper);
 
@@ -147,6 +151,16 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->trueForInfo.trueForType = pEventWindowNode->trueForType;
   pInfo->trueForInfo.count = pEventWindowNode->trueForCount;
   pInfo->trueForInfo.duration = pEventWindowNode->trueForDuration;
+  pInfo->startTrueForInfo.trueForType = pEventWindowNode->startTrueForType;
+  pInfo->startTrueForInfo.count       = pEventWindowNode->startTrueForCount;
+  pInfo->startTrueForInfo.duration    = pEventWindowNode->startTrueForDuration;
+  pInfo->endTrueForInfo.trueForType   = pEventWindowNode->endTrueForType;
+  pInfo->endTrueForInfo.count         = pEventWindowNode->endTrueForCount;
+  pInfo->endTrueForInfo.duration      = pEventWindowNode->endTrueForDuration;
+  pInfo->startCondCount   = 0;
+  pInfo->startCondFirstTs = INT64_MIN;
+  pInfo->endCondCount     = 0;
+  pInfo->endCondFirstTs   = INT64_MIN;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -427,15 +441,39 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   }
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
-    if (pInfo->inWindow) {  // let's find the first end value
+    if (pInfo->inWindow) {  // find enough consecutive end-condition rows to satisfy end_limit
       for (rowIndex = startIndex; rowIndex < pBlock->info.rows; ++rowIndex) {
         if (((bool*)pe->pData)[rowIndex]) {
-          break;
+          // End condition satisfied: accumulate streak.
+          if (pInfo->endCondCount == 0) {
+            pInfo->endCondFirstTs = tsList[rowIndex];
+          }
+          pInfo->endCondCount++;
+          if (isTrueForSatisfied(&pInfo->endTrueForInfo,
+                                 pInfo->endCondFirstTs, tsList[rowIndex],
+                                 pInfo->endCondCount)) {
+            // End threshold met: will close at FIRST row of end streak (handled after loop).
+            break;
+          }
+        } else {
+          // End condition interrupted: reset streak.
+          pInfo->endCondCount   = 0;
+          pInfo->endCondFirstTs = INT64_MIN;
         }
       }
 
       if (rowIndex < pBlock->info.rows) {
-        code = doEventWindowAggImpl(pInfo, pSup, startIndex, rowIndex, pBlock, tsList, pTaskInfo);
+        // End streak satisfied: close window at FIRST row of the end streak (not the last).
+        // Compute the row index of the first end-streak row in this block.
+        int32_t endStreakCount = pInfo->endCondCount;   // saved before clear
+        TSKEY   endFirstTs     = pInfo->endCondFirstTs; // saved before clear
+        pInfo->endCondCount   = 0;
+        pInfo->endCondFirstTs = INT64_MIN;
+        int32_t endRowIndex = rowIndex - (endStreakCount - 1);
+        if (endRowIndex < startIndex) endRowIndex = startIndex;
+        code = doEventWindowAggImpl(pInfo, pSup, startIndex, endRowIndex, pBlock, tsList, pTaskInfo);
+        // Override ekey with the first-row timestamp of the end streak.
+        pRowSup->win.ekey = endFirstTs;
         QUERY_CHECK_CODE(code, lino, _return);
         if (pInfo->indefRowsMode) {
           SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, pInfo->groupId, pRowSup->win.skey);
@@ -477,21 +515,47 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         }
 
         pInfo->inWindow = false;
+        pInfo->endCondCount   = 0;
+        pInfo->endCondFirstTs = INT64_MIN;
         rowIndex += 1;
       } else {
         code = doEventWindowAggImpl(pInfo, pSup, startIndex, pBlock->info.rows - 1, pBlock, tsList, pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _return);
       }
-    } else {  // find the first start value that is fulfill for the start condition
+    } else {  // find the first start value satisfying start_limit threshold
       for (; rowIndex < pBlock->info.rows; ++rowIndex) {
         if (((bool*)ps->pData)[rowIndex]) {
-          doKeepNewWindowStartInfo(pRowSup, tsList, rowIndex, gid);
-          pInfo->inWindow = true;
-          startIndex = rowIndex;
-          if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
-            clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
+          // Start condition satisfied for this row: accumulate streak.
+          if (pInfo->startCondCount == 0) {
+            pInfo->startCondFirstTs = tsList[rowIndex];
           }
-          break;
+          pInfo->startCondCount++;
+          if (isTrueForSatisfied(&pInfo->startTrueForInfo,
+                                 pInfo->startCondFirstTs, tsList[rowIndex],
+                                 pInfo->startCondCount)) {
+            // Threshold met: open window at FIRST row of start streak.
+            // Compute the row index of the first streak row in this block.
+            int32_t streakStartIdx = rowIndex - (pInfo->startCondCount - 1);
+            if (streakStartIdx < 0) streakStartIdx = 0;
+            TSKEY streakFirstTs = pInfo->startCondFirstTs;
+            pInfo->startCondCount   = 0;
+            pInfo->startCondFirstTs = INT64_MIN;
+            doKeepNewWindowStartInfo(pRowSup, tsList, streakStartIdx, gid);
+            // Override skey with the first-row timestamp (may be in a previous block).
+            pRowSup->win.skey = streakFirstTs;
+            pInfo->inWindow = true;
+            startIndex = streakStartIdx;
+            pInfo->endCondCount     = 0;
+            pInfo->endCondFirstTs   = INT64_MIN;
+            if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
+              clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
+            }
+            break;
+          }
+        } else {
+          // Start condition interrupted: reset streak.
+          pInfo->startCondCount   = 0;
+          pInfo->startCondFirstTs = INT64_MIN;
         }
       }
 

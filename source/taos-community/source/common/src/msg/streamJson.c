@@ -205,11 +205,17 @@ static int32_t jsonToSlidingTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* jkEventTriggerStartCond       = "startCond";
-static const char* jkEventTriggerEndCond         = "endCond";
-static const char* jkEventTriggerTrueForType     = "trueForType";
-static const char* jkEventTriggerTrueForCount    = "trueForCount";
-static const char* jkEventTriggerTrueForDuration = "trueForDuration";
+static const char* jkEventTriggerStartCond            = "startCond";
+static const char* jkEventTriggerEndCond              = "endCond";
+static const char* jkEventTriggerTrueForType          = "trueForType";
+static const char* jkEventTriggerTrueForCount         = "trueForCount";
+static const char* jkEventTriggerTrueForDuration      = "trueForDuration";
+static const char* jkEventTriggerStartTrueForType     = "startTrueForType";
+static const char* jkEventTriggerStartTrueForCount    = "startTrueForCount";
+static const char* jkEventTriggerStartTrueForDuration = "startTrueForDuration";
+static const char* jkEventTriggerEndTrueForType       = "endTrueForType";
+static const char* jkEventTriggerEndTrueForCount      = "endTrueForCount";
+static const char* jkEventTriggerEndTrueForDuration   = "endTrueForDuration";
 static int32_t eventTriggerToJson(const void* pObj, SJson* pJson) {
   const SEventTrigger* pTrigger = (const SEventTrigger*)pObj;
   if (NULL != pTrigger->startCond) {
@@ -223,6 +229,12 @@ static int32_t eventTriggerToJson(const void* pObj, SJson* pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerTrueForType, pTrigger->trueForType));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerTrueForCount, pTrigger->trueForCount));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerTrueForDuration, pTrigger->trueForDuration));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerStartTrueForType, pTrigger->startTrueForType));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerStartTrueForCount, pTrigger->startTrueForCount));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerStartTrueForDuration, pTrigger->startTrueForDuration));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerEndTrueForType, pTrigger->endTrueForType));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerEndTrueForCount, pTrigger->endTrueForCount));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerEndTrueForDuration, pTrigger->endTrueForDuration));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -235,6 +247,13 @@ static int32_t jsonToEventTrigger(const SJson* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkEventTriggerTrueForType, &pTrigger->trueForType));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkEventTriggerTrueForCount, &pTrigger->trueForCount));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(pJson, jkEventTriggerTrueForDuration, &pTrigger->trueForDuration));
+  // new fields: optional for backward compat (tjsonGetIntValue returns 0 if key absent)
+  (void)tjsonGetIntValue(pJson, jkEventTriggerStartTrueForType, &pTrigger->startTrueForType);
+  (void)tjsonGetIntValue(pJson, jkEventTriggerStartTrueForCount, &pTrigger->startTrueForCount);
+  (void)tjsonGetBigIntValue(pJson, jkEventTriggerStartTrueForDuration, &pTrigger->startTrueForDuration);
+  (void)tjsonGetIntValue(pJson, jkEventTriggerEndTrueForType, &pTrigger->endTrueForType);
+  (void)tjsonGetIntValue(pJson, jkEventTriggerEndTrueForCount, &pTrigger->endTrueForCount);
+  (void)tjsonGetBigIntValue(pJson, jkEventTriggerEndTrueForDuration, &pTrigger->endTrueForDuration);
   return TSDB_CODE_SUCCESS;
 }
 

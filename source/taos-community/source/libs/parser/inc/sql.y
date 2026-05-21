@@ -2865,6 +2865,56 @@ true_for_opt(A) ::= TRUE_FOR NK_LP COUNT NK_INTEGER(B) NK_RP.                   
 true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
+// A single limit sub-expression (used as window_limit, start_limit, or end_limit).
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B).                  { A = createTrueForDurationNode(pCxt, releaseRawExprNode(pCxt, B)); }
+true_for_limit_expr(A) ::= COUNT NK_INTEGER(B).                                   { A = createTrueForCountNode(pCxt, &B); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT NK_INTEGER(C). { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+
+// Extended true_for_opt with start/end sub-expressions.
+// window_limit + start
+true_for_opt(A) ::= TRUE_FOR NK_LP true_for_limit_expr(W) NK_COMMA START NK_LP true_for_limit_expr(S) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, NULL); }
+// window_limit + end
+true_for_opt(A) ::= TRUE_FOR NK_LP true_for_limit_expr(W) NK_COMMA END NK_LP true_for_limit_expr(E) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, W, NULL, E); }
+// window_limit + start + end
+true_for_opt(A) ::= TRUE_FOR NK_LP true_for_limit_expr(W) NK_COMMA START NK_LP true_for_limit_expr(S) NK_RP NK_COMMA END NK_LP true_for_limit_expr(E) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, E); }
+// start only (no window_limit)
+true_for_opt(A) ::= TRUE_FOR NK_LP START NK_LP true_for_limit_expr(S) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, NULL, S, NULL); }
+// end only (no window_limit)
+true_for_opt(A) ::= TRUE_FOR NK_LP END NK_LP true_for_limit_expr(E) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, NULL, NULL, E); }
+// start + end (no window_limit)
+true_for_opt(A) ::= TRUE_FOR NK_LP START NK_LP true_for_limit_expr(S) NK_RP NK_COMMA END NK_LP true_for_limit_expr(E) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, NULL, S, E); }
+// end + start (no window_limit) — reordered
+true_for_opt(A) ::= TRUE_FOR NK_LP END NK_LP true_for_limit_expr(E) NK_RP NK_COMMA START NK_LP true_for_limit_expr(S) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, NULL, S, E); }
+// end only (window_limit) — window last
+true_for_opt(A) ::= TRUE_FOR NK_LP END NK_LP true_for_limit_expr(E) NK_RP NK_COMMA true_for_limit_expr(W) NK_RP.
+  { A = createTrueForFullNode(pCxt, W, NULL, E); }
+// start + window — window last
+true_for_opt(A) ::= TRUE_FOR NK_LP START NK_LP true_for_limit_expr(S) NK_RP NK_COMMA true_for_limit_expr(W) NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, NULL); }
+// start + window + end
+true_for_opt(A) ::= TRUE_FOR NK_LP START NK_LP true_for_limit_expr(S) NK_RP NK_COMMA true_for_limit_expr(W) NK_COMMA END NK_LP true_for_limit_expr(E) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, E); }
+// window + end + start
+true_for_opt(A) ::= TRUE_FOR NK_LP true_for_limit_expr(W) NK_COMMA END NK_LP true_for_limit_expr(E) NK_RP NK_COMMA START NK_LP true_for_limit_expr(S) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, E); }
+// end + start + window
+true_for_opt(A) ::= TRUE_FOR NK_LP END NK_LP true_for_limit_expr(E) NK_RP NK_COMMA START NK_LP true_for_limit_expr(S) NK_RP NK_COMMA true_for_limit_expr(W) NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, E); }
+// end + window + start
+true_for_opt(A) ::= TRUE_FOR NK_LP END NK_LP true_for_limit_expr(E) NK_RP NK_COMMA true_for_limit_expr(W) NK_COMMA START NK_LP true_for_limit_expr(S) NK_RP NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, E); }
+// start + end + window
+true_for_opt(A) ::= TRUE_FOR NK_LP START NK_LP true_for_limit_expr(S) NK_RP NK_COMMA END NK_LP true_for_limit_expr(E) NK_RP NK_COMMA true_for_limit_expr(W) NK_RP.
+  { A = createTrueForFullNode(pCxt, W, S, E); }
+
 /************************************************ query_expression ****************************************************/
 query_expression(A) ::= query_simple(B)
   order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E).                {

@@ -1358,6 +1358,8 @@ static int32_t trueForNodeCopy(const STrueForNode* pSrc, STrueForNode* pDst) {
   COPY_SCALAR_FIELD(trueForType);
   COPY_SCALAR_FIELD(count);
   CLONE_NODE_FIELD(pDuration);
+  CLONE_NODE_FIELD(pStartLimit);
+  CLONE_NODE_FIELD(pEndLimit);
 
   return TSDB_CODE_SUCCESS;
 }
