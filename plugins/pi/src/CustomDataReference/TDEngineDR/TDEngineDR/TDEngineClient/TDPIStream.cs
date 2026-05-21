@@ -23,11 +23,12 @@ namespace TDEngineDR.TDEngineClient
         {
             this.httpClient = httpClient;
         }
+
         internal static TDPIStream CreateTDPIStreamForPIPoint(TDHttpClient httpClient, string database, string pointName)
         {
             TDPIStream tdPIStream = new TDPIStream(httpClient);
-            tdPIStream.Database = database;
-            tdPIStream.Table = pointName;
+            tdPIStream.Database = database.SanitizeIdentifier();
+            tdPIStream.Table = pointName.SanitizeIdentifier();
             tdPIStream.ColumnValue = "val";
             tdPIStream.ColumnStatus = "quality";
             tdPIStream.Mode = TDPIStreamMode.PIPoint;
@@ -37,10 +38,10 @@ namespace TDEngineDR.TDEngineClient
         internal static TDPIStream CreateTDPIStreamForAFElement(TDHttpClient httpClient, string database, string element, string attribute)
         {
             TDPIStream tdPIStream = new TDPIStream(httpClient);
-            tdPIStream.Database = database;
-            tdPIStream.Table = element;
-            tdPIStream.ColumnValue = attribute.ToDatabaseName() + "_val";
-            tdPIStream.ColumnStatus = attribute.ToDatabaseName() + "_status";
+            tdPIStream.Database = database.SanitizeIdentifier();
+            tdPIStream.Table = element.SanitizeIdentifier();
+            tdPIStream.ColumnValue = (attribute.ToDatabaseName() + "_val").SanitizeIdentifier();
+            tdPIStream.ColumnStatus = (attribute.ToDatabaseName() + "_status").SanitizeIdentifier();
             tdPIStream.Mode = TDPIStreamMode.AFElement;
             return tdPIStream;
         }
@@ -48,9 +49,9 @@ namespace TDEngineDR.TDEngineClient
         internal static TDPIStream CreateTDPIStreamForTable(TDHttpClient httpClient, string database, string table, string column)
         {
             TDPIStream tdPIStream = new TDPIStream(httpClient);
-            tdPIStream.Database = database;
-            tdPIStream.Table = table;
-            tdPIStream.ColumnValue = column;
+            tdPIStream.Database = database.SanitizeIdentifier();
+            tdPIStream.Table = table.SanitizeIdentifier();
+            tdPIStream.ColumnValue = column.SanitizeIdentifier();
             tdPIStream.ColumnStatus = null;
             tdPIStream.Mode = TDPIStreamMode.Table;
             return tdPIStream;
@@ -58,14 +59,14 @@ namespace TDEngineDR.TDEngineClient
 
         public async Task<TDValue> GetSnapshotValueAsync()
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} ORDER BY ts DESC limit 1;";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` ORDER BY ts DESC limit 1;";
             TDEngineResponse resp = await this.httpClient.RetrieveDataAsync(sqlCommand, Database);
             return resp.ToTDValue();
         }
 
         public TDValue GetSnapshotValue()
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} ORDER BY ts DESC limit 1;";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` ORDER BY ts DESC limit 1;";
             TDEngineResponse resp = this.httpClient.RetrieveData(sqlCommand, Database);
             return resp.ToTDValue();
         }
@@ -74,17 +75,17 @@ namespace TDEngineDR.TDEngineClient
         {
             if (!string.IsNullOrEmpty(ColumnStatus))
             {
-                return $"ts, {ColumnValue}, {ColumnStatus}";
+                return $"ts, `{ColumnValue}`, `{ColumnStatus}`";
             }
             else
             {
-                return $"ts, {ColumnValue}";
+                return $"ts, `{ColumnValue}`";
             }
         }
 
         public async Task<TDValue> GetRecordedValueAsync(DateTime timestamp)
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ts = '{timestamp.ToUtcTimeString()}';";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ts = '{timestamp.ToUtcTimeString()}';";
             TDEngineResponse resp = await this.httpClient.RetrieveDataAsync(sqlCommand, Database);
             TDValue tdValue = resp.ToTDValue();
             if (tdValue == null)
@@ -96,7 +97,7 @@ namespace TDEngineDR.TDEngineClient
 
         public TDValue GetRecordedValue(DateTime timestamp)
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ts = '{timestamp.ToUtcTimeString()}';";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ts = '{timestamp.ToUtcTimeString()}';";
             TDEngineResponse resp = this.httpClient.RetrieveData(sqlCommand, Database);
             TDValue tdValue = resp.ToTDValue();
             if (tdValue == null)
@@ -108,7 +109,7 @@ namespace TDEngineDR.TDEngineClient
 
         public async Task<TDValues> GetRecordedValuesAsync(DateTime startTime, DateTime endTime)
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}';";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}';";
             TDEngineResponse resp = await this.httpClient.RetrieveDataAsync(sqlCommand, Database);
             TDValues tdValues = resp.ToTDValues();
             return tdValues;
@@ -116,7 +117,7 @@ namespace TDEngineDR.TDEngineClient
 
         public TDValues GetRecordedValues(DateTime startTime, DateTime endTime)
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}';";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}';";
             TDEngineResponse resp = this.httpClient.RetrieveData(sqlCommand, Database);
             TDValues tdValues = resp.ToTDValues();
             return tdValues;
@@ -124,7 +125,7 @@ namespace TDEngineDR.TDEngineClient
 
         public async Task<TDValues> RecordedValuesAtTimesAsync(IList<DateTime> times)
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ";
 
             foreach (DateTime time in times)
             {
@@ -138,7 +139,7 @@ namespace TDEngineDR.TDEngineClient
 
         public TDValues RecordedValuesAtTimes(List<DateTime> times)
         {
-            string sqlCommand = $"select {GetAllStringColumnNames()} from from {Table} where ";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ";
 
             foreach (DateTime time in times)
             {
@@ -157,7 +158,7 @@ namespace TDEngineDR.TDEngineClient
             {
                 greaterOrLess = "<=";
             }
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ts {greaterOrLess} '{timestamp.ToUtcTimeString()}' LIMIT {numberOfEvents};";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ts {greaterOrLess} '{timestamp.ToUtcTimeString()}' LIMIT {numberOfEvents};";
             TDEngineResponse resp = await this.httpClient.RetrieveDataAsync(sqlCommand, Database);
             TDValues tdValues = resp.ToTDValues();
             return tdValues;
@@ -172,7 +173,7 @@ namespace TDEngineDR.TDEngineClient
                 greaterOrLess = "<=";
                 orderByDescAsc = "DESC";
             }
-            string sqlCommand = $"select {GetAllStringColumnNames()} from {Table} where ts {greaterOrLess} '{timestamp.ToUtcTimeString()}' ORDER BY ts {orderByDescAsc} LIMIT {numberOfEvents};";
+            string sqlCommand = $"select {GetAllStringColumnNames()} from `{Database}`.`{Table}` where ts {greaterOrLess} '{timestamp.ToUtcTimeString()}' ORDER BY ts {orderByDescAsc} LIMIT {numberOfEvents};";
             TDEngineResponse resp = this.httpClient.RetrieveData(sqlCommand, Database);
             TDValues tdValues = resp.ToTDValues();
             return tdValues;
@@ -181,7 +182,7 @@ namespace TDEngineDR.TDEngineClient
 
         public async Task<TDValue> InterpolatedValueAsync(DateTime timestamp)
         {
-            string sqlCommand = $"select interp({ColumnValue}) from {Table} RANGE('{timestamp.AddDays(-1).ToUtcTimeString()}','{timestamp.AddDays(1).ToUtcTimeString()}') EVERY(1d) FILL(LINEAR)";
+            string sqlCommand = $"select interp(`{ColumnValue}`) from `{Database}`.`{Table}` RANGE('{timestamp.AddDays(-1).ToUtcTimeString()}','{timestamp.AddDays(1).ToUtcTimeString()}') EVERY(1d) FILL(LINEAR)";
             TDEngineResponse resp = await this.httpClient.RetrieveDataAsync(sqlCommand, Database);
             double value = ConvertToDouble(resp.Data[1][0]);
             return new TDValue(value, timestamp, 0, TDValueType.Double);
@@ -190,7 +191,7 @@ namespace TDEngineDR.TDEngineClient
 
         internal TDValue InterpolatedValue(DateTime timestamp)
         {
-            string sqlCommand = $"select interp({ColumnValue}) from {Table} RANGE('{timestamp.AddDays(-1).ToUtcTimeString()}','{timestamp.AddDays(1).ToUtcTimeString()}') EVERY(1d) FILL(LINEAR)";
+            string sqlCommand = $"select interp(`{ColumnValue}`) from `{Database}`.`{Table}` RANGE('{timestamp.AddDays(-1).ToUtcTimeString()}','{timestamp.AddDays(1).ToUtcTimeString()}') EVERY(1d) FILL(LINEAR)";
             TDEngineResponse resp = this.httpClient.RetrieveData(sqlCommand, Database);
             if (resp.Data.Count == 3)
             {
@@ -206,7 +207,7 @@ namespace TDEngineDR.TDEngineClient
         {
 
             string intervalString = GetIntervalString(interval);
-            string sqlCommand = $"select _irowts, interp({ColumnValue}) from {Table} RANGE('{startTime.ToUtcTimeString()}','{endTime.ToUtcTimeString()}') EVERY({intervalString}) FILL(LINEAR)";
+            string sqlCommand = $"select _irowts, interp(`{ColumnValue}`) from `{Database}`.`{Table}` RANGE('{startTime.ToUtcTimeString()}','{endTime.ToUtcTimeString()}') EVERY({intervalString}) FILL(LINEAR)";
             TDEngineResponse resp = this.httpClient.RetrieveData(sqlCommand, Database);
             TDValues tdValues = new TDValues();
             for (int i = 0; i < resp.Data.Count; i++)
@@ -241,7 +242,7 @@ namespace TDEngineDR.TDEngineClient
         {
 
             string intervalString = GetIntervalString(interval);
-            string sqlCommand = $"select _irowts, interp({ColumnValue}) from {Table} RANGE('{startTime.ToUtcTimeString()}','{endTime.ToUtcTimeString()}') EVERY({intervalString}) FILL(LINEAR)";
+            string sqlCommand = $"select _irowts, interp(`{ColumnValue}`) from `{Database}`.`{Table}` RANGE('{startTime.ToUtcTimeString()}','{endTime.ToUtcTimeString()}') EVERY({intervalString}) FILL(LINEAR)";
             TDEngineResponse resp = await this.httpClient.RetrieveDataAsync(sqlCommand, Database);
             TDValues tdValues = new TDValues();
             for (int i = 0; i < resp.Data.Count; i++)
@@ -324,7 +325,7 @@ namespace TDEngineDR.TDEngineClient
         {
             CheckPIPointMode();
             StringBuilder sb = new StringBuilder((int)(1000000));
-            sb.Append($"INSERT INTO {Table} VALUES ");
+            sb.Append($"INSERT INTO `{Database}`.`{Table}` VALUES ");
             foreach (TDValue value in values)
             {
                 if (value.Quality == 0)
@@ -344,7 +345,7 @@ namespace TDEngineDR.TDEngineClient
         {
             CheckPIPointMode();
             StringBuilder sb = new StringBuilder((int)(1000000));
-            sb.Append($"INSERT INTO {Table} VALUES ");
+            sb.Append($"INSERT INTO `{Database}`.`{Table}` VALUES ");
             foreach (TDValue value in values)
             {
                 if (value.Quality == 0)
@@ -364,7 +365,7 @@ namespace TDEngineDR.TDEngineClient
         {
             CheckPIPointMode();
             StringBuilder sb = new StringBuilder((int)(1000000));
-            sb.Append($"INSERT INTO {Table} VALUES ");
+            sb.Append($"INSERT INTO `{Database}`.`{Table}` VALUES ");
 
             if (value.Quality == 0)
             {
@@ -382,7 +383,7 @@ namespace TDEngineDR.TDEngineClient
         {
             CheckPIPointMode();
             StringBuilder sb = new StringBuilder((int)(1000000));
-            sb.Append($"INSERT INTO {Table} VALUES ");
+            sb.Append($"INSERT INTO `{Database}`.`{Table}` VALUES ");
 
             if (value.Quality == 0)
             {
@@ -409,27 +410,27 @@ namespace TDEngineDR.TDEngineClient
             string querySummary = string.Empty;
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Average))
             {
-                querySummary += $"AVG({ColumnValue}), ";
+                querySummary += $"AVG(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Count))
             {
-                querySummary += $"COUNT({ColumnValue}), ";
+                querySummary += $"COUNT(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Maximum))
             {
-                querySummary += $"MAX({ColumnValue}), ";
+                querySummary += $"MAX(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Minimum))
             {
-                querySummary += $"MIN({ColumnValue}), ";
+                querySummary += $"MIN(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Total))
             {
-                querySummary += $"SUM({ColumnValue}), ";
+                querySummary += $"SUM(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.StdDev))
             {
-                querySummary += $"STDDEV({ColumnValue}), ";
+                querySummary += $"STDDEV(`{ColumnValue}`), ";
             }
             if (string.IsNullOrEmpty(querySummary))
             {
@@ -438,7 +439,7 @@ namespace TDEngineDR.TDEngineClient
             querySummary = querySummary.Substring(0, querySummary.Length - 2);
 
 
-            string sqlCommand = $"select {querySummary} from { Table} where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}';";
+            string sqlCommand = $"select {querySummary} from `{Database}`.`{Table}` where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}';";
             return sqlCommand;
         }
 
@@ -498,32 +499,32 @@ namespace TDEngineDR.TDEngineClient
             string querySummary = "_WSTART, ";
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Average))
             {
-                querySummary += $"AVG({ColumnValue}), ";
+                querySummary += $"AVG(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Count))
             {
-                querySummary += $"COUNT({ColumnValue}), ";
+                querySummary += $"COUNT(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Maximum))
             {
-                querySummary += $"MAX({ColumnValue}), ";
+                querySummary += $"MAX(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Minimum))
             {
-                querySummary += $"MIN({ColumnValue}), ";
+                querySummary += $"MIN(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.Total))
             {
-                querySummary += $"SUM({ColumnValue}), ";
+                querySummary += $"SUM(`{ColumnValue}`), ";
             }
             if (tdSummaryTypes.HasFlag(TDSummaryTypes.StdDev))
             {
-                querySummary += $"STDDEV({ColumnValue}), ";
+                querySummary += $"STDDEV(`{ColumnValue}`), ";
             }
             querySummary = querySummary.Substring(0, querySummary.Length - 2);
 
 
-            string sqlCommand = $"select {querySummary} from { Table} where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}' INTERVAL({interval.TotalMinutes}m) FILL(NULL);";
+            string sqlCommand = $"select {querySummary} from `{Database}`.`{Table}` where ts >= '{startTime.ToUtcTimeString()}' AND ts <= '{endTime.ToUtcTimeString()}' INTERVAL({interval.TotalMinutes}m) FILL(NULL);";
             return sqlCommand;
         }
 
