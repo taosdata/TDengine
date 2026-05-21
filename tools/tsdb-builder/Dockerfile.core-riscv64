@@ -33,7 +33,7 @@ RUN tar -C /usr/local -xzf /tmp/packages/go${GO_VERSION}.linux-riscv64.tar.gz &&
 ENV GOROOT=/usr/local/go
 ENV PATH=${GOROOT}/bin:${PATH}
 
-ARG GO_PROXY=https://goproxy.cn
+ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
 RUN GOPROXY=${GO_PROXY} CGO_ENABLED=0 go install github.com/magefile/mage@latest
 
 # ============================================================================
@@ -50,6 +50,7 @@ WORKDIR /home
 # Development Tools Versions
 ARG GO_VERSION=1.23.4
 ARG RUST_VERSION=1.90.0
+ARG SCCACHE_VERSION=0.15.0
 
 # Python Package Versions
 ARG TAOSPY_VERSION=2.8.9
@@ -58,8 +59,8 @@ ARG TAOS_WS_PY_VERSION=0.6.9
 # Mirror Configuration
 ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
 ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
-ARG GO_PROXY=https://goproxy.cn
-ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
+ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan/
 
 # Timezone Configuration
 ARG TIMEZONE=Asia/Shanghai
@@ -140,6 +141,13 @@ ENV PATH=/root/.cargo/bin:${PATH}
 
 # Copy Cargo configuration
 COPY .cargo/config.toml /root/.cargo/config.toml
+
+# sccache: prebuilt musl binary for Rust compile caching (opt-in via --sccache)
+# NOTE: sccache does NOT publish prebuilt binaries for riscv64.
+# Skip installation here; build.sh runtime fallback will handle it
+# (either cargo-install or disable RUSTC_WRAPPER).
+ARG SCCACHE_VERSION
+RUN echo "[INFO] sccache: no prebuilt binary available for riscv64, skipping Dockerfile install"
 
 # ============================================================================
 # Layer 4: Python environment

@@ -3422,7 +3422,7 @@ dependencies = [
  "taos-error",
  "thiserror 1.0.69",
  "tokio",
- "tokio-tungstenite 0.23.1",
+ "tokio-tungstenite 0.23.1 (git+https://github.com/taosdata/tokio-tungstenite.git?rev=3420353)",
  "tracing",
  "url",
  "uuid",
@@ -3458,7 +3458,7 @@ dependencies = [
  "taos-query",
  "thiserror 1.0.69",
  "tokio",
- "tokio-tungstenite 0.23.1",
+ "tokio-tungstenite 0.23.1 (git+https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git?rev=3420353)",
  "tokio-util",
  "tracing",
  "tracing-subscriber",
@@ -3498,7 +3498,7 @@ dependencies = [
  "taos-query",
  "taos-ws",
  "tokio",
- "tokio-tungstenite 0.23.1",
+ "tokio-tungstenite 0.23.1 (git+https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git?rev=3420353)",
  "tracing",
  "tracing-log",
  "tracing-subscriber",
@@ -3737,7 +3737,7 @@ dependencies = [
 [[package]]
 name = "tokio-tungstenite"
 version = "0.23.1"
-source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
 dependencies = [
  "futures-util",
  "log",
@@ -3748,6 +3748,17 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
+ "tungstenite 0.23.0",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.23.1"
+source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
  "tungstenite 0.23.0",
 ]
 
@@ -3891,7 +3902,7 @@ dependencies = [
 [[package]]
 name = "tungstenite"
 version = "0.23.0"
-source = "git+https://github.com/taosdata/tungstenite-rs.git?branch=feat%2Ftaosdata%2Fpermessage-deflate#e4d146b831fe8255c669ce9984267ba3204999c5"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git?branch=feat%2Ftaosdata%2Fpermessage-deflate#e4d146b831fe8255c669ce9984267ba3204999c5"
 dependencies = [
  "byteorder",
  "bytes",

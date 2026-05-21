@@ -68,7 +68,7 @@ tokio-util = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["time"] }
 toml.workspace = true
 either = "1.8"
-tinytemplate = { git = "https://github.com/bitcapybara/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
+tinytemplate = { git = "https://git.tdengine.net/taosdata/rust-deps/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
 serde_json_path = "0.7"
 csv.workspace = true
 glob.workspace = true
