@@ -953,9 +953,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   bool                        createTable = false;
   SSDataBlock*                pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
-  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d", pReq->gid, pTask->topTask);
+  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d, brandNew:%d", pReq->gid, pTask->topTask, pReq->brandNew);
 
-  code = stRunnerTaskAcquireExec(pTask, pReq->execId, true, &pExec);
+  // Always markRunning=true: slot goes into running list during execution
+  // and is unconditionally released back to free list at end.
+  bool markRunning = true;
+  code = stRunnerTaskAcquireExec(pTask, pReq->execId, markRunning, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
@@ -1036,9 +1039,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
         }
       }
     } else {
-      if (pBlock) {
+      // Scalar subquery (non-topTask): return one block per call, then release immediately.
+      // The scalar subQ result is small enough to fit in one response (e.g. 50 groupids).
+      if (pBlock && pBlock->info.rows > 0) {
         STREAM_CHECK_RET_GOTO(createOneDataBlock(pBlock, true, (SSDataBlock**)&pReq->pOutBlock));
       }
+      pReq->execId = pExec->runtimeInfo.execId;
       break;
     }
     if (finished) {
@@ -1071,6 +1077,8 @@ end:
   ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
   
   stRunnerTaskReleaseExec(pTask, pExec);
+
+
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {
     ST_TASK_ELOG("[runner calc]faild gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));

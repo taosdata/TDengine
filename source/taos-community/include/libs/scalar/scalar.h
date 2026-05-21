@@ -31,7 +31,9 @@ typedef struct SScalarExtraInfo {
   void*   pStreamInfo;
   void*   pStreamRange;
   void*   pSubJobCtx;
+  bool    isStream;
   sclFetchFromRemote fp;
+  uint64_t streamGen;
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
