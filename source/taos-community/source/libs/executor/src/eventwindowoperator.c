@@ -552,26 +552,22 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
             }
           }
           pInfo->startCondCount++;
-          // Aggregate this streak row eagerly so it lands in pInfo->pRow (or the
-          // indefRows window state) regardless of which block it arrived in.
-          // For indefRowsMode: creates/updates the pending window state keyed on
-          // startCondFirstTs.  For !indefRowsMode: allocates pInfo->pRow on first
-          // call (when pRow is NULL) and accumulates into it on subsequent calls.
-          code = doEventWindowAggImpl(pInfo, pSup, rowIndex, rowIndex, pBlock, tsList, pTaskInfo);
-          QUERY_CHECK_CODE(code, lino, _return);
-          if (isTrueForSatisfied(&pInfo->startTrueForInfo, pInfo->startCondFirstTs, tsList[rowIndex],
-                                 pInfo->startCondCount)) {
-            TSKEY streakFirstTs = pInfo->startCondFirstTs;
+          bool streakDone = isTrueForSatisfied(&pInfo->startTrueForInfo, pInfo->startCondFirstTs, tsList[rowIndex],
+                                               pInfo->startCondCount);
+          if (!streakDone || pInfo->startCondCount > 1) {
+            code = doEventWindowAggImpl(pInfo, pSup, rowIndex, rowIndex, pBlock, tsList, pTaskInfo);
+            QUERY_CHECK_CODE(code, lino, _return);
+          }
+          if (streakDone) {
+            int32_t streakLen     = pInfo->startCondCount;
+            TSKEY   streakFirstTs = pInfo->startCondFirstTs;
             pInfo->startCondCount   = 0;
             pInfo->startCondFirstTs = INT64_MIN;
             pInfo->inWindow = true;
             pInfo->endCondCount = 0;
             pInfo->endCondFirstTs = INT64_MIN;
-            // All streak rows are already aggregated tentatively (in pInfo->pRow
-            // for !indefRowsMode, or in the indefRows window state for
-            // indefRowsMode).  Resume from the next row to avoid double-counting.
             pRowSup->win.skey = streakFirstTs;
-            startIndex = rowIndex + 1;
+            startIndex = (streakLen > 1) ? rowIndex + 1 : rowIndex;
             break;
           }
         } else {
