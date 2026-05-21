@@ -62,3 +62,7 @@ vendor/
 sim/
 taos-/
 .history/*
+allure-results/
+prompts/
+screenlog.0
+yarn.lock

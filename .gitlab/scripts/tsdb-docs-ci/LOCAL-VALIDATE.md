@@ -1,12 +1,12 @@
-# 文档本地校验脚本
+# 文档本地校验与预览脚本
 
-文档贡献者**在本机一键复现 docs CI**的工具，避免提交 MR 后才发现格式或拼写问题。
+文档贡献者**在本机一键复现 docs CI / 预览中英文文档站点**的工具，避免提交 MR 后才发现格式或拼写问题，也能在校验通过后立刻用浏览器查看渲染结果。
 
 | 文件 | 作用 |
 |------|------|
-| `local-validate.sh` | 本地一键运行 docs CI（与 GitLab 上一致） |
+| `local-validate.sh` | 本地一键运行 docs CI（与 GitLab 上一致），可选 `--preview` 在校验通过后启动中英文预览服务 |
 
-> 本目录同时存放 CI 服务器端脚本，架构与维护要点见 [`README.md`](./README.md)。本文档只讲贡献者如何用 `local-validate.sh` 在本地一键复现。
+> 本目录同时存放 CI 服务器端脚本，架构与维护要点见 [`README.md`](./README.md)。本文档只讲贡献者如何在本地复现校验与预览。
 
 ---
 
@@ -159,6 +159,48 @@ docker save docs-ci:local | gzip > docs-ci.tgz       # 在线机器上导出
 ```
 
 不希望污染当前目录的话，可以用 `--workdir /tmp/docs-ci-work` 指定别处。
+
+---
+
+## 本地预览文档站点
+
+加上 `--preview` 选项，`local-validate.sh` 会在常规校验通过后，**强制构建中英文两个站点并各起一个 docusaurus serve 容器**，让你用浏览器实时查看 build 产物。
+
+### 快速开始
+
+```bash
+# 校验 + 预览中英文（默认 zh=3000, en=3001）
+.gitlab/scripts/tsdb-docs-ci/local-validate.sh --preview
+
+# 自定义端口
+.gitlab/scripts/tsdb-docs-ci/local-validate.sh --preview --zh-port 4000 --en-port 4001
+```
+
+校验通过后会打印两个地址：
+
+```text
+==========================================================
+docs preview ready (Ctrl+C to stop both servers)
+  中文站点: http://localhost:3000
+  English : http://localhost:3001
+==========================================================
+```
+
+浏览器分别打开两个 URL 即可看到中文站和英文站。按 `Ctrl+C` 同时停掉两个容器。
+
+### 选项
+
+| 选项 | 说明 |
+|------|------|
+| `--preview` | 启用预览模式（默认关闭，校验完即退出） |
+| `--zh-port N` | 中文站点宿主机端口（默认 `3000`） |
+| `--en-port N` | 英文站点宿主机端口（默认 `3001`） |
+
+### 常见问题
+
+- **`Error: listen EADDRINUSE :::3000`**：本机端口被占用，改用 `--zh-port 4000` 之类。
+- **改 markdown 后页面没变**：当前预览基于 `yarn build` 静态产物，**不是 dev 热刷新**；改完文件后请重新跑 `local-validate.sh --preview`。这样能完全复现 CI 上的最终页面效果。
+- **想看英文站效果但 include 是中文路径**：确认你改的是 `source/taos-community/docs/en/`；中文请改 `zh/`。
 
 ---
 

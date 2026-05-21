@@ -40,6 +40,9 @@ tsdb-ci:
     strategy: depend
   variables:
     PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
+    # CI_MERGE_REQUEST_IID 是 MR 类预定义变量，GitLab 不保证自动导出到子流水线作业环境，
+    # 显式透传以确保 coordinator.py 的 _compute_workspace() 能正确计算工作区路径。
+    PARENT_MR_IID: $CI_MERGE_REQUEST_IID
   rules:
     - if: $RUN_TSDB_CI == "true"
     # MR 场景：仅当代码相关文件变更时触发（排除纯文档/打包/tdgpt 变更）
@@ -58,6 +61,8 @@ tsdb-ci:
         - source/taos-community/utils/**/*
         - source/taos-internal/**/*
         - source/taos-adapter/**/*
+        - "source/taos-community/test/**/*"
+        - "tests/ci/scripts/**/*"
         - cmake/**/*
         - CMakeLists.txt
         - .gitlab/.gitlab-ci.yml

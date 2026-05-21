@@ -24,7 +24,7 @@ if [ "${ROOT}" != "${TSDB_DIR}" ]; then
 fi
 
 # Forward workspace and CI variables needed by scripts inside the container.
-for _var in DOCS_CI_WORKDIR TSDB_DIR ZH_DOC_DIR EN_DOC_DIR CI_COMMIT_SHA CI_MERGE_REQUEST_DIFF_BASE_SHA CI_CONCURRENT_PROJECT_ID; do
+for _var in DOCS_CI_WORKDIR TSDB_DIR ZH_DOC_DIR EN_DOC_DIR CI_COMMIT_SHA CI_MERGE_REQUEST_DIFF_BASE_SHA CI_CONCURRENT_PROJECT_ID FORCE_BUILD_ALL; do
   if [ -n "${!_var+x}" ]; then
     docker_args+=(-e "${_var}=${!_var}")
   fi
