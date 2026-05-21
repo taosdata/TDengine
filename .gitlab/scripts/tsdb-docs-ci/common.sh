@@ -8,8 +8,8 @@ DOCS_CI_WORKDIR="${DOCS_CI_WORKDIR:-${DOCS_CI_WORKDIR_BASE}/slot-${CI_CONCURRENT
 TSDB_REPO_URL="${TSDB_REPO_URL:-https://git.tdengine.net/rd-public/tsdb.git}"
 ZH_DOC_REPO_URL="${ZH_DOC_REPO_URL:-https://github.com/taosdata/docs.taosdata.com.git}"
 EN_DOC_REPO_URL="${EN_DOC_REPO_URL:-https://github.com/taosdata/docs.tdengine.com.git}"
-ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-feat/tsdb-path-env}"
-EN_DOC_BRANCH="${EN_DOC_BRANCH:-feat/tsdb-path-env}"
+ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-master}"
+EN_DOC_BRANCH="${EN_DOC_BRANCH:-main}"
 
 TSDB_DIR="${TSDB_DIR:-${DOCS_CI_WORKDIR}/tsdb}"
 ZH_DOC_DIR="${ZH_DOC_DIR:-${DOCS_CI_WORKDIR}/docs.taosdata.com}"
