@@ -6,6 +6,8 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <atomic>
+#include <vector>
 
 bool log_file_contains(const std::string& log_file, const std::string& keyword) {
     std::ifstream fin(log_file);
@@ -348,6 +350,64 @@ void test_console_only_then_file() {
     std::cout << "test_console_only_then_file passed" << std::endl;
 }
 
+void test_concurrent_logging_during_shutdown() {
+    std::string log_file = "testlog/test_concurrent_shutdown.log";
+    if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
+
+    LogUtils::init(LogUtils::Level::Info, log_file, 1024 * 1024, 1);
+
+    std::atomic<bool> stop{false};
+    std::vector<std::thread> threads;
+
+    // Spawn threads that log continuously
+    for (int i = 0; i < 4; ++i) {
+        threads.emplace_back([&stop, i]() {
+            while (!stop.load(std::memory_order_relaxed)) {
+                LogUtils::info("Thread {} logging", i);
+                std::this_thread::yield();
+            }
+        });
+    }
+
+    // Let threads log for a bit
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Cooperative shutdown: stop threads first, then shutdown logger
+    stop.store(true, std::memory_order_relaxed);
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    // Now safe to shutdown - no concurrent access
+    LogUtils::shutdown();
+
+    std::filesystem::remove(log_file);
+    std::filesystem::remove("testlog");
+    std::cout << "test_concurrent_logging_during_shutdown passed" << std::endl;
+}
+
+void test_logging_fallback_without_logger() {
+    // Ensure no logger is active
+    LogUtils::shutdown();
+
+    // These should fall back to stdout/stderr without crashing
+    LogUtils::debug("fallback debug {}", 1);
+    LogUtils::info("fallback info {}", 2);
+    LogUtils::warn("fallback warn {}", 3);
+    LogUtils::error("fallback error {}", 4);
+    LogUtils::fatal("fallback fatal {}", 5);
+
+    // String versions
+    LogUtils::debug("fallback debug str");
+    LogUtils::info("fallback info str");
+    LogUtils::warn("fallback warn str");
+    LogUtils::error("fallback error str");
+    LogUtils::fatal("fallback fatal str");
+
+    std::cout << "test_logging_fallback_without_logger passed" << std::endl;
+}
+
 void test_repeated_shutdown_is_safe_after_reinit() {
     std::string log_file = "testlog/test_repeated_shutdown.log";
     if (std::filesystem::exists(log_file)) std::filesystem::remove(log_file);
@@ -389,6 +449,8 @@ int main() {
     test_create_log_directory();
     test_console_only_debug_level();
     test_console_only_then_file();
+    test_concurrent_logging_during_shutdown();
+    test_logging_fallback_without_logger();
     test_repeated_shutdown_is_safe_after_reinit();
 
     std::cout << "All LogUtils tests passed!" << std::endl;

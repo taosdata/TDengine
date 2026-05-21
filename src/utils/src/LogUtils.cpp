@@ -104,7 +104,9 @@ void init(Level level, const std::string& log_file, size_t max_file_size, size_t
         logger.reset();
     }
 
-    spdlog::init_thread_pool(8192, 1);
+    if (!spdlog::thread_pool()) {
+        spdlog::init_thread_pool(8192, 1);
+    }
 
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_file, max_file_size, max_files);

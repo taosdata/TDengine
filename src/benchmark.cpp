@@ -7,18 +7,12 @@
 #include <chrono>
 #include <thread>
 
-void exit_handler(int signum) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    LogUtils::info("Interrupt signal ({}) received. Shutting down gracefully...", signum);
-    LogUtils::shutdown();
-    exit(signum);
-}
-
 int main(int argc, char* argv[]) {
     LogUtils::LoggerGuard logger_guard(LogUtils::Level::Info, "");
 
-    SignalManager::register_signal(SIGINT, exit_handler, true);
-    SignalManager::register_signal(SIGTERM, exit_handler, true);
+    // Register signals to install our handler (sets SignalManager::interrupted())
+    SignalManager::register_signal(SIGINT);
+    SignalManager::register_signal(SIGTERM);
     SignalManager::setup();
 
     try {
@@ -56,7 +50,11 @@ int main(int argc, char* argv[]) {
 
             // Run scheduler
             bool success = scheduler.run();
+
             if (!success) {
+                if (scheduler.was_interrupted()) {
+                    LogUtils::info("Interrupt signal received. Shutting down gracefully...");
+                }
                 return 1;
             }
 

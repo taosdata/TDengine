@@ -4,8 +4,6 @@
 #include <sstream>
 #include <vector>
 #include <stdexcept>
-#include <algorithm>
-#include <cctype>
 #include <charconv>
 #include <limits>
 #include <system_error>
@@ -14,19 +12,6 @@
 namespace TypeConverter {
 
     namespace {
-        bool iequals_ascii(std::string_view input, std::string_view expected_lower) {
-            if (input.size() != expected_lower.size()) {
-                return false;
-            }
-            for (size_t index = 0; index < input.size(); ++index) {
-                unsigned char ch = static_cast<unsigned char>(input[index]);
-                if (static_cast<char>(std::tolower(ch)) != expected_lower[index]) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         template <typename T>
         T parse_integral(std::string_view sv) {
             // std::from_chars does not accept leading '+' for any integer type,
@@ -67,10 +52,10 @@ namespace TypeConverter {
         std::string_view input = StringUtils::trim_view(value);
 
         if constexpr (std::is_same_v<T, bool>) {
-            if (input == "1" || iequals_ascii(input, "true") || iequals_ascii(input, "t")) {
+            if (input == "1" || StringUtils::iequals_ascii(input, "true") || StringUtils::iequals_ascii(input, "t")) {
                 return true;
             }
-            if (input == "0" || iequals_ascii(input, "false") || iequals_ascii(input, "f")) {
+            if (input == "0" || StringUtils::iequals_ascii(input, "false") || StringUtils::iequals_ascii(input, "f")) {
                 return false;
             }
             throw std::runtime_error("Invalid boolean value: " + std::string(input));
