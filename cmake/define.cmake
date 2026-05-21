@@ -131,7 +131,14 @@ IF(TD_WINDOWS)
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
-        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
+        IF(${BUILD_SANITIZER})
+            MESSAGE("${Green} will build Debug with AddressSanitizer (MSVC ASan)! ${ColourReset}")
+            # /fsanitize=address is compatible with /MDd; no /GL or /RTC1 in Debug
+            # so there are no incompatibility constraints unlike Release.
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
+        ELSE()
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
+        ENDIF()
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
