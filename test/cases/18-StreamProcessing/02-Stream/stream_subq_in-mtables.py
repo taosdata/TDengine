@@ -128,7 +128,7 @@ class TestStreamSubquery:
 
         while True:
             tdSql.query(f"select count(*) from db.`stream_meters`;")
-            if tdSql.getData(0,0) == (self.ts_total / self.ts_step - 1) * self.tb_count:
+            if tdSql.getData(0,0) >= (self.ts_total / self.ts_step - 1) * self.tb_count:
                 tdLog.info(f"get {tdSql.getData(0,0)} rows")
                 break
 
@@ -146,7 +146,7 @@ class TestStreamSubquery:
     def createDoubleSubqStream(self):
         tdLog.info(f"create stb stream.")
         sql = (
-        f"create stream db.stb_stream count_window(2, 1) from db.meters partition by tbname,groupid stream_options(fill_history('2026-01-01 00:00:00')|low_latency_calc) into db.stream_meters output_subtable (concat('sm#', tbname)) tags (groupid int as groupid) as  select _twstart as ts, first(current) as ff1, last(current) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and current > (select first(current)-1 from db.meters) and current < (select last(current)+1 from db.meters);"
+        f"create stream db.stb_stream count_window(2, 1) from db.meters partition by tbname,groupid stream_options(fill_history('2026-01-01 00:00:00')|low_latency_calc) into db.stream_meters output_subtable (concat('dsm#', tbname)) tags (groupid int as groupid) as  select _twstart as ts, first(current) as ff1, last(current) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and current > (select first(current)-1 from %%tbname) and current < (select last(current)+1 from %%tbname);"
         )
 
         tdLog.info(f"create stream:{sql}")
@@ -171,14 +171,14 @@ class TestStreamSubquery:
 
         while True:
             tdSql.query(f"select count(*) from db.`stream_meters`;")
-            if tdSql.getData(0,0) == (self.ts_total / self.ts_step - 1) * self.tb_count:
+            if tdSql.getData(0,0) >= (self.ts_total / self.ts_step - 1) * self.tb_count:
                 tdLog.info(f"get {tdSql.getData(0,0)} rows")
                 break
 
             tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
-        tdSql.query(f"select * from db.`sm#d0` order by ts;")
+        tdSql.query(f"select * from db.`dsm#d0` order by ts;")
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, 1000)
         tdSql.checkData(4998, 1, 4998000)

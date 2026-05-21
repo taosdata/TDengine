@@ -44,7 +44,19 @@ SGlobalExecInfo     gExecInfo = {0};
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   gTaskScalarExtra.pSubJobCtx = pTaskInfo->pSubJobCtx;
+  gTaskScalarExtra.isStream =
+      (pTaskInfo->pSubJobCtx != NULL) && ((STaskSubJobCtx*)pTaskInfo->pSubJobCtx)->isStream;
   gTaskScalarExtra.fp = qFetchRemoteNode;
+  if (pTaskInfo->pSubJobCtx) {
+    gTaskScalarExtra.streamGen = pTaskInfo->pSubJobCtx->streamGen;
+  }
+}
+
+void qSetStreamGen(qTaskInfo_t tinfo, uint64_t gen) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo && pTaskInfo->pSubJobCtx) {
+    pTaskInfo->pSubJobCtx->streamGen = gen;
+  }
 }
 
 void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode) {
@@ -1802,6 +1814,16 @@ int32_t streamClearStatesForOperators(qTaskInfo_t tInfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tInfo;
   SOperatorInfo* pOper = pTaskInfo->pRoot;
   pTaskInfo->code = TSDB_CODE_SUCCESS;
+  // Increment stream generation so scalar remote value caches are invalidated
+  if (pTaskInfo->pSubJobCtx) {
+    pTaskInfo->pSubJobCtx->streamGen++;
+    // Propagate gen via dedicated funcInfo.streamGen field so vnode readers
+    // (reached via Exchange) can detect new trigger events and invalidate
+    // their scalar subquery caches.
+    if (pTaskInfo->pStreamRuntimeInfo) {
+      pTaskInfo->pStreamRuntimeInfo->funcInfo.streamGen = pTaskInfo->pSubJobCtx->streamGen;
+    }
+  }
   code = clearStatesForOperator(pOper);
   return code;
 }
@@ -1834,6 +1856,12 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, bool* finished
 
   pTaskInfo->owner = threadId;
   taosRUnLockLatch(&pTaskInfo->lock);
+
+  // Stream compute tasks in the community build run via streamRunner ->
+  // streamExecuteTask, bypassing qworker (which also calls this).  Set the
+  // thread-local scalar context here so scalar subqueries embedded in the
+  // stream operator (e.g. WHERE ts >= (SELECT ...)) can find their subJobCtx.
+  setTaskScalarExtraInfo(tInfo);
 
   if (pTaskInfo->cost.start == 0) {
     pTaskInfo->cost.start = taosGetTimestampUs();
