@@ -6429,7 +6429,11 @@ _check:
         SSTriggerRealtimeGroup *pGroup = *ppGroup;
         if (pGroup != NULL && (pGroup->startCondCount > 0 || pGroup->endCondCount > 0)) {
           int32_t vgId = pGroup->vgId;
-          (void)taosHashPut(pFrozenVgIds, &vgId, sizeof(int32_t), &vgId, sizeof(int32_t));
+          if (taosHashPut(pFrozenVgIds, &vgId, sizeof(int32_t), &vgId, sizeof(int32_t)) != 0) {
+            taosHashCleanup(pFrozenVgIds);
+            pFrozenVgIds = NULL;
+            break;
+          }
         }
         ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, ppGroup, &giter);
       }
