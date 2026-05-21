@@ -2,7 +2,7 @@ import argparse
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'misc'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'misc'))
 
 import torch
 from flask import Flask, request, jsonify
@@ -183,4 +183,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

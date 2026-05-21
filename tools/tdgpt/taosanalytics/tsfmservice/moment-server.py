@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'misc'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'misc'))
 
 from sklearn.preprocessing import StandardScaler
 

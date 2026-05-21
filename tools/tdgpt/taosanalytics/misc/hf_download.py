@@ -32,9 +32,8 @@ def resolve_endpoint(enable_ep: object) -> Optional[str]:
 
 
 def is_official_endpoint(endpoint: Optional[str]) -> bool:
-    if not endpoint:
-        return True
-    return endpoint.rstrip("/") == OFFICIAL_HF_ENDPOINT
+    effective_endpoint = endpoint or os.environ.get("HF_ENDPOINT") or OFFICIAL_HF_ENDPOINT
+    return effective_endpoint.rstrip("/") == OFFICIAL_HF_ENDPOINT
 
 
 def snapshot_download_with_fallback(
@@ -43,8 +42,10 @@ def snapshot_download_with_fallback(
     enable_ep: object = False,
     **kwargs: Any,
 ) -> str:
+    kwargs.pop("endpoint", None)
     endpoint = resolve_endpoint(enable_ep)
-    print(f"set the download ep:{endpoint}")
+    if endpoint:
+        print(f"set the download ep:{endpoint}")
     try:
         return snapshot_download(
             repo_id=repo_id,
@@ -55,8 +56,9 @@ def snapshot_download_with_fallback(
     except Exception as exc:
         if is_official_endpoint(endpoint):
             raise
+        failed_endpoint = endpoint or os.environ.get("HF_ENDPOINT")
         print(
-            f"download from endpoint {endpoint} failed: {exc}; "
+            f"download from endpoint {failed_endpoint} failed: {exc}; "
             f"fallback to {OFFICIAL_HF_ENDPOINT}"
         )
         return snapshot_download(

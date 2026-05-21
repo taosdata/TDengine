@@ -95,6 +95,62 @@ def test_snapshot_download_with_fallback_calls_official_on_failure(monkeypatch):
     ]
 
 
+def test_snapshot_download_with_fallback_uses_official_when_env_endpoint_fails(monkeypatch):
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
+    monkeypatch.setenv("HF_ENDPOINT", "https://custom.endpoint")
+    snapshot_download.side_effect = [RuntimeError("boom"), "ok"]
+
+    result = hf_download.snapshot_download_with_fallback("repo-id", "local-dir", False)
+
+    assert result == "ok"
+    assert snapshot_download.call_args_list == [
+        mock.call(
+            repo_id="repo-id",
+            local_dir="local-dir",
+            endpoint=None,
+        ),
+        mock.call(
+            repo_id="repo-id",
+            local_dir="local-dir",
+            endpoint=hf_download.OFFICIAL_HF_ENDPOINT,
+        ),
+    ]
+
+
+def test_snapshot_download_with_fallback_ignores_endpoint_kwarg(monkeypatch):
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+    snapshot_download.return_value = "ok"
+
+    result = hf_download.snapshot_download_with_fallback(
+        "repo-id",
+        "local-dir",
+        True,
+        endpoint="https://ignored.endpoint",
+    )
+
+    assert result == "ok"
+    snapshot_download.assert_called_once_with(
+        repo_id="repo-id",
+        local_dir="local-dir",
+        endpoint=hf_download.DEFAULT_HF_MIRROR_ENDPOINT,
+    )
+
+
+def test_snapshot_download_with_fallback_keeps_default_download_quiet(monkeypatch, capsys):
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
+    monkeypatch.delenv("HF_ENDPOINT", raising=False)
+    snapshot_download.return_value = "ok"
+
+    result = hf_download.snapshot_download_with_fallback("repo-id", "local-dir", False)
+
+    assert result == "ok"
+    assert capsys.readouterr().out == ""
+
+
 def test_snapshot_download_with_fallback_reraises_official_env_endpoint(monkeypatch):
     hf_download, snapshot_download = import_hf_download(monkeypatch)
     monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
