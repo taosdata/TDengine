@@ -1500,90 +1500,123 @@ if(TD_TAOS_TOOLS)
     add_dependencies(build_externals ext_avro)     # this is for github workflow in cache-miss step.
 endif()
 
-
-if(NOT TD_WINDOWS)        # {
-    # libxml2
-    if(TD_LINUX)
-        set(ext_libxml2_static libxml2.a)
-    elseif(TD_DARWIN)
-        set(ext_libxml2_static libxml2.a)
-    elseif(TD_WINDOWS)
+# libxml2
+if(TD_LINUX)
+    set(ext_libxml2_static libxml2.a)
+elseif(TD_DARWIN)
+    set(ext_libxml2_static libxml2.a)
+elseif(TD_WINDOWS)
+    if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
+        set(ext_libxml2_static libxml2sd.lib)
+    else()
         set(ext_libxml2_static libxml2.lib)
     endif()
-    INIT_EXT(ext_libxml2
-        INC_DIR          include/libxml2
-        LIB              lib/${ext_libxml2_static}
-    )
-    get_from_local_if_exists(
-        "https://github.com/GNOME/libxml2/archive/refs/tags/v2.14.0.tar.gz"
-        "libxml2-v2.14.0.tar.gz"
-    )
-    ExternalProject_Add(ext_libxml2
-        URL ${_url}
-        URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_PROGRAMS:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+    # On Windows, libxml2 is built as a static library, consumers must define LIBXML_STATIC
+    macro(DEP_ext_libxml2_INC tgt)
+        if(${ext_libxml2_build_contrib})
+            target_include_directories(${tgt} PUBLIC "${ext_libxml2_inc_dir}")
+            target_compile_definitions(${tgt} PUBLIC LIBXML_STATIC)
+            if(NOT TD_EXTERNALS_USE_ONLY)
+                set_target_properties(ext_libxml2_imp PROPERTIES
+                    IMPORTED_LOCATION "${ext_libxml2_libs}"
+                )
+                add_dependencies(${tgt} ext_libxml2)
+            endif()
+            add_definitions(-D_ext_libxml2)
+        endif()
+    endmacro()
+endif()
 
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
+INIT_EXT(ext_libxml2
+    INC_DIR          include/libxml2
+    LIB              lib/${ext_libxml2_static}
+)
+set(_libxml2_depends "")
+set(_libxml2_extra_args "")
+if(TD_WINDOWS AND BUILD_WITH_ICONV)
+    list(APPEND _libxml2_depends ext_iconv)
+    list(APPEND _libxml2_extra_args "-DIconv_INCLUDE_DIR:STRING=${ext_iconv_inc_dir}")
+    list(APPEND _libxml2_extra_args "-DIconv_LIBRARY:STRING=${ext_iconv_libs}")
+elseif(TD_WINDOWS)
+    list(APPEND _libxml2_extra_args "-DLIBXML2_WITH_ICONV:BOOL=OFF")
+endif()
+get_from_local_if_exists(
+    "https://github.com/GNOME/libxml2/archive/refs/tags/v2.14.0.tar.gz"
+    "libxml2-v2.14.0.tar.gz"
+)
+ExternalProject_Add(ext_libxml2
+    URL ${_url}
+    URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
+    PREFIX "${_base}"
+    DEPENDS ${_libxml2_depends}
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+    CMAKE_ARGS -DCMAKE_DEBUG_POSTFIX:STRING=
+    CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_PROGRAMS:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+    CMAKE_ARGS ${_libxml2_extra_args}
+    BUILD_COMMAND COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
 
-    # libs3
-    if(TD_LINUX)
-        set(ext_libs3_static liblibs3.a)
-    elseif(TD_DARWIN)
-        set(ext_libs3_static liblibs3.a)
-    elseif(TD_WINDOWS)
-        set(ext_libs3_static libs3.lib)
-    endif()
-    INIT_EXT(ext_libs3
-        INC_DIR          include
-        LIB              lib/${ext_libs3_static}
-    )
-    string(JOIN " " _ssl_libs ${ext_ssl_libs})
-    get_from_local_if_exists(
-        "https://github.com/bji/libs3/archive/98f667b248a7288c1941582897343171cfdf441c.tar.gz"
-        "libs3-98f667b248a7.tar.gz"
-    )
-    ExternalProject_Add(ext_libs3
-        URL ${_url}
-        URL_HASH SHA256=d06a6cd66b731d3d16ba2620dccff6ce4eaaed5f7e6f5f4a62e504fb5e209b0f
-        DEPENDS ext_libxml2 ext_curl ext_zlib
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
-        CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
-        CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
-        CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
-        CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
-        CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
-        CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
-        CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
-        CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
-        PATCH_COMMAND
-          COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
+# libs3
+if(TD_LINUX)
+    set(ext_libs3_static liblibs3.a)
+elseif(TD_DARWIN)
+    set(ext_libs3_static liblibs3.a)
+elseif(TD_WINDOWS)
+    set(ext_libs3_static libs3.lib)
+endif()
+INIT_EXT(ext_libs3
+    INC_DIR          include
+    LIB              lib/${ext_libs3_static}
+)
+string(JOIN " " _ssl_libs ${ext_ssl_libs})
+set(_libs3_extra_args "")
+set(_libs3_depends ext_libxml2 ext_curl ext_zlib)
+if(TD_WINDOWS)
+    list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC")
+    list(APPEND _libs3_extra_args "-DPTHREAD_INCLUDE:STRING=${ext_pthread_inc_dir}")
+    list(APPEND _libs3_extra_args "-DPTHREAD_LIBS:STRING=${ext_pthread_libs}")
+    list(APPEND _libs3_depends ext_pthread)
+endif()
+get_from_local_repo_if_exists("https://github.com/taosdata/libs3")
+ExternalProject_Add(ext_libs3
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+    DEPENDS ${_libs3_depends}
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    CMAKE_ARGS ${_libs3_extra_args}
+    CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
+    CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
+    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
+    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
+    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
+    CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
+    CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
+    CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
+    CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
 
+if(NOT TD_WINDOWS)        # {
     # azure
     if(TD_LINUX)
         set(ext_azure_static libtd_azure_sdk.a)
