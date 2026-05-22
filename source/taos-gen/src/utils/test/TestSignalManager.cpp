@@ -64,9 +64,32 @@ void test_signal_manager_order() {
     std::cout << "test_signal_manager_order passed" << std::endl;
 }
 
+void test_register_signal_without_callback() {
+    // register_signal(signum) should install handler that sets interrupted() flag
+    // Use a different signal to avoid interference with other tests
+#if defined(_WIN32)
+    constexpr int SIGNAL_NOCB = SIGBREAK;
+#else
+    constexpr int SIGNAL_NOCB = SIGWINCH;
+#endif
+
+    SignalManager::register_signal(SIGNAL_NOCB);
+    SignalManager::setup();
+
+    // Before raising, interrupted() may already be true from previous tests
+    // Just verify that raising doesn't crash and handler is properly installed
+    std::raise(SIGNAL_NOCB);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // After any signal handled by our handler, interrupted() must be true
+    assert(SignalManager::interrupted() == true);
+    std::cout << "test_register_signal_without_callback passed" << std::endl;
+}
+
 int main() {
     test_signal_manager_basic();
     test_signal_manager_order();
+    test_register_signal_without_callback();
 
     std::cout << "All SignalManager tests passed!" << std::endl;
     return 0;

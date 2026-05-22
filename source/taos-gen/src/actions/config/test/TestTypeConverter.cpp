@@ -16,6 +16,22 @@ void test_convert_bool() {
     std::cout << "test_convert_bool passed" << std::endl;
 }
 
+void test_convert_bool_case_insensitive() {
+    // Uppercase
+    assert(convert_value<bool>("TRUE") == true);
+    assert(convert_value<bool>("FALSE") == false);
+    assert(convert_value<bool>("T") == true);
+    assert(convert_value<bool>("F") == false);
+
+    // Mixed case
+    assert(convert_value<bool>("True") == true);
+    assert(convert_value<bool>("False") == false);
+    assert(convert_value<bool>("tRuE") == true);
+    assert(convert_value<bool>("fAlSe") == false);
+
+    std::cout << "test_convert_bool_case_insensitive passed" << std::endl;
+}
+
 void test_convert_int() {
     assert(convert_value<int32_t>("123") == 123);
     assert(convert_value<int8_t>("-42") == -42);
@@ -89,6 +105,7 @@ void test_convert_to_type() {
 
 int main() {
     test_convert_bool();
+    test_convert_bool_case_insensitive();
     test_convert_int();
     test_convert_float_double();
     test_convert_string();

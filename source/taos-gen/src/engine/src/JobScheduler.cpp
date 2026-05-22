@@ -1,4 +1,5 @@
 #include "JobScheduler.hpp"
+#include "SignalManager.hpp"
 #include <iostream>
 
 
@@ -31,19 +32,36 @@ bool JobScheduler::run() {
         workers.emplace_back([this] { worker_loop(); });
     }
 
-    // Wait for all jobs to complete
+    // Wait for all jobs to complete, periodically checking stop flag
     {
         std::unique_lock<std::mutex> lock(done_mutex_);
-        done_cv_.wait(lock, [this] { return remaining_jobs_ == 0 || stop_execution_.load(); });
+        while (remaining_jobs_ != 0 && !stop_execution_.load()) {
+            done_cv_.wait_for(lock, std::chrono::milliseconds(100));
+            if (SignalManager::interrupted()) {
+                interrupted_.store(true);
+                stop_execution_.store(true);
+            }
+        }
     }
 
-    // Stop queue and wait for threads
-    queue_->stop();
+    // Ensure queue is stopped and wait for threads
+    wakeup();
     for (auto& worker : workers) {
         if (worker.joinable()) worker.join();
     }
 
     return !stop_execution_.load();
+}
+
+void JobScheduler::stop() {
+    interrupted_.store(true);
+    stop_execution_.store(true);
+}
+
+void JobScheduler::wakeup() {
+    queue_->stop();
+    std::unique_lock<std::mutex> lock(done_mutex_);
+    done_cv_.notify_all();
 }
 
 void JobScheduler::worker_loop() {
@@ -59,6 +77,7 @@ void JobScheduler::worker_loop() {
 
             bool success = step_strategy_->execute(step);
             if (!success) {
+                failed_.store(true);
                 stop_execution_.store(true);
                 LogUtils::error(
                     "Job step execution failed, exiting (job: {}, step: {})",
