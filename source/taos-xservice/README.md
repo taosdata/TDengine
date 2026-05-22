@@ -165,25 +165,75 @@ cargo make build-all-with-agent
 
 ## 4. Packaging
 
-You need python3 environment and some packages from PyPI for packaging.
+`pack_xservice_tar.sh` creates Linux tar.gz packages from a pre-staged deploy directory and reuses the existing `packaging/install.sh` and `packaging/uninstall.sh` logic.
 
-```bash
-pip3 install toml
+Prerequisites:
+
+- Install a TDengine community/server package first on the target host.
+- Build the required binaries and plugins before staging them. For local builds, install Rust and `cargo-make` as described above.
+
+Expected deploy directory layout:
+
+```text
+<deploy_dir>/
+├── bin/
+│   ├── taosx
+│   ├── taos-explorer
+│   └── taosx-agent
+├── plugins/
+│   ├── opc/taosx-opc
+│   ├── influxdb/taosx-influxdb.jar
+│   └── opentsdb/taosx-opentsdb.jar
+└── etc/
+    ├── taos/
+    │   ├── taosx.toml
+    │   ├── explorer.toml
+    │   └── agent.toml
+    └── systemd/system/
+        ├── taosx.service
+        ├── taos-explorer.service
+        └── taosx-agent.service
 ```
 
-To package taosX ,taos-explorer and plugins, you can type this:
+Package taosX + taos-explorer + optional plugins:
 
 ```bash
 cd packaging
-python3 release.py -o taosx
+bash ./pack_xservice_tar.sh -c <deploy_dir> -n <version>
 ```
-To package taosX-agent and plugins, you can type this:
+
+Package taosX-agent + optional plugins:
 
 ```bash
 cd packaging
-python3 release.py -ba 1
+bash ./pack_xservice_tar.sh -c <deploy_dir> -n <version> -t agent
 ```
-Check out more packaging options by `python3 release.py --help`.
+
+Optional flags:
+
+- `-m <compat_version>` keeps the CLI aligned with other packers.
+- `-V stable|beta` controls the output file suffix.
+
+Expected outputs:
+
+- `release/taosX-<version>-Linux-<arch>.tar.gz`
+- `release/taosX-agent-<version>-Linux-<arch>.tar.gz`
+- Beta builds use `-beta-` before `Linux-<arch>`.
+
+Install procedure:
+
+```bash
+tar xzf taosX-<version>-Linux-<arch>.tar.gz
+cd taosX-<version>
+bash ./install.sh -e <fqdn-or-ip>
+```
+
+The packaged `install.sh` reuses the existing installer behavior, including endpoint replacement and service/config installation. `uninstall.sh` is included in the outer tarball for removal.
+
+Package layout note:
+
+- The outer tarball contains `package.tar.gz`, `install.sh`, and `uninstall.sh`.
+- `package.tar.gz` is the inner payload with `bin/`, `plugins/`, and `etc/`.
 
 ## 5. Installation
 
@@ -287,21 +337,7 @@ At present, because some test cases rely on external third-party data sources, t
 
 ## 8. Releasing
 
-taosx and related components, which are released with TDengine Enterprise, don't have separate installer. TDengine Enterprise installer can be found on the corporate NAS server:
-
-- NAS Server URL： http://192.168.1.252:5000/
-- Directory: /Release/TDengine/
-
-NAS server write permission is enabled on `192.168.1.131`. To release taosx agent, please follow steps below, take v3.3.4.0 for example:
-
-```bash
-# create the release directory first
-ssh root@192.168.1.131
-mkdir -p /pkgs/TDengine/3.3/v3.3.4.0/enterprise
-
-# copy the installer to release directory
-scp <agent_installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
-```
+Packaging for taosX and taosX-agent is covered in [section 4](#4-packaging) above. Release publication is handled through the project CI/CD pipeline.
 
 ## 9. CI/CD
 

@@ -1,0 +1,11 @@
+# Cargo config for public (external network) builds.
+# Uses default crates.io registry — no internal mirror redirect.
+#
+# Mounted by build.sh --public instead of config.toml (internal).
+
+[http]
+multiplexing = false
+timeout = 120
+
+[net]
+git-fetch-with-cli = true

@@ -32,6 +32,3 @@ rust-version = "1.90.0"
 lto = true
 panic = "abort"
 overflow-checks = false
-
-[patch.'https://github.com/taosdata/tungstenite-rs.git']
-tungstenite = { git = "https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git", branch = "feat/taosdata/permessage-deflate" }

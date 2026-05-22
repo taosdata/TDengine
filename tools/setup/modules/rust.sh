@@ -29,9 +29,15 @@ mod_rust_check() {
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
     fi
 
-    # cargo config → Nora
+    # cargo config
     local cargo_config="$HOME/.cargo/config.toml"
-    if [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        if [[ ! -f "$cargo_config" ]] || ! grep -qF "nora.tdengine.net" "$cargo_config"; then
+            ok "Cargo registry → crates.io (public mode)"
+        else
+            info "Cargo config still points to Nora while TSDB_PUBLIC_DEPS=1"
+        fi
+    elif [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
         ok "Cargo registry → Nora (internal)"
     else
         warn "Cargo not configured for internal Nora registry"
@@ -85,25 +91,29 @@ mod_rust_install() {
 mod_rust_config() {
     local cargo_config="$HOME/.cargo/config.toml"
 
-    # Cargo config.toml → Nora
-    if [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using default crates.io registry"
         return 0
-    fi
-
-    if [[ -n "$CARGO_CONFIG_SRC" ]]; then
-        info "Cargo config source: $CARGO_CONFIG_SRC"
     else
-        info "Will write default Nora registry config"
-    fi
-
-    if confirm "Write Cargo config to $cargo_config?"; then
-        mkdir -p "$(dirname "$cargo_config")"
-        backup_file "$cargo_config"
+        # Cargo config.toml → Nora
+        if [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
+            return 0
+        fi
 
         if [[ -n "$CARGO_CONFIG_SRC" ]]; then
-            cp "$CARGO_CONFIG_SRC" "$cargo_config"
+            info "Cargo config source: $CARGO_CONFIG_SRC"
         else
-            cat > "$cargo_config" <<'CARGO_EOF'
+            info "Will write default Nora registry config"
+        fi
+
+        if confirm "Write Cargo config to $cargo_config?"; then
+            mkdir -p "$(dirname "$cargo_config")"
+            backup_file "$cargo_config"
+
+            if [[ -n "$CARGO_CONFIG_SRC" ]]; then
+                cp "$CARGO_CONFIG_SRC" "$cargo_config"
+            else
+                cat > "$cargo_config" <<'CARGO_EOF'
 [source.crates-io]
 replace-with = 'internal'
 
@@ -120,9 +130,10 @@ timeout = 120
 [net]
 git-fetch-with-cli = true
 CARGO_EOF
+            fi
+            ok "Cargo config written to $cargo_config"
+            CHANGES_MADE=$((CHANGES_MADE + 1))
         fi
-        ok "Cargo config written to $cargo_config"
-        CHANGES_MADE=$((CHANGES_MADE + 1))
     fi
 
     # sccache (optional, don't push)

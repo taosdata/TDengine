@@ -22,16 +22,17 @@ English | [简体中文](README-CN.md)
 - [1. Introduction](#1-introduction)
 - [2. Documentation](#2-documentation)
 - [3. Prerequisites](#3-prerequisites)
-- [4. Build](#4-build)
+- [4. Building](#4-building)
 - [5. Testing](#5-testing)
   - [5.1 Test Execution](#51-test-execution)
   - [5.2 Test Case Addition](#52-test-case-addition)
   - [5.3 Performance Testing](#53-performance-testing)
-- [6. CI/CD](#6-cicd)
-- [7. Submitting Issues](#7-submitting-issues)
-- [8. Submitting PRs](#8-submitting-prs)
-- [9. References](#9-references)
-- [10. License](#10-license)
+- [6. Packaging](#6-packaging)
+- [7. CI/CD](#7-cicd)
+- [8. Submitting Issues](#8-submitting-issues)
+- [9. Submitting PRs](#9-submitting-prs)
+- [10. References](#10-references)
+- [11. License](#11-license)
 
 ## 1. Introduction
 
@@ -45,14 +46,38 @@ English | [简体中文](README-CN.md)
 
 ## 3. Prerequisites
 
-- Install the Node.js development environment, using version 14 or above. Download link: [https://nodejs.org/en/download/](https://nodejs.org/en/download/)
-- Install the Node.js connector dependencies using npm, execute the 'npm install' command in the `nodejs` directory of the project for installation.
-- Install TypeScript 5.3.3 and above using npm.
+### System Requirements
+- Node.js >= 18 (22 recommended)
+- npm or pnpm
+
+### Installing Node.js
+**Ubuntu/Debian:**
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+**CentOS/RHEL:**
+```bash
+curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
+sudo yum install -y nodejs
+```
+
+### Installing Project Dependencies
+- Install the Node.js connector dependencies using npm, execute the `npm install` command in the `nodejs` directory of the project for installation.
+- TypeScript 5.3.3 and above is required and is installed automatically from `package.json`.
+
+### Local Test Environment
 - TDengine has been deployed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/). Please make sure `taosd` and `taosAdapter` have been started.
 
-## 4. Build
+## 4. Building
 
-Execute `tsc` to build the project in the 'nodejs' directory.
+```bash
+git clone https://github.com/taosdata/taos-connector-node.git
+cd taos-connector-node/nodejs
+npm install
+npm run build
+```
 
 ## 5. Testing
 
@@ -69,6 +94,14 @@ Time:        20.373 s
 Ran all test suites.
 ```
 
+```bash
+# install dependencies first
+npm install
+
+# run the test suite
+npm test
+```
+
 ### 5.2 Test Case Addition
 
 All tests are organized by functional domain in the `nodejs/test` directory. You can add new test files in the corresponding directory or add test cases to existing test files.
@@ -78,12 +111,19 @@ The test cases use the jest framework. Generally, a connection is established an
 
 Performance testing is in progress.
 
-## 6. CI/CD
+## 6. Packaging
+
+```bash
+npm pack
+# Output: taos-<version>.tgz
+```
+
+## 7. CI/CD
 
 - [Build Workflow](https://github.com/taosdata/taos-connector-node/actions/workflows/build.yml)
 - [Code Coverage](https://app.codecov.io/gh/taosdata/taos-connector-node)
 
-## 7. Submitting Issues
+## 8. Submitting Issues
 
 We welcome the submission of [GitHub Issue](https://github.com/taosdata/taos-connector-node/issues/new?template=Blank+issue). When submitting, please provide the following information:
 
@@ -93,7 +133,7 @@ We welcome the submission of [GitHub Issue](https://github.com/taosdata/taos-con
 - Connection parameters (no username or password required).
 - TDengine Server Version.
 
-## 8. Submitting PRs
+## 9. Submitting PRs
 
 We welcome developers to contribute to this project. When submitting PRs, please follow these steps:
 
@@ -105,11 +145,11 @@ We welcome developers to contribute to this project. When submitting PRs, please
 1. After submitting the PR, you can find your PR through the [Pull Request](https://github.com/taosdata/taos-connector-node/pulls). Click on the corresponding link to see if the CI for your PR has passed. If it has passed, it will display "All checks have passed". Regardless of whether the CI passes or not, you can click "Show all checks" -> "Details" to view the detailed test case logs.
 1. After submitting the PR, if CI passes, you can find your PR on the [codecov](https://app.codecov.io/gh/taosdata/taos-connector-node/pulls) page to check the test coverage.
 
-## 9. References
+## 10. References
 
 - [TDengine Official Website](https://www.tdengine.com/)
 - [TDengine GitHub](https://github.com/taosdata/TDengine)
 
-## 10. License
+## 11. License
 
 [MIT License](./LICENSE)

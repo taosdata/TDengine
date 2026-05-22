@@ -4,7 +4,7 @@
 #
 # Usage: ./build.sh --image core|others|dev|core:<version>|others:<version>|dev:<version>
 #                   [--arch amd64|arm64|riscv64] [--src PATH] [--cache PATH]
-#                   [--clean] [--pull-image] [--split-debug] [--sccache] [component...] [-DKEY=VALUE ...]
+#                   [--clean] [--pull-image] [--split-debug] [--sccache] [--public] [component...] [-DKEY=VALUE ...]
 #
 # --image is required. Use 'core' for engine/taosx/adapter/…; 'others' for
 # explorer-ui/insight/connectors.
@@ -56,6 +56,7 @@ CLEAN=false
 PULL_IMAGE=false
 SPLIT_DEBUG=false
 USE_SCCACHE=false
+USE_PUBLIC=false
 TSDB_DIR="$(pwd)"
 # Cache directory lives outside the source repo so it survives git clean / re-clone.
 # Default: $HOME/cache/tsdb-builder. Override via --cache or TSDB_CACHE_DIR env var.
@@ -99,6 +100,7 @@ Options:
   --pull-image                  force pull even if the resolved image exists locally
   --split-debug                 separate debug info into .debug/ (objcopy+strip)
   --sccache                     enable sccache for Rust compilation (disables incremental)
+  --public                      use public (internet) dependency sources instead of internal mirrors
   --make-target <target>        make only this target instead of the default all (e.g. build_externals)
 
 cmake passthrough:
@@ -170,6 +172,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --sccache)
             USE_SCCACHE=true
+            shift
+            ;;
+        --public)
+            USE_PUBLIC=true
             shift
             ;;
         --make-target)
@@ -420,69 +426,120 @@ if [[ "$flag_BUILD_TAOSX" == "ON" && "$flag_BUILD_EXPLORER_UI" == "OFF" ]]; then
     NEEDS_DIST_CLEANUP=true
 fi
 
-# Read CONAN_REMOTE_URL from .build-args (same source used by image build scripts).
-CONAN_REMOTE_URL=""
-if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    CONAN_REMOTE_URL="$(grep -E '^CONAN_REMOTE_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+# ── dependency source selection ──────────────────────────────────────────────
+# Default: internal mirrors. --public: public (internet) sources.
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    echo "[INFO] --public mode: using public dependency sources"
 fi
-CONAN_REMOTE_URL="${CONAN_REMOTE_URL:-https://nexus.tdengine.net/repository/conan/}"
+
+# Read CONAN_REMOTE_URL from .build-args (same source used by image build scripts).
+# In --public mode, leave empty so the built-in conancenter is used.
+CONAN_REMOTE_URL=""
+if [[ "$USE_PUBLIC" != "true" ]]; then
+    if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+        CONAN_REMOTE_URL="$(grep -E '^CONAN_REMOTE_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
+    CONAN_REMOTE_URL="${CONAN_REMOTE_URL:-https://nexus.tdengine.net/repository/conan/}"
+fi
 
 # Read GO_PROXY from .build-args and inject as runtime GOPROXY override.
-# This ensures the container uses the internal proxy even if the image was built
-# with an older default (goproxy.cn).
 GO_PROXY=""
 if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    GO_PROXY="$(grep -E '^GO_PROXY=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    if [[ "$USE_PUBLIC" == "true" ]]; then
+        GO_PROXY="$(grep -E '^GO_PUBLIC_PROXY=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    else
+        GO_PROXY="$(grep -E '^GO_PROXY=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
 fi
-GO_PROXY="${GO_PROXY:-https://nexus.tdengine.net/repository/goproxy/}"
-EXTRA_ENV_ARGS+=("--env=GOPROXY=${GO_PROXY},direct" "--env=GONOSUMCHECK=*" "--env=GONOSUMDB=*")
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    GO_PROXY="${GO_PROXY:-https://proxy.golang.org}"
+    EXTRA_ENV_ARGS+=("--env=GOPROXY=${GO_PROXY},direct")
+else
+    GO_PROXY="${GO_PROXY:-https://nexus.tdengine.net/repository/goproxy/}"
+    EXTRA_ENV_ARGS+=("--env=GOPROXY=${GO_PROXY},direct" "--env=GONOSUMCHECK=*" "--env=GONOSUMDB=*")
+fi
 
-# Read DEPS_MIRROR_URL from .build-args or use default GitLab generic package registry.
-# This is passed as -DLOCAL_URL to cmake so ExternalProject downloads use the internal
-# mirror instead of github.com.
+# DEPS_MIRROR_URL → cmake LOCAL_URL for ExternalProject downloads.
+# In --public mode, don't set it so cmake uses original public URLs.
 DEPS_MIRROR_URL=""
-if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    DEPS_MIRROR_URL="$(grep -E '^DEPS_MIRROR_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+if [[ "$USE_PUBLIC" != "true" ]]; then
+    if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+        DEPS_MIRROR_URL="$(grep -E '^DEPS_MIRROR_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
+    DEPS_MIRROR_URL="${DEPS_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}"
 fi
-DEPS_MIRROR_URL="${DEPS_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}"
 
-# Pass the mirror URL to cmake so ExternalProject downloads use the internal
-# mirror instead of github.com.
 if [[ -n "${DEPS_MIRROR_URL}" ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DBUILD_DEPS_MIRROR_URL=${DEPS_MIRROR_URL}"
 fi
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DBUILD_USE_PUBLIC_DEPS=ON"
+fi
 
-# Read NPM_REGISTRY_URL from .build-args for container npm/pnpm registry injection.
+# NPM registry
 NPM_REGISTRY_URL=""
 if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    NPM_REGISTRY_URL="$(grep -E '^NPM_REGISTRY_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    if [[ "$USE_PUBLIC" == "true" ]]; then
+        NPM_REGISTRY_URL="$(grep -E '^NPM_PUBLIC_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    else
+        NPM_REGISTRY_URL="$(grep -E '^NPM_REGISTRY_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
 fi
-NPM_REGISTRY_URL="${NPM_REGISTRY_URL:-https://nora.tdengine.net/npm/}"
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    NPM_REGISTRY_URL="${NPM_REGISTRY_URL:-https://registry.npmjs.org/}"
+else
+    NPM_REGISTRY_URL="${NPM_REGISTRY_URL:-https://nora.tdengine.net/npm/}"
+fi
 
-# Read MAVEN_MIRROR_URL from .build-args for container Maven settings.xml injection.
+# Maven mirror
 MAVEN_MIRROR_URL=""
 if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    MAVEN_MIRROR_URL="$(grep -E '^MAVEN_MIRROR_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    if [[ "$USE_PUBLIC" == "true" ]]; then
+        MAVEN_MIRROR_URL="$(grep -E '^MAVEN_PUBLIC_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    else
+        MAVEN_MIRROR_URL="$(grep -E '^MAVEN_MIRROR_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
 fi
-MAVEN_MIRROR_URL="${MAVEN_MIRROR_URL:-https://nexus.tdengine.net/repository/maven-public/}"
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    MAVEN_MIRROR_URL="${MAVEN_MIRROR_URL:-https://repo.maven.apache.org/maven2/}"
+else
+    MAVEN_MIRROR_URL="${MAVEN_MIRROR_URL:-https://nexus.tdengine.net/repository/maven-public/}"
+fi
 
-# Read NUGET_SOURCE_URL from .build-args for container NuGet source injection.
+# NuGet source
 NUGET_SOURCE_URL=""
 if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    NUGET_SOURCE_URL="$(grep -E '^NUGET_SOURCE_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    if [[ "$USE_PUBLIC" == "true" ]]; then
+        NUGET_SOURCE_URL="$(grep -E '^NUGET_PUBLIC_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    else
+        NUGET_SOURCE_URL="$(grep -E '^NUGET_SOURCE_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
 fi
-NUGET_SOURCE_URL="${NUGET_SOURCE_URL:-https://nora.tdengine.net/nuget/v3/index.json}"
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    NUGET_SOURCE_URL="${NUGET_SOURCE_URL:-https://api.nuget.org/v3/index.json}"
+else
+    NUGET_SOURCE_URL="${NUGET_SOURCE_URL:-https://nora.tdengine.net/nuget/v3/index.json}"
+fi
 
-# Read PYPI_INTERNAL_URL from .build-args for container pip index override.
-# This is separate from PYPI_MIRROR (used by Dockerfile for image builds).
+# PyPI
 PYPI_INTERNAL_URL=""
 PYPI_INTERNAL_HOST=""
 if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
-    PYPI_INTERNAL_URL="$(grep -E '^PYPI_INTERNAL_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
-    PYPI_INTERNAL_HOST="$(grep -E '^PYPI_INTERNAL_HOST=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    if [[ "$USE_PUBLIC" == "true" ]]; then
+        PYPI_INTERNAL_URL="$(grep -E '^PYPI_PUBLIC_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+        PYPI_INTERNAL_HOST="$(grep -E '^PYPI_PUBLIC_HOST=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    else
+        PYPI_INTERNAL_URL="$(grep -E '^PYPI_INTERNAL_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+        PYPI_INTERNAL_HOST="$(grep -E '^PYPI_INTERNAL_HOST=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    fi
 fi
-PYPI_INTERNAL_URL="${PYPI_INTERNAL_URL:-https://nora.tdengine.net/simple/}"
-PYPI_INTERNAL_HOST="${PYPI_INTERNAL_HOST:-nora.tdengine.net}"
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    PYPI_INTERNAL_URL="${PYPI_INTERNAL_URL:-https://pypi.org/simple/}"
+    PYPI_INTERNAL_HOST="${PYPI_INTERNAL_HOST:-pypi.org}"
+else
+    PYPI_INTERNAL_URL="${PYPI_INTERNAL_URL:-https://nora.tdengine.net/simple/}"
+    PYPI_INTERNAL_HOST="${PYPI_INTERNAL_HOST:-nora.tdengine.net}"
+fi
 
 TSDB_DIR="$(realpath "${TSDB_DIR}")"
 
@@ -524,6 +581,7 @@ echo "[INFO] Cache       : ${TSDB_CACHE_DIR}"
 echo "[INFO] Output      : ${TSDB_DIR}/${BUILD_DIR}/"
 $CLEAN && echo "[INFO] --clean     : build directory will be wiped before cmake"
 $SPLIT_DEBUG && echo "[INFO] --split-debug: debug info will be separated after build"
+$USE_PUBLIC && echo "[INFO] --public     : using public dependency sources"
 if [[ ${#EXTRA_CMAKE_ARGS[@]} -gt 0 ]]; then
     echo "[INFO] Extra cmake args (${#EXTRA_CMAKE_ARGS[@]}):"
     for _arg in "${EXTRA_CMAKE_ARGS[@]}"; do
@@ -599,7 +657,11 @@ if [ -n \"\${RUSTC_WRAPPER:-}\" ] && [ \"\${RUSTC_WRAPPER}\" = \"sccache\" ]; th
         _sccache_ver=v0.15.0
         _sccache_arch=\$(uname -m)
         _sccache_tar=\"sccache-\${_sccache_ver}-\${_sccache_arch}-unknown-linux-musl\"
-        _sccache_url=\"${DEPS_MIRROR_URL}/sccache-\${_sccache_ver}-\${_sccache_arch}-unknown-linux-musl.tar.gz\"
+        if [ '${USE_PUBLIC}' = 'true' ]; then
+            _sccache_url=\"https://github.com/mozilla/sccache/releases/download/\${_sccache_ver}/sccache-\${_sccache_ver}-\${_sccache_arch}-unknown-linux-musl.tar.gz\"
+        else
+            _sccache_url=\"${DEPS_MIRROR_URL}/sccache-\${_sccache_ver}-\${_sccache_arch}-unknown-linux-musl.tar.gz\"
+        fi
         if curl -fsSL \"\${_sccache_url}\" | tar xz -C /usr/local/bin --strip-components=1 \"\${_sccache_tar}/sccache\" 2>/dev/null; then
             chmod +x /usr/local/bin/sccache
             echo \"[INFO] sccache \${_sccache_ver} installed successfully\"
@@ -647,12 +709,27 @@ m4/1.4.19
 PROFILE_EOF
 fi
 
+# ── Git URL mirrors for Rust git deps ────────────────────────────────────────
+# Redirect GitHub URLs → internal GitLab mirrors for Rust cargo dependencies.
+# In --public mode, skip this so cargo fetches directly from GitHub.
+if [ '${USE_PUBLIC}' != 'true' ]; then
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/ring.git'.insteadOf 'https://github.com/taosdata/ring.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git'.insteadOf 'https://github.com/taosdata/tungstenite-rs.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git'.insteadOf 'https://github.com/taosdata/tokio-tungstenite.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/multi_index_map.git'.insteadOf 'https://github.com/acerDebugman/multi_index_map.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/rust-jemalloc-pprof.git'.insteadOf 'https://github.com/polarsignals/rust-jemalloc-pprof.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/TinyTemplate.git'.insteadOf 'https://github.com/bitcapybara/TinyTemplate.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/geos'.insteadOf 'https://github.com/georust/geos.git'
+    git config --global url.'https://git.tdengine.net/taosdata/rust-deps/geos'.insteadOf 'https://github.com/georust/geos'
+    echo '[INFO] Git URL mirrors: GitHub → internal GitLab (7 Rust deps)'
+fi
+
 # Restore nexus remote: the volume mount on /root/.conan2 shadows the
 # image-baked Conan config, so the nexus remote added during image build
 # is lost.  Re-add it at index 0 (highest priority) if missing.
 # Skip if the remote URL is unreachable (e.g. decommissioned).
-if [ -n '${CONAN_REMOTE_URL}' ] && ! conan remote list | grep -q nexus; then
-    if curl -sfI '${CONAN_REMOTE_URL}' >/dev/null 2>&1; then
+if [ '${USE_PUBLIC}' != 'true' ] && [ -n '${CONAN_REMOTE_URL}' ] && ! conan remote list | grep -q nexus; then
+    if curl -sI --connect-timeout 5 '${CONAN_REMOTE_URL}' >/dev/null 2>&1; then
         conan remote add nexus '${CONAN_REMOTE_URL}' --index 0
     else
         echo '[WARN] Nexus remote unreachable, skipping.'
@@ -666,7 +743,7 @@ if command -v npm >/dev/null 2>&1; then
 fi
 
 # Configure Maven mirror → internal Nexus (others image only)
-if command -v mvn >/dev/null 2>&1 && [ ! -f /root/.m2/settings.xml ]; then
+if [ '${USE_PUBLIC}' != 'true' ] && command -v mvn >/dev/null 2>&1 && [ ! -f /root/.m2/settings.xml ]; then
     mkdir -p /root/.m2
     cat > /root/.m2/settings.xml << MAVEN_SETTINGS_EOF
 <?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -690,7 +767,8 @@ if command -v dotnet >/dev/null 2>&1; then
 fi
 
 # Override pip index-url → internal mirror (image bakes Aliyun; runtime overrides to Nora)
-if command -v pip3 >/dev/null 2>&1; then
+# In --public mode, skip pip override (pypi.org uses HTTPS, no trusted-host needed)
+if command -v pip3 >/dev/null 2>&1 && [ '${USE_PUBLIC}' != 'true' ]; then
     pip3 config set global.index-url '${PYPI_INTERNAL_URL}' 2>/dev/null || true
     pip3 config set global.trusted-host '${PYPI_INTERNAL_HOST}' 2>/dev/null || true
     echo \"[INFO] pip index-url overridden to '${PYPI_INTERNAL_URL}'\"
@@ -796,6 +874,13 @@ if [ '${NEEDS_DIST_CLEANUP}' = 'true' ]; then
 fi
 "
 
+# Select cargo config based on --public flag
+if [[ "$USE_PUBLIC" == "true" ]]; then
+    _cargo_config="${SCRIPT_DIR}/.cargo/config.toml.public"
+else
+    _cargo_config="${SCRIPT_DIR}/.cargo/config.toml"
+fi
+
 declare -a DOCKER_MAIN_ARGS=(
     "--rm"
     $( [[ "$ARCH" != "riscv64" ]] && echo "--platform=${PLATFORM}" )
@@ -810,7 +895,7 @@ declare -a DOCKER_MAIN_ARGS=(
     "--volume=${TSDB_CACHE_DIR}/cargo-registry:/root/.cargo/registry"
     "--volume=${TSDB_CACHE_DIR}/cargo-git:/root/.cargo/git"
     "--volume=${TSDB_CACHE_DIR}/ccache-${USE_IMAGE}-${ARCH}:/root/.cache/ccache"
-    "--volume=${SCRIPT_DIR}/.cargo/config.toml:/root/.cargo/config.toml:ro"
+    "--volume=${_cargo_config}:/root/.cargo/config.toml:ro"
 )
 if [[ "$USE_SCCACHE" == "true" ]]; then
     DOCKER_MAIN_ARGS+=("--volume=${TSDB_CACHE_DIR}/sccache-${USE_IMAGE}-${ARCH}:/root/.cache/sccache")

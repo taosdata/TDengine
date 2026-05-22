@@ -23,16 +23,17 @@ English | [简体中文](README-CN.md)
 - [1. Introduction](#1-introduction)
 - [2. Documentation](#2-documentation)
 - [3. Prerequisites](#3-prerequisites)
-- [4. Build](#4-build)
+- [4. Building](#4-building)
 - [5. Testing](#5-testing)
     - [5.1 Test Execution](#51-test-execution)
     - [5.2 Test Case Addition](#52-test-case-addition)
     - [5.3 Performance Testing](#53-performance-testing)
-- [6. CI/CD](#6-cicd)
-- [7. Submitting Issues](#7-submitting-issues)
-- [8. Submitting PRs](#8-submitting-prs)
-- [9. References](#9-references)
-- [10. License](#10-license)
+- [6. Packaging](#6-packaging)
+- [7. CI/CD](#7-cicd)
+- [8. Submitting Issues](#8-submitting-issues)
+- [9. Submitting PRs](#9-submitting-prs)
+- [10. References](#10-references)
+- [11. License](#11-license)
 
 ## 1. Introduction
 
@@ -52,14 +53,38 @@ allowing Go developers to create applications that interact with TDengine cluste
 
 ## 3. Prerequisites
 
-- Go 1.14 or above and enable CGO with `export CGO_ENABLED=1`.
+### System Requirements
+- Go >= 1.14 (1.23+ recommended)
+- For native connector: TDengine client library (`libtaos.so`)
+- For REST/WebSocket connector: no native library needed
+
+### Installing Go
+**Ubuntu/Debian & CentOS/RHEL:**
+```bash
+wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+export PATH=/usr/local/go/bin:$PATH
+```
+
+### Native Connector Notes
+- Enable CGO with `export CGO_ENABLED=1` when building or testing the native connector.
+- Ensure `libtaos.so` is installed in a standard library search path, or set `LD_LIBRARY_PATH` accordingly.
+
+### Local Test Environment
 - TDengine has been deployed locally. For specific steps, please refer
   to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/). Please make sure taosd and
   taosAdapter have been started.
 
-## 4. Build
+## 4. Building
 
-No need to build.
+```bash
+git clone https://github.com/taosdata/driver-go.git
+cd driver-go
+go build ./...   # verify compilation
+```
+
+`driver-go` is a Go library, so `go build ./...` is the standard way to verify that all packages compile successfully.
 
 ## 5. Testing
 
@@ -72,6 +97,17 @@ No need to build.
 3. The output result `PASS` means the test passed, while `FAIL` means the test failed. For detailed information, run
    `go test -v ./...`.
 
+```bash
+# run the full test suite
+go test ./...
+
+# run with verbose output
+go test -v ./...
+```
+
+- Native connector tests require CGO enabled and a working `libtaos.so` installation.
+- REST/WebSocket tests do not require the TDengine native client library, but still require running `taosd` and `taosAdapter`.
+
 ### 5.2 Test Case Addition
 
 Add test cases to the `*_test.go` file to ensure that the test cases cover the new code.
@@ -80,12 +116,20 @@ Add test cases to the `*_test.go` file to ensure that the test cases cover the n
 
 Performance testing is in progress.
 
-## 6. CI/CD
+## 6. Packaging
+
+`driver-go` is a Go module — no separate packaging step needed. Users import it via:
+
+```go
+go get github.com/taosdata/driver-go/v3@latest
+```
+
+## 7. CI/CD
 
 - [Build Workflow](https://github.com/taosdata/driver-go/actions/workflows/build.yml)
 - [Code Coverage](https://app.codecov.io/gh/taosdata/driver-go)
 
-## 7. Submitting Issues
+## 8. Submitting Issues
 
 We welcome the submission of [GitHub Issue](https://github.com/taosdata/driver-go/issues/new?template=Blank+issue). When
 submitting, please provide the following information:
@@ -95,7 +139,7 @@ submitting, please provide the following information:
 - Connection parameters (excluding server address, username, and password)
 - TDengine version
 
-## 8. Submitting PRs
+## 9. Submitting PRs
 
 We welcome developers to contribute to this project. When submitting PRs, please follow these steps:
 
@@ -113,11 +157,11 @@ We welcome developers to contribute to this project. When submitting PRs, please
 7. After submitting the PR, if the CI passes, you can find your PR on
    the [codecov](https://app.codecov.io/gh/taosdata/driver-go/pulls) page to check the coverage.
 
-## 9. References
+## 10. References
 
 - [TDengine Official Website](https://tdengine.com/)
 - [TDengine GitHub](https://github.com/taosdata/TDengine)
 
-## 10. License
+## 11. License
 
 [MIT License](./LICENSE)

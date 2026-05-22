@@ -244,6 +244,20 @@ if(DEFINED BUILD_DEPS_MIRROR_URL AND "${LOCAL_URL}" STREQUAL "")
   set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}" CACHE STRING "local archives storage to use" FORCE)
 endif()
 
+# When BUILD_USE_PUBLIC_DEPS is ON, force LOCAL_URL and LOCAL_REPO to empty so that
+# get_from_local_if_exists() / get_from_local_repo_if_exists() use original public URLs.
+# This also overrides any cached values from a previous configure.
+if(BUILD_USE_PUBLIC_DEPS)
+  if(DEFINED BUILD_DEPS_MIRROR_URL AND NOT "${BUILD_DEPS_MIRROR_URL}" STREQUAL "")
+    message(WARNING
+      "BUILD_USE_PUBLIC_DEPS=ON but BUILD_DEPS_MIRROR_URL is also set. "
+      "Ignoring BUILD_DEPS_MIRROR_URL and using public URLs.")
+  endif()
+  set(LOCAL_URL "" CACHE STRING "local archives storage to use" FORCE)
+  set(LOCAL_REPO "" CACHE STRING "local repositories storage to use" FORCE)
+  message(STATUS "BUILD_USE_PUBLIC_DEPS=ON: ExternalProject will use original public URLs")
+endif()
+
 if(NOT "${LOCAL_URL}" STREQUAL "")
   message(STATUS "ExternalProject mirror: ${LOCAL_URL}")
 endif()

@@ -41,7 +41,4 @@ taos = { path = "../../taos-connector-rust/taos", default-features = false, vers
 ] }
 
 [patch.crates-io]
-ring = { git = "https://git.tdengine.net/taosdata/rust-deps/ring.git", branch = "fix/loongarch" }
-
-[patch.'https://github.com/taosdata/tungstenite-rs.git']
-tungstenite = { git = "https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git", branch = "feat/taosdata/permessage-deflate" }
+ring = { git = "https://github.com/taosdata/ring.git", branch = "fix/loongarch" }
