@@ -4248,7 +4248,7 @@ dependencies = [
 [[package]]
 name = "geos"
 version = "10.0.0"
-source = "git+https://github.com/georust/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
 dependencies = [
  "geos-sys",
  "libc",
@@ -4258,7 +4258,7 @@ dependencies = [
 [[package]]
 name = "geos-src"
 version = "0.2.3"
-source = "git+https://github.com/georust/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
 dependencies = [
  "cmake",
 ]
@@ -4266,7 +4266,7 @@ dependencies = [
 [[package]]
 name = "geos-sys"
 version = "2.0.6"
-source = "git+https://github.com/georust/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/geos?rev=47afbad2483e489911ddb456417808340e9342c3#47afbad2483e489911ddb456417808340e9342c3"
 dependencies = [
  "geos-src",
  "libc",
@@ -5211,7 +5211,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jemalloc_pprof"
 version = "0.8.2"
-source = "git+https://github.com/polarsignals/rust-jemalloc-pprof.git#febd0a9c2edf0c6b7e0fd5f2064970021a282e67"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/rust-jemalloc-pprof.git#900a0f4b31ba9ebfeab6a18dff64e8818d1b4b5e"
 dependencies = [
  "anyhow",
  "libc",
@@ -5787,7 +5787,7 @@ dependencies = [
 [[package]]
 name = "mappings"
 version = "0.7.2"
-source = "git+https://github.com/polarsignals/rust-jemalloc-pprof.git#febd0a9c2edf0c6b7e0fd5f2064970021a282e67"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/rust-jemalloc-pprof.git#900a0f4b31ba9ebfeab6a18dff64e8818d1b4b5e"
 dependencies = [
  "anyhow",
  "libc",
@@ -6097,7 +6097,7 @@ dependencies = [
 [[package]]
 name = "multi_index_map"
 version = "0.15.0"
-source = "git+https://github.com/acerDebugman/multi_index_map.git?tag=v0.1-taos#fab6c9cd808c69202ec77b683c4dced3910a15b0"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/multi_index_map.git?tag=v0.1-taos#fab6c9cd808c69202ec77b683c4dced3910a15b0"
 dependencies = [
  "multi_index_map_derive",
  "rustc-hash 2.1.2",
@@ -6107,7 +6107,7 @@ dependencies = [
 [[package]]
 name = "multi_index_map_derive"
 version = "0.15.0"
-source = "git+https://github.com/acerDebugman/multi_index_map.git?tag=v0.1-taos#fab6c9cd808c69202ec77b683c4dced3910a15b0"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/multi_index_map.git?tag=v0.1-taos#fab6c9cd808c69202ec77b683c4dced3910a15b0"
 dependencies = [
  "convert_case 0.8.0",
  "proc-macro-error2",
@@ -7301,7 +7301,7 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 [[package]]
 name = "pprof_util"
 version = "0.8.2"
-source = "git+https://github.com/polarsignals/rust-jemalloc-pprof.git#febd0a9c2edf0c6b7e0fd5f2064970021a282e67"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/rust-jemalloc-pprof.git#900a0f4b31ba9ebfeab6a18dff64e8818d1b4b5e"
 dependencies = [
  "anyhow",
  "flate2",
@@ -10761,7 +10761,7 @@ dependencies = [
  "taosx-utils",
  "tempfile",
  "thiserror 2.0.18",
- "tinytemplate 1.2.1 (git+https://github.com/bitcapybara/TinyTemplate.git?rev=9085af2b9c824e670750369827b9d6bbf24ae876)",
+ "tinytemplate 1.2.1 (git+https://git.tdengine.net/taosdata/rust-deps/TinyTemplate.git?rev=9085af2b9c824e670750369827b9d6bbf24ae876)",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -11232,7 +11232,7 @@ dependencies = [
 [[package]]
 name = "tinytemplate"
 version = "1.2.1"
-source = "git+https://github.com/bitcapybara/TinyTemplate.git?rev=9085af2b9c824e670750369827b9d6bbf24ae876#9085af2b9c824e670750369827b9d6bbf24ae876"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/TinyTemplate.git?rev=9085af2b9c824e670750369827b9d6bbf24ae876#9085af2b9c824e670750369827b9d6bbf24ae876"
 dependencies = [
  "serde",
  "serde_json",
@@ -11854,7 +11854,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 [[package]]
 name = "tungstenite"
 version = "0.23.0"
-source = "git+https://github.com/taosdata/tungstenite-rs.git?branch=feat%2Ftaosdata%2Fpermessage-deflate#e4d146b831fe8255c669ce9984267ba3204999c5"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git?branch=feat%2Ftaosdata%2Fpermessage-deflate#e4d146b831fe8255c669ce9984267ba3204999c5"
 dependencies = [
  "byteorder",
  "bytes",
