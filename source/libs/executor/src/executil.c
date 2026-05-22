@@ -3213,7 +3213,97 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
-static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* isStrict) {
+static EDealRes condHasRemoteValueWalker(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) == QUERY_NODE_REMOTE_VALUE ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_VALUE_LIST ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_ROW ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_TABLE ||
+      nodeType(pNode) == QUERY_NODE_REMOTE_ZERO_ROWS) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool condHasRemoteValue(SNode* pNode) {
+  bool found = false;
+  nodesWalkExpr(pNode, condHasRemoteValueWalker, &found);
+  return found;
+}
+
+// Extract static (non-remote) primary-key time bounds from an AND condition
+// that may contain remote subquery references.  Remote-bearing children are
+// stripped; the remaining literal comparisons are passed to filterGetTimeRange.
+// Returns TSDB_CODE_SUCCESS with extracted range, or error on clone/filter failure.
+// If no static bound can be extracted, *pExtracted remains at TSWINDOW_INITIALIZER.
+static int32_t extractStaticTimeRangeFromAndCond(SNode* pCond, STimeWindow* pExtracted, bool* pStrict) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pProbe = NULL;
+
+  code = nodesCloneNode(pCond, &pProbe);
+  if (code != TSDB_CODE_SUCCESS || pProbe == NULL) {
+    nodesDestroyNode(pProbe);
+    return code;
+  }
+
+  if (nodeType(pProbe) == QUERY_NODE_LOGIC_CONDITION &&
+      ((SLogicConditionNode*)pProbe)->condType == LOGIC_COND_TYPE_AND) {
+    SLogicConditionNode* pAnd = (SLogicConditionNode*)pProbe;
+    SListCell* pCell = pAnd->pParameterList ? pAnd->pParameterList->pHead : NULL;
+    while (pCell != NULL) {
+      if (condHasRemoteValue(pCell->pNode)) {
+        pCell = nodesListErase(pAnd->pParameterList, pCell);
+      } else {
+        pCell = pCell->pNext;
+      }
+    }
+    int32_t remaining = pAnd->pParameterList ? (int32_t)pAnd->pParameterList->length : 0;
+    if (remaining == 0) {
+      nodesDestroyNode(pProbe);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (remaining == 1) {
+      SNode* pOnly = pAnd->pParameterList->pHead->pNode;
+      pAnd->pParameterList->pHead->pNode = NULL;
+      nodesDestroyNode(pProbe);
+      pProbe = pOnly;
+    }
+  } else if (condHasRemoteValue(pProbe)) {
+    // Non-AND node that is itself remote — no static bound extractable.
+    nodesDestroyNode(pProbe);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = filterGetTimeRange(pProbe, pExtracted, pStrict, NULL);
+  nodesDestroyNode(pProbe);
+  return code;
+}
+
+static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* isStrict, bool isStream) {
+  // In stream mode, a WHERE primary-key cond that references a remote
+  // subquery (e.g. WHERE ts >= (SELECT last_row(ts) FROM ref)) must not be
+  // folded to a literal time range here; doing so freezes the bound at
+  // task-build time and the same range is reused for every trigger event.
+  // Keep the original cond intact so the caller merges it into pConditions
+  // and the runtime filter re-evaluates the RemoteValueNode per fetch.
+  if (isStream && condHasRemoteValue(*pPrimaryKeyCond)) {
+    *isStrict = false;
+    STimeWindow incoming = *pTimeRange;
+    STimeWindow extracted = TSWINDOW_INITIALIZER;
+    bool probeStrict = true;
+
+    int32_t code = extractStaticTimeRangeFromAndCond(*pPrimaryKeyCond, &extracted, &probeStrict);
+    if (TSDB_CODE_SUCCESS == code && extracted.skey != INT64_MIN) {
+      // Intersect the extracted literal range with the incoming window.
+      pTimeRange->skey = TMAX(incoming.skey, extracted.skey);
+      pTimeRange->ekey = TMIN(incoming.ekey, extracted.ekey);
+    } else if (code != TSDB_CODE_SUCCESS) {
+      *pTimeRange = incoming;
+    }
+    *isStrict = false;
+    return code;
+  }
+
   SNode*  pNew = NULL;
   int32_t code = scalarCalculateRemoteConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3292,7 +3382,8 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* 
 
   if (pTableScanNode->pPrimaryCond) {
     bool isStrict = false;
-    code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict);
+    bool isStream = (readHandle != NULL && readHandle->streamRtInfo != NULL);
+    code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict, isStream);
     if (code || !isStrict) {
       code = nodesMergeNode((SNode**)&pTableScanNode->scan.node.pConditions, &pTableScanNode->pPrimaryCond);
     }
@@ -4454,7 +4545,21 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SValueNode* pRes, SSDataBlock*
   
   pRes->flag &= (~VALUE_FLAG_VAL_UNSET);
   pRes->translate = true;
-  
+  // Reset isNull so a previously-NULL placeholder (e.g. from an earlier
+  // stream event whose subquery returned no rows) isn't re-emitted as
+  // NULL when this fetch produced a real value.
+  pRes->isNull = false;
+
+  // For variable-length / DECIMAL types, datum.p owns a heap buffer that
+  // was transferred from the response block on the previous fetch.  In
+  // stream mode this function is called per trigger event, so free the
+  // prior buffer before nodesSetValueNodeValueExt overwrites datum.p,
+  // otherwise we leak one buffer per event.
+  if (IS_VAR_DATA_TYPE(pRes->node.resType.type) ||
+      pRes->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
+    taosMemoryFreeClear(pRes->datum.p);
+  }
+
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
   if (colDataIsNull_s(pCol, 0)) {
     pRes->isNull = true;
@@ -4479,7 +4584,8 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   if (IS_STREAM_MODE(pTaskInfo)) {
     SNode** ppRes = taosArrayGet(ctx->subResNodes, pParam->subQIdx);
     if (NULL == *ppRes && 0 == pRsp->numOfRows) {
-      pRemote->val.node.type = QUERY_NODE_VALUE;
+      // First-call empty result: keep node type as REMOTE_VALUE so the
+      // scalar walker re-dispatches sclWalkRemoteValue per evaluation.
       pRemote->val.isNull = true;
       pRemote->val.translate = true;
       pRemote->val.flag &= (~VALUE_FLAG_VAL_UNSET);
@@ -4502,7 +4608,6 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 
       blockDataDestroy(pResBlock);
     } else if (NULL != *ppRes && 0 == pRsp->numOfRows) {
-      pRemote->val.node.type = QUERY_NODE_VALUE;
       pRsp->completed = true;
     }
 
@@ -4724,7 +4829,11 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
 
       blockDataDestroy(pResBlock);
     } else if (NULL != *ppRes && 0 == pRsp->numOfRows) {
-      pRemote->val.node.type = QUERY_NODE_VALUE;
+      // EOF after data in stream mode: keep the node typed as REMOTE_ROW
+      // (do NOT rewrite to QUERY_NODE_VALUE) so the next per-event walker
+      // pass re-dispatches the case in sclInitParam and re-fires the
+      // fetch; otherwise > ANY / row subqueries would permanently replay
+      // the previous event's value.
       pRsp->completed = true;
     }
 
@@ -4896,7 +5005,7 @@ void handleRemoteTableRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
 
   if (!(*fetchDone)) {
-    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes, 1);
+    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes, false);
     if (TSDB_CODE_SUCCESS != code) {
       ctx->code = code;
       *fetchDone = true;
@@ -4916,23 +5025,24 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     return TSDB_CODE_SUCCESS;
   }
 
+  // Copy idStr to a local buffer immediately. ctx->idStr points into the task
+  // memory pool which may be freed by doDestroyTask on a concurrent thread
+  // after the ref is acquired but before the log calls below execute.
   char idStr[64];
-  if (qDebugFlag & DEBUG_DEBUG) {
-    tstrncpy(idStr, ctx->idStr, sizeof(idStr));
-  }
-  
-  qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
+  tstrncpy(idStr, ctx->idStr, sizeof(idStr));
+
+  qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
 
   if (ctx->transporterId > 0) {
     int32_t ret = asyncFreeConnById(ctx->rpcHandle, ctx->transporterId);
     if (ret != 0) {
-      qDebug("%s failed to free subQ rpc handle, code:%s, subQIdx:%d", ctx->idStr, tstrerror(ret), pParam->subQIdx);
+      qDebug("%s failed to free subQ rpc handle, code:%s, subQIdx:%d", idStr, tstrerror(ret), pParam->subQIdx);
     }
     ctx->transporterId = -1;
   }
 
   if (0 == code && NULL == pMsg->pData) {
-    qError("%s invalid rsp msg, msgType:%d, len:%d", ctx->idStr, pMsg->msgType, pMsg->len);
+    qError("%s invalid rsp msg, msgType:%d, len:%d", idStr, pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
 
@@ -4946,7 +5056,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
 
     qDebug("%s subQIdx %d blockIdx:%" PRIu64 " rsp detail, numOfBlocks:%d, numOfRows:%" PRId64 ", numOfCols:%" PRId64 ", completed:%d", 
-      ctx->idStr, pParam->subQIdx, ctx->blockIdx, pRsp->numOfBlocks, pRsp->numOfRows, pRsp->numOfCols, pRsp->completed);
+      idStr, pParam->subQIdx, ctx->blockIdx, pRsp->numOfBlocks, pRsp->numOfRows, pRsp->numOfCols, pRsp->completed);
 
     ctx->blockIdx++;
 
@@ -4997,21 +5107,21 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
         break;
       }
       default:
-        qError("%s invalid scl fetch res node %d, subQIdx:%d", ctx->idStr, nodeType(pParam->pRes), pParam->subQIdx);
+        qError("%s invalid scl fetch res node %d, subQIdx:%d", idStr, nodeType(pParam->pRes), pParam->subQIdx);
         ctx->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         break;
     }
   } else {
     ctx->code = rpcCvtErrCode(code);
     if (ctx->code != code) {
-      qError("%s scl fetch rsp received, subQIdx:%d, error:%s, cvted error: %s", ctx->idStr, pParam->subQIdx,
+      qError("%s scl fetch rsp received, subQIdx:%d, error:%s, cvted error: %s", idStr, pParam->subQIdx,
              tstrerror(code), tstrerror(ctx->code));
     } else {
-      qError("%s scl fetch rsp received, subQIdx:%d, error:%s", ctx->idStr, pParam->subQIdx, tstrerror(code));
+      qError("%s scl fetch rsp received, subQIdx:%d, error:%s", idStr, pParam->subQIdx, tstrerror(code));
     }
   }
 
-  qDebug("%s subQIdx %d sem_post subQ ready", ctx->idStr, pParam->subQIdx);
+  qDebug("%s subQIdx %d sem_post subQ ready", idStr, pParam->subQIdx);
   
   code = tsem_post(&ctx->ready);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5059,6 +5169,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
 
   if (IS_STREAM_MODE(pTaskInfo)) {
     req.queryId = pSource->clientId;
+    // Use deterministic execId from stream runtime (unique per reader task execution)
     req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
     req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
     req.reset = reset;
@@ -5084,9 +5195,9 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   }
 
   qDebug("%s scl build fetch msg and send to nodeId:%d, ep:%s, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
-         ", execId:%d, blockIdx:%" PRId64,
+         ", execId:%d, blockIdx:%" PRId64 ", reset:%d",
          ctx->idStr, pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->clientId,
-         pSource->taskId, pSource->execId, req.blockIdx);
+         pSource->taskId, req.execId, req.blockIdx, req.reset);
 
   // send the fetch remote task result reques
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -5096,7 +5207,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     return terrno;
   }
 
-  SScalarFetchParam* param = taosMemoryMalloc(sizeof(SScalarFetchParam));
+  SScalarFetchParam* param = taosMemoryCalloc(1, sizeof(SScalarFetchParam));
   if (NULL == param) {
     taosMemoryFreeClear(msg);
     taosMemoryFreeClear(pMsgSendInfo);
@@ -5140,20 +5251,80 @@ _end:
 int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  int32_t          retryCount = 0;
+  const int32_t    maxRetries = 100;
+  SExecTaskInfo*   pTask = (SExecTaskInfo*)ctx->pTaskInfo;
+  bool             blocking = false;
 
+_retry:
   ctx->blockIdx = 0;
+  ctx->code = TSDB_CODE_SUCCESS;
 
   code = sendFetchRemoteNodeReq(ctx, subQIdx, pRes, true);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = qSemWait(ctx->pTaskInfo, &ctx->ready);
-  if (isTaskKilled(ctx->pTaskInfo)) {
-    code = getTaskCode(ctx->pTaskInfo);
-  } else {
-    code = ctx->code;
+  if (!blocking && pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      lino = __LINE__;
+      goto _end;
+    }
+    blocking = true;
   }
-      
+
+  int32_t waitCount = 0;
+  while (true) {
+    int32_t ret = tsem_timewait(&ctx->ready, 1000);  // 1s timeout
+    if (ret == 0) {
+      break;  // semaphore posted — got response
+    }
+    if (isTaskKilled(ctx->pTaskInfo)) {
+      qWarn("%s task killed while waiting for remote fetch response", ctx->idStr);
+      code = getTaskCode(ctx->pTaskInfo);
+      goto _after_wait;
+    }
+    waitCount++;
+    if (waitCount >= 100) {
+      qError("%s remote fetch response not received after %d seconds", ctx->idStr, waitCount);
+      code = TSDB_CODE_TIMEOUT_ERROR;
+      goto _after_wait;
+    }
+  }
+
+_after_wait:
+  if (code == TSDB_CODE_SUCCESS) {
+    if (isTaskKilled(ctx->pTaskInfo)) {
+      code = getTaskCode(ctx->pTaskInfo);
+    } else {
+      code = ctx->code;
+    }
+  }
+
+  // If the runner slot is busy (another vnode's request is using it), retry
+  // after a short delay until the slot becomes free.
+  if (code == TSDB_CODE_STREAM_TASK_IVLD_STATUS && retryCount < maxRetries) {
+    retryCount++;
+    if (retryCount % 10 == 1) {
+      qDebug("%s subQIdx %d runner slot busy, retry %d", ctx->idStr, subQIdx, retryCount);
+    }
+    if (isTaskKilled(ctx->pTaskInfo)) {
+      code = getTaskCode(ctx->pTaskInfo);
+      goto _end;
+    }
+    taosMsleep(300 + taosRand() % 201);
+    code = TSDB_CODE_SUCCESS;
+    goto _retry;
+  }
+
 _end:
+  if (blocking && pTask->pWorkerCb) {
+    int32_t ret = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
+    if (ret != TSDB_CODE_SUCCESS && code == TSDB_CODE_SUCCESS) {
+      code = ret;
+      pTask->code = code;
+    }
+  }
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
@@ -5218,8 +5389,40 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
     return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
   }
 
+  // In stream mode the subquery must be re-evaluated for every trigger event;
+  // a cached SNode from an earlier event would replay a stale value and turn
+  // dynamic subqueries (e.g. WHERE ts >= (SELECT last_row(ts) FROM ref))
+  // into constants.  Always go to the wire so req.reset=true reaches the
+  // vnode reader and rebuilds its task with the current ranges.
+  //
+  // Note: pRes here is a pointer into the operator's AST (the SRemoteValueNode
+  // placeholder), not a heap-owned node.  In non-stream mode we still cache
+  // that borrowed pointer in subResNodes[] so subsequent calls memcpy from it.
+  // In stream mode the slot must not retain a stale pRes across trigger
+  // events or be treated as owning pRes: a stale entry would create a
+  // dangling alias once the AST is rebuilt, and freeing through that slot
+  // would double-free the AST node.  Stream response handlers (e.g.
+  // handleRemoteValueRes) may still use subResNodes[] transiently during a
+  // single fetch to distinguish data from the completion sentinel; the
+  // requirement here is to clear the slot to NULL before each refetch so
+  // that only stale per-event state is invalidated, not to take ownership.
   SNode** ppRes = taosArrayGet(ctx->subResNodes, subQIdx);
-  if (NULL == *ppRes) {
+  if (ctx->isStream) {
+    // Stream mode: re-evaluate subquery for every trigger event.
+    // Save previous slot value so we can restore it if the fetch fails.
+    // This prevents a failed fetch from leaving NULL in the slot, which
+    // would cause the next event's callback to misinterpret state as
+    // "first-call empty" if the error is swallowed upstream.
+    SNode* prevRes = ppRes ? *ppRes : NULL;
+    if (ppRes) {
+      *ppRes = NULL;
+    }
+    code = fetchRemoteNodeImpl(ctx, subQIdx, pRes);
+    if (code != TSDB_CODE_SUCCESS && ppRes) {
+      *ppRes = prevRes;
+    }
+    TAOS_CHECK_EXIT(code);
+  } else if (NULL == *ppRes) {
     TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
     *ppRes = pRes;
   } else {

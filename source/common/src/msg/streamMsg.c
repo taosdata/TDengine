@@ -4271,6 +4271,7 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pInfo->triggerType));
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->isWindowTrigger));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pInfo->precision));
+  TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pInfo->streamGen));
 _exit:
   return code;
 }
@@ -4374,6 +4375,9 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pInfo->isWindowTrigger));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pInfo->precision));
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pInfo->streamGen));
   }
 _exit:
   return code;
