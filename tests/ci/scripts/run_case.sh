@@ -157,7 +157,7 @@ export WORK_DIR="${WORK_DIR:-${TSDB_DIR}/sim}"
 # 验证 taosd 存在
 if [[ ! -f "${TAOS_BIN_PATH}/taosd" ]]; then
     echo "ERROR: taosd not found at ${TAOS_BIN_PATH}/taosd"
-    echo "Set TAOS_BIN_PATH or build first: platform/tsdb-builder/build.sh --image others --src ${TSDB_DIR}"
+    echo "Set TAOS_BIN_PATH or build first: tools/tsdb-builder/build.sh --image others --src ${TSDB_DIR}"
     exit 1
 fi
 
