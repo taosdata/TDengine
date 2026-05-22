@@ -117,6 +117,14 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   } else {
     TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
     TAOS_DIRNAME(path);
+#ifdef WINDOWS
+    // If tsProcPath is a bare filename (e.g. "taosd") without directory,
+    // TAOS_DIRNAME yields empty string.  Fall back to GetModuleFileName.
+    if (strlen(path) == 0) {
+      GetModuleFileName(NULL, path, PATH_MAX);
+      TAOS_DIRNAME(path);
+    }
+#endif
   }
 
 #ifdef WINDOWS
@@ -300,7 +308,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     }
     uv_os_free_environ(uvEnvItems, uvEnvItemCount);
     uvEnvItems = NULL;
-
+    
     for (int32_t i = 0; i < lenEnvUdfd; i++) {
       if (envUdfd[i] != NULL) {
         size_t len = strlen(envUdfd[i]) + 1;
