@@ -10629,6 +10629,41 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
   return code;
 }
 
+typedef struct {
+  uint8_t dstPrecision;
+} SFixStmtTsPlaceholderCtx;
+
+static EDealRes fixStmtTsPlaceholderPrecisionWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_VALUE != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SValueNode* pVal = (SValueNode*)pNode;
+  if (pVal->placeholderNo <= 0 || TSDB_DATA_TYPE_TIMESTAMP != pVal->node.resType.type) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFixStmtTsPlaceholderCtx* pCxt = (SFixStmtTsPlaceholderCtx*)pContext;
+  uint8_t                   srcPrecision = pVal->node.resType.precision;
+  uint8_t                   dstPrecision = pCxt->dstPrecision;
+  if (srcPrecision != dstPrecision) {
+    pVal->datum.i = convertTimePrecision(pVal->datum.i, srcPrecision, dstPrecision);
+    *(int64_t*)&pVal->typeData = pVal->datum.i;
+    pVal->node.resType.precision = dstPrecision;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static void fixStmtTsPlaceholderPrecisionInWhere(SSelectStmt* pSelect) {
+  if (NULL == pSelect || NULL == pSelect->pWhere) {
+    return;
+  }
+
+  SFixStmtTsPlaceholderCtx cxt = {.dstPrecision = pSelect->precision};
+  nodesWalkExpr(pSelect->pWhere, fixStmtTsPlaceholderPrecisionWalker, &cxt);
+}
+
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -10638,6 +10673,10 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                         "%%%%trows can not be used with WHERE clause."));
   }
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
+  if (pCxt->pParseCxt->stmtBindVersion == 2) {
+    fixStmtTsPlaceholderPrecisionInWhere(pSelect);
+    return code;
+  }
   PAR_ERR_RET(
       getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable));
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
