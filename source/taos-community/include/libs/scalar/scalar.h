@@ -32,7 +32,9 @@ typedef struct SScalarExtraInfo {
   void*              pStreamInfo;
   void*              pStreamRange;
   void*              pSubJobCtx;
+  bool               isStream;
   sclFetchFromRemote fp;
+  uint64_t           streamGen;
   void*              pTaskInfo;    // opaque task handle for kill check
   sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
 } SScalarExtraInfo;

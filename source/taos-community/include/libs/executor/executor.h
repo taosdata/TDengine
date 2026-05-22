@@ -319,6 +319,7 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 void    setTaskScalarExtraInfo(qTaskInfo_t tinfo);
+void    qSetStreamGen(qTaskInfo_t tinfo, uint64_t gen);
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 int32_t qSemWait(qTaskInfo_t pTask, tsem_t* pSem);

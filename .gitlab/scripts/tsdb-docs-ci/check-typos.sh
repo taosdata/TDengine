@@ -8,6 +8,13 @@ changed_files=()
 while IFS= read -r file; do
   [ -z "${file}" ] && continue
   [ -e "${file}" ] || continue
+  # Skip binary asset types — typos scans bytes and triggers false positives
+  # on PNG/JPG/etc. (assets live under docs/*/assets/).
+  case "${file,,}" in
+    *.png|*.jpg|*.jpeg|*.gif|*.svg|*.webp|*.ico|*.pdf|*.zip|*.tar|*.tgz|*.gz|*.xz|*.bz2|*.woff|*.woff2|*.ttf|*.eot|*.otf|*.mp4|*.webm|*.mov|*.mp3|*.wav)
+      continue
+      ;;
+  esac
   changed_files+=("${file}")
 done < <(changed_doc_files)
 
