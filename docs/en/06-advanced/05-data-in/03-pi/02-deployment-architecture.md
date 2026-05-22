@@ -34,10 +34,12 @@ graph LR
 ```
 
 **Advantages**:
+
 - Simple architecture, no additional agent deployment needed
 - Low operational cost
 
 **Limitations**:
+
 - taosX must run on Windows
 - The taosX host must be able to reach both the PI system and TDengine
 
@@ -61,11 +63,13 @@ graph LR
 ```
 
 **Advantages**:
+
 - taosX can be deployed on Linux, free from the Windows-only limitation of PI AF SDK
 - Complies with OT/IT network segmentation security requirements
 - The agent only needs network connectivity in two directions: to the PI system and to taosX
 
 **Limitations**:
+
 - Requires additional deployment and maintenance of taosx-agent
 - The Windows host running the agent must have PI AF SDK installed
 
@@ -105,11 +109,13 @@ graph LR
 ```
 
 **Advantages**:
+
 - Unified management of data from multiple PI systems
 - Each plant deploys its own agent independently, without affecting others
 - Facilitates enterprise-level data analysis and monitoring
 
 **Considerations**:
+
 - Each agent needs to independently install PI AF SDK and configure access permissions for the corresponding PI system
 - We recommend using different TDengine databases or supertable prefixes for data from different plants to avoid naming conflicts
 

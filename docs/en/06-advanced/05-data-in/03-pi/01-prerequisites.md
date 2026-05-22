@@ -56,6 +56,7 @@ Test-NetConnection -ComputerName <AF_SERVER_HOST> -Port 5457
 # Linux (only for verifying taosX ↔ agent connectivity)
 nc -zv <HOST> <PORT>
 ```
+
 :::
 
 ## 3. Authentication and Service Account Requirements

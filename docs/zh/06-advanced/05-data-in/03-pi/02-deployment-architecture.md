@@ -34,10 +34,12 @@ graph LR
 ```
 
 **优点**：
+
 - 架构简单，无需额外部署 agent
 - 运维成本低
 
 **限制**：
+
 - taosX 必须运行在 Windows 上
 - taosX 所在主机必须同时能连通 PI 系统和 TDengine
 
@@ -61,11 +63,13 @@ graph LR
 ```
 
 **优点**：
+
 - taosX 可以部署在 Linux 上，不受 PI AF SDK 的 Windows 限制
 - 符合 OT/IT 网络分区的安全要求
 - agent 只需要与 PI 系统和 taosX 两个方向的网络连通
 
 **限制**：
+
 - 需要额外部署和维护 taosx-agent
 - agent 所在的 Windows 主机必须安装 PI AF SDK
 
@@ -105,11 +109,13 @@ graph LR
 ```
 
 **优点**：
+
 - 统一管理多个 PI 系统的数据
 - 每个工厂独立部署 agent，互不影响
 - 便于集团级数据分析和监控
 
 **注意事项**：
+
 - 每个 agent 需要独立安装 PI AF SDK 并配置对应 PI 系统的访问权限
 - 建议为不同工厂的数据使用不同的 TDengine 数据库或超级表前缀，避免命名冲突
 

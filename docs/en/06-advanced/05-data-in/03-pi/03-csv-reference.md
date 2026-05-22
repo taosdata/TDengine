@@ -113,7 +113,7 @@ The single-column model configuration file consists of two parts:
 
 Defines the column structure of several supertables. The default generated configuration automatically groups points into different supertables by **UOM (engineering unit) + data type**.
 
-**Part 2: Point Mappings**
+#### Part 2: Point Mappings
 
 Format: `<PointName>,POINT,<SuperTableName>`, defining which supertable each PI Point belongs to.
 
@@ -237,6 +237,7 @@ This is the recommended default approach, ensuring that all subtables within the
 Fill in filter criteria in Explorer before clicking **Download Default Configuration** to generate configuration for only the points/templates matching the filter criteria.
 
 You can also manually edit the CSV after downloading:
+
 - **Multi-column model**: Modify the `Filter` row
 - **Single-column model**: Delete unwanted point rows in the point mapping section
 
