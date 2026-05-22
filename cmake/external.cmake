@@ -1911,7 +1911,11 @@ else()
         LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
     )
 endif()
-get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+# Source: https://github.com/apache/arrow tag apache-arrow-19.0.1
+get_from_local_if_exists(
+    "https://github.com/apache/arrow/archive/refs/tags/apache-arrow-19.0.1.tar.gz"
+    "arrow-apache-arrow-19.0.1.tar.gz"
+)
 # Platform-specific cmake args for the Arrow sub-build
 set(ARROW_EXTRA_CMAKE_ARGS "")
 if(NOT ${TD_WINDOWS})
@@ -2010,12 +2014,9 @@ else()
     )
 endif()
 ExternalProject_Add(ext_arrow
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG        apache-arrow-19.0.1
-    GIT_SHALLOW    TRUE
-    # parquet-testing and arrow-testing are only used by Arrow's own unit
-    # tests.  Skipping them saves ~200 MB of clone traffic.
-    GIT_SUBMODULES  ""
+    URL ${_url}
+    URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
