@@ -885,6 +885,37 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
       return TSDB_CODE_BLOB_NOT_SUPPORT;  // BLOB data type is not supported in stmt2
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      // Auto-detect source precision from the magnitude of the int64 value.
+      //
+      // Thresholds (absolute value):
+      //   < 10^13 → milliseconds
+      //   < 10^16 → microseconds
+      //   otherwise → nanoseconds
+      //
+      // The raw (unconverted) value is stored together with the detected source
+      // precision in pVal->node.resType.precision.  The actual conversion to the
+      // DB's target precision is deferred to translateValueImpl(), which runs
+      // after the statement is fully translated and SSelectStmt::precision is set.
+      int64_t tsVal = *(int64_t*)pParam->buffer;
+      int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
+      uint8_t srcPrecision;
+      if (absVal < 10000000000000LL) {  // < 10^13
+        srcPrecision = TSDB_TIME_PRECISION_MILLI;
+      } else if (absVal < 10000000000000000LL) {  // < 10^16
+        srcPrecision = TSDB_TIME_PRECISION_MICRO;
+      } else {  // >= 10^16
+        srcPrecision = TSDB_TIME_PRECISION_NANO;
+      }
+      pVal->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+      pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      // deferred; normalized to statement precision during translateWhere(),
+      // before getQueryTimeRange derives pSelect->timeRange
+      pVal->node.resType.precision = srcPrecision;
+      pVal->datum.i = tsVal;
+      *(int64_t*)&pVal->typeData = tsVal;
+      break;
+    }
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {
