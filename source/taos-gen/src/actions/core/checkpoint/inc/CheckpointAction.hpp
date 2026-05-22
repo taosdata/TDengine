@@ -15,8 +15,6 @@
 
 class CheckpointAction : public ActionBase {
 public:
-    static void register_signal_handlers();
-
     explicit CheckpointAction(const GlobalConfig& global, const CheckpointActionConfig& config) : global_(global), config_(config) {}
 
      ~CheckpointAction(); // Add destructor to manage thread lifecycle
@@ -27,6 +25,7 @@ public:
     void update_checkpoint(const std::vector<CheckpointData>& data_list);
 
     static void stop_all(bool is_interrupt = false);
+    static void request_stop(bool is_interrupt = false);
 
     static void checkpoint_recover(const GlobalConfig& global, InsertDataConfig& config);
 

@@ -1,4 +1,5 @@
 #include "Latch.hpp"
+#include <chrono>
 
 Latch::Latch(std::size_t count) : count_(count) {}
 
@@ -18,7 +19,9 @@ void Latch::wait() {
 
 void Latch::wait(const StopPredicate& stop_condition) {
     std::unique_lock<std::mutex> lock(mutex_);
-    cond_.wait(lock, [this, &stop_condition] { return count_ == 0 || stop_condition(); });
+    while (count_ > 0 && !stop_condition()) {
+        cond_.wait_for(lock, std::chrono::milliseconds(100));
+    }
 }
 
 void Latch::interrupt() {
