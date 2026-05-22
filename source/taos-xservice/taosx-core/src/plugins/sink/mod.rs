@@ -814,78 +814,162 @@ async fn consume_lush_record_with_transform(
                 "consuming LushMessage::Tables, tables: {}",
                 tables.iter().map(|t| t.table_name()).join(",")
             );
-            // 默认超级表名(transform 前)
-            let default_super_table = tables[0].stable_name();
-            let default_super_table = default_super_table.unwrap().as_str();
-            let super_table = lush_model_config
-                .super_table_name_mapping
-                .get(default_super_table);
-            let super_table = super_table.ok_or_else(|| {
-                anyhow!(
-                    "super table {} not found in model_config.super_table_name_mapping",
-                    default_super_table
-                )
-            })?;
-            let super_table = super_table.to_owned();
             // 缓存子表 tag 值
-            for table in tables {
-                table_cache.insert(table.table_name().to_owned(), table);
+            for table in &tables {
+                table_cache.insert(table.table_name().to_owned(), table.clone());
             }
             if full_record.is_none() {
                 tracing::error!("Lush message tables should contains full_record");
                 return Ok(());
             }
             let full_record = full_record.unwrap();
-            // 获取 transform::Parser
-            let parser: &transform::Parser = lush_model_config
-                .super_table_parsers
-                .get(super_table.as_str())
-                .ok_or_else(|| {
-                    anyhow!(
-                        "super table {} not found in model_config.super_table_parsers",
-                        super_table
-                    )
-                })?;
-            // 创建超级表
-            tracing::debug!("Creating super table: {}", super_table);
-            let super_table_sql = lush_model_config
-                .super_table_sqls
-                .get(super_table.as_str())
-                .with_context(|| {
-                    format!(
-                        "super table {} not found in model_config.super_table_sqls",
-                        super_table
-                    )
-                })?;
             let mut taos = Some(pool.get().await.context("Target connection error")?);
-            let _ = lush::assert_create_table(
-                pool,
-                &mut taos,
-                super_table_sql,
-                true,
-                metrics_arc.ipc(),
-            )
-            .await;
-            tracing::debug!("Created super table: {}", super_table);
-            // transform tables 消息
-            let message: transform::Message = parser
-                .parse_message_from_records(&full_record, false, archive_tx)
-                .with_context(|| {
-                    format!(
-                        "failed to transform Tables message, super table: {}",
-                        super_table
+
+            if !lush_model_config.point_super_table_mapping.is_empty() {
+                // UOM 模式：按 point_name → super_table 分组处理
+                let mut grouped: HashMap<&str, Vec<usize>> = HashMap::new();
+                let mut skipped_points = 0u64;
+                for (i, table) in tables.iter().enumerate() {
+                    let point_name = table.table_name();
+                    if let Some(st) = lush_model_config
+                        .point_super_table_mapping
+                        .get(point_name.as_str())
+                    {
+                        grouped.entry(st.as_str()).or_default().push(i);
+                    } else {
+                        skipped_points += 1;
+                        tracing::warn!(
+                            "point {} not found in point_super_table_mapping, skip",
+                            point_name
+                        );
+                    }
+                }
+                if skipped_points > 0 {
+                    tracing::warn!(
+                        "UOM Tables: {skipped_points} point(s) skipped due to missing mapping"
+                    );
+                    metrics_arc.ipc().add_check_skipped_rows(skipped_points);
+                }
+                for (super_table, indices) in &grouped {
+                    // 获取 parser 和 SQL
+                    let parser: &transform::Parser = lush_model_config
+                        .super_table_parsers
+                        .get(*super_table)
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "super table {} not found in model_config.super_table_parsers",
+                                super_table
+                            )
+                        })?;
+                    let super_table_sql = lush_model_config
+                        .super_table_sqls
+                        .get(*super_table)
+                        .with_context(|| {
+                            format!(
+                                "super table {} not found in model_config.super_table_sqls",
+                                super_table
+                            )
+                        })?;
+                    // 创建超级表
+                    tracing::debug!("Creating super table: {}", super_table);
+                    let _ = lush::assert_create_table(
+                        pool,
+                        &mut taos,
+                        super_table_sql,
+                        true,
+                        metrics_arc.ipc(),
+                    )
+                    .await;
+
+                    // 过滤 full_record 只保留当前组的行
+                    let idx_array = arrow::array::UInt32Array::from_iter_values(
+                        indices.iter().map(|i| *i as u32),
+                    );
+                    let group_record = full_record
+                        .take(&idx_array)
+                        .context("failed to take group rows from full_record")?;
+
+                    // transform 并创建子表
+                    let message: transform::Message = parser
+                        .parse_message_from_records(&group_record, false, archive_tx)
+                        .with_context(|| {
+                            format!(
+                                "failed to transform Tables message, super table: {}",
+                                super_table
+                            )
+                        })?;
+                    if let transform::Message::Records(sub_tables) = message {
+                        lush::create_sub_tables(
+                            pool,
+                            &mut taos,
+                            super_table,
+                            &sub_tables,
+                            metrics_arc.ipc(),
+                        )
+                        .await?;
+                    }
+                    tracing::debug!("Created super table: {}", super_table);
+                }
+            } else {
+                // 原有逻辑：使用 _using 列确定超级表
+                let default_super_table = tables[0].stable_name();
+                let default_super_table = default_super_table.unwrap().as_str();
+                let super_table = lush_model_config
+                    .super_table_name_mapping
+                    .get(default_super_table);
+                let super_table = super_table.ok_or_else(|| {
+                    anyhow!(
+                        "super table {} not found in model_config.super_table_name_mapping",
+                        default_super_table
                     )
                 })?;
-            // 创建子表
-            if let transform::Message::Records(tables) = message {
-                lush::create_sub_tables(
+                let super_table = super_table.to_owned();
+                let parser: &transform::Parser = lush_model_config
+                    .super_table_parsers
+                    .get(super_table.as_str())
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "super table {} not found in model_config.super_table_parsers",
+                            super_table
+                        )
+                    })?;
+                tracing::debug!("Creating super table: {}", super_table);
+                let super_table_sql = lush_model_config
+                    .super_table_sqls
+                    .get(super_table.as_str())
+                    .with_context(|| {
+                        format!(
+                            "super table {} not found in model_config.super_table_sqls",
+                            super_table
+                        )
+                    })?;
+                let _ = lush::assert_create_table(
                     pool,
                     &mut taos,
-                    super_table.as_str(),
-                    &tables,
+                    super_table_sql,
+                    true,
                     metrics_arc.ipc(),
                 )
-                .await?;
+                .await;
+                tracing::debug!("Created super table: {}", super_table);
+                let message: transform::Message = parser
+                    .parse_message_from_records(&full_record, false, archive_tx)
+                    .with_context(|| {
+                        format!(
+                            "failed to transform Tables message, super table: {}",
+                            super_table
+                        )
+                    })?;
+                if let transform::Message::Records(tables) = message {
+                    lush::create_sub_tables(
+                        pool,
+                        &mut taos,
+                        super_table.as_str(),
+                        &tables,
+                        metrics_arc.ipc(),
+                    )
+                    .await?;
+                }
             }
         }
         LushMessage::Insert(record) => {
@@ -965,104 +1049,126 @@ async fn consume_lush_record_with_transform(
                     tags_records.concat_by_columns(values_records).unwrap();
                 // 类型转换
                 let parsed_records: RecordBatch = combined_records;
+                let total_input_rows = parsed_records.num_rows();
 
                 // 按超级表名分组
-                // let grouped_batches: LinkedHashMap<String, RecordBatch> =
-                //     lush::group_by_super_table_name(
-                //         &parsed_records,
-                //         name_of_table_name_column,
-                //         &lush_model_config.super_table_name_mapping,
-                //     );
-
-                // 性能优化，多列模型无需按超级表分组
-                // let grouped_batches = lush::group_by_super_table_name2(&parsed_records);
                 let prepare_elapsed = timer.elapsed();
                 let skip_null = lush_model_config.skip_null;
-                // for (default_super_table, record_batch) in grouped_batches {
-                let timer = std::time::Instant::now();
-                let record_batch = parsed_records;
-                // 用 record_batch 的第一行的 _using 列值作为默认超级表名
-                let default_super_table = record_batch
-                    .column_by_name("_using")
-                    .unwrap()
-                    .as_any()
-                    .downcast_ref::<StringArray>()
-                    .unwrap()
-                    .value(0);
-                let super_table = lush_model_config
-                    .super_table_name_mapping
-                    .get(default_super_table);
-                if super_table.is_none() {
-                    tracing::error!(
-                        "default_super_table {} not found in super_table_name_mapping",
-                        default_super_table
-                    );
-                    continue;
-                }
-                let super_table = super_table.unwrap();
-                let parser: &transform::Parser = lush_model_config
-                    .super_table_parsers
-                    .get(super_table.as_str())
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "super table {} not found in model_config.super_table_parsers",
-                            super_table
-                        )
-                    })?;
-                let message: transform::Message = parser
-                    .parse_message_from_records(&record_batch, true, archive_tx)
-                    .with_context(|| {
-                        format!("transform failed for super table: {}", super_table)
-                    })?;
-                let transform_elapsed = timer.elapsed();
 
-                if let crate::plugins::transform::Message::Records(message) = message {
-                    if message.is_empty() {
-                        tracing::debug!(
-                            super_table,
+                // 计算分组：UOM 模式按 point_name 分组，非 UOM 模式按 _using 列
+                let grouped_batches: Vec<(String, RecordBatch)> =
+                    if !lush_model_config.point_super_table_mapping.is_empty() {
+                        // UOM 模式：按 point_name → super_table 分组
+                        lush::group_by_super_table_name(
+                            &parsed_records,
                             name_of_table_id_column,
-                            "no data after transform, skip",
-                        );
-                        continue;
-                    }
-                    let table_count = message.len();
-                    let pool = pool.clone();
-                    let super_table = super_table.clone();
-                    let metrics_ref = metrics_arc.clone();
-                    let breakpoints = breakpoint_db.clone();
-                    let table_id_column_name = name_of_table_id_column.to_string();
-                    let parser = parser.clone();
-                    let archive_tx = archive_tx.cloned();
-                    if let Err(err) = tx.send(async move {
-                        let metrics = metrics_ref.ipc();
-                        lush::write(
-                            &pool,
-                            super_table.as_str(),
-                            taos::Precision::Millisecond,
-                            message,
-                            metrics,
-                            skip_null,
-                            table_id_column_name.as_str(),
-                            breakpoints,
-                            &parser,
-                            archive_tx.as_ref(),
-                        ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
-                            tracing::debug!(
-                                "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
-                                super_table,
-                                table_count,
-                                written_rows,
-                                prepare_elapsed.as_millis(),
-                                transform_elapsed.as_millis(),
-                                gen_sql_time.as_millis(),
-                                write_time.as_millis(),
+                            &lush_model_config.point_super_table_mapping,
+                        )
+                        .into_iter()
+                        .map(|(st, rb)| (st.to_owned(), rb))
+                        .collect()
+                    } else {
+                        // 原有逻辑：使用 _using 列确定超级表
+                        let default_super_table = parsed_records
+                            .column_by_name("_using")
+                            .unwrap()
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap()
+                            .value(0);
+                        let super_table = lush_model_config
+                            .super_table_name_mapping
+                            .get(default_super_table);
+                        if super_table.is_none() {
+                            tracing::error!(
+                                "default_super_table {} not found in super_table_name_mapping",
+                                default_super_table
                             );
-                            metrics.add_processed_rows(num_rows as u64);
-                            num_rows
-                        })
-                    }.in_current_span()) {
-                        tracing::error!("send to tx error: {err:#}");
-                        bail!("Send future error: {err:#}");
+                            continue;
+                        }
+                        vec![(super_table.unwrap().clone(), parsed_records)]
+                    };
+
+                // Count rows skipped due to missing super-table mapping
+                {
+                    let grouped_rows: usize =
+                        grouped_batches.iter().map(|(_, rb)| rb.num_rows()).sum();
+                    let skipped = total_input_rows - grouped_rows;
+                    if skipped > 0 {
+                        tracing::warn!(
+                            "Insert: {skipped} row(s) skipped due to missing super-table mapping"
+                        );
+                        metrics_arc.ipc().add_check_skipped_rows(skipped as u64);
+                    }
+                }
+
+                for (super_table, record_batch) in grouped_batches {
+                    let timer = std::time::Instant::now();
+                    let group_num_rows = record_batch.num_rows();
+                    let parser: &transform::Parser = lush_model_config
+                        .super_table_parsers
+                        .get(super_table.as_str())
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "super table {} not found in model_config.super_table_parsers",
+                                super_table
+                            )
+                        })?;
+                    let message: transform::Message = parser
+                        .parse_message_from_records(&record_batch, true, archive_tx)
+                        .with_context(|| {
+                            format!("transform failed for super table: {}", super_table)
+                        })?;
+                    let transform_elapsed = timer.elapsed();
+
+                    if let crate::plugins::transform::Message::Records(message) = message {
+                        if message.is_empty() {
+                            tracing::debug!(
+                                super_table = super_table.as_str(),
+                                name_of_table_id_column,
+                                "no data after transform, skip",
+                            );
+                            metrics_arc.ipc().add_processed_rows(group_num_rows as u64);
+                            continue;
+                        }
+                        let table_count = message.len();
+                        let pool = pool.clone();
+                        let metrics_ref = metrics_arc.clone();
+                        let breakpoints = breakpoint_db.clone();
+                        let table_id_column_name = name_of_table_id_column.to_string();
+                        let parser = parser.clone();
+                        let archive_tx = archive_tx.cloned();
+                        if let Err(err) = tx.send(async move {
+                            let metrics = metrics_ref.ipc();
+                            lush::write(
+                                &pool,
+                                super_table.as_str(),
+                                taos::Precision::Millisecond,
+                                message,
+                                metrics,
+                                skip_null,
+                                table_id_column_name.as_str(),
+                                breakpoints,
+                                &parser,
+                                archive_tx.as_ref(),
+                            ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
+                                tracing::debug!(
+                                    "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
+                                    super_table,
+                                    table_count,
+                                    written_rows,
+                                    prepare_elapsed.as_millis(),
+                                    transform_elapsed.as_millis(),
+                                    gen_sql_time.as_millis(),
+                                    write_time.as_millis(),
+                                );
+                                metrics.add_processed_rows(group_num_rows as u64);
+                                group_num_rows
+                            })
+                        }.in_current_span()) {
+                            tracing::error!("send to tx error: {err:#}");
+                            bail!("Send future error: {err:#}");
+                        }
                     }
                 }
             }

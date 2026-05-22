@@ -32,11 +32,17 @@ public:
     // Run scheduler
     bool run();
 
-    bool has_failure() const { return stop_execution_.load(); }
+    void stop();
+
+    bool has_failure() const { return failed_.load(); }
+    bool was_interrupted() const { return interrupted_.load(); }
 
 private:
     // Worker thread loop
     void worker_loop();
+
+    // Stop queue and notify waiting threads (called from normal thread context)
+    void wakeup();
 
     const ConfigData& config_;                              // Configuration data
     std::unique_ptr<JobDAG> dag_;                           // Job dependency graph
@@ -47,4 +53,6 @@ private:
     std::unique_ptr<StepExecutionStrategy> step_strategy_;  // Step execution strategy
 
     std::atomic<bool> stop_execution_{false};
+    std::atomic<bool> interrupted_{false};
+    std::atomic<bool> failed_{false};
 };

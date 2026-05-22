@@ -2,6 +2,8 @@
 
 namespace SignalManager {
 
+static std::atomic<bool> g_interrupted{false};
+
 struct SignalCallbackList {
     std::vector<SignalCallback> normal_callbacks;
     std::optional<SignalCallback> final_callback;
@@ -10,8 +12,17 @@ struct SignalCallbackList {
 static std::map<int, SignalCallbackList> callbacks;
 static std::mutex cb_mutex;
 
+bool interrupted() {
+    return g_interrupted.load(std::memory_order_relaxed);
+}
+
 void signal_handler(int signum) {
-    std::lock_guard<std::mutex> lock(cb_mutex);
+    g_interrupted.store(true, std::memory_order_relaxed);
+    // Use try_lock to avoid deadlock if signal interrupts code holding cb_mutex.
+    // If lock fails, callbacks are skipped — the global interrupt flag is already set,
+    // which is sufficient for cooperative shutdown.
+    std::unique_lock<std::mutex> lock(cb_mutex, std::try_to_lock);
+    if (!lock.owns_lock()) return;
     auto it = callbacks.find(signum);
     if (it != callbacks.end()) {
         for (auto& cb : it->second.normal_callbacks) {
@@ -21,6 +32,11 @@ void signal_handler(int signum) {
             it->second.final_callback.value()(signum);
         }
     }
+}
+
+void register_signal(int signum) {
+    std::lock_guard<std::mutex> lock(cb_mutex);
+    callbacks[signum]; // Ensure entry exists so setup() installs the handler
 }
 
 void register_signal(int signum, SignalCallback cb, bool is_final) {
