@@ -3076,15 +3076,14 @@ static int32_t mndAddAlterVgroupElectionBaselineActionToTrans(SMnode *pMnode, SV
     return -1;
   }
 
-  for(int32_t i = 0; i < 3; i++){
-    if(i == index%3){
+  for (int32_t i = 0; i < replica; i++) {
+    if (i == index % replica) {
       mInfo("trans:%d, balance leader to dnode:%d", pTrans->id, pVgroup->vnodeGid[i].dnodeId);
       TAOS_CHECK_RETURN(mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup,
                                                                       pVgroup->vnodeGid[i].dnodeId, 1500));
-    }
-    else{
-    TAOS_CHECK_RETURN(
-        mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup, pVgroup->vnodeGid[i].dnodeId, 5000));
+    } else {
+      TAOS_CHECK_RETURN(mndAddAlterVnodeElectionBaselineActionToTrans(pMnode, pTrans, NULL, pVgroup,
+                                                                      pVgroup->vnodeGid[i].dnodeId, 5000));
     }
   }
   return code; 
