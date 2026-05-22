@@ -1242,7 +1242,6 @@ checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 [[package]]
 name = "mdsn"
 version = "0.2.25"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "itertools",
  "lazy_static",
@@ -1824,7 +1823,7 @@ checksum = "a35e8a6bf28cd121053a66aa2e6a2e3eaffad4a60012179f0e864aa5ffeff215"
 [[package]]
 name = "ring"
 version = "0.17.8"
-source = "git+https://github.com/taosdata/ring.git?branch=fix%2Floongarch#2d0cfa2c570a86622f4237939b3893d6719682f1"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/ring.git?branch=fix%2Floongarch#2d0cfa2c570a86622f4237939b3893d6719682f1"
 dependencies = [
  "cc",
  "cfg-if",
@@ -2260,7 +2259,6 @@ dependencies = [
 [[package]]
 name = "taos"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2276,7 +2274,6 @@ dependencies = [
 [[package]]
 name = "taos-error"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "derive_more",
@@ -2289,7 +2286,6 @@ dependencies = [
 [[package]]
 name = "taos-macros"
 version = "0.2.16"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2299,7 +2295,6 @@ dependencies = [
 [[package]]
 name = "taos-optin"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2325,7 +2320,6 @@ dependencies = [
 [[package]]
 name = "taos-query"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2368,7 +2362,6 @@ dependencies = [
 [[package]]
 name = "taos-ws"
 version = "0.12.4"
-source = "git+https://github.com/taosdata/taos-connector-rust.git?branch=main#787eb874f86ae5d0b529556cb1b10e506f42ed7e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2385,7 +2378,6 @@ dependencies = [
  "itertools",
  "once_cell",
  "rand 0.9.2",
- "rustls",
  "scc",
  "serde",
  "serde_json",
@@ -2569,7 +2561,7 @@ dependencies = [
 [[package]]
 name = "tokio-tungstenite"
 version = "0.23.1"
-source = "git+https://github.com/taosdata/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git?rev=3420353#3420353b475ed1162c248cab51cd314e103bb48a"
 dependencies = [
  "futures-util",
  "log",
@@ -2646,7 +2638,7 @@ dependencies = [
 [[package]]
 name = "tungstenite"
 version = "0.23.0"
-source = "git+https://github.com/taosdata/tungstenite-rs.git?branch=feat%2Ftaosdata%2Fpermessage-deflate#e4d146b831fe8255c669ce9984267ba3204999c5"
+source = "git+https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git?branch=feat%2Ftaosdata%2Fpermessage-deflate#e4d146b831fe8255c669ce9984267ba3204999c5"
 dependencies = [
  "byteorder",
  "bytes",

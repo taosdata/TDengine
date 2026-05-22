@@ -143,6 +143,7 @@ ARG MOLD_VERSION=2.40.3
 ARG PROTOC_VERSION=33.0
 ARG TINI_VERSION=v0.19.0
 ARG CCACHE_VERSION=4.10.2
+ARG SCCACHE_VERSION=0.15.0
 ARG NODE_VERSION=22.14.0
 ARG PNPM_VERSION=10.33.2
 ARG BISON_VERSION=3.8.2
@@ -155,8 +156,8 @@ ARG TAOS_WS_PY_VERSION=0.6.5
 # Mirror Configuration
 ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
 ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
-ARG GO_PROXY=https://goproxy.cn
-ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
+ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan/
 
 # Timezone Configuration
 ARG TIMEZONE=Asia/Shanghai
@@ -285,6 +286,14 @@ ENV PATH=/root/.cargo/bin:${PATH}
 
 # Copy Cargo configuration
 COPY .cargo/config.toml /root/.cargo/config.toml
+
+# sccache: prebuilt musl binary for Rust compile caching (opt-in via --sccache)
+ARG SCCACHE_VERSION
+RUN _arch=$(uname -m) && \
+    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl.tar.gz" \
+        | tar xz -C /usr/local/bin --strip-components=1 "sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl/sccache" && \
+    chmod +x /usr/local/bin/sccache && \
+    sccache --version
 
 # ============================================================================
 # Layer 6: Python environment

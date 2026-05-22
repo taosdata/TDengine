@@ -51,10 +51,11 @@ RUN cat /etc/environment
 
 # Cross-compile mage natively (avoids QEMU emulation issues with Go runtime)
 ARG GO_VERSION=1.23.4
+ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
 RUN . /etc/environment && \
     wget -q https://go.dev/dl/go${GO_VERSION}.linux-$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/').tar.gz -O /tmp/go.tar.gz && \
     tar -C /usr/local -xzf /tmp/go.tar.gz && rm /tmp/go.tar.gz && \
-    GOROOT=/usr/local/go GOPROXY=https://goproxy.cn \
+    GOROOT=/usr/local/go GOPROXY=${GO_PROXY} \
     GOOS=linux GOARCH=${GO_ARCH} CGO_ENABLED=0 \
     /usr/local/go/bin/go install github.com/magefile/mage@latest && \
     mv /root/go/bin/linux_${GO_ARCH}/mage /usr/local/bin/mage 2>/dev/null || \
@@ -142,6 +143,7 @@ ARG MOLD_VERSION=2.40.3
 ARG PROTOC_VERSION=33.0
 ARG TINI_VERSION=v0.19.0
 ARG CCACHE_VERSION=4.10.2
+ARG SCCACHE_VERSION=0.15.0
 
 # Python Package Versions
 ARG TAOSPY_VERSION=2.8.8
@@ -150,8 +152,8 @@ ARG TAOS_WS_PY_VERSION=0.6.5
 # Mirror Configuration
 ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
 ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
-ARG GO_PROXY=https://goproxy.cn
-ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
+ARG CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan/
 
 # Timezone Configuration
 ARG TIMEZONE=Asia/Shanghai
@@ -267,6 +269,14 @@ ENV PATH=/root/.cargo/bin:${PATH}
 
 # Copy Cargo configuration
 COPY .cargo/config.toml /root/.cargo/config.toml
+
+# sccache: prebuilt musl binary for Rust compile caching (opt-in via --sccache)
+ARG SCCACHE_VERSION
+RUN _arch=$(uname -m) && \
+    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl.tar.gz" \
+        | tar xz -C /usr/local/bin --strip-components=1 "sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl/sccache" && \
+    chmod +x /usr/local/bin/sccache && \
+    sccache --version
 
 # ============================================================================
 # Layer 5: Python environment

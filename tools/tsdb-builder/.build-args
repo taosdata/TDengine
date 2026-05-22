@@ -35,11 +35,19 @@ PNPM_VERSION=10.33.2
 TAOSPY_VERSION=2.8.9
 TAOS_WS_PY_VERSION=0.6.9
 
-# Mirror Configuration (国内加速)
+# Mirror Configuration (内网加速)
+# PYPI_MIRROR / PYPI_TRUSTED_HOST: used by Dockerfile for image builds (public mirror OK)
+# PYPI_INTERNAL_URL / PYPI_INTERNAL_HOST: used by build.sh for container compilation (internal network)
 PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
 PYPI_TRUSTED_HOST=mirrors.aliyun.com
-GO_PROXY=https://goproxy.cn
-CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan2/
+PYPI_INTERNAL_URL=https://nora.tdengine.net/simple/
+PYPI_INTERNAL_HOST=nora.tdengine.net
+GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
+CARGO_REGISTRY_URL=sparse+https://nora.tdengine.net/cargo/index/
+CONAN_REMOTE_URL=https://nexus.tdengine.net/repository/conan/
+NPM_REGISTRY_URL=https://nora.tdengine.net/npm/
+MAVEN_MIRROR_URL=https://nexus.tdengine.net/repository/maven-public/
+NUGET_SOURCE_URL=https://nora.tdengine.net/nuget/v3/index.json
 
 # Timezone
 TIMEZONE=Asia/Shanghai

@@ -188,7 +188,7 @@ Three cmake flags control external dependency and RocksDB compilation behavior. 
 After a `taosx`-only build, `build.sh` removes the placeholder `dist/` directory CMake creates, so a subsequent `explorer-ui` build can run pnpm normally.
 
 ### Build argument management
-All tool versions and mirror settings are centralized in `.build-args`. All three image build scripts (`build-core-image.sh`, `build-dev-image.sh`, `build-others-image.sh`) read this file and pass every non-comment line as a `--build-arg` flag. Edit `.build-args` to change versions globally — never hardcode versions directly in the Dockerfiles.
+All tool versions and mirror settings are centralized in `.build-args`. This file serves **two consumers**: (1) image build scripts (`build-*-image.sh`) pass every non-comment line as a `--build-arg` flag to Docker; (2) `build.sh` reads specific variables at runtime for container compilation config (npm/Maven/NuGet/PyPI internal mirrors). **Critical invariant:** Variables consumed as Dockerfile `ARG` (e.g. `PYPI_MIRROR`) must use publicly reachable URLs — image builds may run outside the internal network. Internal-only URLs (`PYPI_INTERNAL_URL`, `NPM_REGISTRY_URL`, `MAVEN_MIRROR_URL`, `NUGET_SOURCE_URL`) are only read by `build.sh` and injected into containers at runtime. Edit `.build-args` to change versions or mirrors globally — never hardcode values directly in Dockerfiles or build.sh.
 
 ### Image publishing
 `build-core-image.sh`, `build-dev-image.sh`, and `build-others-image.sh` publish to fixed Harbor repositories:
@@ -264,7 +264,9 @@ All images include ccache. `build.sh` prepends the ccache symlink directory to `
 | `CCACHE_REMOTE_STORAGE` | unset | Shared cache backend (NFS/HTTP, for CI) |
 
 ### External dependency mirror (`BUILD_DEPS_MIRROR_URL`)
-Pass `-DBUILD_DEPS_MIRROR_URL=<url>` to cmake (via `build.sh` extra args) to redirect all ExternalProject tarball downloads to an internal mirror. For private GitLab Package Registry, set `DEPS_MIRROR_TOKEN` in `.env` (auto-sourced by `build.sh`); the script creates `/root/.netrc` inside the container and passes `-DCMAKE_NETRC=OPTIONAL`. The token never appears in URLs or build logs.
+`build.sh` automatically reads `DEPS_MIRROR_URL` from `.build-args` and passes it as `-DBUILD_DEPS_MIRROR_URL` to cmake, redirecting all ExternalProject tarball downloads to the internal GitLab Package Registry. No manual `-D` flag needed — it's injected automatically. Manual `-D` passthrough still takes precedence (cmake last-value-wins). For private GitLab Package Registry, set `DEPS_MIRROR_TOKEN` in `.env` (auto-sourced by `build.sh`); the script creates `/root/.netrc` inside the container and passes `-DCMAKE_NETRC=OPTIONAL`. The token never appears in URLs or build logs.
+
+**Important cmake invariant:** In `external.cmake`, the `BUILD_DEPS_MIRROR_URL` → `LOCAL_URL` bridge must check for empty string (`"${LOCAL_URL}" STREQUAL ""`), NOT use `NOT DEFINED LOCAL_URL` — the CACHE declaration makes `LOCAL_URL` always "defined" even when empty.
 
 ### Dependency tarball management (`prepare-externals.sh`)
 `scripts/prepare-externals.sh` downloads all 22 ExternalProject dependency tarballs, computes SHA256 hashes, and optionally uploads them to GitLab Generic Package Registry (`--upload`). Requires `GITLAB_PROJECT_ID` env var; upload also requires `GITLAB_TOKEN` with `write_package_registry` scope.
@@ -310,11 +312,21 @@ Two TSDB-specific cmake options control debug info independently of `CMAKE_BUILD
 ### pthread cmake workaround (core/dev image only)
 `manylinux2014`'s `FindThreads` tries `-lpthreads` (which doesn't exist). `build.sh` (when using the core or dev image) passes explicit pthread cmake variables to work around this.
 
-### Chinese mirror acceleration
-The images are configured to use Chinese mirrors for faster builds in China:
-- Go: `GOPROXY=https://goproxy.cn`
-- PyPI: `http://mirrors.aliyun.com/pypi/simple/`
-- Rust: `rsproxy.cn` (configured in `.cargo/config.toml`, baked into image)
+### Internal network dependency mirrors
+All language package managers are configured to use internal mirrors during container compilation. Mirror URLs are centralized in `.build-args`:
+
+**Dockerfile-baked (image build time):**
+- Rust/Cargo: `sparse+https://nora.tdengine.net/cargo/index/` (`.cargo/config.toml`)
+- Conan: `https://nexus.tdengine.net/repository/conan/` (`conan remote add`)
+- Go: `GOPROXY=https://nexus.tdengine.net/repository/goproxy/` (env var)
+- PyPI: `http://mirrors.aliyun.com/pypi/simple/` (public, overridden at runtime)
+
+**Runtime-injected by `build.sh` (container compilation):**
+- PyPI: `https://nora.tdengine.net/simple/` (`PYPI_INTERNAL_URL`, overrides Dockerfile-baked Aliyun)
+- npm/pnpm: `https://nora.tdengine.net/npm/` (`NPM_REGISTRY_URL`)
+- Maven: `https://nexus.tdengine.net/repository/maven-public/` (`MAVEN_MIRROR_URL`, generates `settings.xml`)
+- NuGet: `https://nora.tdengine.net/nuget/v3/index.json` (`NUGET_SOURCE_URL`)
+- C/C++ ExternalProject: GitLab Package Registry (`DEPS_MIRROR_URL`, passed as `-DBUILD_DEPS_MIRROR_URL`)
 
 ### GCC 7 in core image (Kylin V10 compatibility)
 The core image downgrades from devtoolset-10 (GCC 10.2, pre-installed in manylinux2014) to devtoolset-7 (GCC 7.3) for Kylin V10 runtime compatibility. The riscv64 core image uses Debian trixie's system GCC (14.x) instead — Kylin V10 compatibility is not applicable to riscv64. This affects:
@@ -361,6 +373,7 @@ Key differences from the amd64/arm64 core image:
 - **cmake/protoc/mold/tini**: system packages from apt (versions may differ from `.build-args`)
 - **mold NOT default linker**: GNU ld remains default; mold corrupts Go CGO ELF layout on riscv64 (SIGSEGV in pclntab). `build.sh` uses `-DCMAKE_LINKER=mold` for C/C++ targets only
 - **No buildx required**: uses plain `docker build` with a temporary build context
+- **No sccache prebuilt**: sccache does not publish riscv64 binaries; `Dockerfile.core-riscv64` skips install. `build.sh` runtime fallback auto-disables `RUSTC_WRAPPER`
 - **Standalone tag**: riscv64 images are not included in the amd64/arm64 multi-arch manifest
 - **Only Go needed from packages/**: all other tools installed via apt or rustup
 

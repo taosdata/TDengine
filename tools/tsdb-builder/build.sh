@@ -4,7 +4,7 @@
 #
 # Usage: ./build.sh --image core|others|dev|core:<version>|others:<version>|dev:<version>
 #                   [--arch amd64|arm64|riscv64] [--src PATH] [--cache PATH]
-#                   [--clean] [--pull-image] [--split-debug] [component...] [-DKEY=VALUE ...]
+#                   [--clean] [--pull-image] [--split-debug] [--sccache] [component...] [-DKEY=VALUE ...]
 #
 # --image is required. Use 'core' for engine/taosx/adapter/…; 'others' for
 # explorer-ui/insight/connectors.
@@ -55,6 +55,7 @@ IMAGE_OVERRIDE=""
 CLEAN=false
 PULL_IMAGE=false
 SPLIT_DEBUG=false
+USE_SCCACHE=false
 TSDB_DIR="$(pwd)"
 # Cache directory lives outside the source repo so it survives git clean / re-clone.
 # Default: $HOME/cache/tsdb-builder. Override via --cache or TSDB_CACHE_DIR env var.
@@ -74,7 +75,7 @@ usage() {
     cat << 'EOF'
 Usage: ./build.sh --image core|others|dev|core:<version>|others:<version>|dev:<version>
                   [--arch amd64|arm64|riscv64] [--src PATH] [--cache PATH]
-                  [--clean] [--pull-image] [--split-debug] [component...] [-DKEY=VALUE ...]
+                  [--clean] [--pull-image] [--split-debug] [--sccache] [component...] [-DKEY=VALUE ...]
 
 --image is required.
 
@@ -97,6 +98,7 @@ Options:
   --clean  wipe build directory before cmake
   --pull-image                  force pull even if the resolved image exists locally
   --split-debug                 separate debug info into .debug/ (objcopy+strip)
+  --sccache                     enable sccache for Rust compilation (disables incremental)
   --make-target <target>        make only this target instead of the default all (e.g. build_externals)
 
 cmake passthrough:
@@ -164,6 +166,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --split-debug)
             SPLIT_DEBUG=true
+            shift
+            ;;
+        --sccache)
+            USE_SCCACHE=true
             shift
             ;;
         --make-target)
@@ -329,6 +335,13 @@ if [[ "$ARCH" == "riscv64" ]]; then
     CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_LINKER=mold"
 fi
 
+# GCC 14 (others image) may promote stringop-overflow warnings to errors.
+# Some are false positives that would require invasive workarounds.
+# Downgrade to warnings so the build succeeds while keeping the check visible.
+if [[ "$USE_IMAGE" == "others" ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_C_FLAGS=-Wno-error=stringop-overflow -DCMAKE_CXX_FLAGS=-Wno-error=stringop-overflow"
+fi
+
 
 # Sync key flag_BUILD_* with any -D overrides in EXTRA_CMAKE_ARGS (last value wins,
 # mirroring cmake's own precedence). Only the flags that drive mount/cleanup decisions
@@ -390,6 +403,15 @@ if [[ -n "${CCACHE_REMOTE_STORAGE:-}" ]]; then
     EXTRA_ENV_ARGS+=("--env=CCACHE_REMOTE_STORAGE=${CCACHE_REMOTE_STORAGE}")
 fi
 
+# sccache for Rust (opt-in via --sccache)
+if [[ "$USE_SCCACHE" == "true" ]]; then
+    EXTRA_ENV_ARGS+=("--env=RUSTC_WRAPPER=sccache")
+    EXTRA_ENV_ARGS+=("--env=SCCACHE_DIR=/root/.cache/sccache")
+    if [[ -n "${SCCACHE_REMOTE_STORAGE:-}" ]]; then
+        EXTRA_ENV_ARGS+=("--env=SCCACHE_REMOTE_STORAGE=${SCCACHE_REMOTE_STORAGE}")
+    fi
+fi
+
 # After a taosx-only (no explorer-ui) build, dist/ exists in the source tree
 # (either pre-built or as a placeholder created above). Remove it so a subsequent
 # others build can run pnpm normally.
@@ -403,7 +425,64 @@ CONAN_REMOTE_URL=""
 if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
     CONAN_REMOTE_URL="$(grep -E '^CONAN_REMOTE_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
 fi
-CONAN_REMOTE_URL="${CONAN_REMOTE_URL:-https://nexus.tdengine.net/repository/conan2/}"
+CONAN_REMOTE_URL="${CONAN_REMOTE_URL:-https://nexus.tdengine.net/repository/conan/}"
+
+# Read GO_PROXY from .build-args and inject as runtime GOPROXY override.
+# This ensures the container uses the internal proxy even if the image was built
+# with an older default (goproxy.cn).
+GO_PROXY=""
+if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+    GO_PROXY="$(grep -E '^GO_PROXY=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+fi
+GO_PROXY="${GO_PROXY:-https://nexus.tdengine.net/repository/goproxy/}"
+EXTRA_ENV_ARGS+=("--env=GOPROXY=${GO_PROXY},direct" "--env=GONOSUMCHECK=*" "--env=GONOSUMDB=*")
+
+# Read DEPS_MIRROR_URL from .build-args or use default GitLab generic package registry.
+# This is passed as -DLOCAL_URL to cmake so ExternalProject downloads use the internal
+# mirror instead of github.com.
+DEPS_MIRROR_URL=""
+if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+    DEPS_MIRROR_URL="$(grep -E '^DEPS_MIRROR_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+fi
+DEPS_MIRROR_URL="${DEPS_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}"
+
+# Pass the mirror URL to cmake so ExternalProject downloads use the internal
+# mirror instead of github.com.
+if [[ -n "${DEPS_MIRROR_URL}" ]]; then
+    CMAKE_ARGS="${CMAKE_ARGS} -DBUILD_DEPS_MIRROR_URL=${DEPS_MIRROR_URL}"
+fi
+
+# Read NPM_REGISTRY_URL from .build-args for container npm/pnpm registry injection.
+NPM_REGISTRY_URL=""
+if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+    NPM_REGISTRY_URL="$(grep -E '^NPM_REGISTRY_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+fi
+NPM_REGISTRY_URL="${NPM_REGISTRY_URL:-https://nora.tdengine.net/npm/}"
+
+# Read MAVEN_MIRROR_URL from .build-args for container Maven settings.xml injection.
+MAVEN_MIRROR_URL=""
+if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+    MAVEN_MIRROR_URL="$(grep -E '^MAVEN_MIRROR_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+fi
+MAVEN_MIRROR_URL="${MAVEN_MIRROR_URL:-https://nexus.tdengine.net/repository/maven-public/}"
+
+# Read NUGET_SOURCE_URL from .build-args for container NuGet source injection.
+NUGET_SOURCE_URL=""
+if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+    NUGET_SOURCE_URL="$(grep -E '^NUGET_SOURCE_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+fi
+NUGET_SOURCE_URL="${NUGET_SOURCE_URL:-https://nora.tdengine.net/nuget/v3/index.json}"
+
+# Read PYPI_INTERNAL_URL from .build-args for container pip index override.
+# This is separate from PYPI_MIRROR (used by Dockerfile for image builds).
+PYPI_INTERNAL_URL=""
+PYPI_INTERNAL_HOST=""
+if [[ -f "${SCRIPT_DIR}/.build-args" ]]; then
+    PYPI_INTERNAL_URL="$(grep -E '^PYPI_INTERNAL_URL=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+    PYPI_INTERNAL_HOST="$(grep -E '^PYPI_INTERNAL_HOST=' "${SCRIPT_DIR}/.build-args" | cut -d= -f2-)"
+fi
+PYPI_INTERNAL_URL="${PYPI_INTERNAL_URL:-https://nora.tdengine.net/simple/}"
+PYPI_INTERNAL_HOST="${PYPI_INTERNAL_HOST:-nora.tdengine.net}"
 
 TSDB_DIR="$(realpath "${TSDB_DIR}")"
 
@@ -485,9 +564,13 @@ ensure_image_available() {
 # ── docker run ────────────────────────────────────────────────────────────────
 mkdir -p "${TSDB_CACHE_DIR}/conan2-${ARCH}" \
          "${TSDB_CACHE_DIR}/go-mod" \
+         "${TSDB_CACHE_DIR}/go-build" \
          "${TSDB_CACHE_DIR}/cargo-registry" \
          "${TSDB_CACHE_DIR}/cargo-git" \
          "${TSDB_CACHE_DIR}/ccache-${USE_IMAGE}-${ARCH}"
+if [[ "$USE_SCCACHE" == "true" ]]; then
+    mkdir -p "${TSDB_CACHE_DIR}/sccache-${USE_IMAGE}-${ARCH}"
+fi
 
 CONTAINER_SCRIPT="
 set -eo pipefail
@@ -508,6 +591,35 @@ if ! command -v ccache >/dev/null 2>&1; then
     exit 1
 fi
 ccache --zero-stats >/dev/null 2>&1
+
+# sccache for Rust (opt-in via --sccache)
+if [ -n \"\${RUSTC_WRAPPER:-}\" ] && [ \"\${RUSTC_WRAPPER}\" = \"sccache\" ]; then
+    if ! command -v sccache >/dev/null 2>&1; then
+        echo '[INFO] sccache not found in container — installing prebuilt binary...' >&2
+        _sccache_ver=v0.15.0
+        _sccache_arch=\$(uname -m)
+        _sccache_tar=\"sccache-\${_sccache_ver}-\${_sccache_arch}-unknown-linux-musl\"
+        _sccache_url=\"${DEPS_MIRROR_URL}/sccache-\${_sccache_ver}-\${_sccache_arch}-unknown-linux-musl.tar.gz\"
+        if curl -fsSL \"\${_sccache_url}\" | tar xz -C /usr/local/bin --strip-components=1 \"\${_sccache_tar}/sccache\" 2>/dev/null; then
+            chmod +x /usr/local/bin/sccache
+            echo \"[INFO] sccache \${_sccache_ver} installed successfully\"
+        else
+            echo '[WARN] sccache prebuilt download failed, disabling RUSTC_WRAPPER' >&2
+            unset RUSTC_WRAPPER
+        fi
+        unset _sccache_ver _sccache_arch _sccache_tar _sccache_url
+    fi
+    if command -v sccache >/dev/null 2>&1; then
+        sccache --zero-stats >/dev/null 2>&1 || true
+        echo \"[INFO] sccache enabled (cache dir: \${SCCACHE_DIR:-/root/.cache/sccache})\"
+    fi
+fi
+
+if [ '${CLEAN}' = 'true' ]; then
+    rm -rf /mnt/${BUILD_DIR}
+fi
+mkdir -p /mnt/${BUILD_DIR}
+cd /mnt/${BUILD_DIR}
 
 if [ ! -f /root/.conan2/profiles/default ]; then
     conan profile detect --force
@@ -539,12 +651,49 @@ fi
 # image-baked Conan config, so the nexus remote added during image build
 # is lost.  Re-add it at index 0 (highest priority) if missing.
 # Skip if the remote URL is unreachable (e.g. decommissioned).
-if [ -n "\${CONAN_REMOTE_URL}" ] && ! conan remote list | grep -q nexus; then
-    if curl -sfI "\${CONAN_REMOTE_URL}" >/dev/null 2>&1; then
-        conan remote add nexus \${CONAN_REMOTE_URL} --index 0
+if [ -n '${CONAN_REMOTE_URL}' ] && ! conan remote list | grep -q nexus; then
+    if curl -sfI '${CONAN_REMOTE_URL}' >/dev/null 2>&1; then
+        conan remote add nexus '${CONAN_REMOTE_URL}' --index 0
     else
         echo '[WARN] Nexus remote unreachable, skipping.'
     fi
+fi
+
+# Configure npm/pnpm registry → internal mirror (others image only)
+if command -v npm >/dev/null 2>&1; then
+    npm config set registry '${NPM_REGISTRY_URL}' 2>/dev/null || true
+    echo \"[INFO] npm registry set to '${NPM_REGISTRY_URL}'\"
+fi
+
+# Configure Maven mirror → internal Nexus (others image only)
+if command -v mvn >/dev/null 2>&1 && [ ! -f /root/.m2/settings.xml ]; then
+    mkdir -p /root/.m2
+    cat > /root/.m2/settings.xml << MAVEN_SETTINGS_EOF
+<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<settings>
+  <mirrors>
+    <mirror>
+      <id>nexus-internal</id>
+      <mirrorOf>*</mirrorOf>
+      <url>${MAVEN_MIRROR_URL}</url>
+    </mirror>
+  </mirrors>
+</settings>
+MAVEN_SETTINGS_EOF
+    echo '[INFO] Maven settings.xml written with internal Nexus mirror'
+fi
+
+# Configure NuGet source → internal mirror (others image only)
+if command -v dotnet >/dev/null 2>&1; then
+    dotnet nuget add source '${NUGET_SOURCE_URL}' --name tdengine-internal 2>/dev/null || true
+    echo '[INFO] NuGet source added: ${NUGET_SOURCE_URL}'
+fi
+
+# Override pip index-url → internal mirror (image bakes Aliyun; runtime overrides to Nora)
+if command -v pip3 >/dev/null 2>&1; then
+    pip3 config set global.index-url '${PYPI_INTERNAL_URL}' 2>/dev/null || true
+    pip3 config set global.trusted-host '${PYPI_INTERNAL_HOST}' 2>/dev/null || true
+    echo \"[INFO] pip index-url overridden to '${PYPI_INTERNAL_URL}'\"
 fi
 
 # libcrypt (libxcrypt) is installed under /usr/local/lib in the manylinux
@@ -561,12 +710,6 @@ _san_dir=/opt/rh/devtoolset-10/root/usr/lib/gcc/x86_64-redhat-linux/10
 if [ -d "\$_san_dir" ]; then
     export LIBRARY_PATH="\${_san_dir}:\${LIBRARY_PATH}"
 fi
-
-if [ '${CLEAN}' = 'true' ]; then
-    rm -rf /mnt/${BUILD_DIR}
-fi
-mkdir -p /mnt/${BUILD_DIR}
-cd /mnt/${BUILD_DIR}
 
 # Remove stale host-generated .env and dev db so build.rs recreates both inside
 # the container with the correct /mnt/... path and a fresh schema.
@@ -642,6 +785,12 @@ echo ''
 echo '── ccache statistics ──────────────────────────────────────────────────────'
 ccache --show-stats
 
+if [ -n \"\${RUSTC_WRAPPER:-}\" ] && [ \"\${RUSTC_WRAPPER}\" = \"sccache\" ] && command -v sccache >/dev/null 2>&1; then
+    echo ''
+    echo '── sccache statistics ─────────────────────────────────────────────────────'
+    sccache --show-stats
+fi
+
 if [ '${NEEDS_DIST_CLEANUP}' = 'true' ]; then
     rm -rf /mnt/source/taos-xservice/explorer/dist
 fi
@@ -657,10 +806,15 @@ declare -a DOCKER_MAIN_ARGS=(
     "--volume=${TSDB_DIR}:/mnt"
     "--volume=${TSDB_CACHE_DIR}/conan2-${ARCH}:/root/.conan2"
     "--volume=${TSDB_CACHE_DIR}/go-mod:/root/go/pkg/mod"
+    "--volume=${TSDB_CACHE_DIR}/go-build:/root/.cache/go-build"
     "--volume=${TSDB_CACHE_DIR}/cargo-registry:/root/.cargo/registry"
     "--volume=${TSDB_CACHE_DIR}/cargo-git:/root/.cargo/git"
     "--volume=${TSDB_CACHE_DIR}/ccache-${USE_IMAGE}-${ARCH}:/root/.cache/ccache"
+    "--volume=${SCRIPT_DIR}/.cargo/config.toml:/root/.cargo/config.toml:ro"
 )
+if [[ "$USE_SCCACHE" == "true" ]]; then
+    DOCKER_MAIN_ARGS+=("--volume=${TSDB_CACHE_DIR}/sccache-${USE_IMAGE}-${ARCH}:/root/.cache/sccache")
+fi
 
 echo "[INFO] docker run command:"
 printf '  docker run'

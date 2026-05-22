@@ -51,7 +51,7 @@ tsdb-builder/
 |---|---|---|
 | glibc | 2.17（riscv64: 2.41+） | manylinux2014，兼容旧发行版；riscv64 使用 Debian trixie |
 | GCC / G++ | 7.x（riscv64: 14.x） | CentOS 7 devtoolset-7（兼容麒麟 V10）；riscv64 使用 Debian 系统 GCC |
-| Go | 1.23.4 | GOPROXY=goproxy.cn |
+| Go | 1.23.4 | GOPROXY=nexus.tdengine.net/repository/goproxy/ |
 | CMake | 3.21.5 | |
 | Rust / Cargo | 1.90.0 | rsproxy.cn 镜像 |
 | Python | 3.12 | manylinux2014 预装 |
@@ -68,7 +68,7 @@ tsdb-builder/
 |---|---|---|
 | glibc | 2.17 | manylinux2014 |
 | GCC / G++ | 9.x | CentOS 7 devtoolset-9 |
-| Go | 1.23.4 | GOPROXY=goproxy.cn |
+| Go | 1.23.4 | GOPROXY=nexus.tdengine.net/repository/goproxy/ |
 | CMake | 3.21.5 | |
 | Rust / Cargo | 1.90.0 | rsproxy.cn 镜像 |
 | Python | 3.12 | manylinux2014 预装 |
@@ -309,16 +309,27 @@ cmake_args=(
 | `RUST_VERSION` | `1.90.0` | Rust 工具链版本 |
 | `PYTHON_VERSION` | `3.12` | Python 版本（manylinux 预装） |
 | `DOTNET_VERSION` | `6.0.428` | .NET SDK 版本（others 用） |
-| `NODE_VERSION` | `22.14.0` | Node.js 版本（others 用） |
 | `MOLD_VERSION` | `2.40.3` | mold 链接器版本 |
 | `PROTOC_VERSION` | `33.0` | protoc 版本 |
 | `TINI_VERSION` | `v0.19.0` | tini 版本 |
-| `TAOSPY_VERSION` | `2.8.8` | taospy Python 包版本 |
-| `TAOS_WS_PY_VERSION` | `0.6.5` | taos-ws-py Python 包版本 |
+| `CCACHE_VERSION` | `4.10.2` | ccache 版本 |
+| `NODE_VERSION` | `22.14.0` | Node.js 版本（others 用） |
+| `PNPM_VERSION` | `10.33.2` | pnpm 版本（others 用） |
+| `TAOSPY_VERSION` | `2.8.9` | taospy Python 包版本 |
+| `TAOS_WS_PY_VERSION` | `0.6.9` | taos-ws-py Python 包版本 |
 | `PYPI_MIRROR` | `http://mirrors.aliyun.com/pypi/simple/` | PyPI 镜像源 |
 | `PYPI_TRUSTED_HOST` | `mirrors.aliyun.com` | PyPI 可信主机 |
-| `GO_PROXY` | `https://goproxy.cn` | Go 模块代理 |
+| `PYPI_INTERNAL_URL` | `https://nora.tdengine.net/simple/` | PyPI 内网源（容器编译时 build.sh 运行时注入） |
+| `PYPI_INTERNAL_HOST` | `nora.tdengine.net` | PyPI 内网可信主机 |
+| `GO_PROXY` | `https://nexus.tdengine.net/repository/goproxy/` | Go 模块代理 |
+| `CARGO_REGISTRY_URL` | `sparse+https://nora.tdengine.net/cargo/index/` | Cargo crate 镜像 |
+| `CONAN_REMOTE_URL` | `https://nexus.tdengine.net/repository/conan/` | Conan C/C++ 包镜像 |
+| `NPM_REGISTRY_URL` | `https://nora.tdengine.net/npm/` | npm 镜像（容器编译时 build.sh 运行时注入） |
+| `MAVEN_MIRROR_URL` | `https://nexus.tdengine.net/repository/maven-public/` | Maven 镜像（容器编译时 build.sh 运行时注入） |
+| `NUGET_SOURCE_URL` | `https://nora.tdengine.net/nuget/v3/index.json` | NuGet 镜像（容器编译时 build.sh 运行时注入） |
 | `TIMEZONE` | `Asia/Shanghai` | 容器时区 |
+
+> **注意**：`.build-args` 同时服务于两个消费者：(1) 镜像构建脚本将所有行作为 `--build-arg` 传入 Docker；(2) `build.sh` 在容器运行时读取特定变量。`PYPI_MIRROR`（阿里云）用于 Dockerfile 镜像构建（需公网可达），`PYPI_INTERNAL_URL`（Nora 内网）用于 `build.sh` 容器编译运行时覆盖 pip 配置。npm/Maven/NuGet 仅在运行时注入，Dockerfile 中无对应 ARG。
 
 ---
 
@@ -568,7 +579,14 @@ TSDB 的 cmake 体系有多个构建模式参数，它们的交互关系需要�
 |---|---|---|---|
 | `TD_ALIGN_EXTERNAL` | `external.cmake` | `ON` | ExternalProject 依赖库跟随主项目的 `CMAKE_BUILD_TYPE` |
 
-`TD_ALIGN_EXTERNAL` 必须保持默认值 `ON`。构建二进制包时，依赖库的编译模式必须与产出组件对齐，否则链接阶段会报错。
+- **`ON`（默认）**：ExternalProject 依赖库跟随主项目的 `CMAKE_BUILD_TYPE`，
+  Debug/Release 完全对齐。适用于构建正式发布包。
+- **`OFF`**：在非 Windows 平台上，外部依赖强制使用 `Release` 编译，不受主项目
+  构建类型影响。Linux/GCC 下 Release 依赖库与 Debug 主项目 ABI 完全兼容，可安全
+  链接。适用于日常开发——外部依赖保持 Release 性能，主项目保留完整调试信息。
+
+> **注意**：Windows (MSVC) 下 `TD_ALIGN_EXTERNAL` 必须保持 `ON`，因为 MSVC 的
+> Debug/Release 运行时（`/MDd` vs `/MD`）ABI 不兼容，混用会导致链接错误。
 
 ### 推荐构建配置
 
@@ -608,11 +626,14 @@ TSDB 的 cmake 体系有多个构建模式参数，它们的交互关系需要�
 |---|---|---|---|
 | `externals-{core,dev,others}-{arch}/` | ✅ | ✅ | 每个镜像+架构组合独立目录 |
 | `ccache-{core,dev,others}-{arch}/` | ✅ | ✅ | 编译缓存，hash 包含编译器选项，Debug/Release 自动隔离 |
+| `sccache-{core,dev,others}-{arch}/` | ✅ | ✅ | Rust 编译缓存（`--sccache` 启用时创建） |
 | `conan2-{arch}/` | ❌ 三镜像共享 | ✅ | Conan profile 缓存了编译器版本 |
 | `go-mod/` | ❌ 共享 | ❌ 共享 | 源码缓存，无编译产物 |
+| `go-build/` | ❌ 共享 | ❌ 共享 | Go 编译缓存，hash 包含编译器和源码，自动隔离 |
 | `cargo-registry/`、`cargo-git/` | ❌ 共享 | ❌ 共享 | 源码缓存，无编译产物 |
 
 > `go-mod/`、`cargo-registry/`、`cargo-git/` 只存储下载的源码，不含编译产物，**所有场景都不需要清除**。
+> `go-build/` 存储 Go 编译缓存，hash key 包含源码和编译选项，切换场景不会冲突，一般不需要清除。仅在磁盘空间不足时可安全删除。
 > `ccache-*` 一般也不需要清除——ccache hash key 包含完整编译选项和编译器内容，切换 Debug/Release 或镜像版本不会产生缓存冲突。仅在磁盘空间不足时可安全删除。
 
 ### 场景速查表
@@ -669,12 +690,14 @@ rm -rf ~/cache/tsdb-builder/conan2-amd64
   | `externals-dev-{arch}/` | CMake ExternalProject（dev 镜像） | dev |
   | `externals-others-{arch}/` | CMake ExternalProject（others 镜像） | others |
   | `go-mod/` | Go 模块下载 | core + dev + others |
+  | `go-build/` | Go 编译缓存 (GOCACHE) | core + dev + others |
   | `cargo-registry/` | Rust crate 缓存 | core + dev + others |
   | `cargo-git/` | Rust git 依赖 | core + dev + others |
   | `pnpm-store/` | Node.js pnpm 包 | others |
   | `m2-repository/` | Maven 依赖 | others |
   | `nuget/` | .NET NuGet 包 | others |
   | `ccache-{image}-{arch}/` | ccache 编译缓存 | core + dev + others |
+  | `sccache-{image}-{arch}/` | sccache Rust 编译缓存（`--sccache` 时） | core + dev + others |
 - **`BUILD_CONTRIB` / `BUILD_ROCKSDB` / `ROCKSDB_USE_DEPS`**：控制外部依赖和 RocksDB 的编译方式，详见文末 [RocksDB 编译选项](#rocksdb-编译选项) 章节。
 - **`EXTERNALS_USE_CCACHE`**：控制 ExternalProject 构建是否使用 ccache（默认 `ON`）。若 others 镜像 arm64 出现外部依赖 `.o` 文件损坏，设为 `OFF` 可规避，详见 [ExternalProject ccache 开关](#externalproject-ccache-开关)。
 - **Conan profile 自动修正**：每次 `build.sh` 启动容器后，会自动修正 `/root/.conan2/profiles/default` 中的两项设置：`compiler.cppstd=gnu14` → `gnu17`；`arch` 修正为容器实际架构（`aarch64` → `armv8`，`x86_64` → `x86_64`）。这可防止 Conan profile 在跨机器迁移或初次检测错误时注入错误的架构标志（如 `-m64`）导致编译失败。若出现此类问题，删除 `$TSDB_CACHE_DIR/conan2-{arch}/` 目录后重新构建即可。
@@ -737,20 +760,87 @@ cmake 选项 `EXTERNALS_USE_CCACHE` 控制 ExternalProject（OpenSSL、curl、je
 ./build.sh --image others engine -DBUILD_CONTRIB=ON
 ```
 
-## 外部依赖镜像加速
+## sccache（Rust 编译缓存）
 
-所有 ExternalProject 依赖的源码下载可通过 cmake 选项 `BUILD_DEPS_MIRROR_URL` 重定向到内网镜像（GitLab Generic Package Registry），避免从 GitHub 下载：
+`sccache` 是 Rust 的编译缓存工具，类似于 C/C++ 的 ccache。通过 `--sccache` 选项启用：
 
 ```bash
+./build.sh --image core --sccache engine taosx
+```
+
+### 工作原理
+
+启用后，`build.sh` 会：
+- 设置 `RUSTC_WRAPPER=sccache`，让 cargo 通过 sccache 调用 rustc
+- 挂载持久化缓存目录 `sccache-{image}-{arch}/` 到 `/root/.cache/sccache`
+- 构建结束后输出 sccache 命中率统计
+
+### 适用场景
+
+| 场景 | 收益 |
+|------|------|
+| `--clean` 全量编译 | ⭐⭐⭐ 显著加速（缓存命中时跳过编译） |
+| 多分支切换 | ⭐⭐⭐ 不同分支的相同 crate 可复用缓存 |
+| CI 多机器共享（需配合远程存储） | ⭐⭐⭐ 减少重复编译 |
+| 同分支增量编译 | ⭐ 收益较低（cargo 内置增量编译更优） |
+
+### 注意事项
+
+- sccache **会禁用 Rust 增量编译**（两者不兼容），因此同分支频繁增量编译时不建议启用
+- 缓存按**镜像 + 架构**隔离，命名规则与 ccache 一致
+- 若容器镜像未预装 sccache，`build.sh` 会尝试从内网镜像下载预编译包；下载失败时自动禁用 `RUSTC_WRAPPER`
+- **riscv64**：sccache 官方不发布 riscv64 预编译包，Dockerfile.core-riscv64 跳过安装；`build.sh` 运行时 fallback 同样会自动禁用
+- 后续可配置 S3/Redis 远程存储实现 CI 跨机器共享
+
+## 外部依赖镜像加速
+
+`build.sh` 自动从 `.build-args` 读取 `DEPS_MIRROR_URL`（默认值为 GitLab Generic Package Registry），并通过 cmake 选项 `-DBUILD_DEPS_MIRROR_URL` 传入，将所有 ExternalProject 依赖的源码下载重定向到内网镜像，避免从 GitHub 下载：
+
+```bash
+# 默认已自动注入，无需手动指定。如需覆盖：
 ./build.sh --image core engine -DBUILD_CONTRIB=ON \
     -DBUILD_DEPS_MIRROR_URL="https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
 ```
 
 Package Registry 位于 Public 仓库，无需认证即可下载。
 
-未设置 `BUILD_DEPS_MIRROR_URL` 时，cmake 使用原始上游 URL（GitHub）。这是外部贡献者和无内网 GitLab 访问权限环境的默认行为。
+手动覆盖的 `-D` 参数优先级高于 `build.sh` 自动注入的值。未配置 `DEPS_MIRROR_URL` 且未手动指定时，cmake 使用原始上游 URL（GitHub）。
 
 镜像托管方案详情参见 `docs/superpowers/specs/2026-05-14-cpp-cache-strategy-design.md`。
+
+## 容器编译内网依赖注入
+
+`build.sh` 在启动容器后、编译开始前，自动注入以下语言包管理器的内网镜像配置（URL 均来自 `.build-args`）：
+
+| 语言 | 配置方式 | 内网源 |
+|------|----------|--------|
+| C/C++ ExternalProject | cmake `-DBUILD_DEPS_MIRROR_URL` | GitLab Package Registry |
+| C/C++ Conan | Dockerfile 烘焙 `conan remote add` | Nexus |
+| Go | 环境变量 `GOPROXY` | Nexus |
+| Rust/Cargo | Dockerfile 烘焙 `.cargo/config.toml` | Nora |
+| Python/pip | `build.sh` 运行时 `pip3 config set` | Nora |
+| Node.js/npm/pnpm | `build.sh` 运行时 `npm config set` + `pnpm config set` | Nora |
+| Java/Maven | `build.sh` 运行时生成 `settings.xml` | Nexus |
+| .NET/NuGet | `build.sh` 运行时 `dotnet nuget add source` | Nora |
+
+> **设计原则**：Dockerfile 中烘焙的镜像配置使用公网可达地址（如阿里云 PyPI），确保镜像构建在任何网络环境下均可成功。容器编译运行时由 `build.sh` 覆盖为内网地址，确保开发编译全部走内网。
+
+## 非容器编译环境
+
+不使用 tsdb-builder 容器的开发者（直接在主机或已有容器内编译）请使用 `tools/setup/` 框架：
+
+```bash
+# Linux
+./tools/setup/setup-linux.sh --component engine taosx
+
+# macOS
+./tools/setup/setup-macos.sh --component engine taosx
+
+# 仅检查，不修改
+./tools/setup/setup-macos.sh --check --all
+```
+
+详见 [`tools/setup/README.md`](../setup/README.md)。
 
 ## RocksDB 编译选项
 

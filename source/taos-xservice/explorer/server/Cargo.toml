@@ -52,7 +52,7 @@ captcha = "1"
 deadpool.workspace = true
 const_format.workspace = true
 shadow-rs = { workspace = true }
-geos = { git = "https://github.com/georust/geos", rev = "47afbad2483e489911ddb456417808340e9342c3", features = [
+geos = { git = "https://git.tdengine.net/taosdata/rust-deps/geos", rev = "47afbad2483e489911ddb456417808340e9342c3", features = [
   "static",
 ] }
 hex.workspace = true

@@ -1,4 +1,22 @@
 # =============================================================================
+# DEPRECATED: Use tools/setup/setup-windows.ps1 instead.
+#
+# This script is kept for backward compatibility but is no longer maintained.
+# The new setup framework provides:
+#   - Modular per-language modules (cpp, go, rust, java, node, python, dotnet)
+#   - Internal dependency source configuration (GOPROXY, Cargo/Nora, Conan, etc.)
+#   - Component-based selection (-Component engine, taosx)
+#   - Check-only mode (-CheckOnly)
+#
+# Migration:
+#   .\tools\setup\setup-windows.ps1 -All
+# =============================================================================
+Write-Warning "DEPRECATED: This script has been superseded by tools/setup/setup-windows.ps1"
+Write-Host "  Use: .\tools\setup\setup-windows.ps1 -All"
+Write-Host ""
+Write-Host "  Continuing with legacy script for backward compatibility..."
+Write-Host ""
+# =============================================================================
 # TSDB (TDengine) full-component build dependency installation script (Windows)
 #
 # Supported platform: Windows 10/11 (uses winget + direct downloads)

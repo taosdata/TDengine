@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
 # =============================================================================
+# DEPRECATED: Use tools/setup/setup-{linux,macos}.sh instead.
+#
+# This script is kept for backward compatibility but is no longer maintained.
+# The new setup framework provides:
+#   - Modular per-language modules (cpp, go, rust, java, node, python, dotnet)
+#   - Internal dependency source configuration (GOPROXY, Cargo/Nora, Conan, etc.)
+#   - Component-based selection (--component engine taosx)
+#   - Check-only mode (--check)
+#
+# Migration:
+#   ./tools/setup/setup-linux.sh --all          # Linux
+#   ./tools/setup/setup-macos.sh --all          # macOS
+#   .\tools\setup\setup-windows.ps1 -All        # Windows
+# =============================================================================
+echo "⚠ DEPRECATED: This script has been superseded by tools/setup/"
+echo "  Use: ./tools/setup/setup-linux.sh --all  (or setup-macos.sh on macOS)"
+echo ""
+echo "  Continuing with legacy script for backward compatibility..."
+echo ""
+# =============================================================================
 # TSDB (TDengine) full-component build dependency installation script
 #
 # Supported platforms: macOS (Homebrew), Debian/Ubuntu (apt), RHEL/CentOS (yum)

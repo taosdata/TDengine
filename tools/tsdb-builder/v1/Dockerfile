@@ -98,7 +98,7 @@ ARG TAOS_WS_PY_VERSION=0.6.5
 # Mirror Configuration
 ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
 ARG PYPI_TRUSTED_HOST=mirrors.aliyun.com
-ARG GO_PROXY=https://goproxy.cn
+ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
 
 # Timezone Configuration
 ARG TIMEZONE=Asia/Shanghai

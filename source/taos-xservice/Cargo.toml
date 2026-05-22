@@ -252,9 +252,7 @@ taosx-test-macros.path = "./crates/test-macros"
 fake-data.path = "./crates/fake_data"
 
 [workspace.dependencies.taos]
-# path = "../taos-connector-rust/taos"
-rev = "0cd531df"
-git = "https://github.com/taosdata/taos-connector-rust.git"
+path = "../taos-connector-rust/taos"
 default-features = false
 features = ["ws", "optin", "deadpool"]
 
@@ -285,7 +283,7 @@ arrow-schema.workspace = true
 zerocopy = { workspace = true }
 opendal = { workspace = true, features = ["services-s3"] }
 #multi_index_map = "0.15.0"
-multi_index_map = { git = "https://github.com/acerDebugman/multi_index_map.git", tag = "v0.1-taos" }
+multi_index_map = { git = "https://git.tdengine.net/taosdata/rust-deps/multi_index_map.git", tag = "v0.1-taos" }
 scc = { workspace = true, features = ["serde"] }
 semver.workspace = true
 shadow-rs = { workspace = true }
@@ -430,7 +428,7 @@ tikv-jemalloc-sys = { version = "0.6.0", features = [
   "profiling",
 ], optional = true }
 tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
-jemalloc_pprof = { version = "0.8.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
+jemalloc_pprof = { version = "0.8.0", git = "https://git.tdengine.net/taosdata/rust-deps/rust-jemalloc-pprof.git", optional = true }
 
 [build-dependencies]
 dotenv.workspace = true
@@ -487,6 +485,9 @@ strip = "debuginfo"
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
 krb5-src = { git = "https://github.com/zitsen/rust-krb5-src.git", rev = "2590f1cc66ef61603cbe65d2052f909a78f42111" }
+
+[patch.'https://github.com/taosdata/tungstenite-rs.git']
+tungstenite = { git = "https://git.tdengine.net/taosdata/rust-deps/tungstenite-rs.git", branch = "feat/taosdata/permessage-deflate" }
 
 [lints]
 workspace = true

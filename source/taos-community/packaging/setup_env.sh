@@ -47,11 +47,21 @@ REPOPATH="$HOME/repos"
 # Define the path to the script directory
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 
+# Locate repo root and builder config directory
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)
+BUILDER_DIR="$REPO_ROOT/tools/tsdb-builder"
+
 # Define the path to the .bashrc file
 BASH_RC=$HOME/.bashrc
 
 # Define the path to the Cargo configuration file
 CARGO_CONFIG_FILE=$HOME/.cargo/config.toml
+
+# Read mirror settings from builder config (single source of truth)
+if [ -f "$BUILDER_DIR/.build-args" ]; then
+    DEFAULT_GOPROXY=$(grep '^GO_PROXY=' "$BUILDER_DIR/.build-args" | cut -d= -f2-)
+fi
+DEFAULT_GOPROXY="${DEFAULT_GOPROXY:-https://nexus.tdengine.net/repository/goproxy/}"
 
 # Define jmeter version to be installed
 JMETER_VERSION="5.6.3"
@@ -99,26 +109,21 @@ parse_git_branch() {
 export PS1="\u@\h \[\e[32m\]\w \[\e[91m\]\$(parse_git_branch)\[\e[00m\]$ "
 EOF
 
-read -r -d '' CARGO_CONFIG <<'EOF'
+# Read Cargo config from builder (single source of truth)
+if [ -f "$BUILDER_DIR/.cargo/config.toml" ]; then
+    CARGO_CONFIG=$(cat "$BUILDER_DIR/.cargo/config.toml")
+else
+    read -r -d '' CARGO_CONFIG <<'EOF'
 [source.crates-io]
-replace-with = 'rsproxy-sparse'
-[source.rsproxy]
-registry = "https://rsproxy.cn/crates.io-index"
-[source.rsproxy-sparse]
-registry = "sparse+https://rsproxy.cn/index/"
-[registries.rsproxy]
-index = "https://rsproxy.cn/crates.io-index"
+replace-with = 'internal'
+[source.internal]
+registry = "sparse+https://nora.tdengine.net/cargo/index/"
+[registries.internal]
+index = "sparse+https://nora.tdengine.net/cargo/index/"
 [net]
 git-fetch-with-cli = true
-[source.tuna]
-registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
-[source.ustc]
-registry = "git://mirrors.ustc.edu.cn/crates.io-index"
-[source.sjtu]
-registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
-[source.rustcc]
-registry = "git://crates.rustcc.cn/crates.io-index"
 EOF
+fi
 
 # Help function to display usage information
 help() {
@@ -983,7 +988,7 @@ install_gvm() {
         gvm version
         check_status "Failed to install GVM" "GVM installed successfully." $?
         add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
-        add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
+        add_config_if_not_exist "export GOPROXY=${DEFAULT_GOPROXY},direct" "$BASH_RC"
         add_config_if_not_exist "export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/" "$BASH_RC"
         add_config_if_not_exist "export GOROOT_BOOTSTRAP=$GOROOT" "$BASH_RC"
     fi
@@ -1103,7 +1108,7 @@ deploy_go() {
     add_config_if_not_exist "export GOPATH=$GOPATH_DIR" "$BASH_RC"
     add_config_if_not_exist "export PATH=\$PATH:\$GOROOT/bin" "$BASH_RC"
     add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
-    add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
+    add_config_if_not_exist "export GOPROXY=${DEFAULT_GOPROXY},direct" "$BASH_RC"
 
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
@@ -1122,7 +1127,7 @@ install_go_via_gvm() {
     install_gvm
     source $HOME/.gvm/scripts/gvm
     export GO111MODULE=on
-    export GOPROXY=https://goproxy.cn,direct
+    export GOPROXY=${DEFAULT_GOPROXY},direct
     export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/
     export GOROOT_BOOTSTRAP=$GOROOT
 
