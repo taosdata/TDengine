@@ -16,7 +16,7 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use archive::ArchiveType;
-use arrow::array::{ArrayRef, StringArray, UInt16Builder};
+use arrow::array::{ArrayRef, StringArray, UInt16Builder, UInt32Builder};
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_compute_ext::*;
 use arrow_schema::Field;
@@ -64,6 +64,11 @@ pub struct LushModelConfig {
     /// key: sub-table name in point mode, default super table name in element mode.
     /// value: super-table name.
     pub super_table_name_mapping: HashMap<String, String>,
+    /// point_name → super_table_name mapping, built from CSV POINT rows.
+    /// Used in Point Mode to route each point to its correct SuperTable,
+    /// especially when UOM causes multiple SuperTables with the same data type.
+    /// Empty for Element Mode.
+    pub point_super_table_mapping: HashMap<String, String>,
     // 写入的时候是否跳过 null 值
     // 目前实现：PI backfill 不跳过 null 值，PI 实时数据跳过 null 值
     pub skip_null: bool,
@@ -188,6 +193,23 @@ impl TryFrom<Dsn> for LushModelConfig {
     }
 }
 
+/// 从 TDengine 数据类型反推连接器使用的默认超级表名（`using` 值）。
+/// 连接器按 `ts_{pi_type}` 规则生成 `using`，此函数做逆向映射。
+fn td_type_to_default_stable_name(td_type: &str) -> Option<String> {
+    let td_type_upper = td_type.to_uppercase();
+    let pi_type = match td_type_upper.as_str() {
+        "FLOAT" => "float32",
+        "DOUBLE" => "float64",
+        "INT" => "int32",
+        "BIGINT" => "int64",
+        "TIMESTAMP" => "timestamp",
+        s if s.starts_with("NCHAR") => "string",
+        s if s.starts_with("VARCHAR") => "string",
+        _ => return None,
+    };
+    Some(format!("ts_{}", pi_type))
+}
+
 impl TryFrom<PIPointModelConfig> for LushModelConfig {
     type Error = anyhow::Error;
 
@@ -196,6 +218,8 @@ impl TryFrom<PIPointModelConfig> for LushModelConfig {
             LushModelConfig::index_super_table_by_name(config.super_tables);
         let mut super_table_sqls: HashMap<String, String> = HashMap::new();
         let mut super_table_parsers: HashMap<String, Parser> = HashMap::new();
+        let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
+
         for (super_table_name, config) in super_table_config.iter() {
             super_table_sqls.insert(super_table_name.to_owned(), config.get_sql());
             super_table_parsers.insert(
@@ -204,18 +228,35 @@ impl TryFrom<PIPointModelConfig> for LushModelConfig {
                     format!("failed to build parser for super table `{super_table_name}`")
                 })?,
             );
+
+            // 从 $value 列的 TDengine 数据类型反推连接器的 using 值，建立正确映射
+            if let Some(default_name) = config
+                .schema
+                .iter()
+                .find(|row| row.column_map == "$value")
+                .and_then(|row| td_type_to_default_stable_name(&row.column_data_type))
+            {
+                sub_super_mapping.insert(default_name, super_table_name.clone());
+            }
+            // 保留自映射（兼容未改名场景及连接器直接使用自定义名称的场景）
+            sub_super_mapping
+                .entry(super_table_name.clone())
+                .or_insert(super_table_name.clone());
         }
-        let mut sub_super_mapping: HashMap<String, String> = HashMap::new();
-        for point in config.points {
-            //sub_super_mapping.insert(point.point_name, point.super_table);
-            // 暂不支持点级别配对应的超级表
-            sub_super_mapping.insert(point.super_table.clone(), point.super_table);
-        }
+
+        // 从 POINT 行构建 point_name → super_table 映射
+        let point_super_table_mapping: HashMap<String, String> = config
+            .points
+            .iter()
+            .map(|p| (p.point_name.clone(), p.super_table.clone()))
+            .collect();
+
         Ok(LushModelConfig {
             table_id_column: "point_name".to_string(),
             super_table_parsers,
             super_table_sqls,
             super_table_name_mapping: sub_super_mapping,
+            point_super_table_mapping,
             skip_null: false,
         })
     }
@@ -263,6 +304,7 @@ impl TryFrom<PIElementModelConfig> for LushModelConfig {
             super_table_parsers,
             super_table_sqls,
             super_table_name_mapping,
+            point_super_table_mapping: HashMap::new(),
             skip_null: true,
         })
     }
@@ -373,23 +415,30 @@ pub fn group_by_super_table_name<'b>(
         .downcast_ref::<StringArray>()
         .unwrap();
 
-    let mut super_table_ranges: LinkedHashMap<&str, UInt16Builder> = LinkedHashMap::new();
+    let mut super_table_ranges: LinkedHashMap<&str, UInt32Builder> = LinkedHashMap::new();
+    let mut skipped_rows = 0usize;
     for i in 0..table_name_column.len() {
         let table_name = table_name_column.value(i);
         let super_table = sub_super_mapping.get(table_name);
         if super_table.is_none() {
-            error!("table_name {} not found in sub_super_mapping", table_name);
+            skipped_rows += 1;
+            tracing::warn!("table_name {} not found in sub_super_mapping", table_name);
             continue;
         }
         let super_table = super_table.unwrap().as_str();
         if super_table_ranges.contains_key(super_table) {
             let builder = super_table_ranges.get_mut(super_table).unwrap();
-            builder.append_value(i as _);
+            builder.append_value(i as u32);
         } else {
-            let mut builder = UInt16Builder::new();
-            builder.append_value(i as _);
+            let mut builder = UInt32Builder::new();
+            builder.append_value(i as u32);
             super_table_ranges.insert(super_table, builder);
         }
+    }
+    if skipped_rows > 0 {
+        tracing::warn!(
+            "group_by_super_table_name: {skipped_rows} row(s) skipped due to missing sub_super_mapping"
+        );
     }
     super_table_ranges
         .into_iter()
@@ -1747,6 +1796,7 @@ mod tests {
             super_table_parsers: Default::default(),
             super_table_sqls: Default::default(),
             super_table_name_mapping: Default::default(),
+            point_super_table_mapping: Default::default(),
             skip_null: false,
         };
 
@@ -1763,10 +1813,417 @@ mod tests {
             super_table_parsers: Default::default(),
             super_table_sqls: Default::default(),
             super_table_name_mapping: Default::default(),
+            point_super_table_mapping: Default::default(),
             skip_null: true,
         };
 
         assert_eq!(config.table_id_column, "element_id");
         assert!(config.skip_null);
+    }
+
+    #[test]
+    fn test_td_type_to_default_stable_name() {
+        assert_eq!(
+            td_type_to_default_stable_name("FLOAT"),
+            Some("ts_float32".to_string())
+        );
+        assert_eq!(
+            td_type_to_default_stable_name("DOUBLE"),
+            Some("ts_float64".to_string())
+        );
+        assert_eq!(
+            td_type_to_default_stable_name("INT"),
+            Some("ts_int32".to_string())
+        );
+        assert_eq!(
+            td_type_to_default_stable_name("BIGINT"),
+            Some("ts_int64".to_string())
+        );
+        assert_eq!(
+            td_type_to_default_stable_name("TIMESTAMP"),
+            Some("ts_timestamp".to_string())
+        );
+        assert_eq!(
+            td_type_to_default_stable_name("NCHAR(100)"),
+            Some("ts_string".to_string())
+        );
+        assert_eq!(
+            td_type_to_default_stable_name("VARCHAR(200)"),
+            Some("ts_string".to_string())
+        );
+        // case insensitive
+        assert_eq!(
+            td_type_to_default_stable_name("float"),
+            Some("ts_float32".to_string())
+        );
+        // unknown type
+        assert_eq!(td_type_to_default_stable_name("BINARY"), None);
+    }
+
+    #[test]
+    fn test_point_model_renamed_stable_mapping() {
+        use crate::runners::pi::transform::{
+            ColumnType, PIPointModelConfig, PointRow, SchemaRow, SuperTableConfig,
+        };
+
+        // 用户将 SuperTable 从 ts_float32 重命名为 pi_float32
+        let config = PIPointModelConfig {
+            super_tables: vec![SuperTableConfig {
+                super_table_name: "pi_float32".to_string(),
+                sub_table_name_pattern: "t_${point_name}".to_string(),
+                template_name: None,
+                filter: None,
+                schema: vec![
+                    SchemaRow {
+                        column_name: "ts".to_string(),
+                        column_type: ColumnType::Key,
+                        column_data_type: "TIMESTAMP".to_string(),
+                        column_map: "$ts".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "val".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "FLOAT".to_string(),
+                        column_map: "$value".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "quality".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "INT".to_string(),
+                        column_map: "$status".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "point_name".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "VARCHAR(100)".to_string(),
+                        column_map: "$point_name".to_string(),
+                    },
+                ],
+            }],
+            points: vec![PointRow {
+                point_name: "Meter_001".to_string(),
+                super_table: "pi_float32".to_string(),
+            }],
+        };
+
+        let lush = LushModelConfig::try_from(config).unwrap();
+
+        // 连接器上报 using="ts_float32"，应映射到用户自定义的 "pi_float32"
+        assert_eq!(
+            lush.super_table_name_mapping.get("ts_float32"),
+            Some(&"pi_float32".to_string()),
+            "connector's default name should map to user's custom name"
+        );
+        // 自映射也应存在
+        assert_eq!(
+            lush.super_table_name_mapping.get("pi_float32"),
+            Some(&"pi_float32".to_string()),
+            "self-mapping should exist for compatibility"
+        );
+    }
+
+    #[test]
+    fn test_point_model_default_name_unchanged() {
+        use crate::runners::pi::transform::{
+            ColumnType, PIPointModelConfig, PointRow, SchemaRow, SuperTableConfig,
+        };
+
+        // 用户未改名，SuperTable 就是默认的 ts_float32
+        let config = PIPointModelConfig {
+            super_tables: vec![SuperTableConfig {
+                super_table_name: "ts_float32".to_string(),
+                sub_table_name_pattern: "${point_name}".to_string(),
+                template_name: None,
+                filter: None,
+                schema: vec![
+                    SchemaRow {
+                        column_name: "ts".to_string(),
+                        column_type: ColumnType::Key,
+                        column_data_type: "TIMESTAMP".to_string(),
+                        column_map: "$ts".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "value".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "FLOAT".to_string(),
+                        column_map: "$value".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "status".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "INT".to_string(),
+                        column_map: "$status".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "point_name".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "VARCHAR(100)".to_string(),
+                        column_map: "$point_name".to_string(),
+                    },
+                ],
+            }],
+            points: vec![PointRow {
+                point_name: "Meter_001".to_string(),
+                super_table: "ts_float32".to_string(),
+            }],
+        };
+
+        let lush = LushModelConfig::try_from(config).unwrap();
+
+        // 未改名时 ts_float32 应自映射
+        assert_eq!(
+            lush.super_table_name_mapping.get("ts_float32"),
+            Some(&"ts_float32".to_string()),
+        );
+    }
+
+    #[test]
+    fn test_point_model_multiple_types_renamed() {
+        use crate::runners::pi::transform::{
+            ColumnType, PIPointModelConfig, PointRow, SchemaRow, SuperTableConfig,
+        };
+
+        fn make_super_table(name: &str, td_type: &str) -> SuperTableConfig {
+            SuperTableConfig {
+                super_table_name: name.to_string(),
+                sub_table_name_pattern: "${point_name}".to_string(),
+                template_name: None,
+                filter: None,
+                schema: vec![
+                    SchemaRow {
+                        column_name: "ts".to_string(),
+                        column_type: ColumnType::Key,
+                        column_data_type: "TIMESTAMP".to_string(),
+                        column_map: "$ts".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "value".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: td_type.to_string(),
+                        column_map: "$value".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "status".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "INT".to_string(),
+                        column_map: "$status".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "point_name".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "VARCHAR(100)".to_string(),
+                        column_map: "$point_name".to_string(),
+                    },
+                ],
+            }
+        }
+
+        let config = PIPointModelConfig {
+            super_tables: vec![
+                make_super_table("my_float", "FLOAT"),
+                make_super_table("my_double", "DOUBLE"),
+                make_super_table("my_string", "NCHAR(100)"),
+            ],
+            points: vec![
+                PointRow {
+                    point_name: "p1".to_string(),
+                    super_table: "my_float".to_string(),
+                },
+                PointRow {
+                    point_name: "p2".to_string(),
+                    super_table: "my_double".to_string(),
+                },
+                PointRow {
+                    point_name: "p3".to_string(),
+                    super_table: "my_string".to_string(),
+                },
+            ],
+        };
+
+        let lush = LushModelConfig::try_from(config).unwrap();
+
+        assert_eq!(
+            lush.super_table_name_mapping.get("ts_float32"),
+            Some(&"my_float".to_string())
+        );
+        assert_eq!(
+            lush.super_table_name_mapping.get("ts_float64"),
+            Some(&"my_double".to_string())
+        );
+        assert_eq!(
+            lush.super_table_name_mapping.get("ts_string"),
+            Some(&"my_string".to_string())
+        );
+    }
+
+    #[test]
+    fn test_point_model_uom_multiple_super_tables_same_type() {
+        use crate::runners::pi::transform::{
+            ColumnType, PIPointModelConfig, PointRow, SchemaRow, SuperTableConfig,
+        };
+
+        fn make_super_table(name: &str) -> SuperTableConfig {
+            SuperTableConfig {
+                super_table_name: name.to_string(),
+                sub_table_name_pattern: "${point_name}".to_string(),
+                template_name: None,
+                filter: None,
+                schema: vec![
+                    SchemaRow {
+                        column_name: "ts".to_string(),
+                        column_type: ColumnType::Key,
+                        column_data_type: "TIMESTAMP".to_string(),
+                        column_map: "$ts".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "val".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "FLOAT".to_string(),
+                        column_map: "$value".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "status".to_string(),
+                        column_type: ColumnType::COLUMN,
+                        column_data_type: "INT".to_string(),
+                        column_map: "$status".to_string(),
+                    },
+                    SchemaRow {
+                        column_name: "point_name".to_string(),
+                        column_type: ColumnType::TAG,
+                        column_data_type: "VARCHAR(100)".to_string(),
+                        column_map: "$point_name".to_string(),
+                    },
+                ],
+            }
+        }
+
+        // UOM 场景：3 个超级表都是 FLOAT 类型，但 UOM 不同
+        let config = PIPointModelConfig {
+            super_tables: vec![
+                make_super_table("volt_float32"),
+                make_super_table("watt_float32"),
+                make_super_table("ampere_float32"),
+            ],
+            points: vec![
+                PointRow {
+                    point_name: "Meter_001_Voltage".to_string(),
+                    super_table: "volt_float32".to_string(),
+                },
+                PointRow {
+                    point_name: "Meter_001_Power".to_string(),
+                    super_table: "watt_float32".to_string(),
+                },
+                PointRow {
+                    point_name: "Meter_001_Current".to_string(),
+                    super_table: "ampere_float32".to_string(),
+                },
+                PointRow {
+                    point_name: "Meter_002_Voltage".to_string(),
+                    super_table: "volt_float32".to_string(),
+                },
+                PointRow {
+                    point_name: "Meter_002_Power".to_string(),
+                    super_table: "watt_float32".to_string(),
+                },
+                PointRow {
+                    point_name: "Meter_002_Current".to_string(),
+                    super_table: "ampere_float32".to_string(),
+                },
+            ],
+        };
+
+        let lush = LushModelConfig::try_from(config).unwrap();
+
+        // super_table_name_mapping: 由于 3 个超级表都是 FLOAT 类型，
+        // ts_float32 → 最后一个被插入的超级表（HashMap 覆盖）
+        // 但这不影响 UOM 路由，因为 UOM 模式使用 point_super_table_mapping
+        assert!(lush.super_table_name_mapping.contains_key("ts_float32"));
+
+        // point_super_table_mapping 正确映射每个点位到对应的超级表
+        assert_eq!(
+            lush.point_super_table_mapping.get("Meter_001_Voltage"),
+            Some(&"volt_float32".to_string())
+        );
+        assert_eq!(
+            lush.point_super_table_mapping.get("Meter_001_Power"),
+            Some(&"watt_float32".to_string())
+        );
+        assert_eq!(
+            lush.point_super_table_mapping.get("Meter_001_Current"),
+            Some(&"ampere_float32".to_string())
+        );
+        assert_eq!(
+            lush.point_super_table_mapping.get("Meter_002_Voltage"),
+            Some(&"volt_float32".to_string())
+        );
+        assert_eq!(
+            lush.point_super_table_mapping.get("Meter_002_Power"),
+            Some(&"watt_float32".to_string())
+        );
+        assert_eq!(
+            lush.point_super_table_mapping.get("Meter_002_Current"),
+            Some(&"ampere_float32".to_string())
+        );
+
+        // 所有 3 个超级表的 parser 和 SQL 都应存在
+        assert!(lush.super_table_parsers.contains_key("volt_float32"));
+        assert!(lush.super_table_parsers.contains_key("watt_float32"));
+        assert!(lush.super_table_parsers.contains_key("ampere_float32"));
+        assert!(lush.super_table_sqls.contains_key("volt_float32"));
+        assert!(lush.super_table_sqls.contains_key("watt_float32"));
+        assert!(lush.super_table_sqls.contains_key("ampere_float32"));
+    }
+
+    #[test]
+    fn test_group_by_super_table_name_all_mapped() {
+        let schema =
+            arrow_schema::Schema::new(vec![Field::new("table_name", DataType::Utf8, false)]);
+        let table_names: ArrayRef = Arc::new(StringArray::from(vec!["sub_a", "sub_b", "sub_a"]));
+        let records = RecordBatch::try_new(Arc::new(schema), vec![table_names]).unwrap();
+
+        let mut mapping = HashMap::new();
+        mapping.insert("sub_a".to_string(), "st_1".to_string());
+        mapping.insert("sub_b".to_string(), "st_2".to_string());
+
+        let result = group_by_super_table_name(&records, "table_name", &mapping);
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result["st_1"].num_rows(), 2);
+        assert_eq!(result["st_2"].num_rows(), 1);
+    }
+
+    #[test]
+    fn test_group_by_super_table_name_with_unmapped_rows() {
+        let schema =
+            arrow_schema::Schema::new(vec![Field::new("table_name", DataType::Utf8, false)]);
+        let table_names: ArrayRef = Arc::new(StringArray::from(vec![
+            "sub_a", "unknown", "sub_a", "missing",
+        ]));
+        let records = RecordBatch::try_new(Arc::new(schema), vec![table_names]).unwrap();
+
+        let mut mapping = HashMap::new();
+        mapping.insert("sub_a".to_string(), "st_1".to_string());
+
+        let result = group_by_super_table_name(&records, "table_name", &mapping);
+
+        // Only mapped rows are included
+        assert_eq!(result.len(), 1);
+        assert_eq!(result["st_1"].num_rows(), 2);
+        // 2 rows skipped (unknown + missing)
+        let total_grouped: usize = result.values().map(|rb| rb.num_rows()).sum();
+        assert_eq!(records.num_rows() - total_grouped, 2);
+    }
+
+    #[test]
+    fn test_group_by_super_table_name_all_unmapped() {
+        let schema =
+            arrow_schema::Schema::new(vec![Field::new("table_name", DataType::Utf8, false)]);
+        let table_names: ArrayRef = Arc::new(StringArray::from(vec!["x", "y"]));
+        let records = RecordBatch::try_new(Arc::new(schema), vec![table_names]).unwrap();
+
+        let mapping = HashMap::new();
+        let result = group_by_super_table_name(&records, "table_name", &mapping);
+
+        assert!(result.is_empty());
     }
 }
