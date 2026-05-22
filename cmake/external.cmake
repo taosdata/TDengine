@@ -1606,10 +1606,14 @@ get_from_local_if_exists(
     "https://github.com/taosdata/libs3/archive/f727a1e5da21ed518c323a849dda70d39ccfe647.tar.gz"
     "libs3-f727a1e5da21.tar.gz"
 )
+set(_libs3_ts_args "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    list(APPEND _libs3_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
 ExternalProject_Add(ext_libs3
     URL ${_url}
     URL_HASH SHA256=008ce6c8881b84313b22025303b0076b75a2da9a94e7cb255e25ec39d01b096c
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    ${_libs3_ts_args}
     DEPENDS ${_libs3_depends}
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
