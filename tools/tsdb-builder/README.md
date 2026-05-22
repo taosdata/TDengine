@@ -16,6 +16,35 @@ TDengine TSDB 多语言编译环境 Docker 镜像构建工具，提供三套独�
 
 ---
 
+## 仓库架构与双编译体系
+
+### Monorepo 与 GitHub 多仓库
+
+TSDB 采用内网 GitLab monorepo（`tsdb` 仓库）进行日常开发，所有组件代码集中在 `source/` 目录下。通过定时同步机制，monorepo 的各子文件夹被分别推送到 GitHub `taosdata` 组织下的独立仓库。
+
+| monorepo 子目录 | GitHub 仓库 | 说明 |
+|---|---|---|
+| `source/taos-community` | [taosdata/TDengine](https://github.com/taosdata/TDengine) | 社区版引擎核心 |
+| `source/taos-internal` | _(不独立发布)_ | 企业版扩展插件 |
+| `source/taos-adapter` | [taosdata/taosadapter](https://github.com/taosdata/taosadapter) | RESTful 适配器 |
+| `source/taos-xservice` | [taosdata/taosx](https://github.com/taosdata/taosx) | 零代码数据接入 |
+| `source/taos-gen` | [taosdata/taosgen](https://github.com/taosdata/taosgen) | 数据生成工具 |
+| `source/taos-insight` | [taosdata/grafanaplugin](https://github.com/taosdata/grafanaplugin) | Grafana 插件 |
+| `source/taos-connector-*` | `taosdata/taos-connector-*` 或 `taosdata/driver-go` | 各语言连接器 |
+| `source/taos-grant-lib` | _(不独立发布)_ | 授权库 |
+
+> **分支说明**：tsdb 仓库有三条保护分支——`main`、`3.3.6`、`3.0`，`build.sh` 及编译构建体系在三条分支上保持一致。
+
+### 两套并行的编译方案
+
+基于 monorepo 与 GitHub 多仓库的并行开发模式，存在两套独立的编译构建方案：
+
+1. **内网 monorepo 编译**（本工具）：通过 `build.sh` 基于容器化编译构建各组件，**所有依赖统一走内网代理**，杜绝直连外网。`build.sh` 提供 `--public` 参数可切换到公网依赖源，适用于外网环境（如 GitHub Actions）。
+
+2. **GitHub 单仓库编译**：对应 `source/` 下各子文件夹，每个子文件夹的 `README.md`（英文）提供独立的编译指南（通常在 `## Building` 章节），**默认直连外网下载依赖**。GitHub 用户按 README 操作即可完成构建，无需使用本工具。
+
+---
+
 ## 目录结构
 
 ```text
@@ -307,6 +336,13 @@ cmake_args=(
 # 内网构建（默认行为，无需额外参数）
 ./build.sh --image core engine taosx
 ```
+
+> **GitHub 用户更简单的方式**：如果只需构建单个组件，无需使用 `build.sh`。直接参阅对应 `source/*/README.md` 中的英文编译指南（`## Building` 章节），按步骤操作即可。README 默认使用公网源下载依赖。
+>
+> 例如：
+> - 构建 TDengine 引擎：参阅 `source/taos-community/README.md`（对应 [taosdata/TDengine](https://github.com/taosdata/TDengine)）
+> - 构建 taosAdapter：参阅 `source/taos-adapter/README.md`（对应 [taosdata/taosadapter](https://github.com/taosdata/taosadapter)）
+> - 构建 taosx：参阅 `source/taos-xservice/README.md`（对应 [taosdata/taosx](https://github.com/taosdata/taosx)）
 
 **`--public` 模式的效果：**
 
@@ -840,9 +876,37 @@ cmake 选项 `EXTERNALS_USE_CCACHE` 控制 ExternalProject（OpenSSL、curl、je
 - **riscv64**：sccache 官方不发布 riscv64 预编译包，Dockerfile.core-riscv64 跳过安装；`build.sh` 运行时 fallback 同样会自动禁用
 - 后续可配置 S3/Redis 远程存储实现 CI 跨机器共享
 
-## 外部依赖镜像加速
+## 外部依赖下载：内网 vs 外网
 
-`build.sh` 自动从 `.build-args` 读取 `DEPS_MIRROR_URL`（默认值为 GitLab Generic Package Registry），并通过 cmake 选项 `-DBUILD_DEPS_MIRROR_URL` 传入，将所有 ExternalProject 依赖的源码下载重定向到内网镜像，避免从 GitHub 下载：
+C/C++ ExternalProject 依赖的下载地址由两个 cmake 参数控制，二者配合决定从内网镜像还是公网 GitHub 下载：
+
+| cmake 参数 | 默认值 | 说明 |
+|---|---|---|
+| `BUILD_DEPS_MIRROR_URL` | _(空)_ | 内网 tarball 镜像的 URL 前缀。设置后，`external.cmake` 中的 `get_from_local_if_exists()` 宏将所有 ExternalProject 下载地址重写为此前缀下的文件。**`build.sh` 默认自动注入**（来自 `.build-args` 的 `DEPS_MIRROR_URL`），指向 GitLab Generic Package Registry。 |
+| `BUILD_USE_PUBLIC_DEPS` | `OFF` | 设为 `ON` 时，强制清空 `LOCAL_URL`，使所有 ExternalProject 使用原始公网 URL（GitHub）。即使同时设置了 `BUILD_DEPS_MIRROR_URL`，也会被忽略并输出警告。**`build.sh --public` 自动设置此参数。** |
+
+### 使用场景
+
+| 场景 | cmake 参数 | 谁来设置 |
+|---|---|---|
+| **内网编译（默认）** | `BUILD_DEPS_MIRROR_URL=<内网URL>` | `build.sh` 自动注入 |
+| **外网编译（`--public`）** | `BUILD_USE_PUBLIC_DEPS=ON` | `build.sh --public` 自动设置 |
+| **GitHub 独立仓库编译** | 两个参数均不设置 | 无需任何操作——cmake 默认直接从 GitHub 下载 |
+| **手动覆盖内网镜像地址** | `-DBUILD_DEPS_MIRROR_URL=<URL>` | 在 `build.sh` 命令行末尾追加，覆盖自动注入值 |
+
+### 交互逻辑（`external.cmake` 中的实现）
+
+```
+BUILD_DEPS_MIRROR_URL ──→ 桥接到 LOCAL_URL（CACHE 变量）
+                            │
+BUILD_USE_PUBLIC_DEPS=ON ──→ 强制清空 LOCAL_URL（忽略镜像）
+                            │
+get_from_local_if_exists() ──→ LOCAL_URL 非空？用镜像 : 用原始 URL
+```
+
+> **GitHub 用户无需关心这两个参数**。从 GitHub 克隆 TDengine 后直接 `cmake .. -DBUILD_CONTRIB=ON && make` 即可，cmake 默认使用公网 URL。
+
+### 手动覆盖示例
 
 ```bash
 # 默认已自动注入，无需手动指定。如需覆盖：
@@ -878,7 +942,7 @@ Package Registry 位于 Public 仓库，无需认证即可下载。
 不使用 tsdb-builder 容器的开发者（直接在主机或已有容器内编译）请使用 `tools/setup/` 框架：
 
 ```bash
-# Linux
+# Linux — 按组件配置（自动识别所需语言环境）
 ./tools/setup/setup-linux.sh --component engine taosx
 
 # macOS
@@ -887,6 +951,39 @@ Package Registry 位于 Public 仓库，无需认证即可下载。
 # 仅检查，不修改
 ./tools/setup/setup-macos.sh --check --all
 ```
+
+setup 脚本**默认配置内网依赖源**（从 `.build-args` 读取 URL），与容器编译保持一致。如需在外网环境使用，设置 `TSDB_PUBLIC_DEPS=1` 切换到公网源：
+
+```bash
+export TSDB_PUBLIC_DEPS=1
+./tools/setup/setup-linux.sh --component engine adapter taosx
+```
+
+| 模式 | `TSDB_PUBLIC_DEPS` | 效果 |
+|---|---|---|
+| 内网（默认） | 不设置 | GOPROXY → Nexus, Cargo → Nora, Conan → Nexus 等 |
+| 外网 | `1` | GOPROXY → proxy.golang.org, Cargo → crates.io 等 |
+
+**按组件配置示例**：
+
+```bash
+# 编译 taos-adapter（Go 组件）
+./tools/setup/setup-linux.sh --component adapter
+source ~/.bashrc
+cd source/taos-adapter && go build ./...
+
+# 编译 taosx（Rust 组件）
+./tools/setup/setup-linux.sh --component taosx
+source ~/.bashrc
+cd source/taos-xservice && cargo build
+
+# 编译 TDengine 引擎（C/C++ 组件）
+./tools/setup/setup-linux.sh --component engine
+cd source/taos-community && mkdir -p debug && cd debug
+cmake .. -DBUILD_CONTRIB=ON && make -j$(nproc)
+```
+
+> **GitHub 用户无需此脚本**：从 GitHub 克隆单个仓库时，直接按 README.md 的 `## Building` 章节操作即可。标准工具默认使用公网源。`tools/setup/` 仅用于 monorepo 内网开发场景。
 
 详见 [`tools/setup/README.md`](../setup/README.md)。
 
