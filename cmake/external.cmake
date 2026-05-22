@@ -1544,6 +1544,10 @@ if(NOT TD_WINDOWS)        # {
         LIB              lib/${ext_libs3_static}
     )
     string(JOIN " " _ssl_libs ${ext_ssl_libs})
+    set(_download_ts_args "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+        list(APPEND _download_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    endif()
     # Source: https://github.com/taosdata/libs3 commit f727a1e (bji/libs3@98f667b + Windows/MSVC support)
     get_from_local_if_exists(
         "https://github.com/taosdata/libs3/archive/f727a1e5da21ed518c323a849dda70d39ccfe647.tar.gz"
@@ -1552,7 +1556,7 @@ if(NOT TD_WINDOWS)        # {
     ExternalProject_Add(ext_libs3
         URL ${_url}
         URL_HASH SHA256=008ce6c8881b84313b22025303b0076b75a2da9a94e7cb255e25ec39d01b096c
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        ${_download_ts_args}
         DEPENDS ext_libxml2 ext_curl ext_zlib
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
