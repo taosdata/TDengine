@@ -132,6 +132,7 @@ variables:
         - ".gitlab/.gitlab-ci.yml"
         - "source/**/test/ci/cases.task"
         - "tests/ci/scripts/**"
+        - "tools/tsdb-builder/**/*"
     - if: $PARENT_PIPELINE_SOURCE != "merge_request_event"
 
 # ======================================================================
@@ -221,26 +222,6 @@ prepare-workspace:
       git clone --branch "${_BRANCH}" --depth 50 \
         git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC_SAN}"
       _checkout_merged "${TSDB_SRC_SAN}"
-
-    - |
-      # 确保 platform 工具仓库存在并为最新；flock 防止多 MR 并发时同时 clone/pull
-      PLATFORM_DIR="${CI_BASE_DIR}/platform"
-      PLATFORM_BRANCH="main"
-      mkdir -p "$(dirname "${PLATFORM_DIR}")"
-      (
-        flock -x 9
-        if [ ! -d "${PLATFORM_DIR}/.git" ]; then
-          echo "[prepare] Cloning platform repo (branch: ${PLATFORM_BRANCH})..."
-          git clone --branch "${PLATFORM_BRANCH}" \
-            git@git.tdengine.net:rd-public/platform.git "${PLATFORM_DIR}"
-        else
-          echo "[prepare] Updating platform repo (branch: ${PLATFORM_BRANCH})..."
-          git -C "${PLATFORM_DIR}" fetch origin --prune
-          git -C "${PLATFORM_DIR}" checkout "${PLATFORM_BRANCH}" 2>/dev/null \
-            || git -C "${PLATFORM_DIR}" checkout -b "${PLATFORM_BRANCH}" "origin/${PLATFORM_BRANCH}"
-          git -C "${PLATFORM_DIR}" reset --hard "origin/${PLATFORM_BRANCH}"
-        fi
-      ) 9>${CI_BASE_DIR}/.platform-clone.lock
 
   artifacts:
     reports:
@@ -353,7 +334,7 @@ build-externals:
             fi
           fi
         done
-        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+        "${TSDB_SRC}/tools/tsdb-builder/build.sh" \
           --image ${BUILDER_SCRIPT_IMAGE} \
           --src "${TSDB_SRC}" \
           --cache ${CI_CACHE_DIR}/ \
@@ -384,7 +365,7 @@ build-externals:
           [ -d "${_ext_dir}" ] && mkdir -p "${_ext_dir}/tmp" "${_ext_dir}/src" 2>/dev/null || true
         done
         echo "[build-externals] post-cmake: ensured tmp/src for all ext_* (concurrency safety)"
-      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+      ) 9>>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-externals] Externals done ==="
       # 若切换回 --image core:${BUILDER_IMAGE_TAG}，需要将 externals-core-amd64 符号链接到 externals-others-amd64：
       # ln -sfn "${CI_CACHE_DIR}/externals-core-amd64" \
@@ -427,7 +408,7 @@ build-noasan:
           fi
         done
         echo "[build-noasan] externals validation passed, starting build"
-        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+        "${TSDB_SRC}/tools/tsdb-builder/build.sh" \
             --image ${BUILDER_SCRIPT_IMAGE} \
             --src "${TSDB_SRC}" \
             --cache ${CI_CACHE_DIR}/ \
@@ -486,7 +467,7 @@ build-asan:
           fi
         done
         echo "[build-asan] externals validation passed, starting build"
-        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+        "${TSDB_SRC}/tools/tsdb-builder/build.sh" \
             --image ${BUILDER_SCRIPT_IMAGE} \
             --src "${TSDB_SRC_SAN}" \
             --cache ${CI_CACHE_DIR}/ \

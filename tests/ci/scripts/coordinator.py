@@ -340,6 +340,23 @@ _prom_miss_cnt  = {}          # instance → 连续 miss 次数，用于抜制�
 _total_cases   = 0
 _start_time    = time.time()
 
+# ── Worker 亲和性重跑 ─────────────────────────────────────────────────────────
+# rerun 模式下，失败用例优先路由回原始失败节点，避免多 worker 并发时用例
+# 集中到最先连上协调器的少数节点。
+# 超过 AFFINITY_WAIT_SECONDS 后，从未连接的 worker 的 case 自动迁移到公共队列。
+_worker_affinity_map: dict = {}   # worker_hostname → [(idx, path, cmd, runner, san), ...]
+_affinity_pos:        dict = {}   # worker_hostname → 已消费位置
+_affinity_mode:       bool = False
+_affinity_migrated:   bool = False
+_affinity_start:     float = 0.0
+_AFFINITY_WAIT = int(os.environ.get("AFFINITY_WAIT_SECONDS", "180"))
+
+# ── MR 合并监控 ───────────────────────────────────────────────────────────────
+# MR 被合并或关闭后自动取消 pipeline，节省 runner 资源。
+# 需要 GITLAB_CI_TOKEN（scope: api）。仅在 merge_request_event pipeline 中生效。
+_mr_merged_event   = threading.Event()
+_MR_WATCH_INTERVAL = int(os.environ.get("MR_WATCH_INTERVAL", "60"))
+
 # ── Prometheus 查询 ───────────────────────────────────────────────────────────
 def prom_query(promql: str) -> Optional[float]:
     url = f"{PROMETHEUS_URL}/api/v1/query?query={urllib.parse.quote(promql)}"
@@ -524,10 +541,15 @@ class Handler(BaseHTTPRequestHandler):
                 # 可用 case 数：large-mem worker 可取两个队列，普通 worker 只取 normal
                 remaining_lm  = len(_queue_largemem) - _pos_largemem
                 remaining_nor = len(_queue_normal)   - _pos_normal
+                # affinity 队列中本 worker 尚未取走的 case 数（rerun 模式）
+                remaining_aff = (
+                    len(_worker_affinity_map.get(worker, [])) - _affinity_pos.get(worker, 0)
+                    if _affinity_mode else 0
+                )
                 if is_largemem_worker:
-                    remaining = remaining_lm + remaining_nor
+                    remaining = remaining_lm + remaining_nor + remaining_aff
                 else:
-                    remaining = remaining_nor
+                    remaining = remaining_nor + remaining_aff
 
                 # 首次 poll 时 Prometheus 评分还未就绪，先发小批量探针包
                 if is_new_worker or worker in _worker_new:
@@ -551,6 +573,18 @@ class Handler(BaseHTTPRequestHandler):
 
                 assigned = []
                 count = 0
+                # Affinity rerun: 优先将 case 发回其原始执行节点
+                if _affinity_mode and worker in _worker_affinity_map:
+                    aff_list = _worker_affinity_map[worker]
+                    aff_pos  = _affinity_pos.get(worker, 0)
+                    while count < allocated and aff_pos < len(aff_list):
+                        a_idx, a_path, a_cmd, a_runner, a_san = aff_list[aff_pos]
+                        aff_pos += 1
+                        _affinity_pos[worker] = aff_pos
+                        _in_flight[a_idx] = {"worker": worker, "assigned_at": now}
+                        assigned.append({"idx": a_idx, "path": a_path, "cmd": a_cmd,
+                                         "runner": a_runner, "san": a_san})
+                        count += 1
                 # Large-Mem worker: 优先消耗 largemem 队列
                 if is_largemem_worker:
                     while count < allocated and _pos_largemem < len(_queue_largemem):
@@ -571,9 +605,19 @@ class Handler(BaseHTTPRequestHandler):
                 queue_left = (len(_queue_normal) - _pos_normal)
                 if is_largemem_worker:
                     queue_left += (len(_queue_largemem) - _pos_largemem)
+                if _affinity_mode:
+                    queue_left += sum(
+                        max(0, len(_ac) - _affinity_pos.get(_aw, 0))
+                        for _aw, _ac in _worker_affinity_map.items()
+                    )
+                _aff_done = (not _affinity_mode) or all(
+                    _affinity_pos.get(_aw, 0) >= len(_ac)
+                    for _aw, _ac in _worker_affinity_map.items()
+                )
                 all_done   = (_pos_normal  >= len(_queue_normal) and
                               _pos_largemem >= len(_queue_largemem) and
-                              len(_in_flight) == 0)
+                              len(_in_flight) == 0 and
+                              _aff_done)
 
             caps_str = f"caps={','.join(sorted(worker_caps)) or 'none'}"
             print(
@@ -1008,9 +1052,108 @@ def _auto_retry_failed_workers() -> int:
     return len(retried)
 
 
+# ── MR 合并监控函数 ───────────────────────────────────────────────────────────
+def _get_mr_state() -> str:
+    """查询当前 MR 状态：opened / merged / closed。"""
+    gitlab_url = os.environ.get("CI_SERVER_URL", "").rstrip("/")
+    project_id = os.environ.get("CI_PROJECT_ID", "")
+    token      = os.environ.get("GITLAB_CI_TOKEN", "")
+    if not all([gitlab_url, project_id, token, _CI_MR_IID]):
+        return ""
+    url = f"{gitlab_url}/api/v4/projects/{project_id}/merge_requests/{_CI_MR_IID}"
+    req = urllib.request.Request(url, headers={"PRIVATE-TOKEN": token})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read()).get("state", "")
+    except Exception as e:
+        print(f"[mr-watch] WARN: failed to query MR state: {e}")
+        return ""
+
+
+def _cancel_pipeline() -> bool:
+    """取消父 pipeline（及其触发的子 pipeline）以释放 runner 资源。
+
+    优先取消父 pipeline（PARENT_PIPELINE_ID），GitLab 的 strategy:depend 会
+    级联取消子 pipeline 触发 job，从而停止所有 worker。
+    若父 pipeline ID 未知（直接触发的子 pipeline 或调试场景），则取消子 pipeline。
+    """
+    gitlab_url  = os.environ.get("CI_SERVER_URL", "").rstrip("/")
+    project_id  = os.environ.get("CI_PROJECT_ID", "")
+    token       = os.environ.get("GITLAB_CI_TOKEN", "")
+    if not all([gitlab_url, project_id, token]):
+        return False
+
+    def _do_cancel(pid: str) -> bool:
+        url = f"{gitlab_url}/api/v4/projects/{project_id}/pipelines/{pid}/cancel"
+        req = urllib.request.Request(url, method="POST",
+                                      headers={"PRIVATE-TOKEN": token}, data=b"")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                ok = resp.status in (200, 201)
+                print(f"[mr-watch] cancel pipeline {pid}: HTTP {resp.status}")
+                return ok
+        except urllib.error.HTTPError as e:
+            print(f"[mr-watch] cancel pipeline {pid}: HTTP {e.code}")
+            return False
+        except Exception as e:
+            print(f"[mr-watch] cancel pipeline {pid}: {e}")
+            return False
+
+    # 优先取消父 pipeline（strategy:depend 会级联停掉子 pipeline）
+    parent_pid = os.environ.get("PARENT_PIPELINE_ID", "")
+    if parent_pid:
+        print(f"[mr-watch] Cancelling parent pipeline {parent_pid} ...")
+        ok = _do_cancel(parent_pid)
+        if ok:
+            return True
+        print(f"[mr-watch] Parent pipeline cancel failed, falling back to child pipeline")
+
+    # 兜底：取消子 pipeline（仅取消 worker job，父 pipeline 需手动处理）
+    child_pid = os.environ.get("CI_PIPELINE_ID", str(_pipeline_id))
+    if child_pid:
+        print(f"[mr-watch] Cancelling child pipeline {child_pid} ...")
+        return _do_cancel(child_pid)
+    return False
+
+
+def _mr_watch_loop():
+    """后台线程：定期检查 MR 是否已合并或关闭，若是则取消整个 pipeline。
+
+    - 仅在 merge_request_event 触发的 pipeline 中生效
+    - 需要 GITLAB_CI_TOKEN（scope: api）
+    - 检查间隔：MR_WATCH_INTERVAL 秒（默认 60）
+    """
+    source = _PARENT_PIPELINE_SOURCE or _CI_PIPELINE_SOURCE
+    if source != "merge_request_event":
+        return
+    if not _CI_MR_IID:
+        return
+    token = os.environ.get("GITLAB_CI_TOKEN", "")
+    if not token:
+        print("[mr-watch] GITLAB_CI_TOKEN not set — MR merge detection disabled")
+        return
+    print(f"[mr-watch] Watching MR!{_CI_MR_IID} (interval={_MR_WATCH_INTERVAL}s) "
+          f"— pipeline will auto-cancel if MR is merged or closed")
+    # 延迟首次检查，避免 pipeline 刚启动就误判
+    time.sleep(_MR_WATCH_INTERVAL)
+    while True:
+        state = _get_mr_state()
+        if state in ("merged", "closed"):
+            print(f"\n[mr-watch] ⚠  MR!{_CI_MR_IID} state={state!r} "
+                  f"— cancelling pipeline to free runner resources")
+            if _cancel_pipeline():
+                print(f"[mr-watch] ✅ Pipeline {_pipeline_id} cancel request sent")
+            else:
+                print(f"[mr-watch] ❌ Pipeline cancel API failed, signalling coordinator to exit")
+            _mr_merged_event.set()
+            return
+        time.sleep(_MR_WATCH_INTERVAL)
+
+
 # ── 主逻辑 ────────────────────────────────────────────────────────────────────
 def main():
     global _queue_normal, _queue_largemem, _pos_normal, _pos_largemem, _total_cases
+    global _worker_affinity_map, _affinity_pos, _affinity_mode, _affinity_migrated, _affinity_start
 
     cases_task = os.environ.get("CASES_TASK", "")
     if not cases_task or not os.path.isfile(cases_task):
@@ -1066,6 +1209,31 @@ def main():
     _queue_largemem = lm_list
     _total_cases    = len(_queue_normal) + len(_queue_largemem)
 
+    # ── Affinity rerun：将失败 case 按原始 worker 分组，优先路由回原节点 ────────
+    # 仅在 rerun=failed 模式下生效。超过 _AFFINITY_WAIT 秒后未连接的 worker 的
+    # case 会自动迁移到公共队列，确保无 worker 掉线时也能完成所有用例。
+    if effective_rerun == "failed" and prev_results:
+        prev_worker_map = {
+            (r.get("path", ""), r.get("cmd", "")): r.get("worker", "")
+            for r in prev_results if r.get("rc", 0) != 0
+        }
+        new_normal = []
+        for entry in _queue_normal:
+            e_idx, e_p, e_c, e_runner, e_san = entry
+            orig_w = prev_worker_map.get((e_p, e_c), "")
+            if orig_w:
+                _worker_affinity_map.setdefault(orig_w, []).append(entry)
+            else:
+                new_normal.append(entry)
+        _queue_normal = new_normal
+        if _worker_affinity_map:
+            _affinity_mode  = True
+            _affinity_start = time.time()
+            print(f"[coordinator] AFFINITY rerun: {len(_worker_affinity_map)} worker queue(s) "
+                  f"(auto-migrate orphaned cases after {_AFFINITY_WAIT}s):")
+            for _w, _cl in sorted(_worker_affinity_map.items()):
+                print(f"[coordinator]   {_w}: {len(_cl)} case(s)")
+
     print(f"[coordinator] Loaded {_total_cases} cases total "
           f"(normal={len(norm_list)}, large-mem={len(lm_list)}, "
           f"legacy={sum(1 for _,_,_,_,r in main_cases if r=='legacy')}, "
@@ -1112,6 +1280,10 @@ def main():
     srv_thread = threading.Thread(target=server.serve_forever, daemon=True)
     srv_thread.start()
 
+    # 启动 MR 合并监控线程（merge_request_event pipeline 且有 GITLAB_CI_TOKEN 时生效）
+    mr_watch_thread = threading.Thread(target=_mr_watch_loop, daemon=True, name="mr-watch")
+    mr_watch_thread.start()
+
     # ── 自动 retry 失败的 worker job（仅 rerun 模式）──────────────────────────
     # server 已就绪 → 先起来再触发 worker，避免 worker 连接时 coordinator 尚未监听
     if effective_rerun:
@@ -1131,6 +1303,11 @@ def main():
     while True:
         time.sleep(5)
         now = time.time()
+
+        # ── MR 合并检测：MR 被合并或关闭时立即退出 ──────────────────
+        if _mr_merged_event.is_set():
+            print("[coordinator] MR has been merged/closed — stopping pipeline monitoring")
+            break
 
         # ── 定期检查 in_flight 超时（每 30s 一次）─────────────────────────────
         if now - last_reap_check >= 30:
@@ -1239,13 +1416,42 @@ def main():
                           f"worker={info['worker']}  {c_path}")
                 last_progress = now
 
+        # ── Affinity 迁移：原始 worker 长时未连接，将其 case 释放到公共队列 ────
+        if _affinity_mode and not _affinity_migrated:
+            if now - _affinity_start > _AFFINITY_WAIT:
+                _migrated_entries: list = []
+                with _lock:
+                    for _mw, _mc in _worker_affinity_map.items():
+                        _mp = _affinity_pos.get(_mw, 0)
+                        if _mp < len(_mc) and _mw not in _worker_last:
+                            _migrated_entries.extend(_mc[_mp:])
+                            _affinity_pos[_mw] = len(_mc)
+                    if _migrated_entries:
+                        _queue_normal.extend(_migrated_entries)
+                _affinity_migrated = True
+                if _migrated_entries:
+                    print(f"[coordinator] AFFINITY migration: {len(_migrated_entries)} orphaned "
+                          f"case(s) from offline worker(s) → common queue")
+                else:
+                    print(f"[coordinator] AFFINITY: all original workers connected, "
+                          f"no migration needed")
+
         with _lock:
             done     = len(_results)
             inflight = len(_in_flight)
             left     = (len(_queue_normal) - _pos_normal) + (len(_queue_largemem) - _pos_largemem)
+            if _affinity_mode:
+                left += sum(
+                    max(0, len(_ac) - _affinity_pos.get(_aw, 0))
+                    for _aw, _ac in _worker_affinity_map.items()
+                )
+            _aff_all_done = (not _affinity_mode) or all(
+                _affinity_pos.get(_aw, 0) >= len(_ac)
+                for _aw, _ac in _worker_affinity_map.items()
+            )
             all_done = (_pos_normal  >= len(_queue_normal) and
                         _pos_largemem >= len(_queue_largemem) and
-                        inflight == 0)
+                        inflight == 0 and _aff_all_done)
             workers_seen = list(_worker_last.keys())
 
         # 进度日志
@@ -1311,6 +1517,11 @@ def main():
                 break
 
     server.shutdown()
+
+    # ── MR 已合并/关闭：无需生成报告，直接退出（pipeline 已由 API 取消）──────
+    if _mr_merged_event.is_set():
+        print("[coordinator] Exiting: MR merged/closed. Workers have been cancelled via pipeline API.")
+        sys.exit(0)
 
     # 收割仍在 in_flight 的用例（协调器超时退出时 worker 还没有回报）
     with _lock:
