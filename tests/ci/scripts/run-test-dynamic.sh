@@ -210,12 +210,13 @@ cancel_handler() {
     echo ""
     echo "[run-test-dynamic] *** Job cancelled — stopping containers for ${JOB_CONTAINER_PREFIX} ***"
     _ci_unregister_job
-    # 先按命名前缀停（当前 job 的容器）
-    docker ps --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
-        | xargs -r docker stop --time 15 2>/dev/null || true
-    sleep 2
+    # 直接 docker kill（发 SIGKILL 给容器），避免 docker stop 的等待时间超过
+    # GitLab runner graceful_kill_timeout（默认 10 s），否则本脚本自身会被 SIGKILL
+    # 打断，导致容器残留、trap 不再执行
     docker ps --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
         | xargs -r docker kill 2>/dev/null || true
+    docker ps -a --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
+        | xargs -r docker rm -f 2>/dev/null || true
     # 恢复 core_pattern
     [ -n "${ORIG_CORE_PATTERN}" ] && echo "${ORIG_CORE_PATTERN}" > /proc/sys/kernel/core_pattern 2>/dev/null || true
     exit 130
@@ -276,6 +277,10 @@ run_case_in_slot() {
     local _tvol="${WORKDIR}/tmp/thread_volume/${thread_no}"
     mkdir -p "${_tvol}"
     [[ ! -d "${_tvol}/ci" ]] && cp -rf "${TDENGINE_DIR}/test/ci" "${_tvol}/ci" 2>/dev/null || true
+
+    # 清理可能存在的同名旧容器（上次 job 异常退出/cancel 时 _on_exit trap 未执行导致残留）
+    # docker rm -f 对不存在的容器会返回非 0 但无副作用，2>/dev/null 屏蔽错误输出
+    docker rm -f "${container_name}" 2>/dev/null || true
 
     timeout --kill-after=15 "${CASE_TIMEOUT}" \
         bash "${_rc_script}" \
