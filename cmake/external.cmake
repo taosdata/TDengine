@@ -98,8 +98,7 @@ macro(DEP_td_rocksdb tgt)   # {
             DEP_ext_rocksdb(${tgt})
         elseif(TD_ROCKSDB_USE_DEPS)
             target_include_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
-            target_link_directories(${tgt} PUBLIC "${TD_ROCKSDB_DEPS_DIR}")
-            target_link_libraries(${tgt} PRIVATE rocksdb)
+            target_link_libraries(${tgt} PRIVATE "${TD_ROCKSDB_DEPS_DIR}/librocksdb.a")
         endif()
     endif()
 endmacro()                  # }
