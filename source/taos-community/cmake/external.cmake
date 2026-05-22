@@ -1587,11 +1587,15 @@ if(TD_WINDOWS)
     list(APPEND _libs3_extra_args "-DPTHREAD_LIBS:STRING=${ext_pthread_libs}")
     list(APPEND _libs3_depends ext_pthread)
 endif()
-get_from_local_repo_if_exists("https://github.com/taosdata/libs3")
+# Source: https://github.com/taosdata/libs3 commit f727a1e (bji/libs3@98f667b + Windows/MSVC support)
+get_from_local_if_exists(
+    "https://github.com/taosdata/libs3/archive/f727a1e5da21ed518c323a849dda70d39ccfe647.tar.gz"
+    "libs3-f727a1e5da21.tar.gz"
+)
 ExternalProject_Add(ext_libs3
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG master
-    GIT_SHALLOW TRUE
+    URL ${_url}
+    URL_HASH SHA256=008ce6c8881b84313b22025303b0076b75a2da9a94e7cb255e25ec39d01b096c
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     DEPENDS ${_libs3_depends}
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
