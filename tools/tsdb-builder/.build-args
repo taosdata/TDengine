@@ -49,5 +49,18 @@ NPM_REGISTRY_URL=https://nora.tdengine.net/npm/
 MAVEN_MIRROR_URL=https://nexus.tdengine.net/repository/maven-public/
 NUGET_SOURCE_URL=https://nora.tdengine.net/nuget/v3/index.json
 
+# Public URL Configuration (for builds with --public flag)
+# These are used when building from public networks (e.g. GitHub clones).
+# Each variable corresponds to an internal mirror variable above.
+PYPI_PUBLIC_URL=https://pypi.org/simple/
+PYPI_PUBLIC_HOST=pypi.org
+GO_PUBLIC_PROXY=https://proxy.golang.org
+CARGO_PUBLIC_REGISTRY=https://github.com/rust-lang/crates.io-index
+CONAN_PUBLIC_URL=
+NPM_PUBLIC_URL=https://registry.npmjs.org/
+MAVEN_PUBLIC_URL=https://repo.maven.apache.org/maven2/
+NUGET_PUBLIC_URL=https://api.nuget.org/v3/index.json
+SCCACHE_PUBLIC_URL=https://github.com/mozilla/sccache/releases/download
+
 # Timezone
 TIMEZONE=Asia/Shanghai

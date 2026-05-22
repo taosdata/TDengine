@@ -21,32 +21,60 @@ English | [简体中文](./README-CN.md)
 - [1. Introduction](#1-introduction)
 - [2. Documentation](#2-documentation)
 - [3. Prerequisites](#3-prerequisites)
-- [4. Build](#4-build)
+- [4. Building](#4-building)
 - [5. Testing](#5-testing)
   - [5.1 Test Execution](#51-test-execution)
   - [5.2 Test Case Addition](#52-test-case-addition)
   - [5.3 Performance Testing](#53-performance-testing)
-- [6. CI/CD](#6-cicd)
-- [7. Submitting Issues](#7-submitting-issues)
-- [8. Submitting PRs](#8-submitting-prs)
-- [9. References](#9-references)
-- [10. License](#10-license)
+- [6. Packaging](#6-packaging)
+- [7. CI/CD](#7-cicd)
+- [8. Submitting Issues](#8-submitting-issues)
+- [9. Submitting PRs](#9-submitting-prs)
+- [10. References](#10-references)
+- [11. License](#11-license)
 
 
 ## 1. Introduction
 `taos-jdbcdriver` is the official Java connector for TDengine, allowing Java developers to develop applications that access the TDengine database. `taos-jdbcdriver` implements the standard interfaces of the JDBC driver and supports functions such as data writing, querying, subscription, schemaless writing, and parameter binding.
 
-## 2. Documentation  
+## 2. Documentation
 - To use JDBC connector, please check [Developer Guide](https://docs.tdengine.com/developer-guide/), which includes how an application can introduce the `taos-jdbcdriver`, as well as examples of data writing, querying, schemaless writing, parameter binding, and data subscription.
 - For other reference information, please check [Reference Manual](https://docs.tdengine.com/tdengine-reference/client-libraries/java/), which includes version history, data types, example programs, API descriptions, and FAQs.
 - This quick guide is mainly for developers who like to contribute/build/test the JDBC connector by themselves. To learn about TDengine, you can visit the [official documentation](https://docs.tdengine.com).
 
 ## 3. Prerequisites
-- Java 1.8 or above runtime environment and Maven 3.6 or above installed, with environment variables correctly set.
-- TDengine has been deployed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/). Please make sure taosd and taosAdapter have been started. If you are using a Mac system, please use the command `sudo ln -s /usr/local/lib/libtaos.dylib /Library/Java/Extensions/libtaos.dylib` to create a symbolic link for the `taos` dynamic library.
+### System Requirements
+- JDK >= 8 (JDK 17 recommended)
+- Maven >= 3.6
+- For native connection: TDengine client library installed
+- For REST/WebSocket: no native library needed
 
-## 4. Build
-Execute `mvn clean package` in the project directory to build the project.
+### Installing Build Tools
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update && sudo apt-get install -y openjdk-17-jdk maven
+```
+
+**CentOS/RHEL:**
+```bash
+sudo yum install -y java-17-openjdk-devel maven
+```
+
+### Native Connector Notes
+- If you are using a Mac system, please use the command `sudo ln -s /usr/local/lib/libtaos.dylib /Library/Java/Extensions/libtaos.dylib` to create a symbolic link for the `taos` dynamic library.
+- For native connection testing, ensure the TDengine client library is installed and accessible to the JVM.
+
+### Local Test Environment
+- TDengine has been deployed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/). Please make sure taosd and taosAdapter have been started.
+
+## 4. Building
+```bash
+git clone https://github.com/taosdata/taos-connector-jdbc.git
+cd taos-connector-jdbc
+mvn clean package -Dmaven.test.skip=true
+```
+
+Output: `target/taos-jdbcdriver-<version>.jar`
 
 ## 5. Testing
 ### 5.1 Test Execution
@@ -58,6 +86,14 @@ After running the tests, the result similar to the following will be printed eve
 [WARNING] Tests run: 2353, Failures: 0, Errors: 0, Skipped: 16
 ```
 
+```bash
+# run the full test suite
+mvn test
+```
+
+- Make sure `taosd` and `taosAdapter` are running before executing the tests.
+- If you only need to verify packaging, use `mvn clean package -Dmaven.test.skip=true` from the build step above.
+
 ### 5.2 Test Case Addition
 All tests are located in the `src/test/java/com/taosdata/jdbc` directory of the project. The directory is divided according to the functions being tested. You can add new test files or add test cases in existing test files.
 The test cases use the JUnit framework. Generally, a connection is established and a database is created in the `before` method, and the database is droped and the connection is released in the `after` method.
@@ -65,11 +101,19 @@ The test cases use the JUnit framework. Generally, a connection is established a
 ### 5.3 Performance Testing
 Performance testing is in progress.
 
-## 6. CI/CD
+## 6. Packaging
+```bash
+mvn clean package -Dmaven.test.skip=true
+# Output: target/taos-jdbcdriver-<version>.jar
+# For Maven Central deployment:
+mvn clean deploy -Dmaven.test.skip=true
+```
+
+## 7. CI/CD
 - [Build Workflow](https://github.com/taosdata/taos-connector-jdbc/actions/workflows/build.yml)
 - [Code Coverage](https://app.codecov.io/gh/taosdata/taos-connector-jdbc)
 
-## 7. Submitting Issues
+## 8. Submitting Issues
 We welcome the submission of [GitHub Issue](https://github.com/taosdata/taos-connector-jdbc/issues/new?template=Blank+issue). When submitting, please provide the following information:
 
 - Problem description, whether it always occurs, and it's best to include a detailed call stack.
@@ -77,7 +121,7 @@ We welcome the submission of [GitHub Issue](https://github.com/taosdata/taos-con
 - JDBC connection parameters (username and password not required).
 - TDengine server version.
 
-## 8. Submitting PRs
+## 9. Submitting PRs
 We welcome developers to contribute to this project. When submitting PRs, please follow these steps:
 
 1. Fork this project, refer to ([how to fork a repo](https://docs.github.com/en/get-started/quickstart/fork-a-repo)).
@@ -88,9 +132,9 @@ We welcome developers to contribute to this project. When submitting PRs, please
 1. After submitting the PR, you can find your PR through the [Pull Request](https://github.com/taosdata/taos-connector-jdbc/pulls). Click on the corresponding link to see if the CI for your PR has passed. If it has passed, it will display "All checks have passed". Regardless of whether the CI passes or not, you can click "Show all checks" -> "Details" to view the detailed test case logs.
 1. After submitting the PR, if CI passes, you can find your PR on the [codecov](https://app.codecov.io/gh/taosdata/taos-connector-jdbc/pulls) page to check the test coverage.
 
-## 9. References
+## 10. References
 - [TDengine Official Website](https://www.tdengine.com/) 
 - [TDengine GitHub](https://github.com/taosdata/TDengine) 
 
-## 10. License
+## 11. License
 [MIT License](./LICENSE)

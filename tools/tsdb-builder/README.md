@@ -295,6 +295,45 @@ cmake_args=(
 
 ---
 
+## 外网构建（`--public` 模式）
+
+当代码同步到 GitHub 后，外部用户需要从公网依赖源编译。`build.sh` 提供 `--public` 参数切换所有依赖到公网源：
+
+```bash
+# 外网构建（使用公网依赖源）
+./build.sh --image core --public engine taosx
+./build.sh --image others --public explorer-ui jdbc
+
+# 内网构建（默认行为，无需额外参数）
+./build.sh --image core engine taosx
+```
+
+**`--public` 模式的效果：**
+
+| 依赖系统 | 内网（默认） | 外网（`--public`） |
+|---|---|---|
+| CMake ExternalProject | `git.tdengine.net` 通用包仓库 | GitHub 原始 URL |
+| Cargo registry | `nora.tdengine.net/cargo/` | crates.io（默认） |
+| Cargo git deps | GitHub → `git.tdengine.net`（insteadOf 重定向） | GitHub 直接访问 |
+| Go modules | `nexus.tdengine.net/goproxy/` | `proxy.golang.org` |
+| npm | `nora.tdengine.net/npm/` | `registry.npmjs.org` |
+| Maven | `nexus.tdengine.net/maven-public/` | Maven Central |
+| NuGet | `nora.tdengine.net/nuget/` | `nuget.org` |
+| PyPI | `nora.tdengine.net/simple/` | `pypi.org` |
+| Conan | `nexus.tdengine.net/conan/` | Conan Center（内置） |
+| sccache | 内网镜像 | GitHub Releases |
+
+**对应 cmake 参数：** `--public` 会自动传入 `-DBUILD_USE_PUBLIC_DEPS=ON`，使 `external.cmake` 中的 `get_from_local_if_exists()` 宏跳过内网镜像直接使用原始 URL。
+
+**非容器构建（`tools/setup/`）：** 设置环境变量 `TSDB_PUBLIC_DEPS=1` 后运行 setup 脚本：
+
+```bash
+export TSDB_PUBLIC_DEPS=1
+./tools/setup/setup.sh rust go cpp
+```
+
+---
+
 ## 构建参数说明
 
 所有参数均在 `.build-args` 中集中管理，三个构建脚本均读取此文件（各自使用其中相关的参数）。
@@ -327,6 +366,15 @@ cmake_args=(
 | `NPM_REGISTRY_URL` | `https://nora.tdengine.net/npm/` | npm 镜像（容器编译时 build.sh 运行时注入） |
 | `MAVEN_MIRROR_URL` | `https://nexus.tdengine.net/repository/maven-public/` | Maven 镜像（容器编译时 build.sh 运行时注入） |
 | `NUGET_SOURCE_URL` | `https://nora.tdengine.net/nuget/v3/index.json` | NuGet 镜像（容器编译时 build.sh 运行时注入） |
+| `PYPI_PUBLIC_URL` | `https://pypi.org/simple/` | PyPI 公网源（`--public` 模式） |
+| `PYPI_PUBLIC_HOST` | `pypi.org` | PyPI 公网可信主机 |
+| `GO_PUBLIC_PROXY` | `https://proxy.golang.org` | Go 公网代理（`--public` 模式） |
+| `CARGO_PUBLIC_REGISTRY` | `https://github.com/rust-lang/crates.io-index` | Cargo 公网 registry（`--public` 模式） |
+| `CONAN_PUBLIC_URL` | _(空)_ | Conan 公网源（使用内置 conancenter） |
+| `NPM_PUBLIC_URL` | `https://registry.npmjs.org/` | npm 公网源（`--public` 模式） |
+| `MAVEN_PUBLIC_URL` | `https://repo.maven.apache.org/maven2/` | Maven 公网源（`--public` 模式） |
+| `NUGET_PUBLIC_URL` | `https://api.nuget.org/v3/index.json` | NuGet 公网源（`--public` 模式） |
+| `SCCACHE_PUBLIC_URL` | `https://github.com/mozilla/sccache/releases/download` | sccache 公网下载地址 |
 | `TIMEZONE` | `Asia/Shanghai` | 容器时区 |
 
 > **注意**：`.build-args` 同时服务于两个消费者：(1) 镜像构建脚本将所有行作为 `--build-arg` 传入 Docker；(2) `build.sh` 在容器运行时读取特定变量。`PYPI_MIRROR`（阿里云）用于 Dockerfile 镜像构建（需公网可达），`PYPI_INTERNAL_URL`（Nora 内网）用于 `build.sh` 容器编译运行时覆盖 pip 配置。npm/Maven/NuGet 仅在运行时注入，Dockerfile 中无对应 ARG。

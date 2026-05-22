@@ -46,7 +46,7 @@ tokio-util = "0.7.16"
 tracing = { version = "0.1", features = ["log"] }
 
 [dependencies.tokio-tungstenite]
-git = "https://git.tdengine.net/taosdata/rust-deps/tokio-tungstenite.git"
+git = "https://github.com/taosdata/tokio-tungstenite.git"
 version = "0.23.1"
 rev = "3420353"
 

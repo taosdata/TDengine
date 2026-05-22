@@ -107,6 +107,11 @@ mod_cpp_config() {
         fi
     fi
 
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using Conan Center (default)"
+        return 0
+    fi
+
     # conan remote
     if cmd_exists conan; then
         local current_url

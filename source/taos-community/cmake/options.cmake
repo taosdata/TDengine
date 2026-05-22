@@ -128,6 +128,7 @@ option(BUILD_LIBSASL          "If build libsasl2"                    ON)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
+option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
 
 # When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
 # CMake built-in Release flags and ExternalProject configuration align.

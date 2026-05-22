@@ -23,28 +23,30 @@
   - [Platform-Specific Requirements](#platform-specific-requirements)
     - [Linux / macOS](#linux--macos)
     - [Windows](#windows)
-- [6. Build](#6-build)
+- [6. Building](#6-building)
   - [Linux / macOS](#linux--macos-1)
   - [Windows](#windows-1)
     - [Option 1: Using Visual Studio Developer Command Prompt](#option-1-using-visual-studio-developer-command-prompt)
-    - [Option 2: Using vcvarsall.bat](#option-2-using-vcvarsallbat)
+    - [Option 2: Using vcvarsallbat](#option-2-using-vcvarsallbat)
 - [7. Testing](#7-testing)
   - [7.1 Run Tests](#71-run-tests)
   - [7.2 Add Test Cases](#72-add-test-cases)
-- [8. CI/CD](#8-cicd)
-- [9. Submitting Issues](#9-submitting-issues)
-  - [9.1 Required Information](#91-required-information)
-  - [9.2 Additional Information](#92-additional-information)
-- [10. Submitting PRs](#10-submitting-prs)
-- [11. References](#11-references)
-- [12. Appendix](#12-appendix)
-  - [12.1 Performance Benchmarks](#121-performance-benchmarks)
-- [13. License](#13-license)
+- [8. Packaging](#8-packaging)
+- [9. CI/CD](#9-cicd)
+- [10. Submitting Issues](#10-submitting-issues)
+  - [10.1 Required Information](#101-required-information)
+  - [10.2 Additional Information](#102-additional-information)
+- [11. Submitting PRs](#11-submitting-prs)
+- [12. References](#12-references)
+- [13. Appendix](#13-appendix)
+  - [13.1 Performance Benchmarks](#131-performance-benchmarks)
+- [14. License](#14-license)
 
 ## 1. Introduction
 `taosgen` is a performance benchmarking tool for time-series data products, supporting data generation and write performance testing. `taosgen` uses "jobs" as the basic unit, which are user-defined sets of operations for specific tasks. Each job contains one or more steps and can be connected to other jobs via dependencies, forming a Directed Acyclic Graph (DAG) execution flow for flexible and efficient task orchestration.
 
 Currently, `taosgen` supports Linux, macOS and Windows systems.
+
 
 ## 2. Architecture
 
@@ -61,9 +63,11 @@ Quick summary:
 
 For design philosophy, trade-offs, module responsibilities, core sequence diagrams, and optional lifecycle details, read `docs/architecture.md`.
 
+
 ## 3. Documentation
 - For usage, refer to the [Reference Manual](https://docs.tdengine.com/tdengine-reference/tools/taosgen/), which covers running, command-line arguments, configuration parameters, and sample configuration files.
 - This quick guide is mainly for developers who want to contribute, build, and test the `taosgen` tool. For more information about TDengine, visit the [official documentation](https://docs.tdengine.com/).
+
 
 ## 4. AI Agent Integration
 
@@ -125,6 +129,7 @@ claude
 - [taosgen-config/references/](.agent/skills/taosgen-config/references/) - Configuration reference docs
 - [taosgen-build/SKILL.md](.agent/skills/taosgen-build/SKILL.md) - Build assistant
 
+
 ## 5. Prerequisites
 First, ensure TDengine is deployed locally. For detailed deployment steps, see [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/). Make sure both taosd and taosAdapter services are running.
 
@@ -132,28 +137,74 @@ Before installing and using `taosgen`, ensure you meet the following platform-sp
 
 - cmake, version 3.19 or above. See [cmake](https://cmake.org).
 - conan, version 2.19 or above. See [conan](https://conan.io).
+- Python 3 with `pip`, because Conan 2.x is typically installed and managed through Python.
+- A C++17-capable compiler.
+- TDengine client headers and libraries available to the build environment.
+
+The bundled Conan dependency set includes `fmt`, `jemalloc`, `mimalloc`, `yaml-cpp`, `luajit`, `nlohmann_json`, compression libraries, `spdlog`, `librdkafka`, and the CSV parser declared in `conanfile.txt`.
 
 ### Platform-Specific Requirements
 
 #### Linux / macOS
 - GCC/Clang compiler with C++17 support
+- Ubuntu/Debian example:
+  ```shell
+  sudo apt update
+  sudo apt install -y build-essential cmake python3 python3-pip git pkg-config
+  python3 -m pip install --user "conan>=2.19,<3"
+  ~/.local/bin/conan profile detect --force
+  ```
+- RHEL/CentOS/AlmaLinux/Rocky example:
+  ```shell
+  sudo yum install -y gcc gcc-c++ make cmake3 python3 python3-pip git pkgconfig
+  python3 -m pip install --user "conan>=2.19,<3"
+  ~/.local/bin/conan profile detect --force
+  ```
 
 #### Windows
 - Visual Studio 2019 or above (Visual Studio 2022 recommended)
+- Install Conan 2.x and initialize a profile before the first configure:
+  ```cmd
+  py -m pip install --user "conan>=2.19,<3"
+  conan profile detect --force
+  ```
 
-## 6. Build
+## 6. Building
 This section provides detailed instructions for building `taosgen` on Linux, macOS or Windows platforms.
 Before proceeding, make sure you are in the project root directory.
 
 >**Note: This project is developed and compiled using the C++17 standard. Please ensure your compiler supports C++17.**
+
+The most important setup step is to generate a Conan 2.x profile before the first build:
+```shell
+conan profile detect --force
+```
+
+Build options exposed by CMake include:
+- `TSGEN_ENABLE_TEST=ON|OFF`
+- `TSGEN_ENABLE_COVERAGE=ON|OFF`
+- `TSGEN_BUNDLE_JEMALLOC=ON|OFF`
+- `TSGEN_BUNDLE_MIMALLOC=ON|OFF`
+
+Only one allocator option should be enabled at a time.
 
 ### Linux / macOS
 
 ```shell
 mkdir build && cd build
 conan install .. --build=missing --output-folder=./conan --settings=build_type=Release
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build .
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
+cmake --build . --parallel
+```
+
+To enable optional build features during configuration, extend the CMake command, for example:
+```shell
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake \
+  -DTSGEN_ENABLE_TEST=ON \
+  -DTSGEN_BUNDLE_MIMALLOC=ON \
+  -DTSGEN_BUNDLE_JEMALLOC=OFF
 ```
 
 On macOS, if your compiler does not automatically select the appropriate default SDK, specify CMAKE_OSX_SYSROOT during configuration:
@@ -216,14 +267,77 @@ Test cases are located in the test directories of each submodule.
 - To add test cases to an existing test file: name the test functions with the prefix `test_` and call them in the `main` function.
 - To add a new test file: write test cases and a `main` function in the file, and add the build configuration in the corresponding `CMakeLists.txt` in the same directory.
 
-## 8. CI/CD
+
+## 8. Packaging
+`taosgen` ships as a Linux tar.gz package built by `source/taos-gen/packaging/pack_gen_tar.sh`.
+
+### What gets packaged
+Only the `taosgen` executable is packaged:
+- inner `package.tar.gz`: `bin/taosgen`
+- outer tar.gz: `install_gen.sh`, `uninstall_gen.sh`, `package.tar.gz`
+
+### Prerequisites
+- Build `taosgen` first. For example:
+  ```shell
+  cd build
+  cmake --build . --target taosgen
+  ```
+  Or follow the CMake workflow in [6. Building](#6-building) and make sure the final build output contains `bin/taosgen`.
+- Install taos-community on the target machine before running `taosgen`, because `taosgen` needs `libtaos.so` at runtime.
+
+### Create the package
+From the repository root:
+```shell
+cd source/taos-gen/packaging
+bash ./pack_gen_tar.sh -c ../build -n 3.3.6.0
+```
+
+Optional arguments:
+- `-m <compat_version>`: compatible version string (default: `3.0.0.0`)
+- `-V stable|beta`: package version type (default: `stable`)
+
+`-c` must point to the compile directory that contains `bin/taosgen`.
+
+### Output
+Stable builds generate:
+```shell
+source/taos-gen/release/taosGen-<version>-Linux-<arch>.tar.gz
+```
+
+Beta builds generate:
+```shell
+source/taos-gen/release/taosGen-<version>-beta-Linux-<arch>.tar.gz
+```
+
+### Install the package
+```shell
+cd source/taos-gen/release
+mkdir -p install-test && cd install-test
+
+tar xzf ../taosGen-<version>-Linux-<arch>.tar.gz
+cd taosGen-<version>
+bash ./install_gen.sh -s
+```
+
+The installer copies `taosgen` to `/usr/bin/` and warns if `libtaos.so` is not available in common library paths.
+
+### Uninstall
+```shell
+bash ./uninstall_gen.sh
+```
+
+### Two-layer tar layout
+The package uses the same two-layer layout as the TDengine community tar packages: the outer tarball contains the install scripts plus an inner `package.tar.gz`, and the installer extracts the inner archive before copying `bin/taosgen` into place.
+
+## 9. CI/CD
 - [Build Workflow](https://github.com/taosdata/taosgen/actions/workflows/build.yml)
 - [Code Coverage](https://app.codecov.io/github/taosdata/taosgen)
 
-## 9. Submitting Issues
+
+## 10. Submitting Issues
 We welcome [GitHub Issues](https://github.com/taosdata/taosgen/issues/new?template=Blank+issue). Please provide the following information to help us diagnose and resolve issues efficiently:
 
-### 9.1 Required Information
+### 10.1 Required Information
 - Problem Description:
   Provide a clear and detailed description of the issue.
   Indicate whether the issue is persistent or intermittent.
@@ -233,13 +347,14 @@ We welcome [GitHub Issues](https://github.com/taosdata/taosgen/issues/new?templa
 - taosgen configuration parameters
 - TDengine server version
 
-### 9.2 Additional Information
+### 10.2 Additional Information
 - Operating System: Specify the OS and its version.
 - Steps to Reproduce: Provide instructions to reproduce the issue.
 - Environment Configuration: Include any relevant environment settings.
 - Logs: Attach any logs that may help diagnose the issue.
 
-## 10. Submitting PRs
+
+## 11. Submitting PRs
 We welcome contributions! Please follow these steps when submitting a PR:
 1. Fork the project ([how to fork a repo](https://docs.github.com/en/get-started/quickstart/fork-a-repo)).
 2. Create a new branch from `main` with a meaningful name (`git checkout -b my_branch`). Do not modify the `main` branch directly.
@@ -249,11 +364,13 @@ We welcome contributions! Please follow these steps when submitting a PR:
 6. After submitting the PR, you can find it under [Pull Requests](https://github.com/taosdata/taosgen/pulls). Click the link to view CI status. If it passes, you'll see “All checks have passed”. You can always click “Show all checks” -> “Details” for detailed logs.
 7. After CI passes, you can check your PR's test coverage on [codecov](https://app.codecov.io/gh/taosdata/taosgen/pulls).
 
-## 11. References
+
+## 12. References
 - [TDengine Official Website](https://www.tdengine.com/)
 - [TDengine GitHub](https://github.com/taosdata/TDengine)
 
-## 12. Appendix
+
+## 13. Appendix
 Project source code layout (directories only):
 ```
 <root>
@@ -371,7 +488,7 @@ Project source code layout (directories only):
         └── src
 ```
 
-### 12.1 Performance Benchmarks
+### 13.1 Performance Benchmarks
 
 - Test environment: Client and server identical
 
@@ -402,5 +519,6 @@ Notes:
 - TDengine vs taosBenchmark: under equivalent setup, taosgen shows higher throughput and low framework overhead.
 - Kafka vs official tool: taosgen outperforms in single-thread and multi-process scenarios.
 
-## 13. License
+
+## 14. License
 [MIT License](./LICENSE)

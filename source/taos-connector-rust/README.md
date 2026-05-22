@@ -21,16 +21,17 @@ English | [简体中文](./README-CN.md)
 - [1. Introduction](#1-introduction)
 - [2. Documentation](#2-documentation)
 - [3. Prerequisites](#3-prerequisites)
-- [4. Build](#4-build)
+- [4. Building](#4-building)
 - [5. Testing](#5-testing)
   - [5.1 Test Execution](#51-test-execution)
   - [5.2 Test Case Addition](#52-test-case-addition)
   - [5.3 Performance Testing](#53-performance-testing)
-- [6. CI/CD](#6-cicd)
-- [7. Submitting Issues](#7-submitting-issues)
-- [8. Submitting PRs](#8-submitting-prs)
-- [9. References](#9-references)
-- [10. License](#10-license)
+- [6. Packaging](#6-packaging)
+- [7. CI/CD](#7-cicd)
+- [8. Submitting Issues](#8-submitting-issues)
+- [9. Submitting PRs](#9-submitting-prs)
+- [10. References](#10-references)
+- [11. License](#11-license)
 
 ## 1. Introduction
 
@@ -44,20 +45,36 @@ English | [简体中文](./README-CN.md)
 
 ## 3. Prerequisites
 
-1. Rust 1.78 or above has been installed. The latest version is recommended.
-2. TDengine has been installed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/).
-3. Modify the `/etc/taos/taos.cfg` configuration file and add the following configuration:
-   ```text
-   supportVnodes 256
-   ```
-4. Start taosd and taosAdapter.
+### System Requirements
 
-## 4. Build
+- Rust >= 1.90.0 (install via rustup)
+- For native transport: TDengine client library (`libtaos.so`)
+- TDengine has been installed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/).
+- Modify the `/etc/taos/taos.cfg` configuration file and add the following configuration:
 
-Run the following command in the project directory to build the project:
+```text
+supportVnodes 256
+```
+
+- Start taosd and taosAdapter.
+
+### Installing Rust
 
 ```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+## 4. Building
+
+```bash
+git clone https://github.com/taosdata/taos-connector-rust.git
+cd taos-connector-rust
 cargo build
+
+# Build with specific feature
+cargo build -p taos --features ws      # WebSocket only
+cargo build -p taos --features native  # Native only
 ```
 
 ## 5. Testing
@@ -68,6 +85,10 @@ Run the test by executing the following command in the project directory:
 
 ```bash
 cargo test
+
+# Optional: run only the main crate with a specific transport
+cargo test -p taos --features ws
+cargo test -p taos --features native
 ```
 
 The test case will connect to the local TDengine server and taosAdapter for testing. After the test is completed, you will see a result summary similar to the following. If all test cases pass, the `failed` item should be 0:
@@ -173,12 +194,20 @@ test result: ok. 101 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fi
 
 Performance testing is under development.
 
-## 6. CI/CD
+## 6. Packaging
+
+```bash
+cargo build --release
+# For publishing to crates.io:
+cargo publish -p taos --dry-run
+```
+
+## 7. CI/CD
 
 - [Build Workflow](https://github.com/taosdata/taos-connector-rust/actions/workflows/build.yml)
 - [Code Coverage](https://app.codecov.io/gh/taosdata/taos-connector-rust)
 
-## 7. Submitting Issues
+## 8. Submitting Issues
 
 We welcome the submission of [GitHub Issue](https://github.com/taosdata/taos-connector-rust/issues/new?template=Blank+issue). When submitting, please provide the following information:
 
@@ -187,7 +216,7 @@ We welcome the submission of [GitHub Issue](https://github.com/taosdata/taos-con
 - Connection parameters (no username or password required).
 - TDengine server version.
 
-## 8. Submitting PRs
+## 9. Submitting PRs
 
 We welcome developers to contribute to this project. When submitting PRs, please follow these steps:
 
@@ -199,11 +228,11 @@ We welcome developers to contribute to this project. When submitting PRs, please
 6. After submitting the PR, you can find your PR through the [Pull Request](https://github.com/taosdata/taos-connector-rust/pulls). Click on the corresponding link to see if the CI for your PR has passed. If it has passed, it will display "All checks have passed". Regardless of whether the CI passes or not, you can click "Show all checks" -> "Details" to view the detailed test case logs.
 7. After submitting the PR, if CI passes, you can find your PR on the [codecov](https://app.codecov.io/gh/taosdata/taos-connector-rust/pulls) page to check the test coverage.
 
-## 9. References
+## 10. References
 
 - [TDengine Official Website](https://www.tdengine.com/)
 - [TDengine GitHub](https://github.com/taosdata/TDengine)
 
-## 10. License
+## 11. License
 
 [MIT License](./LICENSE)
