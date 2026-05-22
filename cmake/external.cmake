@@ -1545,18 +1545,20 @@ if(NOT TD_WINDOWS)        # {
         LIB              lib/${ext_libs3_static}
     )
     string(JOIN " " _ssl_libs ${ext_ssl_libs})
-    # GIT_REPOSITORY https://github.com/bji/libs3
+    # Source: https://github.com/taosdata/libs3 commit f727a1e (bji/libs3@98f667b + Windows/MSVC support)
     get_from_local_if_exists(
-        "https://github.com/bji/libs3/archive/98f667b248a7288c1941582897343171cfdf441c.tar.gz"
-        "libs3-98f667b248a7.tar.gz"
+        "https://github.com/taosdata/libs3/archive/f727a1e5da21ed518c323a849dda70d39ccfe647.tar.gz"
+        "libs3-f727a1e5da21.tar.gz"
     )
     ExternalProject_Add(ext_libs3
         URL ${_url}
-        URL_HASH SHA256=d06a6cd66b731d3d16ba2620dccff6ce4eaaed5f7e6f5f4a62e504fb5e209b0f
+        URL_HASH SHA256=008ce6c8881b84313b22025303b0076b75a2da9a94e7cb255e25ec39d01b096c
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         DEPENDS ext_libxml2 ext_curl ext_zlib
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
         CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
         CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
@@ -1566,8 +1568,6 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
         CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
         CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
-        PATCH_COMMAND
-          COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
