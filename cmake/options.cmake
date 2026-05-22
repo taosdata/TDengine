@@ -127,6 +127,7 @@ option(BUILD_LIBSASL          "If build libsasl2"                    OFF)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
+option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
 
 message(STATUS
   "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"
