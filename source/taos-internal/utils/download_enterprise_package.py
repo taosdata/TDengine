@@ -25,6 +25,49 @@ import argparse
 from pathlib import Path
 
 
+def _create_so_symlinks(lib_dir: str) -> None:
+    """Create unversioned .so symlinks inside lib_dir.
+
+    Packages ship versioned files (e.g. libtaos.so.3.3.7.9) but binaries link
+    against the unversioned name (libtaos.so) or the soname (libtaos.so.1).
+    Without these symlinks the dynamic linker ignores LD_LIBRARY_PATH and falls
+    back to the system library.
+
+    For each  libXXX.so.<version>  file:
+      1. Create libXXX.so  (unversioned)
+      2. Read the ELF SONAME and create that symlink too (e.g. libtaos.so.1)
+    """
+    import subprocess as _sp
+    p = Path(lib_dir)
+    for versioned in p.glob("lib*.so.*"):
+        if not versioned.is_file():
+            continue
+        name = versioned.name
+        dot_so = name.find(".so.")
+        if dot_so == -1:
+            continue
+        # 1. Unversioned symlink: libtaos.so -> libtaos.so.3.3.7.9
+        unversioned = p / (name[: dot_so + 3])
+        if not unversioned.exists():
+            unversioned.symlink_to(versioned.name)
+        # 2. SONAME symlink: libtaos.so.1 -> libtaos.so.3.3.5.0
+        try:
+            out = _sp.run(
+                ["readelf", "-d", str(versioned)],
+                capture_output=True, text=True, timeout=10
+            ).stdout
+            for line in out.splitlines():
+                if "SONAME" in line:
+                    m = re.search(r'\[([^\]]+)\]', line)
+                    if m:
+                        soname_link = p / m.group(1)
+                        if not soname_link.exists():
+                            soname_link.symlink_to(versioned.name)
+                    break
+        except Exception:
+            pass
+
+
 class EnterprisePackageDownloader:
     """Enterprise package downloader for TDinternal compatibility testing"""
     
@@ -148,7 +191,68 @@ class EnterprisePackageDownloader:
             raise RuntimeError(f"Failed to install package {package_name}")
         
         print(f"Successfully installed {package_name}")
-    
+
+    def download_and_extract(self, version, package_type="enterprise"):
+        """
+        Download and extract enterprise package without running install.sh.
+        Safe for use in compatibility tests where the system binaries must not
+        be replaced.
+
+        Note: also creates unversioned .so symlinks inside the lib/driver dir so
+        that LD_LIBRARY_PATH is effective (packages ship libtaos.so.X.Y.Z but
+        binaries link against the unversioned libtaos.so).
+
+        Returns:
+            tuple: (bin_dir, lib_dir) absolute paths inside the extracted tree
+        """
+        package_path = self.download_package(version, package_type)
+        package_name = os.path.basename(package_path)
+        package_dir = re.split("-linux-", package_name, maxsplit=1, flags=re.IGNORECASE)[0]
+        extract_dir = os.path.join(self.download_path, package_dir)
+
+        if not Path(extract_dir).exists():
+            print(f"Extracting {package_name} to {self.download_path}")
+            result = os.system(
+                f"cd {self.download_path} && tar xf {package_name} > /dev/null 2>&1"
+            )
+            if result != 0:
+                raise RuntimeError(f"Failed to extract package {package_name}")
+        else:
+            print(f"Package already extracted at {extract_dir}")
+
+        # The outer archive contains a nested package.tar.gz that holds bin/.
+        # Extract it if bin/ is not yet present.
+        bin_dir = os.path.join(extract_dir, "bin")
+        inner_package = os.path.join(extract_dir, "package.tar.gz")
+        if not Path(bin_dir).exists():
+            if not Path(inner_package).exists():
+                raise RuntimeError(f"Neither bin/ nor package.tar.gz found in: {extract_dir}")
+            print(f"Extracting inner package.tar.gz in {extract_dir}")
+            result = os.system(
+                f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1"
+            )
+            if result != 0:
+                raise RuntimeError(f"Failed to extract inner package.tar.gz in {extract_dir}")
+
+        # Libraries live in driver/ (not lib/) for this package layout.
+        lib_dir = os.path.join(extract_dir, "driver")
+        if not Path(lib_dir).exists():
+            # Fallback: some older packages may use lib/
+            lib_dir = os.path.join(extract_dir, "lib")
+
+        if not Path(bin_dir).exists():
+            raise RuntimeError(f"bin/ not found in extracted package: {bin_dir}")
+        if not Path(lib_dir).exists():
+            raise RuntimeError(f"Neither driver/ nor lib/ found in extracted package: {extract_dir}")
+
+        # Create unversioned symlinks (e.g. libtaos.so -> libtaos.so.3.3.7.9) so that
+        # LD_LIBRARY_PATH=lib_dir is effective.  The binaries link against "libtaos.so"
+        # (unversioned), but packages only ship the versioned filename.
+        _create_so_symlinks(lib_dir)
+
+        print(f"Package extracted: bin={bin_dir}, lib={lib_dir}")
+        return bin_dir, lib_dir
+
     def download_and_install(self, version, package_type="enterprise", install_options="-e no"):
         """
         Download and install enterprise package in one step

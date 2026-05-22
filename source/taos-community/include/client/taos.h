@@ -104,7 +104,6 @@ typedef enum TAOS_FIELD_T {
   TAOS_FIELD_TAG,
   TAOS_FIELD_QUERY,
   TAOS_FIELD_TBNAME,
-  TAOS_FIELD_DB,
 } TAOS_FIELD_T;
 
 typedef struct taosField {

@@ -258,6 +258,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
 _exit:
 
   tDestroySTriggerCalcRequest(&calcReq);
+  freeOperatorParam(req.pOpParam, OP_GET_PARAM);
+  req.pOpParam = NULL;
   tDestroySResFetchReq(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
@@ -308,6 +310,8 @@ _exit:
   }
 
   blockDataDestroy(readInfo.pBlock);
+  freeOperatorParam(req.pOpParam, OP_GET_PARAM);
+  req.pOpParam = NULL;
   tDestroySResFetchReq(&req);
   
   return code;

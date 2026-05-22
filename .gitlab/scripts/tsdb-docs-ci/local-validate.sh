@@ -18,7 +18,9 @@ Options:
   --pull-image IMAGE     Pull an existing docs-ci image and retag it locally
   --image-name IMAGE     Local image tag used for validation (default: docs-ci:local)
   --tsdb-branch BRANCH   Branch used for tsdb; specified tsdb dirs are left as-is unless this is set
-  --docs-branch BRANCH   Branch used for both docs repos (default: feat/tsdb-path-env)
+  --docs-branch BRANCH   Use BRANCH for both docs repos (default: zh=master, en=main)
+  --zh-docs-branch BR    Override zh docs branch only (default: master)
+  --en-docs-branch BR    Override en docs branch only (default: main)
   --fix                  Run autocorrect and markdownlint fixes before validation
   --preview              After validation succeeds, build both zh & en sites and serve them locally
   --zh-port N            Host port for the zh preview site (default: 3000)
@@ -40,8 +42,8 @@ BUILD_IMAGE=false
 PULL_IMAGE=""
 DOCS_CI_IMAGE="${DOCS_CI_IMAGE:-docs-ci:local}"
 TSDB_BRANCH="${TSDB_BRANCH:-}"
-ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-feat/tsdb-path-env}"
-EN_DOC_BRANCH="${EN_DOC_BRANCH:-feat/tsdb-path-env}"
+ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-master}"
+EN_DOC_BRANCH="${EN_DOC_BRANCH:-main}"
 FIX=false
 PREVIEW=false
 ZH_PORT=3000
@@ -84,6 +86,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --docs-branch)
       ZH_DOC_BRANCH="$2"
+      EN_DOC_BRANCH="$2"
+      shift 2
+      ;;
+    --zh-docs-branch)
+      ZH_DOC_BRANCH="$2"
+      shift 2
+      ;;
+    --en-docs-branch)
       EN_DOC_BRANCH="$2"
       shift 2
       ;;
