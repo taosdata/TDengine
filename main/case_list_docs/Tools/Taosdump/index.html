@@ -3823,6 +3823,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#81-Tools.04-Taosdump.test_taosdump_maxcols.TestTaosdumpMaxcols.test_taosdump_maxcols" class="md-nav__link">
+        taosdump max columns export and round-trip 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#81-Tools.04-Taosdump.test_taosdump_precision.TestTaosdumpPrecision.test_taosdump_precision" class="md-nav__link">
         taosdump precision 
       </a>
@@ -3992,6 +4003,17 @@
     <li class="md-nav__item">
       <a href="#81-Tools.04-Taosdump.test_taosdump_except.TestTaosdumpRetry.test_taosdump_retry" class="md-nav__link">
         taosdump except 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.04-Taosdump.test_taosdump_maxcols.TestTaosdumpMaxcols.test_taosdump_maxcols" class="md-nav__link">
+        taosdump max columns export and round-trip 
       </a>
       
     </li>
@@ -4286,6 +4308,43 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/04-Taosdump/test_taosdump_except.py" target="_blank">
                       cases/81-Tools/04-Taosdump/test_taosdump_except.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="81-Tools.04-Taosdump.test_taosdump_maxcols.TestTaosdumpMaxcols.test_taosdump_maxcols" class="doc doc-heading">
+
+<a href="#81-Tools.04-Taosdump.test_taosdump_maxcols.TestTaosdumpMaxcols.test_taosdump_maxcols" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>taosdump max columns export and round-trip</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create supertable with 3968 columns + 128 tags (64-char names)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create normal table with 4096 columns (64-char names)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Export database via taosdump</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify avro files are NOT corrupted (size &gt; 100 bytes)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Inspect all avro files with --inspect</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Round-trip test: export with all data types and mixed-case names</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Drop and restore database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify schema, column types, case-sensitive names, row counts, and values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/04-Taosdump/test_taosdump_maxcols.py" target="_blank">
+                      cases/81-Tools/04-Taosdump/test_taosdump_maxcols.py
                     </a>
                   </div>
         </div>

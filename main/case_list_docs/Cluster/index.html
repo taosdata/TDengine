@@ -3455,6 +3455,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_balance_vgroup_leader_db_name.TestBalanceVgroupLeaderDbName.test_balance_vgroup_leader_db_name" class="md-nav__link">
+        BALANCE VGROUP LEADER DATABASE with backtick-quoted db names 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_cluster_inc_snapshot.TestIncSnapshot.test_inc_snapshot" class="md-nav__link">
         Check data correct after remove wal 
       </a>
@@ -4305,6 +4316,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_balance_vgroup_leader_db_name.TestBalanceVgroupLeaderDbName.test_balance_vgroup_leader_db_name" class="md-nav__link">
+        BALANCE VGROUP LEADER DATABASE with backtick-quoted db names 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -5777,6 +5799,42 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py" target="_blank">
                       cases/70-Cluster/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_balance_vgroup_leader_db_name.TestBalanceVgroupLeaderDbName.test_balance_vgroup_leader_db_name" class="doc doc-heading">
+
+<a href="#70-Cluster.test_balance_vgroup_leader_db_name.TestBalanceVgroupLeaderDbName.test_balance_vgroup_leader_db_name" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>BALANCE VGROUP LEADER DATABASE with backtick-quoted db names</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create 3-dnode cluster</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create database with uppercase name (TEST_BIG) replica 3 vgroups 2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create database with lowercase name (test_lower) replica 3 vgroups 2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. BALANCE VGROUP LEADER DATABASE `TEST_BIG`  -- backtick uppercase</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. BALANCE VGROUP LEADER DATABASE TEST_BIG    -- plain  uppercase</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. BALANCE VGROUP LEADER DATABASE `test_lower` -- backtick lowercase</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. BALANCE VGROUP LEADER DATABASE test_lower   -- plain  lowercase</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify each balance succeeds and every vgroup still has a leader</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_balance_vgroup_leader_db_name.py" target="_blank">
+                      cases/70-Cluster/test_balance_vgroup_leader_db_name.py
                     </a>
                   </div>
         </div>

@@ -557,6 +557,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#02-Databases.05-Sync.test_balance_leader_replica2.TestBalanceLeaderReplica2.test_balance_leader_replica2" class="md-nav__link">
+        balance leader with replica 2 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1.test_balance_replica_1" class="md-nav__link">
         Balance: replica-1 
       </a>
@@ -4135,6 +4146,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#02-Databases.05-Sync.test_balance_leader_replica2.TestBalanceLeaderReplica2.test_balance_leader_replica2" class="md-nav__link">
+        balance leader with replica 2 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#02-Databases.05-Sync.test_balance_replica_1.TestBalanceReplica1.test_balance_replica_1" class="md-nav__link">
         Balance: replica-1 
       </a>
@@ -4566,6 +4588,38 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/02-Databases/05-Sync/test_balance_leader.py" target="_blank">
                       cases/02-Databases/05-Sync/test_balance_leader.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="02-Databases.05-Sync.test_balance_leader_replica2.TestBalanceLeaderReplica2.test_balance_leader_replica2" class="doc doc-heading">
+
+<a href="#02-Databases.05-Sync.test_balance_leader_replica2.TestBalanceLeaderReplica2.test_balance_leader_replica2" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>balance leader with replica 2</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify that balance vgroup leader works correctly for replica-2 databases.</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   Previously this failed with &#34;No VGroup&#39;s leader need to be balanced&#34; because</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the election baseline loop hardcoded i &lt; 3 instead of i &lt; replica, causing</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   an invalid dnode-0 lookup for the non-existent third vnodeGid slot.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/02-Databases/05-Sync/test_balance_leader_replica2.py" target="_blank">
+                      cases/02-Databases/05-Sync/test_balance_leader_replica2.py
                     </a>
                   </div>
         </div>

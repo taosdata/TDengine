@@ -5539,6 +5539,28 @@
               
   
     
+    <nav class="md-nav" aria-label="find_proj_path">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="find_proj_root">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
     <nav class="md-nav" aria-label="start_taosd_windows">
       <ul class="md-nav__list">
         
@@ -6629,6 +6651,28 @@
     </li>
   
 
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="find_proj_path">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="find_proj_root">
+      <ul class="md-nav__list">
         
       </ul>
     </nav>
@@ -20290,6 +20334,160 @@ that contain the specified thread name.</p>
   
   
   
+<h3 id="__init__.find_proj_path" class="doc doc-heading">
+                  find_proj_path(start_path=None)
+<a href="#__init__.find_proj_path" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Find the source code project path for os.walk to locate binaries.</p>
+
+
+<details class="detects" open>
+  <summary>Detects</summary>
+  <ul>
+<li>taos-community: /mnt/tsdb/source/taos-community/... → /mnt/tsdb/
+                  (root level, so os.walk finds debug/build/bin/)</li>
+<li>community:      /home/TDinternal/community/...      → /home/TDinternal/</li>
+<li>TDengine:       /home/TDengine/...                   → /home/TDengine/</li>
+<li>fallback:       .../test/...                         → up to test parent</li>
+</ul>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>start_path</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Starting path for detection. Defaults to caller's <strong>file</strong> dir.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project path suitable for os.walk to find taosd/taosBenchmark.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="__init__.find_proj_root" class="doc doc-heading">
+                  find_proj_root(start_path=None)
+<a href="#__init__.find_proj_root" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Find project root directory, supporting multiple CI layouts.</p>
+
+
+<details class="detects" open>
+  <summary>Detects</summary>
+  <ul>
+<li>TDinternal CI:  /home/TDinternal/...          → /home/TDinternal</li>
+<li>tsdb CI:        /mnt/tsdb/source/taos-community/... → /mnt/tsdb</li>
+<li>TDengine OSS:   /home/TDengine/...            → /home/TDengine</li>
+</ul>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>start_path</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Starting path for detection. Defaults to os.getcwd().</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project root path (where sim/, debug/ etc. are located).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h3 id="__init__.start_taosd_windows" class="doc doc-heading">
                   start_taosd_windows(taosd_path, config_dir, log=None)
 <a href="#__init__.start_taosd_windows" class="headerlink" title="Permanent link">&para;</a></h3>  
@@ -26061,6 +26259,160 @@ that contain the specified thread name.</p>
 
 </div>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="pathFinding.find_proj_path" class="doc doc-heading">
+                  find_proj_path(start_path=None)
+<a href="#pathFinding.find_proj_path" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Find the source code project path for os.walk to locate binaries.</p>
+
+
+<details class="detects" open>
+  <summary>Detects</summary>
+  <ul>
+<li>taos-community: /mnt/tsdb/source/taos-community/... → /mnt/tsdb/
+                  (root level, so os.walk finds debug/build/bin/)</li>
+<li>community:      /home/TDinternal/community/...      → /home/TDinternal/</li>
+<li>TDengine:       /home/TDengine/...                   → /home/TDengine/</li>
+<li>fallback:       .../test/...                         → up to test parent</li>
+</ul>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>start_path</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Starting path for detection. Defaults to caller's <strong>file</strong> dir.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project path suitable for os.walk to find taosd/taosBenchmark.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="pathFinding.find_proj_root" class="doc doc-heading">
+                  find_proj_root(start_path=None)
+<a href="#pathFinding.find_proj_root" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Find project root directory, supporting multiple CI layouts.</p>
+
+
+<details class="detects" open>
+  <summary>Detects</summary>
+  <ul>
+<li>TDinternal CI:  /home/TDinternal/...          → /home/TDinternal</li>
+<li>tsdb CI:        /mnt/tsdb/source/taos-community/... → /mnt/tsdb</li>
+<li>TDengine OSS:   /home/TDengine/...            → /home/TDengine</li>
+</ul>
+</details>
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>start_path</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Starting path for detection. Defaults to os.getcwd().</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>str</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project root path (where sim/, debug/ etc. are located).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        </div>
+
+  </div>
 
 
 
