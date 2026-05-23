@@ -1,4 +1,7 @@
 import os
+import platform
+import shutil
+import tempfile
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
@@ -6,6 +9,26 @@ class TestUdf:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+
+    @staticmethod
+    def _find_lib(proj_path, name):
+        is_win = platform.system().lower() == 'windows'
+        filename = f"{name}.dll" if is_win else f"lib{name}.so"
+        for root, _dirs, files in os.walk(proj_path):
+            if filename in files:
+                full = os.path.join(root, filename)
+                if "build" in full:
+                    return full
+        return ""
+
+    @staticmethod
+    def _get_proj_path():
+        p = os.path.dirname(os.path.realpath(__file__))
+        while p and p != os.path.dirname(p):
+            if os.path.isdir(os.path.join(p, "debug")):
+                return p
+            p = os.path.dirname(p)
+        return p
 
     def test_udf(self):
         """Udf python sim case
@@ -34,14 +57,42 @@ class TestUdf:
         # system sh/cfg.sh -n dnode1 -c udf -v 1
 
         tdLog.info(f"======== step1 udf")
-        os.system("cases/12-UDFs/sh/compile_udf.sh")
-        os.system("cases/12-UDFs/sh/prepare_pyudf.sh")
-        os.system("mkdir -p /tmp/pyudf")
-        os.system("cp cases/12-UDFs/sh/pybitand.py /tmp/pyudf/")
-        os.system("cp cases/12-UDFs/sh/pyl2norm.py /tmp/pyudf/")
-        os.system("cp cases/12-UDFs/sh/pycumsum.py /tmp/pyudf/")
-        os.system("ls /tmp/pyudf")
 
+        # Locate pre-built C UDF DLLs/SOs from CMake build tree
+        projPath = self._get_proj_path()
+        bitand_path = self._find_lib(projPath, "bitand")
+        l2norm_path = self._find_lib(projPath, "l2norm")
+        if not bitand_path or not l2norm_path:
+            raise RuntimeError(
+                f"UDF libraries not found under {projPath}. "
+                "Build targets 'bitand' and 'l2norm' first."
+            )
+
+        # Copy Python UDF scripts to a temp directory
+        is_win = platform.system().lower() == 'windows'
+        pyudf_dir = os.path.join(tempfile.gettempdir(), "pyudf")
+        os.makedirs(pyudf_dir, exist_ok=True)
+        # Python UDF source files are in docs/examples/udf/
+        udf_examples = os.path.join(projPath, "source", "taos-community", "docs", "examples", "udf")
+        for pyfile in ("pybitand.py", "pyl2norm.py", "pycumsum.py"):
+            src = os.path.join(udf_examples, pyfile)
+            dst = os.path.join(pyudf_dir, pyfile)
+            if os.path.isfile(src):
+                shutil.copy2(src, dst)
+            else:
+                tdLog.info(f"Warning: {src} not found, skipping")
+        tdLog.info(f"Python UDF dir: {pyudf_dir}")
+
+        pybitand_path = os.path.join(pyudf_dir, "pybitand.py")
+        pyl2norm_path = os.path.join(pyudf_dir, "pyl2norm.py")
+
+        # Drop ALL leftover functions from any previous test runs
+        functions = tdSql.getResult("show functions")
+        if functions:
+            for func in functions:
+                tdSql.execute(f"drop function if exists {func[0]}")
+
+        tdSql.execute(f"drop database if exists udf;")
         tdSql.execute(f"create database udf vgroups 3;")
         tdSql.execute(f"use udf;")
         tdSql.query(f"select * from information_schema.ins_databases;")
@@ -50,17 +101,17 @@ class TestUdf:
         tdSql.execute(f"insert into t values(now, 1)(now+1s, 2);")
 
         tdSql.execute(
-            f"create function bit_and as '/tmp/udf/libbitand.so' outputtype int;"
+            f"create function bit_and as '{bitand_path}' outputtype int;"
         )
         tdSql.execute(
-            f"create aggregate function l2norm as '/tmp/udf/libl2norm.so' outputtype double bufSize 8;"
+            f"create aggregate function l2norm as '{l2norm_path}' outputtype double bufSize 8;"
         )
 
         tdSql.execute(
-            f"create function pybitand as '/tmp/pyudf/pybitand.py' outputtype int language 'python';"
+            f"create function pybitand as '{pybitand_path}' outputtype int language 'python';"
         )
         tdSql.execute(
-            f"create aggregate function pyl2norm as '/tmp/pyudf/pyl2norm.py' outputtype double bufSize 128 language 'python';"
+            f"create aggregate function pyl2norm as '{pyl2norm_path}' outputtype double bufSize 128 language 'python';"
         )
 
         tdSql.query(f"show functions;")
@@ -246,7 +297,7 @@ class TestUdf:
         # sql drop function pycumsum
 
         tdSql.execute(
-            f"create or replace function bit_and as '/tmp/udf/libbitand.so' outputtype int"
+            f"create or replace function bit_and as '{bitand_path}' outputtype int"
         )
         tdSql.query(
             f"select func_version from information_schema.ins_functions where name='bit_and'"

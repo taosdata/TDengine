@@ -33,6 +33,20 @@ target_link_libraries(udf1_dup PUBLIC os)
 add_library(udf2_dup STATIC MODULE udf2_dup.c)
 target_link_libraries(udf2_dup PUBLIC os)
 
+# example UDFs from docs/examples/udf/  (used by test_udf_c.py)
+set(_UDF_EXAMPLES_DIR "${TD_SOURCE_DIR}/docs/examples/udf")
+add_library(bitand STATIC MODULE "${_UDF_EXAMPLES_DIR}/bit_and.c")
+target_link_libraries(bitand PUBLIC os util)
+
+add_library(l2norm STATIC MODULE "${_UDF_EXAMPLES_DIR}/l2norm.c")
+target_link_libraries(l2norm PUBLIC os util)
+if(NOT TD_WINDOWS)
+    target_link_libraries(l2norm PRIVATE m)
+endif()
+
+add_library(gpd STATIC MODULE "${_UDF_EXAMPLES_DIR}/gpd.c")
+target_link_libraries(gpd PUBLIC os util)
+
 set(TARGET_NAMES
     change_udf_normal
     change_udf_no_init

@@ -48,9 +48,17 @@ void    taosCloseCmd(TdCmdPtr *ppCmd);
 
 void *taosLoadDll(const char *fileName);
 
+void *taosLoadDllGlobal(const char *fileName);
+
 void taosCloseDll(void *handle);
 
 void *taosLoadDllFunc(void *handle, const char *funcName);
+
+int32_t taosGetEnv(const char *name, char *buf, int32_t bufLen);
+
+int32_t taosSetEnv(const char *name, const char *value);
+
+int32_t taosSetDllSearchPath(const char *path);
 
 int32_t taosSetConsoleEcho(bool on);
 
