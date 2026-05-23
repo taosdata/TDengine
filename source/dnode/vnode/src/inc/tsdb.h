@@ -695,6 +695,7 @@ typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
 void tsdbTFileSetRangeClear(STFileSetRange **fsr);
 void tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr);
+// int32_t tsdbFSetRangeArrayAddFids(TFileSetRangeArray **ppRanges, const int32_t *fids, int32_t fidCount);
 
 // fset partition
 enum {
@@ -740,7 +741,8 @@ int32_t tMissingFileListDataLenCalc(int32_t fileCount);
 int32_t tDeserializeMissingFileList(void *buf, int32_t bufLen, void **ppFiles, int32_t *pFileCount, SHashObj **ppHash,
                                     SHashObj **ppSttHash, int32_t vgId);
 int32_t tsdbExtractMissingFids(STsdb *pTsdb, SHashObj *missingFileHash, int32_t **ppFids, int32_t *pFidCount);
-int32_t tsdbDetermineFidSyncMode(STsdb *pTsdb, const void *files, int32_t fileCount, SHashObj **ppFidModeHash);
+int32_t tsdbDetermineFidSyncMode(STsdb *pTsdb, const void *files, int32_t fileCount, SHashObj **ppFidModeHash,
+                                 int32_t **ppLeaderOnlyFids, int32_t *pLeaderOnlyFidCount);
 
 #define TSDB_SNAP_SYNC_FILE_LEVEL 0
 #define TSDB_SNAP_SYNC_FSET_LEVEL 1
