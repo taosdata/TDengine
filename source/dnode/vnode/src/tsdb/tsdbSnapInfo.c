@@ -734,13 +734,17 @@ int32_t tsdbExtractMissingFids(STsdb* pTsdb, SHashObj* missingFileHash, int32_t*
   return 0;
 }
 
-int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fileCount, SHashObj** ppFidModeHash) {
+int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fileCount, SHashObj** ppFidModeHash,
+                                  int32_t** ppLeaderOnlyFids, int32_t* pLeaderOnlyFidCount) {
   int32_t                  code = 0;
   SHashObj*                pFidModeHash = NULL;
   SHashObj*                pLeaderKeyHash = NULL;
   SHashObj*                pFollowerKeyHash = NULL;
   SHashObj*                pFollowerFidSet = NULL;
   const STsdbSnapFileInfo* files = (const STsdbSnapFileInfo*)pFileArr;
+  int32_t*                 leaderOnlyFids = NULL;
+  int32_t                  leaderOnlyFidCount = 0;
+  int32_t                  leaderOnlyFidCap = 0;
 
   if (fileCount <= 0 || files == NULL) {
     *ppFidModeHash = NULL;
@@ -877,12 +881,33 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
     TARRAY2_FOREACH(pTsdb->pFS->fSetArr, fset) {
       int32_t fid = fset->fid;
 
-      // skip fids not reported by follower
-      if (taosHashGet(pFollowerFidSet, &fid, sizeof(fid)) == NULL) continue;
-
       // skip if already FSET_LEVEL
       uint8_t* pExistMode = taosHashGet(pFidModeHash, &fid, sizeof(fid));
       if (pExistMode != NULL && *pExistMode == TSDB_SNAP_SYNC_FSET_LEVEL) continue;
+
+      // if fid not reported by follower at all, mark FSET_LEVEL and collect as leader-only
+      if (taosHashGet(pFollowerFidSet, &fid, sizeof(fid)) == NULL) {
+        tsdbInfo("vgId:%d, snap leader-only fid:%d not reported by follower, mark FSET_LEVEL",
+                 TD_VID(pTsdb->pVnode), fid);
+        uint8_t mode = TSDB_SNAP_SYNC_FSET_LEVEL;
+        if (taosHashPut(pFidModeHash, &fid, sizeof(fid), &mode, sizeof(mode)) != 0) {
+          code = terrno;
+          goto _unlock;
+        }
+        // collect leader-only fid
+        if (leaderOnlyFidCount >= leaderOnlyFidCap) {
+          int32_t  newCap = leaderOnlyFidCap == 0 ? 16 : leaderOnlyFidCap * 2;
+          int32_t* tmp = taosMemoryRealloc(leaderOnlyFids, newCap * sizeof(int32_t));
+          if (tmp == NULL) {
+            code = terrno;
+            goto _unlock;
+          }
+          leaderOnlyFids = tmp;
+          leaderOnlyFidCap = newCap;
+        }
+        leaderOnlyFids[leaderOnlyFidCount++] = fid;
+        continue;
+      }
 
       for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
         if (fset->farr[ftype] != NULL) {
@@ -926,6 +951,19 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
 _unlock:
   (void)taosThreadMutexUnlock(&pTsdb->mutex);
 
+  // sort leader-only fids
+  if (leaderOnlyFidCount > 1) {
+    for (int32_t i = 0; i < leaderOnlyFidCount - 1; ++i) {
+      for (int32_t j = i + 1; j < leaderOnlyFidCount; ++j) {
+        if (leaderOnlyFids[i] > leaderOnlyFids[j]) {
+          int32_t tmp = leaderOnlyFids[i];
+          leaderOnlyFids[i] = leaderOnlyFids[j];
+          leaderOnlyFids[j] = tmp;
+        }
+      }
+    }
+  }
+
 _out:
   if (pFollowerKeyHash) taosHashCleanup(pFollowerKeyHash);
   if (pFollowerFidSet) taosHashCleanup(pFollowerFidSet);
@@ -936,8 +974,18 @@ _out:
     *ppFidModeHash = NULL;
   } else {
     tsdbInfo("vgId:%d, Fid mode count %d", TD_VID(pTsdb->pVnode), taosHashGetSize(pFidModeHash));
+    if (leaderOnlyFidCount > 0) {
+      tsdbInfo("vgId:%d, leader-only fid count %d", TD_VID(pTsdb->pVnode), leaderOnlyFidCount);
+    }
     *ppFidModeHash = pFidModeHash;
   }
+  if (code != 0) {
+    taosMemoryFree(leaderOnlyFids);
+    leaderOnlyFids = NULL;
+    leaderOnlyFidCount = 0;
+  }
+  if (ppLeaderOnlyFids) *ppLeaderOnlyFids = leaderOnlyFids;
+  if (pLeaderOnlyFidCount) *pLeaderOnlyFidCount = leaderOnlyFidCount;
   return code;
 }
 

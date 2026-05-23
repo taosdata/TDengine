@@ -103,6 +103,8 @@ static int32_t vnodeExtractMissingFids(SVSnapReader *pReader) {
 static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotParam *pParam) {
   int32_t code = 0;
   SVnode *pVnode = pReader->pVnode;
+  int32_t *leaderOnlyFids = NULL;
+  int32_t  leaderOnlyFidCount = 0;
 
   if (pParam->data) {
     // decode
@@ -160,7 +162,8 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
                 (pReader->missingSttHash ? (int32_t)taosHashGetSize(pReader->missingSttHash) : 0));
           // determine sync mode per fid
           if (missingFiles && missingFileCount > 0) {
-            code = tsdbDetermineFidSyncMode(pVnode->pTsdb, missingFiles, missingFileCount, &pReader->fidModeHash);
+            code = tsdbDetermineFidSyncMode(pVnode->pTsdb, missingFiles, missingFileCount, &pReader->fidModeHash,
+                                            &leaderOnlyFids, &leaderOnlyFidCount);
             if (code) {
               taosMemoryFree(missingFiles);
               vError("vgId:%d, failed to determine fid sync mode since %s", TD_VID(pVnode), tstrerror(code));
@@ -184,6 +187,50 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
       }
     }
 
+    // handle leader-only fids: add to pRanges and missingFids
+    if (leaderOnlyFidCount > 0) {
+      vInfo("vgId:%d, processing %d leader-only fids", TD_VID(pVnode), leaderOnlyFidCount);
+
+      /*
+      // add leader-only fids to pRanges
+      TFileSetRangeArray **ppTsdbRanges = vnodeSnapReaderGetTsdbRanges(pReader, SNAP_DATA_TSDB);
+      if (ppTsdbRanges != NULL) {
+        code = tsdbFSetRangeArrayAddFids(ppTsdbRanges, leaderOnlyFids, leaderOnlyFidCount);
+        if (code) {
+          vError("vgId:%d, failed to add leader-only fids to pRanges since %s", TD_VID(pVnode), tstrerror(code));
+          goto _out;
+        }
+      }
+        */
+
+      // merge leader-only fids into missingFids (only if missingFids is being used as whitelist)
+      if (pReader->missingFids != NULL) {
+        int32_t  oldCount = pReader->missingFidCount;
+        int32_t  newCount = oldCount + leaderOnlyFidCount;
+        int32_t *merged = taosMemoryMalloc(newCount * sizeof(int32_t));
+        if (merged == NULL) {
+          code = terrno;
+          goto _out;
+        }
+        // merge two sorted arrays
+        int32_t i = 0, j = 0, k = 0;
+        while (i < oldCount && j < leaderOnlyFidCount) {
+          if (pReader->missingFids[i] <= leaderOnlyFids[j]) {
+            merged[k++] = pReader->missingFids[i++];
+          } else {
+            merged[k++] = leaderOnlyFids[j++];
+          }
+        }
+        while (i < oldCount) merged[k++] = pReader->missingFids[i++];
+        while (j < leaderOnlyFidCount) merged[k++] = leaderOnlyFids[j++];
+        taosMemoryFree(pReader->missingFids);
+        pReader->missingFids = merged;
+        pReader->missingFidCount = k;
+        vInfo("vgId:%d, merged missingFids: %d -> %d", TD_VID(pVnode), oldCount, k);
+      }
+      // else: missingFids==NULL means no filtering, RAW reader processes all fids in snapshot
+    }
+
     // toggle snap replication mode
     vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d, sver:%" PRId64, TD_VID(pVnode), tsdbOpts.format,
           pReader->sver);
@@ -198,6 +245,7 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
   }
 
 _out:
+  taosMemoryFree(leaderOnlyFids);
   return code;
 }
 

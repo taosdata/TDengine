@@ -669,6 +669,46 @@ void tsdbTFileSetRangeArrayDestroy(TFileSetRangeArray **ppArr) {
     ppArr[0] = NULL;
   }
 }
+/*
+static int32_t tsdbFSetRangeCmprFn(STFileSetRange *x, STFileSetRange *y) {
+  if (x->fid < y->fid) return -1;
+  if (x->fid > y->fid) return 1;
+  return 0;
+}
+
+int32_t tsdbFSetRangeArrayAddFids(TFileSetRangeArray **ppRanges, const int32_t *fids, int32_t fidCount) {
+  int32_t code = 0;
+
+  if (ppRanges == NULL || fids == NULL || fidCount <= 0) {
+    return 0;
+  }
+
+  if (*ppRanges == NULL) {
+    *ppRanges = taosMemoryCalloc(1, sizeof(TFileSetRangeArray));
+    if (*ppRanges == NULL) {
+      return terrno;
+    }
+    TARRAY2_INIT(*ppRanges);
+  }
+
+  for (int32_t i = 0; i < fidCount; ++i) {
+    STFileSetRange *r = taosMemoryCalloc(1, sizeof(STFileSetRange));
+    if (r == NULL) {
+      return terrno;
+    }
+    r->fid = fids[i];
+    r->sver = 0;
+    r->ever = VERSION_MAX;
+    code = TARRAY2_SORT_INSERT(*ppRanges, r, tsdbFSetRangeCmprFn);
+    if (code) {
+      taosMemoryFree(r);
+      return code;
+    }
+  }
+
+  return 0;
+}
+*/
 
 void tsdbTFileSetClear(STFileSet **fset) {
   if (fset && *fset) {
