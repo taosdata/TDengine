@@ -13,6 +13,7 @@ BUILDER_DIR="$(cd "$SETUP_SCRIPT_DIR/../tsdb-builder" 2>/dev/null && pwd)" || BU
 # ── Read mirror URLs from .build-args ───────────────────────────────────────
 if [[ -n "$BUILDER_DIR" && -f "$BUILDER_DIR/.build-args" ]]; then
     _ba="$BUILDER_DIR/.build-args"
+    GO_VERSION=$(grep '^GO_VERSION=' "$_ba" | cut -d= -f2-)
     GO_PROXY=$(grep '^GO_PROXY=' "$_ba" | cut -d= -f2-)
     CARGO_REGISTRY_URL=$(grep '^CARGO_REGISTRY_URL=' "$_ba" | cut -d= -f2-)
     CONAN_REMOTE_URL=$(grep '^CONAN_REMOTE_URL=' "$_ba" | cut -d= -f2-)
@@ -74,6 +75,7 @@ fi
 # ── Minimum version requirements ────────────────────────────────────────────
 REQUIRED_CMAKE_VERSION="3.21"
 REQUIRED_GO_VERSION="1.23"
+GO_TOOLCHAIN_VERSION="${GO_VERSION:-1.23.4}"
 REQUIRED_RUST_VERSION="1.90"
 REQUIRED_JAVA_VERSION="17"
 REQUIRED_NODE_VERSION="18"

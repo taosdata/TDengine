@@ -20,6 +20,12 @@ developers building outside the `tsdb-builder` Docker container.
 .\tools\setup\setup-windows.ps1 -All -CheckOnly         # Windows
 ```
 
+## Ubuntu 24 Notes
+
+- `setup-linux.sh` 在 Ubuntu 24 上会从 `tools/tsdb-builder/.build-args` 读取完整的 Go 版本号（例如 `1.23.4`）并下载对应 tarball。
+- `setup-linux.sh --component engine` 在 Ubuntu 24 上安装 Conan 时使用隔离 virtualenv，避免 `pip --user` 触发 PEP 668 的 `externally-managed-environment` 错误。
+- `setup-linux.sh` 负责准备工具链和镜像配置；是否能直接完成组件构建，仍取决于组件 README 中声明的系统前置条件（例如本机动态库、Cargo mirror 完整性等）。
+
 ## 内网 vs 外网模式
 
 setup 脚本**默认配置内网依赖源**（从 `tools/tsdb-builder/.build-args` 读取 URL）。
@@ -49,9 +55,10 @@ export TSDB_PUBLIC_DEPS=1
 # 2. 重新加载 shell 配置（首次安装后需要）
 source ~/.bashrc
 
-# 3. 编译
+# 3. 编译（前提：本机已具备 libtaosnative.so，且链接器可见）
 cd source/taos-adapter
-go build ./...
+export CGO_ENABLED=1
+go build -o taosadapter
 ```
 
 setup 自动完成：安装 Go ≥ 1.23 → 配置 `GOPROXY=https://nexus.tdengine.net/repository/goproxy/,direct` → 设置 `GONOSUMDB`/`GONOSUMCHECK` → 验证内网连通性。
@@ -65,12 +72,17 @@ setup 自动完成：安装 Go ≥ 1.23 → 配置 `GOPROXY=https://nexus.tdengi
 # 2. 重新加载 shell 配置
 source ~/.bashrc
 
-# 3. 编译
+# 3. 安装 taosx README 依赖的 cargo 子命令
+cargo install cargo-make toml-cli
+
+# 4. 按 taosx README 执行构建
 cd source/taos-xservice
-cargo build
+cargo make build-all
 ```
 
 setup 自动完成：安装 Rust ≥ 1.90 → 复制 `.cargo/config.toml`（Nora 内网 registry）→ 安装 protoc → 验证内网连通性。
+
+> 说明：`cargo make build-all` 还依赖 `taos-xservice/README.md` 中列出的额外前置条件；在内网模式下，如果 Nora Cargo mirror 缺少某些 crate，需补齐镜像或切换 `TSDB_PUBLIC_DEPS=1` 后再构建。
 
 ### 在内网宿主机编译 TDengine 引擎（C/C++ 组件）
 
@@ -81,7 +93,8 @@ setup 自动完成：安装 Rust ≥ 1.90 → 复制 `.cargo/config.toml`（Nora
 # 2. 编译（首次需要 BUILD_CONTRIB=ON）
 cd source/taos-community
 mkdir -p debug && cd debug
-cmake .. -DBUILD_CONTRIB=ON
+cmake .. -DBUILD_CONTRIB=ON \
+  -DBUILD_DEPS_MIRROR_URL="https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
 make -j$(nproc)
 ```
 

@@ -3,17 +3,25 @@
 # modules/rust.sh — Rust toolchain + Nora registry + sccache
 # ============================================================================
 
+get_rustc_version() {
+    rustc --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true
+}
+
+get_cargo_version() {
+    cargo --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true
+}
+
 mod_rust_check() {
     header "Rust Toolchain"
 
     # rustc
     if cmd_exists rustc; then
         local ver
-        ver=$(rustc --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-        if version_gte "$ver" "$REQUIRED_RUST_VERSION"; then
+        ver=$(get_rustc_version)
+        if [[ -n "$ver" ]] && version_gte "$ver" "$REQUIRED_RUST_VERSION"; then
             ok "rustc $ver (>= $REQUIRED_RUST_VERSION)"
         else
-            warn "rustc $ver (need >= $REQUIRED_RUST_VERSION)"
+            warn "rustc unavailable or below required version (need >= $REQUIRED_RUST_VERSION)"
             ISSUES_FOUND=$((ISSUES_FOUND + 1))
         fi
     else
@@ -23,7 +31,14 @@ mod_rust_check() {
 
     # cargo
     if cmd_exists cargo; then
-        ok "cargo $(cargo --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+        local cargo_ver
+        cargo_ver=$(get_cargo_version)
+        if [[ -n "$cargo_ver" ]]; then
+            ok "cargo ${cargo_ver}"
+        else
+            warn "cargo unavailable or no default Rust toolchain configured"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        fi
     else
         fail "cargo not found"
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
@@ -62,10 +77,13 @@ mod_rust_check() {
 
 mod_rust_install() {
     # rustup + toolchain
-    if ! cmd_exists rustc || ! version_gte "$(rustc --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" "$REQUIRED_RUST_VERSION"; then
+    local rustc_ver
+    rustc_ver=$(get_rustc_version)
+    if [[ -z "$rustc_ver" ]] || ! version_gte "$rustc_ver" "$REQUIRED_RUST_VERSION"; then
         if confirm "Install/upgrade Rust via rustup?"; then
             if cmd_exists rustup; then
-                rustup update stable
+                rustup toolchain install stable
+                rustup default stable
             else
                 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
                 # shellcheck disable=SC1091

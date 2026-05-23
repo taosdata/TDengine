@@ -964,23 +964,41 @@ export TSDB_PUBLIC_DEPS=1
 | 内网（默认） | 不设置 | GOPROXY → Nexus, Cargo → Nora, Conan → Nexus 等 |
 | 外网 | `1` | GOPROXY → proxy.golang.org, Cargo → crates.io 等 |
 
+**构建顺序依赖**：
+
+> `taos-adapter`、`taos-xservice` 等组件通过 CGO / FFI 依赖 TDengine 的 native client
+> library（`libtaosnative.so`）和头文件。因此必须**先编译并安装 `taos-community`**，
+> 再编译其他组件。
+
+```
+taos-community (编译 + 组包 + install.sh)
+    ├──→ taos-adapter      (CGO 链接 libtaosnative.so)
+    └──→ taos-xservice     (FFI 链接 libtaos.so)
+```
+
 **按组件配置示例**：
 
 ```bash
-# 编译 taos-adapter（Go 组件）
+# ① 编译 TDengine 引擎（必须最先完成）
+./tools/setup/setup-linux.sh --component engine
+cd source/taos-community && mkdir -p debug && cd debug
+cmake .. -DBUILD_CONTRIB=ON -DBUILD_TOOLS=ON && make -j$(nproc)
+
+# 组包并安装（使 libtaosnative.so / libtaos.so 对系统可见）
+cd ..
+packaging/pack_community_tar.sh -c debug -n <version>
+cd release && tar xf TDengine-server-*.tar.gz
+cd TDengine-server-*/ && sudo ./install.sh -e no
+
+# ② 编译 taos-adapter（Go 组件，依赖已安装的 libtaosnative.so）
 ./tools/setup/setup-linux.sh --component adapter
 source ~/.bashrc
-cd source/taos-adapter && go build ./...
+cd source/taos-adapter && go build -o taosadapter
 
-# 编译 taosx（Rust 组件）
+# ③ 编译 taosx（Rust 组件，依赖已安装的 libtaos.so）
 ./tools/setup/setup-linux.sh --component taosx
 source ~/.bashrc
 cd source/taos-xservice && cargo build
-
-# 编译 TDengine 引擎（C/C++ 组件）
-./tools/setup/setup-linux.sh --component engine
-cd source/taos-community && mkdir -p debug && cd debug
-cmake .. -DBUILD_CONTRIB=ON && make -j$(nproc)
 ```
 
 > **GitHub 用户无需此脚本**：从 GitHub 克隆单个仓库时，直接按 README.md 的 `## Building` 章节操作即可。标准工具默认使用公网源。`tools/setup/` 仅用于 monorepo 内网开发场景。
@@ -1025,3 +1043,240 @@ cmake .. -DBUILD_CONTRIB=ON && make -j$(nproc)
 | 非法组合（会 FATAL_ERROR） | `-DBUILD_CONTRIB=OFF -DBUILD_ROCKSDB=ON` |
 
 > **注意**：缺少预编译文件时，现在会直接 `FATAL_ERROR` 报错，不再是静默的 `"No rule to make target"` 错误。
+
+## 三种典型场景构建示例
+
+以下示例面向 **Ubuntu 24** 宿主机上的**非容器直接编译**。以 4 个典型子仓库为例：
+
+- `source/taos-community` ↔ `taosdata/TDengine`
+- `source/taos-adapter` ↔ `taosdata/taosadapter`
+- `source/taos-xservice` ↔ `taosdata/taosx`
+- `source/taos-connector-rust` ↔ `taosdata/taos-connector-rust`
+
+> **前提**：
+> 1. Ubuntu 24 自带的 CMake 版本满足 `taos-community` README 中 **CMake >= 3.21** 的要求。
+> 2. 场景 1/2 使用 monorepo 时，`tools/setup/` 只负责配置宿主机工具链和语言包管理器镜像；真正的编译命令仍以各子仓库 README 为准。
+> 3. 场景 3 从 GitHub 克隆单仓库时，**不需要** `tools/setup/`，直接按各仓库 README 中的 Building 步骤执行即可。
+
+### 场景 1：电脑位于公司内网，使用 monorepo，走内网依赖
+
+#### `taos-community`
+
+```bash
+cd /path/to/tsdb
+
+# 配置 C/C++ 工具链 + 内网 Conan remote
+./tools/setup/setup-linux.sh --component engine
+source ~/.bashrc
+
+cd source/taos-community
+mkdir -p debug
+cd debug
+
+# 首次源码编译必须加 -DBUILD_CONTRIB=ON
+# 非容器直编时，ExternalProject 内网镜像需手动传入
+# 加 -DBUILD_TOOLS=ON 可同时编译 taosBenchmark / taosdump
+cmake .. \
+  -DBUILD_CONTRIB=ON \
+  -DBUILD_TOOLS=ON \
+  -DBUILD_DEPS_MIRROR_URL="https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
+make -j$(nproc)
+
+# 组包并安装（后续 taos-adapter / taosx 编译需要 libtaosnative.so 对系统可见）
+cd ..
+packaging/pack_community_tar.sh -c debug -n <version>
+cd release && tar xf TDengine-server-*.tar.gz
+cd TDengine-server-*/ && sudo ./install.sh -e no
+```
+
+#### `taos-adapter`
+
+> **前提**：必须先完成 `taos-community` 的编译、组包、安装（`install.sh`），使
+> `libtaosnative.so` 和头文件对系统可见（位于 `/usr/lib/` 和 `/usr/local/taos/include/`）。
+
+```bash
+cd /path/to/tsdb
+
+./tools/setup/setup-linux.sh --component adapter
+source ~/.bashrc
+
+# 安装 taos-community 后直接编译即可，无需额外 CGO 参数
+cd source/taos-adapter
+go build -o taosadapter
+```
+
+#### `taos-xservice`
+
+> `taos-xservice` README 的标准构建命令是 `cargo make build-all`。除 Rust 外，如需同时构建 README 中提到的 UI / 外部插件，还需按该 README 额外准备 Node.js、JDK/Maven、Go。
+
+```bash
+cd /path/to/tsdb
+
+./tools/setup/setup-linux.sh --component taosx
+source ~/.bashrc
+
+cargo install cargo-make toml-cli
+
+# 将 taos-connector-rust 的 git 依赖重定向到本地 monorepo 路径，避免访问 github.com
+./tools/setup/monorepo-cargo-patch.sh
+
+cd source/taos-xservice
+# 已验证：Ubuntu 24 arm64 上 cargo make build-all 编译通过（release ~13min）
+cargo make build-all
+
+# 构建完成后恢复 Cargo.toml（可选，避免误提交 patch 内容）
+# cd /path/to/tsdb && ./tools/setup/monorepo-cargo-patch.sh --revert
+```
+
+#### `taos-connector-rust`
+
+```bash
+cd /path/to/tsdb
+
+./tools/setup/setup-linux.sh --component connector-rust
+source ~/.bashrc
+
+cd source/taos-connector-rust
+cargo build
+```
+
+### 场景 2：电脑位于公司内网，使用 monorepo，但强制走外网依赖
+
+```bash
+cd /path/to/tsdb
+export TSDB_PUBLIC_DEPS=1
+```
+
+#### `taos-community`
+
+```bash
+./tools/setup/setup-linux.sh --component engine
+source ~/.bashrc
+
+cd source/taos-community
+mkdir -p debug
+cd debug
+
+# 首次源码编译必须加 -DBUILD_CONTRIB=ON
+# BUILD_USE_PUBLIC_DEPS=ON 强制 ExternalProject 跳过内网镜像，直接使用原始公网 URL
+# 加 -DBUILD_TOOLS=ON 可同时编译 taosBenchmark / taosdump
+cmake .. \
+  -DBUILD_CONTRIB=ON \
+  -DBUILD_TOOLS=ON \
+  -DBUILD_USE_PUBLIC_DEPS=ON
+make -j$(nproc)
+
+# 组包并安装（同场景 1）
+cd ..
+packaging/pack_community_tar.sh -c debug -n <version>
+cd release && tar xf TDengine-server-*.tar.gz
+cd TDengine-server-*/ && sudo ./install.sh -e no
+```
+
+#### `taos-adapter`
+
+> **前提**：先完成 `taos-community` 编译、组包、安装（同内网流程）。
+
+```bash
+./tools/setup/setup-linux.sh --component adapter
+source ~/.bashrc
+
+cd source/taos-adapter
+go build -o taosadapter
+```
+
+#### `taos-xservice`
+
+```bash
+./tools/setup/setup-linux.sh --component taosx
+source ~/.bashrc
+
+cargo install cargo-make toml-cli
+
+# 将 taos-connector-rust 的 git 依赖重定向到本地 monorepo 路径，避免访问 github.com
+./tools/setup/monorepo-cargo-patch.sh
+
+cd source/taos-xservice
+# 已验证：Ubuntu 24 arm64 上 cargo make build-all 编译通过（release ~13min）
+cargo make build-all
+
+# 构建完成后恢复 Cargo.toml（可选）
+# cd /path/to/tsdb && ./tools/setup/monorepo-cargo-patch.sh --revert
+```
+
+#### `taos-connector-rust`
+
+```bash
+./tools/setup/setup-linux.sh --component connector-rust
+source ~/.bashrc
+
+cd source/taos-connector-rust
+cargo build
+```
+
+### 场景 3：电脑位于外网，从 GitHub 克隆单仓库，走外网依赖
+
+> 此场景直接按各 GitHub 仓库 README 执行，**不使用** `tools/setup/`。
+
+#### `taos-community`（`taosdata/TDengine`）
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake git
+
+git clone https://github.com/taosdata/TDengine.git
+cd TDengine
+mkdir debug
+cd debug
+
+# 首次源码编译必须加 -DBUILD_CONTRIB=ON
+cmake .. -DBUILD_CONTRIB=ON
+make -j$(nproc)
+```
+
+#### `taos-adapter`（`taosdata/taosadapter`）
+
+> **前提**：先从 [TDengine Releases](https://github.com/taosdata/TDengine/releases) 下载并安装
+> server 包（使 `libtaosnative.so` 和头文件对系统可见），或自行编译 TDengine 后执行 `install.sh`。
+
+```bash
+case "$(uname -m)" in
+  x86_64)  go_arch=amd64 ;;
+  aarch64|arm64) go_arch=arm64 ;;
+  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
+wget https://go.dev/dl/go1.23.4.linux-${go_arch}.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.23.4.linux-${go_arch}.tar.gz
+export PATH=/usr/local/go/bin:$PATH
+
+git clone https://github.com/taosdata/taosadapter.git
+cd taosadapter
+go build -o taosadapter
+```
+
+#### `taos-xservice`（`taosdata/taosx`）
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
+source $HOME/.cargo/env
+
+cargo install cargo-make toml-cli
+
+git clone --depth 1 https://github.com/taosdata/taosx.git
+cd taosx
+cargo make build-all
+```
+
+> 如需构建 README 中提到的 UI / 外部插件，请继续按 `taos-xservice/README.md` 的 Prerequisites 章节安装 Node.js、JDK/Maven、Go。
+
+#### `taos-connector-rust`（`taosdata/taos-connector-rust`）
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+git clone https://github.com/taosdata/taos-connector-rust.git
+cd taos-connector-rust
+cargo build
+```

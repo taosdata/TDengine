@@ -46,8 +46,8 @@ Telegraf, StatsD, collectd, etc.). It also offers InfluxDB/OpenTSDB compatible d
 InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine. The connectors of TDengine in various languages
 communicate with TDengine through the WebSocket interface, hence the taosAdapter must be installed.
 
-It is written in Go and built with CGO enabled because it links against the TDengine C client library at runtime.
-Before building, testing, or running taosAdapter, install TDengine so that `libtaos.so` is available on the system.
+It is written in Go and built with CGO enabled because it links against TDengine native client libraries.
+Before building, testing, or running taosAdapter, install TDengine so that the required native libraries are available on the system.
 
 ## 2. Documentation
 
@@ -61,8 +61,8 @@ Before building, testing, or running taosAdapter, install TDengine so that `libt
 ### 3.1 System Requirements
 
 - Linux x86_64 or ARM64
-- TDengine server installed (provides `libtaos.so`)
-- Go build environment with `CGO_ENABLED=1`
+- TDengine server or client package **installed** (provides `libtaosnative.so` and header files)
+- Go >= 1.23
 
 ### 3.2 Installing Build Tools
 
@@ -71,32 +71,57 @@ Before building, testing, or running taosAdapter, install TDengine so that `libt
 **Ubuntu/Debian:**
 ```bash
 # Install Go (if not already installed)
-wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+case "$(uname -m)" in
+  x86_64)  go_arch=amd64 ;;
+  aarch64|arm64) go_arch=arm64 ;;
+  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
+wget https://go.dev/dl/go1.23.4.linux-${go_arch}.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.4.linux-${go_arch}.tar.gz
 export PATH=/usr/local/go/bin:$PATH
 ```
 
 **CentOS/RHEL:**
 Same Go installation steps as above.
 
-Enable CGO before building:
-
-```bash
-export CGO_ENABLED=1
-```
-
 ### 3.3 TDengine Client Library
 
-taosAdapter links against `libtaos.so` at runtime. Install TDengine server or client package first:
+taosAdapter builds against `libtaosnative.so` (via CGO) and uses TDengine client libraries at runtime. You must install a TDengine server or client package first.
+
+**Option A: Install from official release package (recommended)**
+
+Download from [TDengine Releases](https://github.com/taosdata/TDengine/releases):
 
 ```bash
-# Option 1: Build from source (see TDengine repo)
-# Option 2: Install from official package
-# After installation, libtaos.so should be in /usr/local/taos/driver/
+# Example for server package:
+tar xf TDengine-server-<version>-Linux-*.tar.gz
+cd TDengine-server-<version>/
+sudo ./install.sh -e no
 ```
 
-If `libtaos.so` is not in your system library path, export it explicitly before running taosAdapter or the test suite:
+**Option B: Build TDengine from source**
+
+```bash
+git clone https://github.com/taosdata/TDengine.git
+cd TDengine
+mkdir debug && cd debug
+cmake .. -DBUILD_CONTRIB=ON
+make -j$(nproc)
+cd ..
+packaging/pack_community_tar.sh -c debug -n <version>
+cd release && tar xf TDengine-server-*.tar.gz
+cd TDengine-server-*/ && sudo ./install.sh -e no
+```
+
+After installation, verify the library is accessible:
+
+```bash
+ls /usr/lib/libtaosnative.so   # symlink should exist
+ls /usr/local/taos/include/taos.h
+```
+
+If `libtaos.so` is not in your runtime library path, export it explicitly before running taosAdapter or the test suite:
 
 ```bash
 export LD_LIBRARY_PATH=/usr/local/taos/driver:$LD_LIBRARY_PATH
@@ -107,11 +132,13 @@ export LD_LIBRARY_PATH=/usr/local/taos/driver:$LD_LIBRARY_PATH
 ```bash
 git clone https://github.com/taosdata/taosadapter.git
 cd taosadapter
-export CGO_ENABLED=1
 go build -o taosadapter
 ```
 
 The resulting binary is `./taosadapter`.
+
+> **Note:** On Linux, `CGO_ENABLED=1` is the default when building natively.
+> If cross-compiling or building in a restricted environment, set `export CGO_ENABLED=1` explicitly.
 
 ### 4.1 Build with Version Info
 

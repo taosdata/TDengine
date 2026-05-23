@@ -53,7 +53,7 @@ mod_go_install() {
         apt|yum|dnf)
             local go_arch="$SETUP_ARCH"
             [[ "$go_arch" == "arm64" ]] && go_arch="arm64"
-            local go_url="https://go.dev/dl/go${REQUIRED_GO_VERSION}.linux-${go_arch}.tar.gz"
+            local go_url="https://go.dev/dl/go${GO_TOOLCHAIN_VERSION}.linux-${go_arch}.tar.gz"
             info "Downloading Go from $go_url"
             curl -fsSL "$go_url" -o /tmp/go.tar.gz
             sudo rm -rf /usr/local/go

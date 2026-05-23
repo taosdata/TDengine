@@ -52,7 +52,7 @@ source ~/.bashrc
 ```
 
 Or you can step through the following steps to complete the environment installation.
-Here is a script to install all dependencies with specified versions:
+Here is a script to install the Rust-side dependencies required by the workspace build:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash
@@ -145,11 +145,19 @@ cd taosx
 cargo make build-all
 ```
 
+The `build-all` task assumes the required Cargo crates are available from your selected registry or registry mirror. If you use a private Cargo mirror, make sure it contains all crates referenced by the workspace before treating `cargo make build-all` as a reproducible one-command build.
+
 You can optionally build external plugins such as InfluxDB, OpenTSDB, OPC-UA/DA, by:
 
 ```bash
 cargo make plugins
 ```
+
+`cargo make plugins` requires the extra toolchains listed above:
+
+- Java + Maven for `plugins/influxdb` and `plugins/opentsdb`
+- Go for `plugins/opc`
+- Node.js for UI-related development tasks
 
 You can optionally build taosx-agent by:
 
