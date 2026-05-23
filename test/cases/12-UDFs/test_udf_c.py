@@ -8,6 +8,18 @@ class TestUdfC:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+    @staticmethod
+    def _find_lib(proj_path, name):
+        """Find a UDF library under proj_path build tree."""
+        is_win = platform.system().lower() == 'windows'
+        filename = f"{name}.dll" if is_win else f"lib{name}.so"
+        for root, dirs, files in os.walk(proj_path):
+            if filename in files:
+                full = os.path.join(root, filename)
+                if "build" in full:
+                    return full
+        return ""
+
     def test_udf_c(self):
         """Udf for C language
 
@@ -27,12 +39,34 @@ class TestUdfC:
 
         """
 
-        tdSql.execute(f"alter user root pass '12s34(*&xx'")
-
         tdLog.info(f"======== step1 udf")
 
-        os.system("cases/12-UDFs/sh/compile_udf.sh")
+        # Locate pre-built UDF libraries from the CMake build tree
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        # Walk upward to find project root (contains 'debug/' build dir)
+        projPath = selfPath
+        while projPath and projPath != os.path.dirname(projPath):
+            if os.path.isdir(os.path.join(projPath, "debug")):
+                break
+            projPath = os.path.dirname(projPath)
 
+        bitand_path = self._find_lib(projPath, "bitand")
+        l2norm_path = self._find_lib(projPath, "l2norm")
+        if not bitand_path or not l2norm_path:
+            raise RuntimeError(
+                f"UDF libraries not found under {projPath}. "
+                "Build targets 'bitand' and 'l2norm' first (cmake --build . --target bitand l2norm)."
+            )
+        tdLog.info(f"bitand lib: {bitand_path}")
+        tdLog.info(f"l2norm lib: {l2norm_path}")
+
+        # Drop ALL leftover functions from any previous test runs
+        functions = tdSql.getResult("show functions")
+        if functions:
+            for func in functions:
+                tdSql.execute(f"drop function if exists {func[0]}")
+
+        tdSql.execute(f"drop database if exists udf;")
         tdSql.execute(f"create database udf vgroups 3;")
         tdSql.execute(f"use udf;")
         tdSql.query(f"select * from information_schema.ins_databases;")
@@ -42,17 +76,17 @@ class TestUdfC:
 
         if platform.system().lower() == "windows":
             tdSql.execute(
-                f"create function bit_and as 'C:\\Windows\\Temp\\bitand.dll' outputtype int;"
+                f"create function bit_and as '{bitand_path}' outputtype int;"
             )
             tdSql.execute(
-                f"create aggregate function l2norm as 'C:\\Windows\\Temp\\l2norm.dll' outputtype double bufSize 8;"
+                f"create aggregate function l2norm as '{l2norm_path}' outputtype double bufSize 8;"
             )
         else:
             tdSql.execute(
-                f"create function bit_and as '/tmp/udf/libbitand.so' outputtype int;"
+                f"create function bit_and as '{bitand_path}' outputtype int;"
             )
             tdSql.execute(
-                f"create aggregate function l2norm as '/tmp/udf/libl2norm.so' outputtype double bufSize 8;"
+                f"create aggregate function l2norm as '{l2norm_path}' outputtype double bufSize 8;"
             )
 
         tdSql.error(
@@ -139,6 +173,8 @@ class TestUdfC:
         tdSql.checkData(1, 0, 9.055385138)
 
         tdSql.checkData(2, 0, 8.000000000)
+
+
 
 
 # sql drop function bit_and;

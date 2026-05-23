@@ -236,6 +236,10 @@ class BeforeTest:
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
         yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
         mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
+        taosd_binary = "taosd.exe" if sys.platform == "win32" else "taosd"
+        taosadapter_binary = "taosadapter.exe" if sys.platform == "win32" else "taosadapter"
+        taoskeeper_binary = "taoskeeper.exe" if sys.platform == "win32" else "taoskeeper"
+
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
             log_path = os.path.join(work_dir, f"dnode{i+1}", "log")
@@ -258,7 +262,7 @@ class BeforeTest:
             dnode = {
                 "endpoint": f"localhost:{port_base + i * 100}",
                 "config_dir": dnode_cfg_path,
-                "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
+                "taosdPath": os.path.join(request.session.taos_bin_path, taosd_binary),
                 "system": platform.system().lower(),
                 "config": dnode_config,
                 "mqttPort": dnode_config["mqttPort"],
@@ -306,7 +310,7 @@ class BeforeTest:
                         "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
-                    "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
+                    "taosadapterPath": os.path.join(request.session.taos_bin_path, taosadapter_binary)
                 }
             }
             if request.session.asan:
@@ -343,7 +347,7 @@ class BeforeTest:
                         "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
-                    "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
+                        "taoskeeperPath": os.path.join(request.session.taos_bin_path, taoskeeper_binary)
             }
                 
             }
@@ -582,8 +586,10 @@ class BeforeTest:
         return paths[0]
 
     def get_taos_bin_path(self, taos_bin_path):
-        if taos_bin_path is not None and os.path.exists(os.path.join(taos_bin_path, "taosd")):
-            return taos_bin_path
+        if taos_bin_path is not None:
+            taosd_name = "taosd.exe" if sys.platform == "win32" else "taosd"
+            if os.path.exists(os.path.join(taos_bin_path, taosd_name)):
+                return taos_bin_path
         bin_path = self.getPath()
         if bin_path is not None:
             return os.path.dirname(bin_path)
@@ -599,7 +605,10 @@ class BeforeTest:
                 path = os.path.realpath(taos_bin_path)
                 while path and path != os.path.dirname(path):
                     if os.path.basename(path) == 'debug':
-                        workdir = os.path.join(os.path.dirname(path), "sim")
+                        if sys.platform == "win32":
+                            workdir = os.path.join(path, "sim")
+                        else:
+                            workdir = os.path.join(os.path.dirname(path), "sim")
                         break
                     path = os.path.dirname(path)
             if workdir is None:
