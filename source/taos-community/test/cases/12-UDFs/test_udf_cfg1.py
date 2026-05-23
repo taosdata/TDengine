@@ -16,8 +16,24 @@ class TestUdfCfg1:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
+    @staticmethod
+    def _find_udf_lib(proj_path, name):
+        is_win = platform.system().lower() == 'windows'
+        filename = f"{name}.dll" if is_win else f"lib{name}.so"
+        for root, _dirs, files in os.walk(proj_path):
+            if filename in files:
+                full = os.path.join(root, filename)
+                if "build" in full:
+                    return full
+        return ""
+
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        projPath = selfPath
+        while projPath and projPath != os.path.dirname(projPath):
+            if os.path.isdir(os.path.join(projPath, "debug")):
+                break
+            projPath = os.path.dirname(projPath)
 
         projPath = find_proj_path(selfPath)
         print(projPath)
@@ -39,6 +55,7 @@ class TestUdfCfg1:
 
     def prepare_data(self):
 
+        tdSql.execute("drop topic if exists topa")
         tdSql.execute("drop database if exists db ")
         tdSql.execute("create database if not exists db  duration 100")
         tdSql.execute("use db")
@@ -122,6 +139,9 @@ class TestUdfCfg1:
 
 
     def create_udf_function(self):
+        # Clean up specific leftover functions
+        for func in ['udf1', 'udf2', 'udf1_dup', 'udf2_dup']:
+            tdSql.execute(f"drop function if exists {func}")
 
         for i in range(5):
             # create  scalar functions
@@ -143,7 +163,7 @@ class TestUdfCfg1:
 
             functions = tdSql.getResult("show functions")
             for function in functions:
-                if "udf1" in function[0] or  "udf2" in function[0]:
+                if function[0] == "udf1" or function[0] == "udf2":
                     tdLog.info("drop udf functions failed ")
                     tdLog.exit("drop udf functions failed")
 
@@ -288,9 +308,25 @@ class TestUdfCfg1:
     
         """
         print(" env is ok for all ")
+        # Kill any orphaned udfd process from previous tests.
+        # This test runs with udf:0 (disabled), so udfd must not be running.
+        if platform.system().lower() == 'windows':
+            os.system("taskkill /f /im taosudf.exe >nul 2>&1")
+        else:
+            os.system("pkill -9 taosudf 2>/dev/null || true")
+        time.sleep(1)
+
         self.prepare_udf_so()
         self.prepare_data()
         self.create_udf_function()
+
+        # Kill udfd again right before query validation, in case create_udf_function triggered it
+        if platform.system().lower() == 'windows':
+            os.system("taskkill /f /im taosudf.exe >nul 2>&1")
+        else:
+            os.system("pkill -9 taosudf 2>/dev/null || true")
+        time.sleep(2)
+
         self.basic_udf_query()
 
 

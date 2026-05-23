@@ -75,7 +75,9 @@ void stratWindowsService(MainWindows mainWindows) {
   StartServiceCtrlDispatcher(ServiceTable);
 }
 
-#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
+#elif defined(_TD_DARWIN_64)
+#include <dlfcn.h>
+#elif defined(TD_ASTRA)
 #else
 #include <dlfcn.h>
 #include <termios.h>
@@ -360,4 +362,116 @@ void taosCloseCmd(TdCmdPtr* ppCmd) {
   (void)pclose((FILE*)(*ppCmd));
 #endif
   *ppCmd = NULL;
+}
+
+void* taosLoadDll(const char* fileName) {
+#if defined(WINDOWS)
+  void* handle = LoadLibraryA(fileName);
+#else
+  void* handle = dlopen(fileName, RTLD_LAZY);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
+  }
+
+  return handle;
+}
+
+void taosCloseDll(void* handle) {
+  if (handle == NULL) return;
+
+#if defined(WINDOWS)
+  FreeLibrary((HMODULE)handle);
+#else
+  if (dlclose(handle) != 0 && errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+#endif
+}
+
+void* taosLoadDllFunc(void* handle, const char* funcName) {
+  if (handle == NULL) return NULL;
+
+#if defined(WINDOWS)
+  void *fptr = GetProcAddress((HMODULE)handle, funcName);
+#else
+  void *fptr = dlsym(handle, funcName);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
+    }
+  }
+
+  return fptr;
+}
+
+void *taosLoadDllGlobal(const char *fileName) {
+#if defined(WINDOWS)
+  void *handle = LoadLibraryA(fileName);
+#else
+  void *handle = dlopen(fileName, RTLD_NOW | RTLD_GLOBAL);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
+  }
+
+  return handle;
+}
+
+int32_t taosGetEnv(const char *name, char *buf, int32_t bufLen) {
+  if (name == NULL || buf == NULL || bufLen <= 0) return -1;
+#if defined(WINDOWS)
+  DWORD len = GetEnvironmentVariableA(name, buf, (DWORD)bufLen);
+  if (len == 0 || len >= (DWORD)bufLen) return -1;
+  return (int32_t)len;
+#else
+  const char *val = getenv(name);
+  if (val == NULL) return -1;
+  int32_t len = (int32_t)strlen(val);
+  if (len >= bufLen) return -1;
+  memcpy(buf, val, len + 1);
+  return len;
+#endif
+}
+
+int32_t taosSetEnv(const char *name, const char *value) {
+  if (name == NULL) return -1;
+#if defined(WINDOWS)
+  if (!SetEnvironmentVariableA(name, value)) return -1;
+  return 0;
+#else
+  if (value == NULL) {
+    return unsetenv(name);
+  }
+  return setenv(name, value, 1);
+#endif
+}
+
+int32_t taosSetDllSearchPath(const char *path) {
+  if (path == NULL) return -1;
+#if defined(WINDOWS)
+  WCHAR wpath[MAX_PATH] = {0};
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH);
+  if (!SetDllDirectoryW(wpath)) return -1;
+  return 0;
+#else
+  // On Linux/macOS, DLL search path is controlled by LD_LIBRARY_PATH
+  // and cannot be changed at runtime for the dynamic linker.
+  // This is a no-op; use taosLoadDllGlobal with full path instead.
+  return 0;
+#endif
 }

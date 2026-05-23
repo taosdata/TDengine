@@ -61,14 +61,27 @@ def find_proj_path(start_path=None):
         str: The project path suitable for os.walk to find taosd/taosBenchmark.
     """
     selfPath = start_path or os.path.dirname(os.path.realpath(__file__))
-    if "taos-community" in selfPath:
-        return selfPath[:selfPath.find("source/taos-community")]
-    elif "community" in selfPath:
-        return selfPath[:selfPath.find("community")]
-    elif "TDengine" in selfPath:
-        return selfPath[:selfPath.find("TDengine") + len("TDengine")]
-    else:
-        return selfPath[:selfPath.find("test")]
+    norm_path = selfPath.replace("\\", "/")
+    if "taos-community" in norm_path:
+        idx = norm_path.find("source/taos-community")
+        if idx != -1:
+            return os.path.normpath(norm_path[:idx])
+        idx = norm_path.find("taos-community")
+        if idx != -1:
+            return os.path.normpath(norm_path[:idx])
+    elif "community" in norm_path:
+        idx = norm_path.find("community")
+        if idx != -1:
+            return os.path.normpath(norm_path[:idx])
+    elif "TDengine" in norm_path:
+        idx = norm_path.find("TDengine")
+        if idx != -1:
+            return os.path.normpath(norm_path[: idx + len("TDengine")])
+
+    idx = norm_path.find("test")
+    if idx != -1:
+        return os.path.normpath(norm_path[:idx])
+    return os.path.normpath(os.path.dirname(selfPath))
 
 
 

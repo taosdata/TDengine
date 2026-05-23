@@ -1917,3 +1917,101 @@ if(${BUILD_LIBSASL})      # {
     add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
 endif()
+
+if(BUILD_PYUDF)
+
+# ── CPython SDK (headers + import libs, auto-downloaded) ─────────────────
+# Downloads prebuilt Python from python-build-standalone. Eliminates the
+# need to install Python on the build machine.
+# BUILD_PYUDF_PYTHON_VERSION must be set (default provided in options.cmake).
+
+# PBS release tag — internal, tightly coupled to version list above.
+set(_pyudf_pbs_release "20260510")
+
+if(NOT BUILD_PYUDF_PYTHON_VERSION)
+    message(FATAL_ERROR
+    "[pyudf] BUILD_PYUDF=ON but BUILD_PYUDF_PYTHON_VERSION is not set.\n"
+    "  Set -DBUILD_PYUDF_PYTHON_VERSION:STRING=\"3.15.0b1\" "
+        "or set -DBUILD_PYUDF=OFF to disable Python UDF plugin.")
+endif()
+set(_pyver "${BUILD_PYUDF_PYTHON_VERSION}")
+
+# Platform triple for python-build-standalone
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64|arm64")
+    set(_pbs_arch "aarch64")
+else()
+    set(_pbs_arch "x86_64")
+endif()
+if(TD_WINDOWS)
+    set(_pbs_triple "${_pbs_arch}-pc-windows-msvc")
+elseif(APPLE)
+    set(_pbs_triple "${_pbs_arch}-apple-darwin")
+else()
+    set(_pbs_triple "${_pbs_arch}-unknown-linux-gnu")
+endif()
+
+set(PYUDF_CPYTHON_TARGET "" CACHE INTERNAL "Single ext_cpython target for pyudf")
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)" _ver_short "${_pyver}")
+if(NOT _ver_short)
+    message(FATAL_ERROR "[pyudf] Invalid BUILD_PYUDF_PYTHON_VERSION='${_pyver}', expected format like 3.15.0b1")
+endif()
+string(REPLACE "." "_" _ver_safe "${_ver_short}")
+string(REPLACE "." "" _vermm "${_ver_short}")
+set(_extname "ext_cpython_${_ver_safe}")
+
+INIT_DIRS(${_extname} ${TD_EXTERNALS_BASE_DIR})
+
+set(_url "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
+
+ExternalProject_Add(${_extname}
+    URL "${_url}"
+    PREFIX "${_base}"
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "<SOURCE_DIR>" "${_ins}/python"
+    EXCLUDE_FROM_ALL TRUE
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+add_dependencies(build_externals ${_extname})
+
+# Store paths for pyudf/CMakeLists.txt
+# The archive top-level "python/" becomes SOURCE_DIR after extraction.
+# On Windows, headers are at include/ (flat), on Linux at include/python3.XX/
+if(TD_WINDOWS)
+    set(${_extname}_inc_dir  "${_ins}/python/include" CACHE INTERNAL "")
+    # abi3: prefer the stable import lib so taospyudf.dll imports
+    # python3.dll instead of a minor-locked python3XX.dll.
+    # For supported SDK baselines (3.14.3 / 3.15.0b1), python3.lib is present.
+    set(${_extname}_lib_path "${_ins}/python/libs/python3.lib" CACHE INTERNAL "")
+else()
+    set(${_extname}_inc_dir  "${_ins}/python/include/python${_ver_short}" CACHE INTERNAL "")
+    set(${_extname}_lib_path "" CACHE INTERNAL "")  # Linux: no libpython linking
+endif()
+set(${_extname}_ver_short "${_ver_short}" CACHE INTERNAL "")
+set(${_extname}_ver_safe  "${_ver_safe}"  CACHE INTERNAL "")
+
+set(PYUDF_CPYTHON_TARGET "${_extname}" CACHE INTERNAL "Single ext_cpython target for pyudf")
+
+message(STATUS "[pyudf] Will download CPython ${_pyver} SDK for ${_pbs_triple}")
+
+# ── plog (header-only, for Python UDF plugin logging) ────────────────────
+INIT_EXT(ext_plog
+    INC_DIR          include
+)
+get_from_local_repo_if_exists("https://github.com/SergiusTheBest/plog.git")
+ExternalProject_Add(ext_plog
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG 1.1.10
+    GIT_SHALLOW TRUE
+    PREFIX "${_base}"
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/include"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ext_plog_source}/include/plog" "${_ins}/include/plog"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_plog)
+endif() # BUILD_PYUDF
