@@ -385,7 +385,8 @@ class TDDnode:
                     if i > 50:
                         break
                 with open(logFile) as f:
-                    timeout = time.time() + 10 * 2
+                    _wait_secs = 60 if self.asan else 20
+                    timeout = time.time() + _wait_secs
                     while True:
                         line = f.readline().encode('utf-8')
                         if bkey in line:

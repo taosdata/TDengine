@@ -1,7 +1,7 @@
 aux_source_directory(src MGMT_VNODE)
 add_library(mgmt_vnode STATIC ${MGMT_VNODE})
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(mgmt_vnode PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 

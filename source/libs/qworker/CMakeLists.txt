@@ -11,6 +11,6 @@ TARGET_LINK_LIBRARIES(qworker
     PRIVATE os util transport nodes planner qcom executor index
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

@@ -13,7 +13,7 @@ IF(NOT TD_DARWIN)
     )
     DEP_ext_gtest(plannerTest)
     DEP_ext_cppstub(plannerTest)
-    if(${BUILD_WINGETOPT})
+    if(BUILD_WINGETOPT)
         DEP_ext_wingetopt(plannerTest)
     endif()
 

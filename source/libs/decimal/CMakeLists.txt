@@ -12,7 +12,7 @@ target_link_libraries(
     PRIVATE os common wideInteger
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()
 ADD_SUBDIRECTORY(src/detail)

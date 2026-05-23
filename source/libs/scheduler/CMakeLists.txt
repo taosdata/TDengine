@@ -12,6 +12,6 @@ target_link_libraries(
         PUBLIC os util nodes planner qcom common catalog transport command qworker executor index
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

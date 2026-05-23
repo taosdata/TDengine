@@ -1,5 +1,5 @@
 # tdbTest
-if(${TD_LINUX})
+if(TD_LINUX)
     add_executable(tdbTest "tdbTest.cpp")
     DEP_ext_gtest(tdbTest)
     target_link_libraries(tdbTest PRIVATE tdb)

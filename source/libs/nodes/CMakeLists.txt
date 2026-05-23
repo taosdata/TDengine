@@ -10,6 +10,6 @@ target_link_libraries(
     PRIVATE os util common qcom function
 )
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+endif()

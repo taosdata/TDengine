@@ -1,7 +1,7 @@
 # NOTE: if you change this option later, that'll NOT effect unless you remove CMakeCache.txt beforehand
 option(TD_CHECK_SYSTEM_EXTERNALS "if check and externals installed on the system or not" OFF)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   if(NOT BREW_PREFIX)
       execute_process(COMMAND brew --prefix OUTPUT_VARIABLE BREW_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
       set(BREW_PREFIX "${BREW_PREFIX}" CACHE STRING "Homebrew installation prefix")
@@ -34,7 +34,7 @@ macro(check_lib)
   set(_lib      ${arg_check_lib_LIBNAME})
   set(_symbol   ${arg_check_lib_SYMBOL})
 
-  if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(CMAKE_REQUIRED_FLAGS "-I${BREW_PREFIX}/include -L${BREW_PREFIX}/lib")
   endif()
 
@@ -49,7 +49,7 @@ macro(check_lib)
     endif()
   endif()
 
-  if(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     # cleanup
     set(CMAKE_REQUIRED_FLAGS)
   endif()

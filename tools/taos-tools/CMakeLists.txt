@@ -25,17 +25,17 @@ if(NOT WIN32)
     set(BoldWhite   "${Esc}[1;37m")
 endif()
 
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
     find_package(PkgConfig REQUIRED)
 
-    IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
         SET(OS_INFO "Darwin")
     ENDIF ()
 ENDIF ()
 
 SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 
-IF (${VERBOSE} MATCHES "true")
+IF(VERBOSE)
     SET(CMAKE_VERBOSE_MAKEFILE ON)
 ENDIF ()
 
@@ -56,7 +56,7 @@ ADD_DEPENDENCIES(taosBenchmark toolscJson)
 # add test
 IF(TD_LINUX)
     # unit test
-    IF(${BUILD_TEST})
+    IF(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})    
+    ENDIF()    
 ENDIF()

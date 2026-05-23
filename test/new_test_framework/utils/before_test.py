@@ -541,18 +541,30 @@ class BeforeTest:
             return os.path.dirname(bin_path)
         raise Exception("taosd binary not found in TAOS_BIN_PATH")
 
-    def get_and_mkdir_workdir(self, workdir):
+    def get_and_mkdir_workdir(self, workdir, taos_bin_path=None):
         if workdir is None:
-            selfPath = os.path.dirname(os.path.realpath(__file__))
-            projPath = None
-            if ("community" in selfPath):
-                projPath = selfPath[:selfPath.find("community")]
-            elif ("TDengine" in selfPath):
-                projPath = selfPath[:selfPath.find("test")]
-            if projPath is not None:
-                workdir = os.path.join(projPath, "sim")
-            else:
-                workdir = os.path.join(selfPath, "sim")
+            # Try to derive workdir from taosd binary path.
+            # e.g. taos_bin_path = /root/tsdb/debug/build/bin
+            #   -> find 'debug' ancestor -> project root = /root/tsdb
+            #   -> workdir = /root/tsdb/sim
+            if taos_bin_path is not None:
+                path = os.path.realpath(taos_bin_path)
+                while path and path != os.path.dirname(path):
+                    if os.path.basename(path) == 'debug':
+                        workdir = os.path.join(os.path.dirname(path), "sim")
+                        break
+                    path = os.path.dirname(path)
+            if workdir is None:
+                selfPath = os.path.dirname(os.path.realpath(__file__))
+                projPath = None
+                if ("community" in selfPath):
+                    projPath = selfPath[:selfPath.find("community")]
+                elif ("TDengine" in selfPath):
+                    projPath = selfPath[:selfPath.find("test")]
+                if projPath is not None:
+                    workdir = os.path.join(projPath, "sim")
+                else:
+                    workdir = os.path.join(selfPath, "sim")
         tdLog.debug(f"workdir: {workdir}")
         #if os.path.exists(workdir):
         #    shutil.rmtree(workdir)
