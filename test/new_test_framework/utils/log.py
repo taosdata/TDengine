@@ -64,7 +64,11 @@ class TDLog:
         #self.logger.setLevel(logging.INFO)
 
         # 创建控制台handler并设置自定义格式
-        ch = logging.StreamHandler()
+        # 使用 stdout 而非默认的 stderr：
+        # 1. pytest -s 不会捕获 stdout，实时输出到控制台
+        # 2. 避免与 ASAN (LD_PRELOAD) 的 stderr 输出混合
+        import sys
+        ch = logging.StreamHandler(sys.stdout)
         ch.setFormatter(ColorFormatter())
         self.logger.addHandler(ch)
 
