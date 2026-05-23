@@ -36,6 +36,13 @@ endif()
 
 option(BUILD_WITH_LEMON    "If build with lemon"                    ON)
 option(BUILD_WITH_UDF      "If build with UDF"                      ON)
+option(BUILD_PYUDF         "If build Python UDF plugin (libtaospyudf)" ON)
+
+# Python UDF: auto-download a single CPython SDK from python-build-standalone
+# for compile-time headers/import-lib. Runtime still probes installed Python at
+# execution time via udfd.
+set(BUILD_PYUDF_PYTHON_VERSION  "3.15.0b1" CACHE STRING
+  "Single Python version for pyudf SDK selection (must match PBS release)")
 
 if(NOT BUILD_ASTRA)
   option(BUILD_GEOS          "If build with geos"                   ON)
