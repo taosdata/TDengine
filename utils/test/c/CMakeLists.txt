@@ -28,9 +28,9 @@ add_executable(varbinary_test varbinary_test.c)
 add_executable(replay_test replay_test.c)
 add_executable(timezone_test timezone_test.c)
 
-if(${TD_LINUX})
+if(TD_LINUX)
     add_executable(tsz_test tsz_test.c)
-endif(${TD_LINUX})
+endif()
 
 target_link_libraries(
     tmq_offset
@@ -256,7 +256,7 @@ target_link_libraries(
     PUBLIC os
 )
 
-if(${TD_LINUX})
+if(TD_LINUX)
     target_link_libraries(
         tsz_test
         PUBLIC ${TAOS_NATIVE_LIB}
@@ -264,4 +264,4 @@ if(${TD_LINUX})
         PUBLIC common
         PUBLIC os
     )
-endif(${TD_LINUX})
+endif()

@@ -233,7 +233,7 @@ if (Sphinx-build_EXECUTABLE)
   # remember: CMake command if(STR EQUAL STR) is bad and may cause many troubles !
   string (REGEX REPLACE "([.+*?^$])" "\\\\\\1" _Sphinx_PYTHON_EXECUTABLE_RE "${PYTHON_EXECUTABLE}")
   list (FIND Sphinx_PYTHON_OPTIONS -E IDX)
-  if (IDX EQUAL -1 AND NOT Sphinx_PYTHON_EXECUTABLE MATCHES "^${_Sphinx_PYTHON_EXECUTABLE_RE}$")
+  if (IDX EQUAL -1 AND NOT Sphinx_PYTHON_EXECUTABLE MATCHES "^_Sphinx_PYTHON_EXECUTABLE_RE$")
     list (INSERT Sphinx_PYTHON_OPTIONS 0 -E)
   endif ()
   unset (_Sphinx_PYTHON_EXECUTABLE_RE)

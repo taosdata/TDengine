@@ -11,6 +11,6 @@ target_link_libraries(
     PRIVATE os util transport qcom nodes
 )
 
-if(${BUILD_TEST} AND NOT ${TD_WINDOWS})
+if(BUILD_TEST AND NOT TD_WINDOWS)
  ADD_SUBDIRECTORY(test)
 endif()

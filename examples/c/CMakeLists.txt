@@ -1,6 +1,6 @@
 PROJECT(TDengine)
 
-if(${BUILD_TEST})
+if(BUILD_TEST)
 
 IF(TD_LINUX)
   INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc ${TD_SOURCE_DIR}/inc)
@@ -80,4 +80,4 @@ IF(TD_DARWIN)
   AUX_SOURCE_DIRECTORY(. SRC)
 ENDIF()
 
-endif(${BUILD_TEST})
+endif()

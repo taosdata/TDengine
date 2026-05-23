@@ -67,7 +67,7 @@ if (MSVC)
    endif()
 endif()
 
-message("C compiler: ${CMAKE_C_COMPILER_ID}")
+message(STATUS "C compiler: ${CMAKE_C_COMPILER_ID}")
 
 if (JANSSON_COVERAGE)
    include(CodeCoverage)
@@ -534,7 +534,7 @@ if (NOT JANSSON_WITHOUT_TESTS)
        file(GLOB TESTDIRS test/suites/${SUITE}/*)
 
        foreach (TESTDIR ${TESTDIRS})
-         if (IS_DIRECTORY ${TESTDIR})
+         if (IS_DIRECTORY TESTDIR)
             get_filename_component(TNAME ${TESTDIR} NAME)
 
             if (JANSSON_TEST_WITH_VALGRIND)
@@ -545,7 +545,7 @@ if (NOT JANSSON_WITHOUT_TESTS)
                         ${SUITE_TEST_CMD} ${TESTDIR})
             endif()
 
-            if ((${SUITE} STREQUAL "valid" OR ${SUITE} STREQUAL "invalid") AND NOT EXISTS ${TESTDIR}/nostrip)
+            if ((SUITE STREQUAL "valid" OR SUITE STREQUAL "invalid") AND NOT EXISTS TESTDIR/nostrip)
                if (JANSSON_TEST_WITH_VALGRIND)
                   add_test(memcheck__${SUITE}__${TNAME}__strip
                            ${MEMCHECK_COMMAND} ${SUITE_TEST_CMD} --strip ${TESTDIR})

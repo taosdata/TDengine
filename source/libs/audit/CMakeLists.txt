@@ -1,7 +1,7 @@
 aux_source_directory(src AUDIT_SRC)
 
 IF(TD_ENTERPRISE)
-  LIST(APPEND AUDIT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/audit/src/audit.c)
+  LIST(APPEND AUDIT_SRC ${TD_ENTERPRISE_DIR}/source/plugins/audit/src/audit.c)
 ENDIF()
 
 add_library(audit STATIC ${AUDIT_SRC})

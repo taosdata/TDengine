@@ -5,7 +5,7 @@ target_link_libraries(
     PUBLIC sut
 )
 
-if(NOT ${TD_WINDOWS})
+if(NOT TD_WINDOWS)
     add_test(
         NAME smaTest
         COMMAND smaTest

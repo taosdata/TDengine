@@ -1,7 +1,7 @@
 aux_source_directory(src MGMT_SNODE)
 add_library(mgmt_snode STATIC ${MGMT_SNODE})
 
-if(${TD_DARWIN})
+if(TD_DARWIN)
     target_compile_options(mgmt_snode PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
