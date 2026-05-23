@@ -375,6 +375,157 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
   return code;
 }
 
+static FORCE_INLINE bool isTrueForRuleConfigured(const STrueForInfo* pTrueForInfo) {
+  return pTrueForInfo != NULL && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0);
+}
+
+static FORCE_INLINE bool isTrueForSatisfiedFast(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count) {
+  if (!isTrueForRuleConfigured(pTrueForInfo)) {
+    return true;
+  }
+  return isTrueForSatisfied(pTrueForInfo, skey, ekey, count);
+}
+
+static int32_t emitOrDropEventWindowResult(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SExprSupp* pSup,
+                                           SSDataBlock* pRes, STrueForInfo* pTrueForInfo, SExecTaskInfo* pTaskInfo) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SWindowRowsSup* pRowSup = &pInfo->winSup;
+
+  if (pInfo->indefRowsMode) {
+    SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, pInfo->groupId, pRowSup->win.skey);
+    if (pState == NULL) {
+      return TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST;
+    }
+
+    if (!isTrueForSatisfied(pTrueForInfo, pState->win.skey, pState->win.ekey, pState->pRow->nOrigRows)) {
+      qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u", pInfo->groupId,
+             pState->win.skey, pState->win.ekey, pState->pRow->nOrigRows);
+      dropIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
+    } else {
+      code = closeIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
+
+  if (!isTrueForSatisfied(pTrueForInfo, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows)) {
+    qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u", pInfo->groupId,
+           pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows);
+  } else {
+    if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
+      int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
+      code = blockDataEnsureCapacity(pRes, newSize);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+
+    code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
+                                    pSup->rowEntryInfoOffset, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    pRes->info.rows += pInfo->pRow->numOfRows;
+  }
+
+  pInfo->pRow->numOfRows = 0;
+  pInfo->pRow->nOrigRows = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t closeWindowOnEndStreak(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SExprSupp* pSup,
+                                      SSDataBlock* pRes, STrueForInfo* pTrueForInfo, const SSDataBlock* pBlock,
+                                      TSKEY* tsList, int32_t startIndex, int32_t rowIndex, SExecTaskInfo* pTaskInfo) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SWindowRowsSup* pRowSup = &pInfo->winSup;
+
+  int32_t endStreakCount = pInfo->endCondCount;  // saved before clear
+  TSKEY   endFirstTs = pInfo->endCondFirstTs;    // saved before clear
+  pInfo->endCondCount = 0;
+  pInfo->endCondFirstTs = INT64_MIN;
+
+  int32_t endRowIndex = rowIndex - (endStreakCount - 1);
+  // Aggregate rows in [startIndex, endRowIndex] of this block only when the
+  // end streak's first row resides in THIS block (i.e. endRowIndex >= startIndex).
+  // If the streak started in a prior block (endRowIndex < startIndex), every row
+  // from startIndex through rowIndex is part of the end streak (matched end_cond)
+  // and lies past endFirstTs, so the window must not include any of them.
+  // NOTE: rows in the prior block that lay after endFirstTs were already aggregated
+  // by the trailing "aggregate rest of block" path; eliminating that residual
+  // over-aggregation requires holding streak-tail rows back per block, which is
+  // a non-trivial refactor tracked separately.
+  if (endRowIndex >= startIndex) {
+    code = doEventWindowAggImpl(pInfo, pSup, startIndex, endRowIndex, pBlock, tsList, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  // Override ekey with the first-row timestamp of the end streak.
+  pRowSup->win.ekey = endFirstTs;
+  code = emitOrDropEventWindowResult(pOperator, pInfo, pSup, pRes, pTrueForInfo, pTaskInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pInfo->inWindow = false;
+  pInfo->endCondCount = 0;
+  pInfo->endCondFirstTs = INT64_MIN;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t handleStartSatisfiedAndOverlap(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo,
+                                              SExprSupp* pSup, SSDataBlock* pRes, STrueForInfo* pTrueForInfo,
+                                              TSKEY* tsList, int32_t rowIndex, bool overlapOnRow, int32_t* startIndex,
+                                              bool* closedOnStartOverlap, SExecTaskInfo* pTaskInfo) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SWindowRowsSup* pRowSup = &pInfo->winSup;
+
+  TSKEY streakFirstTs = pInfo->startCondFirstTs;
+  pInfo->startCondCount = 0;
+  pInfo->startCondFirstTs = INT64_MIN;
+  pInfo->inWindow = true;
+  pInfo->endCondCount = 0;
+  pInfo->endCondFirstTs = INT64_MIN;
+
+  // All streak rows are already aggregated tentatively (in pInfo->pRow
+  // for !indefRowsMode, or in the indefRows window state for
+  // indefRowsMode). Resume from the next row to avoid double-counting.
+  pRowSup->win.skey = streakFirstTs;
+  *startIndex = rowIndex + 1;
+
+  // Handle boundary case where start and end conditions overlap on the
+  // same row: this row should also participate in end streak detection.
+  if (!overlapOnRow) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pInfo->endCondFirstTs = tsList[rowIndex];
+  pInfo->endCondCount = 1;
+  if (isTrueForSatisfiedFast(&pInfo->endTrueForInfo, pInfo->endCondFirstTs, tsList[rowIndex], pInfo->endCondCount)) {
+    TSKEY endFirstTs = pInfo->endCondFirstTs;
+    pInfo->endCondCount = 0;
+    pInfo->endCondFirstTs = INT64_MIN;
+    pRowSup->win.ekey = endFirstTs;
+
+    code = emitOrDropEventWindowResult(pOperator, pInfo, pSup, pRes, pTrueForInfo, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    pInfo->inWindow = false;
+    *closedOnStartOverlap = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -449,9 +600,8 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
             pInfo->endCondFirstTs = tsList[rowIndex];
           }
           pInfo->endCondCount++;
-          if (isTrueForSatisfied(&pInfo->endTrueForInfo,
-                                 pInfo->endCondFirstTs, tsList[rowIndex],
-                                 pInfo->endCondCount)) {
+          if (isTrueForSatisfiedFast(&pInfo->endTrueForInfo, pInfo->endCondFirstTs, tsList[rowIndex],
+                                     pInfo->endCondCount)) {
             // End threshold met: will close at FIRST row of end streak (handled after loop).
             break;
           }
@@ -463,70 +613,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
       }
 
       if (rowIndex < pBlock->info.rows) {
-        // End streak satisfied: close window at FIRST row of the end streak (not the last).
-        // Compute the row index of the first end-streak row in this block.
-        int32_t endStreakCount = pInfo->endCondCount;   // saved before clear
-        TSKEY   endFirstTs     = pInfo->endCondFirstTs; // saved before clear
-        pInfo->endCondCount   = 0;
-        pInfo->endCondFirstTs = INT64_MIN;
-        int32_t endRowIndex = rowIndex - (endStreakCount - 1);
-        // Aggregate rows in [startIndex, endRowIndex] of this block only when the
-        // end streak's first row resides in THIS block (i.e. endRowIndex >= startIndex).
-        // If the streak started in a prior block (endRowIndex < startIndex), every row
-        // from startIndex through rowIndex is part of the end streak (matched end_cond)
-        // and lies past endFirstTs, so the window must not include any of them.
-        // NOTE: rows in the prior block that lay after endFirstTs were already aggregated
-        // by the trailing "aggregate rest of block" path; eliminating that residual
-        // over-aggregation requires holding streak-tail rows back per block, which is
-        // a non-trivial refactor tracked separately.
-        if (endRowIndex >= startIndex) {
-          code = doEventWindowAggImpl(pInfo, pSup, startIndex, endRowIndex, pBlock, tsList, pTaskInfo);
-          QUERY_CHECK_CODE(code, lino, _return);
-        }
-        // Override ekey with the first-row timestamp of the end streak.
-        pRowSup->win.ekey = endFirstTs;
-        if (pInfo->indefRowsMode) {
-          SIndefRowsWindowState* pState = findIndefRowsWindowState(&pInfo->indefRows, pInfo->groupId, pRowSup->win.skey);
-          if (pState == NULL) {
-            code = TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST;
-            QUERY_CHECK_CODE(code, lino, _return);
-          }
-
-          if (!isTrueForSatisfied(pTrueForInfo, pState->win.skey, pState->win.ekey, pState->pRow->nOrigRows)) {
-            qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
-                   pInfo->groupId, pState->win.skey, pState->win.ekey, pState->pRow->nOrigRows);
-            dropIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
-          } else {
-            code = closeIndefRowsWindowState(pOperator, &pInfo->indefRows, pState);
-            QUERY_CHECK_CODE(code, lino, _return);
-          }
-        } else {
-          doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
-
-          if (!isTrueForSatisfied(pTrueForInfo, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows)) {
-            qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
-                   pInfo->groupId, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows);
-          } else {
-            // check buffer size
-            if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
-              int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
-              code = blockDataEnsureCapacity(pRes, newSize);
-              QUERY_CHECK_CODE(code, lino, _return);
-            }
-
-            code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
-                                            pSup->rowEntryInfoOffset, pTaskInfo);
-            QUERY_CHECK_CODE(code, lino, _return);
-
-            pRes->info.rows += pInfo->pRow->numOfRows;
-          }
-          pInfo->pRow->numOfRows = 0;
-          pInfo->pRow->nOrigRows = 0;
-        }
-
-        pInfo->inWindow = false;
-        pInfo->endCondCount   = 0;
-        pInfo->endCondFirstTs = INT64_MIN;
+        code = closeWindowOnEndStreak(pOperator, pInfo, pSup, pRes, pTrueForInfo, pBlock, tsList, startIndex, rowIndex,
+                                      pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _return);
         rowIndex += 1;
       } else {
         // Guard against startIndex past the last row (happens when the start streak was
@@ -537,6 +626,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         }
       }
     } else {  // find the first start value satisfying start_limit threshold
+      bool closedOnStartOverlap = false;
       for (; rowIndex < pBlock->info.rows; ++rowIndex) {
         if (((bool*)ps->pData)[rowIndex]) {
           // Start condition satisfied for this row: accumulate streak.
@@ -559,19 +649,15 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           // call (when pRow is NULL) and accumulates into it on subsequent calls.
           code = doEventWindowAggImpl(pInfo, pSup, rowIndex, rowIndex, pBlock, tsList, pTaskInfo);
           QUERY_CHECK_CODE(code, lino, _return);
-          if (isTrueForSatisfied(&pInfo->startTrueForInfo, pInfo->startCondFirstTs, tsList[rowIndex],
-                                 pInfo->startCondCount)) {
-            TSKEY streakFirstTs = pInfo->startCondFirstTs;
-            pInfo->startCondCount   = 0;
-            pInfo->startCondFirstTs = INT64_MIN;
-            pInfo->inWindow = true;
-            pInfo->endCondCount = 0;
-            pInfo->endCondFirstTs = INT64_MIN;
-            // All streak rows are already aggregated tentatively (in pInfo->pRow
-            // for !indefRowsMode, or in the indefRows window state for
-            // indefRowsMode).  Resume from the next row to avoid double-counting.
-            pRowSup->win.skey = streakFirstTs;
-            startIndex = rowIndex + 1;
+          if (isTrueForSatisfiedFast(&pInfo->startTrueForInfo, pInfo->startCondFirstTs, tsList[rowIndex],
+                                     pInfo->startCondCount)) {
+            bool overlapOnRow = ((bool*)pe->pData)[rowIndex];
+            code = handleStartSatisfiedAndOverlap(pOperator, pInfo, pSup, pRes, pTrueForInfo, tsList, rowIndex,
+                                                  overlapOnRow, &startIndex, &closedOnStartOverlap, pTaskInfo);
+            QUERY_CHECK_CODE(code, lino, _return);
+            if (closedOnStartOverlap) {
+              rowIndex += 1;
+            }
             break;
           }
         } else {
@@ -592,6 +678,10 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           pInfo->startCondCount   = 0;
           pInfo->startCondFirstTs = INT64_MIN;
         }
+      }
+
+      if (closedOnStartOverlap) {
+        continue;
       }
 
       if (pInfo->inWindow) {
