@@ -41,7 +41,10 @@ node_modules/
 .github/skills
 .agents
 .agents/
+.github/prompts/
 mcp.json
+prompts/
+
 
 # Java
 target/
@@ -56,13 +59,14 @@ vendor/
 
 # Logs
 *.log
-
-.externals/
-
+screenlog.0
 sim/
 taos-/
-.history/*
 allure-results/
-prompts/
-screenlog.0
+
+# others
+.externals/
 yarn.lock
+.deps_installed
+.history/*
+

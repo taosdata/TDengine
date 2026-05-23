@@ -106,22 +106,23 @@ else
   unset LD_PRELOAD
   if [[ "${CI_ASAN_BUILD}" == "1" ]]; then
     # ASAN 构建（others:latest GCC14, libasan.so.8 与测试容器匹配）
-    # 用 LD_PRELOAD 注入 libasan.so.8，使 libtaos.so 等共享库也能正常加载 ASAN 符号。
-    # 内核 6.8+ 的机器已在 run_container.sh 中跳过 CI_ASAN_BUILD=1，不会到达此分支。
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD} (CI_ASAN_BUILD=1)"
-    "$@" -A 2>"$AsanFile"
+    "$@" -A 2>"${AsanFile}.tmp" | tee "$AsanFile"
   elif [[ "${CI_NO_ASAN}" == "1" ]]; then
     echo "Preload AsanSo: skipped (CI_NO_ASAN=1)"
-    "$@" 2>"$AsanFile"
+    "$@" 2>"${AsanFile}.tmp" | tee "$AsanFile"
   else
     # 兜底：legacy 路径（本地开发环境）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD}"
-    "$@" -A 2>"$AsanFile"
+    "$@" -A 2>"${AsanFile}.tmp" | tee "$AsanFile"
   fi
+  # Append stderr (ASAN) to psim.info for checkAsan.sh compatibility
+  cat "${AsanFile}.tmp" >> "$AsanFile" 2>/dev/null
+  rm -f "${AsanFile}.tmp"
 
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
@@ -140,7 +141,7 @@ else
   if [[ "$AsanFileSuccessLen" -gt 0 ]]; then
     echo "Execute script successfully and check asan"
     # TODO: to be refactored, need to check if taos* process is closed successfully
-    sleep 3
+    sleep 2
     "$TEST_CODE_DIR"/ci/checkAsan.sh
   else
     echo "Execute script failure"

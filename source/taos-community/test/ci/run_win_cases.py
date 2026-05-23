@@ -66,12 +66,19 @@ def load_exclusion_list(exclusion_file):
 
 
 def get_work_dir():
-    selfPath = os.path.dirname(os.path.realpath(__file__))
-    if "community" in selfPath:
-        projPath = selfPath.split("community")[0]
+    self_path = os.path.dirname(os.path.realpath(__file__))
+    norm_path = self_path.replace("\\", "/")
+
+    if "source/taos-community/" in norm_path:
+        repo_root = norm_path.split("source/taos-community/")[0].rstrip("/")
+    elif "community/" in norm_path:
+        repo_root = norm_path.split("community/")[0].rstrip("/")
+    elif "test/" in norm_path:
+        repo_root = norm_path.split("test/")[0].rstrip("/")
     else:
-        projPath = selfPath.split("test")[0]
-    return os.path.join(projPath, "sim")
+        repo_root = os.path.dirname(self_path)
+
+    return os.path.join(os.path.normpath(repo_root), "debug", "sim")
 
 
 def clean_taos_process(keywords=None):

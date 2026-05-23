@@ -327,7 +327,7 @@ function install_lib() {
   remove_links() {
     local dir=$1
     if [ -d "$dir" ]; then
-      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
+      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
           ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
       done      
     fi
@@ -392,6 +392,19 @@ function install_lib() {
             ${csudo}ln -sf ${lib64_link_dir}/libtaosws.so.1 ${lib64_link_dir}/libtaosws.so > /dev/null 2>&1
         fi
     fi
+
+    if [ -f ${binary_dir}/build/lib/libtaospyudf.so ]; then
+      ${csudo}cp ${binary_dir}/build/lib/libtaospyudf.so \
+        ${install_main_dir}/driver/libtaospyudf.so.${verNumber} &&
+        ${csudo}chmod 777 ${install_main_dir}/driver/libtaospyudf.so.${verNumber} ||:
+
+      ${csudo}ln -sf ${install_main_dir}/driver/libtaospyudf.so.${verNumber} ${lib_link_dir}/libtaospyudf.so.1 > /dev/null 2>&1
+      ${csudo}ln -sf ${lib_link_dir}/libtaospyudf.so.1 ${lib_link_dir}/libtaospyudf.so > /dev/null 2>&1
+        if [ -d "${lib64_link_dir}" ]; then
+        ${csudo}ln -sf ${install_main_dir}/driver/libtaospyudf.so.${verNumber} ${lib64_link_dir}/libtaospyudf.so.1 > /dev/null 2>&1
+        ${csudo}ln -sf ${lib64_link_dir}/libtaospyudf.so.1 ${lib64_link_dir}/libtaospyudf.so > /dev/null 2>&1
+        fi
+    fi
   else
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.dylib \
       ${install_main_dir}/driver/libtaos.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
@@ -415,6 +428,14 @@ function install_lib() {
             ${csudo}chmod 777 ${install_main_dir}/driver/libtaosws.${verNumber}.dylib ||:
 
         ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.${verNumber}.dylib ${lib_link_dir}/libtaosws.dylib > /dev/null 2>&1 || :
+    fi
+
+    if [ -f ${binary_dir}/build/lib/libtaospyudf.dylib ]; then
+      ${csudo}cp ${binary_dir}/build/lib/libtaospyudf.dylib \
+        ${install_main_dir}/driver/libtaospyudf.${verNumber}.dylib &&
+        ${csudo}chmod 777 ${install_main_dir}/driver/libtaospyudf.${verNumber}.dylib ||:
+
+      ${csudo}ln -sf ${install_main_dir}/driver/libtaospyudf.${verNumber}.dylib ${lib_link_dir}/libtaospyudf.dylib > /dev/null 2>&1 || :
     fi
   fi
 
