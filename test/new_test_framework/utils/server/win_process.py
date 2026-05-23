@@ -4,8 +4,26 @@ import logging
 import signal
 import psutil
 from time import sleep
+import time
 
 logger = logging.getLogger(__name__)
+
+# PID -> last CTRL_BREAK send timestamp (monotonic seconds)
+_LAST_CTRL_BREAK_TS = {}
+
+
+def _resolve_stop_timeout(default_timeout):
+    raw = os.environ.get("TAOSD_STOP_TIMEOUT_SEC")
+    if not raw:
+        return default_timeout
+    try:
+        val = float(raw)
+        if val <= 0:
+            return default_timeout
+        # avoid accidental extreme values
+        return max(1.0, min(val, 300.0))
+    except Exception:
+        return default_timeout
 
 
 def _send_ctrl_break_event(pid):
@@ -49,6 +67,7 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
         True 表示优雅退出，False 表示未找到进程或超时强杀
     """
     _log = log or logger
+    timeout = _resolve_stop_timeout(timeout)
     try:
         pid = _find_taosd_pid(dnode_index=dnode_index, config_dir=config_dir)
 
@@ -57,8 +76,16 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
             _log.info(f"No taosd process found for {match_info}")
             return False
 
-        _log.info(f"Sending CTRL_BREAK_EVENT to taosd process (PID: {pid})")
-        _send_ctrl_break_event(pid)
+        now = time.monotonic()
+        last_sent = _LAST_CTRL_BREAK_TS.get(pid)
+        if last_sent is None or (now - last_sent) > 2.0:
+            _log.info(f"Sending CTRL_BREAK_EVENT to taosd process (PID: {pid})")
+            _send_ctrl_break_event(pid)
+            _LAST_CTRL_BREAK_TS[pid] = now
+        else:
+            _log.info(
+                f"CTRL_BREAK_EVENT already sent recently for taosd process (PID: {pid}), skip duplicate signal"
+            )
 
         waited = 0
         interval = 0.5
@@ -70,7 +97,11 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
             waited += interval
 
         _log.info(f"taosd process {pid} did not exit in {timeout}s, force killing...")
-        os.kill(pid, signal.SIGTERM)
+        try:
+            psutil.Process(pid).kill()
+        except Exception:
+            # fallback
+            os.kill(pid, signal.SIGTERM)
         return False
 
     except Exception as e:

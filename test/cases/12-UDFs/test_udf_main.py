@@ -428,18 +428,19 @@ class TestUdfpyMain:
 
     def install_taospy(self):
         tdLog.info("install taospyudf...")
-        packs = ["taospyudf"]
-        for pack in packs:
-            subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-i', 'https://pypi.org/simple', '-U', pack])
-        tdLog.info("call ldconfig...")
-        os.system("ldconfig")
+        # packs = ["taospyudf"]
+        # for pack in packs:
+        #     subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-i', 'https://pypi.org/simple', '-U', pack])
+        # tdLog.info("call ldconfig...")
+        # os.system("ldconfig")
+        tdLog.info("libtaospyudf now ships with TDengine, no pip install needed.")
         tdLog.info("install taospyudf successfully.")
 
     # run
     def test_udf_main(self):
         """Udf basic for python
 
-        1. Install taospyudf package
+        1. Use built-in taospyudf plugin from TDengine installation
         2. Create stable and child tables
         3. Create scalar udfpy functions concat
         4. Create aggregate udfpy functions min, sum, count
