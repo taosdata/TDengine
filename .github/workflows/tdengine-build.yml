@@ -169,8 +169,8 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -G "NMake Makefiles JOM"  -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
-          call .\build.bat bld --target build_externals 
+          call .\build.bat gen -G "NMake Makefiles JOM"  -DTAOSADAPTER_GIT_TAG:STRING=3.3.8 || exit /b 1
+          call .\build.bat bld --target build_externals || exit /b 1
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
@@ -200,18 +200,28 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM" -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
-          call .\build.bat bld 
-          call .\build.bat install
+          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM" -DTAOSADAPTER_GIT_TAG:STRING=3.3.8 || exit /b 1
+          call .\build.bat bld || exit /b 1
+          if not exist debug\build\bin\taosd.exe (
+            echo taosd.exe missing in debug\build\bin right after build
+            dir debug\build\bin
+            exit /b 1
+          )
+          call .\build.bat install || exit /b 1
           echo %PATH%
           dir C:\TDengine
           set PATH=%PATH%;C:\TDengine
           echo %PATH%
-          where taos.exe
-          where taosd.exe
+          where taos.exe || exit /b 1
+          if not exist C:\TDengine\taosd.exe (
+            echo taosd.exe not found under C:\TDengine after install
+            dir C:\TDengine
+            exit /b 1
+          )
+          where taosd.exe || exit /b 1
           where taosadapter.exe || echo taosadapter.exe not found (optional in this workflow run), skip adapter checks
           where taoskeeper.exe || echo taoskeeper.exe not found (optional in this workflow run), skip keeper checks
-          taosd.exe --help
+          C:\TDengine\taosd.exe --help
           where taosadapter.exe >nul 2>&1 && taosadapter.exe --help || echo taosadapter.exe not found (optional in this workflow run), skip adapter help check
 
       - name: Statistics ldd
