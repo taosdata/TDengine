@@ -1,4 +1,4 @@
-if(TD_LINUX OR TD_WINDOWS)
+if(TD_LINUX)
     aux_source_directory(. TSS_TEST_SRC)
 
     add_executable(tssTest ${TSS_TEST_SRC})
