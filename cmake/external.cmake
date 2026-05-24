@@ -414,9 +414,9 @@ if(BUILD_MSVCREGEX)      # {
         INC_DIR          include
         LIB              lib/${ext_msvcregex_static}
     )
-    # Originally from https://gitee.com/l0km/libgnurx-msvc (mirrored on GitLab)
+    # Use public GitHub source to avoid internal network dependency in CI.
     get_from_local_if_exists(
-        "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest/libgnurx-msvc-1a6514d.tar.gz"
+        "https://github.com/l0km/libgnurx-msvc/archive/refs/heads/master.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
     )
     set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-master")
