@@ -9,7 +9,7 @@
 #  前置条件：
 #    1. 192.168.2.139 已部署 taosx + TDengine，Explorer 可访问
 #    2. 本地已编译 taosx-agent（/Users/yangzy/Projects/taosx/target/release/taosx-agent）
-#    3. 本地 OPC UA 模拟器可运行（/Users/yangzy/workspace/opcae-demo/viega-poc/viega-poc.js）
+#    3. 本地 OPC UA 模拟器可运行（/Users/yangzy/workspace/opcua-demo/viega-poc/viega-poc.js）
 #    4. agent.toml 已配置好 endpoint 和 token
 #    5. 需要 sudo 权限（pfctl 网络模拟）
 #
@@ -31,8 +31,9 @@ TAOSX_RPC_PORT=6055
 
 AGENT_BIN="/Users/yangzy/Projects/taosx/target/release/taosx-agent"
 AGENT_CONF="/etc/taos/agent.toml"
+AGENT_DATA_DIR="/Users/yangzy/taosx/data/agent"  # agent.toml 中配置的 data_dir
 
-OPCUA_SIM_DIR="/Users/yangzy/workspace/opcae-demo/viega-poc"
+OPCUA_SIM_DIR="/Users/yangzy/workspace/opcua-demo/viega-poc"
 OPCUA_SIM_SCRIPT="viega-poc.js"
 OPCUA_PORT=4840
 OPCUA_POINTS=1000
@@ -151,16 +152,22 @@ CSV_START_FILE=""
 
 start_opcua_sim() {
   local log_dir="${RESULTS_DIR}/${1}/opcua-logs"
+  local stop_after="${2:-0}"
   mkdir -p "$log_dir"
   CSV_START_FILE="${RESULTS_DIR}/${1}/csv-start-signal"
   rm -f "$CSV_START_FILE"
-  log "启动 OPC UA 模拟器（${OPCUA_POINTS} 点位）..."
+  log "启动 OPC UA 模拟器（${OPCUA_POINTS} 点位, stop-after=${stop_after}s）..."
   cd "$OPCUA_SIM_DIR"
-  node "$OPCUA_SIM_SCRIPT" \
-    --port "$OPCUA_PORT" \
-    --points "$OPCUA_POINTS" \
-    --log-dir "$log_dir" \
-    --csv-start-file "$CSV_START_FILE" \
+  local sim_args=(
+    --port "$OPCUA_PORT"
+    --points "$OPCUA_POINTS"
+    --log-dir "$log_dir"
+    --csv-start-file "$CSV_START_FILE"
+  )
+  if [ "$stop_after" -gt 0 ]; then
+    sim_args+=(--stop-after "$stop_after")
+  fi
+  node "$OPCUA_SIM_SCRIPT" "${sim_args[@]}" \
     > "${RESULTS_DIR}/${1}/opcua-sim.log" 2>&1 &
   OPCUA_PID=$!
   cd - > /dev/null
@@ -255,17 +262,30 @@ wait_for_data() {
   return 1
 }
 
-# 等待 TDengine 数据量稳定（连续 stable_secs 无新增 = 管道已排空）
+# 等待 TDengine 数据量稳定（管道已排空）
+# persist_data_enable=true 时数据经过磁盘持久化队列，尾部延迟较大，
+# 因此先等待 settle_secs 让 pipeline 充分 flush，再用稳定性检测确认。
 wait_for_drain() {
   local db_name="$1"
   local stable="$2"
   local stable_secs="${3:-15}"
-  local max_wait="${4:-60}"
-  log "等待数据管道排空 (稳定${stable_secs}s)..."
+  local max_wait="${4:-120}"
+  local settle_secs="${5:-20}"
+  log "等待数据管道排空 (settle ${settle_secs}s + 稳定${stable_secs}s, 最长${max_wait}s)..."
+
+  # 阶段 1：固定等待，让 persist queue 中残余数据通过 pipeline flush 到 TDengine
+  log "  阶段1: 等待 pipeline flush (${settle_secs}s)..."
+  sleep "$settle_secs"
+
+  # 阶段 2：稳定性检测，连续 stable_secs 数据量无变化则判定排空
   local last_count=0
   local stable_since=0
   local elapsed=0
-  while [ $elapsed -lt $max_wait ]; do
+  local remaining=$((max_wait - settle_secs))
+  if [ $remaining -le 0 ]; then
+    remaining=30
+  fi
+  while [ $elapsed -lt $remaining ]; do
     local cnt
     cnt=$(td_query_count "$db_name" "$stable" 2>/dev/null)
     cnt="${cnt:-0}"
@@ -471,8 +491,19 @@ run_test_case() {
 }
 EOF
 
-  # 步骤 1：启动 OPC UA 模拟器
-  start_opcua_sim "$case_id"
+  # 步骤 0：清理旧的 persist queue 数据，避免历史数据污染测试结果
+  if [ -d "${AGENT_DATA_DIR}/tasks" ]; then
+    log "清理旧 persist queue 数据..."
+    rm -rf "${AGENT_DATA_DIR}/tasks"
+    info "已清理 ${AGENT_DATA_DIR}/tasks"
+  fi
+
+  # 计算模拟器应生成的数据总时长（从 CSV 开始后）
+  # warmup + disconnect + cooldown = 模拟器需要持续生成数据的时间
+  local sim_duration=$((WARMUP_SECS + disconnect_secs + COOLDOWN_SECS))
+
+  # 步骤 1：启动 OPC UA 模拟器（指定 stop-after，到时间后自动停止生成数据，但 server 保持运行）
+  start_opcua_sim "$case_id" "$sim_duration"
 
   # 步骤 2：启动 Agent
   start_agent "$case_id"
@@ -514,20 +545,41 @@ EOF
   network_unblock
   wait_secs "$COOLDOWN_SECS" "Cooldown：等待任务恢复并写入数据"
 
-  # 步骤 7：停止模拟器（终止 CSV 记录，确定基准数据终点）
+  # 步骤 7：等待模拟器自动停止生成数据
+  # 模拟器设置了 --stop-after，到达 sim_duration 后自动停止更新变量，
+  # 但 OPC UA server 保持运行，taosx-opc 的订阅连接不会断开。
+  # CSV 在模拟器停止生成时自然定格，是精确基准。
+  log "等待模拟器完成数据生成..."
+  # 检测模拟器日志中的 stop 标记
+  local sim_log="${RESULTS_DIR}/${case_id}/opcua-sim.log"
+  local wait_sim=0
+  local max_wait_sim=$((sim_duration + 60))
+  while [ $wait_sim -lt $max_wait_sim ]; do
+    if grep -q "\[stop\]" "$sim_log" 2>/dev/null; then
+      info "模拟器已停止数据生成"
+      break
+    fi
+    sleep 3
+    wait_sim=$((wait_sim + 3))
+  done
+  if [ $wait_sim -ge $max_wait_sim ]; then
+    warn "等待模拟器停止超时"
+  fi
+
+  # 步骤 8：等待管道排空（模拟器已停止生成，等待残余数据经 persist queue flush 到 TDengine）
+  # settle=20s 让 persist queue 充分 flush，然后 stable=15s 确认无新增，最长等 120s
+  wait_for_drain "$db_name" "opc_double" 15 120 20
+
+  # 步骤 9：停止模拟器进程（数据已全部 flush，可以安全关闭）
   stop_opcua_sim
-  sleep 5  # 等待 OPC UA 最后一批数据通过管道
 
-  # 步骤 8：等待管道排空（sim 已停，等待残余数据写入 TDengine）
-  wait_for_drain "$db_name" "opc_double" 15 60
-
-  # 步骤 9：记录恢复后数据量
+  # 步骤 10：记录恢复后数据量
   local count_after
   count_after=$(td_query_count "$db_name" "opc_double")
   log "恢复后 TDengine 数据量: ${count_after}"
   echo "$count_after" > "${case_dir}/count_after.txt"
 
-  # 步骤 10：停止任务和 agent
+  # 步骤 11：停止任务和 agent
   stop_and_delete_task "$task_id"
   stop_agent
 
