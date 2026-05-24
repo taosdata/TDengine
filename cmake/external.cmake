@@ -414,12 +414,13 @@ if(BUILD_MSVCREGEX)      # {
         INC_DIR          include
         LIB              lib/${ext_msvcregex_static}
     )
-    # Use public GitHub source to avoid internal network dependency in CI.
+    # Use public gitee commit archive to avoid internal network dependency and
+    # keep reproducible source contents.
     get_from_local_if_exists(
-        "https://github.com/l0km/libgnurx-msvc/archive/refs/heads/master.tar.gz"
+        "https://gitee.com/l0km/libgnurx-msvc/repository/archive/1a6514d.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
     )
-    set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-master")
+    set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-1a6514d")
     ExternalProject_Add(ext_msvcregex
         URL ${_url}
         PREFIX "${_base}"
