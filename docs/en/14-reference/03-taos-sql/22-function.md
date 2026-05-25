@@ -1353,7 +1353,10 @@ TO_BASE64(expr)
 
 - If `expr` is NULL, returns NULL.
 - If `expr` is the empty string, it returns the empty string.
-- If `expr` is a non-string, it is interpreted as a string.
+- If `expr` is `BOOL`, it is converted to `"0"` or `"1"` before encoding.
+- If `expr` is `TIMESTAMP`, it is converted to a string in `yyyy-mm-dd hh24:mi:ss` format before encoding.
+- Other non-string inputs are converted to their string representation before encoding.
+- If the input string, or the string representation produced from a non-string input, exceeds the internal maximum supported length, this function returns an error; it does not truncate the value.
 - This function is multibyte safe.
 
 **Example**:
