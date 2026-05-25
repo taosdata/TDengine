@@ -3256,41 +3256,8 @@ _return:
   return code;
 }
 
-static char base64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                            "abcdefghijklmnopqrstuvwxyz"
-                            "0123456789+/";
-
-static uint32_t base64BufSize(size_t inputLenBytes) {
-  return 4 * ((inputLenBytes + 2) / 3);
-}
-
 /* Maximum input bytes whose base64 encoding fits in VarDataLenT (uint16_t max = 65535) */
 #define BASE64_MAX_INPUT_LEN 49147
-
-static VarDataLenT base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inputLen) {
-  VarDataLenT outputLen = (VarDataLenT)base64BufSize(inputLen);
-
-  for (size_t i = 0, j = 0; i < inputLen;) {
-    unsigned int octet_a = i < inputLen ? inputBytes[i++] : 0;
-    unsigned int octet_b = i < inputLen ? inputBytes[i++] : 0;
-    unsigned int octet_c = i < inputLen ? inputBytes[i++] : 0;
-
-    unsigned int triple = (octet_a << 16) | (octet_b << 8) | octet_c;
-
-    base64Out[j++] = base64Table[(triple >> 18) & 0x3F];
-    base64Out[j++] = base64Table[(triple >> 12) & 0x3F];
-    base64Out[j++] = base64Table[(triple >> 6) & 0x3F];
-    base64Out[j++] = base64Table[triple & 0x3F];
-  }
-
-  for (int k = 0; k < (3 - (inputLen % 3)) % 3; k++) {
-    base64Out[outputLen - k - 1] = '=';
-  }
-
-  base64Out[outputLen] = 0;
-
-  return outputLen;
-}
 
 #define BASE64_TRUE  "MQ=="
 #define BASE64_FALSE "MA=="
@@ -3301,7 +3268,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   SColumnInfoData *pOutputData = pOutput->columnData;
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
   char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
-  char *output = taosMemoryMalloc(base64BufSize(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE + 1);
+  char *output = taosMemoryMalloc(tbase64_encode_len(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE);
 
   if (!stringBuf || !output) {
     taosMemoryFree(stringBuf);
@@ -3353,7 +3320,8 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       outputSize = BASE64_MAX_INPUT_LEN;
     }
 
-    VarDataLenT outputLength = base64Impl(out, stringBuf, outputSize);
+    VarDataLenT outputLength = (VarDataLenT)tbase64_encode_len(outputSize);
+    tbase64_encode((uint8_t *)out, (const uint8_t *)stringBuf, outputSize, outputLength);
     varDataSetLen(output, outputLength);
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
   }
