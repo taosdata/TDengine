@@ -179,3 +179,50 @@ def test_snapshot_download_with_fallback_reraises_official(monkeypatch):
         local_dir="local-dir",
         endpoint=None,
     )
+
+
+def test_permission_error_reraises_without_fallback(monkeypatch):
+    """Local PermissionError must not trigger fallback to official endpoint."""
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.setenv("TAOS_HF_ENDPOINT", "https://custom.endpoint")
+    snapshot_download.side_effect = PermissionError("Permission denied")
+
+    with pytest.raises(PermissionError):
+        hf_download.snapshot_download_with_fallback("repo-id", "local-dir", True)
+
+    snapshot_download.assert_called_once()
+
+
+def test_http_404_reraises_without_fallback(monkeypatch):
+    """HTTP 404 must not trigger fallback — the repo doesn't exist on any endpoint."""
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.setenv("TAOS_HF_ENDPOINT", "https://custom.endpoint")
+
+    response = mock.Mock()
+    response.status_code = 404
+    exc = OSError("Not Found")
+    exc.response = response
+    snapshot_download.side_effect = exc
+
+    with pytest.raises(OSError):
+        hf_download.snapshot_download_with_fallback("repo-id", "local-dir", True)
+
+    snapshot_download.assert_called_once()
+
+
+def test_connection_error_triggers_fallback(monkeypatch):
+    """Network ConnectionError on mirror should fall back to official endpoint."""
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.setenv("TAOS_HF_ENDPOINT", "https://custom.endpoint")
+
+    def side_effect(**kwargs):
+        if kwargs.get("endpoint") == "https://custom.endpoint":
+            raise ConnectionError("Connection refused")
+        return "ok"
+
+    snapshot_download.side_effect = side_effect
+
+    result = hf_download.snapshot_download_with_fallback("repo-id", "local-dir", True)
+
+    assert result == "ok"
+    assert snapshot_download.call_count == 2

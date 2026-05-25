@@ -36,6 +36,29 @@ def is_official_endpoint(endpoint: Optional[str]) -> bool:
     return effective_endpoint.rstrip("/") == OFFICIAL_HF_ENDPOINT
 
 
+def _is_retriable_on_endpoint_change(exc: Exception) -> bool:
+    """Return True if retrying with a different endpoint might succeed.
+
+    Fallback is worthwhile for server-side errors (5xx) and network connectivity
+    failures.  It is NOT worthwhile for:
+    - HTTP 4xx errors: the remote resource has an issue independent of which
+      endpoint is used (e.g. repo not found, gated repo, bad auth).
+    - Local OS errors (PermissionError, disk full, etc.): switching endpoint
+      cannot fix a local filesystem problem.
+    """
+    response = getattr(exc, "response", None)
+    if response is not None:
+        status_code = getattr(response, "status_code", 0)
+        if 400 <= status_code < 500:
+            return False
+        return True  # 5xx or unexpected HTTP error — server may be at fault
+    # ConnectionError and TimeoutError are OSError subclasses but indicate
+    # network issues that a different endpoint might resolve.
+    if isinstance(exc, OSError) and not isinstance(exc, (ConnectionError, TimeoutError)):
+        return False  # local filesystem error
+    return True
+
+
 def snapshot_download_with_fallback(
     repo_id: str,
     local_dir: str,
@@ -54,7 +77,7 @@ def snapshot_download_with_fallback(
             **kwargs,
         )
     except Exception as exc:
-        if is_official_endpoint(endpoint):
+        if is_official_endpoint(endpoint) or not _is_retriable_on_endpoint_change(exc):
             raise
         failed_endpoint = endpoint or os.environ.get("HF_ENDPOINT")
         print(
