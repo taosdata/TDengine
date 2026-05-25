@@ -1352,8 +1352,8 @@ TO_BASE64(expr)
 **Usage Notes**:
 
 - If `expr` is NULL, returns NULL.
-- if `expr` is the empty string, it returns the empty string.
-- if `expr` is a non string, it is interpreted as a string.
+- If `expr` is the empty string, it returns the empty string.
+- If `expr` is a non-string, it is interpreted as a string.
 - This function is multibyte safe.
 
 **Example**:
