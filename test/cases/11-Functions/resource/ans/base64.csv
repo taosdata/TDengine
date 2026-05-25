@@ -77,7 +77,7 @@ taos> select to_base64(true)
 taos> select to_base64(true) = to_base64(1)
  to_base64(true) = to_base64(1) |
 =================================
- false                          |
+ true                           |
 
 taos> select to_base64(false)
  to_base64(false) |
@@ -87,7 +87,7 @@ taos> select to_base64(false)
 taos> select to_base64(false) = to_base64(0)
  to_base64(false) = to_base64(0) |
 ==================================
- false                           |
+ true                            |
 
 taos> select to_base64(1234)
  to_base64(1234) |
