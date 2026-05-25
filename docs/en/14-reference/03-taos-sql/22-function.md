@@ -1343,7 +1343,7 @@ TO_BASE64(expr)
 
 **Return Type**: VARCHAR.
 
-**Applicable Data Types**: Suitable for any type.
+**Applicable Data Types**: VARCHAR, NCHAR, BOOL, numeric types, and TIMESTAMP.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 

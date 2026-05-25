@@ -3264,8 +3264,11 @@ static uint32_t base64BufSize(size_t inputLenBytes) {
   return 4 * ((inputLenBytes + 2) / 3);
 }
 
+/* Maximum input bytes whose base64 encoding fits in VarDataLenT (uint16_t max = 65535) */
+#define BASE64_MAX_INPUT_LEN 49147
+
 static VarDataLenT base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inputLen) {
-  VarDataLenT outputLen = base64BufSize(inputLen);
+  VarDataLenT outputLen = (VarDataLenT)base64BufSize(inputLen);
 
   for (size_t i = 0, j = 0; i < inputLen;) {
     unsigned int octet_a = i < inputLen ? inputBytes[i++] : 0;
@@ -3298,7 +3301,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   SColumnInfoData *pOutputData = pOutput->columnData;
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
   char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
-  char *output = taosMemoryMalloc(base64BufSize(TSDB_MAX_FIELD_LEN) + VARSTR_HEADER_SIZE + 1);
+  char *output = taosMemoryMalloc(base64BufSize(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE + 1);
 
   if (!stringBuf || !output) {
     taosMemoryFree(stringBuf);
@@ -3336,7 +3339,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       /* The format used by MySQL in the conversion from timestamp to string */
       char *format = "yyyy-mm-dd hh24:mi:ss";
       SArray *formats = NULL;
-      code = taosTs2Char(format, &formats, *(int64_t *)input, 0, stringBuf, outputSize, pInput->tz);
+      code = taosTs2Char(format, &formats, *(int64_t *)input, pInput[0].columnData->info.precision, stringBuf, outputSize, pInput->tz);
       taosArrayDestroy(formats);
       if (code != TSDB_CODE_SUCCESS) goto _return;
       outputSize = strlen(stringBuf);
@@ -3344,6 +3347,10 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       size_t inputLen = varDataLen(input);
       outputSize = inputLen;
       memcpy(stringBuf, varDataVal(input), outputSize);
+    }
+
+    if (outputSize > BASE64_MAX_INPUT_LEN) {
+      outputSize = BASE64_MAX_INPUT_LEN;
     }
 
     VarDataLenT outputLength = base64Impl(out, stringBuf, outputSize);
