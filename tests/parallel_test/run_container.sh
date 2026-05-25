@@ -49,22 +49,48 @@ fi
 # 设置目录和挂载参数
 if [ $ent -ne 0 ]; then
     extra_param="$extra_param -e"
-    INTERNAL_REPDIR="$WORKDIR/TDinternal"
-    REPDIR="$(realpath ${INTERNAL_REPDIR}/community)"
+    # ── tsdb CI 布局优先：从脚本自身位置反推 source/taos-community ────────────
+    # 本脚本位于 source/taos-community/tests/parallel_test/run_container.sh
+    # realpath 解析软链接（$0 可能经由 TDinternal/community 软链调用），
+    # 得到 CI_PROJECT_DIR/source/taos-community 的物理路径
+    _SCRIPT_REAL="$(realpath "$0")"
+    _TC_DIR="$(realpath "$(dirname "${_SCRIPT_REAL}")/../..")"  # → source/taos-community
+    if [ -d "${_TC_DIR}/source" ] && [ -d "${_TC_DIR}/tests" ]; then
+        # tsdb CI 布局：直接使用 source/taos-community 物理路径
+        REPDIR="${_TC_DIR}"
+    elif [ -d "$WORKDIR/TDinternal/community" ]; then
+        REPDIR="$(realpath "$WORKDIR/TDinternal/community")"
+    else
+        echo "ERROR: Cannot find source/taos-community under $WORKDIR or script dir"
+        exit 1
+    fi
+    echo "[run_container] REPDIR=${REPDIR}"
     REPDIR_DEBUG="$WORKDIR/$DEBUGPATH/"
-    CONTAINER_TESTDIR="/home/TDinternal/community"
-    SIM_DIR="/home/TDinternal/sim"
-    REP_MOUNT_PARAM="${REPDIR}:/home/TDinternal/community"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    CONTAINER_TESTDIR="/mnt/tsdb/source/taos-community"
+    SIM_DIR="/mnt/tsdb/sim"
+    REP_MOUNT_PARAM="${REPDIR}:/mnt/tsdb/source/taos-community"
+    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/mnt/tsdb/debug/"
+    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/mnt/tsdb/debug/build/lib:ro"
 else
-    REPDIR="$WORKDIR/TDengine"
+    # ── tsdb CI 布局优先（与 ent 分支逻辑相同）────────────────────────────────
+    _SCRIPT_REAL="$(realpath "$0")"
+    _TC_DIR="$(realpath "$(dirname "${_SCRIPT_REAL}")/../..")"  # → source/taos-community
+    if [ -d "${_TC_DIR}/source" ] && [ -d "${_TC_DIR}/tests" ]; then
+        # tsdb CI 布局：source/taos-community 物理路径
+        REPDIR="${_TC_DIR}"
+    elif [ -d "$WORKDIR/TDinternal/community" ]; then
+        REPDIR="$(realpath "$WORKDIR/TDinternal/community")"
+    else
+        # 旧版 TDengine 单仓布局 fallback
+        REPDIR="$WORKDIR/TDengine"
+    fi
+    echo "[run_container] REPDIR=${REPDIR}"
     REPDIR_DEBUG="$WORKDIR/$DEBUGPATH/"
-    CONTAINER_TESTDIR="/home/TDinternal/community"
-    SIM_DIR="/home/TDinternal/sim"
-    REP_MOUNT_PARAM="$REPDIR:/home/TDinternal/community"
-    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/home/TDinternal/debug/"
-    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
+    CONTAINER_TESTDIR="/mnt/tsdb/source/taos-community"
+    SIM_DIR="/mnt/tsdb/sim"
+    REP_MOUNT_PARAM="$REPDIR:/mnt/tsdb/source/taos-community"
+    REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/mnt/tsdb/debug/"
+    REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/mnt/tsdb/debug/build/lib:ro"
 fi
 
 # 设置临时目录
@@ -75,7 +101,13 @@ SOURCEDIR="$WORKDIR/src"
 MOUNT_DIR=""
 # packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf "${TMP_DIR}/thread_volume/$thread_no/sim"
-mkdir -p "$SOURCEDIR"
+# 若宿主机预置了兼容性测试安装包缓存目录，则将 SOURCEDIR 指向它，
+# 避免测试时从公网重复下载（兼容 large-mem runner 预置包场景）。
+if [ -d "/data0/compat-packages" ]; then
+    ln -sfn /data0/compat-packages "$SOURCEDIR"
+else
+    mkdir -p "$SOURCEDIR"
+fi
 mkdir -p "${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog"
 mkdir -p "${TMP_DIR}/thread_volume/$thread_no/sim/tsim"
 mkdir -p "${TMP_DIR}/thread_volume/$thread_no/coredump"
@@ -90,13 +122,17 @@ fi
 MOUNT_DIR="$TMP_DIR/thread_volume/$thread_no/$exec_dir:$CONTAINER_TESTDIR/tests/$exec_dir"
 
 echo "$thread_no -> ${exec_dir}:$cmd"
-coredump_dir=$(cat /proc/sys/kernel/core_pattern | xargs dirname)
+_core_pat=$(cat /proc/sys/kernel/core_pattern)
+coredump_dir=""
+if [[ "$_core_pat" != \|* ]]; then
+    coredump_dir=$(dirname "$_core_pat" 2>/dev/null) || true
+fi
 if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
-    coredump_dir="/home/coredump"
+    coredump_dir="/corefile"
 fi
 
 SIM_VOL="$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}"
-CORE_VOL="$TMP_DIR/thread_volume/$thread_no/coredump:/home/coredump"
+CORE_VOL="$TMP_DIR/thread_volume/$thread_no/coredump:${coredump_dir}"
 TAOSLOG_VOL="$TMP_DIR/thread_volume/$thread_no/taoslog:/var/log/taos"
 
 # 容器命名参数（用于 cancel 时按名字 stop）

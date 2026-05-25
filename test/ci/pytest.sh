@@ -39,6 +39,7 @@ else
 fi
 
 cd "$TOP_DIR" || exit
+TOP_DIR=$(pwd)   # 规范化为绝对路径，避免 BUILD_DIR 显示多余的 ../../..
 TAOSD_DIR=$(find . -name "taosd" | grep bin | head -n1)
 cut_opt="-f"
 if [[ "${TAOSD_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
@@ -65,6 +66,13 @@ if [ -n "$TAOSD_DIR" ]; then
 fi
 if [ -z "$SIM_DIR" ]; then
   declare -x SIM_DIR=$TOP_DIR/sim
+fi
+# 本地运行时 libtaos.so 未安装到系统路径，需把 build/lib 加到 LD_LIBRARY_PATH
+# 优先从 TAOS_BIN_PATH 推断（本地复现时由外部传入），否则从 BUILD_DIR 推断
+if [ -n "${TAOS_BIN_PATH:-}" ] && [ -d "$(dirname "$TAOS_BIN_PATH")/lib" ]; then
+  export LD_LIBRARY_PATH="$(dirname "$TAOS_BIN_PATH")/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+elif [ -d "$BUILD_DIR/build/lib" ]; then
+  export LD_LIBRARY_PATH="$BUILD_DIR/build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
 PROGRAM=$BUILD_DIR/build/bin/tsim

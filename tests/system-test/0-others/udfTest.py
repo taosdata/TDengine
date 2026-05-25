@@ -21,9 +21,16 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
+        # tsdb CI 布局：debug 目录与 source 是平级目录，无法通过向上遍历找到。
+        # 优先使用 pytest.sh 导出的 BUILD_DIR 环境变量。
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
 
-        if ("community" in selfPath):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if "taos-community" in selfPath:
+            projPath = selfPath[:selfPath.find("taos-community")]
+        elif ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
@@ -37,12 +44,18 @@ class TDTestCase:
         return buildPath
 
     def prepare_udf_so(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
+        # tsdb CI 布局：.so 文件在 BUILD_DIR/build/lib 下，需从 BUILD_DIR 向下展开搜索。
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            projPath = os.path.join(build_dir, "build")
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if "taos-community" in selfPath:
+                projPath = selfPath[:selfPath.find("taos-community")]
+            elif ("community" in selfPath):
+                projPath = selfPath[:selfPath.find("community")]
+            else:
+                projPath = selfPath[:selfPath.find("tests")]
         print(projPath)
 
         if platform.system().lower() == 'windows':

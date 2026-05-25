@@ -21,7 +21,10 @@ cd $SCRIPT_DIR/../
 SCRIPT_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
-if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
+if [[ "$SCRIPT_DIR" == *"taos-community"* ]]; then
+  # tsdb CI 布局：tests/script -> tests -> taos-community -> source -> /mnt/tsdb
+  cd ../../../..
+elif [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
   cd ../../..
 else
   cd ../../

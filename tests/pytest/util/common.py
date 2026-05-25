@@ -501,9 +501,16 @@ class TDCom:
     #     return
 
     def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
+        # tsdb CI 布局：debug 目录与 source 是平级目录，无法通过向上遍历找到。
+        # 优先使用 pytest.sh 导出的 BUILD_DIR 环境变量。
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
 
-        if ("community" in selfPath):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if "taos-community" in selfPath:
+            projPath = selfPath[:selfPath.find("taos-community")]
+        elif ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
@@ -2182,7 +2189,16 @@ def is_json(msg):
 
 def get_path(tool="taosd"):
     selfPath = os.path.dirname(os.path.realpath(__file__))
-    if ("community" in selfPath):
+
+    # tsdb CI 布局：debug 目录与 source 是平级目录，无法通过向上遍历找到。
+    # 优先使用 pytest.sh 导出的 BUILD_DIR 环境变量。
+    build_dir = os.environ.get("BUILD_DIR", "")
+    if build_dir and os.path.isfile(os.path.join(build_dir, "build/bin", tool)):
+        return os.path.join(build_dir, "build/bin", tool)
+
+    if "taos-community" in selfPath:
+        projPath = selfPath[:selfPath.find("taos-community")]
+    elif ("community" in selfPath):
         projPath = selfPath[:selfPath.find("community")]
     else:
         projPath = selfPath[:selfPath.find("tests")]

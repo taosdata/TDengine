@@ -33,6 +33,9 @@ class TDTestCase:
         self.max_vote_time_cost = 100  # seconds
 
     def getBuildPath(self):
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]

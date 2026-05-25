@@ -81,15 +81,17 @@ class TAdapter:
     # 7. adapter stop
 
     def init(self, path, remoteIP=""):
-        self.path = path
         self.remoteIP = remoteIP
-        binPath = get_path() + "/../../../"
-        binPath = os.path.realpath(binPath)
-
-        if path == "":
-            self.path = os.path.abspath(binPath + "../../")
-        else:
+        # 优先使用 SIM_DIR 环境变量推算 self.path（同 dnodes.py init() 逻辑）
+        sim_dir = os.environ.get("SIM_DIR", "")
+        if sim_dir:
+            self.path = os.path.dirname(sim_dir.rstrip("/"))   # /mnt/tsdb/sim → /mnt/tsdb
+        elif path:
             self.path = os.path.realpath(path)
+        else:
+            binPath = get_path() + "/../../../"
+            binPath = os.path.realpath(binPath)
+            self.path = os.path.abspath(binPath + "../../")
         self.logDir = os.path.join(self.path, "sim", "dnode1", "log")
         self.taosadapter_cfg_dict["log"]["path"] = self.logDir
         self.taosadapter_cfg_dict["taosConfigDir"] = os.path.join(tdDnodes.getSimCfgPath(), "taos.cfg")

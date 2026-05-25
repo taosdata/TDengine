@@ -36,12 +36,18 @@ class TDTestCase:
         # autoGen
         self.autoGen = AutoGen()
         # init cluster path
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
+        sim_dir = os.environ.get("SIM_DIR", "")
+        if sim_dir:
+            self.projDir = sim_dir.rstrip("/") + "/"
         else:
-            projPath = selfPath[:selfPath.find("tests")]
-        self.projDir = f"{projPath}sim/"
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if ("taos-community" in selfPath):
+                projPath = selfPath[:selfPath.find("taos-community")]
+            elif ("community" in selfPath):
+                projPath = selfPath[:selfPath.find("community")]
+            else:
+                projPath = selfPath[:selfPath.find("tests")]
+            self.projDir = f"{projPath}sim/"
         tdLog.info(f" init projPath={self.projDir}")
 
     def compactDatbase(self):

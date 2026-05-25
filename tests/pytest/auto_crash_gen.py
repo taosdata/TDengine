@@ -90,8 +90,16 @@ exit_status_logs =  os.path.join(run_dir, 'crash_exit.log')
 
 def get_path():
     buildPath=''
+    # 优先使用 BUILD_DIR 环境变量
+    build_dir = os.environ.get("BUILD_DIR", "")
+    if build_dir:
+        _bin = os.path.join(build_dir, "build", "bin", "taosd")
+        if os.path.isfile(_bin):
+            return _bin
     selfPath = os.path.dirname(os.path.realpath(__file__))
-    if ("community" in selfPath):
+    if ("taos-community" in selfPath):
+        projPath = selfPath[:selfPath.find("taos-community")]
+    elif ("community" in selfPath):
         projPath = selfPath[:selfPath.find("community")]
     else:
         projPath = selfPath[:selfPath.find("tests")]

@@ -39,6 +39,9 @@ class TDTestCase:
         self.max_restart_time = 30
         self.try_check_times = 10
     def getBuildPath(self):
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]

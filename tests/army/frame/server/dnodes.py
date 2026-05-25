@@ -50,15 +50,15 @@ class TDDnodes:
         self.model = "single"
 
     def init(self, path, remoteIP = ""):
-        binPath = self.dnodes[0].getPath() + "/../../../"
-        # tdLog.debug("binPath %s" % (binPath))
-        binPath = os.path.realpath(binPath)
-        # tdLog.debug("binPath real path %s" % (binPath))
-
-        if path == "":
-            self.path = os.path.abspath(binPath + "../../")
-        else:
+        sim_dir = os.environ.get("SIM_DIR", "")
+        if sim_dir:
+            self.path = os.path.dirname(sim_dir.rstrip("/"))
+        elif path:
             self.path = os.path.realpath(path)
+        else:
+            binPath = self.dnodes[0].getPath() + "/../../../"
+            binPath = os.path.realpath(binPath)
+            self.path = os.path.abspath(binPath + "../../")
 
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path, remoteIP)
@@ -74,7 +74,10 @@ class TDDnodes:
         self.asan = value
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
-            if ("community" in selfPath):
+            if ("taos-community" in selfPath):
+                self.stopDnodesPath = os.path.abspath(self.path + "/source/taos-community/tests/script/sh/stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.abspath(self.path + "/source/taos-community/tests/script/sh/sigint_stop_dnodes.sh")
+            elif ("community" in selfPath):
                 self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
                 self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
             else:
