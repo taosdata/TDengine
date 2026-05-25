@@ -2262,6 +2262,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_bugfix.TestIntervalBugFix.test_interval_data_order_level" class="md-nav__link">
+        Interval: data order level regression 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_project_merge_resblock.TestIntervalProjectMergeResblock.test_interval_project_merge_resblock" class="md-nav__link">
         Interval: project merge resblock flag 
       </a>
@@ -2286,39 +2297,6 @@
     <li class="md-nav__item">
       <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_timezone.TestIntervalDiffTz.test_interval_diff_tz" class="md-nav__link">
         Interval: timezone 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalNatural.test_interval_natural" class="md-nav__link">
-        summary: INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalQuarter.test_interval_quarter" class="md-nav__link">
-        summary: INTERVAL(1q/2q) quarter boundaries and equivalence tests. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalWeek.test_interval_week" class="md-nav__link">
-        summary: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change). 
       </a>
       
     </li>
@@ -3959,6 +3937,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_bugfix.TestIntervalBugFix.test_interval_data_order_level" class="md-nav__link">
+        Interval: data order level regression 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_project_merge_resblock.TestIntervalProjectMergeResblock.test_interval_project_merge_resblock" class="md-nav__link">
         Interval: project merge resblock flag 
       </a>
@@ -3983,39 +3972,6 @@
     <li class="md-nav__item">
       <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_timezone.TestIntervalDiffTz.test_interval_diff_tz" class="md-nav__link">
         Interval: timezone 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalNatural.test_interval_natural" class="md-nav__link">
-        summary: INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalQuarter.test_interval_quarter" class="md-nav__link">
-        summary: INTERVAL(1q/2q) quarter boundaries and equivalence tests. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalWeek.test_interval_week" class="md-nav__link">
-        summary: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change). 
       </a>
       
     </li>
@@ -4177,6 +4133,38 @@
   
   
   
+<h2 id="13-TimeSeriesExt.03-TimeWindow.test_interval_bugfix.TestIntervalBugFix.test_interval_data_order_level" class="doc doc-heading">
+
+<a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_bugfix.TestIntervalBugFix.test_interval_data_order_level" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Interval: data order level regression</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Validate that a multi-table interval subquery can feed another interval</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">window without requiring the inner result to be globally ordered. The</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">inner partition-by-tbname interval output is only group ordered, but the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">outer interval should still aggregate correctly.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/03-TimeWindow/test_interval_bugfix.py" target="_blank">
+                      cases/13-TimeSeriesExt/03-TimeWindow/test_interval_bugfix.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="13-TimeSeriesExt.03-TimeWindow.test_interval_project_merge_resblock.TestIntervalProjectMergeResblock.test_interval_project_merge_resblock" class="doc doc-heading">
 
 <a href="#13-TimeSeriesExt.03-TimeWindow.test_interval_project_merge_resblock.TestIntervalProjectMergeResblock.test_interval_project_merge_resblock" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4225,93 +4213,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py" target="_blank">
                       cases/13-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalNatural.test_interval_natural" class="doc doc-heading">
-
-<a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalNatural.test_interval_natural" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>summary: INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: INTERVAL with natural units (n/d/y/q), DST no-drift, SLIDING.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py" target="_blank">
-                      cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalWeek.test_interval_week" class="doc doc-heading">
-
-<a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalWeek.test_interval_week" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>summary: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change).</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change).</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py" target="_blank">
-                      cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalQuarter.test_interval_quarter" class="doc doc-heading">
-
-<a href="#13-TimeSeriesExt.03-TimeWindow.test_tz_interval.TestIntervalQuarter.test_interval_quarter" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>summary: INTERVAL(1q/2q) quarter boundaries and equivalence tests.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: INTERVAL(1q/2q) quarter boundaries and equivalence tests.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py" target="_blank">
-                      cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py
                     </a>
                   </div>
         </div>
