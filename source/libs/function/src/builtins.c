@@ -985,7 +985,15 @@ static int32_t translateBase64(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
-  int32_t    outputLength = tbase64_encode_len(pRestType1->bytes) + VARSTR_HEADER_SIZE;
+  int32_t    inputBytes = pRestType1->bytes;
+
+  /* For non-string types, bytes is the binary storage size, not the max string length.
+     Use a conservative upper bound for the string representation. */
+  if (!IS_VAR_DATA_TYPE(pRestType1->type) && pRestType1->type != TSDB_DATA_TYPE_NULL) {
+    inputBytes = 20;  /* max digits for int64/double string repr */
+  }
+
+  int32_t outputLength = tbase64_encode_len(inputBytes) + VARSTR_HEADER_SIZE;
   if (outputLength > TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE) {
     outputLength = TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE;
   }

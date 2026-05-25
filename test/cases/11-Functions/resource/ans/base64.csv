@@ -70,9 +70,9 @@ taos> select to_base64(substring('北京涛思.com', 1, 4)) == to_base64('北京
  true                                                             |
 
 taos> select to_base64(true)
- to_base64(true) |
-==================
- MQ==            |
+        to_base64(true)         |
+=================================
+ MQ==                           |
 
 taos> select to_base64(true) = to_base64(1)
  to_base64(true) = to_base64(1) |
@@ -80,9 +80,9 @@ taos> select to_base64(true) = to_base64(1)
  true                           |
 
 taos> select to_base64(false)
- to_base64(false) |
-===================
- MA==             |
+        to_base64(false)        |
+=================================
+ MA==                           |
 
 taos> select to_base64(false) = to_base64(0)
  to_base64(false) = to_base64(0) |
@@ -90,9 +90,9 @@ taos> select to_base64(false) = to_base64(0)
  true                            |
 
 taos> select to_base64(1234)
- to_base64(1234) |
-==================
- MTIzNA==        |
+        to_base64(1234)         |
+=================================
+ MTIzNA==                       |
 
 taos> select to_base64(1234) = to_base64("1234")
  to_base64(1234) = to_base64("1234") |
@@ -100,9 +100,9 @@ taos> select to_base64(1234) = to_base64("1234")
  true                                |
 
 taos> select to_base64(1234.567)
- to_base64(1234.567) |
-======================
- MTIzNC41Njc=        |
+      to_base64(1234.567)       |
+=================================
+ MTIzNC41Njc=                   |
 
 taos> select to_base64(1234.567) = to_base64('1234.567')
  to_base64(1234.567) = to_base64('1234.567') |
@@ -124,3 +124,6 @@ taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:m
 ===================================================================
  true                                                             |
 
+taos> select to_base64(repeat('x', 50000))
+
+DB error: Function result exceed max length [0x8000280E] 

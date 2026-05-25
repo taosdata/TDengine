@@ -3256,8 +3256,9 @@ _return:
   return code;
 }
 
-/* Maximum input bytes whose base64 encoding fits in VarDataLenT (uint16_t max = 65535) */
-#define BASE64_MAX_INPUT_LEN 49147
+/* Maximum input bytes whose base64 encoding fits in TSDB_MAX_FIELD_LEN (65519):
+   tbase64_encode_len(n) = 4*((n+2)/3) <= 65519  =>  n <= 49137 */
+#define BASE64_MAX_INPUT_LEN 49137
 
 #define BASE64_TRUE  "MQ=="
 #define BASE64_FALSE "MA=="
@@ -3317,7 +3318,8 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
     }
 
     if (outputSize > BASE64_MAX_INPUT_LEN) {
-      outputSize = BASE64_MAX_INPUT_LEN;
+      code = TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+      goto _return;
     }
 
     VarDataLenT outputLength = (VarDataLenT)tbase64_encode_len(outputSize);
