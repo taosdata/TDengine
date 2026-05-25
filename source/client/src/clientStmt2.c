@@ -2309,6 +2309,12 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       }
     }
 
+    int             count  = 0;
+    TAOS_FIELD_ALL *fields = NULL;
+    code = taos_stmt2_get_fields(stmt, &count, &fields);
+    taos_stmt2_free_fields(stmt, fields);
+    fields = NULL;
+    STMT_ERR_RET(code);
   } else if (stmt2IsSelect(pStmt)) {
     pStmt->sql.stbInterlaceMode = false;
     STMT_ERR_RET(stmtParseSql(pStmt));
