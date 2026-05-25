@@ -1356,7 +1356,7 @@ TO_BASE64(expr)
 - If `expr` is `BOOL`, it is converted to `"0"` or `"1"` before encoding.
 - If `expr` is `TIMESTAMP`, it is converted to a string in `yyyy-mm-dd hh24:mi:ss` format before encoding.
 - Other non-string inputs are converted to their string representation before encoding.
-- If the input string, or the string representation produced from a non-string input, exceeds the internal maximum supported length, the value is truncated to that maximum length before encoding.
+- If the input string, or the string representation produced from a non-string input, exceeds the internal maximum supported length, the function returns an error instead of truncating the value before encoding.
 - This function is multibyte safe.
 
 **Example**:
