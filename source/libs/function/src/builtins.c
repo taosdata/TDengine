@@ -988,9 +988,9 @@ static int32_t translateBase64(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   int32_t    inputBytes = pRestType1->bytes;
 
   /* For non-string types, bytes is the binary storage size, not the max string length.
-     Use a conservative upper bound for the string representation. */
+     Use a conservative upper bound: DECIMAL can be up to sign + 38 digits + dot = 40 chars. */
   if (!IS_VAR_DATA_TYPE(pRestType1->type) && pRestType1->type != TSDB_DATA_TYPE_NULL) {
-    inputBytes = 20;  /* max digits for int64/double string repr */
+    inputBytes = TSDB_DECIMAL_MAX_PRECISION + 2;  /* sign + digits + dot */
   }
 
   int32_t outputLength = tbase64_encode_len(inputBytes) + VARSTR_HEADER_SIZE;
