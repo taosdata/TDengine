@@ -166,6 +166,7 @@ typedef struct SParseContext {
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
+bool    qIsLiteralSql(const char* pStr, size_t length);
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
 bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
                         char* msgBuf, int32_t msgBufLen, int* pCode);

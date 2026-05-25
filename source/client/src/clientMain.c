@@ -2005,7 +2005,7 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
   int64_t connId = *(int64_t *)taos;
-  taosAsyncQueryImplWithReqid(connId, sql, fp, param, false, reqid);
+  taosAsyncQueryImplWithReqid(NULL, connId, sql, fp, param, false, reqid);
 }
 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper) {
@@ -2089,24 +2089,8 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   return code;
 }
 
-void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
-  SSqlCallbackWrapper *pWrapper = NULL;
-  int32_t              code = TSDB_CODE_SUCCESS;
-
-  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
-
-  if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
-    code = pRequest->prevCode;
-    terrno = code;
-    pRequest->code = code;
-    tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
-    doRequestCallback(pRequest, code);
-    return;
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
-  }
+static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
+  SSqlCallbackWrapper *pWrapper = pRequest->pWrapper;
 
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
@@ -2144,6 +2128,41 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     pRequest->code = code;
     doRequestCallback(pRequest, code);
   }
+}
+
+void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
+  SSqlCallbackWrapper *pWrapper = NULL;
+  int32_t              code = TSDB_CODE_SUCCESS;
+
+  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
+
+  if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
+    code = pRequest->prevCode;
+    terrno = code;
+    pRequest->code = code;
+    tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
+    doRequestCallback(pRequest, code);
+    return;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pRequest->literal_by_stmt2) {
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  assert(pWrapper == pRequest->pWrapper);
+  doAsyncExec(pRequest, code);
+}
+
+void taosAsyncExecLiteral(TAOS_STMT2 *stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  doAsyncExec(pStmt->exec.pRequest, pStmt->ctx.code);
 }
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
@@ -2815,6 +2834,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   int32_t    code = TSDB_CODE_SUCCESS;
   STMT2_DLOG_E("start to bind param");
 
+  if (stmtIsLiteral(pStmt)) {
+    return stmtBindLiteral2(stmt);
+  }
+
   // check query bind number
   bool isQuery = (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt)));
   if (isQuery) {
@@ -2908,6 +2931,10 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
 
+  if (stmtIsLiteral(pStmt)) {
+    return stmtBindLiteral2(stmt);
+  }
+
   ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
   args->stmt = stmt;
   args->bindv = bindv;
@@ -2977,6 +3004,12 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   STMT2_DLOG_E("start to get fields");
+
+  if (stmtIsLiteral(pStmt)) {
+    if (count)  *count = 0;
+    if (fields) *fields = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
       (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {

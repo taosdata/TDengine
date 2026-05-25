@@ -3247,7 +3247,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   doAsyncQuery(pRequest, false);
 }
 
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -3275,6 +3275,8 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     fp(param, NULL, terrno);
     return;
   }
+
+  pRequest->literal_by_stmt2 = stmt;
 
   code = connCheckAndUpateMetric(connId);
 
@@ -3347,7 +3349,7 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
     return NULL;
   }
 
-  taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
+  taosAsyncQueryImplWithReqid(NULL, *(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -3460,29 +3462,36 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
 
   int64_t this = pRequest->self;
-  if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
-      (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
-    code = TSDB_CODE_SUCCESS;
-    pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-    if (pRequest->code == TSDB_CODE_PAR_TABLE_NOT_EXIST || pRequest->code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
-      pRequest->code = TSDB_CODE_SUCCESS;
-      if (pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
-        pRequest->msgBuf[0] = '\0';
+
+  if (!pRequest->literal_by_stmt2) {
+    if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
+        (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+      code = TSDB_CODE_SUCCESS;
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      if (pRequest->code == TSDB_CODE_PAR_TABLE_NOT_EXIST || pRequest->code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+        pRequest->code = TSDB_CODE_SUCCESS;
+        if (pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+          pRequest->msgBuf[0] = '\0';
+        }
       }
     }
-  }
 
-  tscDebug("QID:0x%" PRIx64 ", taos_query end, req:0x%" PRIx64 ", res:%p", pRequest->requestId, pRequest->self,
-           pRequest);
+    tscDebug("QID:0x%" PRIx64 ", taos_query end, req:0x%" PRIx64 ", res:%p", pRequest->requestId, pRequest->self,
+             pRequest);
+  }
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
 
-  SRequestObj* pReq = acquireRequest(this);
-  if (pReq != NULL) {
-    pReq->inCallback = false;
-    (void)releaseRequest(this);
+  if (!pRequest->literal_by_stmt2) {
+    SRequestObj* pReq = acquireRequest(this);
+    if (pReq != NULL) {
+      pReq->inCallback = false;
+      (void)releaseRequest(this);
+    }
+  } else {
+    pRequest->inCallback = false;
   }
 }
 

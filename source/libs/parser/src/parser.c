@@ -26,6 +26,25 @@
 #include "tname.h"
 #include "ttime.h"
 
+bool qIsLiteralSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+  SToken t;
+
+again:
+
+  t.n = tGetToken(pSql, &t.type, NULL);
+  if (t.n == 0) return true;
+  if (t.type == TK_NK_QUESTION) return false;
+
+  pSql += t.n;
+
+  goto again;
+}
+
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;

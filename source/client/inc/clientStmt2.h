@@ -86,6 +86,16 @@ STableDataCxt *pCurrBlock;
 SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 */
+typedef struct SStmt2LiteralCtx {
+  tsem_t                       sem;
+
+  int32_t                      code;
+
+  uint8_t                      sem_valid:1;
+  uint8_t                      prepared:1;
+  uint8_t                      executed:1;
+} SStmt2LiteralCtx;
+
 typedef struct {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
@@ -176,6 +186,10 @@ typedef struct {
   bool           asyncResultAvailable;
   SStmtStatInfo  stat;
   SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+
+  char                      msgBuf[128];
+  SStmt2LiteralCtx          ctx;
+  uint8_t                   literal:1;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -256,6 +270,7 @@ TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
+int         stmtBindLiteral2(TAOS_STMT2 *stmt);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
 int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
@@ -270,6 +285,9 @@ int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t co
 int         stmtAsyncBindThreadFunc(void *args);
 void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);
 int32_t     stmtBuildErrorMsgWithCode(STscStmt2 *pStmt, const char *msg, int32_t errorCode);
+
+
+int         stmtIsLiteral(TAOS_STMT2 *stmt);
 
 #ifdef __cplusplus
 }

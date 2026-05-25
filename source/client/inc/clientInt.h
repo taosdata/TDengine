@@ -37,6 +37,19 @@ extern "C" {
 // #include "clientSession.h"
 #include "tconfig.h"
 
+#if 0       /* { */
+#define D(fmt, ...)                                                            \
+  fprintf(stderr, "@[%p]%s[%d]:%s():" fmt "\n",                                \
+      (void*)(uintptr_t)pthread_self(), __FILE__, __LINE__, __func__,          \
+      ##__VA_ARGS__)
+
+#define A(expr, fmt, ...)                                                      \
+  if (!(expr)) {                                                               \
+    D("assert `%s` failure:" fmt "", #expr, ##__VA_ARGS__);                    \
+    abort();                                                                   \
+  }
+#endif      /* } */
+
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
 
@@ -364,6 +377,8 @@ typedef struct SRequestObj {
   int32_t              execPhase;       // EQueryExecPhase
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
+
+  TAOS_STMT2          *literal_by_stmt2; // reference only
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -387,9 +402,11 @@ void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source);
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
 
+void taosAsyncExecLiteral(TAOS_STMT2 *stmt);
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                         int8_t source);
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
