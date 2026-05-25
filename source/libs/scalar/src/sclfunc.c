@@ -3297,7 +3297,6 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
-  int64_t outputLen = GET_PARAM_BYTES(&pOutput[0]);
   char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
   char *output = taosMemoryMalloc(base64BufSize(TSDB_MAX_FIELD_LEN) + VARSTR_HEADER_SIZE + 1);
 
@@ -3327,11 +3326,8 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
 
     if (IS_NUMERIC_TYPE(inputType)) {
       if (IS_DECIMAL_TYPE(inputType)) {
-		outputSize = (outputLen - VARSTR_HEADER_SIZE) < TSDB_MAX_FIELD_LEN
-                        ? (outputLen - VARSTR_HEADER_SIZE + 1)
-                        : TSDB_MAX_FIELD_LEN;
         uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
-        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, outputSize));
+        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, TSDB_MAX_FIELD_LEN));
       } else {
         NUM_TO_STRING(inputType, input, outputSize, stringBuf);
       }
@@ -3340,9 +3336,10 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       /* The format used by MySQL in the conversion from timestamp to string */
       char *format = "yyyy-mm-dd hh24:mi:ss";
       SArray *formats = NULL;
-      SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, 0, stringBuf, outputSize, pInput->tz));
-      outputSize = strlen(stringBuf);
+      code = taosTs2Char(format, &formats, *(int64_t *)input, 0, stringBuf, outputSize, pInput->tz);
       taosArrayDestroy(formats);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      outputSize = strlen(stringBuf);
     } else {
       size_t inputLen = varDataLen(input);
       outputSize = inputLen;
