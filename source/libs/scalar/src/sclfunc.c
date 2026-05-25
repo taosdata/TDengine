@@ -3260,7 +3260,7 @@ static char base64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                             "abcdefghijklmnopqrstuvwxyz"
                             "0123456789+/";
 
-uint32_t base64BufSize(size_t inputLenBytes) {
+static uint32_t base64BufSize(size_t inputLenBytes) {
   return 4 * ((inputLenBytes + 2) / 3);
 }
 
@@ -3299,7 +3299,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
   int64_t outputLen = GET_PARAM_BYTES(&pOutput[0]);
   char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
-  char *output = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
+  char *output = taosMemoryMalloc(base64BufSize(TSDB_MAX_FIELD_LEN) + VARSTR_HEADER_SIZE + 1);
 
   if (!stringBuf || !output) {
     taosMemoryFree(stringBuf);
@@ -3307,11 +3307,6 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
     SCL_ERR_RET(terrno);
   }
 
-  /* Preparing the output buffer with VARSTR_HEADER_SIZE
-     non-zero char at the beginning */
-  for (size_t i = 0; i < VARSTR_HEADER_SIZE; i++) {
-    output[i] = 1;
-  }
   char *out = output + VARSTR_HEADER_SIZE;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
