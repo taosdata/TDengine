@@ -3270,6 +3270,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
   char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
   char *output = taosMemoryMalloc(tbase64_encode_len(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE);
+  SArray *formats = NULL;
 
   if (!stringBuf || !output) {
     taosMemoryFree(stringBuf);
@@ -3304,11 +3305,8 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       }
       outputSize = strlen(stringBuf);
     } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-      /* The format used by MySQL in the conversion from timestamp to string */
       char *format = "yyyy-mm-dd hh24:mi:ss";
-      SArray *formats = NULL;
       code = taosTs2Char(format, &formats, *(int64_t *)input, pInput[0].columnData->info.precision, stringBuf, outputSize, pInput->tz);
-      taosArrayDestroy(formats);
       if (code != TSDB_CODE_SUCCESS) goto _return;
       outputSize = strlen(stringBuf);
     } else {
@@ -3331,6 +3329,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   pOutput->numOfRows = pInput->numOfRows;
 
 _return:
+  taosArrayDestroy(formats);
   taosMemoryFree(output);
   taosMemoryFree(stringBuf);
   return code;
