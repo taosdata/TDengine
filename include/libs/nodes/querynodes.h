@@ -316,6 +316,39 @@ typedef struct STempTableNode {
   SNode*     pSubquery;
 } STempTableNode;
 
+typedef struct STextTableNode {
+  STableNode table;        // QUERY_NODE_TEXT_TABLE
+  SNodeList* pColDefs;     // column definitions, schema source; valid for entire lifetime
+  SNodeList* pRows;        // transient: raw value nodes from parser; released after normalization (set to NULL)
+  int32_t    colCount;
+  int32_t    rowCount;
+  int16_t    primaryTsSlot;  // 0 if first col is TIMESTAMP, -1 otherwise
+  bool       hasPrimaryTs;   // true if first column is TIMESTAMP
+  bool       isSortedByTs;   // true if rows are in ascending primary-ts order
+  uint8_t*   pBlockBuf;    // SSDataBlock binary produced by blockDataToBuf; multi-block: length-prefixed
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} STextTableNode;
+
+typedef struct SFileTableNode {
+  STableNode table;        // QUERY_NODE_FILE_TABLE
+  // ---- parser output (text only, no file I/O) ----
+  char*      path;         // file path literal (taosMemoryStrDup'd)
+  char*      schemaDecl;   // schema string literal, e.g. 'ts timestamp, c1 int'
+  bool       header;       // OPTIONS(header=true/false), default false
+  char       delimiter;    // OPTIONS(delimiter=','), default ','
+  // ---- semantic layer output (valid after translateFileTable) ----
+  SNodeList* pColDefs;     // parsed from schemaDecl; same layout as STextTableNode.pColDefs
+  int32_t    colCount;
+  int32_t    rowCount;
+  bool       hasPrimaryTs; // true if first column is TIMESTAMP (not mandatory for FILE)
+  int16_t    primaryTsSlot;
+  bool       isSortedByTs; // true if rows are in ascending primary-ts order after normalization
+  uint8_t*   pBlockBuf;    // SSDataBlock binary; identical format to STextTableNode.pBlockBuf
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} SFileTableNode;
+
 typedef struct SPlaceHolderTableNode {
   STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
   struct STableMeta* pMeta;
@@ -430,12 +463,12 @@ typedef enum EStateWinExtendOption {
 } EStateWinExtendOption;
 
 typedef struct SStateWindowNode {
-  ENodeType type;  // QUERY_NODE_STATE_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  SNode*    pTrueForLimit;
-  SNode*    pExtend;  // SValueNode
-  SNode*    pZeroth;  // SValueNode
+  ENodeType  type;         // QUERY_NODE_STATE_WINDOW
+  SNode*     pCol;         // timestamp primary key
+  SNodeList* pExprList;    // list of SColumnNode, state keys
+  SNode*     pTrueForLimit;
+  SNode*     pExtend;      // SValueNode
+  SNodeList* pZerothList;  // list of SValueNode
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -578,6 +611,12 @@ typedef struct SPeriodWindowNode {
   SNode*    pOffset;
 } SPeriodWindowNode;
 
+typedef enum EWindowMode {
+  WINDOW_MODE_NONE = 1,
+  WINDOW_MODE_SCALAR,
+  WINDOW_MODE_AGG,
+} EWindowMode;
+
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
   FILL_MODE_VALUE,
@@ -702,6 +741,7 @@ typedef struct SSelectStmt {
   int32_t         returnRows;  // EFuncReturnRows
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
+  EWindowMode     windowMode;
   int32_t         lastProcessByRowFuncId;
   bool            hasNonLocalSubQ;
   int32_t         timeLineFromOrderBy;
@@ -733,6 +773,8 @@ typedef struct SSelectStmt {
   bool            tagScan;
   bool            joinContains;
   bool            mixSysTableAndActualTable;
+  bool            hasScalarExpr;
+  bool            windowScalarMode;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

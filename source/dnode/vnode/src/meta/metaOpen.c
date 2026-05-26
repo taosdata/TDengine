@@ -15,6 +15,7 @@
 
 #include "dmRepair.h"
 #include "meta.h"
+#include "thash.h"
 #include "vnd.h"
 
 #ifndef NO_UNALIGNED_ACCESS
@@ -198,6 +199,10 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // open pSkmExtDb
+  code = tdbTbOpen("schema_ext.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmExtDb, 0);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // open pUidIdx
   code = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx, 0);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -250,6 +255,12 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
 
   code = metaInitTbFilterCache(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  pMeta->uidSuidHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->uidSuidHash, code, lino, _exit, terrno);
+
+  pMeta->uidNameHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  TSDB_CHECK_NULL(pMeta->uidNameHash, code, lino, _exit, terrno);
 
 #if 0
   // Do NOT remove this code, it is used to do debug stuff
@@ -834,10 +845,13 @@ static void metaCleanup(SMeta **ppMeta) {
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
+    if (pMeta->pSkmExtDb) tdbTbClose(pMeta->pSkmExtDb);
     if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbClose(pMeta->pEnv);
     metaDestroyLock(pMeta);
 
+    taosHashCleanup(pMeta->uidSuidHash);
+    taosHashCleanup(pMeta->uidNameHash);
     taosMemoryFreeClear(*ppMeta);
   }
 }

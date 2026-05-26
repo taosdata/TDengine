@@ -576,6 +576,10 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     return code;
   }
 
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
+  }
+
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
@@ -591,7 +595,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1034,7 +1038,8 @@ static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
         SSDataBlock** pBlock = taosArrayGet(pGp->blockForNotLoaded, i);
         if (pBlock) blockDataDestroy(*pBlock);
       }
-      taosArrayClear(pGp->blockForNotLoaded);
+      taosArrayDestroy(pGp->blockForNotLoaded);
+      pGp->blockForNotLoaded = NULL;
       pGp->offsetForNotLoaded = 0;
     }
     taosArrayDestroy(pGp->pPageList);
@@ -1186,7 +1191,7 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code =
           projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+                                pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1247,6 +1252,14 @@ static void destroyPartitionOperatorInfo(void* param) {
     SDataGroupInfo* pGp = taosArrayGet(pInfo->sortedGroupArray, i);
     if (pGp) {
       taosArrayDestroy(pGp->pPageList);
+      if (pGp->blockForNotLoaded) {
+        for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pGp->blockForNotLoaded); j++) {
+          SSDataBlock** pBlock = taosArrayGet(pGp->blockForNotLoaded, j);
+          if (pBlock) blockDataDestroy(*pBlock);
+        }
+        taosArrayDestroy(pGp->blockForNotLoaded);
+        pGp->blockForNotLoaded = NULL;
+      }
     }
   }
   taosArrayDestroy(pInfo->sortedGroupArray);

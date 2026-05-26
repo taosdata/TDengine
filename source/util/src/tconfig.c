@@ -460,7 +460,7 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   }
 
   // update
-  if (pDebugFlagItem == NULL) return -1;
+  if (pDebugFlagItem == NULL) TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   if (pDebugFlagItem->array != NULL) {
     SLogVar logVar = {0};
     tstrncpy(logVar.name, name, TSDB_LOG_VAR_LEN);

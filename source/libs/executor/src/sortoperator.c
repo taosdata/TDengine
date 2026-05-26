@@ -433,7 +433,7 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   if (pOperator->exprSupp.pExprInfo != NULL && pOperator->exprSupp.numOfExprs > 0) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
                                          pOperator->exprSupp.numOfExprs, NULL,
-                                         GET_STM_RTINFO(pOperator->pTaskInfo));
+                                         GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }
@@ -446,6 +446,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SSortSource* pSource =NULL;
+
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
+  }
 
   if (OPTR_IS_OPENED(pOperator)) {
     return code;

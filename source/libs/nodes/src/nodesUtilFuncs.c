@@ -390,6 +390,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TEMP_TABLE:
       code = makeNode(type, sizeof(STempTableNode), &pNode);
       break;
+    case QUERY_NODE_TEXT_TABLE:
+      code = makeNode(type, sizeof(STextTableNode), &pNode);
+      break;
+    case QUERY_NODE_FILE_TABLE:
+      code = makeNode(type, sizeof(SFileTableNode), &pNode);
+      break;
     case QUERY_NODE_PLACE_HOLDER_TABLE:
       code = makeNode(type, sizeof(SPlaceHolderTableNode), &pNode);
       break;
@@ -871,6 +877,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_CPU_ALLOCATION_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
@@ -1021,6 +1028,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = makeNode(type, sizeof(SGenericAnalysisLogicNode), &pNode);
       break;
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE:
+      code = makeNode(type, sizeof(SRowsetSourceLogicNode), &pNode);
+      break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       code = makeNode(type, sizeof(SGroupCacheLogicNode), &pNode);
       break;
@@ -1110,6 +1120,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       code = makeNode(type, sizeof(SCountWindowPhysiNode), &pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
+      code = makeNode(type, sizeof(SRowsetSourcePhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode);
@@ -1284,6 +1297,11 @@ static void destroyWinodwPhysiNode(SWindowPhysiNode* pNode) {
   nodesDestroyList(pNode->pProjs);
 }
 
+static void destroyExtWindowFillInfo(SExtWindowFillInfo* pFill) {
+  nodesDestroyList(pFill->pFillExprs);
+  nodesDestroyNode(pFill->pFillValues);
+}
+
 static void destroyPartitionPhysiNode(SPartitionPhysiNode* pNode) {
   destroyPhysiNode((SPhysiNode*)pNode);
   nodesDestroyList(pNode->pExprs);
@@ -1421,6 +1439,27 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TEMP_TABLE:
       nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
       break;
+    case QUERY_NODE_TEXT_TABLE: {
+      STextTableNode* pText = (STextTableNode*)pNode;
+      nodesDestroyList(pText->pColDefs);
+      nodesDestroyList(pText->pRows);  // may already be NULL after normalization
+      if (pText->pBlockBuf != NULL) {
+        taosMemoryFree(pText->pBlockBuf);
+        pText->pBlockBuf = NULL;
+      }
+      break;
+    }
+    case QUERY_NODE_FILE_TABLE: {
+      SFileTableNode* pFile = (SFileTableNode*)pNode;
+      taosMemoryFreeClear(pFile->path);
+      taosMemoryFreeClear(pFile->schemaDecl);
+      nodesDestroyList(pFile->pColDefs);
+      if (pFile->pBlockBuf != NULL) {
+        taosMemoryFree(pFile->pBlockBuf);
+        pFile->pBlockBuf = NULL;
+      }
+      break;
+    }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
       SPlaceHolderTableNode* pPlaceHolder = (SPlaceHolderTableNode*)pNode;
       taosMemoryFreeClear(pPlaceHolder->pMeta);
@@ -1471,10 +1510,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
-      nodesDestroyNode(pState->pExpr);
+      nodesDestroyList(pState->pExprList);
       nodesDestroyNode(pState->pTrueForLimit);
       nodesDestroyNode(pState->pExtend);
-      nodesDestroyNode(pState->pZeroth);
+      nodesDestroyList(pState->pZerothList);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -2080,6 +2119,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_CPU_ALLOCATION_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
@@ -2309,11 +2349,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTspk);
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
-      nodesDestroyNode(pLogicNode->pStateExpr);
+      nodesDestroyList(pLogicNode->pStateExprs);
       nodesDestroyNode(pLogicNode->pStartCond);
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);
       nodesDestroyList(pLogicNode->pProjs);
+      destroyExtWindowFillInfo(&pLogicNode->extFill);
+      nodesDestroyNode(pLogicNode->pSubquery);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
@@ -2370,6 +2412,15 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE: {
+      SRowsetSourceLogicNode* pLogicNode = (SRowsetSourceLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      if (pLogicNode->pBlockBuf != NULL) {
+        taosMemoryFree(pLogicNode->pBlockBuf);
+        pLogicNode->pBlockBuf = NULL;
+      }
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE: {
       SGroupCacheLogicNode* pLogicNode = (SGroupCacheLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -2420,6 +2471,7 @@ void nodesDestroyNode(SNode* pNode) {
       SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
       nodesDestroyNode(pPhyNode->pSubquery);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      destroyExtWindowFillInfo(&pPhyNode->extFill);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
@@ -2544,7 +2596,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
       SStateWindowPhysiNode* pPhyNode = (SStateWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pStateKey);
+      nodesDestroyList(pPhyNode->pStateKeys);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT: {
@@ -2557,6 +2609,15 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
       SCountWindowPhysiNode* pPhyNode = (SCountWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE: {
+      SRowsetSourcePhysiNode* pPhyNode = (SRowsetSourcePhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      if (pPhyNode->pBlockBuf != NULL) {
+        taosMemoryFree(pPhyNode->pBlockBuf);
+        pPhyNode->pBlockBuf = NULL;
+      }
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
@@ -4362,5 +4423,3 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
-
-
