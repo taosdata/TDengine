@@ -31,7 +31,7 @@ import { getLocalLang } from '@/utils'
 const { OEM_NAME } = inject("globalCustomProperties") as GlobalCustomProperties;
 
 const docsUrl = computed(() => {
-  if (OEM_NAME == "TDengine") {
+  if (OEM_NAME.includes("TDengine")) {
     return getLocalLang().includes("zh") ? "/docs/" : "/docs-en/";
   } else {
     return "/docs/";

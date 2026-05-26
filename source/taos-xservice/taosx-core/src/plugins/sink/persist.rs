@@ -34,7 +34,7 @@ use crate::{
 };
 use futures_ext::select::select_cancel;
 
-const PERSIST_QUEUE_BREAKPOINT_KEY: &str = "persist_queue_breakpoint";
+pub(crate) const PERSIST_QUEUE_BREAKPOINT_KEY: &str = "persist_queue_breakpoint";
 const DEFAULT_READ_BATCH_SIZE: usize = 1000;
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_millis(500);
 const DEFAULT_BATCH_CHUNK_SIZE: usize = 100;
