@@ -87,7 +87,7 @@ if exist %binary_dir%\\build\\bin\\taospyudf.dll (
 if exist %binary_dir%\\build\\bin\\taosdump.exe (
     copy %binary_dir%\\build\\bin\\taosdump.exe %target_dir% > nul
 )
-if %Enterprise% == TRUE (
+if /I "%Enterprise%"=="TRUE" (
     if exist %binary_dir%\\build\\bin\\taosx.exe (
         copy %binary_dir%\\build\\bin\\taosx.exe %target_dir% > nul
     )
