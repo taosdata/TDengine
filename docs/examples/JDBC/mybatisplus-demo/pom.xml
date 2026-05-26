@@ -18,7 +18,7 @@
         <java.version>17</java.version>
         <logback.version>1.5.25</logback.version>
         <netty.version>4.1.129.Final</netty.version>
-        <tomcat.version>10.1.54</tomcat.version>
+        <tomcat.version>10.1.55</tomcat.version>
         <spring-framework.version>6.2.11</spring-framework.version>
     </properties>
 

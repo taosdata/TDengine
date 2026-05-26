@@ -424,7 +424,7 @@ taosBenchmark -f <json file>
 <summary>insert.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/insert.json}}
+{{#include tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -435,7 +435,7 @@ taosBenchmark -f <json file>
 <summary>query.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/query.json}}
+{{#include tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -444,7 +444,7 @@ taosBenchmark -f <json file>
 <summary>queryStb.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/queryStb.json}}
+{{#include tools/taos-tools/example/queryStb.json}}
 ```
 
 </details>
@@ -455,7 +455,7 @@ taosBenchmark -f <json file>
 <summary>tmq.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/tmq.json}}
+{{#include tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
@@ -466,7 +466,7 @@ taosBenchmark -f <json file>
 <summary>csv-export.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/csv-export.json}}
+{{#include tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>
