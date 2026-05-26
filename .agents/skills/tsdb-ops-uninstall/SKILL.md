@@ -95,8 +95,7 @@ bash <SKILL_DIR>/scripts/uninstall.sh --yes <HOST> [-p PASSWORD]
 
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-ops-uninstall version=0.1.0 author=yangzy`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-ops-uninstall version=1.0.0 author=yangzy`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-
