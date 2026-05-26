@@ -16,6 +16,8 @@
 #ifndef _TD_NODES_INT_H_
 #define _TD_NODES_INT_H_
 
+#include "ttime.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -53,6 +55,9 @@ extern "C" {
       goto _return;                  \
     }                                \
   } while (0)
+
+int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
+                               void** pTimezone, bool* pOwnsTimezone);
 
 #ifdef __cplusplus
 }

@@ -105,6 +105,9 @@ typedef struct SScanLogicNode {
   int64_t            sliding;
   int8_t             intervalUnit;
   int8_t             slidingUnit;
+  int8_t             firstDayOfWeek;  /* 0-6, propagated from window logic node */
+  void*              timezone;        /* timezone_t handle for interval alignment */
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
   SNode*             pTagCond;
   SNode*             pTagIndexCond;
   int8_t             triggerType;
@@ -240,6 +243,17 @@ typedef struct SForecastFuncLogicNode {
   SNodeList* pFuncs;
 } SForecastFuncLogicNode, SGenericAnalysisLogicNode;
 
+typedef struct SRowsetSourceLogicNode {
+  SLogicNode node;
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;  // owned; released by destroy; moved to physi node by physical planner (then set to NULL)
+} SRowsetSourceLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
   bool       grpColsMayBeNull;
@@ -343,6 +357,12 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef struct SExtWindowFillInfo {
+  EFillMode  mode;
+  SNodeList* pFillExprs;
+  SNode*     pFillValues;
+} SExtWindowFillInfo;
+
 #define WINDOW_PART_HAS  0x01
 #define WINDOW_PART_TB   0x02
 
@@ -362,11 +382,14 @@ typedef struct SWindowLogicNode {
   int64_t               sliding;
   int8_t                intervalUnit;
   int8_t                slidingUnit;
+  int8_t                firstDayOfWeek;  /* 0-6, from connection; default 4 (Thu) */
+  void*                 timezone;        /* timezone_t handle for calendar alignment */
+  char                  timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
   // for session window
   int64_t               sessionGap;
   SNode*                pTsEnd;
   // for state window
-  SNode*                pStateExpr;
+  SNodeList*            pStateExprs;
   EStateWinExtendOption extendOption;
   // for event window
   SNode*                pStartCond;
@@ -387,6 +410,7 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -411,6 +435,7 @@ typedef struct SFillLogicNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -587,6 +612,10 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         firstDayOfWeek;  /* 0-6, propagated from interval logic node */
+  void*          timezone;        /* timezone_t handle for interval alignment */
+  char           timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
+  bool           ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   int8_t         triggerType;
   int64_t        watermark;
   int8_t         igExpired;
@@ -637,6 +666,17 @@ typedef struct SForecastFuncPhysiNode {
   SNodeList* pExprs;
   SNodeList* pFuncs;
 } SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
+
+typedef struct SRowsetSourcePhysiNode {
+  SPhysiNode node;           // QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;      // SSDataBlock binary; owned; freed by destroy
+} SRowsetSourcePhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
@@ -799,6 +839,10 @@ typedef struct SIntervalPhysiNode {
   int64_t          sliding;
   int8_t           intervalUnit;
   int8_t           slidingUnit;
+  int8_t           firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
+  void*            timezone;        /* timezone_t handle; NULL → server default */
+  char             timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
+  bool             ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   STimeWindow      timeRange;
 } SIntervalPhysiNode;
 
@@ -817,6 +861,7 @@ typedef struct SFillPhysiNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
@@ -831,7 +876,7 @@ typedef struct SSessionWinodwPhysiNode {
 
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pStateKey;
+  SNodeList*       pStateKeys;
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
@@ -868,6 +913,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;
@@ -973,6 +1019,7 @@ typedef struct SExplainInfo {
   EExplainMode mode;
   bool         verbose;
   double       ratio;
+  timezone_t   tz;       /* session timezone for formatting timestamps */
 } SExplainInfo;
 
 typedef struct SQueryPlan {

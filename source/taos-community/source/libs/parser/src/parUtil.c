@@ -48,8 +48,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "ORDER BY / GROUP BY item must be the number of a SELECT-list expression";
     case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
       return "Not a GROUP BY expression";
-    case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
-      return "Not SELECTed expression";
+    case TSDB_CODE_PAR_NOT_SELECT_EXPRESSION:
+      return "Not a SELECT expression";
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
       return "Not a single-group group function, '%s' is used incorrectly";
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
@@ -93,7 +93,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
       return "Only support STATE_WINDOW on integer/bool/varchar column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
-      return "Not support STATE_WINDOW on tag column";
+      return "Invalid STATE_WINDOW column specification";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
       return "STATE_WINDOW not support for super table query";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
@@ -1009,6 +1009,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   snprintf(select->stmtName, TSDB_TABLE_NAME_LEN, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
+  select->windowMode = WINDOW_MODE_NONE;
   select->onlyHasKeepOrderFunc = true;
   TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;

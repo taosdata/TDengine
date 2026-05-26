@@ -94,6 +94,8 @@ extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int64_t tsSecTimes[3];
 extern int32_t tsCountAlwaysReturnValue;
+extern int32_t tsDefaultFirstDayOfWeek;  // 0-6; shared default for firstDayOfWeek
+extern int32_t tsFirstDayOfWeek;  // 0-6; int32_t required by config framework (cfgAddInt32)
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
@@ -143,6 +145,12 @@ extern int32_t tsNumOfStreamRunnerThreads;
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
 extern int32_t tsSecureEraseMode;
+
+// cpu affinity
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -381,6 +389,7 @@ extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
