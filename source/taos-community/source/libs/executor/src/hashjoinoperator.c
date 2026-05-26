@@ -24,6 +24,7 @@
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "ttime.h"
 #include "ttypes.h"
 #include "hashjoin.h"
 #include "functionMgt.h"
@@ -112,13 +113,32 @@ int32_t hJoinLaunchPrimExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t
   SHJoinPrimExprCtx* pCtx = &pTable->primCtx;
   SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
   SColumnInfoData* pPrimOut = taosArrayGet(pBlock->pDataBlock, pTable->primCtx.targetSlotId);
-  if (0 != pCtx->timezoneUnit) {
+  if (NULL == pPrimIn || NULL == pPrimOut) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (pCtx->tz != NULL) {
     for (int32_t i = startIdx; i <= endIdx; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit) % pCtx->truncateUnit;
+      int64_t ts = ((int64_t*)pPrimIn->pData)[i];
+      ((int64_t*)pPrimOut->pData)[i] = taosTimeTruncateIANA(ts, pCtx->truncateUnit,
+                                                            pCtx->fdow, pCtx->precision, pCtx->tz);
     }
   } else {
-    for (int32_t i = startIdx; i <= endIdx; ++i) {
-      ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+    int64_t factor = TSDB_TICK_PER_SECOND(pCtx->precision);
+    int64_t weekShift = (pCtx->truncateUnit == 604800LL * factor) ?
+                        ((int64_t)pCtx->fdow - UNIX_EPOCH_WDAY) * 86400LL * factor : 0;
+    if (0 != pCtx->timezoneUnit || 0 != weekShift) {
+      for (int32_t i = startIdx; i <= endIdx; ++i) {
+        int64_t rem = (((int64_t*)pPrimIn->pData)[i] + pCtx->timezoneUnit - weekShift) % pCtx->truncateUnit;
+        if (rem < 0) {
+          rem += pCtx->truncateUnit;
+        }
+        ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] - rem;
+      }
+    } else {
+      for (int32_t i = startIdx; i <= endIdx; ++i) {
+        ((int64_t*)pPrimOut->pData)[i] = ((int64_t*)pPrimIn->pData)[i] / pCtx->truncateUnit * pCtx->truncateUnit;
+      }
     }
   }
 
@@ -287,17 +307,38 @@ static int32_t hJoinInitPrimExprCtx(SNode* pNode, SHJoinPrimExprCtx* pCtx, SHJoi
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  if (4 != pFunc->pParameterList->length && 5 != pFunc->pParameterList->length) {
+  if (pFunc->pParameterList->length != 7) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  SValueNode* pUnit     = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  SValueNode* pCurrTz   = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+  SValueNode* pTimeZone = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4);
+  if (NULL == pUnit || NULL == pTimeZone) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  SValueNode* pUnit = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-  SValueNode* pCurrTz = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2) : NULL;
-  SValueNode* pTimeZone = (5 == pFunc->pParameterList->length) ? (SValueNode*)nodesListGetNode(pFunc->pParameterList, 4) : (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3);
-
   pCtx->truncateUnit = pUnit->typeData;
+  pCtx->precision = pFunc->node.resType.precision;
+  {
+    SValueNode* pFdow = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 5);
+    pCtx->fdow = pFdow ? (int8_t)(pFdow->typeData & 0x07) : 0;
+  }
   if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
-    pCtx->timezoneUnit = offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
+    char    *tzStr = varDataVal(pTimeZone->datum.p);
+    int64_t  factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
+    /* offsetFromTz() can only parse fixed-offset strings like "+0800".
+     * IANA names ("Asia/Shanghai"), "UTC", "UTC+N"/"UTC-N", and bare
+     * offset strings ("+0800"/"-0100") must be resolved via the
+     * timezone library to get the correct UTC offset. */
+    if (strchr(tzStr, '/') != NULL || strncmp(tzStr, "UTC", 3) == 0 ||
+        tzStr[0] == '+' || tzStr[0] == '-') {
+      timezone_t tz = NULL;
+      if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
+        pCtx->tz = tz;
+      }
+    } else {
+      pCtx->timezoneUnit = offsetFromTz(tzStr, factor);
+    }
   }
 
   pCtx->targetSlotId = pTarget->slotId;
@@ -331,8 +372,6 @@ static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
   }
 
   TAOS_MEMCPY(&pTable->inputStat, pStat, sizeof(*pStat));
-
-  HJ_ERR_RET(hJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx, pTable));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -430,6 +469,10 @@ static int32_t hJoinInitBufPages(SHJoinOperatorInfo* pInfo) {
 }
 
 static void hJoinFreeTableInfo(SHJoinTableCtx* pTable) {
+  if (pTable->primCtx.tz != NULL) {
+    tzfree(pTable->primCtx.tz);
+    pTable->primCtx.tz = NULL;
+  }
   taosMemoryFreeClear(pTable->keyCols);
   taosMemoryFreeClear(pTable->keyBuf);
   taosMemoryFreeClear(pTable->valCols);
@@ -1235,7 +1278,10 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]));
 
   hJoinSetBuildAndProbeTable(pInfo, pJoinNode);
-  
+
+  HJ_ERR_JRET(hJoinInitPrimExprCtx(pInfo->pBuild->primExpr, &pInfo->pBuild->primCtx, pInfo->pBuild));
+  HJ_ERR_JRET(hJoinInitPrimExprCtx(pInfo->pProbe->primExpr, &pInfo->pProbe->primCtx, pInfo->pProbe));
+
   HJ_ERR_JRET(hJoinBuildResColsMap(pInfo, pJoinNode));
 
   HJ_ERR_JRET(hJoinInitBufPages(pInfo));

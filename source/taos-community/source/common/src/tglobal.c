@@ -26,6 +26,7 @@
 #include "tlog.h"
 #include "tmisce.h"
 #include "tunit.h"
+#include "osLocale.h"
 
 #include "tutil.h"
 
@@ -386,6 +387,12 @@ int32_t tsCompressMsgSize = -1;
 
 // count/hyperloglog function always return values in case of all NULL data or Empty data set.
 int32_t tsCountAlwaysReturnValue = 1;
+
+// first day of week for week-based functions and INTERVAL(w), 0=Sunday ... 6=Saturday
+// default matches legacy epoch-modulo alignment at Unix epoch
+// int32_t (not int8_t) because the config framework writes via *(int32_t*) pointer
+int32_t tsDefaultFirstDayOfWeek = 4;  /* Thursday: Unix epoch (1970-01-01) alignment */
+int32_t tsFirstDayOfWeek = 0;
 
 // 1 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 1;
@@ -951,6 +958,8 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableSasl", tsEnableSasl, CFG_SCOPE_BOTH, CFG_DYN_BOTH, CFG_CATEGORY_GLOBAL,
                                CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "firstDayOfWeek", tsDefaultFirstDayOfWeek, 0, 6, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1753,6 +1762,23 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sessionControl");
   tsSessionControl = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstDayOfWeek");
+  if (pItem->stype != CFG_STYPE_DEFAULT) {
+    /* user explicitly set in config file/env/cmd line, highest priority */
+    tsFirstDayOfWeek = pItem->i32;
+  } else {
+    /* try to read from OS config */
+    int32_t osVal = taosGetOSFirstDayOfWeek();
+    if (osVal >= 0 && osVal <= 6) {
+      tsFirstDayOfWeek = osVal;
+      /* Sync the config framework item so SHOW LOCAL VARIABLES reflects the OS-derived value */
+      pItem->i32 = osVal;
+    } else {
+      /* OS config not available, use registered default */
+      tsFirstDayOfWeek = pItem->i32;
+    }
+  }
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2800,6 +2826,8 @@ int32_t taosPreLoadCfg(const char *cfgDir, const char **envCmd, const char *envF
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
 
+  tsFirstDayOfWeek = tsDefaultFirstDayOfWeek;
+
   TAOS_CHECK_GOTO(cfgInitWrapper(&tsCfg), &lino, _exit);
 
   if (tsc) {
@@ -3506,6 +3534,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"crashReporting", &tsEnableCrashReport},
                                          {"enableQueryHb", &tsEnableQueryHb},
+                                         {"firstDayOfWeek", &tsFirstDayOfWeek},
                                          {"keepColumnName", &tsKeepColumnName},
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"maxInsertBatchRows", &tsMaxInsertBatchRows},

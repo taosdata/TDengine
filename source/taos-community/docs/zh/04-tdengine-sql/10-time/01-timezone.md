@@ -21,12 +21,50 @@ TDengine 内部以 UTC 时间戳（int64）存储所有时间数据。时区仅�
 
 ### 支持的时区格式
 
-| 格式 | 示例 | 夏令时感知 |
-| --- | --- | --- |
-| IANA 名称 | `'Asia/Shanghai'`、`'America/New_York'` | ✅ 是（自动处理 DST 跳变） |
-| 固定偏移 | `'+08:00'`、`'-05:00'`、`'Z'` | ❌ 否（恒定偏移） |
+| 格式 | 示例 | 夏令时感知 | 说明 |
+| --- | --- | --- | --- |
+| IANA 名称 | `'Asia/Shanghai'`、`'America/New_York'` | ✅ 是（自动处理 DST 跳变） | 推荐。系统自动处理夏令时切换。 |
+| POSIX 固定偏移 | `'+08:00'`、`'-0500'`、`'Z'`、`'+10'`、`'UTC+08:00'` | ❌ 否（恒定偏移） | 支持范围为 `-14:00` 至 `+14:00`。`SET TIMEZONE`、`ALTER LOCAL`、`taos.cfg`、`TO_CHAR`、`TIMETRUNCATE` 均遵循 POSIX 符号约定（`+` = UTC 以西，即 `local = UTC − offset`）。**例外**：`TO_ISO8601` 的固定偏移参数使用 [ISO 8601 符号约定](#to_iso8601)。详见下文"POSIX 固定偏移格式详解"。 |
 
-**建议**：涉及夏令时的地区使用 IANA 名称，系统自动处理 DST 切换。
+#### POSIX 固定偏移格式详解
+
+TDengine 的固定偏移时区格式遵循**POSIX `TZ` 环境变量规范**的子集。完整的 POSIX 规范定义了如下格式：
+
+```text
+STD offset [ DST [ dstoffset ] [ , rule ] ]
+```
+
+其中 `STD` 是标准时间缩写，`offset` 是与 UTC 的偏移量，`DST` 和 `dstoffset` 用于夏令时定义，`rule` 用于夏令时切换规则。
+
+**TDengine 支持的子集**：TDengine 仅支持该规范中 `STD offset` 部分，且 `STD` 只接受 `UTC` 一个值。不支持手动配置 `DST`、`dstoffset` 和 `rule`。如需夏令时支持，请使用 IANA 时区名称。TDengine 接受的固定偏移语法如下：
+
+```text
+UTC offset
+```
+
+**`offset` 字段格式**：`offset` 表示与 UTC 的偏移量，格式为 `[+|-] hh [ : mm [ : ss ] ]`，其中 `hh` 可以是一位或两位数字，`mm` 和 `ss`（如使用）必须是两位数字。也可写为无冒号分隔的紧凑形式（如 `+0800`、`-0530`）。特殊值 `Z` 等价于 `+00:00`。
+
+**POSIX 符号约定**：POSIX 标准定义本地时间与 UTC 的关系为：
+
+```text
+local_time = UTC - offset
+```
+
+因此：正号 `+` 表示 UTC **以西**（西时区，本地时间比 UTC 慢），负号 `-` 表示 UTC **以东**（东时区，本地时间比 UTC 快）。这与 ISO 8601 的符号约定**相反**。例如：
+
+| 写法 | POSIX 含义 | 等效 IANA 时区 |
+| --- | --- | --- |
+| `'+08:00'` 或 `'UTC+08:00'` | UTC 以西 8 小时 | 接近 `Pacific/Pitcairn`（太平洋） |
+| `'-08:00'` 或 `'UTC-08:00'` | UTC 以东 8 小时 | 接近 `Asia/Shanghai`（北京时间） |
+| `'+05:30'` 或 `'UTC+05:30'` | UTC 以西 5.5 小时 | 接近 `America/Bogota`（哥伦比亚） |
+| `'-05:30'` 或 `'UTC-05:30'` | UTC 以东 5.5 小时 | 接近 `Asia/Kolkata`（印度） |
+| `'Z'` | UTC 本身 | `Etc/UTC` |
+
+当省略 `UTC` 前缀时（如 `'+08:00'`），TDengine 仍按 POSIX 规则解析偏移量，行为与带 `UTC` 前缀完全一致。
+
+**支持范围**：偏移量的有效范围为 `-14:00` 至 `+14:00`（对应 UTC 以东 14 小时到 UTC 以西 14 小时）。
+
+**与 IANA 时区的区别**：POSIX 固定偏移不包含任何夏令时信息，全年使用恒定偏移。如果目标地区存在夏令时（如美国、欧洲），应使用 IANA 名称以获得正确的 DST 自动切换。
 
 ### 时区优先级
 
@@ -50,13 +88,28 @@ TDengine 采用五层时区优先级体系，高层覆盖低层：
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
-SET TIMEZONE '+08:00';
+SET TIMEZONE '-08:00';      -- POSIX: local = UTC+8，效果同北京时间
+SET TIMEZONE '+08:00';      -- POSIX: local = UTC-8，不是北京时间
 SET TIMEZONE 'America/New_York';
 ```
 
-设置后，该连接上所有读写操作和服务端计算均使用此时区。
+固定偏移的正负号遵循 POSIX 符号约定，详见上文"POSIX 固定偏移格式详解"。
+
+设置后，当前连接里的“当前时间显示”和大多数“和本地日历有关”的操作都会使用这个时区，例如：
+
+- `SELECT ts` 这类时间列的显示
+- `SELECT NOW()` / `SELECT NOW`
+- `TO_ISO8601(ts)` 这类按时区格式化时间的函数
+- `TODAY()`
+- 带有自然时间边界的计算，如 `TIMETRUNCATE(..., 1d/1w/1n...)`、`INTERVAL`
 
 也可通过 C API `taos_options_connection` 在建立连接时设置时区，效果等同于 `SET TIMEZONE`。
+
+如果你只是想“当前连接按北京时间看时间”，最直接的写法就是：
+
+```sql
+SET TIMEZONE 'Asia/Shanghai';
+```
 
 ### 查询当前时区
 
@@ -64,7 +117,9 @@ SET TIMEZONE 'America/New_York';
 SELECT TIMEZONE();
 ```
 
-返回当前连接生效的时区字符串。**[v3.4.2]** 将同时返回连接级、客户端、服务端时区。
+返回当前连接当前生效的单个时区字符串，回退链为连接级 `SET TIMEZONE` / C API 设置值 → 连接创建时快照的客户端全局时区 → 系统默认时区。
+
+可以简单理解为：`TIMEZONE()` 告诉你“这个连接现在到底按哪个时区在工作”。
 
 ### 配置文件设置
 
@@ -73,15 +128,20 @@ SELECT TIMEZONE();
 ```text
 timezone Asia/Shanghai
 timezone UTC-8
-timezone GMT-8
+timezone +08:00
 ```
 
-支持 IANA 名称和 POSIX 偏移（`UTC±N`/`GMT±N`）两种格式。Windows 下不支持 `UTC-8` 写法，须使用 IANA 名称。未配置时使用操作系统检测的时区。
+支持 IANA 名称、Windows 标准时区名称（如 `China Standard Time`）以及固定偏移格式 `Z`、`±HH`、`±HHMM`、`±HH:MM`、`UTC±H[:MM]`、`UTC±HH[:MM]`。`GMT` / `GMT±...` 不支持。未配置时使用操作系统检测的时区。
 
 - **服务端侧** `taos.cfg`：连接未通过 `SET TIMEZONE` 设置时区时，服务端计算回退到此值。
 - **客户端侧** `taos.cfg`：仅影响客户端本地时间展示（如 `SELECT ts` 的输出格式化），不影响服务端计算。
 
-**注意**：配置文件不支持 `+08:00` 裸偏移格式（该格式仅限 `SET TIMEZONE` 和函数参数使用）。
+**注意**：固定偏移写法遵循 POSIX 符号约定（详见"POSIX 固定偏移格式详解"），所有入口（`SET TIMEZONE`、`ALTER LOCAL`、`taos.cfg`）的正负号含义一致。建议使用 IANA 名称以避免混淆。
+
+`ALTER LOCAL 'timezone ...'` 和 `SET TIMEZONE ...` 的区别：
+
+- `SET TIMEZONE` 只影响当前连接，断开重连后就没了。
+- `ALTER LOCAL 'timezone ...'` 修改的是当前客户端进程里的全局配置，只会影响修改后新建的连接，已经打开的旧连接不会立刻改变。
 
 ## 一周起始日
 
@@ -96,15 +156,33 @@ SET FIRST_DAY_OF_WEEK 1;  -- 周一起始（默认）
 
 取值范围 0-6:0=周日，1=周一，..., 6=周六。
 
-### 配置文件设置 [v3.4.2]
+### 查询当前周起始日 [v3.4.2]
 
-在服务端侧 `taos.cfg` 中配置：
-
-```text
-firstDayOfWeek 1
+```sql
+SELECT FIRST_DAY_OF_WEEK();
 ```
 
-默认值为 1（周一，遵循 ISO 8601）。仅提供服务端配置，不提供客户端配置。
+返回当前连接生效的周起始日设置，结果为 `0..6` 的整数，其中 `0=周日`，`1=周一`，...，`6=周六`。
+
+### 配置文件设置 [v3.4.2]
+
+在客户端侧 `taos.cfg` 中配置：
+
+```text
+firstDayOfWeek 4
+```
+
+也可通过 `ALTER LOCAL 'firstDayOfWeek' '<0..6>'` 在当前客户端进程内动态修改。该配置只影响修改后的新连接，已建立连接保持各自创建时的快照值。
+
+默认值为 `4`（周四），与历史按 Unix epoch 取模的周对齐行为兼容。若客户端未显式配置，启动时会尝试从操作系统读取一周起始日；读取失败时回退到 `4`。
+
+如果你只是想让“按周统计”从周一开始，最直接的做法是：
+
+```sql
+SET FIRST_DAY_OF_WEEK 1;
+```
+
+如果想从周日开始，就设置成 `0`。
 
 ### 影响范围 [v3.4.2]
 
@@ -121,9 +199,12 @@ firstDayOfWeek 1
 
 ```sql
 SELECT TO_ISO8601(ts) FROM t;                        -- 使用连接时区
-SELECT TO_ISO8601(ts, '+09:00') FROM t;              -- 指定固定偏移
+SELECT TO_ISO8601(ts, '+09:00') FROM t;              -- 指定固定偏移（ISO 8601 符号）
+SELECT TO_ISO8601(ts, 'UTC+09:00') FROM t;           -- 等价写法，'UTC' 前缀会被剥离
 SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- 指定 IANA 时区 [v3.4.2]
 ```
+
+**符号约定**：`TO_ISO8601` 是唯一使用 ISO 8601 符号约定的入口——`local = UTC + offset`，即 `'+08:00'` 表示东八区（北京时间）。以下写法完全等价：`'+0800'`、`'+08:00'`、`'UTC+8'`、`'UTC+0800'`、`'UTC+08:00'`。其余入口（`SET TIMEZONE`、`taos.cfg`、`TO_CHAR`、`TIMETRUNCATE` 等）均使用 POSIX 符号约定（`+` = 西区）。
 
 使用 IANA 时区时，输出的偏移量随时刻的夏令时状态自动变化：
 
@@ -180,11 +261,24 @@ SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00 [v3.4.2]
 SELECT TIMEZONE();
 ```
 
-同时返回连接级、客户端、服务端三个时区，便于用户排查时区配置问题。**[v3.4.2]** 起增强为同时返回三个层级的时区信息：
+返回当前连接当前使用的单个时区字符串。
 
-- **连接级时区**：通过 `SET TIMEZONE` 或 C API 设置的值，未设置时为空
-- **客户端时区**：客户端 `taos.cfg` 配置或系统检测值
-- **服务端时区**：服务端 `taos.cfg` 配置或系统检测值
+- 当前连接执行过 `SET TIMEZONE` 时，优先返回连接级时区。
+- 未设置连接级时区时，返回该连接创建时快照的客户端全局时区；若客户端也未配置，则回退到系统默认时区。
+- `ALTER LOCAL 'timezone'` 只会影响修改后新建的连接，不会回写已有连接的 `TIMEZONE()` 结果。
+
+所以，当你怀疑"`SET TIMEZONE` 有没有生效"时，最直接的检查方法是：
+
+```sql
+SELECT TIMEZONE();
+SELECT TO_ISO8601(NOW());
+```
+
+例如：
+
+- 执行 `SET TIMEZONE 'Asia/Shanghai'` 后，`TIMEZONE()` 返回 `Asia/Shanghai`。
+- 未执行 `SET TIMEZONE` 时，返回连接创建时快照的客户端全局时区。
+- 执行 `ALTER LOCAL 'timezone Asia/Shanghai'` 后，已有连接不受影响；新建连接才会使用新配置。
 
 ## INTERVAL 查询
 
@@ -358,14 +452,14 @@ SELECT stream_name, timezone, first_day_of_week FROM information_schema.ins_stre
 | 参数 | 配置文件 | 类型 | 默认值 | 说明 | 版本 |
 | --- | --- | --- | --- | --- | --- |
 | `timezone` | 服务端/客户端侧 `taos.cfg` | 字符串 | OS 检测 | 全局时区 | 已支持 |
-| `firstDayOfWeek` | 服务端侧 `taos.cfg` | 整数 0-6 | 1（周一） | 一周起始日 | **v3.4.2** |
+| `firstDayOfWeek` | 客户端侧 `taos.cfg` | 整数 0-6 | 4（周四） | 一周起始日；也可用 `ALTER LOCAL` 动态修改 | **v3.4.2** |
 
 ## 错误信息
 
 | 错误场景 | 错误信息 |
 | --- | --- |
-| 无效时区字符串 | `[0x2600] Invalid timezone: '<value>'` |
-| firstDayOfWeek 超出范围 | `[0x2601] Invalid firstDayOfWeek: <value>, must be 0-6` |
+| 无效时区字符串 | `[0x26B2] Invalid timezone: '<value>'` |
+| firstDayOfWeek 超出范围 | `[0x26B3] Invalid firstDayOfWeek: <value>, must be 0-6` |
 
 ## 版本支持矩阵
 

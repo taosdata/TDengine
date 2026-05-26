@@ -99,3 +99,11 @@ add_test(
     NAME osTimeTests
     COMMAND osTimeTests
 )
+
+add_executable(osLocaleTests "osLocaleTests.cpp")
+DEP_ext_gtest(osLocaleTests)
+target_link_libraries(osLocaleTests PRIVATE os util)
+add_test(
+    NAME osLocaleTests
+    COMMAND osLocaleTests
+)

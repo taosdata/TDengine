@@ -485,7 +485,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002608 | There mustn't be aggregation                                                                           | 聚合函数出现在非法子句中                                | 检查并修正 SQL 语句                    |
 | 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Order by 指定的位置不合法                               | 检查并修正 SQL 语句                    |
 | 0x8000260A | Not a GROUP BY expression                                                                              | 非法 group by 语句                                      | 检查并修正 SQL 语句                    |
-| 0x8000260B | Not selected expression                                                                                | 非法表达式                                              | 检查并修正 SQL 语句                    |
+| 0x8000260B | Not a SELECT expression | 非法表达式                                              | 检查并修正 SQL 语句                    |
 | 0x8000260C | Not a single-group group function                                                                      | 非法使用列与函数                                        | 检查并修正 SQL 语句                    |
 | 0x8000260D | Tags number not matched                                                                                | tag 列个数不匹配                                        | 检查并修正 SQL 语句                    |
 | 0x8000260E | Invalid tag name                                                                                       | 无效或不存在的 tag 名                                   | 检查并修正 SQL 语句                    |
@@ -555,7 +555,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                            | 检查并修正 SQL 语句                    |
 | 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                              | 检查并修正 SQL 语句                    |
 | 0x80002660 | Invalid sma index                                                                                      | 非法创建 SMA 语句                                       | 检查并修正 SQL 语句                    |
-| 0x80002661 | Invalid selected expression                                                                            | 无效查询语句                                            | 检查并修正 SQL 语句                    |
+| 0x80002661 | Invalid SELECT expression | 无效查询语句                                            | 检查并修正 SQL 语句                    |
 | 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                                    | 保留现场和日志，github 上报 issue      |
 | 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                                        | 检查并修正 SQL 语句                    |
 | 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询            | 检查并修正 SQL 语句                    |
@@ -594,6 +594,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026AF | Invalid offset unit                                                                                    | offset 子句中使用了无效的时间单位                       | 检查并修正 SQL 语句                    |
 | 0x800026B0 | Invalid offset value                                                                                   | 时间窗口中的 offset 值无效                              | 检查并修正 SQL 语句                    |
 | 0x800026B1 | WHERE clause cannot reference EXTERNAL_WINDOW column                                                   | WHERE 子句中引用了 EXTERNAL_WINDOW 子查询的窗口列       | WHERE 子句不能引用 EXTERNAL_WINDOW 的窗口列，请将过滤条件移到 HAVING 或在 SELECT 列表中处理 |
+| 0x800026B2 | Invalid timezone                                                                                       | 时区字符串非法，或使用了有歧义的时区缩写               | 检查并修正 SQL 语句中的时区参数        |
+| 0x800026B3 | Invalid firstDayOfWeek                                                                                 | firstDayOfWeek 必须是 0-6 之间的整数                   | 检查并修正 SQL 语句中的 firstDayOfWeek 参数 |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |

@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "nodes.h"
 #include "nodesUtil.h"
+#include "ttime.h"
 #include "osMemory.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -46,6 +47,24 @@ struct SNodeAllocator {
 
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
+
+int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
+                               void** pTimezone, bool* pOwnsTimezone) {
+  if (pTimezoneName == NULL || pTimezoneName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  timezone_t tz = NULL;
+  int32_t    code = taosValidateTimezone(pTimezoneName, &tz);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  tstrncpy(pTimezoneBuf, pTimezoneName, bufSize);
+  *pTimezone = tz;
+  *pOwnsTimezone = true;
+  return TSDB_CODE_SUCCESS;
+}
 
 char* getJoinTypeString(EJoinType type) {
   static char* joinType[] = {"", "INNER", "LEFT", "RIGHT", "FULL"};
@@ -727,6 +746,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_ALTER_LOCAL_STMT:
       code = makeNode(type, sizeof(SAlterLocalStmt), &pNode);
+      break;
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+      code = makeNode(type, sizeof(SSetTimezoneStmt), &pNode);
+      break;
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      code = makeNode(type, sizeof(SSetFirstDayOfWeekStmt), &pNode);
       break;
     case QUERY_NODE_EXPLAIN_STMT:
       code = makeNode(type, sizeof(SExplainStmt), &pNode);
@@ -1974,6 +1999,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_TOPIC_STMT:   // no pointer field
     case QUERY_NODE_DROP_CGROUP_STMT:  // no pointer field
     case QUERY_NODE_ALTER_LOCAL_STMT:  // no pointer field
+    case QUERY_NODE_SET_TIMEZONE_STMT:  // no pointer field
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:  // no pointer field
       break;
     case QUERY_NODE_EXPLAIN_STMT: {
       SExplainStmt* pStmt = (SExplainStmt*)pNode;
@@ -2489,6 +2516,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN: {
       STableScanPhysiNode* pPhyNode = (STableScanPhysiNode*)pNode;
+      if (pPhyNode->ownsTimezone) {
+        tzfree(pPhyNode->timezone);
+      }
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
       nodesDestroyList(pPhyNode->pGroupTags);
@@ -2575,9 +2605,14 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL: {
+      SIntervalPhysiNode* pIntervalNode = (SIntervalPhysiNode*)pNode;
+      if (pIntervalNode->ownsTimezone) {
+        tzfree(pIntervalNode->timezone);
+      }
       destroyWinodwPhysiNode((SWindowPhysiNode*)pNode);
       break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_FILL: {
       SFillPhysiNode* pPhyNode = (SFillPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);

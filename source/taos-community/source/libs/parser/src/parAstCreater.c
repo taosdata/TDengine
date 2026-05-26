@@ -737,6 +737,7 @@ SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   CHECK_PARSER_STATUS(pCxt);
   pFunc->tz = pCxt->pQueryCxt->timezone;
   pFunc->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  pFunc->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)pFunc;
 _err:
   return NULL;
@@ -1504,6 +1505,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1519,6 +1521,7 @@ SNode* createPHTbnameFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncNa
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1541,6 +1544,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_PARSER_STATUS(pCxt);
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
 
   return (SNode*)func;
 _err:
@@ -7242,6 +7246,36 @@ SNode* createAlterLocalStmt(SAstCreateContext* pCxt, const SToken* pConfig, cons
   }
   return (SNode*)pStmt;
 _err:
+  return NULL;
+}
+
+SNode* createSetTimezoneStmt(SAstCreateContext* pCxt, const SToken* pTimezone) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetTimezoneStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_TIMEZONE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pTimezone->z, pTimezone->n, pStmt->timezone, sizeof(pStmt->timezone));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createSetFirstDayOfWeekStmt(SAstCreateContext* pCxt, const SToken* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetFirstDayOfWeekStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  int64_t val = taosStr2Int64(pVal->z, NULL, 10);
+  if (val < 0 || val > 6) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK,
+                                "Invalid firstDayOfWeek: %.*s, must be 0-6", pVal->n, pVal->z);
+    goto _err;
+  }
+  pStmt->firstDayOfWeek = (int8_t)val;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 

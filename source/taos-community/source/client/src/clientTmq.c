@@ -1655,6 +1655,7 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
         code = terrno;
         goto END;
       }
+      (*pRspObj)->resInfo.timezone = (void *)tmq->pTscObj->optionInfo.timezone;
       (*pRspObj)->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP ? RES_TYPE__TMQ_RAWDATA :
                          (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP ? RES_TYPE__TMQ : RES_TYPE__TMQ_METADATA);
       int64_t numOfRows = 0;
@@ -1688,6 +1689,7 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
       code = terrno;
       goto END;
     }
+    (*pRspObj)->resInfo.timezone = (void *)tmq->pTscObj->optionInfo.timezone;
     (*pRspObj)->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP ? RES_TYPE__TMQ_META : RES_TYPE__TMQ_BATCH_META;
   }
 

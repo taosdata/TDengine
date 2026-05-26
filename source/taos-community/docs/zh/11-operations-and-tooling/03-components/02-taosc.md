@@ -12,7 +12,7 @@ TDengine TSDB 客户端驱动提供了应用编程所需要的全部 API，并�
 
 :::note
 配置文件参数修改后，通常需要重启客户端应用才能生效。
-配置参数的动态修改方法请您参考 [节点管理](https://docs.taosdata.com/reference/taos-sql/node/)。
+配置参数的动态修改方法请您参考 [修改客户端配置](../../04-tdengine-sql/08-cluster-management/01-node.md#修改客户端配置)。
 taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可能不同，详细请参考[TDengine 配置参数作用范围对比](https://docs.taosdata.com/reference/components/config-scope)。
 :::
 
@@ -356,8 +356,18 @@ taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可�
 
 - 说明：时区
 - 默认值：从系统中动态获取当前的时区设置
-- 动态修改：支持通过 SQL 修改，立即生效
+- 动态修改：支持通过 SQL 修改，立即生效；支持会话级修改，仅影响当前连接，具体请参考 [时区与自然时间单位](../../04-tdengine-sql/10-time/01-timezone.md#set-timezone-v342)
 - 支持版本：从 v3.1.0.0 版本开始引入
+
+#### firstDayOfWeek
+
+- 说明：每周起始日，用于周相关计算（如 `TIMETRUNCATE(..., 1w)`）
+- 默认值：若显式配置了 `firstDayOfWeek`，则优先使用该值；否则客户端启动时读取操作系统的“每周起始日”设置；若读取失败则回退为 `4`（周四，编码为 `0=周日 ... 6=周六`）
+  - Linux：通过 locale 的 `LC_TIME` 配置每周起始日。
+  - macOS：通过系统设置修改每周起始日；如需脚本化调整，可修改系统偏好项 `AppleFirstWeekday`。若两者不一致，优先读取 `AppleFirstWeekday`；该项不可用（未配置）时，回退到当前系统日历设置。
+  - Windows：通过系统区域设置修改每周起始日。
+- 动态修改：支持通过 SQL 修改，立即生效；支持会话级修改，仅影响当前连接，具体请参考 [SET_FIRST_DAY_OF_WEEK](../../04-tdengine-sql/10-time/01-timezone.md#set-first_day_of_week-v342)
+- 支持版本：从 v3.4.2.0 版本开始引入
 
 #### locale
 

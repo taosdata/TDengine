@@ -60,7 +60,7 @@ class TestQuarterInterval:
         return f"quarter_tz_{self._case_name}_{suffix}"
 
     def _set_timezone(self, timezone):
-        tdSql.execute(f"alter local 'timezone {timezone}'")
+        tdSql.execute(f"set timezone \'{timezone}\'")
 
     def _prepare_data(self, table_name=None):
         table_name = table_name or self._table_name()
@@ -660,7 +660,7 @@ class TestQuarterInterval:
         return table_name
 
     def _insert_quarterly_data(self, table_name):
-        """Insert data spanning Q1-Q4 2024, one row per month at noon."""
+        """Insert data spanning Q1 2024 to Q2 2025, one row per month at noon."""
         rows = [
             ("2024-01-15 12:00:00", 1),
             ("2024-02-15 12:00:00", 2),
@@ -674,6 +674,12 @@ class TestQuarterInterval:
             ("2024-10-15 12:00:00", 10),
             ("2024-11-15 12:00:00", 11),
             ("2024-12-15 12:00:00", 12),
+            ("2025-01-15 12:00:00", 13),
+            ("2025-02-15 12:00:00", 14),
+            ("2025-03-15 12:00:00", 15),
+            ("2025-04-15 12:00:00", 16),
+            ("2025-05-15 12:00:00", 17),
+            ("2025-06-15 12:00:00", 18),
         ]
         for ts, val in rows:
             tdSql.execute(f"insert into {table_name} values ('{ts}', {val})")
@@ -760,6 +766,8 @@ class TestQuarterInterval:
                 "2024-04-01",
                 "2024-07-01",
                 "2024-10-01",
+                "2025-01-01",
+                "2025-04-01",
             ],
         )
 
@@ -771,15 +779,17 @@ class TestQuarterInterval:
                 "2024-04-01T00:00:00.000+0800",
                 "2024-07-01T00:00:00.000+0800",
                 "2024-10-01T00:00:00.000+0800",
+                "2025-01-01T00:00:00.000+0800",
+                "2025-04-01T00:00:00.000+0800",
             ],
         )
 
-        assert len(rows) == 4, f"Expected 4 quarters, got {len(rows)}"
+        assert len(rows) == 6, f"Expected 6 quarters, got {len(rows)}"
 
-    @pytest.mark.xfail(
-        reason=SESSION_TZ_BOUNDARY_XFAIL,
-        strict=True,
-    )
+    # @pytest.mark.xfail(
+    #     reason=SESSION_TZ_BOUNDARY_XFAIL,
+    #     strict=True,
+    # )
     def test_session_timezone_controls_quarter_boundary_utc(self):
         """Known-bug regression: UTC query should show local quarter starts.
 
@@ -820,6 +830,8 @@ class TestQuarterInterval:
                 "2024-04-01T00:00:00.000+0000",
                 "2024-07-01T00:00:00.000+0000",
                 "2024-10-01T00:00:00.000+0000",
+                "2025-01-01T00:00:00.000+0000",
+                "2025-04-01T00:00:00.000+0000",
             ],
         )
 
@@ -847,12 +859,12 @@ class TestQuarterInterval:
         self._insert_quarterly_data(table_name)
         rows = self._assert_1q_equals_3n(table_name, "Europe/Berlin")
 
-        assert len(rows) == 4, f"Expected 4 quarters, got {len(rows)}"
+        assert len(rows) == 6, f"Expected 6 quarters, got {len(rows)}"
 
-    @pytest.mark.xfail(
-        reason=SESSION_TZ_BOUNDARY_XFAIL,
-        strict=True,
-    )
+    # @pytest.mark.xfail(
+    #     reason=SESSION_TZ_BOUNDARY_XFAIL,
+    #     strict=True,
+    # )
     def test_session_timezone_controls_quarter_boundary_berlin(self):
         """Known-bug regression: Europe/Berlin should use Berlin quarter starts.
 
@@ -887,6 +899,8 @@ class TestQuarterInterval:
                 "2024-04-01T00:00:00.000+0200",
                 "2024-07-01T00:00:00.000+0200",
                 "2024-10-01T00:00:00.000+0200",
+                "2025-01-01T00:00:00.000+0100",
+                "2025-04-01T00:00:00.000+0200",
             ],
         )
 

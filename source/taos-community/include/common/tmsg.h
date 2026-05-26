@@ -452,6 +452,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_TOTP_SECRET_STMT,
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
+  QUERY_NODE_SET_TIMEZONE_STMT,
+  QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -2066,6 +2068,7 @@ typedef struct {
   char        slidingUnit;
   char        offsetUnit;
   int8_t      precision;
+  int8_t      firstDayOfWeek;
   int64_t     interval;
   int64_t     sliding;
   int64_t     offset;
@@ -4380,6 +4383,7 @@ typedef struct SSubQueryMsg {
   int8_t   explain;
   int8_t   needFetch;
   int8_t   compress;
+  int8_t   firstDayOfWeek;
   uint32_t sqlLen;
   char*    sql;
   uint32_t msgLen;
