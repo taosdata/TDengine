@@ -1322,9 +1322,6 @@ class TestQueryCaseWhen:
             'case q_double when q_int then q_int when q_int - (%d) then q_int else %d end ' %(a1,a2),  # 'first  case q_double when q_int then q_int when q_int - 1 then q_int else 99 end last' ,
             'case q_int + (%d) when %d then %d when %d then %d else %d end '  %(a1,a2,a3,a1,a2,a3), #'first  case q_int + 1 when 1 then 1 when 2 then 2 else 3 end last' ,
             'q_int, case q_int + (%d) when %d then %d when %d then %d else %d end ' %(a1,a1,a1,a2,a2,a3), #'first  q_int, case q_int + 1 when 1 then 1 when 2 then 2 else 3 end last' ,
-        ]
-
-        error_state_window_sqls = [
             'case when %d then %d end ' %(a1,a2) ,     #'first  case when 3 then 4 end last' , 
             'case when 0 then %d end ' %(a1),            #'first  case when 0 then 4 end last' ,
             'case when null then %d end ' %(a1) ,        #'first  case when null then 4 end last' ,
@@ -1371,10 +1368,10 @@ class TestQueryCaseWhen:
             'case null when null then %d when %d then %d end '  %(a1,a2,a3), #'first  case null when null then 4 when 3 then 1 end last' ,
         ]
 
-        return state_window_sqls, error_state_window_sqls
+        return state_window_sqls
            
     def state_window_case(self,database):    
-        state_window_sqls, error_state_window_sqls = self.state_window_list()
+        state_window_sqls = self.state_window_list()
         for sql in state_window_sqls:
             sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,sql)
             sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,sql)
@@ -1382,11 +1379,6 @@ class TestQueryCaseWhen:
             self.constant_check(database,sql1,sql2,1)
             self.constant_check(database,sql1,sql2,2)
 
-        for sql in error_state_window_sqls:
-            sql1 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1 where tbname = 'stable_1_1' state_window(%s);" % (database,sql)
-            sql2 = "select _wstart,avg(q_int),min(q_smallint) from %s.stable_1_1 state_window(%s) ;" % (database,sql)
-            tdSql.error(sql1)
-        
     def constant_check(self,database,sql1,sql2,column):   
         #column =0 代表0列， column = n代表n-1列 
         tdLog.info("\n=============sql1:(%s)___sql2:(%s) ====================\n" %(sql1,sql2)) 

@@ -158,7 +158,7 @@ STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(z
 
 状态窗口触发是指对触发表的写入数据按照状态表达式的计算结果进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
-- state_expr：一个或多个状态键。可以是列引用，也可以是 `CASE WHEN`、`IF`、`CAST` 等表达式；返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列。
+- state_expr：一个或多个状态键。可以是列引用或标签，也可以是 `CASE WHEN`、`IF`、`CAST` 等表达式；返回类型必须是整数、布尔值或 `VARCHAR`。
 - extend_val：可选，窗口开始结束时的扩展策略：`EXTEND(0)` 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；`EXTEND(1)` 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；`EXTEND(2)` 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
 - zeroth_val：可选，指定“零状态”。参数个数必须与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，并且可以转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断。只有所有已配置零状态的位置都命中时，该窗口才会被计算为零状态窗口并被过滤。
 - true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
@@ -197,8 +197,6 @@ CREATE STREAM s_tag_state
   INTO meters_state_out
   AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
 ```
-
-- 但 `STATE_WINDOW(groupId)` 这种直接将 tag 列作为状态表达式的写法仍然不支持；如果要使用 tag 列，需要让它参与到状态表达式中。
 
 多列状态窗口示例：
 
