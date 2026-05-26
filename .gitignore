@@ -42,7 +42,7 @@ node_modules/
 .github/prompts/
 mcp.json
 prompts/
-
+*.tsv
 
 # Java
 target/
