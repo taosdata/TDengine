@@ -549,6 +549,66 @@ _exit:
   return code;
 }
 
+// Remove non-existent file entries from fSetArrTmp before commit.
+// Returns true if any entries were removed (caller should re-save current.c.json).
+static bool tsdbFSValidateFilesExist(STFileSystem* fs, int32_t vgId) {
+  TFileSetArray* fsetArray = fs->fSetArrTmp;
+  bool           changed = false;
+  int32_t        i = 0;
+
+  while (i < TARRAY2_SIZE(fsetArray)) {
+    STFileSet* fset = TARRAY2_GET(fsetArray, i);
+
+    // check data files (HEAD/DATA/SMA/TOMB)
+    for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+      if (fset->farr[ftype] == NULL) continue;
+      STFileObj* fobj = fset->farr[ftype];
+      if (!taosCheckExistFile(fobj->fname)) {
+        tsdbInfo("vgId:%d, snapshot commit remove non-existent file fid:%d ftype:%d fname:%s", vgId, fset->fid, ftype,
+                 fobj->fname);
+        TAOS_UNUSED(tsdbTFileObjUnref(fobj));
+        fset->farr[ftype] = NULL;
+        changed = true;
+      }
+    }
+
+    // check STT files
+    int32_t j = 0;
+    while (j < TARRAY2_SIZE(fset->lvlArr)) {
+      SSttLvl* lvl = TARRAY2_GET(fset->lvlArr, j);
+      int32_t  k = 0;
+      while (k < TARRAY2_SIZE(lvl->fobjArr)) {
+        STFileObj* fobj = TARRAY2_GET(lvl->fobjArr, k);
+        if (!taosCheckExistFile(fobj->fname)) {
+          tsdbInfo("vgId:%d, snapshot commit remove non-existent stt file fid:%d level:%d fname:%s", vgId, fset->fid,
+                   lvl->level, fobj->fname);
+          TARRAY2_REMOVE(lvl->fobjArr, k, NULL);
+          TAOS_UNUSED(tsdbTFileObjUnref(fobj));
+          changed = true;
+        } else {
+          k++;
+        }
+      }
+      // remove empty STT level
+      if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
+        TARRAY2_REMOVE(fset->lvlArr, j, tsdbSttLvlClear);
+      } else {
+        j++;
+      }
+    }
+
+    // remove empty fset
+    if (tsdbTFileSetIsEmpty(fset)) {
+      tsdbInfo("vgId:%d, snapshot commit remove empty fset fid:%d", vgId, fset->fid);
+      TARRAY2_REMOVE(fsetArray, i, tsdbTFileSetClear);
+    } else {
+      i++;
+    }
+  }
+
+  return changed;
+}
+
 int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** writer, int8_t rollback) {
   if (writer[0] == NULL) return 0;
 
@@ -562,6 +622,17 @@ int32_t tsdbSnapRAWWriterClose(STsdbSnapRAWWriter** writer, int8_t rollback) {
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     (void)taosThreadMutexLock(&writer[0]->tsdb->mutex);
+
+    // validate file existence before commit - remove stale entries
+    if (tsdbFSValidateFilesExist(writer[0]->tsdb->pFS, TD_VID(writer[0]->tsdb->pVnode))) {
+      char fname[TSDB_FILENAME_LEN];
+      current_fname(writer[0]->tsdb, fname, TSDB_FCURRENT_C);
+      int32_t rc = save_fs(writer[0]->tsdb->pFS->fSetArrTmp, fname);
+      if (rc) {
+        tsdbError("vgId:%d, failed to re-save current.c.json after removing non-existent files since %s",
+                  TD_VID(writer[0]->tsdb->pVnode), tstrerror(rc));
+      }
+    }
 
     code = tsdbFSEditCommit(writer[0]->tsdb->pFS);
     if (code) {
