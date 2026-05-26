@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 
 DEPLOY_SH="${ROOT}/.gitlab/scripts/tsdb-docs-cd/deploy.sh"
+ROOT_CI="${ROOT}/.gitlab-ci.yml"
 grep -F 'source "${ROOT}/.gitlab/scripts/tsdb-docs-cd/branch-notify.sh"' "${DEPLOY_SH}"
 grep -F 'collect_current_branch_state' "${DEPLOY_SH}"
 grep -F 'classify_changed_targets' "${DEPLOY_SH}"
@@ -12,6 +13,17 @@ grep -F 'job: ${CI_JOB_URL:-<no-url>}' "${DEPLOY_SH}"
 grep -F 'deploy.sh: no tracked tsdb branch changes; skipping success notification.' "${DEPLOY_SH}"
 grep -F 'notify_feishu "❌ docs-cd ${LANG_ARG} FAILED' "${DEPLOY_SH}"
 grep -F 'baseline initialized' "${DEPLOY_SH}"
+
+ruby -e '
+  require "yaml"
+  ci = YAML.load_file(ARGV.fetch(0))
+  trigger = ci.fetch("tsdb-docs-cd").fetch("trigger")
+  forward = trigger.fetch("forward", {})
+  unless forward["pipeline_variables"] == true
+    warn "tsdb-docs-cd must forward parent pipeline variables to the child pipeline"
+    exit 1
+  end
+' "${ROOT_CI}"
 
 if grep -F 'affected:' "${DEPLOY_SH}"; then
   echo "success notification must not include affected bucket details" >&2

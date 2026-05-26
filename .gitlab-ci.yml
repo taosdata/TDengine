@@ -101,5 +101,7 @@ tsdb-docs-cd:
     include:
       - local: .gitlab/tsdb-deploy-docs.yml
     strategy: depend
+    forward:
+      pipeline_variables: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_DOCS_CD == "true"
