@@ -812,7 +812,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_BNODE_OPTION,      "Invalid Bnode option
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST,    "GROUP BY and WINDOW-clause can't be used together")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AGG_FUNC_NESTING,          "Aggregate functions do not support nesting")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,    "Only support STATE_WINDOW on integer/bool/varchar column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_COL,     "Not support STATE_WINDOW on tag column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_COL,     "Invalid STATE_WINDOW column specification")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE,   "STATE_WINDOW not support for super table query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_GAP,         "SESSION gap should be fixed time window, and greater than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_COL,         "Only support SESSION on primary timestamp column")

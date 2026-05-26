@@ -93,7 +93,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
       return "Only support STATE_WINDOW on integer/bool/varchar column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
-      return "Not support STATE_WINDOW on tag column";
+      return "Invalid STATE_WINDOW column specification";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
       return "STATE_WINDOW not support for super table query";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
