@@ -385,7 +385,7 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 ```
 
 > **NOTE:**
-> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
+> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take an amount of time.
 
 </details>
 
