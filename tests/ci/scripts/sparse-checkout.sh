@@ -33,6 +33,12 @@ if [[ -f "${CASES_TASK_IN_PROJ}" ]]; then
     rm -rf "${TDINTERNAL_DIR}"
     mkdir -p "${TDINTERNAL_DIR}"
     ln -sf "${CI_PROJECT_DIR}/${SRC_SUBDIR}" "${TDENGINE_DIR}"
+    # taos-internal 软链接：run_container.sh 的 TAOS_INTERNAL_DIR 在 TDinternal/taos-internal 查找，
+    # 此处同步建立软链，使 test_new_stream_compatibility.py 等企业版测试可访问该路径。
+    if [ -d "${CI_PROJECT_DIR}/source/taos-internal" ]; then
+        ln -sf "${CI_PROJECT_DIR}/source/taos-internal" "${TDINTERNAL_DIR}/taos-internal"
+        echo "[sparse-checkout] Symlink: ${TDINTERNAL_DIR}/taos-internal -> ${CI_PROJECT_DIR}/source/taos-internal"
+    fi
     exit 0
 fi
 
@@ -85,6 +91,13 @@ rm -rf "${TDINTERNAL_DIR}"
 mkdir -p "${TDINTERNAL_DIR}"
 ln -sf "${CLONE_DIR}/${SRC_SUBDIR}" "${TDENGINE_DIR}"
 echo "[sparse-checkout] Symlink: ${TDENGINE_DIR} -> ${CLONE_DIR}/${SRC_SUBDIR}"
+
+# taos-internal 软链接（供企业版测试依赖）
+# 稀疏检出只拉取了 community 子树；taos-internal 优先从 CI_PROJECT_DIR（runner 完整 checkout）找
+if [ -d "${CI_PROJECT_DIR}/source/taos-internal" ]; then
+    ln -sf "${CI_PROJECT_DIR}/source/taos-internal" "${TDINTERNAL_DIR}/taos-internal"
+    echo "[sparse-checkout] Symlink: ${TDINTERNAL_DIR}/taos-internal -> ${CI_PROJECT_DIR}/source/taos-internal"
+fi
 
 # TDengine/ 软链接：run-test-batch.sh 等脚本用 ${WORKDIR}/TDengine 访问测试文件
 ln -sf "${TDENGINE_DIR}" "${WORKDIR}/TDengine"
