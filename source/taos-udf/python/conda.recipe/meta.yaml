@@ -1,0 +1,39 @@
+package:
+  name: taospyudf
+  version: 0.0.1
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv
+
+requirements:
+  build:
+    - python
+    - {{ compiler('cxx') }}
+
+  host:
+    - python
+    - pip
+    - scikit-build-core
+    - pybind11 >=2.10.0
+
+  run:
+    - python
+
+
+test:
+  imports:
+    - taospyudf
+  requires:
+    - pytest
+  source_files:
+    - tests
+  commands:
+    - pytest tests
+
+about:
+  summary: taos python udf
+  license_file: LICENSE
