@@ -21,6 +21,7 @@ COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [
 SHOW COMPACTS;
 SHOW COMPACT compact_id;
 KILL COMPACT compact_id;
+KILL COMPACT compact_id FORCE;
 ```
 
 ### Effects
@@ -39,6 +40,7 @@ KILL COMPACT compact_id;
 
 - COMPACT is asynchronous; after executing the COMPACT command, it returns without waiting for the COMPACT to finish. If a previous COMPACT has not completed, it will wait for the previous task to finish before returning.
 - COMPACT may block writing, especially in databases where stt_trigger = 1, but it does not block queries.
+- `KILL COMPACT compact_id FORCE` bypasses the normal mnode-driven cleanup of a compact task and forcefully removes the compact record from the SDB. This allows the task to be terminated immediately even when a dnode is offline, without waiting for it to recover. **This operation carries risk**: data files being modified during compaction may be left in an intermediate state, as forceful record deletion does not trigger cleanup on the offline node, which can result in data file corruption. **Use this command only when a node is completely broken and cannot be recovered.** If the node can still be started, it is strongly recommended to bring it back online first and then terminate the task with `KILL COMPACT` (without `FORCE`).
 
 ## Vgroup Leader Rebalancing
 
