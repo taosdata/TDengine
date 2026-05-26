@@ -162,7 +162,7 @@ def _compute_workspace() -> str:
     if source == "parent_pipeline" and _PARENT_PIPELINE_SOURCE:
         source = _PARENT_PIPELINE_SOURCE
     if source == "merge_request_event" and _CI_MR_IID:
-        return f"{_CI_BASE_DIR}/mr{_CI_MR_IID}"
+        return f"{_CI_BASE_DIR}/mr{_CI_MR_IID}-p{_pipeline_id}"
     elif source == "schedule" and _CI_BRANCH:
         import datetime
         return f"{_CI_BASE_DIR}/daily-{_CI_BRANCH}-{datetime.date.today():%Y%m%d}"
