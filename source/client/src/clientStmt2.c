@@ -3500,6 +3500,12 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
     }
   }
 
+  if (pStmt->options.asyncExecFn) {
+    // TODO: a well-defined reentrancy protection is desired, but ...
+    pStmt->options.asyncExecFn(pStmt->options.userdata,
+        pStmt->exec.pRequest, pStmt->ctx.code);
+  }
+
   return pStmt->ctx.code;
 }
 
