@@ -18,7 +18,6 @@ product_name=$8
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/rpmworkroom"
-taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
 spec_file="${script_dir}/tdengine.spec"
 
 #echo "curr_dir: ${curr_dir}"
@@ -32,6 +31,34 @@ csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo "
 fi
+
+resolve_existing_dir() {
+    local label="$1"
+    shift
+    for candidate in "$@"; do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    echo "Missing ${label} root. Tried: $*" >&2
+    return 1
+}
+
+community_packaging_dir="$(resolve_existing_dir \
+    "community packaging" \
+    "$(readlink -f "${script_dir}/..")" \
+    "$(readlink -f "${compile_dir}/../packaging")")"
+
+internal_packaging_dir="$(resolve_existing_dir \
+    "internal packaging" \
+    "$(readlink -f "${top_dir}/../taos-internal/packaging")" \
+    "$(readlink -f "${top_dir}/../enterprise/packaging")")"
+
+taosx_dir="$(resolve_existing_dir \
+    "taosx" \
+    "$(readlink -f "${top_dir}/../taos-xservice")" \
+    "$(readlink -f "${script_dir}/../../../../taosx")")"
 
 function cp_rpm_package() {
     local cur_dir
@@ -78,7 +105,7 @@ cd ${pkg_dir}
 
 ${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_taosxdir ${taosx_dir}"  --define="product_name ${product_name}"  -bb ${spec_file}
+${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_communitypackagingdir ${community_packaging_dir}" --define="_communitysourcedir ${top_dir}" --define="_internalpackagingdir ${internal_packaging_dir}" --define="_taosxdir ${taosx_dir}"  --define="product_name ${product_name}"  -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo}cp -rf RPMS/* ${output_dir}
