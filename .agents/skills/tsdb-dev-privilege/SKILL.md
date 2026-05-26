@@ -71,10 +71,10 @@ Provide guidance and verified workflows for using RBAC privilege control in TDen
 ---
 
 For detailed examples, see test_priv_rbac.py and adjust commands as needed for your environment.
+
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-dev-privilege version=0.1.0 author=klxu`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-dev-privilege version=1.0.0 author=klxu`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

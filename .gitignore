@@ -19,6 +19,7 @@ debug-others/
 release/
 .externals/
 .deps_installed
+examples
 
 # C / C++ build artifacts
 *.d

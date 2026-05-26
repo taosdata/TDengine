@@ -861,8 +861,14 @@ upload-nexus:
           _NOSAN_BIN="${TSDB_SRC}/debug-others/build/bin"
           _NOSAN_LIB="${TSDB_SRC}/debug-others/build/lib"
           echo "[pack] [asan] Supplementing test-only binaries from noasan build..."
-          for _tbin in tmq_get_meta_json tmq_vtable tmq_batch_alter_tag tmq_taosx_ci tmq_sim \
-                       replay_test sml_test get_db_name_test varbinary_test write_raw_block_test; do
+          # 全量 tmq_* 测试工具（ASAN 构建 BUILD_TEST=OFF，统一从 noasan 补充，
+          # 避免测试用例通过 run_container.sh 在 worker 上找不到这些二进制产物）
+          while IFS= read -r _bin; do
+            _bn=$(basename "$_bin")
+            cp "$_bin" "${TAR_BIN}/" && echo "  [OK] ${_bn}"
+          done < <(find "${_NOSAN_BIN}" -maxdepth 1 -name 'tmq_*' -type f -executable 2>/dev/null)
+          # 其他 ctest 测试工具
+          for _tbin in replay_test sml_test get_db_name_test varbinary_test write_raw_block_test; do
             if [ -f "${_NOSAN_BIN}/${_tbin}" ]; then
               cp "${_NOSAN_BIN}/${_tbin}" "${TAR_BIN}/"
               echo "  [OK] ${_tbin}"

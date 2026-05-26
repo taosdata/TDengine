@@ -541,10 +541,10 @@ After creating the workspace:
 3. Use analyze_performance.sh to collect data
 4. Use AI to analyze the data
 5. Follow the optimization workflow
+
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-perf-issue-reproduce version=0.1.0 author=beryl`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-perf-issue-reproduce version=1.0.0 author=beryl`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

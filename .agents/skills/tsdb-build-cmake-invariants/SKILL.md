@@ -1,4 +1,14 @@
-# Copilot Instructions — TSDB Build System Invariants
+---
+name: "tsdb-build-cmake-invariants"
+description: "TSDB 构建系统不变量规则集。当用户编辑 CMakeLists.txt、external.cmake、conan.cmake、options.cmake 或 ExternalProject 相关代码时触发。涵盖 ExternalProject lib/ 路径、RocksDB 缓存验证、构建选项守卫、GTest 兼容、GCC 7 兼容、LOCAL_URL 桥接等 13 条经验教训规则。"
+metadata:
+  author: Bo Xiao
+  version: 1.0.0
+  owner_team: engine
+  compatibility: "Applies to TSDB main and 3.3.6 branches"
+---
+
+# TSDB Build System Invariants
 
 > **Purpose**: This document records hard-won build system invariants derived from
 > production incidents and fixes. Every rule here exists because violating it
@@ -7,6 +17,25 @@
 >
 > **Reference**: 构建环境详情参见 `tsdb-builder/README.md`
 > （仓库 `platform/platform`，路径 `tsdb-builder/`）。
+
+## When to use
+
+- Editing `CMakeLists.txt`, `external.cmake`, `conan.cmake`, `options.cmake`
+- Adding or modifying `ExternalProject_Add()` calls
+- Changing RocksDB build options or linking logic
+- Working with GTest setup on aarch64/lib64 platforms
+- Writing C++ code in `source/taos-gen/` or `source/taos-community/` that must compile under GCC 7
+- Modifying Conan dependency configuration
+- Troubleshooting CMake configure-time or link-time failures
+- Reviewing PRs that touch the build system
+
+## Trigger keywords
+
+CMakeLists, cmake, ExternalProject, external.cmake, conan.cmake, options.cmake,
+BUILD_CONTRIB, BUILD_ROCKSDB, ROCKSDB_USE_DEPS, INIT_EXT, DEP_td_rocksdb,
+CMAKE_INSTALL_LIBDIR, lib64, GCC 7, devtoolset-7, manylinux2014, ext_gtest,
+ext_rocksdb, LOCAL_URL, BUILD_DEPS_MIRROR_URL, TD_CONFIG_NAME_RESOLVED,
+构建失败, 链接错误, link error, build failure, 编译兼容
 
 ---
 
@@ -726,3 +755,10 @@ endif()
 | 11. Build option defaults | ✅ insight/odbc/dotnet=OFF | Verify | May differ |
 | 12. `DEP_td_rocksdb` uniform | ✅ Always via macro | ✅ Same | Identical logic |
 | 13. LOCAL_URL CACHE bridge | ✅ Empty-string check + FORCE | Verify | CACHE var was always defined, blocking bridge |
+
+## Telemetry (MUST)
+
+> 调用 `skill-telemetry`，传入 `name=tsdb-build-cmake-invariants version=1.0.0 author=Bo Xiao`。
+> 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
+
+<!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
