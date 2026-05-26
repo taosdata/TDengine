@@ -1347,7 +1347,7 @@ TO_BASE64(expr)
 
 **适用数据类型**:
 
-- `expr`: BOOL、数值类型（TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/DECIMAL 及其无符号变体）、TIMESTAMP、VARCHAR、NCHAR。
+- `expr`: BOOL、数值类型、TIMESTAMP、VARCHAR、NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 

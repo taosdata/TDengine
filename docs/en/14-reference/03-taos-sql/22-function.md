@@ -1299,7 +1299,7 @@ TO_BASE64(expr)
 
 **Applicable Data Types**:
 
-- `expr`: BOOL, numeric types (TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/DECIMAL and their unsigned variants), TIMESTAMP, VARCHAR, NCHAR.
+- `expr`: BOOL, numeric types, TIMESTAMP, VARCHAR, NCHAR.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
