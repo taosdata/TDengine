@@ -105,8 +105,10 @@ class TestFunDiff:
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+        tdSql.query(
+            f"select name from information_schema.ins_databases where name = '{db}'"
+        )
+        tdSql.checkRows(0)
 
     def ComuteDiff(self):
         dbPrefix = "m_di_db"
@@ -166,17 +168,21 @@ class TestFunDiff:
         tdSql.checkData(1, 0, 1)
 
         tdLog.info(f"=============== step5")
-        tdSql.error(f"select diff(tbcol) as b from {tb} interval(1m)")
+        tdSql.query(f"select diff(tbcol) as b from {tb} interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== step6")
         cc = 4 * 60000
         ms = 1601481600000 + cc
-        tdSql.error(f"select diff(tbcol) as b from {tb} where ts <= {ms} interval(1m)")
+        tdSql.query(f"select diff(tbcol) as b from {tb} where ts <= {ms} interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
-        tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkRows(2)
+        tdSql.query(
+            f"select name from information_schema.ins_databases where name = '{db}'"
+        )
+        tdSql.checkRows(0)
 
     def ComuteDiff2(self):
         dbPrefix = "m_di_db"
@@ -247,9 +253,11 @@ class TestFunDiff:
 
         tdSql.query(f"select 2+diff(c1) from {tb}")
         tdSql.query(f"select diff(c1+2) from {tb}")
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from {tb} where ts > 0 and ts < now + 100m interval(10m)"
         )
+        tdSql.checkRows(9000)
+        tdSql.checkData(0, 0, 1)
         # sql select diff(c1) from $mt
         tdSql.error(f"select diff(diff(c1)) from {tb}")
         tdSql.error(f"select diff(c1) from m_di_tb1 where c2 like '2%'")
@@ -289,10 +297,12 @@ class TestFunDiff:
         tdSql.checkData(0, 0, 10)
 
         tdLog.info(f"=============== step5")
-        tdSql.error(f"select diff(c1) as b from {tb} interval(1m)")
+        tdSql.query(f"select diff(c1) as b from {tb} interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== step6")
-        tdSql.error(f"select diff(c1) as b from {tb} where ts < now + 4m interval(1m)")
+        tdSql.query(f"select diff(c1) as b from {tb} where ts < now + 4m interval(1m)")
+        tdSql.checkRows(0)
 
         tdLog.info(f"=============== clear")
 

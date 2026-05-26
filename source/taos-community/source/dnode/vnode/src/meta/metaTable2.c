@@ -1986,7 +1986,7 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
   }
 
   if (taosArrayGetSize(uidList) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidList, NULL, tagListArray);
+    vnodeAlterTagForQuerySub(pMeta->pVnode, uidList, NULL, tagListArray);
   }
 
   taosArrayDestroy(uidList);
@@ -2386,7 +2386,7 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 _exit:
   DestoryThreadLocalRegComp();
   if (taosArrayGetSize(uidListForTmq) > 0) {
-    vnodeAlterTagForTmq(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
+    vnodeAlterTagForQuerySub(pMeta->pVnode, uidListForTmq, pReq->pMultiTag, NULL);
   }
   taosArrayDestroy(pUids);
   taosArrayDestroy(uidListForTmq);

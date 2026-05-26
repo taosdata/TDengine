@@ -17,10 +17,46 @@ build/
 debug/
 debug-others/
 release/
+.externals/
+.deps_installed
+
+# C / C++ build artifacts
+*.d
 *.o
-*.so
-*.dylib
+*.ko
+*.obj
+*.elf
+*.ilk
+*.map
+*.exp
+*.gch
+*.pch
+*.lib
 *.a
+*.la
+*.lo
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+*.dSYM/
+*.su
+*.idb
+*.pdb
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+*.dwo
 
 # Python
 __pycache__/
@@ -31,16 +67,25 @@ venv/
 
 # Node.js
 node_modules/
+yarn.lock
 
 # AI Extensions
 .cursor/
 .cursor
 .claude/
 .claude
+.agent/
+.agent
 .github/skills/
 .github/skills
 .github/prompts/
 mcp.json
+prompts/
+*.tsv
+CLAUDE.md
+AGENT.md
+docs/skills/
+docs/tools/
 
 # Java
 target/
@@ -55,12 +100,9 @@ vendor/
 
 # Logs
 *.log
-
-.externals/
-yarn.lock
-.deps_installed
-
+screenlog.0
 sim/
 taos-/
 allure-results/
 .history/*
+

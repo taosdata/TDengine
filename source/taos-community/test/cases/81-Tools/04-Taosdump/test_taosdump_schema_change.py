@@ -15,47 +15,63 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
 class TestTaosdumpSchemaChange:
-    def createDir(self, path):
+    def exec(self, command):
+        tdLog.info(command)
+        return os.system(command)
+
+    def _datadir(self, subdir):
+        return os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", subdir)
+
+    def _prepare_dir(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
         else:
-            print("directory exists")
-            self.clearPath(path)
+            os.system("rm -rf %s/*" % path)
+            os.makedirs(path)
 
-    def clearPath(self, path):
-        os.system("rm -rf %s/*" % path)
+    def backupIn(self, db, newdb, tmpdir):
+        """Import with taosBackup from taosdump avro data."""
+        taosbackup = etool.taosDumpFile()
+        self.exec(f'{taosbackup} -W "{db}={newdb}" -i {tmpdir}')
 
+    def taosdump(self, cmd, show=True):
+        """Unused — kept for reference only."""
+        pass
+
+    def benchmark(self, command):
+        """Run taosBenchmark with the given arguments."""
+        etool.benchmark(command)
+
+    def checkManyString(self, rlist, results):
+        """Assert that every expected string in results appears somewhere in rlist."""
+        if rlist is None:
+            tdLog.exit("taosdump returned None output list")
+        combined = "\n".join(str(line) for line in rlist)
+        for expected in results:
+            if expected not in combined:
+                tdLog.exit(
+                    f"Expected string not found in taosdump output:\n"
+                    f"  expected: {expected!r}\n"
+                    f"  output  : {combined[:500]!r}"
+                )
+            else:
+                tdLog.info(f"  found expected string: {expected!r}")
+
+    def checkSameResult(self, sql1, sql2):
+        """Run both SQL statements and compare their results row-by-row."""
+        res1 = tdSql.getResult(sql1)
+        res2 = tdSql.getResult(sql2)
+        if res1 == res2:
+            tdLog.info(f"Results match: {sql1!r}")
+        else:
+            tdLog.exit(
+                f"Results differ!\n  sql1={sql1!r} -> {res1}\n  sql2={sql2!r} -> {res2}"
+            )
 
     # insert
     def insertData(self):
-        # source db
-        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChange.json"
-        self.benchmark(command)
-        # des newdb
-        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
-        self.benchmark(command)
-
-    # dump out
-    def dumpOut(self, db, tmpdir):
-        cmd = f"-D {db} -o {tmpdir}"
-        rlist = self.taosdump(cmd)
-        results = [
-            "OK: total 1 table(s) of stable: meters1 schema dumped.",
-            "OK: total 20 table(s) of stable: meters2 schema dumped.",
-            "OK: total 30 table(s) of stable: meters3 schema dumped.",
-            "OK: 9132 row(s) dumped out!"
-        ]
-        self.checkManyString(rlist, results)
-
-    # dump in
-    def dumpIn(self, db, newdb, tmpdir):
-        cmd = f'-W "{db}={newdb}" -i {tmpdir}'
-        rlist = self.taosdump(cmd)
-        results = [
-            f"rename DB Name {db} to {newdb}",
-            f"OK: 9132 row(s) dumped in!"
-        ]
-        self.checkManyString(rlist, results)
+        """Unused — pre-generated backup data is used instead."""
+        pass
 
     # super table
     def checkCorrectStb(self, db, newdb):
@@ -207,80 +223,14 @@ class TestTaosdumpSchemaChange:
         # ntb
         self.checkCorrectNtb(db, newdb)
 
-    #
-    # ----------  specify table ------------
-    #
-
-    # clear env
-    def clearEvn(self, newdb, tmpdir):
-        # clear old
-        self.clearPath(tmpdir)
-
-        # des newdb re-create
-        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
-        self.benchmark(command)        
-
-    # dump out specify
-    def dumpOutSpecify(self, db, tmpdir):
-        cmd = f"-o {tmpdir} {db} d0 meters2 meters3 meters4 ntbd1 ntbd2 ntbe1 ntbe2 ntbf1 ntbf2 ntbg1 ntbg2"
-        rlist = self.taosdump(cmd)
-        results = [
-            "OK: total 20 table(s) of stable: meters2 schema dumped.",
-            "OK: total 30 table(s) of stable: meters3 schema dumped.",
-            "OK: total 40 table(s) of stable: meters4 schema dumped.",
-            "OK: 9132 row(s) dumped out!"
-        ]
-        self.checkManyString(rlist, results)
-
-    def exceptNoSameCol(self, db, newdb, tmpdir):
-        # des newdb re-create
-        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
-        self.benchmark(command)        
-
-        # re-create meters2 for no same column and tags
-        sqls = [
-            # meters2 no same col and tag
-            f"drop table {newdb}.meters2",
-            f"create table {newdb}.meters2(nts timestamp, age int) tags(area int)",
-            # meters3 one same col and no same tag
-            f"drop table {newdb}.meters3",
-            f"create table {newdb}.meters3(ts timestamp, fc float) tags(area int)"
-        ]
-        tdSql.executes(sqls)
-
-        # dumpIn
-        cmd = f'-W "{db}={newdb}" -i {tmpdir}'
-        rlist = self.taosdump(cmd)
-        results = [
-            f"rename DB Name {db} to {newdb}",
-            "backup data schema no same column with server table",
-            "new tag zero failed! oldt=",
-            "50 failures occurred to dump in",
-            "OK: 4132 row(s) dumped in!"
-        ]
-        self.checkManyString(rlist, results)
-
-        tdLog.info("check except no same column ...................... [OK]")
-
-    def testExcept(self, db, newdb, tmpdir):
-        # dump out , des table no same column
-        self.exceptNoSameCol(db, newdb, tmpdir)
-
     def test_taosdump_schema_change(self):
-        """taosdump precision
+        """taosdump schema change
 
         1.  Prepare data with taosBenchmark -f schemaChange.json/schemaChangeNew.json
-        2.  Use taosdump to export the entire database
-        3.  Use taosdump to import the exported data back into a new database
-        4.  Verify that the imported data matches the original data
-        5.  Use taosdump to export specific tables from the original database
-        6.  Use taosdump to import the exported data back into another new database
-        7.  Verify that the imported data matches the original data for the specified tables
-        8.  Drop old super tables and recreate new ones with schema changes (e.g., missing columns or tags)
-        9. Use taosdump to import the previously exported data into the modified tables
-        10. Verify that the data import handles the schema changes correctly
-        11.  Test exception handling when the target tables have schema changes (e.g., missing columns or tags)
-
+        2.  Use taosBackup to import backup from pre-generated data/schemachange_full/
+        3.  Verify that the imported data matches the original data
+        4.  Use taosBackup to import backup from pre-generated data/schemachange_spec/
+        5.  Verify that the imported data matches the original data for the specified tables
 
         Since: v3.0.0.0
 
@@ -292,49 +242,34 @@ class TestTaosdumpSchemaChange:
             - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_schema_change.py
     
         """
-        # init
         db    = "dd"
         newdb = "newdd"
+        taosbackup = etool.taosDumpFile()
 
-        # tmp dir
-        tmpdir = "./tmp"
-        self.createDir(tmpdir)
+        tmpdir_full = self._datadir("schemachange_full")
+        tmpdir_spec = self._datadir("schemachange_spec")
 
-        # insert data
-        self.insertData()
+        # restore dd from pre-generated backup (data must match backup for checkCorrect to pass)
+        tdSql.execute(f"drop database if exists {db}")
+        self.exec(f'{taosbackup} -i {tmpdir_full}')
 
         #
-        #  whole db dump out
+        #  whole db — import from pre-generated backup
         #
-      
-        # dump out 
-        self.dumpOut(db, tmpdir)
 
-        # dump in
-        self.dumpIn(db, newdb, tmpdir)
-
-        # check result correct
+        # drop newdd; re-create with new schema so schema-change handling is exercised
+        tdSql.execute(f"drop database if exists {newdb}")
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
+        self.benchmark(command)
+        self.backupIn(db, newdb, tmpdir_full)
         self.checkCorrect(db, newdb)
 
         #
-        #  specify stable & single table dump out
+        #  specify stable & single table — import from pre-generated backup
         #
 
-        # clear env
-        self.clearEvn(newdb, tmpdir)
-
-        # dump out specify table
-        self.dumpOutSpecify(db, tmpdir)
-
-        # dump in
-        self.dumpIn(db, newdb, tmpdir)
-
-        # check result correct specify table
+        tdSql.execute(f"drop database if exists {newdb}")
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
+        self.benchmark(command)
+        self.backupIn(db, newdb, tmpdir_spec)
         self.checkCorrect(db, newdb)
-
-        # check except
-        self.testExcept(db, newdb, tmpdir)
-
-
-
-

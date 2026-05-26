@@ -786,6 +786,20 @@ _err:
   return NULL;
 }
 
+SNode* createNullValueNode(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
+  CHECK_MAKE_NODE(val);
+  val->isNull = true;
+  val->translate = true;
+  val->node.resType.type = TSDB_DATA_TYPE_NULL;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+  return (SNode*)val;
+_err:
+  return NULL;
+}
+
 SNode* createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = NULL;
@@ -1764,6 +1778,38 @@ _err:
   return NULL;
 }
 
+SNode* createTextTableNode(SAstCreateContext* pCxt, SNodeList* pColDefs, SNodeList* pRows, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
+  if (NULL == pColDefs || LIST_LENGTH(pColDefs) == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires column definitions");
+    goto _err;
+  }
+  if (NULL == pRows || LIST_LENGTH(pRows) == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires at least one row");
+    goto _err;
+  }
+  STextTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TEXT_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->pColDefs = pColDefs;
+  pNode->pRows    = pRows;
+  pNode->colCount = LIST_LENGTH(pColDefs);
+  pNode->rowCount = LIST_LENGTH(pRows);
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyList(pColDefs);
+  nodesDestroyList(pRows);
+  return NULL;
+}
+
 SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                            SNode* pJoinCond) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1846,30 +1892,70 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
+static SNode* createStateWindowNodeImpl(SAstCreateContext* pCxt, SNodeList* pExprList, SNode* pExtend,
+                                        SNodeList* pZerothList, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
   CHECK_MAKE_NODE(state);
+
+  state->pExprList = pExprList;
+  state->pExtend = pExtend;
+  state->pZerothList = pZerothList;
+  state->pTrueForLimit = pTrueForLimit;
+  pExprList = NULL;
+  pExtend = NULL;
+  pZerothList = NULL;
+  pTrueForLimit = NULL;
+
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(state->pCol);
-  state->pExpr = pExpr;
-  state->pTrueForLimit = pTrueForLimit;
-  if (pOptions != NULL) {
-    if (pOptions->length >= 1) {
-      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 0), &state->pExtend);
-      CHECK_MAKE_NODE(state->pExtend);
-    }
-    if (pOptions->length == 2) {
-      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 1), &state->pZeroth);
-      CHECK_MAKE_NODE(state->pZeroth);
-    }
-    nodesDestroyList(pOptions);
-  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
-  nodesDestroyNode(pExpr);
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
+  nodesDestroyNode(pTrueForLimit);
+  return NULL;
+}
+
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList, SNodeList* pOptions, SNode* pTrueForLimit) {
+  SNode* pExtend = NULL;
+  SNodeList* pZerothList = NULL;
+
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      SNode* pOpt = nodesListGetNode(pOptions, 0);
+      if (pOpt == NULL) {
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+        goto _err;
+      }
+      if (nodeType(pOpt) == QUERY_NODE_NODE_LIST) {
+        pCxt->errCode = nodesCloneList(((SNodeListNode*)pOpt)->pNodeList, &pZerothList);
+        CHECK_PARSER_STATUS(pCxt);
+      } else {
+        pCxt->errCode = nodesCloneNode(pOpt, &pExtend);
+        CHECK_MAKE_NODE(pExtend);
+      }
+    }
+    if (pOptions->length == 2) {
+      SNode* pOpt2 = nodesListGetNode(pOptions, 1);
+      if (pOpt2 == NULL || nodeType(pOpt2) != QUERY_NODE_NODE_LIST) {
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+        goto _err;
+      }
+      pCxt->errCode = nodesCloneList(((SNodeListNode*)pOpt2)->pNodeList, &pZerothList);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+    nodesDestroyList(pOptions);
+  }
+
+  return createStateWindowNodeImpl(pCxt, pExprList, pExtend, pZerothList, pTrueForLimit);
+_err:
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
   nodesDestroyNode(pTrueForLimit);
   nodesDestroyList(pOptions);
   return NULL;
@@ -2619,8 +2705,15 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
     ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
   }
 
-    pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
-    CHECK_MAKE_NODE(pExtWin->pCol);
+  pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pExtWin->pCol);
+
+  if (NULL != pFill) {
+    SFillNode* pFillClause = (SFillNode*)pFill;
+    nodesDestroyNode(pFillClause->pWStartTs);
+    pFillClause->pWStartTs = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pFillClause->pWStartTs);
+  }
 
   // Attach subquery and optional fill node
   pExtWin->pSubquery = pSubquery;
@@ -2702,6 +2795,13 @@ SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectT
     } else {
       ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
     }
+  }
+  return pStmt;
+}
+
+SNode* setSelectStmtWindowMode(SAstCreateContext* pCxt, SNode* pStmt, EWindowMode windowMode) {
+  if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->windowMode = windowMode;
   }
   return pStmt;
 }
@@ -8272,25 +8372,22 @@ _err:
   return NULL;
 }
 
-SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type) {
+SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNode* pLike, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
-
-  if (needDbShowStmt(type) && NULL == pDbName) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-    CHECK_PARSER_STATUS(pCxt);
-  }
 
   SShowStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->withFull = false;
   pStmt->pDbName = pDbName;
+  pStmt->pTbName = pLike;
+  pStmt->tableCondType = OP_TYPE_LIKE;
 
   return (SNode*)pStmt;
 
 _err:
   nodesDestroyNode(pDbName);
+  nodesDestroyNode(pLike);
   return NULL;
 }
 
@@ -8379,5 +8476,97 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
 
   return (SNode*)pStmt;
 _err:
+  return NULL;
+}
+
+/* ---- FILE table source ---- */
+
+SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const SToken* pVal) {
+  SFileOptions opt = {.header = -1, .delimiter = '\0'};
+  if (!pName || pName->n == 0) return opt;
+
+  if (pName->n == 6 && taosStrncasecmp(pName->z, "header", 6) == 0) {
+    // header = 1/0/true/false
+    if (pVal->type == TK_NK_INTEGER) {
+      opt.header = (int8_t)(pVal->z[0] != '0');
+    } else if (pVal->type == TK_TRUE) {
+      opt.header = 1;
+    } else if (pVal->type == TK_FALSE) {
+      opt.header = 0;
+    } else if (pVal->type == TK_NK_BOOL) {
+      // lowercase true/false tokenized as TK_NK_BOOL
+      opt.header = (int8_t)(taosStrncasecmp(pVal->z, "true", 4) == 0);
+    } else if (pVal->n >= 1) {
+      // string "true" / "false"
+      char buf[8] = {0};
+      uint32_t len = TMIN(pVal->n, 7u);
+      tstrncpy(buf, pVal->z, len + 1);
+      opt.header = (int8_t)(taosStrncasecmp(buf, "true", 4) == 0 || buf[0] == '1');
+    }
+  } else if (pName->n == 9 && taosStrncasecmp(pName->z, "delimiter", 9) == 0) {
+    // delimiter = ',' — must be exactly one char inside quotes
+    if (pVal->n == 3 && (pVal->z[0] == '\'' || pVal->z[0] == '"')) {
+      opt.delimiter = pVal->z[1];
+    } else {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                           "FILE: delimiter must be a single character");
+    }
+  }
+  return opt;
+}
+
+SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const SToken* pSchemaDecl,
+                           bool header, char delimiter, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
+  if (!pPath || pPath->n < 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a path string");
+    return NULL;
+  }
+  // Reject empty path literal ''
+  if (pPath->n == 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE: path must not be empty");
+    return NULL;
+  }
+  if (!pSchemaDecl || pSchemaDecl->n < 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a column_list string");
+    return NULL;
+  }
+  if (pSchemaDecl->n == 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE: column_list must not be empty");
+    return NULL;
+  }
+
+  SFileTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FILE_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  // Strip surrounding quotes from path and schemaDecl
+  uint32_t pathLen   = pPath->n >= 2 ? pPath->n - 2 : 0;
+  uint32_t schemaLen = pSchemaDecl->n >= 2 ? pSchemaDecl->n - 2 : 0;
+
+  pNode->path = taosMemoryMalloc(pathLen + 1);
+  if (!pNode->path) { pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; goto _err; }
+  if (pathLen > 0) tstrncpy(pNode->path, pPath->z + 1, pathLen + 1);
+  else pNode->path[0] = '\0';
+
+  pNode->schemaDecl = taosMemoryMalloc(schemaLen + 1);
+  if (!pNode->schemaDecl) { pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; goto _err; }
+  if (schemaLen > 0) tstrncpy(pNode->schemaDecl, pSchemaDecl->z + 1, schemaLen + 1);
+  else pNode->schemaDecl[0] = '\0';
+
+  pNode->header    = header;
+  pNode->delimiter = (delimiter != '\0') ? delimiter : ',';
+
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }

@@ -1113,6 +1113,7 @@ int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNod
       }
 
       HJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0, pTaskInfo->pStreamRuntimeInfo));
+      filterSetExecContext(pJoin->pFinFilter, pTaskInfo, isTaskKilled);
       break;
     }
     case JOIN_TYPE_LEFT:
@@ -1121,10 +1122,12 @@ int32_t hJoinHandleConds(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinNod
       if (pJoinNode->pFullOnCond != NULL) {
         HJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pPreFilter, 0,
                                       pTaskInfo->pStreamRuntimeInfo));
+        filterSetExecContext(pJoin->pPreFilter, pTaskInfo, isTaskKilled);
       }
       if (pJoinNode->node.pConditions != NULL) {
         HJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0,
                                       pTaskInfo->pStreamRuntimeInfo));
+        filterSetExecContext(pJoin->pFinFilter, pTaskInfo, isTaskKilled);
       }
       break;
     default:

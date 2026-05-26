@@ -1035,6 +1035,7 @@ _exit:
 
 static void *authQuotaRefreshThread(void *param) {
   setThreadName("auth-quota-refresh");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   uInfo("auth quota refresh thread started, interval:%ds", AUTH_QUOTA_REFRESH_INTERVAL_SEC);
 
   while (!gAuthQuotaRefreshStop) {

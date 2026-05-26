@@ -15,7 +15,9 @@ import os
 from vtable_util import VtableQueryUtil
 
 class TestVTableQuerySameDBStbAgg:
-
+    updatecfgDict = {
+        "minReservedMemorySize": "1024",
+    }
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_cross_db_vtables(mode = 2)
