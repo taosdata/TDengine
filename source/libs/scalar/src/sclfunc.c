@@ -3079,6 +3079,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
         uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
         SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, TSDB_MAX_FIELD_LEN));
       } else {
+        stringBuf[0] = '\0';
         NUM_TO_STRING(inputType, input, outputSize, stringBuf);
       }
       outputSize = strlen(stringBuf);
