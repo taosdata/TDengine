@@ -503,7 +503,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002624 | GROUP BY and WINDOW-clause can't be used together                                                      | Group by 和窗口不能同时使用                             | 检查并修正 SQL 语句                    |
 | 0x80002627 | Aggregate functions do not support nesting                                                             | 函数不支持嵌套使用                                      | 检查并修正 SQL 语句                    |
 | 0x80002628 | Only support STATE_WINDOW on integer/bool/varchar column                                               | 不支持的 STATE_WINDOW 数据类型                          | 检查并修正 SQL 语句                    |
-| 0x80002629 | Not support STATE_WINDOW on tag column                                                                 | 不支持 TAG 列的 STATE_WINDOW                            | 检查并修正 SQL 语句                    |
+| 0x80002629 | Invalid STATE_WINDOW column specification                                                              | 不合法的 STATE_WINDOW 列定义                            | 检查并修正 SQL 语句                    |
 | 0x8000262A | STATE_WINDOW not support for super table query                                                         | 不支持超级表的 STATE_WINDOW                             | 检查并修正 SQL 语句                    |
 | 0x8000262B | SESSION gap should be fixed time window, and greater than 0                                            | SESSION 窗口值非法                                      | 检查并修正 SQL 语句                    |
 | 0x8000262C | Only support SESSION on primary timestamp column                                                       | SESSION 窗口列非法                                      | 检查并修正 SQL 语句                    |
