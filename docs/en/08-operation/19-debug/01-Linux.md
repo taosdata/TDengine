@@ -1,9 +1,10 @@
 ---
-sidebar_label: Debugging Tools
-title: Debugging Tools
+sidebar_label: Linux
+title: Linux Debugging Tools
 toc_max_heading_level: 4
 ---
-The following tools are recommended for debugging TDengine TSDB.
+
+The following tools are recommended for debugging TDengine TSDB on Linux.
 
 ## gdb
 
@@ -15,7 +16,7 @@ Valgrind is a framework for memory debugging, leak detection, and profiling. It 
 
 ## bpftrace
 
-bpftrace is a high-level dynamic tracing tool based on eBPF, used for performance analysis and troubleshooting on Linux.
+bpftrace is a high-level dynamic tracing tool based on eBPF (Extended Berkeley Packet Filter), used for performance analysis and troubleshooting on Linux.
 
 ## perf
 
