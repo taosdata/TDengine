@@ -1961,7 +1961,10 @@ set(_extname "ext_cpython_${_ver_safe}")
 
 INIT_DIRS(${_extname} ${TD_EXTERNALS_BASE_DIR})
 
-set(_url "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
+get_from_local_if_exists(
+    "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz"
+    "cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz"
+)
 
 ExternalProject_Add(${_extname}
     URL "${_url}"
