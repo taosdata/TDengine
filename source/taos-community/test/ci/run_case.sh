@@ -75,6 +75,9 @@ export PATH=$PATH:${_DEBUG_BASE}/build/bin
 export LD_LIBRARY_PATH=${_DEBUG_BASE}/build/lib
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+# 兼容测试（如 test_new_stream_compatibility.py）硬编码 /usr/bin/taos，
+# 在此创建符号链接使其生效，无论二进制实际安装位置如何。
+ln -sf ${_DEBUG_BASE}/build/bin/taos /usr/bin/taos 2>/dev/null || true
 ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so 2>/dev/null
