@@ -119,11 +119,6 @@ taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:m
 ===================================================================
  true                                                             |
 
-taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = to_base64("2000-01-01 00:00:00")
- to_base64(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh2 |
-===================================================================
- true                                                             |
-
 taos> select to_base64(repeat('x', 50000))
 
 DB error: Function result exceed max length [0x8000280E] 
