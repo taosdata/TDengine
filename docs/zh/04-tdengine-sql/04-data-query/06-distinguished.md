@@ -123,7 +123,7 @@ INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充�
 
 ### 状态窗口
 
-状态窗口根据一个或多个状态键的连续性划分窗口（从 3.4.2.0 版本开始支持多个状态键）。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 或 `IF` 表达式。相邻记录的状态键会按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。如下图展示的是单状态键场景，对应的两个窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12]。
+状态窗口根据一个或多个状态键的连续性划分窗口（从 3.4.2.0 版本开始支持多个状态键）。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的表达式，例如 `CASE WHEN`、`IF`、比较表达式、`IN`、`BETWEEN`、`IS NULL` / `IS NOT NULL` 以及由 `AND`、`OR`、`NOT` 组合的逻辑表达式。相邻记录的状态键会按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。如下图展示的是单状态键场景，对应的两个窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12]。
 
 ![TDengine TSDB Database 状态窗口示意图](assets/state_window.png)
 
@@ -138,7 +138,7 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 参数说明如下：
 
-- `state_expr`：一个或多个状态键。可以是列引用，也可以是 `CASE WHEN`、`IF`、`CAST` 等表达式；返回类型必须是整数、布尔值或 `VARCHAR`，不支持 tag 列。
+- `state_expr`：一个或多个状态键。可以是列引用或标签，也可以是 `CASE WHEN`、`IF`、`CAST`、比较表达式、`IN`、`BETWEEN`、`IS NULL` / `IS NOT NULL` 以及 `AND`、`OR`、`NOT` 组合的逻辑表达式；返回类型必须是整数、布尔值或 `VARCHAR`。
 - `EXTEND(extend_val)`：可选，指定窗口边界扩展策略。`0` 为默认行为，窗口开始、结束时间取当前状态的第一条和最后一条记录，窗口间的全 `NULL` 行会被丢弃；`1` 保持窗口开始时间不变，并将窗口结束时间向后扩展到下一个窗口开始前；`2` 保持窗口结束时间不变，并将窗口开始时间向前扩展到上一个窗口结束后。
 - `ZEROTH_STATE(...)`：可选，指定"零状态"。通过 `ZEROTH_STATE` 指定这些不关心的状态值后，匹配的窗口会被自动过滤，不参与计算也不输出，从而简化结果。参数个数必须与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，且可以转换为对应状态键的数据类型；`NO_ZEROTH` 表示对应位置不参与零状态判断。只有所有已配置零状态的位置都等于对应值时，该窗口才会被过滤。
 - `TRUE_FOR(true_for_expr)`：可选，指定窗口过滤条件。支持 `TRUE_FOR(duration_time)`、`TRUE_FOR(COUNT n)`、`TRUE_FOR(duration_time AND COUNT n)`、`TRUE_FOR(duration_time OR COUNT n)` 四种形式。
@@ -212,7 +212,25 @@ PARTITION BY tbname
 STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
 ```
 
-需要注意，`STATE_WINDOW(groupId)` 这种直接将 tag 列作为状态表达式的写法仍然不支持；如果要使用 tag 列，需要让它参与到状态表达式中。
+从 3.4.2.0 开始也支持直接使用 tag 列或 `tbname` 作为状态键，例如 `STATE_WINDOW(groupId)` 或 `STATE_WINDOW(tbname)`。
+
+从 3.4.2.0 开始，也支持直接使用逻辑表达式作为状态键。例如，可以直接按布尔条件切分窗口：
+
+```sql
+SELECT _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(voltage > 235);
+```
+
+也支持更复杂的逻辑组合：
+
+```sql
+SELECT _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(voltage BETWEEN 205 AND 235 AND current IS NOT NULL, phase IN ('A', 'B'));
+```
 
 ##### EXTEND 参数
 

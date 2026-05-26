@@ -75,6 +75,11 @@ TEST_F(ParserDdlTest, stateWindowKeywordSyntax) {
   run("create stream stream_streamdb.s_legacy_extend state_window(c1, 1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s_legacy_zeroth state_window(c1, 1, 0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   run("create stream stream_streamdb.s_keyword_mix state_window(c1, 1) extend(1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+
+  // Logic expressions as state key in stream
+  run("create stream stream_streamdb.s_logic1 state_window(c1 > 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_logic2 state_window(c1 > 5 AND c1 < 100) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s_logic3 state_window(c1 > 5, c2) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
 }
 
 static int32_t pstCountExternalWindowNodes(const SPhysiNode* pNode) {
