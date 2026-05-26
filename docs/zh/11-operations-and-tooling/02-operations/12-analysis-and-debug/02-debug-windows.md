@@ -10,7 +10,7 @@ Windows 下调试定位 TDengine TSDB 崩溃问题指引手册。
 
 ## 查找 dmp 文件
 
-taosd.exe 进程在崩溃发生时，会捕获崩溃，并在其所在目录下生成 .dmp 文件，文件名以 taosd 开头，中间为崩溃时间，如 “taosd_20260509_124419.dmp”，大小一般在 10M \~ 200M 之间。
+taosd.exe 进程在崩溃发生时，会捕获崩溃，并在其所在目录下生成 .dmp 文件，文件名以 taosd 开头，中间为崩溃时间，如“taosd_20260509_124419.dmp”，大小一般在 10M \~ 200M 之间。
 
 > **注意：** 若有 dmp 文件大小为 0K，可能存在严重堆栈被破坏情况。
 
@@ -69,7 +69,7 @@ Windows Registry Editor Version 5.00
 ### 版本编译
 
 - 编译选项： `-DBUILD_SANITIZER=true`。
-- DEBUG 版本： VS 2022 任意版本都可编译。
+- DEBUG 版本：VS 2022 任意版本都可编译。
 - RELEASE 版本：VS 2022 >= 17.14.32。
 
 ### 前置条件
