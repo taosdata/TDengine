@@ -62,11 +62,11 @@ mkdir -p %{buildroot}%{homepath}/include
 #mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
-if [ -f %{_compiledir}/../packaging/cfg/taosd.service ]; then
-    cp %{_compiledir}/../packaging/cfg/taosd.service %{buildroot}%{homepath}/cfg
+if [ -f %{_communitypackagingdir}/cfg/taosd.service ]; then
+    cp %{_communitypackagingdir}/cfg/taosd.service %{buildroot}%{homepath}/cfg
 fi
 
-cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
+cp %{_communitypackagingdir}/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
 if [ -f %{_compiledir}/test/cfg/taosadapter.toml ]; then
     cp %{_compiledir}/test/cfg/taosadapter.toml         %{buildroot}%{homepath}/cfg
 fi
@@ -90,12 +90,12 @@ if [ -f %{_taosxdir}/explorer/server/examples/explorer.toml ]; then
     cp %{_taosxdir}/explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
-#cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
-cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
-cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
-cp %{_compiledir}/../packaging/tools/startPre.sh    %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
+#cp %{_communitypackagingdir}/rpm/taosd            %{buildroot}%{homepath}/init.d
+cp %{_communitypackagingdir}/tools/post.sh        %{buildroot}%{homepath}/script
+cp %{_communitypackagingdir}/tools/preun.sh       %{buildroot}%{homepath}/script
+cp %{_communitypackagingdir}/tools/startPre.sh    %{buildroot}%{homepath}/bin
+cp %{_communitypackagingdir}/tools/set_core.sh    %{buildroot}%{homepath}/bin
+cp %{_communitypackagingdir}/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosudf                 %{buildroot}%{homepath}/bin
@@ -104,8 +104,8 @@ cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosmqtt                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosgen                 %{buildroot}%{homepath}/bin
 
-cp %{_compiledir}/../../enterprise/packaging/start-all.sh  %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath}/bin
+cp %{_internalpackagingdir}/start-all.sh  %{buildroot}%{homepath}/bin
+cp %{_internalpackagingdir}/stop-all.sh  %{buildroot}%{homepath}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
@@ -123,17 +123,17 @@ fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver/${pkg_libfile}
 cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver/${pkg_nativelibfile}
 cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver/${pkg_wslibfile} ||:
-cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/util/tdef.h            %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/client/taos.h          %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/common/taosdef.h       %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/util/taoserror.h       %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/util/tdef.h            %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
 [ -f %{_compiledir}/build/include/taosws.h ] && cp %{_compiledir}/build/include/taosws.h            %{buildroot}%{homepath}/include ||:
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 #cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
-cp -r %{_compiledir}/../examples/*                  %{buildroot}%{homepath}/examples
+cp -r %{_communitysourcedir}/examples/*             %{buildroot}%{homepath}/examples
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{homepath}/jemalloc/ ||:
