@@ -19,6 +19,7 @@
 #include "tutil.h"
 
 #ifdef WINDOWS
+
 #if (_WIN64)
 #include <iphlpapi.h>
 #include <mswsock.h>
@@ -28,14 +29,18 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "Mswsock.lib ")
 #endif
+
 #include <objbase.h>
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <DbgHelp.h>
 #pragma warning(pop)
+
 #elif defined(_TD_DARWIN_64)
 #include <errno.h>
 #include <libproc.h>
+#include <CoreFoundation/CoreFoundation.h>
+
 #else
 #include <argp.h>
 #ifndef TD_ASTRA
@@ -47,6 +52,11 @@
 #endif
 #include <sys/utsname.h>
 #include <unistd.h>
+
+#if defined(__GLIBC__)
+#include <langinfo.h>
+#endif
+
 #endif
 
 typedef struct CharsetPair {
@@ -151,5 +161,114 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
     // printf("can't get locale and charset from system, set it to UTF-8");
   }
 
+#endif
+}
+
+/*
+ * Normalize weekday encodings to TDengine convention:
+ * 0-6 where 0=Sunday, 1=Monday, ..., 6=Saturday.
+ */
+static FORCE_INLINE int32_t taosWeekdayMon0ToSun0(int32_t weekday) {
+  return (weekday + 1) % 7;
+}
+
+static FORCE_INLINE int32_t taosWeekdaySun1ToSun0(int32_t weekday) {
+  return weekday - 1;
+}
+
+int32_t taosGetOSFirstDayOfWeek(void) {
+  /*
+   * Return OS first weekday normalized to 0-6 where 0=Sunday.
+   * Return -1 when OS-specific value is unavailable or invalid.
+   */
+#ifdef WINDOWS
+  /* Windows LOCALE_IFIRSTDAYOFWEEK is 0-6 where 0=Monday, 6=Sunday.
+     Normalize to 0-6 where 0=Sunday. */
+  WCHAR buffer[4] = {0};
+
+  if (GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_IFIRSTDAYOFWEEK,
+                      buffer, sizeof(buffer) / sizeof(WCHAR)) > 0) {
+    int32_t value = (int32_t)(buffer[0] - L'0');
+    if (value >= 0 && value <= 6) {
+      return taosWeekdayMon0ToSun0(value);
+    }
+  }
+
+  return -1;
+
+#elif defined(_TD_DARWIN_64)
+  /* macOS: Try to read AppleFirstWeekday from system preferences first.
+     System stores it as a CFDictionary { "gregorian" = N } where N is 1-7
+     (CFCalendar convention: 1=Sunday, 2=Monday, ..., 7=Saturday).
+     Convert to 0-6 (0=Sunday). */
+  CFPropertyListRef prefValue = CFPreferencesCopyAppValue(
+      CFSTR("AppleFirstWeekday"),
+      kCFPreferencesCurrentApplication
+  );
+
+  if (prefValue != NULL) {
+    int raw = 0;
+    bool gotValue = false;
+
+    if (CFGetTypeID(prefValue) == CFDictionaryGetTypeID()) {
+      /* System-stored format: { gregorian = "N" } — value is a CFString */
+      CFTypeRef val = CFDictionaryGetValue((CFDictionaryRef)prefValue, CFSTR("gregorian"));
+      if (val != NULL) {
+        if (CFGetTypeID(val) == CFStringGetTypeID()) {
+          raw = (int)CFStringGetIntValue((CFStringRef)val);
+          gotValue = true;
+        } else if (CFGetTypeID(val) == CFNumberGetTypeID()) {
+          gotValue = CFNumberGetValue((CFNumberRef)val, kCFNumberIntType, &raw);
+        }
+      }
+    } else if (CFGetTypeID(prefValue) == CFNumberGetTypeID()) {
+      /* Plain integer format */
+      gotValue = CFNumberGetValue((CFNumberRef)prefValue, kCFNumberIntType, &raw);
+    } else if (CFGetTypeID(prefValue) == CFStringGetTypeID()) {
+      /* Plain string format */
+      raw = (int)CFStringGetIntValue((CFStringRef)prefValue);
+      gotValue = true;
+    }
+
+    CFRelease(prefValue);
+
+    if (gotValue && raw >= 1 && raw <= 7) {
+      return taosWeekdaySun1ToSun0(raw);  /* Convert 1-7 to 0-6 */
+    }
+  }
+  
+  /* Fallback: CFCalendarGetFirstWeekday returns 1-7 (1=Sunday, 7=Saturday).
+     Convert to 0-6 (0=Sunday). Available since macOS 10.4. */
+  CFCalendarRef cal = CFCalendarCopyCurrent();
+  if (cal == NULL) {
+    return -1;
+  }
+
+  CFIndex day = CFCalendarGetFirstWeekday(cal);
+  CFRelease(cal);
+
+  if (day < 1 || day > 7) {
+    return -1;
+  }
+
+  return taosWeekdaySun1ToSun0((int32_t)day);
+
+#elif defined(__GLIBC__)
+  /* Linux glibc: first_weekday is 1-7 (1=Sunday, 2=Monday, ...).
+     Normalize to 0-6 where 0=Sunday. */
+  const unsigned char *p = (const unsigned char *)nl_langinfo(_NL_TIME_FIRST_WEEKDAY);
+  if (p == NULL) {
+    return -1;
+  }
+
+  int32_t raw = (int32_t)(*p);
+  if (raw < 1 || raw > 7) {
+    return -1;
+  }
+
+  return taosWeekdaySun1ToSun0(raw);
+
+#else
+  return -1;
 #endif
 }

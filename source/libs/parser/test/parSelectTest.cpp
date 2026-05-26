@@ -494,8 +494,8 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT c1 FROM t1 order by concat(c2, 'abc')");
 
-  // TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION
-  run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);
+  // TSDB_CODE_PAR_NOT_SELECT_EXPRESSION
+  run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECT_EXPRESSION);
 
   run("SELECT distinct c1 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 

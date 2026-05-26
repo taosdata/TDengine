@@ -887,7 +887,7 @@ taosd -r --mode copy --node-type vnode \
 - 说明：时区
 - 默认值：从系统中动态获取当前的时区设置
 - 参数类型：全局配置参数
-- 动态修改：不支持
+- 动态修改：支持
 - 支持版本：v3.0.0.0 引入
 
 #### locale
@@ -916,11 +916,10 @@ taosd -r --mode copy --node-type vnode \
 
 ```bash
 timezone UTC-8
-timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone UTC-8` 这样的写法，而必须写成 `timezone Asia/Shanghai`。
+均是合法的设置东八区时区的格式。注意：`timezone UTC-8` 在 POSIX 符号约定下表示东八区（即北京时间），正负号与直觉相反；如不确定，推荐直接写 IANA 名称（如 `Asia/Shanghai`）。完整支持的时区格式及符号约定说明见[支持的时区格式](../../04-tdengine-sql/10-time/01-timezone.md#支持的时区格式)。
 
 时区的设置对于查询和写入 SQL 语句中非 Unix 时间戳的内容（时间戳字符串、关键词 now 的解析）产生影响。例如：
 

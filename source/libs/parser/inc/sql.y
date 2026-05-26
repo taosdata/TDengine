@@ -831,6 +831,15 @@ cmd ::= ALTER CLUSTER NK_STRING(A) NK_STRING(B).                                
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }
 cmd ::= ALTER LOCAL NK_STRING(A) NK_STRING(B).                                    { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, &B); }
 
+/************************************************ set timezone / firstDayOfWeek ****************************************/
+cmd ::= SET TIMEZONE NK_STRING(A).                                                { pCxt->pRootNode = createSetTimezoneStmt(pCxt, &A); }
+cmd ::= SET FIRST_DAY_OF_WEEK NK_INTEGER(A).                                      { pCxt->pRootNode = createSetFirstDayOfWeekStmt(pCxt, &A); }
+cmd ::= SET FIRST_DAY_OF_WEEK NK_MINUS(B) NK_INTEGER(C).                        {
+                                                                                  SToken t = B;
+                                                                                  t.n = (C.z + C.n) - B.z;
+                                                                                  pCxt->pRootNode = createSetFirstDayOfWeekStmt(pCxt, &t);
+                                                                                }
+
 /************************************************ create/drop/restore qnode ***************************************************/
 cmd ::= CREATE QNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_QNODE_STMT, &A); }
 cmd ::= DROP QNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_QNODE_STMT, &A); }
@@ -2314,6 +2323,7 @@ trim_specification_type(A) ::= LEADING.                                         
 noarg_func(A) ::= NOW(B).                                                         { A = B; }
 noarg_func(A) ::= TODAY(B).                                                       { A = B; }
 noarg_func(A) ::= TIMEZONE(B).                                                    { A = B; }
+noarg_func(A) ::= FIRST_DAY_OF_WEEK(B).                                           { A = B; }
 noarg_func(A) ::= DATABASE(B).                                                    { A = B; }
 noarg_func(A) ::= CLIENT_VERSION(B).                                              { A = B; }
 noarg_func(A) ::= SERVER_VERSION(B).                                              { A = B; }

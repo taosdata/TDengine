@@ -268,6 +268,7 @@ typedef struct SFunctionNode {
   bool       dual; // whether select stmt without from stmt, true for without.
   timezone_t tz;
   void      *charsetCxt;
+  int8_t     firstDayOfWeek;  /* 0-6, from connection/global config */
   const struct SFunctionNode* pSrcFuncRef;
   SDataType  srcFuncInputType;
 } SFunctionNode;

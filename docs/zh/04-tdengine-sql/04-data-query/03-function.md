@@ -1809,7 +1809,7 @@ CAST(expr AS type_name)
 #### TO_CHAR
 
 ```sql
-TO_CHAR(ts, format_str_literal)
+TO_CHAR(ts, format_str_literal [, timezone])
 ```
 
 **功能说明**：将 timestamp 类型按照指定格式转换为字符串。
@@ -1866,7 +1866,9 @@ TO_CHAR(ts, format_str_literal)
 - 使用`ms`、`us`、`ns`时，以上三种格式的输出只在精度上不同，比如 ts 为 `1697182085123`，`ms` 的输出为 `123`，`us` 的输出为 `123000`，`ns` 的输出为 `123000000`。
 - 时间格式中无法匹配规则的内容会直接输出。如果想要在格式串中指定某些能够匹配规则的部分不做转换，可以使用双引号，如 `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`。如果想要输出双引号，那么在双引号之前加一个反斜杠，如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`。
 - 那些输出是数字的格式，如`YYYY`、`DD`，大写与小写意义相同，即 `yyyy` 和 `YYYY` 可以互换。
-- 推荐在时间格式中带时区信息，如果不带则默认输出的时区为服务端或客户端所配置的时区。
+- 若指定 `timezone`，支持的格式见[支持的时区格式](../10-time/01-timezone.md#支持的时区格式)。
+- 若未指定 `timezone`，使用当前连接时区。
+- IANA 时区参数按目标时间点感知 DST，输出偏移会随夏令时变化。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 
 #### TO_ISO8601
@@ -1875,7 +1877,7 @@ TO_CHAR(ts, format_str_literal)
 TO_ISO8601(expr [, timezone])
 ```
 
-**功能说明**：将时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
+**功能说明**：将时间戳转换成 ISO8601 标准日期时间格式并附加时区信息。`timezone` 参数可显式指定输出时区；省略时优先使用当前连接时区，若连接未设置则使用客户端时区，仍不可用时使用系统默认时区。
 
 **返回结果数据类型**：VARCHAR 类型。
 
@@ -1887,7 +1889,9 @@ TO_ISO8601(expr [, timezone])
 
 **使用说明**：
 
-- timezone 参数允许输入的时区格式为：[z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。有效的时区偏移范围为 -14:00 到 +14:00。
+- `timezone` 支持的格式见[支持的时区格式](../10-time/01-timezone.md#支持的时区格式)。**仅 `TO_ISO8601` 中时区按 ISO 8601 格式解析**（`local = UTC + offset`，即 `'+08:00'` = 东八区），`'+0800'`/`'UTC+8'`/`'UTC+0800'`/`'UTC+08:00'` 行为完全一致。详见[ISO 8601 符号约定](../10-time/01-timezone.md#to_iso8601)。
+- 若未指定 `timezone`，使用当前连接时区。
+- IANA 时区参数按目标时间点感知 DST，输出偏移会随夏令时变化。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 
 #### TO_JSON
@@ -2065,6 +2069,10 @@ NOW()
 
 - 支持时间加减操作，如 NOW() + 1s，支持的时间单位参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周）。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- `NOW()` / `NOW` 的显示会跟随当前连接时区变化。
+- 固定偏移字符串的方向容易误解：`SET TIMEZONE '+08:00'` 后，`SELECT NOW()` 显示的是“比 UTC 慢 8 小时”的效果；`SET TIMEZONE '-08:00'` 后，显示的才是“比 UTC 快 8 小时”的效果。
+- 如果你想明确使用北京时间，建议直接设置 `SET TIMEZONE 'Asia/Shanghai'`，不要写 `+08:00`。
+- 如果你想确认连接当前使用的是哪个时区，可以使用 `SELECT TIMEZONE()`；如果想同时看到当前时间和偏移量，可以使用 `SELECT TO_ISO8601(NOW())`。
 
 #### TIMEDIFF
 
@@ -2117,12 +2125,7 @@ taos> select timediff(now, now-1w, 1w);
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, use_current_timezone])
-
-use_current_timezone: {
-    0
-  | 1
-}
+TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 ```
 
 **功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
@@ -2139,13 +2142,13 @@ use_current_timezone: {
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
 - 输入包含不符合时间日期格式的字符串则返回 NULL。
-- 当使用 1d/1w 作为时间单位对时间戳进行截断时，可通过设置 use_current_timezone 参数指定是否根据当前时区进行截断处理。
-  值 0 表示使用 UTC 时区进行截断，值 1 表示使用当前时区进行截断。
-  例如客户端所配置时区为 UTC+0800，则 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) 返回结果为东八区时间 '2020-01-01 08:00:00'。
-  而使用 TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) 时，返回结果为东八区时间 '2020-01-01 00:00:00'。
-  当不指定 use_current_timezone 时，use_current_timezone 默认值为 1。
-- 当将时间值截断到一周（1w）时，timetruncate 的计算是基于 Unix 时间戳（1970 年 1 月 1 日 00:00:00 UTC）进行的。Unix 时间戳始于星期四，
-  因此所有截断后的日期都是星期四。
+- 第三个参数同时支持整数标志位与字符串时区。
+  - 整数 `0`：按 UTC 时间轴的固定边界截断；例如 `1d` 对齐到 UTC 的 `00:00`，`1w` 对齐到 UTC 周边界，返回结果仍按当前连接时区显示。
+  - 整数 `1`：按当前连接时区的本地日历边界截断。
+  - 字符串时区：支持的格式见[支持的时区格式](../10-time/01-timezone.md#支持的时区格式)。
+- 未指定第三参数时，优先使用当前连接时区。
+- `1w` 截断按 `firstDayOfWeek` 对齐。`firstDayOfWeek` 的初始化来源与平台差异，参见 [firstDayOfWeek](../../11-operations-and-tooling/03-components/02-taosc.md#firstdayofweek)。
+- `GMT` / `GMT±...` 与有歧义的时区缩写（如 `CST`）会被拒绝。
 
 #### TIMEZONE
 
@@ -2153,7 +2156,7 @@ use_current_timezone: {
 TIMEZONE()
 ```
 
-**功能说明**：返回客户端当前时区信息。
+**功能说明**：返回当前连接当前生效的时区字符串；优先使用连接级设置，未设置时回退到该连接创建时快照的客户端全局时区，再回退到系统默认时区。
 
 **返回结果数据类型**：VARCHAR。
 
@@ -2179,6 +2182,7 @@ TODAY()
 
 - 支持时间加减操作，如 TODAY() + 1s，支持的时间单位参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周）。
 - 返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+- 时区解析优先使用当前连接时区；若连接未设置，则使用客户端时区；仍不可用时使用系统默认时区。
 
 #### WEEK
 
