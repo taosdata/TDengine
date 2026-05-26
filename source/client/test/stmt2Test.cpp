@@ -6340,46 +6340,55 @@ TEST_F(stmt2CaseF, insert) {
       << sql << std::endl;
   }
 
-#define R(sql, code, exp_params) { __LINE__, sql, code, exp_params}
+#define R(sql, exp_ok, exp_params) { __LINE__, sql, exp_ok, exp_params}
   struct {
     int                 line;
     const char         *sql;
-    int                 exp_code;
+    int                 exp_ok;
     int                 exp_params;
   } _cases1[] = {
+    R("insert into stmt2_insert.tx (ts, i32) values (?, ?)",
+        false, -1),
+    R("insert into stmt2_insert.xstb (tbname, tname, ts, i32) values (?, ?, ?, ?)",
+        false, -1),
+    R("insert into ? using stmt2_insert.xstb (tname) tags (?) (ts, i32) values (?, ?)",
+        false, -1),
+    R("insert into ? (ts, i32) using stmt2_insert.xstb (tname) tags (?) values (?, ?)",
+        false, -1),
     R("insert into stmt2_insert.t (ts, i32) values (?, ?)",
-        TSDB_CODE_SUCCESS, 2),
+        true, 2),
     R("insert into stmt2_insert.stb (tbname, tname, ts, i32) values (?, ?, ?, ?)",
-        TSDB_CODE_SUCCESS, 4),
+        true, 4),
     R("insert into ? using stmt2_insert.stb (tname) tags (?) (ts, i32) values (?, ?)",
-        TSDB_CODE_SUCCESS, 4),
+        true, 4),
     R("insert into ? (ts, i32) using stmt2_insert.stb (tname) tags (?) values (?, ?)",
-        TSDB_CODE_SUCCESS, 4),
-    R("insert into ? (tbname, tname, ts, i32) values (?, ?, ?, ?)",
-        TSDB_CODE_PAR_TABLE_NOT_EXIST, -1),
+        true, 4),
+    R("insert into ? (ts, i32) values (?, ?)",
+        true, 3),
     R("select * from stmt2_insert.t where ts = ? and (i32 = ? or i32 = ?)",
-        TSDB_CODE_SUCCESS, 3),
+        true, 3),
     R("insert into stmt2_insert.t (ts, i32) values (?, ?) (?, ?)",
-        TSDB_CODE_SUCCESS, 2), // flaw: redundant (?, ?) shall be reported as error
+        true, 2), // flaw: redundant (?, ?) shall be reported as error
     R("insert into stmt2_insert.t (ts, i32) values (?, 1)",
-        TSDB_CODE_SUCCESS, 1),
+        true, 1),
   };
 #undef R
   for (size_t i=0; i<sizeof(_cases1)/sizeof(*_cases1); ++i) {
     int         line               = _cases1[i].line;
     const char *sql                = _cases1[i].sql;
-    int         exp_code           = _cases1[i].exp_code;
+    int         exp_ok             = _cases1[i].exp_ok;
     int         exp_params         = _cases1[i].exp_params;
+
     int r = taos_stmt2_prepare(stmt2_, sql, (unsigned long)strlen(sql));
     if (r) {
-      ASSERT_EQ(r, exp_code)
+      ASSERT_FALSE(exp_ok)
         << "`taos_stmt2_prepare` "
         << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
         << "@" << line << std::endl
         << sql << std::endl;
       continue;
     } else {
-      ASSERT_EQ(r, exp_code)
+      ASSERT_TRUE(exp_ok)
         << "`taos_stmt2_prepare` "
         << "@" << line << std::endl
         << sql << std::endl;

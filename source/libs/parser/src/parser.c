@@ -45,6 +45,152 @@ again:
   goto again;
 }
 
+#define MATCH(t) (token.type == t)
+#define ADVANCE() pSql = qNextToken(pSql, &token)
+#define RETURN_EXPECTING(msg) do {                                             \
+  (void)snprintf(pCtx->buf, sizeof(pCtx->buf),                                 \
+      "expecting %s, but got `%.*s`",                                          \
+      msg, token.n < 10 ? 10 : token.n, token.z);                              \
+  return TSDB_CODE_PAR_SYNTAX_ERROR;                                           \
+} while (0)
+
+static inline const char* qNextToken(const char *pStr, SToken *t) {
+again:
+  t->z = (char*)pStr;
+  t->n = tGetToken(pStr, &t->type, NULL);
+  if (t->n == 0) return pStr;
+  if (t->type != TK_NK_SPACE) return pStr + t->n;
+  pStr += t->n;
+  goto again;
+}
+
+int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr) {
+  // NOTE: only for insert into [db.]? (...) values (...)
+  pCtx->nr_params  = 0;
+
+  int nr_names = 0;
+  int nr_values = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const char* pSql = pStr;
+  SToken token;
+
+  ADVANCE();
+  if (!MATCH(TK_INSERT)) {
+    RETURN_EXPECTING("`insert`");
+  }
+
+  ADVANCE();
+  if (!MATCH(TK_INTO)) {
+    RETURN_EXPECTING("`into`");
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_ID)) {
+    SToken db = token;
+    ADVANCE();
+    if (!MATCH(TK_NK_DOT)) {
+      RETURN_EXPECTING("`.`");
+    }
+    ADVANCE();
+    if (!MATCH(TK_NK_QUESTION)) {
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+    if (db.z + db.n + 1 + token.n != token.z + token.n) {
+      token.n = token.z + token.n - db.z;
+      token.z = db.z;
+      RETURN_EXPECTING("<ID>.?");
+    }
+    ++pCtx->nr_params;
+  } else if (MATCH(TK_NK_QUESTION)) {
+    ++pCtx->nr_params;
+  } else {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
+  ADVANCE();
+  if (MATCH(TK_USING)) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+  if (MATCH(TK_NK_LP)) {
+    ADVANCE();
+again:
+    if (!MATCH(TK_NK_ID)) {
+      RETURN_EXPECTING("<ID>");
+    }
+    ++nr_names;
+    ADVANCE();
+    if (MATCH(TK_NK_COMMA)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_ID)) {
+        RETURN_EXPECTING("`<ID>`");
+      }
+      goto again;
+    } else if (!MATCH(TK_NK_RP)) {
+      RETURN_EXPECTING("`,` or `)`");
+    }
+    ADVANCE();
+  } else if (!MATCH(TK_VALUES)) {
+    RETURN_EXPECTING("`(` or `values`");
+  }
+
+  if (!MATCH(TK_VALUES)) {
+    if (MATCH(TK_USING)) {
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+    RETURN_EXPECTING("`values`");
+  }
+
+  ADVANCE();
+  if (!MATCH(TK_NK_LP)) {
+    RETURN_EXPECTING("`(`");
+  }
+
+  ADVANCE();
+
+next_value:
+  if (MATCH(TK_NK_QUESTION)) {
+    ++pCtx->nr_params;
+    ++nr_values;
+  } else if (MATCH(TK_NK_INTEGER)
+      || MATCH(TK_NK_FLOAT)
+      || MATCH(TK_NK_STRING)) {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    }
+    ++nr_values;
+  } else {
+    RETURN_EXPECTING("`?` or <INTEGER> or <FLOAT> or <STRING>");
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_COMMA)) {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    }
+    ADVANCE();
+    goto next_value;
+  } else if (MATCH(TK_NK_RP)) {
+    if (nr_values != nr_names) {
+      RETURN_EXPECTING("`,`");
+    }
+  } else {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    } else {
+      RETURN_EXPECTING("`,`");
+    }
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_SEMI)) return TSDB_CODE_SUCCESS;
+  if (token.n) {
+    RETURN_EXPECTING("<EOF>");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;

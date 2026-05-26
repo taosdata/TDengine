@@ -3797,8 +3797,20 @@ _return:
 }
 
 int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t code = stmtParseColFields2(stmt);
   if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+      SPureInsertParserCtx ctx = {0};
+      const char *pStr   = pStmt->sql.sqlStr;
+      code = qPureParseInsert(&ctx, pStr);
+      if (code) {
+        SET_ERR("%s", ctx.buf);
+        return code;
+      }
+      if (nums) *nums = ctx.nr_params;
+      return TSDB_CODE_SUCCESS;
+    }
     return code;
   }
 
