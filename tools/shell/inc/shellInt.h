@@ -149,11 +149,15 @@ int32_t getDsnEnv();
 void    shellExit();
 void trimStr(char *srcInfo, char *removeStr);
 
+// shellSubscribe.c
+int32_t shellSubscribe(char *command);
+
 // shellNettest.c
 void shellTestNetWork();
 
 // shellMain.c
 extern SShellObj shell;
 extern char configDirShell[PATH_MAX];
+extern bool shellCmdkilled;
 
 #endif /*_TD_SHELL_INT_H_*/
