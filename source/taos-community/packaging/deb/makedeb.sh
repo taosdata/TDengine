@@ -17,7 +17,34 @@ product_name=$8
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/debworkroom"
-taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
+
+resolve_existing_dir() {
+    local label="$1"
+    shift
+    for candidate in "$@"; do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    echo "Missing ${label} root. Tried: $*" >&2
+    return 1
+}
+
+community_packaging_dir="$(resolve_existing_dir \
+    "community packaging" \
+    "$(readlink -f "${script_dir}/..")" \
+    "$(readlink -f "${compile_dir}/../packaging")")"
+
+internal_packaging_dir="$(resolve_existing_dir \
+    "internal packaging" \
+    "$(readlink -f "${top_dir}/../taos-internal/packaging")" \
+    "$(readlink -f "${top_dir}/../enterprise/packaging")")"
+
+taosx_dir="$(resolve_existing_dir \
+    "taosx" \
+    "$(readlink -f "${top_dir}/../taos-xservice")" \
+    "$(readlink -f "${script_dir}/../../../../taosx")")"
 
 #echo "curr_dir: ${curr_dir}"
 #echo "top_dir: ${top_dir}"
@@ -72,8 +99,8 @@ mkdir -p ${pkg_dir}${install_home_path}/script
 # cp $(dirname ${taoskeeper_binary})/config/taoskeeper.toml ${pkg_dir}${install_home_path}/cfg
 # cp $(dirname ${taoskeeper_binary})/taoskeeper.service ${pkg_dir}${install_home_path}/cfg
 
-cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
-cp ${compile_dir}/../packaging/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
+cp ${community_packaging_dir}/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
+cp ${community_packaging_dir}/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.toml		${pkg_dir}${install_home_path}/cfg || :
@@ -96,13 +123,13 @@ fi
 
 # cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
 #cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
-cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
-cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
-cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
-cp ${top_dir}/../enterprise/packaging/start-all.sh  ${pkg_dir}${install_home_path}/bin
-cp ${top_dir}/../enterprise/packaging/stop-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${community_packaging_dir}/tools/post.sh        ${pkg_dir}${install_home_path}/script
+cp ${community_packaging_dir}/tools/preun.sh       ${pkg_dir}${install_home_path}/script
+cp ${community_packaging_dir}/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
+cp ${community_packaging_dir}/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
+cp ${community_packaging_dir}/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/start-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/stop-all.sh  ${pkg_dir}${install_home_path}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/stop-all.sh
 
@@ -129,11 +156,11 @@ cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver/${pkg_libfile}     
 cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver/${pkg_nativelibfile}
 cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver/${pkg_wslibfile} ||:
-cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/util/tdef.h            ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/client/taos.h          ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/util/tdef.h            ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
 [ -f ${compile_dir}/build/include/taosws.h ] && cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
 cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
 #cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
@@ -176,7 +203,7 @@ if [ -f ${compile_dir}/build/bin/jemalloc-config ]; then
     fi
 fi
 
-cp -r ${compile_dir}/../packaging/deb/DEBIAN        ${pkg_dir}/
+cp -r ${community_packaging_dir}/deb/DEBIAN        ${pkg_dir}/
 chmod 755 ${pkg_dir}/DEBIAN/*
 
 # modify version of control
