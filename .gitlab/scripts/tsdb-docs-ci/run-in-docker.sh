@@ -11,6 +11,9 @@ case "$*" in
     prepare_docs_repo_on_host "${ZH_DOC_REPO_URL}" "${ZH_DOC_DIR}" "${ZH_DOC_BRANCH}"
     prepare_docs_repo_on_host "${EN_DOC_REPO_URL}" "${EN_DOC_DIR}" "${EN_DOC_BRANCH}"
     ;;
+  *"tsdb-docs-cd/build-remote.sh"*)
+    # deploy.sh calls us for build only; repo prep done by deploy.sh itself.
+    ;;
 esac
 
 docker_args=(
@@ -24,7 +27,7 @@ if [ "${ROOT}" != "${TSDB_DIR}" ]; then
 fi
 
 # Forward workspace and CI variables needed by scripts inside the container.
-for _var in DOCS_CI_WORKDIR TSDB_DIR ZH_DOC_DIR EN_DOC_DIR CI_COMMIT_SHA CI_MERGE_REQUEST_DIFF_BASE_SHA CI_CONCURRENT_PROJECT_ID FORCE_BUILD_ALL; do
+for _var in DOCS_CI_WORKDIR TSDB_DIR ZH_DOC_DIR EN_DOC_DIR CI_COMMIT_SHA CI_MERGE_REQUEST_DIFF_BASE_SHA CI_COMMIT_SHORT_SHA CI_CONCURRENT_PROJECT_ID CI_JOB_URL CI_JOB_TOKEN CI_JOB_JWT_V2 FORCE_BUILD_ALL DEPLOY_LANG; do
   if [ -n "${!_var+x}" ]; then
     docker_args+=(-e "${_var}=${!_var}")
   fi
