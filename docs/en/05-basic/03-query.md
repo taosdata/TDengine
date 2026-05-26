@@ -369,37 +369,18 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 Where:
 
-- `state_expr` can be a column reference, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE), TIMESTAMP, and tag columns are not supported. Arithmetic expressions (e.g., `col1 + col2`), comparison/boolean expressions (e.g., `col1 > 0`), and constants are not supported.
+- `state_expr` can be a column reference, a tag column, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE) and TIMESTAMP are not supported.
 - `EXTEND(0|1|2)` specifies the window boundary extension strategy.
 - `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` can be used to skip a position.
 - `TRUE_FOR(...)` filters windows by duration, row count, or both.
 
-`NULL` values in state keys are handled as follows:
+For detailed information, see [TDengine Distinctive Queries](../14-reference/03-taos-sql/24-distinguished.md#state-window).
 
-- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows.
-- If only some state-key columns are `NULL`, those `NULL` positions do not participate in key-by-key comparison. Consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
-- If a consecutive run of partial-`NULL` rows contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with the surrounding partial-`NULL` run.
-
-The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
-
-| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
-| --- | --- | --- | --- |
-| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
-| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
-| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
-| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
-| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
-| `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
-
-If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
-
-`ZEROTH_STATE(...)` also works position by position. A window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
-
-In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
+#### Example
 
 ```sql
-SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
-FROM meters 
+SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
+FROM meters
 WHERE ts >= "2022-01-01T00:00:00+08:00" 
 AND ts < "2022-01-01T00:05:00+08:00" 
 PARTITION BY tbname 
@@ -409,7 +390,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by subtable name `tbname`, then divided into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |
@@ -443,15 +424,15 @@ Multi-key example:
 
 ```sql
 SELECT _wstart, _wend, count(*),
-        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
-        CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
 FROM meters
 WHERE ts >= "2022-01-01T00:00:00+08:00"
-    AND ts <  "2022-01-01T00:05:00+08:00"
+  AND ts <  "2022-01-01T00:05:00+08:00"
 PARTITION BY tbname
 STATE_WINDOW(
-        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
-        CASE WHEN current > 12 THEN 1 ELSE 0 END
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END
 )
 SLIMIT 2;
 ```
@@ -459,7 +440,7 @@ SLIMIT 2;
 The query above uses both the voltage status (whether it remains in the normal range of 225V to 235V) and the current status (whether it exceeds 12A) as state keys. The current window closes and a new one starts whenever either status changes. The query result is as follows:
 
 ```text
-                 _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
+         _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
 ============================================================================================================================
  2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
  2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
@@ -474,26 +455,6 @@ The query above uses both the voltage status (whether it remains in the normal r
 ...
 Query OK, 42 row(s) in set (2.012420s)
 ```
-
-If you need boundary extension or zero-state filtering, you can continue appending clauses after `STATE_WINDOW(...)`, for example:
-
-```sql
-SELECT _wstart, _wduration, _wend, count(*)
-FROM state_window_example
-STATE_WINDOW(status)
-EXTEND(1);
-```
-
-```sql
-SELECT _wstart, _wend, count(*), c1, c2
-FROM ntb_null
-STATE_WINDOW(c1, c2)
-EXTEND(0)
-ZEROTH_STATE(1, NO_ZEROTH)
-TRUE_FOR(COUNT 2);
-```
-
-The SQL above applies zero-state filtering only to `c1 = 1`; `c2` does not participate in zero-state matching.
 
 ### Session Window
 

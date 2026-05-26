@@ -37,6 +37,15 @@ TEST_F(PlanStateTest, stateExpr) {
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
 }
 
+TEST_F(PlanStateTest, logicExpr) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5 AND c3 < 100)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5, c3)");
+  run("SELECT COUNT(*) FROM st1 STATE_WINDOW(tag1 > 1)");
+}
+
 TEST_F(PlanStateTest, selectFunc) {
   useDb("root", "test");
 

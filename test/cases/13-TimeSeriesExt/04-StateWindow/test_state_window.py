@@ -294,11 +294,12 @@ class TestStateWindow:
             expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
             show=True,
         )
-        tdSql.error(
+        tdSql.query(
             "select count(*) from ctb0 state_window(c1, tg1)",
-            expectErrInfo="Not support STATE_WINDOW on tag column",
             show=True,
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
         tdSql.error(
             "select count(*) from ntb state_window(s1, s3) extend(3)",
             expectErrInfo="Invalid state window extend option",
@@ -537,6 +538,148 @@ class TestStateWindow:
         tdSql.checkRows(14)
 
     
+    def test_state_window_logic_expr(self):
+        """summary: test logic expressions as state window key
+
+        description: verify that boolean/logic expressions (c1 > 5, c1 > 5 AND c2 < 10,
+            NOT c1 > 5, etc.) can be used as STATE_WINDOW keys and produce correct
+            window partitioning based on the boolean result.
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-05-21: Tony Zhang created
+
+        """
+        tdSql.execute("drop database if exists test_logic_state", show=True)
+        tdSql.execute("create database test_logic_state keep 3650", show=True)
+        tdSql.execute("use test_logic_state", show=True)
+        tdSql.execute("create table ntb (ts timestamp, c_int int, c_str varchar(10), v double)", show=True)
+        tdSql.execute("""insert into ntb values
+            ('2026-05-01 10:00:00', 1, 'a', 10.0),
+            ('2026-05-01 10:00:01', 3, 'a', 11.0),
+            ('2026-05-01 10:00:02', 7, 'b', 12.0),
+            ('2026-05-01 10:00:03', 8, 'b', 13.0),
+            ('2026-05-01 10:00:04', 2, 'a', 14.0),
+            ('2026-05-01 10:00:05', 9, 'c', 15.0)""", show=True)
+
+        # single comparison: c_int > 5
+        # states: F, F, T, T, F, T -> 4 windows: [F,F](2), [T,T](2), [F](1), [T](1)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(c_int > 5) order by _wstart", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 2, 1)
+
+        # verify equivalence with CASE WHEN
+        tdSql.query(
+            "select _wstart, _wend, count(*) from ntb "
+            "state_window(case when c_int > 5 then true else false end) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 2, 1)
+
+        # AND: c_int > 5 AND c_str = 'b'
+        # row0:F, row1:F, row2:T, row3:T, row4:F, row5:F -> 3 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int > 5 AND c_str = 'b') order by _wstart", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 2)
+
+        # OR: c_int > 5 OR c_str = 'a' -> all rows true -> 1 window
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int > 5 OR c_str = 'a') order by _wstart", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 6)
+
+        # NOT: NOT c_int > 5
+        # states: T, T, F, F, T, F -> 4 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(NOT c_int > 5) order by _wstart", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 1, 1)
+
+        # IS NULL: all non-null -> 1 window (false)
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int IS NULL) order by _wstart", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 6)
+
+        # IN: c_int IN (1, 3, 9)
+        # states: T, T, F, F, F, T -> 3 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int IN (1, 3, 9)) order by _wstart", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 1, 1)
+
+        # BETWEEN: c_int BETWEEN 3 AND 8
+        # states: F, T, T, T, F, F -> 3 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int BETWEEN 3 AND 8) order by _wstart", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 1, 2)
+
+        # logic expr + multi-key: (c_int > 5, c_str)
+        # compound: (F,'a'), (F,'a'), (T,'b'), (T,'b'), (F,'a'), (T,'c') -> 4 windows
+        tdSql.query(
+            "select _wstart, count(*) from ntb state_window(c_int > 5, c_str) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 1, 1)
+
+        # logic expr with aggregation
+        tdSql.query(
+            "select _wstart, _wend, count(*), sum(v) from ntb state_window(c_int > 5) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 3, 21.0)  # 10+11
+        tdSql.checkData(1, 3, 25.0)  # 12+13
+
+        # constant comparison -> allowed, all rows share the same constant state
+        tdSql.query("select count(*) from ntb state_window(1 > 0)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.query("select count(*) from ntb state_window(1 = 1)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        # semi-constant: scalar folds one side, whole expr becomes constant
+        # c_int > 5 AND false -> constant false -> 1 window
+        tdSql.query("select count(*) from ntb state_window(c_int > 5 AND 1 > 2)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        # c_int > 5 OR true -> constant true -> 1 window
+        tdSql.query("select count(*) from ntb state_window(c_int > 5 OR 1 < 2)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        # NOT true -> constant false -> 1 window
+        tdSql.query("select count(*) from ntb state_window(NOT 1 > 0)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.execute("drop database if exists test_logic_state", show=True)
+
     def test_state_window_group(self):
         """summary: test state window on multiple groups
 
