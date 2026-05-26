@@ -31,6 +31,9 @@ class TestStateWindowMultiCol:
         7. EX-1~EX-3: multi-col with expression keys (expr+col, dual-expr, col+expr)
         8. S-4: stream trigger with expression keys (expr+col, col+expr, dual-expr)
         9. S-5: stream trigger history with multi-col state keys
+        10. S-6: stream trigger with single logic expr key (c1 > 5)
+        11. S-7: stream trigger with logic expr + column multi-key (c1 > 1, c2)
+        12. S-8: stream trigger with logic expr combinations (AND/OR/NOT, IN, BETWEEN)
 
         Catalog:
             - TimeSeriesExt:StateWindow
@@ -64,6 +67,9 @@ class TestStateWindowMultiCol:
         self.do_stream_trigger_multi_col_history()
         self.do_stream_trigger_multi_col_zeroth()
         self.do_stream_trigger_multi_col_expr()
+        self.do_stream_trigger_logic_expr()
+        self.do_stream_trigger_logic_expr_multi_key()
+        self.do_stream_trigger_logic_expr_combos()
 
     # --- util ---
 
@@ -784,3 +790,244 @@ class TestStateWindowMultiCol:
             s.checkResults()
 
         print("S-4: stream trigger multi-col expr ... [passed]")
+
+    def do_stream_trigger_logic_expr(self):
+        # S-6: stream trigger with single logic expr state key
+        # state_window(c1 > 5) as the stream's trigger
+        tdSql.execute("use test_sw_mc")
+
+        tdSql.execute("create table if not exists ntb_sle (ts timestamp, c1 int, c2 bool, v double)")
+
+        stream = StreamItem(
+            id=10,
+            stream='''create stream smc_logic0
+                        state_window(c1 > 5) extend(0) from ntb_sle
+                        stream_options(fill_history) into res_smc_logic0 as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_sle where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic0
+                        where wstart <= "2025-10-07 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_sle
+                        state_window(c1 > 5)
+                        ) t where _wstart <= "2025-10-07 10:00:09.000"''',
+        )
+
+        stream.createStream()
+        tdStream.checkStreamStatus('''smc_logic0''')
+
+        # c1: 1,3,7,8,2,9,1,1,7,6
+        # c1>5: F,F,T,T,F,T,F,F,T,T
+        # windows: [F,F](2) | [T,T](2) | [F](1) | [T](1) | [F,F](2) | [T,T](2)
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:00', 1, true,  10.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:01', 3, true,  11.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:02', 7, false, 12.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:03', 8, false, 13.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:04', 2, true,  14.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:05', 9, true,  15.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:06', 1, false, 16.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:07', 1, true,  17.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:08', 7, true,  18.0)")
+        tdSql.execute("insert into ntb_sle values('2025-10-07 10:00:09', 6, false, 19.0)")
+        # sentinel
+        tdSql.execute("insert into ntb_sle values('2025-10-08 10:00:00', 1, false, 999.0)")
+
+        stream.checkResults()
+
+        print("S-6: stream trigger logic expr ....... [passed]")
+
+    def do_stream_trigger_logic_expr_multi_key(self):
+        # S-7: stream trigger with logic expr + column as multi-key
+        # state_window(c1 > 1, c2) — boolean expr mixed with plain column
+        tdSql.execute("use test_sw_mc")
+
+        tdSql.execute("create table if not exists ntb_slm (ts timestamp, c1 int, c2 bool, v double)")
+
+        streams: list[StreamItem] = []
+        # logic expr + column
+        stream = StreamItem(
+            id=11,
+            stream='''create stream smc_logic1
+                        state_window(c1 > 1, c2) extend(0) from ntb_slm
+                        stream_options(fill_history) into res_smc_logic1 as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_slm where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic1
+                        where wstart <= "2025-10-09 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_slm
+                        state_window(c1 > 1, c2)
+                        ) t where _wstart <= "2025-10-09 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        # column + logic expr (reversed order)
+        stream = StreamItem(
+            id=12,
+            stream='''create stream smc_logic2
+                        state_window(c2, c1 > 1) extend(0) from ntb_slm
+                        stream_options(fill_history) into res_smc_logic2 as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_slm where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic2
+                        where wstart <= "2025-10-09 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_slm
+                        state_window(c2, c1 > 1)
+                        ) t where _wstart <= "2025-10-09 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus('''smc_logic1''')
+        tdStream.checkStreamStatus('''smc_logic2''')
+
+        # c1: 1,2,2,1,1,3,3,1,2,1
+        # c2: T,T,F,F,T,T,F,F,T,T
+        # (c1>1): F,T,T,F,F,T,T,F,T,F
+        # (c1>1,c2): (F,T)(T,T)(T,F)(F,F)(F,T)(T,T)(T,F)(F,F)(T,T)(F,T)
+        # windows: (F,T)x1|(T,T)x1|(T,F)x1|(F,F)x1|(F,T)x1|(T,T)x1|(T,F)x1|(F,F)x1|(T,T)x1|(F,T)x1 = 10
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:00', 1, true,  10.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:01', 2, true,  20.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:02', 2, false, 30.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:03', 1, false, 40.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:04', 1, true,  50.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:05', 3, true,  60.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:06', 3, false, 70.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:07', 1, false, 80.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:08', 2, true,  90.0)")
+        tdSql.execute("insert into ntb_slm values('2025-10-09 10:00:09', 1, true, 100.0)")
+        # sentinel
+        tdSql.execute("insert into ntb_slm values('2025-10-10 10:00:00', 9, false, 999.0)")
+
+        for s in streams:
+            s.checkResults()
+
+        print("S-7: stream trigger logic expr multi . [passed]")
+
+    def do_stream_trigger_logic_expr_combos(self):
+        # S-8: stream trigger with complex logic expr combinations
+        # Tests AND, NOT, IN, BETWEEN as state keys
+        tdSql.execute("use test_sw_mc")
+
+        tdSql.execute("create table if not exists ntb_slc (ts timestamp, c1 int, c2 varchar(10), v double)")
+
+        streams: list[StreamItem] = []
+
+        # AND: c1 > 3 AND c1 < 8
+        stream = StreamItem(
+            id=13,
+            stream='''create stream smc_logic_and
+                        state_window(c1 > 3 AND c1 < 8) extend(0) from ntb_slc
+                        stream_options(fill_history) into res_smc_logic_and as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_slc where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic_and
+                        where wstart <= "2025-10-11 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_slc
+                        state_window(c1 > 3 AND c1 < 8)
+                        ) t where _wstart <= "2025-10-11 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        # NOT: NOT c1 > 5
+        stream = StreamItem(
+            id=14,
+            stream='''create stream smc_logic_not
+                        state_window(NOT c1 > 5) extend(0) from ntb_slc
+                        stream_options(fill_history) into res_smc_logic_not as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_slc where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic_not
+                        where wstart <= "2025-10-11 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_slc
+                        state_window(NOT c1 > 5)
+                        ) t where _wstart <= "2025-10-11 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        # IN: c2 IN ('a', 'c')
+        stream = StreamItem(
+            id=15,
+            stream='''create stream smc_logic_in
+                        state_window(c2 IN ('a', 'c')) extend(0) from ntb_slc
+                        stream_options(fill_history) into res_smc_logic_in as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_slc where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic_in
+                        where wstart <= "2025-10-11 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_slc
+                        state_window(c2 IN ('a', 'c'))
+                        ) t where _wstart <= "2025-10-11 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        # BETWEEN: c1 BETWEEN 3 AND 7
+        stream = StreamItem(
+            id=16,
+            stream='''create stream smc_logic_btw
+                        state_window(c1 BETWEEN 3 AND 7) extend(0) from ntb_slc
+                        stream_options(fill_history) into res_smc_logic_btw as
+                        select _twstart wstart, _twduration wdur, _twend wend,
+                        count(*) cnt, sum(v) sum_v
+                        from ntb_slc where ts >= _twstart and ts <= _twend''',
+            res_query='''select wstart, wdur, wend, cnt, sum_v from res_smc_logic_btw
+                        where wstart <= "2025-10-11 10:00:09.000"''',
+            exp_query='''select _wstart wstart, _wduration wdur, _wend wend, cnt, sum_v from (
+                        select _wstart, _wduration, _wend, count(*) cnt, sum(v) sum_v
+                        from ntb_slc
+                        state_window(c1 BETWEEN 3 AND 7)
+                        ) t where _wstart <= "2025-10-11 10:00:09.000"''',
+        )
+        streams.append(stream)
+
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus('''smc_logic_and''')
+        tdStream.checkStreamStatus('''smc_logic_not''')
+        tdStream.checkStreamStatus('''smc_logic_in''')
+        tdStream.checkStreamStatus('''smc_logic_btw''')
+
+        # c1: 1, 5, 7, 4, 2, 9, 6, 3, 8, 1
+        # c2: a, b, b, a, c, c, a, b, c, a
+        # c1>3 AND c1<8: F,T,T,T,F,F,T,F,F,F
+        # NOT c1>5:      T,T,F,T,T,F,F,T,F,T
+        # c2 IN(a,c):    T,F,F,T,T,T,T,F,T,T
+        # c1 BETWEEN 3,7:F,T,T,T,F,F,T,T,F,F
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:00', 1, 'a', 10.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:01', 5, 'b', 20.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:02', 7, 'b', 30.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:03', 4, 'a', 40.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:04', 2, 'c', 50.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:05', 9, 'c', 60.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:06', 6, 'a', 70.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:07', 3, 'b', 80.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:08', 8, 'c', 90.0)")
+        tdSql.execute("insert into ntb_slc values('2025-10-11 10:00:09', 1, 'a', 100.0)")
+        # sentinel: c1=6, c2='x' — must flip state for ALL four streams:
+        #   c1>3 AND c1<8 : row9 F → sentinel T  (6 is in (3,8))
+        #   NOT c1>5      : row9 T → sentinel F  (6>5 → NOT → F)
+        #   c2 IN ('a','c'): row9 T('a') → sentinel F('x')
+        #   c1 BETWEEN 3,7: row9 F → sentinel T  (6 in [3,7])
+        tdSql.execute("insert into ntb_slc values('2025-10-12 10:00:00', 6, 'x', 999.0)")
+
+        for s in streams:
+            s.checkResults()
+
+        print("S-8: stream trigger logic expr combo . [passed]")

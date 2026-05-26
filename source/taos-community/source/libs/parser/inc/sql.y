@@ -2751,9 +2751,11 @@ twindow_clause_opt(A) ::=
 %type state_window_key_expr                                                       { SNode* }
 %destructor state_window_key_expr                                                 { nodesDestroyNode($$); }
 state_window_key_expr(A) ::= column_reference(B).                                 { A = B; }
+state_window_key_expr(A) ::= TBNAME(B).                                           { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 state_window_key_expr(A) ::= function_expression(B).                              { A = B; }
 state_window_key_expr(A) ::= case_when_expression(B).                             { A = B; }
 state_window_key_expr(A) ::= if_expression(B).                                    { A = B; }
+state_window_key_expr(A) ::= boolean_value_expression(B).                         { A = B; }
 
 %type state_window_key_list                                                       { SNodeList* }
 %destructor state_window_key_list                                                 { nodesDestroyList($$); }
