@@ -1,3 +1,12 @@
+---
+name: tsdb-docs-project-manage
+description: "TSDB 项目管理文档更新技能。适用于更新项目进度跟踪表、项目变更跟踪表、编写会议记录和变更评审记录。触发关键词：项目进度, 项目变更, 进度跟踪, 变更跟踪, 项目管理文档"
+metadata:
+  author: Simon Guan
+  version: 1.0.0
+  owner_team: engine
+---
+
 # Skill: tsdb-docs-project-manage
 
 ## 触发条件
@@ -140,7 +149,7 @@ ws = wb.active
 
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-git-commit version=0.2.0 author=Simon Guan`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-docs-project-manage version=1.0.0 author=Simon Guan`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->

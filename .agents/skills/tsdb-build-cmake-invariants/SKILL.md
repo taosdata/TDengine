@@ -755,3 +755,10 @@ endif()
 | 11. Build option defaults | ✅ insight/odbc/dotnet=OFF | Verify | May differ |
 | 12. `DEP_td_rocksdb` uniform | ✅ Always via macro | ✅ Same | Identical logic |
 | 13. LOCAL_URL CACHE bridge | ✅ Empty-string check + FORCE | Verify | CACHE var was always defined, blocking bridge |
+
+## Telemetry (MUST)
+
+> 调用 `skill-telemetry`，传入 `name=tsdb-build-cmake-invariants version=1.0.0 author=Bo Xiao`。
+> 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
+
+<!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->

@@ -114,10 +114,10 @@ taosBenchmark -y -h <远程IP> -d abc -t 1 -n 100 -T 1 -I rest
 ## References
 
 - `references/build-macos-apple-silicon.md` — 在 macOS Apple Silicon 上从源码编译 taosBenchmark 的完整步骤与常见问题
+
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-ops-quick-write version=0.1.0 author=yangzy`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-ops-quick-write version=1.0.0 author=yangzy`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

@@ -108,10 +108,10 @@ metadata:
 - 是否避免入口出口与中间刷屏日志。
 - 是否保证可读性（完整句子 + 可读字符串）。
 - 是否满足可追踪并发任务与链路级定位。
+
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-dev-log-style version=0.1.0 author=Linhe Huo`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-dev-log-style version=1.0.0 author=Simon Guan`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-
