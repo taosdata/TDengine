@@ -338,6 +338,10 @@ static int32_t processRemovedConsumers(SMqRebOutputObj *pOutput, SHashObj *pHash
     MND_TMQ_NULL_CHECK(consumerId);
     SMqConsumerEp *pConsumerEp = taosHashGet(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t));
     if (pConsumerEp == NULL) {
+      mInfo("tmq rebalance sub:%s consumer:0x%" PRIx64 " not found in consumerHash, cleanup only",
+            pOutput->pSub->key, *consumerId);
+      MND_TMQ_NULL_CHECK(taosArrayPush(pOutput->removedConsumers, consumerId));
+      actualRemoved++;
       continue;
     }
 
