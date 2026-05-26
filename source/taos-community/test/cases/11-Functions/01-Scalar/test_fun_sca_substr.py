@@ -112,7 +112,6 @@ class TestFunSubstr:
         sqls.extend( f"select substr({num_col}, '1') from {tbname} " for num_col in NUM_COL )
         sqls.extend( f"select substr({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
         sqls.extend( f"select substr({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select substr({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
                 f"select substr() from {tbname} ",

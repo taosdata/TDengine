@@ -1,5 +1,4 @@
 import os, platform, subprocess, time, re, importlib
-from pathlib import Path
 from new_test_framework.utils import (
     tdLog,
     tdSql,
@@ -15,7 +14,8 @@ enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../..
 
 # Check if enterprise downloader exists
 if not os.path.exists(enterprise_downloader_path):
-    raise FileNotFoundError(f"Enterprise package downloader not found at: {enterprise_downloader_path}")
+    import pytest
+    pytest.skip("Enterprise package downloader not available (community-only CI)", allow_module_level=True)
 
 # Load the module
 spec = importlib.util.spec_from_file_location("download_enterprise_package", enterprise_downloader_path)
@@ -28,7 +28,7 @@ EnterprisePackageDownloader = download_enterprise_package.EnterprisePackageDownl
 downloader = EnterprisePackageDownloader()
 
 # Define the list of base versions to test
-BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6"]
+BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6", "3.4.1.0"]
 
 # Default taos command prefix for the currently-installed (new) version
 _SYS_TAOS_PREFIX = "LD_LIBRARY_PATH=/usr/lib /usr/bin/taos"
@@ -50,7 +50,7 @@ class TestNewStreamCompatibility:
     def test_stream_compatibility(self):
         """Comp: stream backward and forward
 
-        Test compatibility across 3 baseline versions with stream processing validation:
+        Test compatibility across 4 baseline versions with stream processing validation:
 
         1. Test [v3.3.7.9 Base Version Compatibility]
             1.1 Install v3.3.7.9 and prepare data using tdCb.prepareDataOnOldVersion()
@@ -68,6 +68,7 @@ class TestNewStreamCompatibility:
 
         2. Test [v3.3.8.5 Base Version Compatibility]
         3. Test [v3.3.8.6 Base Version Compatibility]
+        4. Test [v3.4.1.0 Base Version Compatibility]
 
         Catalog:
             - Streams:Compatibility:Backward
@@ -102,7 +103,8 @@ class TestNewStreamCompatibility:
 
         for base_version in BASE_VERSIONS:
 
-            tdLog.printNoPrefix(f"========== Start testing compatibility with base version {base_version} ==========")
+            tdLog.printNoPrefix(f"\n\n========== Start testing compatibility with"
+                                f" base version {base_version} ==========")
 
             self.installTaosd(cPath, base_version)
 
@@ -110,15 +112,18 @@ class TestNewStreamCompatibility:
 
             self.prepareDataOnOldVersion(base_version)
 
-            tdCb.killAllDnodes()
-            
+            tdCb.stopTaosdCompletely()
+
             tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
 
             self.startStream()
 
             self.verifyDataOnCurrentVersion()
 
-            tdLog.printNoPrefix(f"Compatibility test cycle with base version {base_version} completed successfully")
+            tdLog.printNoPrefix(f"========== Compatibility test cycle with base"
+                f" version {base_version} completed successfully ==========\n")
+
+            tdCb.stopTaosdCompletely()
 
     def getCfgPath(self):
         buildPath = tdCom.getBuildPath()
@@ -127,7 +132,7 @@ class TestNewStreamCompatibility:
         cfgPath = buildPath + "/../sim/dnode1/cfg/"
 
         return cfgPath
-    
+
     def prepareDataOnOldVersion(self, base_version):
         """
         1. Create test databases and tables
@@ -136,7 +141,7 @@ class TestNewStreamCompatibility:
         """
         tp = self._old_taos_prefix  # shorthand for old-version taos invocation
         tdLog.info(f"Preparing data on old version {base_version} using taos prefix: {tp}")
-        
+
         os.system(f"{tp} -s 'create snode on dnode 1;'")
         os.system(f"{tp} -s 'drop database if exists test_stream_compatibility;'")
         os.system(f"{tp} -s 'create database test_stream_compatibility;'")
@@ -144,41 +149,40 @@ class TestNewStreamCompatibility:
         os.system(f"""{tp} -s 'create table test_stream_compatibility.ctb1 using test_stream_compatibility.stb tags (1);'""")
         os.system(f"""{tp} -s 'create table test_stream_compatibility.ctb2 using test_stream_compatibility.stb tags (1);'""")
         # create streams
-        os.system(f"""{tp} -s 'create stream 
-        test_stream_compatibility.s_count count_window(3) from 
-        test_stream_compatibility.stb partition by tbname into 
-        test_stream_compatibility.res_count as select _twstart as ts, _twend as 
-        te, sum(v1) as sum_v1, avg(v2) as avg_v2 from %%tbname 
+        os.system(f"""{tp} -s 'create stream \
+        test_stream_compatibility.s_count count_window(3) from \
+        test_stream_compatibility.stb partition by tbname into \
+        test_stream_compatibility.res_count as select _twstart as ts, _twend as \
+        te, sum(v1) as sum_v1, avg(v2) as avg_v2 from %%tbname \
         where ts >= _twstart and ts <= _twend;'""")
-        os.system(f"""{tp} -s 'create stream 
-        test_stream_compatibility.s_state state_window(v1) from 
-        test_stream_compatibility.stb partition by tbname into 
-        test_stream_compatibility.res_state as select _twstart as ts, _twend as 
-        te, sum(v1) as sum_v1, avg(v2) as avg_v2 from %%tbname 
+        os.system(f"""{tp} -s 'create stream \
+        test_stream_compatibility.s_state state_window(v1) from \
+        test_stream_compatibility.stb partition by tbname into \
+        test_stream_compatibility.res_state as select _twstart as ts, _twend as \
+        te, sum(v1) as sum_v1, avg(v2) as avg_v2 from %%tbname \
         where ts >= _twstart and ts <= _twend;'""")
-        os.system(f"""{tp} -s 'create stream 
-        test_stream_compatibility.s_inter interval(3s) sliding(3s) from 
-        test_stream_compatibility.stb into test_stream_compatibility.res_inter 
-        as select _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as 
-        avg_v2 from test_stream_compatibility.stb 
-        where ts >= _twstart and ts < _twend'
-        """)
+        os.system(f"""{tp} -s 'create stream \
+        test_stream_compatibility.s_inter interval(3s) sliding(3s) from \
+        test_stream_compatibility.stb into test_stream_compatibility.res_inter \
+        as select _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as \
+        avg_v2 from test_stream_compatibility.stb \
+        where ts >= _twstart and ts < _twend'""")
 
         # check status
         assert self.checkStreamStatus(taos_prefix=tp)
 
         # insert data
-        os.system(f"""{tp} -s 'insert into
-                test_stream_compatibility.ctb1 values
-                ("2025-11-17 12:00:00", 1,    1.2)
-                ("2025-11-17 12:00:01", 1,    1.3)
-                ("2025-11-17 12:00:02", 2,    1.5)
-                ("2025-11-17 12:00:03", 2,    1.7)
-                ("2025-11-17 12:00:04", 2,    1.9)
-                ("2025-11-17 12:00:05", 2,    2.2)
-                ("2025-11-17 12:00:06", 1,    3.2)
-                ("2025-11-17 12:00:07", 1,    4.2)
-                ("2025-11-17 12:00:08", 1,    7.2)
+        os.system(f"""{tp} -s 'insert into \
+                test_stream_compatibility.ctb1 values \
+                ("2025-11-17 12:00:00", 1,    1.2) \
+                ("2025-11-17 12:00:01", 1,    1.3) \
+                ("2025-11-17 12:00:02", 2,    1.5) \
+                ("2025-11-17 12:00:03", 2,    1.7) \
+                ("2025-11-17 12:00:04", 2,    1.9) \
+                ("2025-11-17 12:00:05", 2,    2.2) \
+                ("2025-11-17 12:00:06", 1,    3.2) \
+                ("2025-11-17 12:00:07", 1,    4.2) \
+                ("2025-11-17 12:00:08", 1,    7.2) \
                 ("2025-11-17 12:00:09", 2,    9.2)'""")
         time.sleep(10)
 
@@ -232,7 +236,6 @@ class TestNewStreamCompatibility:
         assert self.checkStreamStatus()
         tdLog.info("start all stream success")
 
-
     def verifyDataOnCurrentVersion(self):
         """
         1. Check table counts and row counts consistency
@@ -242,46 +245,46 @@ class TestNewStreamCompatibility:
         streams: list[StreamItem] = []
         stream = StreamItem(
             id=0,
-            stream="""create stream test_stream_compatibility.s_count 
-                count_window(3) from test_stream_compatibility.stb partition by 
-                tbname into test_stream_compatibility.res_count as select 
-                _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as 
+            stream="""create stream test_stream_compatibility.s_count
+                count_window(3) from test_stream_compatibility.stb partition by
+                tbname into test_stream_compatibility.res_count as select
+                _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as
                 avg_v2 from %%tbname where ts >= _twstart and ts <= _twend""",
-            res_query="""select ts, te, sum_v1, avg_v2 from 
+            res_query="""select ts, te, sum_v1, avg_v2 from
                 test_stream_compatibility.res_count;""",
-            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as 
-                avg_v2 from test_stream_compatibility.ctb1 count_window(3) 
+            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as
+                avg_v2 from test_stream_compatibility.ctb1 count_window(3)
                 limit 3;""",
         )
         streams.append(stream)
 
         stream = StreamItem(
             id=1,
-            stream="""create stream test_stream_compatibility.s_state 
-                state_window(v1) from test_stream_compatibility.stb partition by 
-                tbname into test_stream_compatibility.res_state as select 
-                _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as avg_v2 from 
+            stream="""create stream test_stream_compatibility.s_state
+                state_window(v1) from test_stream_compatibility.stb partition by
+                tbname into test_stream_compatibility.res_state as select
+                _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as avg_v2 from
                 %%tbname where ts >= _twstart and ts <= _twend""",
-            res_query="""select ts, te, sum_v1, avg_v2 from 
+            res_query="""select ts, te, sum_v1, avg_v2 from
                 test_stream_compatibility.res_state;""",
-            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as 
-                avg_v2 from test_stream_compatibility.ctb1 state_window(v1) 
+            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as
+                avg_v2 from test_stream_compatibility.ctb1 state_window(v1)
                 limit 3;"""
         )
         streams.append(stream)
 
         stream = StreamItem(
             id=2,
-            stream="""create stream test_stream_compatibility.s_inter 
-                interval(3s) sliding(3s) from test_stream_compatibility.stb 
-                into test_stream_compatibility.res_inter as select 
-                _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as 
-                avg_v2 from test_stream_compatibility.stb where ts >= _twstart 
+            stream="""create stream test_stream_compatibility.s_inter
+                interval(3s) sliding(3s) from test_stream_compatibility.stb
+                into test_stream_compatibility.res_inter as select
+                _twstart as ts, _twend as te, sum(v1) as sum_v1, avg(v2) as
+                avg_v2 from test_stream_compatibility.stb where ts >= _twstart
                 and ts < _twend""",
-            res_query="""select ts, te, sum_v1, avg_v2 from 
+            res_query="""select ts, te, sum_v1, avg_v2 from
                 test_stream_compatibility.res_inter;""",
-            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as 
-                avg_v2 from test_stream_compatibility.ctb1 interval(3s) 
+            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as
+                avg_v2 from test_stream_compatibility.ctb1 interval(3s)
                 sliding(3s) limit 3;"""
         )
         streams.append(stream)
@@ -309,12 +312,12 @@ class TestNewStreamCompatibility:
         taosd_bin = os.path.join(bin_dir, "taosd")
         tdLog.info(f"start taosd: rm -rf {dataPath}/* && LD_LIBRARY_PATH={lib_dir} nohup {taosd_bin} -c {cPath} &")
         os.system(f"rm -rf {dataPath}/* && LD_LIBRARY_PATH={lib_dir} nohup {taosd_bin} -c {cPath} &")
-    
+
     def checkStreamStatus(self, retry_times=300, taos_prefix=None):
         tp = taos_prefix or _SYS_TAOS_PREFIX
         command = f"{tp} -s 'select status from information_schema.ins_streams'"
         for i in range(retry_times):
-            result = subprocess.run(command, shell=True, text=True, capture_output=True)
+            result = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=10)
             if result.returncode == 0:
                 running_count = result.stdout.count("Running")
                 tdLog.info(f"Found {running_count} running streams.")
@@ -340,7 +343,7 @@ class TestNewStreamCompatibility:
 
         command = f"{tp} -s 'select * from test_stream_compatibility.{res_table};'"
         for _ in range(retry_times):
-            result = subprocess.run(command, shell=True, text=True, capture_output=True)
+            result = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=10)
             if result.returncode == 0:
                 count = get_row_count(result.stdout)
                 tdLog.info(f"Stream result rows:{count}, expect:{expect_row_num}")

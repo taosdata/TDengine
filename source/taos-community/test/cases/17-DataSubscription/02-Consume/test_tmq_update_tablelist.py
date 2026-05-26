@@ -31,6 +31,9 @@ class TestCase:
 
         tdLog.info("subscribe success")
         tdSql.execute("ALTER TABLE tb1 SET TAG id = 10, t1 = 0")
+        tdSql.execute("ALTER TABLE tb3 SET TAG id = 1, t1 = 0")
+        tdSql.execute("drop TABLE tb1")
+        tdSql.execute("drop TABLE tb3")
 
         cnt = 0
         try:
@@ -46,7 +49,7 @@ class TestCase:
         finally:
             consumer.close()
 
-        if cnt != 3:
+        if cnt != 2:
             tdLog.exit(f"consume 1 error, cnt: {cnt}")
         tdLog.info(f"consume1 completed, total rows: {cnt}")
 
@@ -86,6 +89,7 @@ class TestCase:
             consumer.close()
         if cnt != 2:
             tdLog.exit(f"consume 2 error, cnt: {cnt}")
+        tdSql.execute(f'drop topic t1')
         tdLog.info(f"consume2 completed, total rows: {cnt}")
 
     def consume3(self):
@@ -124,9 +128,11 @@ class TestCase:
             consumer.close()
         if cnt != 2:
             tdLog.exit(f"consume 2 error, cnt: {cnt}")
+        tdSql.execute(f'drop topic t2')
         tdLog.info(f"consume2 completed, total rows: {cnt}")
 
     def insertData(self):
+        tdSql.execute("drop database if exists db_alter_tag")
         tdSql.execute("create database db_alter_tag vgroups 1")
         tdSql.execute("use db_alter_tag")
         tdSql.execute("create table stb (ts timestamp, val double) tags (id int, t1 int)")
@@ -156,8 +162,9 @@ class TestCase:
         """
         tdSql.prepare()
         self.insertData()
-        self.consume1()
         self.consume2()
         self.consume3()
+        self.insertData()
+        self.consume1()
 
 event = threading.Event()

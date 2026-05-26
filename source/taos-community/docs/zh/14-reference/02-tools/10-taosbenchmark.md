@@ -424,7 +424,7 @@ taosBenchmark -f <json file>
 <summary>insert.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/insert.json}}
+{{#include source/taos-community/tools/taosBenchmark/example/insert.json}}
 ```
 
 </details>
@@ -435,7 +435,7 @@ taosBenchmark -f <json file>
 <summary>query.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/query.json}}
+{{#include source/taos-community/tools/taosBenchmark/example/query.json}}
 ```
 
 </details>
@@ -444,7 +444,7 @@ taosBenchmark -f <json file>
 <summary>queryStb.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/queryStb.json}}
+{{#include source/taos-community/tools/taosBenchmark/example/queryStb.json}}
 ```
 
 </details>
@@ -455,7 +455,7 @@ taosBenchmark -f <json file>
 <summary>tmq.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/tmq.json}}
+{{#include source/taos-community/tools/taosBenchmark/example/tmq.json}}
 ```
 
 </details>
@@ -466,12 +466,12 @@ taosBenchmark -f <json file>
 <summary>csv-export.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taos-tools/example/csv-export.json}}
+{{#include source/taos-community/tools/taosBenchmark/example/csv-export.json}}
 ```
 
 </details>
 
-查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
+查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/TDengine/tree/main/tools/taosBenchmark/example)
 
 ## 输出性能指标
 

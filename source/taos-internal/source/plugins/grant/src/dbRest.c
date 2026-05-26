@@ -1071,6 +1071,7 @@ _exit:
 
 static void *updateAuthServerThread(void *param) {
   setThreadName("auth-update");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SUpdateAuthTask *pTask = (SUpdateAuthTask *)param;
   if (!pTask) {
     uError("updateAuthServerThread: null task parameter");

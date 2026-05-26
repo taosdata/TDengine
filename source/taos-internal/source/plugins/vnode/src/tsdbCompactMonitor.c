@@ -139,7 +139,7 @@ void tsdbStopAllCompTask(STsdb *tsdb) {
 
 int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  rsp->compactId = 0;  // TODO
+  // compactId should be set by the caller
   rsp->vgId = TD_VID(tsdb->pVnode);
   rsp->numberFileset = tsdb->pCompMonitor->totalCompTasks;
   rsp->finished = rsp->numberFileset - TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr);

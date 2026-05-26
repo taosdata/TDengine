@@ -223,6 +223,13 @@ class TestInterpFill:
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1n) every(2s) fill(prev, 99);")
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1y) every(2s) fill(prev, 99);")
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1) every(2s) fill(prev, 99);")
+        # calendar units (n/y and their uppercase aliases N/Y, plus quarter q/Q) must be rejected in EVERY clause
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1n) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1N) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1y) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1Y) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1q) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2021-01-01 00:00:00.000') every(1Q) fill(prev);", expectErrInfo="Unsupported time unit in EVERY clause")
         tdSql.error("create stream s1 trigger force_window_close into test.s1res as select _irowts, interp(c1), interp(c2)from test.td32727 partition by tbname range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(1s) fill(near, 1, 1);")
 
     def test_interp_fill_ignore_null(self):

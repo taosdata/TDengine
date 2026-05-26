@@ -240,6 +240,17 @@ typedef struct SForecastFuncLogicNode {
   SNodeList* pFuncs;
 } SForecastFuncLogicNode, SGenericAnalysisLogicNode;
 
+typedef struct SRowsetSourceLogicNode {
+  SLogicNode node;
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;  // owned; released by destroy; moved to physi node by physical planner (then set to NULL)
+} SRowsetSourceLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
   bool       grpColsMayBeNull;
@@ -343,6 +354,12 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef struct SExtWindowFillInfo {
+  EFillMode  mode;
+  SNodeList* pFillExprs;
+  SNode*     pFillValues;
+} SExtWindowFillInfo;
+
 #define WINDOW_PART_HAS  0x01
 #define WINDOW_PART_TB   0x02
 
@@ -366,7 +383,7 @@ typedef struct SWindowLogicNode {
   int64_t               sessionGap;
   SNode*                pTsEnd;
   // for state window
-  SNode*                pStateExpr;
+  SNodeList*            pStateExprs;
   EStateWinExtendOption extendOption;
   // for event window
   SNode*                pStartCond;
@@ -387,6 +404,7 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -411,6 +429,7 @@ typedef struct SFillLogicNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -638,6 +657,17 @@ typedef struct SForecastFuncPhysiNode {
   SNodeList* pFuncs;
 } SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
 
+typedef struct SRowsetSourcePhysiNode {
+  SPhysiNode node;           // QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;      // SSDataBlock binary; owned; freed by destroy
+} SRowsetSourcePhysiNode;
+
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
   EJoinType    joinType;
@@ -817,6 +847,7 @@ typedef struct SFillPhysiNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
@@ -831,7 +862,7 @@ typedef struct SSessionWinodwPhysiNode {
 
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pStateKey;
+  SNodeList*       pStateKeys;
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
@@ -868,6 +899,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;

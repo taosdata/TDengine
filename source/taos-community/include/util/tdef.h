@@ -701,6 +701,7 @@ typedef enum {
 #define TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR 512
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
+#define ROWSET_COL_ID_START            (PRIMARYKEY_TIMESTAMP_COL_ID + 1)
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
 #ifdef WINDOWS

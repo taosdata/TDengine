@@ -9,7 +9,7 @@ description: 查询数据的详细语法
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] [TAGS] select_list
+SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -49,18 +49,23 @@ table_expr: {
     table_name
   | view_name
   | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 }
+
+column_list:
+    col_name type_name [, col_name type_name] ...
 
 join_clause:
     [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
-  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 
 interp_clause:
@@ -107,31 +112,21 @@ true_for_expr: {
 - select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
 - from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
-- table_expr: 指定查询数据源，可以为表名，视图名，子查询。
-- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度可选 1n（纳秒）、1u（微妙）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
+- table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
+- column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](../join)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](../distinguished)。
-  - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 SESSION(ts, 12s)。
-  - STATE_WINDOW: 状态窗口，expr 指定状态表达式；extend 指定窗口在开始结束时的扩展策略，可选值为 0（默认值）、1、2，分别代表无扩展、向后扩展、向前扩展；zeroth state 指定"零状态"，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量；TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
-    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-
-    其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周），如 `TRUE_FOR(1a)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
-  - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 interval_val(2d)、SLIDING(1d)。
-  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。TRUE_FOR 指定窗口过滤条件，支持以下四种模式：
-    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-
-    其中 `duration_time` 为时间范围正值，精度可选 1n（纳秒）、1u（微秒）、1a（毫秒）、1s（秒）、1m（分）、1h（小时）、1d（天）、1w（周）。示例：`TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 50)`、`TRUE_FOR(5m OR COUNT 20)`。
+  - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
+  - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 3.4.2.0 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
+  - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度参见[时间单位](./01-datatype.md#时间单位)，如 interval_val(2d)、SLIDING(1d)。
+  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
-  - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用等。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
+  - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [TDengine TSDB 特色查询](../distinguished#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
-  - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
-  - EVERY: 时间间隔范围，every_val 为正值，精度可选 1n、1u、1a、1s、1m、1h、1d、1w，如 EVERY(1s)。
-- fill_clause: fill 子句，可以与 interp 函数或 interval 窗口搭配使用，用于指定数据缺失时的数据填充方法。
+  - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
+  - EVERY: 时间间隔范围，every_val 为正值，时间单位参见[时间单位](./01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
+- SCALAR | AGG：窗口查询模式关键字（3.4.2.0 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [TDengine TSDB 特色查询](../distinguished#窗口投影模式)。
+- fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
 - order_expr: 指定输出数据排序规则，默认不排序。支持表达式、函数、位置、列、别名，可以在单列或者多列中每列使用不同的排序规则，可以指定空值排序在前或者在后。
@@ -320,7 +315,7 @@ select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 
 ## 查询对象
 
-FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
+FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果，也可以是 TEXT 或 FILE 内联数据源（见下文）。
 如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：`power.d1001` 方式来跨库使用表。
 
 TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
@@ -332,19 +327,163 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 5. JOIN 两侧均支持子查询。
 6. 不支持与 FILL 子句混合使用。
 
+## TEXT 内联数据源
+
+`TEXT` 允许将行数据直接内嵌在 SQL 语句中，作为临时表源使用，无需预先建表。
+
+### 语法
+
+```sql
+TEXT(column_list)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### 说明
+
+- 列 Schema 必须显式声明，不支持类型推断。
+- 每个 `VALUES` 组代表一行数据，所有行必须与 Schema 列数一致。
+- 支持 NULL 值，使用关键字 `NULL` 表示。
+- 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
+- `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- 首列必须为 `TIMESTAMP` 类型（作为主键），不要求输入有序。
+
+### 数据量限制
+
+| 限制项 | 上限 |
+|---|---|
+| 最大行数 | 10,000 行 |
+| 最大列数 | 4,096 列 |
+| 最大单元格数（rows × cols） | 1,000,000 个 |
+| 单次内联文本大小 | 8 MB |
+
+### 示例
+
+```sql
+-- 基本查询：查询内联电表读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- 带条件过滤：筛选电压超标的读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- 作为子查询：对内联读数进行二次过滤
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- 窗口聚合：按 6 小时统计平均电流和最大电压
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+
+-- JOIN：用内联校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
+```
+
+## FILE CSV 文件数据源
+
+`FILE` 将本地 CSV 文件作为查询表源，无需导入数据库即可直接查询。
+
+### 语法
+
+```sql
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### 说明
+
+- 当前仅支持 CSV 文本格式。
+- `file_path`：CSV 文件路径，由**执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
+- 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
+- CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
+- `header=true`：CSV 首行为列名头部，读取时跳过。启用后按列名匹配（而非按位置），Schema 可以任意顺序声明文件列的子集。默认为 `false`。
+- `delimiter`：字段分隔符，单个字符，默认为 `,`。
+- 支持 NULL 值（CSV 中的空字段解析为 NULL）。
+- 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
+- `FILE` 可用于与 `TEXT` 相同的场景：`FROM` 子句、子查询、JOIN、窗口查询、UNION、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持的列类型：与 `TEXT` 相同。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- Schema 声明的首列必须为 `TIMESTAMP` 类型（作为主键），不要求输入有序。
+
+### 数据量限制
+
+与 `TEXT` 相同：最大 10,000 行、4,096 列、1,000,000 单元格、单次读取不超过 8 MB。
+
+### 示例
+
+```sql
+-- 读取 CSV 文件中的全部列（电表四列读数）
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 有 4 列，只读取其中 2 列（电流和电压）
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 带列名头部，跳过首行
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- 作为子查询：对 CSV 读数进行过滤聚合
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN：用 CSV 校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- 窗口聚合：按小时统计 CSV 电表数据
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
+```
+
 ## INTERP
 
 interp 子句是 [INTERP 函数](./22-function.md#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
 
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
-- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
+- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 参见[时间单位](./01-datatype.md#时间单位)（仅支持毫秒至周，不支持月/季/年）。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。注意：插值时所使用的采样数据并非限制于 RANGE 字段的约束，而是满足 WHERE 子句条件的全部数据，如果没有指定 WHERE 子句，则为全表数据；FILL 子句的参数为 PREV/NEXT/NEAR 时，会使用相邻的有效数据进行插值，NULL 数据能否被认定为有效数据，取决于 INTERP 函数的 ignore_null_values 参数。若想限制采样数据的范围，可以使用 SURROUND 子句。
 - INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
 - INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的有效数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
 
 ## FILL 子句
 
-FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
+FILL 语句指定 INTERVAL 窗口、EXTERNAL_WINDOW 或 INTERP 查询结果中数据缺失时的填充模式。填充模式包括以下几种：
 
 1. 不进行填充：NONE（默认填充模式）。
 2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如 `FILL(VALUE, 1.23)`。这里需要注意，最终填充的值受由相应列的类型决定，如 `FILL(VALUE, 1.23)`，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`，注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 `partition by` 时的 `partition key` (如 tbname) 都不需要指定 VALUE，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
@@ -369,10 +508,15 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 - 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
 - INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
 
+对于 EXTERNAL_WINDOW 查询，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`，暂不支持 `LINEAR`、`NEAR` 和 `SURROUND`。
+
+对于窗口投影模式（SELECT 列表包含列表达式或不定行函数），FILL 仅支持 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`，不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
+
 :::info
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
 2. FILL 具有连续性，例如一列数据中仅第一条不为 NULL，则 FILL(PREV) 会为后续所有行填充该值。
+3. 当不定行函数（如 CSUM、DIFF、DERIVATIVE、MAVG、STATECOUNT、STATEDURATION、LAG、LEAD、FILL_FORWARD）与 INTERVAL 查询一起使用时，仅支持 FILL(NONE)、FILL(NULL)、FILL(NULL_F)、FILL(VALUE) 和 FILL(VALUE_F)。不支持 FILL(PREV)、FILL(NEXT)、FILL(LINEAR) 和 FILL(NEAR)。
 
 :::
 
@@ -380,7 +524,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 
 用于限制 FILL 子句的填充范围，只能在 PREV、NEXT、NEAR（仅 INTERP 查询支持）模式下使用。
 
-SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、年（y）外的时间单位。
+SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、季度（q）、年（y）外的时间单位。
 在 INTERVAL 窗口查询中，其值必须大于等于 INTERVAL 窗口的时间长度。
 
 在 INTERP 查询中，当有效数据行与当前行的时间差超过该参数值时，不使用该行数据，转而使用 FILL_VALS 进行填充。
