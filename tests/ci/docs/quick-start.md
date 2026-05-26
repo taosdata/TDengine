@@ -12,7 +12,7 @@
 5. **verify** — 单元测试（CTest）
 6. **upload** — 产物打包并上传 Nexus
 7. **test** — 分布式集成测试（在 14 台 worker 上并行运行系统集成测试）
-8. **cleanup** — 清理
+8. **cleanup** — 磁盘清理（详见下方第 9 节）
 
 流水线通过 → MR 可以合并；失败 → 需要排查并修复。
 
@@ -246,7 +246,28 @@ cases.task 里有部分用例因不稳定或兼容性问题被临时注释，已
 
 ---
 
-## 8. 需要更多帮助
+## 9. 磁盘清理机制
+
+cleanup stage 有三类 job，行为如下：
+
+| Job | 触发条件 | 做什么 |
+|-----|---------|--------|
+| `cleanup-workspace` | **仅 pipeline 整体成功**（`when: on_success`） | 删除当前 workspace（`mr<N>/`、`daily-*/` 等） |
+| `cleanup-coordinator-sweep` | **始终执行**（`when: always`） | 扫描 coordinator 上所有历史目录：**已合并/关闭的 MR 始终整体删除**；open/unknown MR 空闲 ≥ `CLEANUP_KEEP_DAYS` 天（默认 5天）则删整个目录；旧 daily/web/push 超期删除 |
+| `cleanup-worker [*]` | **始终执行**（`when: always`） | 在每台 worker 上清理超期旧目录（`job-*/`、`fail-logs/`）；磁盘 < 90% 保留 5 天，磁盘 ≥ 90% 紧急保留 3 天 |
+
+**对开发者的实际影响：**
+
+- **Pipeline 失败时**：workspace 原地保留（`cleanup-workspace` 不执行），可以直接 SSH 到 builder 按 coordinator 日志中的复现命令调试，无需重新编译。
+- **Pipeline 成功后**：workspace 被删除，但 worker 上的 `fail-logs/` 日志正常保留 5 天。
+- **节假日 / 长时间无 CI**：open MR 空闲 ≥ 5 天才会被清理（覆盖周末）；已合并/关闭的 MR 目录始终回收。
+- **保留时间可调**：在 `.gitlab/.gitlab-ci.yml` 变量块中修改 `CLEANUP_KEEP_DAYS`（正常保留，默认 5 天）和 `CLEANUP_KEEP_DAYS_URGENT`（磁盘用量 ≥ 90% 时，默认 3 天），或在 GitLab → Settings → CI/CD → Variables 中临时覆盖。
+
+详细说明见 [ci-guide.md §12](ci-guide.md#12-磁盘清理机制)。
+
+---
+
+## 10. 需要更多帮助
 
 - 详细操作和调试手册：[ci-guide.md](ci-guide.md)
 - CI 维护问题：联系平台组

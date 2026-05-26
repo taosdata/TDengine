@@ -20,7 +20,15 @@
 9. [cases.task 用例配置](#9-casestask-用例配置)
 10. [常见问题 FAQ](#10-常见问题-faq)
 11. [GitHub PR 迁移到 GitLab MR](#11-github-pr-迁移到-gitlab-mr)
+12. [磁盘清理机制](#12-磁盘清理机制)
+    - [12.1 总体结构](#121-总体结构)
+    - [12.2 Coordinator 节点清理](#122-coordinator-节点清理)
+    - [12.3 Worker 节点清理](#123-worker-节点清理)
+    - [12.4 清理触发时机](#124-清理触发时机)
+    - [12.5 保留参数速查与调整方法](#125-保留参数速查与调整方法)
 - [附录 A — Runner 机器列表](#a-runner-机器列表)
+- [附录 B — 关键路径速查](#b-关键路径速查)
+- [附录 C — 环境变量速查](#c-环境变量速查)
 - [附录 B — 关键路径速查](#b-关键路径速查)
 - [附录 C — 环境变量速查](#c-环境变量速查)
 
@@ -1214,6 +1222,170 @@ git push gitlab gitlab-${BRANCH}:${BRANCH}
 
 ---
 
+## 12. 磁盘清理机制
+
+> **受众**：维护 CI 基础设施的人员。日常提 MR 开发不需要了解本节，但遇到磁盘告警或清理异常时可参考。
+
+### 12.1 总体结构
+
+CI 集群的磁盘消耗来自两类节点，各有独立的清理脚本：
+
+| 节点类型 | 主要目录 | 清理脚本 |
+|----------|---------|----------|
+| **Coordinator（builder）** | `mr<N>/`、`daily-*/`、`web-*/`、`push-*/`、`coordinator-state/` | `tools/ci/scripts/cleanup-coordinator.sh` |
+| **Worker（14 台）** | `job-<JOB_ID>/`、`fail-logs/` | `tools/ci/scripts/cleanup-worker.sh` |
+
+两个脚本均已内置 `flock -n` 互斥锁，并发调用时只有一个实例实际运行，其余立即以 exit 0 退出，**不会产生冲突**。
+
+---
+
+### 12.2 Coordinator 节点清理
+
+脚本：`tools/ci/scripts/cleanup-coordinator.sh`
+
+#### Step 1 — 清理当前 pipeline 的 workspace
+
+每次 pipeline 成功后，`cleanup-workspace` job（`when: on_success`）会删除本次 pipeline 使用的整个 workspace：
+
+| 触发方式 | Workspace 路径 |
+|----------|----------------|
+| MR | `/data1/tdengine-ci/mr<IID>/` |
+| schedule | `/data1/tdengine-ci/daily-<branch>-<YYYYMMDD>/` |
+| web | `/data1/tdengine-ci/web-<pipeline_id>/` |
+| push | `/data1/tdengine-ci/push-<branch>-<sha>/` |
+
+**Workspace 内部结构**（以 MR 为例）：
+```
+/data1/tdengine-ci/mr<N>/
+  tsdb/                     ← NoSan git checkout
+    debug-others/           ← NoSan 编译产物 (~20G)   ← Step 1 删除
+    source/ .git/ …         ← git checkout            ← Step 1 删除
+  tsdb-san/                 ← ASAN git checkout + 编译产物 (~22G)  ← Step 1 整体删除
+```
+整棵树全部删除。下次同一 MR 推送新 commit 时，`prepare-workspace` 会重新 clone。
+
+> **安全性**：test 阶段的 worker job 使用 `job-<JOB_ID>/` 目录（产物从 Nexus 下载），完全不依赖 `mr<N>/`，因此 cleanup stage 删除 workspace 是安全的。
+
+#### Step 2 — Coordinator-wide 历史扫描
+
+`cleanup-coordinator-sweep` job（`when: always, needs: []`）在每次 pipeline 启动时立即并行运行，调用 `cleanup-coordinator.sh` 扫描 coordinator 上**所有历史目录**。
+
+**2a. `mr<N>/` 目录（通过 GitLab API 查询 MR 状态）**
+
+| MR 状态 | 处理方式 |
+|---------|----------|
+| `merged` / `closed` | **始终**删除整个 `mr<N>/` 目录 |
+| `open` 且有活跃进程（mtime < `ACTIVE_GRACE_MIN`，默认 30 分钟） | 跳过（保护正在运行的 pipeline） |
+| `open`，空闲时间 ≥ `CLEANUP_KEEP_DAYS` 天 | 删除整个 `mr<N>/` 目录 |
+| `open`，空闲时间 < `CLEANUP_KEEP_DAYS` 天 | 保留 |
+| API 不可用（`unknown`），空闲时间 ≥ `CLEANUP_KEEP_DAYS` 天 | 删除整个目录 |
+| API 不可用（`unknown`），空闲时间 < `CLEANUP_KEEP_DAYS` 天 | 保留 |
+
+> **空闲时间判断**：使用 `mr<N>/` 目录自身的 mtime（最后一次在该目录下创建/删除子目录的时间，通常对应 `prepare-workspace` 完成时刻）。build 阶段写文件不改变 `mr<N>/` 的 mtime，因此空闲计时从 prepare 完成时就开始。
+
+**2b. `daily-*/`、`web-*/`、`push-*/` 目录**
+
+| 目录类型 | 处理方式 |
+|---------|----------|
+| `daily-<branch>-<YYYYMMDD>/` | 每个分支保留最新 `DAILY_KEEP_COUNT`（默认 3）个，其余删除 |
+| `daily-<name>/`（无日期后缀，旧式/手动创建） | mtime > `CLEANUP_KEEP_DAYS` 天则删除 |
+| `web-<ID>/`、`push-<branch>-<sha>/` | mtime > `CLEANUP_KEEP_DAYS` 天则删除 |
+
+**2c. `coordinator-state/pipeline-*/` 目录**
+
+mtime > `CLEANUP_KEEP_DAYS` 天则删除。
+
+**GitLab API 认证**：脚本在 CI job 中通过内置变量 `CI_JOB_TOKEN` 调用 GitLab API 查询 MR 状态，无需额外配置。
+
+---
+
+### 12.3 Worker 节点清理
+
+脚本：`tools/ci/scripts/cleanup-worker.sh`
+
+每个 `cleanup-worker [*]` job 在本机执行，清理两类目录：
+
+#### 1. `fail-logs/job-<N>/`（失败用例日志）
+
+| 磁盘使用率（挂载点 `DISK_MOUNT`） | 保留时间 |
+|----------------------------------|----------|
+| < 90% | `CLEANUP_KEEP_DAYS` 天（默认 **5 天**） |
+| ≥ 90%（剩余 < 10%） | `CLEANUP_KEEP_DAYS_URGENT` 天（默认 **3 天**） |
+
+> **与 HTTP 文件服务的关系**：worker HTTP 文件服务（8899 端口，coordinator 日志中 `Runner logs:` 链接）从 `fail-logs/` 提供文件。日志保留期与 HTTP 可访问性一致——超过保留时间后目录删除，HTTP 链接失效。
+
+#### 2. `job-<JOB_ID>/`（test job 工作目录）
+
+| 磁盘使用率 | 保留时间 |
+|-----------|----------|
+| < 90% | `CLEANUP_KEEP_DAYS` 天（默认 **5 天**） |
+| ≥ 90%（剩余 < 10%） | `CLEANUP_KEEP_DAYS_URGENT` 天（默认 **3 天**） |
+
+跳过条件：检测到 `run-test-dynamic` 进程正在使用该目录时，跳过（正在运行的 job 不受影响）。
+
+---
+
+### 12.4 清理触发时机
+
+```
+pipeline stages:
+  prepare → check → build → quality → verify → upload → test
+                                                            ↓
+                                                        cleanup
+                  ┌──────────────────────────────────────────────────────────────────┐
+                  │  cleanup-workspace         (when: on_success) ← 全部成功才执行    │ coordinator
+                  │  cleanup-coordinator-sweep (when: always, needs:[]) ← 立即并行   │ coordinator
+                  │  cleanup-worker [u3-141]   (when: always)                        │
+                  │  cleanup-worker [u3-142]   (when: always)                        │ 14 台 worker
+                  │  …                                                                │
+                  └──────────────────────────────────────────────────────────────────┘
+```
+
+- `cleanup-workspace`（`when: on_success`）：全部测试通过后才执行，失败时**不删除** workspace，保留供重跑/调试
+- `cleanup-coordinator-sweep`（`when: always, needs: []`）：立即与 test stage 并行运行，始终扫描历史目录
+- `cleanup-worker [*]`（`when: always`）：始终运行，清理本机 job 目录和 fail-logs
+- `allow_failure: true`：清理失败不影响 pipeline 最终状态
+- 多个 MR 并发时：`cleanup-coordinator.sh` 内置 `flock -n`，同一时刻只有一个实例在运行，其余跳过
+
+---
+
+### 12.5 保留参数速查与调整方法
+
+所有参数在 `.gitlab/.gitlab-ci.yml` 的全局 `variables:` 块中声明（可直接修改该文件，或在 GitLab UI 中覆盖）：
+
+| 变量 | 默认值 | 含义 |
+|------|--------|------|
+| `CLEANUP_KEEP_DAYS` | `5` | **正常保留天数**（mr/fail-logs/job/state/daily/web/push），5 天覆盖周末 |
+| `CLEANUP_KEEP_DAYS_URGENT` | `3` | **紧急保留天数**（磁盘用量 ≥ 90% 时启用，coordinator + worker 共用） |
+| `DAILY_KEEP_COUNT` | `3` | 每个分支保留最新几个 `daily-<branch>-YYYYMMDD` 构建 |
+
+#### 调整方式
+
+**方式 1（推荐）：修改 `.gitlab-ci.yml`**
+直接编辑 `.gitlab/.gitlab-ci.yml` 中 `variables:` 块，提交后对所有后续 pipeline 生效。
+
+**方式 2：GitLab UI 临时覆盖**
+GitLab → Settings → CI/CD → Variables 中添加同名变量，优先级高于 YAML 默认值，适合不想提交代码的临时调整。
+
+**方式 3：手动 dry-run 验证**
+两个脚本均支持 `DRY_RUN=1` 模式，只打印不删除，用于确认清理范围：
+```bash
+# 在 coordinator 上检查会删哪些目录（不实际删除）
+DRY_RUN=1 WORKDIR=/data1/tdengine-ci \
+  GITLAB_TOKEN="${CI_JOB_TOKEN}" \
+  GITLAB_TOKEN_HEADER="JOB-TOKEN" \
+  GITLAB_URL=https://git.tdengine.net \
+  PROJECT_PATH=rd-public/tsdb \
+  LOG_FILE=/dev/stdout \
+  bash /usr/local/bin/ci-cleanup-coordinator
+
+# 在 worker 上检查
+DRY_RUN=1 WORKDIR=/data1/tdengine-ci LOG_FILE=/dev/stdout \
+  bash /usr/local/bin/ci-cleanup-worker
+```
+
+---
+
 ## 附录
 
 ### A. Runner 机器列表
@@ -1242,7 +1414,10 @@ git push gitlab gitlab-${BRANCH}:${BRANCH}
 |------|------|------|
 | `/data1/tdengine-ci/` | builder + worker | CI workspace 根目录（MR、日志、fail-logs 均在此）|
 | `/data/cache/tsdb-builder/externals-others-amd64/` | builder | 第三方库缓存 |
-| `/data1/tdengine-ci/fail-logs/job-<ID>/` | worker | 失败用例日志保留（7天） |
+| `/data1/tdengine-ci/fail-logs/job-<ID>/` | worker | 失败用例日志（默认 3 天，磁盘紧张时 2 天） |
+| `/data1/tdengine-ci/job-<JOB_ID>/` | worker | test job 工作目录（默认 3 天，磁盘紧张时 2 天）|
+| `tools/ci/scripts/cleanup-coordinator.sh` | 仓库内 | Coordinator 磁盘清理脚本 |
+| `tools/ci/scripts/cleanup-worker.sh` | 仓库内 | Worker 磁盘清理脚本 |
 | `source/taos-community/tests/parallel_test/cases.task` | 仓库内 | Legacy 用例配置文件 |
 | `source/taos-community/test/ci/cases.task` | 仓库内 | 新框架（newfw）用例配置文件 |
 | `source/taos-community/test/ci/run_case.sh` | 仓库内 | 容器内用例执行入口 |
@@ -1264,5 +1439,10 @@ git push gitlab gitlab-${BRANCH}:${BRANCH}
 | `CI_SCHED_AGGR` | `1` | 调度激进程度：0=保守 / 1=中等（默认）/ 2=激进。控制 coordinator 分批阈值和 worker 并发上限 |
 | `PROM_RATE_WINDOW` | `1m` | Prometheus `rate()` 窗口。`1m` 使负载数据在 1 分钟内反映，避免旧版 `5m` 的滞后 |
 | `PROMETHEUS_URL` | `http://192.168.1.42:9090` | Prometheus 地址（coordinator 用于采集 worker 负载）|
-
+| `CLEANUP_KEEP_DAYS` | `3` | 统一保留天数（fail-logs/、job-*/、state/、daily-*/、web-*/、push-*/）|
+| `CLEANUP_KEEP_DAYS_WARN` | `2` | 磁盘 ≥ `DISK_WARN_PCT` 时的保留天数（worker 节点）|
+| `IDLE_KEEP_HOURS` | `24` | open MR 构建产物空闲多少小时后清理（coordinator）|
+| `DAILY_KEEP_COUNT` | `3` | 每分支保留最新几个 `daily-<branch>-YYYYMMDD` 构建 |
+| `DISK_WARN_PCT` | `85` | worker 磁盘使用率警告阈值（%）|
+| `DISK_SKIP_PCT` | `50` | 已用率低于此值时跳过所有非 merged/closed 清理（coordinator + worker 共用）|
 
