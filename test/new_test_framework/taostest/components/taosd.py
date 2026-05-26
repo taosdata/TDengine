@@ -175,9 +175,11 @@ class TaosD:
                 # the mnode Raft leader may still be restoring (0x0914) for several
                 # more seconds, especially under CI pressure load or with multi-node
                 # clusters.  Keep retrying until the connection succeeds or 60 s elapse.
+                # ASAN builds are significantly slower; use a longer timeout when detected.
+                _probe_timeout = 180 if os.environ.get("CI_ASAN_BUILD") == "1" else 60
                 _probe_host = cfg.get("fqdn", "localhost")
                 _probe_port = int(cfg.get("serverPort", 6030))
-                _probe_deadline = time.time() + 60
+                _probe_deadline = time.time() + _probe_timeout
                 while time.time() < _probe_deadline:
                     try:
                         _conn = taos.connect(host=_probe_host, port=_probe_port)
@@ -191,7 +193,7 @@ class TaosD:
                         time.sleep(1)
                 else:
                     self.logger.error(
-                        "taosd connection probe timed out after 60s for dnode:%d" % index
+                        "taosd connection probe timed out after %ds for dnode:%d" % (_probe_timeout, index)
                     )
         else:
             self.logger.debug(

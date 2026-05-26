@@ -109,6 +109,28 @@ else
     REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/mnt/tsdb/debug/build/lib:ro"
 fi
 
+# 若 taos-internal 目录与 taos-community 同级（tsdb / TDinternal 布局），一并挂入容器，
+# 使企业版测试用例（如 test_new_stream_compatibility.py）可访问 /mnt/tsdb/source/taos-internal
+TAOS_INTERNAL_DIR="$(dirname "$REPDIR")/taos-internal"
+# 兜底：同级目录不存在时，尝试 CI_PROJECT_DIR/source/taos-internal（GitLab runner 完整 checkout）
+if [ ! -d "$TAOS_INTERNAL_DIR" ] && [ -n "${CI_PROJECT_DIR:-}" ] && \
+   [ -d "${CI_PROJECT_DIR}/source/taos-internal" ]; then
+    TAOS_INTERNAL_DIR="${CI_PROJECT_DIR}/source/taos-internal"
+fi
+REP_MOUNT_INTERNAL=""
+if [ -d "$TAOS_INTERNAL_DIR" ]; then
+    REP_MOUNT_INTERNAL="${TAOS_INTERNAL_DIR}:/mnt/tsdb/source/taos-internal"
+fi
+# docs overlay：TDinternal 布局下 docs/ 在仓库根而非 community/ 下，
+# 补充挂载使 test_check_error_code.py 等用例可访问文档路径
+REP_MOUNT_DOCS=""
+if [ ! -d "${REPDIR}/docs" ]; then
+    _parent_docs="$(dirname "$REPDIR")/docs"
+    if [ -d "$_parent_docs" ]; then
+        REP_MOUNT_DOCS="${_parent_docs}:${CONTAINER_TESTDIR}/docs"
+    fi
+fi
+
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
@@ -170,6 +192,8 @@ echo "docker run \
     ${name_param:+$name_param }--privileged=true \
     $asan_env \
     -v $REP_MOUNT_PARAM \
+    ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
+    ${REP_MOUNT_DOCS:+-v $REP_MOUNT_DOCS} \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
     -v $MOUNT_DIR \
@@ -181,6 +205,8 @@ docker run \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
     -v $REP_MOUNT_PARAM \
+    ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
+    ${REP_MOUNT_DOCS:+-v $REP_MOUNT_DOCS} \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
     -v $MOUNT_DIR \
