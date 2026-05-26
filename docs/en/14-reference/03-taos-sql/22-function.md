@@ -1326,12 +1326,12 @@ taos> select to_base64("");
 taos> select to_base64(14324);
  to_base64(14324) |
 =====================
- MTQzMjQ=           |
+ MTQzMjQ=         |
 
 taos> select to_base64("14324");
  to_base64("14324") |
 =====================
- MTQzMjQ=           |
+ MTQzMjQ=         |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |
