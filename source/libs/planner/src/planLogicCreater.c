@@ -20,6 +20,7 @@
 #include "planner.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "cmdnodes.h"
 #include "systable.h"
 #include "tglobal.h"
 
@@ -27,6 +28,19 @@
 
 // primary key column always the second column if exists
 #define PRIMARY_COLUMN_SLOT 1
+
+/* Common descriptor for building SRowsetSourceLogicNode from either TEXT or FILE */
+typedef struct SRowsetSourceDesc {
+  SNodeList* pColDefs;
+  int32_t    colCount;
+  int32_t    rowCount;
+  bool       hasPrimaryTs;
+  bool       isSortedByTs;
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;   // ownership transferred to logic node; caller sets source field to NULL
+  char       tableAlias[TSDB_TABLE_NAME_LEN];
+} SRowsetSourceDesc;
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
@@ -45,6 +59,8 @@ typedef int32_t (*FCreateInsertLogicNode)(SLogicPlanContext*, SInsertStmt*, SLog
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode);
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode);
+static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SNodeList** pNotFillExprs,
+                                SNodeList** pPossibleFillNullCols);
 
 typedef struct SRewriteExprCxt {
   int32_t    errCode;
@@ -99,8 +115,19 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_TPREV_TS:
     case FUNCTION_TYPE_TCURRENT_TS:
     case FUNCTION_TYPE_TNEXT_TS:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      break;
     case FUNCTION_TYPE_TWSTART:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      pCol->colType = COLUMN_TYPE_WINDOW_START;
+      break;
     case FUNCTION_TYPE_TWEND:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      pCol->colType = COLUMN_TYPE_WINDOW_END;
+      break;
     case FUNCTION_TYPE_TPREV_LOCALTIME:
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
     case FUNCTION_TYPE_TLOCALTIME:
@@ -1642,6 +1669,62 @@ _return:
   return code;
 }
 
+static int32_t createRowsetSourceLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                           SRowsetSourceDesc* pDesc, SLogicNode** pLogicNode) {
+  SRowsetSourceLogicNode* pRowset = NULL;
+  int32_t                 code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE, (SNode**)&pRowset);
+  if (NULL == pRowset) return code;
+
+  pRowset->node.precision    = pSelect->precision;
+  pRowset->node.groupAction  = GROUP_ACTION_NONE;
+  pRowset->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  // If data is sorted by primary ts, declare global order so downstream operators can leverage it
+  pRowset->node.resultDataOrder  =
+      (pDesc->isSortedByTs) ? DATA_ORDER_LEVEL_GLOBAL : DATA_ORDER_LEVEL_NONE;
+
+  pRowset->numBlocks      = 1;
+  pRowset->totalRows      = pDesc->rowCount;
+  pRowset->hasPrimaryTs   = pDesc->hasPrimaryTs;
+  pRowset->isSortedByTs   = pDesc->isSortedByTs;
+  pRowset->primaryTsSlot  = pDesc->primaryTsSlot;
+  pRowset->blockBufLen    = pDesc->blockBufLen;
+  pRowset->pBlockBuf      = pDesc->pBlockBuf;
+  pDesc->pBlockBuf        = NULL;  // ownership transferred
+
+  // Build pTargets: one SColumnNode per column def
+  int16_t slotIdx = 0;
+  SNode*  pDefNode = NULL;
+  FOREACH(pDefNode, pDesc->pColDefs) {
+    SColumnDefNode* pDef = (SColumnDefNode*)pDefNode;
+    SColumnNode*    pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (NULL == pCol) {
+      nodesDestroyNode((SNode*)pRowset);
+      return code;
+    }
+    pCol->node.resType.type      = pDef->dataType.type;
+    pCol->node.resType.bytes     = pDef->dataType.bytes;
+    pCol->node.resType.precision = pDef->dataType.precision;
+    pCol->node.resType.scale     = pDef->dataType.scale;
+    pCol->isPrimTs           = (slotIdx == pDesc->primaryTsSlot && pDesc->hasPrimaryTs);
+    pCol->colId              = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : (ROWSET_COL_ID_START + slotIdx);
+    pCol->slotId             = slotIdx;
+    pCol->colType            = COLUMN_TYPE_COLUMN;
+    tstrncpy(pCol->tableAlias, pDesc->tableAlias, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
+    code = nodesListMakeAppend(&pRowset->node.pTargets, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pCol);
+      nodesDestroyNode((SNode*)pRowset);
+      return code;
+    }
+    ++slotIdx;
+  }
+
+  *pLogicNode = (SLogicNode*)pRowset;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1650,6 +1733,28 @@ static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pS
       return createScanLogicNode(pCxt, pSelect, (SRealTableNode*)pTable, pLogicNode);
     case QUERY_NODE_TEMP_TABLE:
       return createSubqueryLogicNode(pCxt, pSelect, (STempTableNode*)pTable, pLogicNode);
+    case QUERY_NODE_TEXT_TABLE: {
+      STextTableNode*   pT = (STextTableNode*)pTable;
+      SRowsetSourceDesc desc = {
+          .pColDefs = pT->pColDefs, .colCount = pT->colCount, .rowCount = pT->rowCount,
+          .hasPrimaryTs = pT->hasPrimaryTs, .isSortedByTs = pT->isSortedByTs,
+          .primaryTsSlot = pT->primaryTsSlot, .blockBufLen = pT->blockBufLen, .pBlockBuf = pT->pBlockBuf,
+      };
+      tstrncpy(desc.tableAlias, pT->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      pT->pBlockBuf = NULL;
+      return createRowsetSourceLogicNode(pCxt, pSelect, &desc, pLogicNode);
+    }
+    case QUERY_NODE_FILE_TABLE: {
+      SFileTableNode*   pF = (SFileTableNode*)pTable;
+      SRowsetSourceDesc desc = {
+          .pColDefs = pF->pColDefs, .colCount = pF->colCount, .rowCount = pF->rowCount,
+          .hasPrimaryTs = pF->hasPrimaryTs, .isSortedByTs = pF->isSortedByTs,
+          .primaryTsSlot = pF->primaryTsSlot, .blockBufLen = pF->blockBufLen, .pBlockBuf = pF->pBlockBuf,
+      };
+      tstrncpy(desc.tableAlias, pF->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      pF->pBlockBuf = NULL;
+      return createRowsetSourceLogicNode(pCxt, pSelect, &desc, pLogicNode);
+    }
     case QUERY_NODE_JOIN_TABLE:
       return createJoinLogicNode(pCxt, pSelect, (SJoinTableNode*)pTable, pLogicNode);
     case QUERY_NODE_VIRTUAL_TABLE:
@@ -2041,33 +2146,248 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
   return code;
 }
 
+static int32_t createWindowLogicNodeHandleHaving(SSelectStmt* pSelect, SWindowLogicNode* pWindow) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNode*     pClone = NULL;
+  SNodeList* pCondCols = NULL;
+
+  PLAN_ERR_JRET(nodesCollectColumnsFromNode(pSelect->pHaving, NULL, COLLECT_COL_TYPE_ALL, &pCondCols));
+  if (pCondCols != NULL) {
+    SNode* pCondCol = NULL;
+    FOREACH(pCondCol, pCondCols) {
+      bool found = false;
+      SNode* pProjNode = NULL;
+      if (pWindow->pProjs != NULL) {
+        FOREACH(pProjNode, pWindow->pProjs) {
+          if (nodesEqualNode(pProjNode, pCondCol)) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        PLAN_ERR_JRET(nodesCloneNode(pCondCol, &pClone));
+        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+        pClone = NULL;
+      }
+    }
+    NODES_DESTORY_LIST(pCondCols);
+  }
+  return code;
+
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode(pClone);
+  nodesDestroyList(pCondCols);
+  return code;
+}
+
+static int32_t createWindowLogicNodeHandleSubquery(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    hasNamedExpr = false;
+  SNode*  pClone = NULL;
+  SNode*  pProj = NULL;
+  FOREACH(pProj, pSelect->pProjectionList) {
+    if (nodeType(pProj) == QUERY_NODE_COLUMN || ((SExprNode*)pProj)->aliasName[0] != '\0') {
+      hasNamedExpr = true;
+      break;
+    }
+  }
+
+  if (hasNamedExpr || !pSelect->isSubquery) {
+    PLAN_ERR_JRET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+  } else {
+    // pProjectionList is degenerate (pruned by outer query) — use child's first target
+    // as minimal projection to ensure window produces output rows
+    SNode* pFirstTarget = nodesListGetNode(pCxt->pCurrRoot->pTargets, 0);
+    if (pFirstTarget != NULL) {
+      PLAN_ERR_JRET(nodesCloneNode(pFirstTarget, &pClone));
+      PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+      pClone = NULL;
+    }
+  }
+  return code;
+
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode(pClone);
+  return code;
+}
+
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  // When INTERVAL+FILL is used, HAVING must be applied AFTER fill rows are
+  // inserted (i.e. on the fill logic node, not here).  The fill logic node
+  // clones pSelect->pHaving into pFill->node.pConditions unconditionally.
+  // Applying it here as well would double-filter and produce wrong results
+  // (e.g. HAVING count(*) > 0 would discard fill-generated NULL rows before
+  // the fill node can see them, defeating the purpose of FILL).
+  bool havingHandledByFill =
+      pSelect->pWindow != NULL && nodeType(pSelect->pWindow) == QUERY_NODE_INTERVAL_WINDOW &&
+      ((SIntervalWindowNode*)pSelect->pWindow)->pFill != NULL;
+
   pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
+  pWindow->indefRowsFunc = (int8_t)(pSelect->hasIndefiniteRowsFunc || pSelect->hasScalarExpr);
 
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL);
+  bool projectionMode = true;
+  if (pSelect->hasScalarExpr) {
+    projectionMode = true;
+  } else {
+    projectionMode = false;
+    PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL,
+                                    pSelect->hasIndefiniteRowsFunc ? fmIsWindowIndefRowsFunc : fmIsWindowClauseFunc,
+                                    &pWindow->pFuncs));
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets);
+  if (projectionMode) {
+    // When used as subquery, the outer query may prune pProjectionList to contain only
+    // unnamed VALUE placeholders (e.g., SELECT count(*) FROM (subquery)). In that case,
+    // use the child node's first target (primary key) as a minimal projection to ensure
+    // the window operator still produces output rows.
+    PLAN_ERR_JRET(createWindowLogicNodeHandleSubquery(pCxt, pSelect, pWindow));
+
+    // Ensure columns referenced in HAVING are in pProjs BEFORE rewrite/targets
+    // creation so they go through rewriteExprsForSelect and appear in pTargets.
+    // Without this, tag columns only in HAVING (not in SELECT) cause
+    // "slot key not found" during setConditionsSlotId.
+    if (NULL != pSelect->pHaving && !havingHandledByFill) {
+      PLAN_ERR_JRET(createWindowLogicNodeHandleHaving(pSelect, pWindow));
+    }
+
+    PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+  } else {
+    // Existing function-collection path
+    PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+    PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
-    code = nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions);
+  if (NULL != pSelect->pHaving && !havingHandledByFill) {
+    PLAN_ERR_JRET(nodesCloneNode(pSelect->pHaving, &pWindow->node.pConditions));
   }
 
   pSelect->hasAggFuncs = false;
+  pSelect->hasIndefiniteRowsFunc = false;
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pWindow;
-  } else {
-    nodesDestroyNode((SNode*)pWindow);
-  }
+  *pLogicNode = (SLogicNode*)pWindow;
 
   return code;
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode((SNode*)pWindow);
+  return code;
+}
+
+static EDealRes extWindowNeedFillImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) &&
+      (fmIsAggFunc(((SFunctionNode*)pNode)->funcId) || isInterpFunc(((SFunctionNode*)pNode)->funcId)) &&
+      FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pNode)->funcType &&
+      FUNCTION_TYPE_GROUP_CONST_VALUE != ((SFunctionNode*)pNode)->funcType) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static bool extWindowProjectionNeedsFill(SNode* pNode) {
+  SNode* pExpr = (QUERY_NODE_TARGET == nodeType(pNode)) ? ((STargetNode*)pNode)->pExpr : pNode;
+  if (NULL == pExpr) {
+    return false;
+  }
+
+  bool needFill = false;
+  nodesWalkExpr(pExpr, extWindowNeedFillImpl, &needFill);
+  return needFill;
+}
+
+static bool extWindowIsDirectFillProjection(SNode* pNode) {
+  SNode* pExpr = (QUERY_NODE_TARGET == nodeType(pNode)) ? ((STargetNode*)pNode)->pExpr : pNode;
+  if (NULL == pExpr || QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+    return false;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+  return (fmIsAggFunc(pFunc->funcId) || isInterpFunc(pFunc->funcId)) && FUNCTION_TYPE_GROUP_KEY != pFunc->funcType &&
+         FUNCTION_TYPE_GROUP_CONST_VALUE != pFunc->funcType;
+}
+
+static bool extWindowNeedProjOutputsForFill(SSelectStmt* pSelect, const SWindowLogicNode* pWindow) {
+  if (NULL == pSelect || NULL == pSelect->pProjectionList || NULL == pWindow ||
+      (FILL_MODE_VALUE != pWindow->extFill.mode && FILL_MODE_VALUE_F != pWindow->extFill.mode)) {
+    return false;
+  }
+
+  SNode* pProj = NULL;
+  FOREACH(pProj, pSelect->pProjectionList) {
+    bool needFill = extWindowProjectionNeedsFill(pProj);
+    bool directFill = extWindowIsDirectFillProjection(pProj);
+    if (needFill && !directFill) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+typedef struct {
+  bool hasFillCol;
+} SExtWindowFillProjCtx;
+
+static EDealRes extWindowNeedFinalFillExprImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (COLUMN_TYPE_WINDOW_START == pCol->colType || COLUMN_TYPE_WINDOW_END == pCol->colType ||
+      COLUMN_TYPE_WINDOW_DURATION == pCol->colType || COLUMN_TYPE_IS_WINDOW_FILLED == pCol->colType ||
+      COLUMN_TYPE_GROUP_KEY == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType || COLUMN_TYPE_TAG == pCol->colType) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  ((SExtWindowFillProjCtx*)pContext)->hasFillCol = true;
+  return DEAL_RES_END;
+}
+
+static bool extWindowProjectionNeedsFinalFill(SNode* pNode) {
+  SNode* pExpr = (QUERY_NODE_TARGET == nodeType(pNode)) ? ((STargetNode*)pNode)->pExpr : pNode;
+  if (NULL == pExpr) {
+    return false;
+  }
+
+  SExtWindowFillProjCtx cxt = {.hasFillCol = false};
+  nodesWalkExpr(pExpr, extWindowNeedFinalFillExprImpl, &cxt);
+  return cxt.hasFillCol;
+}
+
+static int32_t extWindowBuildFinalFillExprs(SNodeList* pProjectionList, SNodeList** pFillExprs) {
+  if (NULL == pProjectionList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjectionList) {
+    if (!extWindowProjectionNeedsFinalFill(pProj)) {
+      continue;
+    }
+
+    SNode* pClone = NULL;
+    int32_t code = nodesCloneNode(pProj, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    code = nodesListMakeStrictAppend(pFillExprs, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pClone);
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
@@ -2084,7 +2404,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     pWindow->node.requireDataOrder = pCxt->pCurrRoot->resultDataOrder;
     pWindow->node.resultDataOrder = pCxt->pCurrRoot->resultDataOrder;
   } else {
-    if (!pSelect->hasAggFuncs) {
+    bool extWinExplicitAgg = (pSelect->windowMode == WINDOW_MODE_AGG && !pSelect->hasScalarExpr);
+    if (!pSelect->hasAggFuncs && !extWinExplicitAgg) {
       if (pSelect->hasIndefiniteRowsFunc) {
         pWindow->node.requireDataOrder = getRequireDataOrder(pSelect->hasTimeLineFunc, pSelect);
         pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
@@ -2170,7 +2491,26 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       nodesDestroyList(pWindow->pFuncs);
       pWindow->pFuncs = NULL;
       PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_EXT_WINDOW, NULL, fmIsStreamWindowClauseFunc, &pWindow->pFuncs));
+
+      bool needProjOutputsForFill = extWindowNeedProjOutputsForFill(pSelect, pWindow);
+
+      // Rewrite pFuncs inside pSelect FIRST so that agg functions (e.g. sum(v)) in
+      // pSelect->pProjectionList are replaced by column references before we clone
+      // the projection list into pProjs.  This ensures pProjs contains col_ref nodes
+      // (sum(v)_col_ref + 1) rather than raw function nodes (sum(v) + 1).  At
+      // physical-plan time, setListSlotId for pProjs then resolves those col_refs
+      // against the ExtWin output block where the agg results live.
       PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
+
+      if (needProjOutputsForFill) {
+        PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+        PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
+        if (FILL_MODE_VALUE == pWindow->extFill.mode || FILL_MODE_VALUE_F == pWindow->extFill.mode) {
+          nodesDestroyList(pWindow->extFill.pFillExprs);
+          pWindow->extFill.pFillExprs = NULL;
+          PLAN_ERR_RET(extWindowBuildFinalFillExprs(pWindow->pProjs, &pWindow->extFill.pFillExprs));
+        }
+      }
 
       if (NULL != pSelect->pPartitionByList) {
         SNodeList* pPartKeys = NULL;
@@ -2198,19 +2538,31 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         }
       }
 
-      // Keep logic targets aligned with the physical external-window output order:
-      // function outputs are materialized before projection outputs, and split Exchange
-      // nodes clone targets from the logic child.
-      PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+      if (needProjOutputsForFill) {
+        PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+      } else {
+        // Keep logic targets aligned with the physical external-window output order:
+        // function outputs are materialized before projection outputs, and split Exchange
+        // nodes clone targets from the logic child.
+        PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
 
-      SNodeList* pProjTargets = NULL;
-      PLAN_ERR_RET(nodesCloneList(pWindow->pProjs, &pProjTargets));
-      PLAN_ERR_RET(rewriteExprsForSelect(pProjTargets, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
-      PLAN_ERR_RET(createColumnByRewriteExprs(pProjTargets, &pWindow->node.pTargets));
-      nodesDestroyList(pProjTargets);
+        SNodeList* pProjTargets = NULL;
+        PLAN_ERR_RET(nodesCloneList(pWindow->pProjs, &pProjTargets));
+        PLAN_ERR_RET(createColumnByRewriteExprs(pProjTargets, &pWindow->node.pTargets));
+        nodesDestroyList(pProjTargets);
+      }
       
       pSelect->hasAggFuncs = false;
     }
+  }
+
+  // extFill.pFillExprs is built as a detached clone from the projection list so
+  // fill(value, ...) keeps parser-side aggregate order even when HAVING/ORDER BY
+  // introduces extra funcs into pFuncs.  Rewrite the expr references now so that
+  // column names are resolved; physical mapping further resolves them against the
+  // finalized external_window output block by output name.
+  if (pWindow->extFill.pFillExprs != NULL) {
+    PLAN_ERR_RET(rewriteExprsForSelect(pWindow->extFill.pFillExprs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
   }
 
   pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
@@ -2239,10 +2591,10 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
   pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
-  pWindow->pStateExpr = NULL;
+  pWindow->pStateExprs = NULL;
   pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
   pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
-  code = nodesCloneNode(pState->pExpr, &pWindow->pStateExpr);
+  code = nodesCloneList(pState->pExprList, &pWindow->pStateExprs);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
     return code;
@@ -2268,7 +2620,7 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     }
   }
   // rewrite the expression in subsequent clauses
-  code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
+  code = rewriteExprsForSelect(pWindow->pStateExprs, pSelect, SQL_CLAUSE_WINDOW, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
   } else {
@@ -2582,6 +2934,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow));
 
   pWindow->winType = WINDOW_TYPE_EXTERNAL;
+  pWindow->extFill.mode = FILL_MODE_NONE;
   pWindow->node.groupAction = GROUP_ACTION_NONE;
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = (NULL != pSelect->pPartitionByList ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL);
@@ -2607,7 +2960,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   } else {
     pWindow->isSingleTable = false;
   }
-  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
+  PLAN_ERR_JRET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
 
   if (NULL == pExternal->pCol) {
     planError("%s failed, External window can not find pk column", __func__);
@@ -2615,9 +2968,28 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
-  PLAN_ERR_RET(nodesCloneNode(pExternal->pCol, &pWindow->pTspk));
+  PLAN_ERR_JRET(nodesCloneNode(pExternal->pCol, &pWindow->pTspk));
 
-  pWindow->pSubquery = pExternal->pSubquery;
+  if (pExternal->pFill != NULL) {
+    SFillNode* pFill = (SFillNode*)pExternal->pFill;
+    pWindow->extFill.mode = pFill->mode;
+
+    if (pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) {
+      SNode* pProj = NULL;
+      FOREACH(pProj, pSelect->pProjectionList) {
+        if (!extWindowProjectionNeedsFill(pProj)) continue;
+        SNode* pExpr = (nodeType(pProj) == QUERY_NODE_TARGET) ? ((STargetNode*)pProj)->pExpr : pProj;
+        if (pExpr == NULL) continue;
+        SNode* pClone = NULL;
+        PLAN_ERR_JRET(nodesCloneNode(pExpr, &pClone));
+        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->extFill.pFillExprs, pClone));
+      }
+    }
+
+    PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pWindow->extFill.pFillValues));
+  }
+
+  PLAN_ERR_JRET(nodesCloneNode(pExternal->pSubquery, &pWindow->pSubquery));
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 
 _return:
@@ -2666,7 +3038,7 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
   FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      
+
       if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_RET(nodesCloneNode(pNode, &pWindow->pTspk));
         break;
@@ -2677,13 +3049,17 @@ static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SE
   if (pWindow->pTspk == NULL) {
     nodesDestroyNode((SNode*)pWindow);
     planError("External window can not find pk column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
-    // TODO(smj): proper error code;
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
-  pWindow->pSubquery = pExternal->pSubquery;
+  code = nodesCloneNode(pExternal->pSubquery, &pWindow->pSubquery);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pWindow);
+    return code;
+  }
   return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
+
 static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
@@ -2723,12 +3099,12 @@ typedef struct SConditionCheckContext {
 static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
   SConditionCheckContext* pCxt = (SConditionCheckContext*)pContext;
   if (nodeType(pNode) == QUERY_NODE_VALUE) {
-    SValueNode *pVal = (SValueNode*)pNode;
+    SValueNode* pVal = (SValueNode*)pNode;
     if (pVal->datum.i < 0) {
       pCxt->hasNegativeConst = true;
     }
   } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
-    SFunctionNode *pFunc = (SFunctionNode*)pNode;
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if(fmIsPlaceHolderFunc(pFunc->funcId)) {
       pCxt->hasPlaceHolder = true;
     }
@@ -3182,6 +3558,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return TSDB_CODE_SUCCESS;
   }
 
+  bool isIndefRows = (NULL != pCxt->pCurrRoot &&
+                      QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pCxt->pCurrRoot) &&
+                      ((SWindowLogicNode*)pCxt->pCurrRoot)->indefRowsFunc);
+
   SFillLogicNode* pFill = NULL;
   int32_t         code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_FILL, (SNode**)&pFill);
   if (NULL == pFill) {
@@ -3211,6 +3591,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pFill->mode = pFillNode->mode;
+  pFill->indefRowsMode = isIndefRows;
   pFill->timeRange = pFillNode->timeRange;
   TSWAP(pFill->pTimeRange, pFillNode->pTimeRange);
   pFill->pValues = NULL;
@@ -3283,6 +3664,12 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
   }
 
+  // For external-window + fill queries the child (external-window node) produces
+  // post-projection output columns (e.g. "s1", "s2") that are NOT referenced in the
+  // ORDER BY clause, so nodesCollectColumns() does not include them.  Sort only passes
+  // columns present in its pTargets; without these columns fill values would be
+  // silently dropped.  This is handled at the physical plan level in createSortPhysiNode.
+
   if (TSDB_CODE_SUCCESS == code) {
     pSort->pSortKeys = NULL;
     code = nodesCloneList(pSelect->pOrderByList, &pSort->pSortKeys);
@@ -3353,8 +3740,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
                                    : GROUP_ACTION_CLEAR;
   pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
-
   pProject->pProjections = NULL;
+
   code = nodesCloneList(pSelect->pProjectionList, &pProject->pProjections);
   tstrncpy(pProject->stmtName, pSelect->stmtName, TSDB_TABLE_NAME_LEN);
 

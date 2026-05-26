@@ -24,7 +24,8 @@ class TestStreamSubqueryBasic:
 
         """
 
-        tdSql.error("show streams")
+        # already supported in v3.4.2.0
+        # tdSql.error("show streams")
         tdSql.error("show xx.streams")
         tdStream.dropAllStreamsAndDbs()
 

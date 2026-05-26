@@ -25,7 +25,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_SUBSCRIBE_VER_NUMBER   3
+#define MND_SUBSCRIBE_VER_NUMBER   4
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
 //#define MND_CONSUMER_LOST_HB_CNT          6
@@ -109,16 +109,14 @@ int32_t mndSchedInitSubEp(SMnode *pMnode, const SMqTopicObj *pTopic, SMqSubscrib
 
     pSub->vgNum++;
 
-    SMqVgEp pVgEp = {0};
-    pVgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    pVgEp.vgId = pVgroup->vgId;
-    if (taosArrayPush(pSub->unassignedVgs, &pVgEp) == NULL) {
+    int32_t vgId = pVgroup->vgId;
+    if (taosArrayPush(pSub->unassignedVgs, &vgId) == NULL) {
       code = terrno;
       sdbRelease(pSdb, pVgroup);
       sdbCancelFetch(pSdb, pIter);
       goto END;
     }
-    mInfo("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp.vgId);
+    mInfo("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, vgId);
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -187,7 +185,7 @@ static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, 
   taosRLockLatch(&pTopic->lock);
   req.oldConsumerId = pRebVg->oldConsumerId;
   req.newConsumerId = pRebVg->newConsumerId;
-  req.vgId = pRebVg->pVgEp.vgId;
+  req.vgId = pRebVg->vgId;
   req.qmsg = pTopic->physicalPlan;
   req.schema = pTopic->schema;
   req.subType = pSub->subType;
@@ -206,7 +204,7 @@ static int32_t mndBuildSubChangeReq(SMnode *pMnode, void **pBuf, int32_t *pLen, 
   MND_TMQ_NULL_CHECK(buf);
   SMsgHead *pMsgHead = (SMsgHead *)buf;
   pMsgHead->contLen = htonl(tlen);
-  pMsgHead->vgId = htonl(pRebVg->pVgEp.vgId);
+  pMsgHead->vgId = htonl(pRebVg->vgId);
 
   tEncoderInit(&encoder, POINTER_SHIFT(buf, sizeof(SMsgHead)), tlen);
   MND_TMQ_RETURN_CHECK(tEncodeSMqRebVgReq(&encoder, &req));
@@ -242,7 +240,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, SMqSubsc
 
   int32_t tlen = 0;
   MND_TMQ_RETURN_CHECK(mndBuildSubChangeReq(pMnode, &buf, &tlen, pSub, pRebVg));
-  int32_t vgId = pRebVg->pVgEp.vgId;
+  int32_t vgId = pRebVg->vgId;
   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
   if (pVgObj == NULL) {
     code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
@@ -313,11 +311,11 @@ static int32_t pushVgDataToHash(SArray *vgs, SHashObj *pHash, int64_t consumerId
   int32_t code = 0;
   int32_t lino = 0;
   PRINT_LOG_START
-  SMqVgEp *pVgEp = (SMqVgEp *)taosArrayPop(vgs);
-  MND_TMQ_NULL_CHECK(pVgEp);
-  SMqRebOutputVg outputVg = {consumerId, -1, *pVgEp};
-  MND_TMQ_RETURN_CHECK(taosHashPut(pHash, &pVgEp->vgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg)));
-  mInfo("tmq rebalance sub:%s mq rebalance remove vgId:%d from consumer:0x%" PRIx64, key, pVgEp->vgId, consumerId);
+  int32_t *pVgId = (int32_t *)taosArrayPop(vgs);
+  MND_TMQ_NULL_CHECK(pVgId);
+  SMqRebOutputVg outputVg = {consumerId, -1, *pVgId};
+  MND_TMQ_RETURN_CHECK(taosHashPut(pHash, pVgId, sizeof(int32_t), &outputVg, sizeof(SMqRebOutputVg)));
+  mInfo("tmq rebalance sub:%s mq rebalance remove vgId:%d from consumer:0x%" PRIx64, key, *pVgId, consumerId);
 
 END:
   PRINT_LOG_END
@@ -376,7 +374,7 @@ static int32_t processNewConsumers(SMqRebOutputObj *pOutput, const SMqRebInputOb
     MND_TMQ_NULL_CHECK(consumerId);
     SMqConsumerEp newConsumerEp = {0};
     newConsumerEp.consumerId = *consumerId;
-    newConsumerEp.vgs = taosArrayInit(0, sizeof(SMqVgEp));
+    newConsumerEp.vgs = taosArrayInit(0, sizeof(int32_t));
     MND_TMQ_NULL_CHECK(newConsumerEp.vgs);
     if (taosHashPut(pOutput->pSub->consumerHash, consumerId, sizeof(int64_t), &newConsumerEp, sizeof(SMqConsumerEp)) !=
         0) {
@@ -458,7 +456,7 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
   SVgObj *pVgroup = NULL;
   void *  pIter = NULL;
   void *  pIterHash = NULL;
-  SArray *newVgs = taosArrayInit(0, sizeof(SMqVgEp));
+  SArray *newVgs = taosArrayInit(0, sizeof(int32_t));
   MND_TMQ_NULL_CHECK(newVgs);
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -476,10 +474,8 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     }
 
     totalVgNum++;
-    SMqVgEp pVgEp = {0};
-    pVgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    pVgEp.vgId = pVgroup->vgId;
-    MND_TMQ_NULL_CHECK(taosArrayPush(newVgs, &pVgEp));
+    int32_t vgId = pVgroup->vgId;
+    MND_TMQ_NULL_CHECK(taosArrayPush(newVgs, &vgId));
     sdbRelease(pMnode->pSdb, pVgroup);
   }
 
@@ -489,20 +485,20 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIterHash;
     int32_t        j = 0;
     while (j < taosArrayGetSize(pConsumerEp->vgs)) {
-      SMqVgEp *pVgEpTmp = taosArrayGet(pConsumerEp->vgs, j);
-      MND_TMQ_NULL_CHECK(pVgEpTmp);
+      int32_t *pVgIdTmp = taosArrayGet(pConsumerEp->vgs, j);
+      MND_TMQ_NULL_CHECK(pVgIdTmp);
       bool find = false;
       for (int32_t k = 0; k < taosArrayGetSize(newVgs); k++) {
-        SMqVgEp *pnewVgEp = taosArrayGet(newVgs, k);
-        MND_TMQ_NULL_CHECK(pnewVgEp);
-        if (pVgEpTmp->vgId == pnewVgEp->vgId) {
+        int32_t *pnewVgId = taosArrayGet(newVgs, k);
+        MND_TMQ_NULL_CHECK(pnewVgId);
+        if (*pVgIdTmp == *pnewVgId) {
           taosArrayRemove(newVgs, k);
           find = true;
           break;
         }
       }
       if (!find) {
-        mInfo("tmq rebalance processRemoveAddVgs old vgId:%d", pVgEpTmp->vgId);
+        mInfo("tmq rebalance processRemoveAddVgs old vgId:%d", *pVgIdTmp);
         taosArrayRemove(pConsumerEp->vgs, j);
         continue;
       }
@@ -557,12 +553,12 @@ static int32_t processSubOffsetRows(SMnode *pMnode, const SMqRebInputObj *pInput
       MND_TMQ_NULL_CHECK(d1);
       bool jump = false;
       for (int i = 0; pConsumerEpNew && i < taosArrayGetSize(pConsumerEpNew->vgs); i++) {
-        SMqVgEp *pVgEp = taosArrayGet(pConsumerEpNew->vgs, i);
-        MND_TMQ_NULL_CHECK(pVgEp);
-        if (pVgEp->vgId == d1->vgId) {
+        int32_t *pVgId = taosArrayGet(pConsumerEpNew->vgs, i);
+        MND_TMQ_NULL_CHECK(pVgId);
+        if (*pVgId == d1->vgId) {
           jump = true;
           mInfo("pSub->offsetRows jump, because consumer id:0x%" PRIx64 " and vgId:%d not change",
-                pConsumerEp->consumerId, pVgEp->vgId);
+                pConsumerEp->consumerId, *pVgId);
           break;
         }
       }
@@ -601,7 +597,7 @@ static void printRebalanceLog(SMqRebOutputObj *pOutput) {
     SMqRebOutputVg *pOutputRebVg = taosArrayGet(pOutput->rebVgs, i);
     if (pOutputRebVg == NULL) continue;
     mInfo("sub:%s mq rebalance vgId:%d, moved from consumer:0x%" PRIx64 ", to consumer:0x%" PRIx64, pOutput->pSub->key,
-          pOutputRebVg->pVgEp.vgId, pOutputRebVg->oldConsumerId, pOutputRebVg->newConsumerId);
+          pOutputRebVg->vgId, pOutputRebVg->oldConsumerId, pOutputRebVg->newConsumerId);
   }
 
   void *pIter = NULL;
@@ -613,9 +609,9 @@ static void printRebalanceLog(SMqRebOutputObj *pOutput) {
     mInfo("sub:%s mq rebalance final cfg: consumer:0x%" PRIx64 " has %d vg", pOutput->pSub->key,
           pConsumerEp->consumerId, sz);
     for (int32_t i = 0; i < sz; i++) {
-      SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, i);
-      if (pVgEp == NULL) continue;
-      mInfo("sub:%s mq rebalance final cfg: vg %d to consumer:0x%" PRIx64, pOutput->pSub->key, pVgEp->vgId,
+      int32_t *pVgId = taosArrayGet(pConsumerEp->vgs, i);
+      if (pVgId == NULL) continue;
+      mInfo("sub:%s mq rebalance final cfg: vg %d to consumer:0x%" PRIx64, pOutput->pSub->key, *pVgId,
             pConsumerEp->consumerId);
     }
   }
@@ -669,8 +665,8 @@ static int32_t assignVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t 
 
       pRebVg = (SMqRebOutputVg *)pAssignIter;
       pRebVg->newConsumerId = pConsumerEp->consumerId;
-      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp));
-      mInfo("tmq rebalance mq rebalance: add vgId:%d to consumer:0x%" PRIx64 " for average", pRebVg->pVgEp.vgId,
+      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerEp->vgs, &pRebVg->vgId));
+      mInfo("tmq rebalance mq rebalance: add vgId:%d to consumer:0x%" PRIx64 " for average", pRebVg->vgId,
             pConsumerEp->consumerId);
     }
   }
@@ -690,8 +686,8 @@ static int32_t assignVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t 
 
       pRebVg = (SMqRebOutputVg *)pAssignIter;
       pRebVg->newConsumerId = pConsumerEp->consumerId;
-      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerEp->vgs, &pRebVg->pVgEp));
-      mInfo("tmq rebalance mq rebalance: add vgId:%d to consumer:0x%" PRIx64 " for average + 1", pRebVg->pVgEp.vgId,
+      MND_TMQ_NULL_CHECK(taosArrayPush(pConsumerEp->vgs, &pRebVg->vgId));
+      mInfo("tmq rebalance mq rebalance: add vgId:%d to consumer:0x%" PRIx64 " for average + 1", pRebVg->vgId,
             pConsumerEp->consumerId);
     }
   }
@@ -711,7 +707,7 @@ static int32_t assignVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t 
     MND_TMQ_NULL_CHECK(taosArrayPush(pOutput->rebVgs, pRebOutput));
     if (taosHashGetSize(pOutput->pSub->consumerHash) == 0) {  // if all consumer is removed
       MND_TMQ_NULL_CHECK(
-          taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->pVgEp));  // put all vg into unassigned
+          taosArrayPush(pOutput->pSub->unassignedVgs, &pRebOutput->vgId));  // put all vg into unassigned
     }
   }
 
@@ -885,17 +881,17 @@ static void checkOneTopic(SMnode *pMnode, SMqConsumerObj *pConsumer, SHashObj *r
   MND_TMQ_NULL_CHECK(pConsumerEp);
   int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
   for (int32_t j = 0; j < vgNum; j++) {
-    SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
-    if (pVgEp == NULL) {
+    int32_t *pVgId = taosArrayGet(pConsumerEp->vgs, j);
+    if (pVgId == NULL) {
       continue;
     }
-    SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+    SVgObj *pVgroup = mndAcquireVgroup(pMnode, *pVgId);
     if (!pVgroup) {
       code = mndGetOrCreateRebSub(rebSubHash, key, NULL);
       if (code != 0) {
-        mError("failed to mndGetOrCreateRebSub vgroup:%d, error:%s", pVgEp->vgId, tstrerror(code))
+        mError("failed to mndGetOrCreateRebSub vgroup:%d, error:%s", *pVgId, tstrerror(code))
       } else {
-        mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
+        mInfo("vnode splitted, vgId:%d rebalance will be triggered", *pVgId);
       }
     }
     mndReleaseVgroup(pMnode, pVgroup);
@@ -1110,14 +1106,14 @@ static int32_t collectVgs(SMqRebOutputObj *rebOutput, SMqSubscribeObj *pSub) {
     pConsumerEp = (SMqConsumerEp *)pIterConsumer;
 
     for (int32_t i = 0; i < taosArrayGetSize(pConsumerEp->vgs); i++) {
-      SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, i);
-      MND_TMQ_NULL_CHECK(pVgEp);
+      int32_t *pVgId = taosArrayGet(pConsumerEp->vgs, i);
+      MND_TMQ_NULL_CHECK(pVgId);
       SMqRebOutputVg *vg = taosArrayReserve(rebOutput->rebVgs, 1);
       MND_TMQ_NULL_CHECK(vg);
-      vg->pVgEp = *pVgEp;
+      vg->vgId = *pVgId;
       vg->oldConsumerId = -1;
       vg->newConsumerId = pConsumerEp->consumerId;
-      mDebug("sub:%s reload rebalance vgId:%d remains on consumer:0x%" PRIx64, pSub->key, vg->pVgEp.vgId,
+      mDebug("sub:%s reload rebalance vgId:%d remains on consumer:0x%" PRIx64, pSub->key, vg->vgId,
              vg->newConsumerId);
     }
   }
@@ -1537,27 +1533,6 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
     goto SUB_DECODE_OVER;
   }
 
-  // update epset saved in mnode
-  if (pSub->unassignedVgs != NULL) {
-    int32_t size = (int32_t)taosArrayGetSize(pSub->unassignedVgs);
-    for (int32_t i = 0; i < size; ++i) {
-      SMqVgEp *pMqVgEp = (SMqVgEp *)taosArrayGet(pSub->unassignedVgs, i);
-      tmsgUpdateDnodeEpSet(&pMqVgEp->epSet);
-    }
-  }
-  if (pSub->consumerHash != NULL) {
-    void *pIter = taosHashIterate(pSub->consumerHash, NULL);
-    while (pIter) {
-      SMqConsumerEp *pConsumerEp = pIter;
-      int32_t        size = (int32_t)taosArrayGetSize(pConsumerEp->vgs);
-      for (int32_t i = 0; i < size; ++i) {
-        SMqVgEp *pMqVgEp = (SMqVgEp *)taosArrayGet(pConsumerEp->vgs, i);
-        tmsgUpdateDnodeEpSet(&pMqVgEp->epSet);
-      }
-      pIter = taosHashIterate(pSub->consumerHash, pIter);
-    }
-  }
-
   terrno = TSDB_CODE_SUCCESS;
 
 SUB_DECODE_OVER:
@@ -1720,8 +1695,8 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
   PRINT_LOG_START
   int32_t sz = taosArrayGetSize(vgs);
   for (int32_t j = 0; j < sz; j++) {
-    SMqVgEp *pVgEp = taosArrayGet(vgs, j);
-    MND_TMQ_NULL_CHECK(pVgEp);
+    int32_t *pVgId = taosArrayGet(vgs, j);
+    MND_TMQ_NULL_CHECK(pVgId);
 
     SColumnInfoData *pColInfo = NULL;
     int32_t          cols = 0;
@@ -1737,7 +1712,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     // vg id
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     MND_TMQ_NULL_CHECK(pColInfo);
-    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, *numOfRows, (const char *)&pVgEp->vgId, false));
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, *numOfRows, (const char *)pVgId, false));
 
     // consumer id
     char consumerIdHex[TSDB_CONSUMER_ID_LEN] = {0};
@@ -1761,15 +1736,15 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, *numOfRows, fqdnStr, fqdn == NULL));
 
     mInfo("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic), consumerId,
-          varDataVal(cgroup), pVgEp->vgId);
+          varDataVal(cgroup), *pVgId);
 
     // offset
     OffsetRows *data = NULL;
     for (int i = 0; i < taosArrayGetSize(offsetRows); i++) {
       OffsetRows *tmp = taosArrayGet(offsetRows, i);
       MND_TMQ_NULL_CHECK(tmp);
-      if (tmp->vgId != pVgEp->vgId) {
-        // mInfo("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, pVgEp->vgId);
+      if (tmp->vgId != *pVgId) {
+        // mInfo("mnd show subscriptions: do not find vgId:%d, %d in offsetRows", tmp->vgId, *pVgId);
         continue;
       }
       data = tmp;
@@ -1794,7 +1769,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       MND_TMQ_NULL_CHECK(pColInfo);
       colDataSetNULL(pColInfo, *numOfRows);
-      mInfo("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
+      mInfo("mnd show subscriptions: do not find vgId:%d in offsetRows", *pVgId);
     }
     (*numOfRows)++;
   }

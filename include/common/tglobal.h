@@ -144,6 +144,12 @@ extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
 extern int32_t tsSecureEraseMode;
 
+// cpu affinity
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
+
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
@@ -381,6 +387,7 @@ extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 

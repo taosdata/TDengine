@@ -307,6 +307,7 @@ typedef struct STableBlockDistInfo {
   uint32_t numOfSttRows;
   uint32_t numOfVgroups;
   int32_t  blockRowsHisto[20];
+  int32_t  blockRowsHistoFixed[8];  // buckets: ≤64, ≤128, ≤256, ≤512, ≤1024, ≤2048, ≤4096, >4096
 } STableBlockDistInfo;
 
 int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);

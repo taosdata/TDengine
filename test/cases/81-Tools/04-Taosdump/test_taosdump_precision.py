@@ -15,288 +15,47 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 
 class TestTaosdumpPrecision:
-    def checkCommunity(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        if "community" in selfPath:
-            return False
-        else:
-            return True
-
-
-    def createdb(self, precision="ns"):
-        tb_nums = self.numberOfTables
-        per_tb_rows = self.numberOfRecords
-
-        def build_db(precision, start_time):
-            tdSql.execute("drop database if exists timedb1")
-            tdSql.execute(
-                "create database timedb1 duration 10 keep 36500 precision "
-                + '"'
-                + precision
-                + '"'
-            )
-
-            tdSql.execute("use timedb1")
-            tdSql.execute(
-                "create stable st(ts timestamp, c1 int, c2 nchar(10),c3 timestamp) tags(t1 int, t2 binary(10))"
-            )
-            for tb in range(tb_nums):
-                tbname = "t" + str(tb)
-                tdSql.execute("create table " + tbname + " using st tags(1, 'beijing')")
-                sql = "insert into " + tbname + " values"
-                currts = start_time
-                if precision == "ns":
-                    ts_seed = 1000000000
-                elif precision == "us":
-                    ts_seed = 1000000
-                else:
-                    ts_seed = 1000
-
-                for i in range(per_tb_rows):
-                    sql += "(%d, %d, 'nchar%d',%d)" % (
-                        currts + i * ts_seed,
-                        i % 100,
-                        i % 100,
-                        currts + i * 100,
-                    )  # currts +1000ms (1000000000ns)
-                tdSql.execute(sql)
-
-        if precision == "ns":
-            start_time = 1625068800000000000
-            build_db(precision, start_time)
-
-        elif precision == "us":
-            start_time = 1625068800000000
-            build_db(precision, start_time)
-
-        elif precision == "ms":
-            start_time = 1625068800000
-            build_db(precision, start_time)
-
-        else:
-            print("other time precision not valid , please check! ")
+    def _datadir(self, subdir):
+        return os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", subdir)
 
     def do_precision_ns(self):
-        self.ts = 1625068800000000000  # this is timestamp  "2021-07-01 00:00:00"
-        self.numberOfTables = 10
-        self.numberOfRecords = 100
+        backupPath = etool.taosDumpFile()
 
-        # clear envs
-        os.system("rm -rf ./taosdumptest/")
-        tdSql.execute("drop database if exists dumptmp1")
-        tdSql.execute("drop database if exists dumptmp2")
-        tdSql.execute("drop database if exists dumptmp3")
+        for prec in ["ns", "us", "ms"]:
+            dir_all = self._datadir(f"prec_{prec}_all")
+            dir_se  = self._datadir(f"prec_{prec}_se")
+            dir_s   = self._datadir(f"prec_{prec}_s")
 
-        if not os.path.exists("./taosdumptest/tmp1"):
-            os.makedirs("./taosdumptest/dumptmp1")
-        else:
-            print("path exist!")
+            # Verify S+E filter: 510 rows (10 tables * 51 rows in [S,E])
+            tdSql.execute("drop database if exists timedb1")
+            os.system(f"{backupPath} -i {dir_se}")
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 510)
 
-        if not os.path.exists("./taosdumptest/dumptmp2"):
-            os.makedirs("./taosdumptest/dumptmp2")
+            # Verify S-only filter: 900 rows (10 tables * 90 rows from S)
+            tdSql.execute("drop database if exists timedb1")
+            os.system(f"{backupPath} -i {dir_s}")
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 900)
 
-        if not os.path.exists("./taosdumptest/dumptmp3"):
-            os.makedirs("./taosdumptest/dumptmp3")
+            # Verify all data: 1000 rows (10 tables * 100 rows)
+            tdSql.execute("drop database if exists timedb1")
+            os.system(f"{backupPath} -i {dir_all}")
+            tdSql.query("select count(*) from timedb1.st")
+            tdSql.checkData(0, 0, 1000)
 
-        binPath = etool.taosDumpFile()
-        if binPath == "":
-            tdLog.exit("taosdump not found!")
-        else:
-            tdLog.info("taosdump found: %s" % binPath)
+            print(f"do precision {prec} ................... [passed]")
 
-        # create nano second database
-
-        self.createdb(precision="ns")
-
-        # dump all data
-
-        os.system("%s -g --databases timedb1 -o ./taosdumptest/dumptmp1" % binPath)
-
-        # dump part data with -S  -E
-        os.system(
-            "%s -g --databases timedb1 -S 1625068810000000000 -E 1625068860000000000  -o ./taosdumptest/dumptmp2 "
-            % binPath
-        )
-        os.system(
-            "%s -g --databases timedb1 -S 1625068810000000000  -o ./taosdumptest/dumptmp3  "
-            % binPath
-        )
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 510)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 900)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 1000)
-
-        # check data
-        origin_res = tdSql.getResult("select * from timedb1.st")
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        dump_res = tdSql.getResult("select * from timedb1.st")
-        if origin_res == dump_res:
-            tdLog.info("test nano second : dump check data pass for all data!")
-        else:
-            tdLog.info("test nano second : dump check data failed for all data!")
-
-        # us second support test case
-
-        os.system("rm -rf ./taosdumptest/")
-        tdSql.execute("drop database if exists timedb1")
-
-        if not os.path.exists("./taosdumptest/tmp1"):
-            os.makedirs("./taosdumptest/dumptmp1")
-        else:
-            print("path exits!")
-
-        if not os.path.exists("./taosdumptest/dumptmp2"):
-            os.makedirs("./taosdumptest/dumptmp2")
-
-        if not os.path.exists("./taosdumptest/dumptmp3"):
-            os.makedirs("./taosdumptest/dumptmp3")
-
-        self.createdb(precision="us")
-
-        os.system("%s -g --databases timedb1 -o ./taosdumptest/dumptmp1" % binPath)
-
-        os.system(
-            "%s -g --databases timedb1 -S 1625068810000000 -E 1625068860000000  -o ./taosdumptest/dumptmp2 "
-            % binPath
-        )
-        os.system(
-            "%s -g --databases timedb1 -S 1625068810000000  -o ./taosdumptest/dumptmp3  "
-            % binPath
-        )
-
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 510)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 900)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 1000)
-
-        # check data
-        origin_res = tdSql.getResult("select * from timedb1.st")
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        dump_res = tdSql.getResult("select * from timedb1.st")
-        if origin_res == dump_res:
-            tdLog.info("test micro second : dump check data pass for all data!")
-        else:
-            tdLog.info("test micro second : dump check data failed for all data!")
-
-        # ms second support test case
-
-        os.system("rm -rf ./taosdumptest/")
-        tdSql.execute("drop database if exists timedb1")
-
-        if not os.path.exists("./taosdumptest/tmp1"):
-            os.makedirs("./taosdumptest/dumptmp1")
-        else:
-            print("path exits!")
-
-        if not os.path.exists("./taosdumptest/dumptmp2"):
-            os.makedirs("./taosdumptest/dumptmp2")
-
-        if not os.path.exists("./taosdumptest/dumptmp3"):
-            os.makedirs("./taosdumptest/dumptmp3")
-
-        self.createdb(precision="ms")
-
-        os.system("%s -g --databases timedb1 -o ./taosdumptest/dumptmp1" % binPath)
-
-        os.system(
-            "%s -g --databases timedb1 -S 1625068810000 -E 1625068860000  -o ./taosdumptest/dumptmp2 "
-            % binPath
-        )
-        os.system(
-            "%s -g --databases timedb1 -S 1625068810000  -o ./taosdumptest/dumptmp3  "
-            % binPath
-        )
-
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp2" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 510)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp3" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 900)
-
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        tdSql.query("select count(*) from timedb1.st")
-        tdSql.checkData(0, 0, 1000)
-
-        # check data
-        origin_res = tdSql.getResult("select * from timedb1.st")
-        tdSql.execute("drop database timedb1")
-        os.system("%s -i ./taosdumptest/dumptmp1" % binPath)
-        # dump data and check for taosdump
-        dump_res = tdSql.getResult("select * from timedb1.st")
-        if origin_res == dump_res:
-            tdLog.info("test million second : dump check data pass for all data!")
-        else:
-            tdLog.info("test million second : dump check data failed for all data!")
-
-        os.system("rm -rf ./taosdumptest/")
-        os.system("rm -rf ./dump_result.txt")
-        os.system("rm -rf *.py.sql")
-
-        print("do precision ns ....................... [passed]")
-
-
-    #
-    # ------------------- main ----------------
-    #
     def test_taosdump_precision(self):
         """taosdump precision
 
-        1.  Create a database with nanosecond precision and multiple tables
-        2.  Insert data into the tables with nanosecond timestamps
-        3.  Use taosdump to export the entire database
-        4.  Use taosdump to export data within specific time ranges using -S and -E
-        5.  Drop the original database
-        6.  Use taosdump to import the exported data back into the database
-        7.  Verify that the imported data matches the original data for all exports
-        
-        
+        1. Restore AVRO backups (generated by old_taosdump with -S/-E time range
+           filters) for ns/us/ms precision databases using new taosdump (taosBackup).
+        2. Verify row counts:
+           - Full export: 1000 rows
+           - With -S (start-only): 900 rows
+           - With -S -E (range): 510 rows
+
         Since: v3.0.0.0
 
         Labels: common,ci
@@ -305,6 +64,6 @@ class TestTaosdumpPrecision:
 
         History:
             - 2025-10-29 Alex Duan Migrated from uncatalog/army/tools/taosdump/native/test_taosdump_test_nano_support.py
-    
+
         """
         self.do_precision_ns()

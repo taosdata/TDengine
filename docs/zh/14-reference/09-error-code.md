@@ -392,6 +392,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory  | 更新 minReservedMemorySize 失败                                                                          | 确认当前的系统内存：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G                                                                    |
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                  | 窗口输入主键列有重复时间戳。对状态窗口、事件窗口、计数窗口做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。 | 如果需要对超级表查询并且使用这些窗口时，确保子表中不存在重复时间戳数据。                                                                                    |
 | 0x80000741 | VSTB slotId not found for column                                            | 查询执行时未能将源列映射到虚拟表的 slotId                                                                   | 保留现场和日志，github 上报 issue                                                                                                 |
+| 0x80000742 | Window state not found                                                      | 查询执行时未能按窗口键找到对应的窗口状态，通常表示执行器内部窗口状态管理出现异常。                                              | 保留现场和日志，github 上报 issue                                                                                                 |
 
 #### grant
 
@@ -484,7 +485,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002608 | There mustn't be aggregation                                                                           | 聚合函数出现在非法子句中                                | 检查并修正 SQL 语句                    |
 | 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Order by 指定的位置不合法                               | 检查并修正 SQL 语句                    |
 | 0x8000260A | Not a GROUP BY expression                                                                              | 非法 group by 语句                                      | 检查并修正 SQL 语句                    |
-| 0x8000260B | Not SELECTed expression                                                                                | 非法表达式                                              | 检查并修正 SQL 语句                    |
+| 0x8000260B | Not selected expression                                                                                | 非法表达式                                              | 检查并修正 SQL 语句                    |
 | 0x8000260C | Not a single-group group function                                                                      | 非法使用列与函数                                        | 检查并修正 SQL 语句                    |
 | 0x8000260D | Tags number not matched                                                                                | tag 列个数不匹配                                        | 检查并修正 SQL 语句                    |
 | 0x8000260E | Invalid tag name                                                                                       | 无效或不存在的 tag 名                                   | 检查并修正 SQL 语句                    |
@@ -554,7 +555,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                            | 检查并修正 SQL 语句                    |
 | 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                              | 检查并修正 SQL 语句                    |
 | 0x80002660 | Invalid sma index                                                                                      | 非法创建 SMA 语句                                       | 检查并修正 SQL 语句                    |
-| 0x80002661 | Invalid SELECTed expression                                                                            | 无效查询语句                                            | 检查并修正 SQL 语句                    |
+| 0x80002661 | Invalid selected expression                                                                            | 无效查询语句                                            | 检查并修正 SQL 语句                    |
 | 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                                    | 保留现场和日志，github 上报 issue      |
 | 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                                        | 检查并修正 SQL 语句                    |
 | 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询            | 检查并修正 SQL 语句                    |

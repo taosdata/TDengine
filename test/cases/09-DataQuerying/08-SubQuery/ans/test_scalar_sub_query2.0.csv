@@ -1500,25 +1500,17 @@ taos> select avg(f1) from st1 SESSION((select f1 from db2.tba), 1d);
 
 DB error: syntax error near "(select f1 from db2.tba), 1d);" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select 0 from st1 limit 1));
-          avg(f1)          |
-============================
-                         1 |
 
+DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select 1 from st1 limit 1));
-          avg(f1)          |
-============================
-                         1 |
 
+DB error: syntax error near "(select 1 from st1 limit 1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select 2 from st1 limit 1));
-          avg(f1)          |
-============================
-                         1 |
 
+DB error: syntax error near "(select 2 from st1 limit 1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW((select f1 from db2.tba));
-          avg(f1)          |
-============================
-                         1 |
 
+DB error: syntax error near "(select f1 from db2.tba));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, (select 0 from st1 limit 1));
 
 DB error: syntax error near "(select 0 from st1 limit 1));" [0x80002600] 

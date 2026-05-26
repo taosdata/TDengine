@@ -123,7 +123,7 @@ class TestComCmdLine:
     def test_repair_cmdline_help_contract(self):
         """Repair cmdline help should expose the current repair-target interface.
 
-        1. Verify `taosd -r --help` still prints the vnode/force-only usage.
+        1. Verify `taosd -r --help` still prints force and copy mode usage.
 
         Since: v3.4.1.0
 
@@ -133,7 +133,7 @@ class TestComCmdLine:
             "repair_help_contract",
             "-r --help",
             0,
-            "Usage: taosd -r --mode force --node-type vnode",
+            "Force mode (in-place repair)",
         )
 
     def test_repair_cmdline_accepts_valid_targets(self):

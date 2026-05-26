@@ -1817,6 +1817,228 @@ static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
   return outLen;
 }
 
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  int32_t          numOfRows  = pInput[0].numOfRows;
+  SColumnInfoData *pStrData   = pInput[0].columnData;
+  SColumnInfoData *pPatData   = pInput[1].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (colDataIsNull_s(pPatData, 0)) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Get group_idx (default 1; param[2] is an optional integer constant).
+  // Read into int64_t first to avoid silent truncation/wrap for BIGINT/UBIGINT
+  // placeholder values before the range check, then cast after validation.
+  // An explicit SQL NULL group_idx propagates NULL to all output rows.
+  int64_t groupIdxRaw = 1;
+  if (inputNum == 3) {
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[2])) || colDataIsNull_s(pInput[2].columnData, 0)) {
+      colDataSetNNULL(pOutputData, 0, numOfRows);
+      pOutput->numOfRows = numOfRows;
+      return TSDB_CODE_SUCCESS;
+    }
+    GET_TYPED_DATA(groupIdxRaw, int64_t, GET_PARAM_TYPE(&pInput[2]),
+                   colDataGetData(pInput[2].columnData, 0),
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  }
+  if (groupIdxRaw < 0 || groupIdxRaw > REGEXP_EXTRACT_MAX_GROUP_IDX) {
+    pOutput->numOfRows = numOfRows;
+    SCL_ERR_RET(TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+  }
+  int32_t groupIdx = (int32_t)groupIdxRaw;
+
+  // Build null-terminated UTF-8 pattern string (pattern is a constant, always 1 row)
+  char    patBuf[512];
+  char   *patStr     = patBuf;
+  int32_t patLen     = 0;
+  bool    needFreePat = false;
+  {
+    char   *rawPat    = varDataVal(colDataGetData(pPatData, 0));
+    int32_t rawPatLen = varDataLen(colDataGetData(pPatData, 0));
+    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      if (rawPatLen == 0) {
+        patLen = 0;
+        patStr = patBuf;
+        patStr[0] = '\0';
+      } else {
+        patStr = NULL;  // ensure convNcharToVarchar always mallocs a fresh heap buffer
+        code = convNcharToVarchar(rawPat, &patStr, rawPatLen, &patLen, pInput[1].charsetCxt);
+        if (code != TSDB_CODE_SUCCESS) goto _exit;
+        needFreePat = true;
+        // convNcharToVarchar allocates rawPatLen bytes (no +1 for NUL); when the
+        // UTF-8 output fills the buffer entirely there is no room for a terminator.
+        // threadGetRegComp requires a NUL-terminated string — grow by one byte.
+        char *tmp = taosMemoryRealloc(patStr, patLen + 1);
+        if (tmp == NULL) {
+          taosMemoryFree(patStr);
+          needFreePat = false;
+          code = terrno;
+          goto _exit;
+        }
+        patStr = tmp;
+        patStr[patLen] = '\0';
+      }
+    } else {
+      patLen = rawPatLen;
+      if (patLen >= (int32_t)sizeof(patBuf)) {
+        patStr = taosMemoryMalloc(patLen + 1);
+        if (patStr == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+        needFreePat = true;
+      }
+      (void)memcpy(patStr, rawPat, patLen);
+      patStr[patLen] = '\0';
+    }
+  }
+
+  // Compile (or retrieve cached) regex — pattern is constant so cache hits every row
+  regex_t *regex = NULL;
+  code = threadGetRegComp(&regex, patStr);
+  if (code != 0) {
+    terrno = code;
+    goto _exit;
+  }
+
+  // regmatch_t array: index 0 = whole match, 1..groupIdx = capture groups.
+  // Initialize all entries to -1 so any submatch slots not written by regexec
+  // (for example when groupIdx exceeds regex->re_nsub) remain deterministic.
+  int32_t     nmatch  = groupIdx + 1;
+  regmatch_t *pmatch  = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
+  if (pmatch == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
+
+  // Each output cell is a VarData value, and for var-length types info.bytes
+  // already includes the VARSTR_HEADER_SIZE length prefix plus payload space.
+  int32_t outBufLen = pStrData->info.bytes;
+  char   *outBuf    = taosMemoryMalloc(outBufLen);
+  if (outBuf == NULL) {
+    taosMemoryFree(pmatch);
+    code = terrno;
+    goto _exit;
+  }
+
+  int32_t strType = GET_PARAM_TYPE(&pInput[0]);
+  bool    isNchar = (strType == TSDB_DATA_TYPE_NCHAR);
+
+  // Null-termination buffer shared across rows — grown via realloc only when needed
+  char   *strNt    = NULL;
+  int32_t strNtCap = 0;
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pStrData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *strRaw = colDataGetData(pStrData, i);
+    char   *strVal = varDataVal(strRaw);
+    int32_t strLen = varDataLen(strRaw);
+
+    // Grow the null-termination buffer only when the current row needs more space.
+    // For NCHAR: UTF-8 output is at most strLen bytes (UCS-4 byte count >= UTF-8 byte count),
+    // so strLen + 1 is a safe upper bound for both NCHAR and VARCHAR paths.
+    if (strLen + 1 > strNtCap) {
+      char *tmp = taosMemoryRealloc(strNt, strLen + 1);
+      if (tmp == NULL) {
+        code = terrno;
+        break;
+      }
+      strNt    = tmp;
+      strNtCap = strLen + 1;
+    }
+
+    // Convert input into the NUL-terminated UTF-8 scratch buffer.
+    // For NCHAR: convert UCS-4 directly into strNt — avoids per-row malloc/free.
+    // For VARCHAR: data is already UTF-8, just copy it.
+    int32_t strUtf8Len;
+    if (isNchar) {
+      strUtf8Len = taosUcs4ToMbs((TdUcs4 *)strVal, strLen, strNt, pInput[0].charsetCxt);
+      if (strUtf8Len < 0) {
+        code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+        terrno = code;
+        break;
+      }
+    } else {
+      (void)memcpy(strNt, strVal, strLen);
+      strUtf8Len = strLen;
+    }
+    strNt[strUtf8Len] = '\0';
+
+    int ret = regexec(regex, strNt, nmatch, pmatch, 0);
+    if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
+      // no match, or the requested capture group did not participate
+      colDataSetNULL(pOutputData, i);
+    } else if (ret != 0) {
+      // real regex execution error — capture the reason for production debugging
+      char msgbuf[256] = {0};
+      (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
+      qDebug("REGEXP_EXTRACT: regexec failed for pattern '%s', reason: %s", patStr, msgbuf);
+      code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+      terrno = code;
+      break;
+    } else {
+      int32_t matchStart = pmatch[groupIdx].rm_so;
+      int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;
+
+      if (isNchar) {
+        // Convert matched UTF-8 bytes back to NCHAR (UCS-4) directly into outBuf
+        // to avoid a per-row malloc/free cycle.
+        // outBuf data capacity (outBufLen - VARSTR_HEADER_SIZE) >= N*TSDB_NCHAR_SIZE
+        // which is always >= matchedCodepoints*TSDB_NCHAR_SIZE.
+        int32_t matchedNcharLen = 0;
+        bool    ok = taosMbsToUcs4(strNt + matchStart, matchLen,
+                                   (TdUcs4 *)(outBuf + VARSTR_HEADER_SIZE),
+                                   outBufLen - VARSTR_HEADER_SIZE,
+                                   &matchedNcharLen, pInput[0].charsetCxt);
+        if (!ok) {
+          code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+          terrno = code;
+          break;
+        }
+        *(VarDataLenT *)outBuf = matchedNcharLen;
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      } else {
+        *(VarDataLenT *)outBuf = matchLen;
+        (void)memcpy(outBuf + VARSTR_HEADER_SIZE, strNt + matchStart, matchLen);
+        code = colDataSetVal(pOutputData, i, outBuf, false);
+        if (code != TSDB_CODE_SUCCESS) terrno = code;
+      }
+    }
+
+    if (code != TSDB_CODE_SUCCESS) break;
+  }
+
+  taosMemoryFree(strNt);
+  taosMemoryFree(outBuf);
+  taosMemoryFree(pmatch);
+_exit:
+  if (needFreePat) taosMemoryFree(patStr);
+  pOutput->numOfRows = numOfRows;
+  return code;
+}
+
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -4481,6 +4703,45 @@ int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t numOfRows = pInput[0].numOfRows;
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    if (colDataIsNull_s(pInput[0].columnData, i)) {
+      int32_t zero = 0;
+      colDataSetInt32(pOutput->columnData, i, &zero);
+      continue;
+    }
+
+    double sleepSec;
+    GET_TYPED_DATA(sleepSec, double, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i),
+                   typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+
+    int32_t result = 0;
+    if (sleepSec > 0) {
+      int64_t totalMs = (int64_t)(TMIN(sleepSec, (double)(INT64_MAX / 1000 - 1)) * 1000);
+      int64_t elapsed = 0;
+      while (elapsed < totalMs) {
+        if (gTaskScalarExtra.isTaskKilled && gTaskScalarExtra.isTaskKilled(gTaskScalarExtra.pTaskInfo)) {
+          result = 1;
+          break;
+        }
+        int32_t chunk = (int32_t)TMIN(100LL, totalMs - elapsed);
+        taosMsleep(chunk);
+        elapsed += chunk;
+      }
+    }
+    colDataSetInt32(pOutput->columnData, i, &result);
+  }
+
+  pOutput->numOfRows = numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
+
 static double decimalFn(double val1, double val2, _double_fn fn) {
   if (val1 > DBL_MAX || val1 < -DBL_MAX) {
     return val1;
@@ -6094,8 +6355,8 @@ void freeSCovertScarlarParams(SCovertScarlarParam *pCovertParams, int32_t num) {
   taosMemoryFree(pCovertParams);
 }
 
-static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int numOfCols,
-                                      int32_t *resultColIndex, EOperatorType optr) {
+static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int32_t numOfCols,
+                                      int32_t *resultColIndex, EOperatorType optr, bool ignoreNull) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t type = GET_PARAM_TYPE(pParams[0].param);
 
@@ -6107,27 +6368,35 @@ static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numO
   }
 
   for (int32_t i = 0; i < numOfRows; i++) {
-    int selectIndex = 0;
-    if (colDataIsNull_s(pParams[selectIndex].param->columnData, i)) {
-      resultColIndex[i] = -1;
-      continue;
-    }
-    for (int32_t j = 1; j < numOfCols; j++) {
-      if (colDataIsNull_s(pParams[j].param->columnData, i)) {
-        resultColIndex[i] = -1;
-        break;
-      } else {
-        int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
-        int32_t rightRowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
-        char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
-        char   *pRightData = colDataGetData(pParams[j].param->columnData, rightRowNo);
-        bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
-        if (!pRes) {
-          selectIndex = j;
+    int32_t selectIndex = -1;
+    for (int32_t j = 0; j < numOfCols; j++) {
+      // Constant inputs (numOfRows==1, e.g. CAST(NULL AS <type>) or any
+      // literal) only have slot 0 populated; reading slot i would walk
+      // past their null bitmap / varmeta.  Compute the broadcast index
+      // once and reuse it for both the NULL check and the data read.
+      int32_t rowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
+      if (colDataIsNull_s(pParams[j].param->columnData, rowNo)) {
+        if (ignoreNull) {
+          // Skip NULL inputs and keep scanning the remaining columns; result
+          // is NULL only when every column on this row is NULL.
+          continue;
         }
+        selectIndex = -1;
+        break;
       }
-      resultColIndex[i] = selectIndex;
+      if (selectIndex < 0) {
+        selectIndex = j;
+        continue;
+      }
+      int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
+      char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
+      char   *pRightData = colDataGetData(pParams[j].param->columnData, rowNo);
+      bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
+      if (!pRes) {
+        selectIndex = j;
+      }
     }
+    resultColIndex[i] = selectIndex;
   }
 
   return code;
@@ -6137,25 +6406,52 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   int32_t          code = TSDB_CODE_SUCCESS;
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   int16_t          outputType = GET_PARAM_TYPE(&pOutput[0]);
-  int64_t          outputLen = GET_PARAM_BYTES(&pOutput[0]);
-
   SCovertScarlarParam *pCovertParams = NULL;
   int32_t             *resultColIndex = NULL;
+  uint8_t              ignoreNullFlag = 0;
 
+  if (pInput[inputNum - 1].columnData == NULL ||
+      pInput[inputNum - 1].columnData->pData == NULL) {
+    qError("greatestLeast: ignoreNullInGreatest flag column missing, func:%s", __FUNCTION__);
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
+  }
+  GET_TYPED_DATA(ignoreNullFlag, uint8_t, GET_PARAM_TYPE(&pInput[inputNum - 1]),
+                 pInput[inputNum - 1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[inputNum - 1].columnData->info));
+  bool    ignoreNull = ignoreNullFlag != 0;
+  int32_t dataInputNum = inputNum - 1;
   int32_t numOfRows = 0;
+  int32_t effectiveNum = 0;  // number of non-NULL-typed input columns
   bool    IsNullType = outputType == TSDB_DATA_TYPE_NULL ? true : false;
-  // If any column is NULL type, the output is NULL type
-  for (int32_t i = 0; i < inputNum; i++) {
-    if (IsNullType) {
-      break;
-    }
+  // Always compute numOfRows from the data inputs, even when the
+  // output type was already pinned to NULL by the translator (e.g.,
+  // ignoreNullInGreatest=0 with a NULL literal).  Otherwise the
+  // IsNullType short-circuit below would mark zero rows NULL while
+  // the caller has allocated `rowNum` slots in the output column.
+  for (int32_t i = 0; i < dataInputNum; i++) {
     if (numOfRows != 0 && numOfRows != pInput[i].numOfRows && pInput[i].numOfRows != 1 && numOfRows != 1) {
       qError("input rows not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
       code = TSDB_CODE_TSC_INTERNAL_ERROR;
       goto _return;
     }
     numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
-    IsNullType |= IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]));
+    if (IsNullType) {
+      // Still walk the loop to keep numOfRows correct, but skip the
+      // per-input bookkeeping that only matters for the live path.
+      continue;
+    }
+    if (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
+      if (!ignoreNull) {
+        IsNullType = true;
+      }
+    } else {
+      effectiveNum++;
+    }
+  }
+  // ignoreNullInGreatest=1: every input was a NULL literal.
+  if (ignoreNull && effectiveNum == 0) {
+    IsNullType = true;
   }
 
   if (IsNullType) {
@@ -6163,24 +6459,44 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
     pOutput->numOfRows = numOfRows;
     return TSDB_CODE_SUCCESS;
   }
-  pCovertParams = taosMemoryMalloc(inputNum * sizeof(SCovertScarlarParam));
-  for (int32_t j = 0; j < inputNum; j++) {
+
+  if (!ignoreNull) {
+    effectiveNum = dataInputNum;
+  }
+  if (numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  pCovertParams = taosMemoryCalloc(effectiveNum, sizeof(SCovertScarlarParam));
+  if (pCovertParams == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+  int32_t outIdx = 0;
+  for (int32_t j = 0; j < dataInputNum; j++) {
+    if (ignoreNull && IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[j]))) {
+      continue;
+    }
     SScalarParam *pParam = &pInput[j];
     int16_t       oldType = GET_PARAM_TYPE(&pInput[j]);
     if (oldType != outputType) {
-      pCovertParams[j].covertParam = (SScalarParam){0};
-      setTzCharset(&pCovertParams[j].covertParam, pParam->tz, pParam->charsetCxt);
-      SCL_ERR_JRET(vectorConvertSingleCol(pParam, &pCovertParams[j].covertParam, outputType, 0, 0, pParam->numOfRows));
-      pCovertParams[j].param = &pCovertParams[j].covertParam;
-      pCovertParams[j].converted = true;
+      pCovertParams[outIdx].covertParam = (SScalarParam){0};
+      setTzCharset(&pCovertParams[outIdx].covertParam, pParam->tz, pParam->charsetCxt);
+      SCL_ERR_JRET(
+          vectorConvertSingleCol(pParam, &pCovertParams[outIdx].covertParam, outputType, 0, 0, pParam->numOfRows));
+      pCovertParams[outIdx].param = &pCovertParams[outIdx].covertParam;
+      pCovertParams[outIdx].converted = true;
     } else {
-      pCovertParams[j].param = pParam;
-      pCovertParams[j].converted = false;
+      pCovertParams[outIdx].param = pParam;
+      pCovertParams[outIdx].converted = false;
     }
+    outIdx++;
   }
 
   resultColIndex = taosMemoryCalloc(numOfRows, sizeof(int32_t));
-  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, inputNum, resultColIndex, order));
+  if (resultColIndex == NULL) {
+    SCL_ERR_JRET(terrno);
+  }
+  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, effectiveNum, resultColIndex, order, ignoreNull));
 
   for (int32_t i = 0; i < numOfRows; i++) {
     int32_t index = resultColIndex[i];
@@ -6196,7 +6512,7 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
   pOutput->numOfRows = numOfRows;
 
 _return:
-  freeSCovertScarlarParams(pCovertParams, inputNum);
+  freeSCovertScarlarParams(pCovertParams, effectiveNum);
   taosMemoryFree(resultColIndex);
   return code;
 }

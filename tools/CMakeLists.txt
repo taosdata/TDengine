@@ -1,5 +1,6 @@
 IF(TD_TAOS_TOOLS)
-    ADD_SUBDIRECTORY(taos-tools)
+    ADD_SUBDIRECTORY(taosBenchmark)
+    add_subdirectory(taosdump)
 ENDIF()
 
 add_subdirectory(shell)

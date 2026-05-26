@@ -6916,6 +6916,16 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
+      // fixed-size row-count histogram
+      if (numOfRows <= 64)        pTableBlockInfo->blockRowsHistoFixed[0]++;
+      else if (numOfRows <= 128)   pTableBlockInfo->blockRowsHistoFixed[1]++;
+      else if (numOfRows <= 256)   pTableBlockInfo->blockRowsHistoFixed[2]++;
+      else if (numOfRows <= 512)   pTableBlockInfo->blockRowsHistoFixed[3]++;
+      else if (numOfRows <= 1024)  pTableBlockInfo->blockRowsHistoFixed[4]++;
+      else if (numOfRows <= 2048)  pTableBlockInfo->blockRowsHistoFixed[5]++;
+      else if (numOfRows <= 4096)  pTableBlockInfo->blockRowsHistoFixed[6]++;
+      else                         pTableBlockInfo->blockRowsHistoFixed[7]++;
+
       hasNext = blockIteratorNext(&pStatus->blockIter);
     } else {
       code = initForFirstBlockInFile(pReader, pBlockIter);
@@ -7243,7 +7253,7 @@ static int32_t initQueryTableCond(SMeta* meta, SQueryTableDataCond* pCond, uint6
 
 
   bool            hasPrimaryKey = false;
-  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0);
+  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0, false);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     hasPrimaryKey = true;
   }
