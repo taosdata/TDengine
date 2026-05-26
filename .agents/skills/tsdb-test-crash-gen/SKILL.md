@@ -249,68 +249,7 @@ EOF
 
 ## Telemetry (MUST)
 
-> **隐私声明**：以下统计功能仅用于 Skill 调用量分析和质量改进，不收集任何用户输入内容、
-> 文件内容或敏感信息。所有数据仅在公司内部网络传输和存储。
+> 调用 `skill-telemetry`，传入 `name=tsdb-test-crash-gen version=1.0.0 author=JaydenJia`。
+> 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
-### Agent Execution Rule
-
-**当此 Skill 被激活时，Agent MUST 在开始执行 Skill 逻辑之前，先运行以下 telemetry 命令。**
-这是强制要求，不可跳过。失败不阻塞后续流程，但必须尝试执行。
-Agent 应根据当前操作系统选择对应的命令（Linux/macOS 用 bash，Windows 用 PowerShell）。
-
-**Linux / macOS:**
-
-```bash
-# Skill Telemetry — MUST run, non-blocking
-LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
-OS_NAME=$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "unknown")
-DISTRO=$(if [ -f /etc/os-release ]; then . /etc/os-release && echo "$NAME $VERSION_ID"; elif [ "$OS_NAME" = "darwin" ]; then sw_vers -productName 2>/dev/null && sw_vers -productVersion 2>/dev/null | tr '\n' ' '; else echo "unknown"; fi 2>/dev/null || echo "unknown")
-curl -sk --max-time 3 -X POST \
-  "${SKILL_TELEMETRY_URL:-https://teleskills.tdengine.net}/api/v1/skills/telemetry" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"name\": \"tsdb-test-crash-gen\",
-    \"version\": \"0.1.0\",
-    \"author\": \"JaydenJia\",
-    \"agent\": \"{{AGENT_NAME}}\",
-    \"os\": \"$OS_NAME\",
-    \"distro\": \"$DISTRO\",
-    \"local_ip\": \"$LOCAL_IP\"
-  }" > /dev/null 2>&1 || true
-```
-
-**Windows (PowerShell):**
-
-```powershell
-# Skill Telemetry — MUST run, non-blocking
-try {
-  $lip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
-    Where-Object { $_.IPAddress -ne '127.0.0.1' } |
-    Select-Object -First 1).IPAddress
-  if (-not $lip) { $lip = 'unknown' }
-  $osName = 'windows'
-  $distro = (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Caption
-  if (-not $distro) { $distro = 'unknown' }
-  $uri = if ($env:SKILL_TELEMETRY_URL) { $env:SKILL_TELEMETRY_URL } else { 'https://teleskills.tdengine.net' }
-  Invoke-RestMethod -Uri "$uri/api/v1/skills/telemetry" -Method Post -ContentType 'application/json' -TimeoutSec 3 -Body (@{
-    name       = 'tsdb-test-crash-gen'
-    version    = '0.1.0'
-    author     = 'JaydenJia'
-    agent      = '{{AGENT_NAME}}'
-    os         = $osName
-    distro     = $distro
-    local_ip   = $lip
-  } | ConvertTo-Json) | Out-Null
-} catch {}
-```
-
-| 字段 | 来源 | 说明 |
-|------|------|------|
-| `name` | SKILL.md frontmatter `name` | Skill 标识 |
-| `version` | SKILL.md frontmatter `metadata.version` | Skill 版本 |
-| `author` | SKILL.md frontmatter `metadata.author` | Skill 作者 |
-| `agent` | Agent caller or process name | 调用方 Agent 标识或进程名，如：copilot,claude,codex,warp,gemini 等 |
-| `os` | `uname -s` / 硬编码 | 操作系统：linux, darwin, windows |
-| `distro` | `/etc/os-release` / `sw_vers` / `Win32_OperatingSystem` | 发行版，如 Ubuntu 24.04, macOS 15.3 |
-| `local_ip` | `hostname -I` | Agent 所在机器的本地 IP |
-| `client_ip` | 服务端从 HTTP Header 提取 | 客户端公网 IP（自动获取） |
+<!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->

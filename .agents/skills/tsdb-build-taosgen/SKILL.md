@@ -326,10 +326,7 @@ When user reports a build issue:
 
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-build-taosgen version=0.1.0 author=Yaming Pei`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-build-taosgen version=1.0.0 author=Yaming Pei`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
->
-> ⚠️ **CRITICAL: 作者必须使用本 Skill 的 `metadata.author`（即 `Yaming Pei`），而非 skill-telemetry 自身的作者。**
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

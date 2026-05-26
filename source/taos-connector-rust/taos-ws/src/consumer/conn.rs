@@ -1,5 +1,3 @@
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,7 +20,8 @@ use crate::query::asyn::{is_support_binary_sql, WS_ERROR_NO};
 use crate::query::messages::ToMessage;
 use crate::query::WsConnReq;
 use crate::{
-    handle_disconnect_error, EndpointType, TaosBuilder, WsStream, WsStreamReader, WsStreamSender,
+    handle_disconnect_error, EndpointType, TaosBuilder, WsConnectCallbackFuture, WsStream,
+    WsStreamReader, WsStreamSender,
 };
 
 #[derive(Debug, Clone)]
@@ -479,7 +478,7 @@ fn send_subscribe_request(
     tmq_conf: TmqInit,
     topics: Arc<RwLock<Vec<String>>>,
     conn_timeout: Duration,
-) -> impl for<'a> Fn(&'a mut WsStream) -> Pin<Box<dyn Future<Output = RawResult<()>> + Send + 'a>> {
+) -> impl for<'a> Fn(&'a mut WsStream) -> WsConnectCallbackFuture<'a> {
     move |ws_stream| {
         let conn_req = conn_req.clone();
         let tmq_conf = tmq_conf.clone();
@@ -494,27 +493,42 @@ fn send_subscribe_request(
                 conn: conn_req.clone(),
             };
 
-            if let Err(err) = send_recv(ws_stream, req.to_msg(), conn_timeout).await {
-                tracing::error!("subscribe error: {err:?}");
-                if tmq_conf.enable_batch_meta.is_none() {
-                    return Err(err);
+            let list_instances = match send_recv(ws_stream, req.to_msg(), conn_timeout).await {
+                Ok(TmqRecvData::Subscribe { list_instances }) => list_instances,
+                Ok(data) => {
+                    return Err(RawError::from_string(format!(
+                        "unexpected subscribe response: {data:?}"
+                    )));
                 }
+                Err(err) => {
+                    tracing::error!("subscribe error: {err:?}");
+                    if tmq_conf.enable_batch_meta.is_none() {
+                        return Err(err);
+                    }
 
-                let code: i32 = err.code().into();
-                if code & 0xFFFF == 0xFFFE {
-                    let req = TmqSend::Subscribe {
-                        req_id: generate_req_id(),
-                        req: tmq_conf.disable_batch_meta().disable_auto_commit(),
-                        topics,
-                        conn: conn_req,
-                    };
-                    let _ = send_recv(ws_stream, req.to_msg(), conn_timeout).await?;
-                } else {
-                    return Err(err);
+                    let code: i32 = err.code().into();
+                    if code & 0xFFFF == 0xFFFE {
+                        let req = TmqSend::Subscribe {
+                            req_id: generate_req_id(),
+                            req: tmq_conf.disable_batch_meta().disable_auto_commit(),
+                            topics,
+                            conn: conn_req,
+                        };
+                        match send_recv(ws_stream, req.to_msg(), conn_timeout).await? {
+                            TmqRecvData::Subscribe { list_instances } => list_instances,
+                            data => {
+                                return Err(RawError::from_string(format!(
+                                    "unexpected subscribe response: {data:?}"
+                                )));
+                            }
+                        }
+                    } else {
+                        return Err(err);
+                    }
                 }
-            }
+            };
 
-            Ok(())
+            Ok(list_instances)
         })
     }
 }
@@ -559,7 +573,7 @@ async fn send_recv(
                 let (_, data, ok) = resp.ok();
                 ok?;
                 match data {
-                    TmqRecvData::Subscribe => return Ok(data),
+                    TmqRecvData::Subscribe { .. } => return Ok(data),
                     TmqRecvData::Version { .. } => {}
                     _ => {
                         return Err(RawError::from_string(format!(

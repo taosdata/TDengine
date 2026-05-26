@@ -239,10 +239,10 @@ Cleanup policies: `DATA_CLEAN_IMMEDIATE` (purge after write) vs `DATA_CLEAN_EXPI
 4. **One Trigger per stream** — but Runners can be parallelized across multiple SNodes.
 5. **triggerScanPlan pushes filtering down** — pre-filters run on VNodes (Readers), not on SNodes, to minimize network traffic.
 6. **gStreamMgmt is per-DNode** — each DNode has exactly one global singleton tracking its local tasks.
+
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-dev-stream-arch version=0.1.0 author=Stephen Jin`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-dev-stream-arch version=1.0.0 author=Stephen Jin`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

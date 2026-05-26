@@ -634,7 +634,6 @@ async fn main_agent_service_inner(
     if let Some(ca) = &ca {
         taosx_core::global::set_agent_client_ca(ca.clone());
     }
-    let mut handle = JoinSet::new();
     const INIT_RETRY_INTERVAL: Duration = Duration::from_millis(500);
     let mut retry_interval = INIT_RETRY_INTERVAL;
     const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(10);
@@ -645,22 +644,43 @@ async fn main_agent_service_inner(
             continue;
         }};
     }
-    let mut task_cancel = cancel.child_token();
-    macro_rules! wait_handle {
+
+    // Long-lived runner: survives across reconnections so that data tasks
+    // (especially those with persist_data_enable=true) keep running during
+    // network outages.  Only cancelled on agent shutdown.
+    let runner_cancel = cancel.child_token();
+    let mut runner_handle = JoinSet::new();
+    // runner_tx / activity_rx are lazily initialized on first successful
+    // connection and reused across reconnections.
+    let mut runner_tx: Option<flume::Sender<runner::Action>> = None;
+    let mut activity_rx: Option<flume::Receiver<ha_core::activity::Activity>> = None;
+    // Shared resp channel: the runner and long-lived tasks send status
+    // messages here; each process_actions() call consumes from a clone of
+    // resp_rx.  Messages buffered during disconnection are drained on
+    // the next connection.
+    let (resp_tx, resp_rx) = flume::bounded::<RespAction>(1000);
+
+    // Per-connection state: heartbeat, activity push, metrics export.
+    // Cancelled and re-created on each reconnection.
+    let mut conn_handle = JoinSet::new();
+    let mut conn_cancel = cancel.child_token();
+
+    macro_rules! wait_conn_handle {
         () => {
-            if !handle.is_empty() {
-                task_cancel.cancel();
-                tracing::info!("Waiting for tasks to complete");
+            if !conn_handle.is_empty() {
+                conn_cancel.cancel();
+                tracing::info!("Waiting for connection tasks to complete");
             }
-            while let Some(res) = handle.join_next().await {
+            while let Some(res) = conn_handle.join_next().await {
                 match res {
                     Ok(Ok(_)) => {}
-                    Ok(Err(err)) => tracing::error!("Task error: {err}"),
-                    Err(err) => tracing::error!("Task panic: {err}"),
+                    Ok(Err(err)) => tracing::error!("Connection task error: {err}"),
+                    Err(err) => tracing::error!("Connection task panic: {err}"),
                 }
             }
         };
     }
+
     loop {
         if cancel.is_cancelled() {
             break;
@@ -668,7 +688,26 @@ async fn main_agent_service_inner(
         if !keep_online {
             break;
         }
-        wait_handle!();
+
+        // Stop only connection-level tasks; data tasks in runner_handle
+        // continue running.
+        wait_conn_handle!();
+
+        // Drain completed runner tasks (non-blocking) to avoid stale entries.
+        // If all runner tasks have exited (e.g. due to internal error),
+        // reset runner_tx so the runner is re-initialized on next connection.
+        while let Some(res) = runner_handle.try_join_next() {
+            match res {
+                Ok(Ok(_)) => {}
+                Ok(Err(err)) => tracing::error!("Runner task error: {err}"),
+                Err(err) => tracing::error!("Runner task panic: {err}"),
+            }
+        }
+        if runner_tx.is_some() && runner_handle.is_empty() {
+            tracing::warn!("All runner tasks exited unexpectedly, resetting runner state");
+            runner_tx = None;
+            activity_rx = None;
+        }
 
         let mut client = match cancel
             .run_until_cancelled(Client::new(&endpoint, &token, ca.clone(), &ports))
@@ -695,27 +734,33 @@ async fn main_agent_service_inner(
         retry_interval = INIT_RETRY_INTERVAL;
 
         let agent_id = client.agent_id();
-        let (resp_tx, resp_rx) = flume::bounded::<RespAction>(1000);
 
-        task_cancel = cancel.child_token();
+        conn_cancel = cancel.child_token();
 
-        // 处理 tasox 发来的命令
-        let (sender, activities) = runner::spawn_runner(
-            agent_id,
-            &endpoint,
-            &token,
-            resp_tx.clone(),
-            &mut handle,
-            task_cancel.clone(),
-        );
-        // 给 taosx 发送 activity
-        handle.spawn({
-            let client = Client::new(&endpoint, &token, ca.clone(), &ports)
-                .await
-                .context("build agent client error")?;
-            let cancel = task_cancel.clone();
-            send_activity(activities, client, cancel)
-        });
+        // Initialize the long-lived runner on first successful connection.
+        if runner_tx.is_none() {
+            let (sender, activities) = runner::spawn_runner(
+                agent_id,
+                &endpoint,
+                &token,
+                resp_tx.clone(),
+                &mut runner_handle,
+                runner_cancel.clone(),
+            );
+            runner_tx = Some(sender);
+            activity_rx = Some(activities);
+        }
+
+        // 给 taosx 发送 activity（per-connection: recreated on reconnect）
+        if let Some(ref activities) = activity_rx {
+            conn_handle.spawn({
+                let client = Client::new(&endpoint, &token, ca.clone(), &ports)
+                    .await
+                    .context("build agent client error")?;
+                let cancel = conn_cancel.clone();
+                send_activity(activities.clone(), client, cancel)
+            });
+        }
 
         // 给 tasox 发送 agent 运行时 metrics
         let monitor_config = client.get_taosx_monitor_config().await;
@@ -723,32 +768,43 @@ async fn main_agent_service_inner(
         if monitor_enabled {
             let monitor_interval: u64 = get_monitor_interval(monitor_config.as_ref());
             let taosx_id = get_taosx_id(monitor_config.as_ref());
-            handle.spawn(start_collect_agent_metrics(
+            conn_handle.spawn(start_collect_agent_metrics(
                 monitor_interval,
                 taosx_id,
                 agent_id,
                 metrics_trigger_tx.clone(),
                 metrics_trigger_rx.clone(),
-                task_cancel.clone(),
+                conn_cancel.clone(),
             ));
-            handle.spawn(export_metrics(
+            conn_handle.spawn(export_metrics(
                 metrics_rx.clone(),
                 resp_tx.clone(),
                 monitor_interval,
-                task_cancel.clone(),
+                conn_cancel.clone(),
             ));
         }
-        // 给 taosx 发送任务 metrics
-        handle.spawn(listen_task_metrics(resp_tx.clone(), task_cancel.clone()));
-        // 给 tasox 发送心跳
-        handle.spawn(heartbeat_task(resp_tx.clone(), task_cancel.clone()));
+        // 给 taosx 发送任务 metrics（per-connection）
+        conn_handle.spawn(listen_task_metrics(resp_tx.clone(), conn_cancel.clone()));
+        // 给 tasox 发送心跳（per-connection）
+        conn_handle.spawn(heartbeat_task(resp_tx.clone(), conn_cancel.clone()));
 
         // do exchange 接收 taosx 发送来的消息
-        let Some(res) = task_cancel
-            .run_until_cancelled(client.process_actions(sender.clone(), resp_tx, resp_rx))
+        let sender = runner_tx.clone().expect("runner_tx should be initialized");
+        let Some(res) = cancel
+            .run_until_cancelled(conn_cancel.run_until_cancelled(client.process_actions(
+                sender,
+                resp_tx.clone(),
+                resp_rx.clone(),
+            )))
             .await
         else {
             continue;
+        };
+        let Some(res) = res else {
+            // conn_cancel was triggered (e.g. connection-level timeout),
+            // retry the connection while keeping runner tasks alive.
+            tracing::info!("connection cancelled, reconnecting...");
+            retry!();
         };
         match res {
             Ok(_) => continue,
@@ -767,8 +823,23 @@ async fn main_agent_service_inner(
         }
     }
 
-    cancel.cancel();
-    wait_handle!();
+    // Shutdown: cancel runner (and all data tasks), then wait.
+    runner_cancel.cancel();
+    conn_cancel.cancel();
+    while let Some(res) = conn_handle.join_next().await {
+        match res {
+            Ok(Ok(_)) => {}
+            Ok(Err(err)) => tracing::error!("Connection task error on shutdown: {err}"),
+            Err(err) => tracing::error!("Connection task panic on shutdown: {err}"),
+        }
+    }
+    while let Some(res) = runner_handle.join_next().await {
+        match res {
+            Ok(Ok(_)) => {}
+            Ok(Err(err)) => tracing::error!("Runner task error on shutdown: {err}"),
+            Err(err) => tracing::error!("Runner task panic on shutdown: {err}"),
+        }
+    }
     tracing::info!(endpoint, "Agent runner exited");
     Ok(())
 }

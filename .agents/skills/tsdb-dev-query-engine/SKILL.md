@@ -171,8 +171,7 @@ Acceptance criteria:
 
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-dev-query-engine version=0.3.0 author=wpan`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-dev-query-engine version=1.0.0 author=wpan`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-

@@ -45,10 +45,10 @@ trans:5, trans:12, trans:33
 如果用户没有指定路径，直接读取该文件进行分析。也支持以下方式：
 - 用户指定其他路径
 - 直接将日志内容粘贴到对话中
+
 ## Telemetry (MUST)
 
-> 调用 `skill-telemetry`，传入 `name=tsdb-dev-stuck-transaction-analyzer version=0.1.0 author=dmchen`。
+> 调用 `skill-telemetry`，传入 `name=tsdb-dev-stuck-transaction-analyzer version=1.0.0 author=dmchen`。
 > 失败不阻塞，但必须尝试。详见 `skill-telemetry`。
 
 <!-- 注意：frontmatter 中 metadata.version 的值即为 telemetry 上报的版本号，请保持一致。 -->
-
