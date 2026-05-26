@@ -80,8 +80,37 @@ jobs:
           cd TDengine
           mkdir debug
           cd debug
-          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DVERNUMBER=3.9.9.9 -DBUILD_DEPENDENCY_TESTS=false
+          cmake .. -DBUILD_TEST=off -DBUILD_HTTP=false -DBUILD_CONTRIB=ON -DBUILD_VER_NUMBER=3.9.9.9 -DBUILD_DEPENDENCY_TESTS=false
           make -j 8
+          sudo make install
+
+      - name: Checkout taosadapter
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: actions/checkout@v4
+        with:
+          repository: "taosdata/taosadapter"
+          path: "taosadapter"
+          ref: "main"
+
+      - name: Set up Go
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.10"
+          cache-dependency-path: taosadapter/go.sum
+
+      - name: Build taosadapter
+        if: >
+          (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
+          (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
+        run: |
+          cd taosadapter
+          go mod download
+          go build -o taosadapter
 
       - name: Package
         if: >
@@ -91,7 +120,7 @@ jobs:
           mkdir -p ./release
           cp ./TDengine/debug/build/bin/taos ./release/
           cp ./TDengine/debug/build/bin/taosd ./release/
-          cp ./TDengine/debug/build/bin/taosadapter ./release/
+          cp ./taosadapter/taosadapter ./release/
           cp ./TDengine/debug/build/lib/libtaos.so* ./release/
           cp ./TDengine/debug/build/lib/libtaosnative.so* ./release/
           cp ./TDengine/debug/build/lib/librocksdb.so.8.1.1 ./release/ ||:
