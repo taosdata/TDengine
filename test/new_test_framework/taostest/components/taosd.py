@@ -173,7 +173,9 @@ class TaosD:
                 # clusters.  Keep retrying until the connection succeeds or 60 s elapse.
                 _probe_host = cfg.get("fqdn", "localhost")
                 _probe_port = int(cfg.get("serverPort", 6030))
-                _probe_deadline = time.time() + 60
+                _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
+                _probe_timeout = 180 if _asan_build else 60
+                _probe_deadline = time.time() + _probe_timeout
                 while time.time() < _probe_deadline:
                     try:
                         _conn = taos.connect(host=_probe_host, port=_probe_port)
@@ -187,7 +189,7 @@ class TaosD:
                         time.sleep(1)
                 else:
                     self.logger.error(
-                        "taosd connection probe timed out after 60s for dnode:%d" % index
+                        "taosd connection probe timed out after %ds for dnode:%d" % (_probe_timeout, index)
                     )
         else:
             self.logger.debug(
