@@ -729,7 +729,6 @@ void showHelp() {
     select today();\n\
     select timezone();\n\
     set max_binary_display_width ...\n\
-    subscribe <topic_name> -g <group_id> [-c <client_id>] [-o latest|earliest] [-n <count>] [-t <timeout_ms>]\n\
     show apps;\n\
     show alive;\n\
     show anodes;\n\
