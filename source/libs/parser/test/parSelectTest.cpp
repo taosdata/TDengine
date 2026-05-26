@@ -147,6 +147,66 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
   run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3, 1)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3, 1, 0)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3, 1, NULL)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) EXTEND(1)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) EXTEND(1) ZEROTH_STATE(0)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3) ZEROTH_STATE(NO_ZEROTH)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CAST(c1 AS INT))");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CAST(1 AS INT))");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(1)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(true)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW('aaa')",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("SELECT COUNT(*) FROM st1 STATE_WINDOW(tag1)");
+  run("SELECT COUNT(*) FROM st1 "
+      "STATE_WINDOW(CASE WHEN tag1 > 1 THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, c2)");
+  run("SELECT COUNT(*) FROM st1 PARTITION BY tbname "
+      "STATE_WINDOW(CASE WHEN tbname = 'st1s1' THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
+    run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, c1)",
+      TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+    run("SELECT COUNT(*) FROM t1 tt STATE_WINDOW(tt.c1, c1)",
+      TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, c2, 1)",
+      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // Logic expressions as state key
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 = 0)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 >= 10)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 <> 0)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c2 = 'abc')");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 IS NULL)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 IS NOT NULL)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 IN (1, 2, 3))");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 BETWEEN 1 AND 10)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5 AND c3 < 100)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5 OR c3 < 100)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(NOT c1 > 5)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW((c1 > 5 AND c3 < 100) OR c1 = 0)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5, c3)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c3, c1 > 5 AND c1 < 100)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5) EXTEND(1)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5) ZEROTH_STATE(true)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5) EXTEND(1) ZEROTH_STATE(false)");
+  run("SELECT COUNT(*) FROM st1 STATE_WINDOW(tag1 > 1)");
+  run("SELECT COUNT(*) FROM st1 PARTITION BY tbname STATE_WINDOW(tag1 > 1)");
+  // Constant logic expressions → now allowed
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(1 > 0)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(1 = 1)");
+  // Semi-constant logic expressions → now allowed
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5 AND 1 > 2)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5 OR 1 < 2)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(NOT 1 > 0)");
+  // Duplicate logic expressions → reject
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5, c1 > 5)",
+      TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
 }
 
 TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
@@ -165,10 +225,6 @@ TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
   run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-
-  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
-
-  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, useDefinedFunc) {
@@ -308,12 +364,15 @@ TEST_F(ParserSelectTest, interval) {
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
+  // "SELECT c1 FROM t1 INTERVAL(10s)" is now valid in window projection (SCALAR) mode, negative test removed.
   run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
       TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
   run("SELECT _WSTART, _WEND, _WDURATION, sum(c1) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  // SCALAR/AGG keyword without a window clause is invalid
+  run("SELECT SCALAR c1 FROM t1", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
+  run("SELECT AGG count(*) FROM t1", TSDB_CODE_PAR_INVALID_OPTR_USAGE);
 }
 
 TEST_F(ParserSelectTest, interp) {
@@ -435,8 +494,8 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT c1 FROM t1 order by concat(c2, 'abc')");
 
-  // TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION
-  run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);
+  // TSDB_CODE_PAR_NOT_SELECT_EXPRESSION
+  run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECT_EXPRESSION);
 
   run("SELECT distinct c1 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 

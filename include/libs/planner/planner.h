@@ -80,6 +80,8 @@ typedef struct SPlanContext {
   int64_t            allocatorId;
   int64_t            userId;
   void*              timezone;
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
+  int8_t             firstDayOfWeek;  /* resolved: 0-6 */
   SPlanStreamContext streamCxt;
 } SPlanContext;
 

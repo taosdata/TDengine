@@ -47,6 +47,7 @@ The following configuration parameters only take effect for Native connections.
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
 |compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
+|ignoreNullInGreatest             | v3.4.2.0 |Supported, effective immediately  |Whether the GREATEST and LEAST functions skip NULL arguments. Integer; 0 (default): MySQL-compatible — any NULL argument makes the result NULL; 1: skip NULL arguments and compare only non-NULL values, returning NULL only when every argument is NULL. Orthogonal to compareAsStrInGreatest.|
 |showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.|
 
 ### Writing Related
@@ -65,7 +66,8 @@ The following configuration parameters only take effect for Native connections.
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
-| timezone       |                   |Supported, effective immediately  | Time zone; defaults to dynamically obtaining the current system time zone setting |
+| timezone       |                   |Supported, effective immediately  | Time zone; defaults to dynamically obtaining the current system time zone setting; can also be changed for the current connection with `SET TIMEZONE` |
+| firstDayOfWeek | `≥ v3.4.2.0`      |Supported, effective immediately  | First day of week used by week-based calculations (for example `TIMETRUNCATE(..., 1w)`); if explicitly configured, that value is used first, otherwise the client reads the operating system's first-day-of-week setting at startup and falls back to `4` (Thursday) when unavailable. Linux uses locale `LC_TIME`, macOS prefers `AppleFirstWeekday` and then the system calendar setting, and Windows uses Regional settings. Can also be changed for the current connection with `SET FIRST_DAY_OF_WEEK` |
 | locale         |                   |Supported, effective immediately  | System locale and encoding format, defaults to system settings |
 | charset        |                   |Supported, effective immediately  | Character set encoding, defaults to system settings |
 

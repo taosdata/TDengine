@@ -1295,6 +1295,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
       SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
 
+      qMsg.firstDayOfWeek = pJob->firstDayOfWeek;
+
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSSubQueryMsg get size, msgSize:%d", msgSize);

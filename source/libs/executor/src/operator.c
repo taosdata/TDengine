@@ -293,6 +293,18 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   int32_t     type = nodeType(pPhyNode);
   const char* idstr = GET_TASKID(pTaskInfo);
 
+  // Capture dataBlockId before any heap allocations.  On the mnode (16+ concurrent query
+  // threads), a concurrent nodesDestroyNode() can free pPhyNode's heap block while an
+  // internal calloc() (e.g. taosArrayInit for column data) picks up the same coalesced
+  // address and zero-fills it.  Reading the id here — before any operator constructor runs
+  // — guarantees we hold the correct value even if pPhyNode is later corrupted.
+  if (pPhyNode->pOutputDataBlockDesc == NULL) {
+    qError("%s %s: pPhyNode->pOutputDataBlockDesc is NULL, type=%d", __func__, idstr, type);
+    pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int16_t resultBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     SOperatorInfo* pOperator = NULL;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
@@ -565,6 +577,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
       // NOTE: this is an patch to fix the physical plan
       code = createVirtualTableMergeOperatorInfo(NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE == type) {
+      code = createRowsetSourceOperatorInfo(pPhyNode, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
       pTaskInfo->code = code;
@@ -572,7 +586,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
 
     if (pOperator != NULL) {  // todo moved away
-      pOperator->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+      pOperator->resultDataBlockId = resultBlockId;
     }
 
     *pOptrInfo = pOperator;
@@ -596,6 +610,11 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
     code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i], model);
     if (ops[i] == NULL || code != 0) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, "
+             "parentType:%d(%s), childIdx:%d, childType:%d(%s), childOp:%p",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             type, nodesNodeName(type), i, nodeType(pChildNode),
+             nodesNodeName(nodeType(pChildNode)), ops[i]);
       for (int32_t j = 0; j < i; ++j) {
         destroyOperator(ops[j]);
       }
@@ -693,9 +712,16 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     return code;
   }
 
+  if (code != TSDB_CODE_SUCCESS || pOptr == NULL) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, type:%d(%s), "
+             "op:%p",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             type, nodesNodeName(type), pOptr);
+  }
+
   taosMemoryFree(ops);
   if (pOptr) {
-    pOptr->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+    pOptr->resultDataBlockId = resultBlockId;
   }
 
   *pOptrInfo = pOptr;

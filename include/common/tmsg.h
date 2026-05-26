@@ -371,6 +371,8 @@ typedef enum ENodeType {
   QUERY_NODE_UPDATE_TAG_VALUE,
   QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE,
   QUERY_NODE_REMOTE_TABLE,
+  QUERY_NODE_FILE_TABLE,
+  QUERY_NODE_TEXT_TABLE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -450,6 +452,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_TOTP_SECRET_STMT,
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
+  QUERY_NODE_SET_TIMEZONE_STMT,
+  QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -571,6 +575,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
   QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+  QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -593,6 +598,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
   QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -663,6 +669,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE,
   // xnode
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
@@ -2061,6 +2068,7 @@ typedef struct {
   char        slidingUnit;
   char        offsetUnit;
   int8_t      precision;
+  int8_t      firstDayOfWeek;
   int64_t     interval;
   int64_t     sliding;
   int64_t     offset;
@@ -3155,6 +3163,23 @@ typedef struct {
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
+
+typedef struct {
+  int32_t compactId;
+} SDnodeQueryCompactProgressReq;
+
+int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+
+typedef struct {
+  int32_t                   dnodeId;
+  int32_t                   numOfVnodes;
+  SQueryCompactProgressRsp *vnodeProgress;  // array of numOfVnodes elements
+} SDnodeQueryCompactProgressRsp;
+
+int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
 
 typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
 typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;
@@ -4358,6 +4383,7 @@ typedef struct SSubQueryMsg {
   int8_t   explain;
   int8_t   needFetch;
   int8_t   compress;
+  int8_t   firstDayOfWeek;
   uint32_t sqlLen;
   char*    sql;
   uint32_t msgLen;
@@ -5635,7 +5661,7 @@ enum {
 };
 
 enum {
-  WITH_DATA = 0,
+  ONLY_DATA = 0,
   WITH_META = 1,
   ONLY_META = 2,
 };
@@ -6241,12 +6267,6 @@ typedef struct {
   int32_t debugFlag;
 } SMqHbRsp;
 
-typedef struct {
-  SMsgHead head;
-  int64_t  consumerId;
-  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
-} SMqSeekReq;
-
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -6373,9 +6393,6 @@ void    tDestroySMqHbReq(SMqHbReq* pReq);
 int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 void    tDestroySMqHbRsp(SMqHbRsp* pRsp);
-
-int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
-int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define TD_REQ_FROM_APP               0x0
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1

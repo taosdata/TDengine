@@ -7649,6 +7649,9 @@ int32_t blockDistFunction(SqlFunctionCtx* pCtx) {
   for (int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
     pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
   }
+  for (int32_t i = 0; i < tListLen(pDistInfo->blockRowsHistoFixed); ++i) {
+    pDistInfo->blockRowsHistoFixed[i] += p1.blockRowsHistoFixed[i];
+  }
 
   pResInfo->numOfRes = BLOCK_DIST_RESULT_ROWS;  // default output rows
   return TSDB_CODE_SUCCESS;
@@ -7680,6 +7683,10 @@ int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDist
 
   for (int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->blockRowsHisto[i]));
+  }
+
+  for (int32_t i = 0; i < tListLen(pInfo->blockRowsHistoFixed); ++i) {
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pInfo->blockRowsHistoFixed[i]));
   }
 
   tEndEncode(&encoder);
@@ -7719,6 +7726,12 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
 
   for (int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->blockRowsHisto[i]));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < tListLen(pInfo->blockRowsHistoFixed); ++i) {
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pInfo->blockRowsHistoFixed[i]));
+    }
   }
 
 _exit:

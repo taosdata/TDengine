@@ -79,6 +79,8 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_TEXT_TABLE:
+    case QUERY_NODE_FILE_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
@@ -100,12 +102,18 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
-      res = walkExpr(pState->pExpr, order, walker, pContext);
+      res = walkExprs(pState->pExprList, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pState->pCol, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pState->pTrueForLimit, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pState->pExtend, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pState->pZerothList, order, walker, pContext);
       }
       break;
     }
@@ -363,6 +371,8 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_TEXT_TABLE:
+    case QUERY_NODE_FILE_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
@@ -384,7 +394,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
-      res = rewriteExpr(&pState->pExpr, order, rewriter, pContext);
+      res = rewriteExprs(pState->pExprList, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pCol, order, rewriter, pContext);
       }
@@ -395,7 +405,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
         res = rewriteExpr(&pState->pExtend, order, rewriter, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = rewriteExpr(&pState->pZeroth, order, rewriter, pContext);
+        res = rewriteExprs(pState->pZerothList, order, rewriter, pContext);
       }
       break;
     }
