@@ -1,0 +1,82 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# JetBrains IDEs (IntelliJ, PyCharm, GoLand, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+\#*\#
+.\#*
+*.elc
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+*.log
+
+# OS temp files
+*.tmp
+*.bak
+*.orig
+
+# vscode extensions - local history files
+.history/
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Rust
+target/
+Cargo.lock
+
+# Browser auth state (contains session cookies)
+.feishu-auth-state.json
+
+# Telemetry server artifacts
+scripts/skill-telemetry-server/data/
+scripts/skill-telemetry-server/.cargo/
+*.tar.xz
+*.parquet
+

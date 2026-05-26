@@ -1,0 +1,7 @@
+interface:
+  display_name: "TDinternal Linux 101"
+  short_description: "Run TDinternal build/test/log commands on 192.168.127.101"
+  default_prompt: "Use $tsdb-build-linux when the task requires running TDinternal build, log, or pytest commands on the Linux repro host 192.168.127.101."
+
+policy:
+  allow_implicit_invocation: true

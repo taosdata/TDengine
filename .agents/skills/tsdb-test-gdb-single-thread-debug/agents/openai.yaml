@@ -1,0 +1,4 @@
+interface:
+  display_name: "GDB Single-Thread Debug"
+  short_description: "Guide Codex to debug single-threaded code with GDB."
+  default_prompt: "Use $tsdb-test-gdb-single-thread-debug to investigate a single-threaded crash or logic bug with optional breakpoint hints."

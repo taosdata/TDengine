@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-perf-analysis",
+  "displayName": "Performance Data Analysis",
+  "description": "AI analyzes captured performance data files, identifies hotspot functions, analyzes call chains, and locates performance bottlenecks.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "analysis",
+    "hotspot",
+    "bottleneck",
+    "tdengine"
+  ],
+  "triggers": [
+    "analyze perf report",
+    "hotspot functions",
+    "performance bottleneck",
+    "perf_report.txt",
+    "flame graph analysis"
+  ]
+}

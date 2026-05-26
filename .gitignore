@@ -39,8 +39,6 @@ node_modules/
 .claude
 .github/skills/
 .github/skills
-.agents
-.agents/
 .github/prompts/
 mcp.json
 

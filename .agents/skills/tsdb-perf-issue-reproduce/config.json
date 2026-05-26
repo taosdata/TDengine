@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-perf-issue-reproduce",
+  "displayName": "Performance Issue Reproduction",
+  "description": "Create a structured workspace for reproducing and analyzing performance issues. Each issue gets its own directory under /root/ccdocs with reproduction scripts, analysis tools, and documentation.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "reproduction",
+    "workspace",
+    "issue",
+    "tdengine"
+  ],
+  "triggers": [
+    "reproduce issue",
+    "create issue workspace",
+    "performance issue",
+    "ccdocs",
+    "issue reproduction"
+  ]
+}

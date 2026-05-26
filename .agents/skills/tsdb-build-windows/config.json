@@ -1,0 +1,22 @@
+{
+  "name": "tdinternal-windows-build",
+  "displayName": "TDinternal Windows Build",
+  "description": "Verified VS2022 + CMake + JOM build workflow for TDinternal on Windows",
+  "version": "1.0.0",
+  "author": "TDinternal Team",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "cmake",
+    "cpp",
+    "build-system",
+    "windows"
+  ],
+  "triggers": [
+    "windows build",
+    "compile on windows",
+    "jom",
+    "vcvars64",
+    "cmake configure"
+  ]
+}

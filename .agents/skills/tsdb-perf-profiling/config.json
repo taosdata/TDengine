@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-perf-profiling",
+  "displayName": "Performance Profiling",
+  "description": "Use perf, google-perftools and other profiling tools to capture CPU, memory, and lock performance data. Generate flame graphs and analysis reports.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "profiling",
+    "perf",
+    "flamegraph",
+    "tdengine"
+  ],
+  "triggers": [
+    "perf record",
+    "flame graph",
+    "cpu profiling",
+    "heap profiling",
+    "lock contention"
+  ]
+}

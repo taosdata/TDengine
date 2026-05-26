@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-perf-fix",
+  "displayName": "Performance Fix Implementation",
+  "description": "Implement performance optimizations based on code analysis. Apply algorithm improvements, data structure changes, concurrency optimizations, and caching strategies.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "optimization",
+    "refactor",
+    "algorithm",
+    "tdengine"
+  ],
+  "triggers": [
+    "implement optimization",
+    "fix performance",
+    "optimize algorithm",
+    "reduce memory allocation",
+    "improve concurrency"
+  ]
+}
