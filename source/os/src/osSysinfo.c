@@ -233,8 +233,18 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
   FreeLibrary(dll);
 
-  // Return EXCEPTION_EXECUTE_HANDLER to terminate the process after dump
-  return EXCEPTION_EXECUTE_HANDLER;
+  // Return EXCEPTION_CONTINUE_SEARCH so that Windows Error Reporting (WER /
+  // WerFault.exe) can write an out-of-process dump as a fallback.  WerFault
+  // runs in a separate process and is therefore immune to stack/heap corruption
+  // in this process — it will still produce a valid dump even when
+  // MiniDumpWriteDump above failed (e.g. due to stack overflow or heap
+  // corruption that zeroed out our stack frame).
+  // Configure the WER dump directory via:
+  //   HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\taosd.exe
+  //     DumpFolder  REG_EXPAND_SZ  <path>
+  //     DumpType    REG_DWORD      2        (full user-mode dump)
+  //     DumpCount   REG_DWORD      10
+  return EXCEPTION_CONTINUE_SEARCH;
 }
 
 // Vectored Exception Handler - called BEFORE SEH, can catch heap corruption
