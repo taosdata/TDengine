@@ -1523,7 +1523,7 @@ elseif(TD_WINDOWS)
     if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
         set(ext_libxml2_static libxml2sd.lib)
     else()
-        set(ext_libxml2_static libxml2.lib)
+        set(ext_libxml2_static libxml2s.lib)
     endif()
     # On Windows, libxml2 is built as a static library, consumers must define LIBXML_STATIC
     macro(DEP_ext_libxml2_INC tgt)

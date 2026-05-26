@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-perf-code-locate",
+  "displayName": "Performance Code Location",
+  "description": "Combine performance analysis results with source code examination to locate the exact code causing performance issues. Analyze algorithm complexity and resource usage.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "source-code",
+    "algorithm",
+    "optimization",
+    "tdengine"
+  ],
+  "triggers": [
+    "locate hotspot",
+    "find bottleneck code",
+    "algorithm complexity",
+    "code analysis",
+    "source code performance"
+  ]
+}

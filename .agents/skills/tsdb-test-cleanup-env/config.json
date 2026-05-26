@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-test-cleanup-env",
+  "displayName": "Cleanup Test Environment",
+  "description": "Cross-platform cleanup workflow for TDengine test environment",
+  "version": "1.0.0",
+  "author": "TDengine Team",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "testing",
+    "tdengine",
+    "environment",
+    "linux",
+    "windows"
+  ],
+  "triggers": [
+    "cleanup test environment",
+    "reset test env",
+    "kill taosd",
+    "clear sim directory",
+    "delete test run directory"
+  ]
+}

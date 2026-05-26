@@ -1,0 +1,22 @@
+{
+  "name": "tsdb-perf-scenario-setup",
+  "displayName": "Performance Scenario Setup",
+  "description": "Setup performance test scenario with taosd, generate test data using taosBenchmark/taosgen, and create write/query scripts to reproduce performance issues.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "taosd",
+    "benchmark",
+    "tdengine"
+  ],
+  "triggers": [
+    "performance scenario",
+    "setup perf test",
+    "taosBenchmark",
+    "generate test data",
+    "reproduce performance issue"
+  ]
+}
