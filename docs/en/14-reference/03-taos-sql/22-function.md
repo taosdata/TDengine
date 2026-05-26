@@ -1293,11 +1293,13 @@ taos> select repeat('abc',-1);
 TO_BASE64(expr)
 ```
 
-**Function Description**: Returns the base64 encoding of the string `expr`s.
+**Function Description**: Returns the base64 encoding of `expr`. For non-string types, the value is first converted to its string representation before encoding.
 
 **Return Type**: VARCHAR.
 
-**Applicable Data Types**: Suitable for any type.
+**Applicable Data Types**:
+
+- `expr`: BOOL, numeric types (TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/DECIMAL and their unsigned variants), TIMESTAMP, VARCHAR, NCHAR.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1306,9 +1308,7 @@ TO_BASE64(expr)
 **Usage Notes**:
 
 - If `expr` is NULL, returns NULL.
-- if `expr` is the empty string, it returns the empty string.
-- if `expr` is a non string, it is interpreted as a string.
-- This function is multibyte safe.
+- If the base64-encoded result exceeds the maximum VARCHAR length, an error is returned.
 
 **Example**:
 

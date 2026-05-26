@@ -3034,38 +3034,9 @@ _return:
   return code;
 }
 
-static char base64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                            "abcdefghijklmnopqrstuvwxyz"
-                            "0123456789+/";
-
-uint32_t base64BufSize(size_t inputLenBytes) {
-  return 4 * ((inputLenBytes + 2) / 3);
-}
-
-static VarDataLenT base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inputLen) {
-  VarDataLenT outputLen = base64BufSize(inputLen);
-
-  for (size_t i = 0, j = 0; i < inputLen;) {
-    unsigned int octet_a = i < inputLen ? inputBytes[i++] : 0;
-    unsigned int octet_b = i < inputLen ? inputBytes[i++] : 0;
-    unsigned int octet_c = i < inputLen ? inputBytes[i++] : 0;
-
-    unsigned int triple = (octet_a << 16) | (octet_b << 8) | octet_c;
-
-    base64Out[j++] = base64Table[(triple >> 18) & 0x3F];
-    base64Out[j++] = base64Table[(triple >> 12) & 0x3F];
-    base64Out[j++] = base64Table[(triple >> 6) & 0x3F];
-    base64Out[j++] = base64Table[triple & 0x3F];
-  }
-
-  for (int k = 0; k < (3 - (inputLen % 3)) % 3; k++) {
-    base64Out[outputLen - k - 1] = '=';
-  }
-
-  base64Out[outputLen] = 0;
-
-  return outputLen;
-}
+/* Maximum input bytes whose base64 encoding fits in TSDB_MAX_FIELD_LEN (65519):
+   tbase64_encode_len(n) = 4*((n+2)/3) <= 65519  =>  n <= 49137 */
+#define BASE64_MAX_INPUT_LEN 49137
 
 #define BASE64_TRUE  "MQ=="
 #define BASE64_FALSE "MA=="
@@ -3075,19 +3046,16 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
   int16_t inputType = GET_PARAM_TYPE(&pInput[0]);
-  int64_t outputLen = GET_PARAM_BYTES(&pOutput[0]);
   char *stringBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
-  char *output = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
+  char *output = taosMemoryMalloc(tbase64_encode_len(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE);
+  SArray *formats = NULL;
 
-  if (!stringBuf || output) {
+  if (!stringBuf || !output) {
+    taosMemoryFree(stringBuf);
+    taosMemoryFree(output);
     SCL_ERR_RET(terrno);
   }
 
-  /* Preparing the output buffer with VARSTR_HEADER_SIZE
-     non-zero char at the beginning */
-  for (size_t i = 0; i < VARSTR_HEADER_SIZE; i++) {
-    output[i] = 1;
-  }
   char *out = output + VARSTR_HEADER_SIZE;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -3097,39 +3065,41 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
-    size_t inputLen = varDataLen(input);
     size_t outputSize = TSDB_MAX_FIELD_LEN;
 
     if (inputType == TSDB_DATA_TYPE_BOOL) {
       memcpy(out, *(int8_t *)input ? BASE64_TRUE : BASE64_FALSE, 4);
+      varDataSetLen(output, 4);
       SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
       continue;
     }
 
     if (IS_NUMERIC_TYPE(inputType)) {
       if (IS_DECIMAL_TYPE(inputType)) {
-		outputSize = (outputLen - VARSTR_HEADER_SIZE) < TSDB_MAX_FIELD_LEN
-                        ? (outputLen - VARSTR_HEADER_SIZE + 1)
-                        : TSDB_MAX_FIELD_LEN;
         uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
-        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, outputSize));
+        SCL_ERR_JRET(decimalToStr(input, inputType, inputPrec, inputScale, stringBuf, TSDB_MAX_FIELD_LEN));
       } else {
         NUM_TO_STRING(inputType, input, outputSize, stringBuf);
       }
       outputSize = strlen(stringBuf);
     } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-      /* The format used by MySQL in the conversion from timestamp to string */
       char *format = "yyyy-mm-dd hh24:mi:ss";
-      SArray *formats = NULL;
-      SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, 0, stringBuf, outputSize, pInput->tz));
+      code = taosTs2Char(format, &formats, *(int64_t *)input, pInput[0].columnData->info.precision, stringBuf, outputSize, pInput->tz);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
       outputSize = strlen(stringBuf);
-      taosArrayDestroy(formats);
     } else {
+      size_t inputLen = varDataLen(input);
       outputSize = inputLen;
       memcpy(stringBuf, varDataVal(input), outputSize);
     }
 
-    VarDataLenT outputLength = base64Impl(out, stringBuf, outputSize);
+    if (outputSize > BASE64_MAX_INPUT_LEN) {
+      code = TSDB_CODE_FUNC_INVALID_RES_LENGTH;
+      goto _return;
+    }
+
+    VarDataLenT outputLength = (VarDataLenT)tbase64_encode_len(outputSize);
+    tbase64_encode((uint8_t *)out, (const uint8_t *)stringBuf, outputSize, outputLength);
     varDataSetLen(output, outputLength);
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, output, false));
   }
@@ -3137,6 +3107,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   pOutput->numOfRows = pInput->numOfRows;
 
 _return:
+  taosArrayDestroy(formats);
   taosMemoryFree(output);
   taosMemoryFree(stringBuf);
   return code;

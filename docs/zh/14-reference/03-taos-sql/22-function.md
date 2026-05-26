@@ -1341,11 +1341,13 @@ UPPER(expr)
 TO_BASE64(expr)
 ```
 
-**功能说明**: 传回字符串“expr”的 Base64 编码。
+**功能说明**: 返回 `expr` 的 Base64 编码。对于非字符串类型，先将值转换为字符串表示再进行编码。
 
 **返回结果类型**: VARCHAR
 
-**适用数据类型**: 任何类型。
+**适用数据类型**:
+
+- `expr`: BOOL、数值类型（TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/DECIMAL 及其无符号变体）、TIMESTAMP、VARCHAR、NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1353,10 +1355,8 @@ TO_BASE64(expr)
 
 **使用说明**:
 
-- 若 `expr` 为 NULL，返回 NULL。
-- 如果 `expr` 为空字符串，则返回空字符串。
-- 如果 `expr` 为非字符串，则将其解释为字符串。
-- 此函数是多字节安全的。
+- 若 expr 为 NULL，返回 NULL。
+- 若 Base64 编码结果超过 VARCHAR 最大长度，返回错误。
 
 **举例**:
 
