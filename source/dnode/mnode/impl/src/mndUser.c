@@ -389,9 +389,7 @@ static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
     }
 
-    taosRLockLatch(&pUser->lock);
     SIpWhiteListDual *wl = cloneIpWhiteList(pUser->pIpWhiteListDual);
-    taosRUnLockLatch(&pUser->lock);
     if (wl == NULL) {
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
@@ -471,9 +469,7 @@ static int32_t userCacheRebuildTimeWhiteList(SMnode *pMnode) {
       TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
     }
 
-    taosRLockLatch(&pUser->lock);
     SDateTimeWhiteList *wl = cloneDateTimeWhiteList(pUser->pTimeWhiteList);
-    taosRUnLockLatch(&pUser->lock);
     if (wl == NULL) {
       sdbRelease(pSdb, pUser);
       sdbCancelFetch(pSdb, pIter);
@@ -4079,7 +4075,6 @@ bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
   if (!hasPriv && pUser->roles) {
     void     *pIter = NULL;
     SRoleObj *pRole = NULL;
-    taosRLockLatch(&pUser->lock);
     while ((pIter = taosHashIterate(pUser->roles, pIter)) != NULL) {
       char *roleName = taosHashGetKey(pIter, NULL);
       if (!roleName) continue;
@@ -4092,7 +4087,6 @@ bool mndUserHasMacLabelPriv(SMnode *pMnode, SUserObj *pUser) {
       }
       mndReleaseRole(pMnode, pRole);
     }
-    taosRUnLockLatch(&pUser->lock);
   }
   if (!hasPriv) return false;
   // When MAC is mandatory, PRIV_SECURITY_POLICY_ALTER holder must have the highest security level
@@ -4140,7 +4134,6 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     // SoD mandatory mode: check revoke of management roles
     if ((pAlterReq->add == 0) && isSysRole && (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY)) {
       uint8_t roleType = 0;
-      taosRLockLatch(&pUser->lock);
       if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0) {
         if (taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
           roleType = T_ROLE_SYSDBA;
@@ -4154,7 +4147,6 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
           roleType = T_ROLE_SYSAUDIT;
         }
       }
-      taosRUnLockLatch(&pUser->lock);
       if (roleType != 0) {
         TAOS_CHECK_EXIT(mndCheckManagementRoleStatus(pMnode, pAlterReq->principal, 0));
       }
@@ -4322,10 +4314,8 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     // MAC mandatory: new security_level must satisfy role floors for both min and max,
     // and direct PRIV_SECURITY_POLICY_ALTER holders must keep maxSecLevel=4.
     if (pMnode->macActive == MAC_MODE_MANDATORY) {
-      taosRLockLatch(&pUser->lock);
       int8_t floorMaxLevel = mndGetUserRoleFloorMaxLevel(pUser->roles);
       int8_t floorMinLevel = mndGetUserRoleFloorMinLevel(pUser->roles);
-      taosRUnLockLatch(&pUser->lock);
       if (pAlterReq->maxSecLevel < floorMaxLevel) {
         mError("user:%s, ALTER security_level rejected under MAC: maxSecLevel(%d) < role maxFloor(%d)", pAlterReq->user,
                (int32_t)pAlterReq->maxSecLevel, (int32_t)floorMaxLevel);
@@ -4714,10 +4704,7 @@ int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
-    taosRLockLatch(&pUser->lock);
-    bool hasAuditLog = taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG)) != NULL;
-    taosRUnLockLatch(&pUser->lock);
-    if (hasAuditLog) {
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG)) != NULL) {
       (void)taosThreadRwlockWrlock(&userCache.rw);
       (void)tsnprintf(userCache.auditLogUser, TSDB_USER_LEN, "%s", pUser->name);
       (void)taosThreadRwlockUnlock(&userCache.rw);
@@ -5127,9 +5114,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     cols++;
 
-    taosRLockLatch(&pUser->lock);
     int32_t tlen = convertIpWhiteListToStr(pUser, &buf);
-    taosRUnLockLatch(&pUser->lock);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
@@ -5149,9 +5134,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     cols++;
-    taosRLockLatch(&pUser->lock);
     tlen = convertTimeRangesToStr(pUser, &buf);
-    taosRUnLockLatch(&pUser->lock);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
@@ -5174,12 +5157,10 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       void  *pIter = NULL;
       size_t klen = 0, tlen = 0;
       char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-      taosRLockLatch(&pUser->lock);
       while ((pIter = taosHashIterate(pUser->roles, pIter))) {
         char *roleName = taosHashGetKey(pIter, &klen);
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }
-      taosRUnLockLatch(&pUser->lock);
       if (tlen > 0) {
         pBuf[--tlen] = 0;  // remove last ','
       } else {
@@ -5281,13 +5262,8 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (showSecurityInfo) {
-      taosRLockLatch(&pUser->lock);
-      STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->passwords[0].pass, pShow->pMeta->pSchemas[cols].bytes);
-      taosRUnLockLatch(&pUser->lock);
-    } else {
-      STR_WITH_MAXSIZE_TO_VARSTR(pass, "*", pShow->pMeta->pSchemas[cols].bytes);
-    }
+    STR_WITH_MAXSIZE_TO_VARSTR(pass, showSecurityInfo ? pUser->passwords[0].pass : "*",
+                               pShow->pMeta->pSchemas[cols].bytes);
     COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, pShow->pIter, _exit);
 
     cols++;
@@ -5343,9 +5319,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     COL_DATA_SET_VAL_GOTO((const char *)&pUser->allowTokenNum, false, pUser, pShow->pIter, _exit);
 
     cols++;
-    taosRLockLatch(&pUser->lock);
     int32_t tlen = convertIpWhiteListToStr(pUser, &buf);
-    taosRUnLockLatch(&pUser->lock);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
@@ -5365,9 +5339,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
 
     cols++;
-    taosRLockLatch(&pUser->lock);
     tlen = convertTimeRangesToStr(pUser, &buf);
-    taosRUnLockLatch(&pUser->lock);
     if (tlen != 0) {
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
@@ -5390,12 +5362,10 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       void  *pIter = NULL;
       size_t klen = 0, tlen = 0;
       char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-      taosRLockLatch(&pUser->lock);
       while ((pIter = taosHashIterate(pUser->roles, pIter))) {
         char *roleName = taosHashGetKey(pIter, &klen);
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }
-      taosRUnLockLatch(&pUser->lock);
       if (tlen > 0) {
         pBuf[--tlen] = 0;  // remove last ','
       } else {
@@ -6177,10 +6147,8 @@ int32_t mndUserDropRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {
   void     *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
-    taosRLockLatch(&pUser->lock);
-    bool hasRole = (taosHashGet(pUser->roles, pObj->name, strlen(pObj->name) + 1) != NULL);
-    taosRUnLockLatch(&pUser->lock);
-    if (!hasRole) {
+    SHashObj *pRole = taosHashGet(pUser->roles, pObj->name, strlen(pObj->name) + 1);
+    if (!pRole) {
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
@@ -6259,10 +6227,7 @@ static int32_t mndUserRemoveDbPrivs(SMnode *pMnode, STrans *pTrans, const char *
   bool       output = (ppUsers != NULL);
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
     bool found = false;
-    taosWLockLatch(&pUser->lock);
-    code = mndUserRemoveDbPrivsImpl(pUser, key, keyLen, &found);
-    taosWUnLockLatch(&pUser->lock);
-    TAOS_CHECK_EXIT(code);
+    TAOS_CHECK_EXIT(mndUserRemoveDbPrivsImpl(pUser, key, keyLen, &found));
     if (!found) {
       sdbRelease(pSdb, pUser);
       pUser = NULL;
@@ -6570,10 +6535,8 @@ int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
-    taosRLockLatch(&pUser->lock);
     if (pUser->enable == 0 || pUser->superUser == 1 || taosHashGetSize(pUser->roles) == 0 ||
         (skipUser && strncmp(pUser->user, skipUser, TSDB_USER_LEN) == 0)) {
-      taosRUnLockLatch(&pUser->lock);
       sdbRelease(pSdb, pUser);
       continue;
     }
@@ -6587,7 +6550,6 @@ int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8
                taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
       foundRoles |= T_ROLE_SYSAUDIT;
     }
-    taosRUnLockLatch(&pUser->lock);
     sdbRelease(pSdb, pUser);
     if (foundRoles == (T_ROLE_SYSDBA | T_ROLE_SYSSEC | T_ROLE_SYSAUDIT)) {
       sdbCancelFetch(pSdb, pIter);
