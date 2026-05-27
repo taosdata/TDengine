@@ -1084,6 +1084,7 @@ typedef struct SDescribeStmt {
 typedef struct SKillStmt {
   ENodeType type;
   int32_t   targetId;
+  bool      force;
 } SKillStmt;
 
 typedef struct SKillQueryStmt {
