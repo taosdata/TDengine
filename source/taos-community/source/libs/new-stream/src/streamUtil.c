@@ -959,24 +959,20 @@ _end:
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
-                                const SSTriggerCalcParam* pParams, int32_t nParam) {
+// Build the JSON notification message from trigger params.
+// On success, *ppMsg is a heap-owned NUL-terminated string (caller must free).
+// If no params need notification, *ppMsg is NULL and *pMsgLen is 0.
+static int32_t streamBuildNotifyMsgInternal(const char* streamName, const char* tableName, int32_t triggerType,
+                                             int64_t groupId, const SSTriggerCalcParam* pParams, int32_t nParam,
+                                             char** ppMsg, size_t* pMsgLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStringBuilder sb = {0};
   const char*    msgTail = "]}]}";
-  char*          msg = NULL;
-  SCURL          conn = {0};
   bool           shouldNotify = false;
 
-  // Remove prefix 1. 
-  char*          pos = strstr(streamName, TS_PATH_DELIMITER);
-  if (pos != NULL) streamName = ++pos;
-
-  if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
-    goto _end;
-  }
+  *ppMsg = NULL;
+  *pMsgLen = 0;
 
   for (int32_t i = 0; i < nParam; ++i) {
     if (pParams[i].notifyType != STRIGGER_EVENT_WINDOW_NONE) {
@@ -984,18 +980,16 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
       break;
     }
   }
-
   if (!shouldNotify) {
     goto _end;
   }
 
-  taosStringBuilderEnsureCapacity(&sb, 1024);
   size_t msgTailLen = strlen(msgTail);
+  taosStringBuilderEnsureCapacity(&sb, 1024);
 
   code = streamAppendNotifyHeader(streamName, &sb);
   QUERY_CHECK_CODE(code, lino, _end);
   sb.pos -= msgTailLen;
-  int32_t nSentParams = 0;
   for (int32_t i = 0; i < nParam; ++i) {
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
@@ -1003,11 +997,30 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
-    nSentParams++;
   }
   sb.pos -= 1;
   taosStringBuilderAppendStringLen(&sb, msgTail, msgTailLen);
-  msg = taosStringBuilderGetResult(&sb, NULL);
+
+  // Ensure NUL terminator and transfer ownership of buffer.
+  taosStringBuilderGetResult(&sb, NULL);
+  *ppMsg = sb.buf;
+  *pMsgLen = sb.pos;
+  sb.buf = NULL;  // prevent Destroy from freeing the transferred buffer
+
+_end:
+  taosStringBuilderDestroy(&sb);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+// Send a pre-built JSON message to all URLs synchronously.
+// When NOTIFY_ON_FAILURE_PAUSE is set in addOptions, retries on failure.
+// Otherwise, failures are logged and ignored.
+static void streamSendNotifyMsgToUrls(const char* msg, size_t msgLen, const SArray* pNotifyAddrUrls,
+                                      int32_t addOptions, int64_t streamId) {
+  SCURL conn = {0};
 
   for (int32_t i = 0; i < TARRAY_SIZE(pNotifyAddrUrls); ++i) {
     char** pUrl = TARRAY_GET_ELEM(pNotifyAddrUrls, i);
@@ -1015,26 +1028,25 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
       continue;
     }
 
-    // todo(kjq): check if task should stop
     conn.url = taosStrdup(*pUrl);
-    QUERY_CHECK_NULL(conn.url, code, lino, _end, terrno);
-    code = tcurlConnect(&conn.pConn, *pUrl);
+    if (!conn.url) {
+      stError("streamId:%" PRIx64 " failed to dup notify URL", streamId);
+      continue;
+    }
+    int32_t code = tcurlConnect(&conn.pConn, *pUrl);
     if (code != TSDB_CODE_SUCCESS) {
-      ST_TASK_ELOG("failed to get stream notify handle of %s", *pUrl);
+      stError("streamId:%" PRIx64 " failed to connect notify URL %s", streamId, *pUrl);
       tcurlClose(&conn);
       if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
-        // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;
         continue;
       } else {
-        // simply ignore the failure in DROP error handling mode
-        code = TSDB_CODE_SUCCESS;
         continue;
       }
     }
 
-    size_t   totalLen = sb.pos;
+    size_t   totalLen = msgLen;
     size_t   sentLen = 0;
     CURLcode res = CURLE_OK;
     while (sentLen < totalLen) {
@@ -1051,27 +1063,220 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     }
     tcurlClose(&conn);
     if (res != CURLE_OK) {
-      ST_TASK_ELOG("failed to send stream notify msg to %s for %d", *pUrl, res);
+      stError("streamId:%" PRIx64 " failed to send notify msg to %s, curl error:%d", streamId, *pUrl, (int32_t)res);
       if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
-        // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
         --i;
-      } else {
-        // simply ignore the failure in DROP error handling mode
-        code = TSDB_CODE_SUCCESS;
       }
     } else {
-      ST_TASK_DLOG("notify %d events to %s successfully", nSentParams, *pUrl);
+      stDebug("streamId:%" PRIx64 " notify sent to %s successfully", streamId, *pUrl);
     }
   }
 
-_end:
   tcurlClose(&conn);
-  taosStringBuilderDestroy(&sb);
+}
+
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
+                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                const SSTriggerCalcParam* pParams, int32_t nParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  char*   msg = NULL;
+  size_t  msgLen = 0;
+
+  // Remove DB prefix from stream name.
+  char* pos = strstr(streamName, TS_PATH_DELIMITER);
+  if (pos != NULL) streamName = ++pos;
+
+  if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
+    goto _end;
+  }
+
+  code = streamBuildNotifyMsgInternal(streamName, tableName, triggerType, groupId, pParams, nParam, &msg, &msgLen);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (msg != NULL) {
+    streamSendNotifyMsgToUrls(msg, msgLen, pNotifyAddrUrls, addOptions, pTask->streamId);
+  }
+
+_end:
+  taosMemoryFree(msg);
   if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+// ---------------------------------------------------------------------------
+// Async notification path (used when NOTIFY_ON_FAILURE_PAUSE is NOT set)
+// ---------------------------------------------------------------------------
+
+static void streamNotifyItemDestroy(SStreamNotifyItem* pItem) {
+  if (!pItem) return;
+  taosMemoryFree(pItem->msg);
+  if (pItem->pUrls) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pItem->pUrls); i++) {
+      char* url = *(char**)taosArrayGet(pItem->pUrls, i);
+      taosMemoryFree(url);
+    }
+    taosArrayDestroy(pItem->pUrls);
+  }
+  taosMemoryFree(pItem);
+}
+
+static void* streamNotifyWorkerThread(void* arg) {
+  SStreamNotifyWorker* pWorker = (SStreamNotifyWorker*)arg;
+  SArray*              pLocal = taosArrayInit(16, POINTER_BYTES);
+  setThreadName("stream-notify");
+
+  while (true) {
+    taosThreadMutexLock(&pWorker->lock);
+    while (pWorker->running && taosArrayGetSize(pWorker->pPending) == 0) {
+      taosThreadCondWait(&pWorker->cond, &pWorker->lock);
+    }
+    bool shouldExit = !pWorker->running && taosArrayGetSize(pWorker->pPending) == 0;
+
+    // Drain pending queue into local array under lock.
+    taosArrayClear(pLocal);
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pWorker->pPending); i++) {
+      taosArrayPush(pLocal, taosArrayGet(pWorker->pPending, i));
+    }
+    taosArrayClear(pWorker->pPending);
+    taosThreadMutexUnlock(&pWorker->lock);
+
+    // Send each item outside the lock (network I/O).
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pLocal); i++) {
+      SStreamNotifyItem* pItem = *(SStreamNotifyItem**)taosArrayGet(pLocal, i);
+      streamSendNotifyMsgToUrls(pItem->msg, pItem->msgLen, pItem->pUrls, 0 /* no PAUSE */, 0);
+      streamNotifyItemDestroy(pItem);
+    }
+
+    if (shouldExit) break;
+  }
+
+  taosArrayDestroy(pLocal);
+  return NULL;
+}
+
+int32_t streamNotifyWorkerInit(SStreamNotifyWorker* pWorker) {
+  pWorker->pPending = taosArrayInit(16, POINTER_BYTES);
+  if (!pWorker->pPending) return terrno;
+
+  int32_t code = taosThreadMutexInit(&pWorker->lock, NULL);
+  if (code) {
+    taosArrayDestroy(pWorker->pPending);
+    return code;
+  }
+  code = taosThreadCondInit(&pWorker->cond, NULL);
+  if (code) {
+    taosThreadMutexDestroy(&pWorker->lock);
+    taosArrayDestroy(pWorker->pPending);
+    return code;
+  }
+
+  pWorker->running = true;
+  pWorker->inited = true;
+
+  TdThreadAttr attr;
+  taosThreadAttrInit(&attr);
+  code = taosThreadCreate(&pWorker->thread, &attr, streamNotifyWorkerThread, pWorker);
+  taosThreadAttrDestroy(&attr);
+
+  if (code) {
+    pWorker->running = false;
+    pWorker->inited = false;
+    taosThreadCondDestroy(&pWorker->cond);
+    taosThreadMutexDestroy(&pWorker->lock);
+    taosArrayDestroy(pWorker->pPending);
+    return code;
+  }
+
+  stInfo("stream async notify worker started");
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamNotifyWorkerDestroy(SStreamNotifyWorker* pWorker) {
+  if (!pWorker->inited) return;
+
+  taosThreadMutexLock(&pWorker->lock);
+  pWorker->running = false;
+  taosThreadCondSignal(&pWorker->cond);
+  taosThreadMutexUnlock(&pWorker->lock);
+
+  taosThreadJoin(pWorker->thread, NULL);
+
+  // Drop any items still pending (best-effort, no retries on shutdown).
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pWorker->pPending); i++) {
+    SStreamNotifyItem* pItem = *(SStreamNotifyItem**)taosArrayGet(pWorker->pPending, i);
+    streamNotifyItemDestroy(pItem);
+  }
+  taosArrayDestroy(pWorker->pPending);
+  taosThreadCondDestroy(&pWorker->cond);
+  taosThreadMutexDestroy(&pWorker->lock);
+  pWorker->inited = false;
+
+  stInfo("stream async notify worker stopped");
+}
+
+int32_t streamAsyncNotifyContent(int64_t streamId, const char* streamName, const char* tableName, int32_t triggerType,
+                                 int64_t groupId, const SArray* pNotifyAddrUrls,
+                                 const SSTriggerCalcParam* pParams, int32_t nParam) {
+  SStreamNotifyWorker* pWorker = &gStreamMgmt.notifyWorker;
+  if (!pWorker->inited) {
+    return TSDB_CODE_SUCCESS;  // worker not up, silently drop
+  }
+
+  // Remove DB prefix from stream name.
+  const char* sname = streamName;
+  char*       pos = strstr(sname, TS_PATH_DELIMITER);
+  if (pos != NULL) sname = pos + 1;
+
+  if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char*   msg = NULL;
+  size_t  msgLen = 0;
+  int32_t code = streamBuildNotifyMsgInternal(sname, tableName, triggerType, groupId, pParams, nParam, &msg, &msgLen);
+  if (code != TSDB_CODE_SUCCESS || msg == NULL) {
+    taosMemoryFree(msg);
+    return TSDB_CODE_SUCCESS;  // build failed or nothing to send
+  }
+
+  // Deep-copy URL list so the worker owns it independently.
+  int32_t urlCount = (int32_t)taosArrayGetSize(pNotifyAddrUrls);
+  SArray* pUrlsCopy = taosArrayInit(urlCount, POINTER_BYTES);
+  if (!pUrlsCopy) {
+    taosMemoryFree(msg);
+    return TSDB_CODE_SUCCESS;  // OOM, drop silently
+  }
+  for (int32_t i = 0; i < urlCount; i++) {
+    char* url = *(char**)taosArrayGet(pNotifyAddrUrls, i);
+    char* copy = url ? taosStrdup(url) : NULL;
+    taosArrayPush(pUrlsCopy, &copy);
+  }
+
+  SStreamNotifyItem* pItem = taosMemCalloc(1, sizeof(SStreamNotifyItem));
+  if (!pItem) {
+    taosMemoryFree(msg);
+    for (int32_t i = 0; i < urlCount; i++) {
+      char* url = *(char**)taosArrayGet(pUrlsCopy, i);
+      taosMemoryFree(url);
+    }
+    taosArrayDestroy(pUrlsCopy);
+    return TSDB_CODE_SUCCESS;
+  }
+  pItem->msg = msg;
+  pItem->msgLen = msgLen;
+  pItem->pUrls = pUrlsCopy;
+
+  taosThreadMutexLock(&pWorker->lock);
+  taosArrayPush(pWorker->pPending, &pItem);
+  taosThreadCondSignal(&pWorker->cond);
+  taosThreadMutexUnlock(&pWorker->lock);
+
+  stDebug("streamId:%" PRIx64 " enqueued async notification (msgLen:%zu)", streamId, msgLen);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,

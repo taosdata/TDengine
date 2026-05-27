@@ -64,6 +64,24 @@ typedef struct SStreamVgReaderTasks {
 } SStreamVgReaderTasks;
 
 
+// Async notification item (pre-built JSON + deep-copied URL list)
+typedef struct SStreamNotifyItem {
+  char   *msg;     // heap-owned JSON string
+  size_t  msgLen;  // byte length of msg (excluding NUL)
+  SArray *pUrls;   // SArray<char*>, each URL is heap-owned
+} SStreamNotifyItem;
+
+// Background worker that sends notifications asynchronously.
+// Used when NOTIFY_ON_FAILURE_PAUSE is NOT set.
+typedef struct SStreamNotifyWorker {
+  TdThreadMutex  lock;
+  TdThreadCond   cond;
+  SArray        *pPending;  // SArray<SStreamNotifyItem*>, guarded by lock
+  TdThread       thread;
+  volatile bool  running;
+  bool           inited;
+} SStreamNotifyWorker;
+
 typedef struct SStreamMgmtInfo {
   void*                  timer;
   void*                  dnode;
@@ -90,6 +108,8 @@ typedef struct SStreamMgmtInfo {
   SHashObj*              vgroupMap;                       // vgId => SStreamVgReaderTasks
 
   SArray*                snodeTasks;                      // SArray<SStreamTask*>
+
+  SStreamNotifyWorker    notifyWorker;                    // async notification sender
 } SStreamMgmtInfo;
 
 extern SStreamMgmtInfo gStreamMgmt;
@@ -129,6 +149,11 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
                                 int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam);
+int32_t streamAsyncNotifyContent(int64_t streamId, const char* streamName, const char* tableName, int32_t triggerType,
+                                 int64_t groupId, const SArray* pNotifyAddrUrls,
+                                 const SSTriggerCalcParam* pParams, int32_t nParam);
+int32_t streamNotifyWorkerInit(SStreamNotifyWorker* pWorker);
+void    streamNotifyWorkerDestroy(SStreamNotifyWorker* pWorker);
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter);
