@@ -135,33 +135,43 @@ SIM_VOL="$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}"
 CORE_VOL="$TMP_DIR/thread_volume/$thread_no/coredump:${coredump_dir}"
 TAOSLOG_VOL="$TMP_DIR/thread_volume/$thread_no/taoslog:/var/log/taos"
 
-# 容器命名参数（用于 cancel 时按名字 stop）
-name_param=""
-[ -n "$container_name" ] && name_param="--name \"$container_name\""
+docker_cmd=(
+    docker run --privileged=true
+    -e CI_NO_ASAN=1
+    -v "${REP_MOUNT_PARAM}"
+    -v "${REP_MOUNT_DEBUG}"
+    -v "${REP_MOUNT_LIB}"
+    -v "${MOUNT_DIR}"
+    -v "${SOURCEDIR}:/usr/local/src/"
+    -v "${SIM_VOL}"
+    -v "${CORE_VOL}"
+    -v "${TAOSLOG_VOL}"
+    --rm --ulimit core=-1
+    "${DOCKER_IMAGE_NAME:-tdengine-ci:0.3}"
+    "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh"
+    -d "${exec_dir}"
+    -c "${cmd}"
+)
 
 # debugSan 构建已通过 -DBUILD_SANITIZER=1 将 ASAN 编译进二进制（GCC14, libasan.so.8）。
 # CI_ASAN_BUILD=1 告知 pytest.sh 通过 LD_PRELOAD 注入 libasan.so.8（匹配 GCC14 构建）。
-# CI_NO_ASAN=1 同时设置，禁止旧式 LD_PRELOAD 逻辑（两者兼容，pytest.sh 优先检查 CI_ASAN_BUILD）。
 if [ "${buildSan}" == "y" ]; then
-    asan_env="-e CI_NO_ASAN=1 -e CI_ASAN_BUILD=1"
-else
-    asan_env="-e CI_NO_ASAN=1"
+    docker_cmd=("${docker_cmd[@]:0:2}" -e CI_ASAN_BUILD=1 "${docker_cmd[@]:2}")
 fi
 
-docker_cmd="docker run --privileged=true \$asan_env \
-    $name_param \
-    -v \"${REP_MOUNT_PARAM}\" \
-    -v \"${REP_MOUNT_DEBUG}\" \
-    -v \"${REP_MOUNT_LIB}\" \
-    -v \"${MOUNT_DIR}\" \
-    -v \"${SOURCEDIR}:/usr/local/src/\" \
-    -v \"${SIM_VOL}\" \
-    -v \"${CORE_VOL}\" \
-    -v \"${TAOSLOG_VOL}\" \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d ${exec_dir} -c \"${cmd}\" ${extra_param}"
+# 容器命名参数（用于 cancel 时按名字 stop）
+if [ -n "${container_name:-}" ]; then
+    docker_cmd=("${docker_cmd[@]:0:2}" --name "${container_name}" "${docker_cmd[@]:2}")
+fi
 
-echo "$docker_cmd"  
-eval "$docker_cmd"
+if [[ -n "${extra_param:-}" ]]; then
+    read -r -a _extra_args <<< "${extra_param}"
+    docker_cmd+=("${_extra_args[@]}")
+fi
+
+printf '%q ' "${docker_cmd[@]}"
+echo
+"${docker_cmd[@]}"
 
 ret=$?
 exit "$ret"

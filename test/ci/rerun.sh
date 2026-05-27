@@ -387,7 +387,7 @@ docker run --rm --privileged=true \
     -v "${TMP_DIR}/sim:/home/TDinternal/sim" \
     -v "${TMP_DIR}/coredump:/tmp" \
     --ulimit core=-1 \
-    tdengine-ci:0.1 \
+    ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} \
     /home/TDinternal/community/test/ci/run_case.sh -d "." -c "$CMD" -e
 ret=$?
 
