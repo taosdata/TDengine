@@ -15,7 +15,6 @@
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_optimize_type_mismatch.py
 #,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v2.py -N 6
 #,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
 #,,n,.,pytest cases/24-Users/test_user_passwd.py
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode1mnode.py
@@ -1207,8 +1206,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_net_chk.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_hex.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_subscribe.py
+
 ## 03-Benchmark
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_bugs.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_datatypes.py
 90,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_except.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_mix.py
@@ -1232,11 +1233,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_commandline.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_except.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py -B
 
 ## 05-Valgrind
