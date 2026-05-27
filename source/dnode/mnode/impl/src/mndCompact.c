@@ -444,7 +444,6 @@ static int32_t mndAddKillCompactAction(SMnode *pMnode, STrans *pTrans, SVgObj *p
   return 0;
 }
 
-// Normal kill: send to all vnodes and wait; SDB deletion happens later via mndSaveCompactProgress
 static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompact) {
   int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "kill-compact");
@@ -502,137 +501,20 @@ static int32_t mndKillCompact(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompa
       }
 
       mndReleaseVgroup(pMnode, pVgroup);
+
+      /*
+      SSdbRaw *pCommitRaw = mndCompactDetailActionEncode(pDetail);
+      if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+        mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+        mndTransDrop(pTrans);
+        return -1;
+      }
+      sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+      */
     }
 
     sdbRelease(pMnode->pSdb, pDetail);
   }
-
-  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-
-  mndTransDrop(pTrans);
-  return 0;
-}
-
-// Force kill: send to online vnodes only; commit log drops all SDB records immediately
-static int32_t mndKillCompactForce(SMnode *pMnode, SRpcMsg *pReq, SCompactObj *pCompact) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "kill-compact-force");
-  if (pTrans == NULL) {
-    mError("compact:%" PRId32 ", force kill failed to create trans since %s", pCompact->compactId, terrstr());
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    TAOS_RETURN(code);
-  }
-  mInfo("trans:%d, used to force kill compact:%" PRId32, pTrans->id, pCompact->compactId);
-
-  mndTransSetDbName(pTrans, pCompact->dbname, NULL);
-
-  int64_t curMs = taosGetTimestampMs();
-
-  // Send kill request to online vnodes only; offline vnodes are skipped
-  void *pIter = NULL;
-  while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
-    if (pIter == NULL) break;
-
-    if (pDetail->compactId == pCompact->compactId) {
-      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pDetail->dnodeId);
-      if (pDnode == NULL) {
-        mWarn("trans:%d, compact:%" PRId32 " dnodeId:%d not found, skip redo action", pTrans->id, pCompact->compactId,
-              pDetail->dnodeId);
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-      bool online = mndIsDnodeOnline(pDnode, curMs);
-      mndReleaseDnode(pMnode, pDnode);
-
-      if (!online) {
-        mWarn("trans:%d, compact:%" PRId32 " dnodeId:%d is offline, skip redo action", pTrans->id, pCompact->compactId,
-              pDetail->dnodeId);
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-
-      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pDetail->vgId);
-      if (pVgroup == NULL) {
-        mWarn("trans:%d, compact:%" PRId32 " vgId:%d not found, skip redo action", pTrans->id, pCompact->compactId,
-              pDetail->vgId);
-        sdbRelease(pMnode->pSdb, pDetail);
-        continue;
-      }
-
-      code = mndAddKillCompactAction(pMnode, pTrans, pVgroup, pCompact->compactId, pDetail->dnodeId);
-      mndReleaseVgroup(pMnode, pVgroup);
-      if (code != 0) {
-        mWarn("trans:%d, compact:%" PRId32 " failed to add kill action for dnodeId:%d, skip: %s", pTrans->id,
-              pCompact->compactId, pDetail->dnodeId, terrstr());
-        code = 0;
-      }
-    }
-
-    sdbRelease(pMnode->pSdb, pDetail);
-  }
-
-  // Commit log: drop all detail records
-  pIter = NULL;
-  while (1) {
-    SCompactDetailObj *pDetail = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_COMPACT_DETAIL, pIter, (void **)&pDetail);
-    if (pIter == NULL) break;
-
-    if (pDetail->compactId == pCompact->compactId) {
-      SSdbRaw *pDetailRaw = mndCompactDetailActionEncode(pDetail);
-      if (pDetailRaw == NULL) {
-        mError("trans:%d, failed to encode detail for vgId:%d since %s", pTrans->id, pDetail->vgId, terrstr());
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        sdbRelease(pMnode->pSdb, pDetail);
-        mndTransDrop(pTrans);
-        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-        if (terrno != 0) code = terrno;
-        TAOS_RETURN(code);
-      }
-      if ((code = mndTransAppendCommitlog(pTrans, pDetailRaw)) != 0) {
-        mError("trans:%d, failed to append detail commit log since %s", pTrans->id, terrstr());
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        sdbRelease(pMnode->pSdb, pDetail);
-        mndTransDrop(pTrans);
-        TAOS_RETURN(code);
-      }
-      if ((code = sdbSetRawStatus(pDetailRaw, SDB_STATUS_DROPPED)) != 0) {
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        sdbRelease(pMnode->pSdb, pDetail);
-        mndTransDrop(pTrans);
-        TAOS_RETURN(code);
-      }
-      mInfo("trans:%d, compact:%" PRId32 " force drop detail vgId:%d", pTrans->id, pCompact->compactId, pDetail->vgId);
-    }
-
-    sdbRelease(pMnode->pSdb, pDetail);
-  }
-
-  // Commit log: drop compact record
-  SSdbRaw *pCommitRaw = mndCompactActionEncode(pCompact);
-  if (pCommitRaw == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-    mError("trans:%d, failed to append compact commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-  if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED)) != 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
-  mInfo("trans:%d, compact:%" PRId32 " force drop compact record", pTrans->id, pCompact->compactId);
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -666,11 +548,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_COMPACT_DB), &lino, _OVER);
 
-  if (killCompactReq.force) {
-    TAOS_CHECK_GOTO(mndKillCompactForce(pMnode, pReq, pCompact), &lino, _OVER);
-  } else {
-    TAOS_CHECK_GOTO(mndKillCompact(pMnode, pReq, pCompact), &lino, _OVER);
-  }
+  TAOS_CHECK_GOTO(mndKillCompact(pMnode, pReq, pCompact), &lino, _OVER);
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 

@@ -428,8 +428,6 @@ if(BUILD_MSVCREGEX)      # {
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""
-        PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -DMSVCREGEX_ROOT=${ext_msvcregex_archive_source} -P "${TD_SOURCE_DIR}/cmake/normalize_ext_msvcregex_layout.cmake"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E chdir "${ext_msvcregex_archive_source}" nmake /f NMakefile all test test2 test3
         INSTALL_COMMAND
@@ -1963,22 +1961,13 @@ endif()
 string(REPLACE "." "_" _ver_safe "${_ver_short}")
 string(REPLACE "." "" _vermm "${_ver_short}")
 set(_extname "ext_cpython_${_ver_safe}")
-set(_pyudf_sdk_url "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
-set(_pyudf_sdk_archive "cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
 
 INIT_DIRS(${_extname} ${TD_EXTERNALS_BASE_DIR})
 
-if(TD_WINDOWS AND NOT BUILD_USE_PUBLIC_DEPS AND NOT "${LOCAL_URL}" STREQUAL ""
-   AND (NOT DEFINED CMAKE_NETRC_FILE OR "${CMAKE_NETRC_FILE}" STREQUAL "")
-   AND (NOT DEFINED CMAKE_NETRC OR "${CMAKE_NETRC}" STREQUAL ""))
-    message(WARNING "[pyudf] CMAKE_NETRC/CMAKE_NETRC_FILE not set; falling back to public CPython SDK URL")
-    set(_url "${_pyudf_sdk_url}")
-else()
-    get_from_local_if_exists(
-        "${_pyudf_sdk_url}"
-        "${_pyudf_sdk_archive}"
-    )
-endif()
+get_from_local_if_exists(
+    "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz"
+    "cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz"
+)
 
 ExternalProject_Add(${_extname}
     URL "${_url}"
