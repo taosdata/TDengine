@@ -305,7 +305,11 @@ int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
 static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
   int32_t code = 0;
 
-  const char* currPass = pUser->passwords[0].pass;
+  char currPass[TSDB_PASSWORD_LEN] = {0};
+  taosRLockLatch(&pUser->lock);
+  (void)memcpy(currPass, pUser->passwords[0].pass, TSDB_PASSWORD_LEN);
+  taosRUnLockLatch(&pUser->lock);
+
   char pass[TSDB_PASSWORD_LEN] = {0};
   (void)memcpy(pass, inputPass, TSDB_PASSWORD_LEN);
   pass[TSDB_PASSWORD_LEN - 1] = 0;
