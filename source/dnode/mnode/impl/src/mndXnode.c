@@ -1201,7 +1201,6 @@ static SXnodeTaskObj *mndAcquireXnodeTaskByName(SMnode *pMnode, const char *name
     pIter = sdbFetch(pSdb, SDB_XNODE_TASK, pIter, (void **)&pTask);
     if (pIter == NULL) break;
     if (pTask->name == NULL) {
-      sdbRelease(pSdb, pTask);
       continue;
     }
 
@@ -1898,7 +1897,6 @@ _OVER:
   if (pJson != NULL) {
     tjsonDelete(pJson);
   }
-  mndReleaseXnodeTask(pMnode, pObj);
   tFreeSMStopXnodeTaskReq(&stopReq);
   TAOS_RETURN(code);
 }
@@ -2144,6 +2142,7 @@ static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pT
   mDebug("trans:%d, to drop xnode:%d", pTrans->id, pTask->id);
 
   code = mndSetDropXnodeTaskInfoToTrans(pMnode, pTrans, pTask, false);
+  mndReleaseXnodeTask(pMnode, pTask);
 
   TSDB_CHECK_CODE(code, lino, _OVER);
 
@@ -2213,7 +2212,6 @@ _OVER:
   if (pJson != NULL) {
     tjsonDelete(pJson);
   }
-  mndReleaseXnodeTask(pMnode, pObj);
   tFreeSMDropXnodeTaskReq(&dropReq);
   TAOS_RETURN(code);
 }
@@ -2373,9 +2371,7 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   }
 
 _end:
-  if (code != 0) {
-    mError("failed to retrieve xnode tasks, code:%s", tstrerror(code));
-  }
+  if (code != 0 && pObj != NULL) sdbRelease(pSdb, pObj);
   mndReleaseUser(pMnode, pOperUser);
 
   pShow->numOfRows += numOfRows;

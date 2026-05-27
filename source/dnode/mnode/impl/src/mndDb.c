@@ -905,27 +905,22 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
-    taosRLockLatch(&pUser->lock);
     if (taosHashGetSize(pUser->roles) <= 0) {
-      taosRUnLockLatch(&pUser->lock);
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
-    if (strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
-      taosRUnLockLatch(&pUser->lock);
+    if(strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
     if (!taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sysAuditLen) &&
         !taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sysAuditLogLen)) {
-      taosRUnLockLatch(&pUser->lock);
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
-    taosRUnLockLatch(&pUser->lock);
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUserObj));
     TAOS_CHECK_EXIT(taosHashPut(newUserObj.ownedDbs, pDb->name, strlen(pDb->name) + 1, NULL, 0));
     if (auditOwnedDbs == NULL) {
@@ -1145,12 +1140,10 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
   bool addOwned = false;
   if (dbObj.cfg.isAudit == 1) {
-    taosRLockLatch(&pUser->lock);
     if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
         taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
       addOwned = true;
     }
-    taosRUnLockLatch(&pUser->lock);
     TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, pUser, &dbObj, &auditOwnedDbs), NULL, _OVER);
   } else {
     addOwned = true;
