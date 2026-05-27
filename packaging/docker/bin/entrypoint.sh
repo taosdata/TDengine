@@ -74,7 +74,26 @@ cleanup_children() {
     pkill -P $$ 2>/dev/null || true
 }
 trap 'echo "Received stop signal, killing children"; cleanup_children; exit 0' SIGINT SIGTERM
-trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "entrypoint exiting abnormally (rc=$rc), killing children"; cleanup_children; fi' EXIT
+# EXIT trap: capture the script's exit code BEFORE running cleanup (pkill etc.
+# would otherwise overwrite $?), then re-exit with that same code so Docker
+# sees the real cause instead of the trap helpers' last status.
+trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "entrypoint exiting abnormally (rc=$rc), killing children"; cleanup_children; fi; exit "$rc"' EXIT
+
+# Wait up to ~10s for a service's metrics endpoint to come up. If the service
+# process itself dies in the meantime (immediate crash on bad config, port
+# in use, etc.) fail fast instead of burning the full timeout in silence.
+# Per gemini-code-assist review on PR #35368.
+wait_for_metric_or_die() {
+    local svc=$1 pid=$2 url=$3
+    for _ in $(seq 1 20); do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "$svc (pid $pid) died during startup; aborting entrypoint" >&2
+            exit 1
+        fi
+        curl -sf "$url" && return 0
+        sleep 0.5
+    done
+}
 
 # if dnode has been created or has mnode ep set or the host is first ep or not for cluster, just start.
 if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
@@ -82,11 +101,21 @@ if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
     [ "$FQDN" = "$FIRST_EP_HOST" ]; then
     echo "start taosd with mnode ep set"
     taosd &
-    PIDS="$PIDS $!"
+    TAOSD_PID=$!
+    PIDS="$PIDS $TAOSD_PID"
     while true; do
-        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
+        # If taosd died during startup, fail fast instead of looping forever
+        # waiting for `taos --check` to succeed against a dead server.
+        if ! kill -0 "$TAOSD_PID" 2>/dev/null; then
+            echo "taosd (pid $TAOSD_PID) died during startup; aborting entrypoint" >&2
+            exit 1
+        fi
+        # `|| true` keeps a transient connection error from tripping set -e while
+        # we're still polling for taosd to come up; the kill -0 above is the
+        # authoritative "did the process die" check.
+        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check 2>/dev/null | grep "^[0-9]*:" || true)
         echo ${es}
-        if [ "${es%%:*}" -eq 2 ]; then
+        if [ -n "$es" ] && [ "${es%%:*}" = "2" ]; then
 
             # Initialization scripts should only work in first node.
             if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
@@ -109,15 +138,26 @@ if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
     done
 # others will first wait the first ep ready.
 else
+    TAOSD_PID=""
     if [ "$TAOS_FIRST_EP" = "" ]; then
         echo "run TDengine with single node."
         taosd &
-        PIDS="$PIDS $!"
+        TAOSD_PID=$!
+        PIDS="$PIDS $TAOSD_PID"
     fi
     while true; do
-        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
+        # If we started taosd locally and it died early, fail fast.
+        # Cluster non-first nodes (TAOSD_PID empty) wait for the remote first EP.
+        if [ -n "$TAOSD_PID" ] && ! kill -0 "$TAOSD_PID" 2>/dev/null; then
+            echo "taosd (pid $TAOSD_PID) died during startup; aborting entrypoint" >&2
+            exit 1
+        fi
+        # `|| true` keeps a transient connection error from tripping set -e while
+        # we're still polling for taosd to come up; the kill -0 above is the
+        # authoritative "did the process die" check.
+        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check 2>/dev/null | grep "^[0-9]*:" || true)
         echo ${es}
-        if [ "${es%%:*}" -eq 2 ]; then
+        if [ -n "$es" ] && [ "${es%%:*}" = "2" ]; then
             echo "execute create dnode"
             sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create dnode \"$FQDN:$SERVER_PORT\";'"
             break
@@ -128,33 +168,24 @@ fi
 
 if [ "$DISABLE_ADAPTER" = "0" ] && which taosadapter >/dev/null; then
     taosadapter &
-    PIDS="$PIDS $!"
-    # wait for 6041 port ready
-    for _ in $(seq 1 20); do
-        curl -sf http://localhost:6041/metrics && break
-        sleep 0.5
-    done
+    TAOSADAPTER_PID=$!
+    PIDS="$PIDS $TAOSADAPTER_PID"
+    wait_for_metric_or_die taosadapter "$TAOSADAPTER_PID" http://localhost:6041/metrics
 fi
 
 if [ "$DISABLE_KEEPER" = "0" ] && which taoskeeper >/dev/null; then
     sleep 3
     taoskeeper &
-    PIDS="$PIDS $!"
-    # wait for 6043 port ready
-    for _ in $(seq 1 20); do
-        curl -sf http://localhost:6043/metrics && break
-        sleep 0.5
-    done
+    TAOSKEEPER_PID=$!
+    PIDS="$PIDS $TAOSKEEPER_PID"
+    wait_for_metric_or_die taoskeeper "$TAOSKEEPER_PID" http://localhost:6043/metrics
 fi
 
 if [ "$DISABLE_EXPLORER" = "0" ] && which taos-explorer >/dev/null; then
     taos-explorer &
-    PIDS="$PIDS $!"
-    # wait for 6060 port ready
-    for _ in $(seq 1 20); do
-        curl -sf http://localhost:6060/metrics && break
-        sleep 0.5
-    done
+    TAOSEXPLORER_PID=$!
+    PIDS="$PIDS $TAOSEXPLORER_PID"
+    wait_for_metric_or_die taos-explorer "$TAOSEXPLORER_PID" http://localhost:6060/metrics
 fi
 
 if [ "$NEEDS_INITDB" = "1" ]; then
