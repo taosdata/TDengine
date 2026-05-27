@@ -2149,11 +2149,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pRequest->literal_by_stmt2) {
-      doRequestCallback(pRequest, code);
-      return;
-    }
+  if (pRequest->literal_by_stmt2) {
+    doRequestCallback(pRequest, code);
+    return;
   }
 
   assert(pWrapper == pRequest->pWrapper);

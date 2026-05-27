@@ -27,7 +27,7 @@ extern "C" {
 #include <syslog.h>
 
 #if 0   /* { */
-#if 0       /* { */
+#if 1       /* { */
 #define D(fmt, ...)                                                            \
   fprintf(stderr, "@[%p]%s[%d]:%s():" fmt "\n",                                \
       (void*)(uintptr_t)taosThreadSelf(), __FILE__, __LINE__, __func__,        \

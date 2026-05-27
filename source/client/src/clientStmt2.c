@@ -2153,6 +2153,7 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
 
   // Clean all SQL and execution info (stmtCleanSQLInfo already handles most cleanup)
   pStmt->bInfo.boundColsCached = false;
+  pStmt->bInfo.tbNameFlag = 0; // NOTE:
   if (stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }
@@ -3800,7 +3801,7 @@ int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t code = stmtParseColFields2(stmt);
   if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+    if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
       SPureInsertParserCtx ctx = {0};
       const char *pStr   = pStmt->sql.sqlStr;
       code = qPureParseInsert(&ctx, pStr);

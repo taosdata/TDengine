@@ -94,7 +94,7 @@ int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr) {
     }
     ADVANCE();
     if (!MATCH(TK_NK_QUESTION)) {
-      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
     if (db.z + db.n + 1 + token.n != token.z + token.n) {
       token.n = token.z + token.n - db.z;
@@ -105,12 +105,12 @@ int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr) {
   } else if (MATCH(TK_NK_QUESTION)) {
     ++pCtx->nr_params;
   } else {
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
 
   ADVANCE();
   if (MATCH(TK_USING)) {
-    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
   if (MATCH(TK_NK_LP)) {
     ADVANCE();
@@ -136,7 +136,7 @@ again:
 
   if (!MATCH(TK_VALUES)) {
     if (MATCH(TK_USING)) {
-      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
     RETURN_EXPECTING("`values`");
   }
