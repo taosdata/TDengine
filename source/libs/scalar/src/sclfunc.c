@@ -3084,8 +3084,20 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
       srcLen = strlen(stringBuf);
       pSrc = (const uint8_t *)stringBuf;
     } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-      char *format = "yyyy-mm-dd hh24:mi:ss";
-      code = taosTs2Char(format, &formats, *(int64_t *)input, pInput[0].columnData->info.precision, stringBuf, sizeof(stringBuf), pInput->tz);
+      const char *format;
+      int32_t precision = pInput[0].columnData->info.precision;
+      switch (precision) {
+        case TSDB_TIME_PRECISION_MICRO: format = "yyyy-mm-dd hh24:mi:ss.us+00"; break;
+        case TSDB_TIME_PRECISION_NANO:  format = "yyyy-mm-dd hh24:mi:ss.ns+00"; break;
+        default:                        format = "yyyy-mm-dd hh24:mi:ss.ms+00"; break;
+      }
+      timezone_t utcTz = tzalloc("UTC");
+      if (!utcTz) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _return;
+      }
+      code = taosTs2Char(format, &formats, *(int64_t *)input, precision, stringBuf, sizeof(stringBuf), utcTz);
+      tzfree(utcTz);
       if (code != TSDB_CODE_SUCCESS) goto _return;
       srcLen = strlen(stringBuf);
       pSrc = (const uint8_t *)stringBuf;

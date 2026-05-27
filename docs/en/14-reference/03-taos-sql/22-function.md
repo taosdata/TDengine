@@ -1309,6 +1309,8 @@ TO_BASE64(expr)
 
 - If `expr` is NULL, returns NULL.
 - If the base64-encoded result exceeds the maximum VARCHAR length, an error is returned.
+- BOOL type: TRUE is encoded as the string `'1'`, FALSE as `'0'`.
+- TIMESTAMP type: always formatted in UTC as `yyyy-mm-dd hh24:mi:ss.{precision}+00` (where precision is ms/us/ns depending on the column) before encoding. This ensures results are timezone-independent and preserve full precision.
 
 **Example**:
 

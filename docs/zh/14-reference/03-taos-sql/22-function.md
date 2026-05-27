@@ -1357,6 +1357,8 @@ TO_BASE64(expr)
 
 - 若 expr 为 NULL，返回 NULL。
 - 若 Base64 编码结果超过 VARCHAR 最大长度，返回错误。
+- BOOL 类型：TRUE 视为字符串 `'1'`、FALSE 视为字符串 `'0'`。
+- TIMESTAMP 类型：始终以 UTC 时区格式化为 `yyyy-mm-dd hh24:mi:ss.{精度}+00`（精度根据列定义为 ms/us/ns），编码结果与会话时区无关且保留完整精度。
 
 **举例**:
 

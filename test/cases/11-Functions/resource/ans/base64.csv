@@ -114,7 +114,12 @@ taos> select to_base64(1234.567 + 0.1) = to_base64('1234.667')
 ====================================================
  true                                              |
 
-taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = to_base64(TO_CHAR(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss"), "yyyy-mm-dd hh24:mi:ss"))
+taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ssTZH"))
+ to_base64(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh2 |
+===================================================================
+ MjAwMC0wMS0wMSAwMDowMDowMC4wMDArMDA=                             |
+
+taos> select to_base64(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ssTZH")) = "MjAwMC0wMS0wMSAwMDowMDowMC4wMDArMDA="
  to_base64(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh2 |
 ===================================================================
  true                                                             |
