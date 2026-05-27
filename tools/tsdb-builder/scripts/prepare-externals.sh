@@ -134,8 +134,13 @@ PROJECT_ID="${GITLAB_PROJECT_ID:-}"
 # Parses all get_from_local_if_exists() calls:
 #   Two-arg calls → mirror_filename|upstream_url
 #   One-arg calls → filename extracted from URL's last path segment
+#
+# CPython SDK uses cmake variables (_pyudf_pbs_release, _pyver, _pbs_triple)
+# instead of literal URLs.  We resolve those by extracting the version and
+# release tag from the cmake file, then expanding all platform triples.
 extract_deps_from_cmake() {
     local cmake_file="$1"
+    # ── Literal get_from_local_if_exists() calls ──
     perl -0777 -ne '
         # Two-arg calls: get_from_local_if_exists("url" "mirror_filename")
         while (/get_from_local_if_exists\(\s*"([^"]+\.tar\.gz)"\s+"([^"]+\.tar\.gz)"\s*\)/g) {
@@ -148,7 +153,30 @@ extract_deps_from_cmake() {
             $name =~ s|.*/||;  # extract last path segment
             print "$name|$url\n";
         }
-    ' "$cmake_file" | sort -u
+    ' "$cmake_file"
+
+    # ── CPython SDK: expand platform triples ──
+    # Extract _pyudf_pbs_release and BUILD_PYUDF_PYTHON_VERSION default
+    local pbs_release pyver
+    pbs_release=$(sed -n 's/^.*set(_pyudf_pbs_release  *"\([^"]*\)").*/\1/p' "$cmake_file" | head -1)
+    # Extract version from the FATAL_ERROR hint: STRING=\"3.15.0b1\"
+    pyver=$(sed -n 's/.*BUILD_PYUDF_PYTHON_VERSION:STRING=\\"\([0-9][0-9a-z.]*\)\\.*/\1/p' "$cmake_file" | head -1)
+
+    if [[ -n "$pbs_release" && -n "$pyver" ]]; then
+        local triples=(
+            "aarch64-unknown-linux-gnu"
+            "x86_64-unknown-linux-gnu"
+            "aarch64-apple-darwin"
+            "x86_64-apple-darwin"
+            "aarch64-pc-windows-msvc"
+            "x86_64-pc-windows-msvc"
+        )
+        local base_url="https://github.com/astral-sh/python-build-standalone/releases/download/${pbs_release}"
+        for triple in "${triples[@]}"; do
+            local archive="cpython-${pyver}+${pbs_release}-${triple}-install_only.tar.gz"
+            echo "${archive}|${base_url}/${archive}"
+        done
+    fi
 }
 
 declare -a DEPS=()
@@ -161,7 +189,7 @@ if [[ -n "$CMAKE_FILE" ]]; then
     echo "[INFO] Extracting deps from: ${CMAKE_FILE}"
     while IFS= read -r line; do
         [[ -n "$line" ]] && DEPS+=("$line")
-    done < <(extract_deps_from_cmake "$CMAKE_FILE")
+    done < <(extract_deps_from_cmake "$CMAKE_FILE" | sort -u)
     echo "[INFO] Found ${#DEPS[@]} deps"
     echo ""
 fi
