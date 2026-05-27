@@ -91,6 +91,7 @@ impl TBuilder for TmqBuilder {
     fn available_params() -> &'static [&'static str] {
         &[
             "token",
+            "adapter_ha",
             "timeout",
             "group.id",
             "client.id",
@@ -659,34 +660,62 @@ impl AsAsyncConsumer for Consumer {
         let topics = topics.into_iter().map(Into::into).collect_vec();
         self.with_topics(topics.clone()).await;
 
+        self.conn = self.builder.build_conn_request();
         let action = TmqSend::Subscribe {
             req_id: self.sender.req_id(),
             req: self.tmq_conf.clone().disable_auto_commit(),
             topics: topics.clone(),
             conn: self.conn.clone(),
         };
-        if let Err(err) = self.sender.send_recv(action).await {
-            tracing::error!("subscribe error: {err:?}");
-            if self.tmq_conf.enable_batch_meta.is_none() {
-                return Err(err);
+        let list_instances = match self.sender.send_recv(action).await {
+            Ok(TmqRecvData::Subscribe { list_instances }) => list_instances,
+            Ok(data) => {
+                return Err(RawError::from_string(format!(
+                    "unexpected subscribe response: {data:?}"
+                )));
             }
+            Err(err) => {
+                tracing::error!("subscribe error: {err:?}");
+                if self.tmq_conf.enable_batch_meta.is_none() {
+                    return Err(err);
+                }
 
-            let code: i32 = err.code().into();
-            if code & 0xFFFF == 0xFFFE {
-                // subscribe conf error -2.
-                let action = TmqSend::Subscribe {
-                    req_id: self.sender.req_id(),
-                    req: self
-                        .tmq_conf
-                        .clone()
-                        .disable_batch_meta()
-                        .disable_auto_commit(),
-                    topics: topics.clone(),
-                    conn: self.conn.clone(),
-                };
-                self.sender.send_recv(action).await?;
-            } else {
-                return Err(err);
+                let code: i32 = err.code().into();
+                if code & 0xFFFF == 0xFFFE {
+                    // subscribe conf error -2.
+                    let action = TmqSend::Subscribe {
+                        req_id: self.sender.req_id(),
+                        req: self
+                            .tmq_conf
+                            .clone()
+                            .disable_batch_meta()
+                            .disable_auto_commit(),
+                        topics: topics.clone(),
+                        conn: self.conn.clone(),
+                    };
+                    match self.sender.send_recv(action).await? {
+                        TmqRecvData::Subscribe { list_instances } => list_instances,
+                        data => {
+                            return Err(RawError::from_string(format!(
+                                "unexpected subscribe response: {data:?}"
+                            )));
+                        }
+                    }
+                } else {
+                    return Err(err);
+                }
+            }
+        };
+
+        if self.builder.adapter_ha
+            && self
+                .builder
+                .instances_fetched
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+                .is_ok()
+        {
+            if let Some(instances) = list_instances {
+                self.builder.merge_instances(instances);
             }
         }
 
@@ -1186,6 +1215,7 @@ impl TmqBuilder {
 
         Ok(Consumer {
             conn: self.info.build_conn_request(),
+            builder: self.info.clone(),
             conn_id,
             tmq_conf: self.conf.clone(),
             sender: tmq_sender,
@@ -1208,6 +1238,7 @@ impl TmqBuilder {
 #[derive(Debug)]
 pub struct Consumer {
     conn: WsConnReq,
+    builder: TaosBuilder,
     conn_id: u64,
     tmq_conf: TmqInit,
     sender: WsTmqSender,
@@ -1330,12 +1361,87 @@ impl From<WsTmqError> for RawError {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
 
-    use tokio::sync::{mpsc, oneshot, watch};
+    use taos_query::tmq::Timeout;
+    use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
 
-    use super::{TaosBuilder, TmqBuilder};
+    use super::{Consumer, TaosBuilder, TmqBuilder, WsTmqAgent, WsTmqSender};
+    use crate::consumer::messages::{TmqInit, TmqRecvData, WsMessage};
     use crate::consumer::{Data, Meta};
+
+    fn tmq_conf(enable_batch_meta: Option<&str>) -> TmqInit {
+        TmqInit {
+            group_id: "test_group".to_string(),
+            snapshot_enable: "false".to_string(),
+            with_table_name: "false".to_string(),
+            auto_commit: "true".to_string(),
+            enable_batch_meta: enable_batch_meta.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    fn build_mock_consumer(
+        builder: TaosBuilder,
+        tmq_conf: TmqInit,
+        scripted_responses: Vec<taos_query::RawResult<TmqRecvData>>,
+    ) -> Consumer {
+        let (sender, receiver) = flume::unbounded::<WsMessage>();
+        let queries: WsTmqAgent = Arc::new(dashmap::DashMap::new());
+        let tmq_sender = WsTmqSender {
+            req_id: Arc::new(AtomicU64::new(1)),
+            sender,
+            queries: queries.clone(),
+        };
+
+        let scripted_responses = Arc::new(Mutex::new(VecDeque::from(scripted_responses)));
+        tokio::spawn({
+            let scripted_responses = scripted_responses.clone();
+            async move {
+                while let Ok(message) = receiver.recv_async().await {
+                    let req_id = message.req_id();
+                    let response = {
+                        let mut scripted_responses = scripted_responses.lock().await;
+                        scripted_responses.pop_front().unwrap_or_else(|| {
+                            Ok(TmqRecvData::Subscribe {
+                                list_instances: None,
+                            })
+                        })
+                    };
+                    if let Some((_, tx)) = queries.remove(&req_id) {
+                        let _ = tx.send(response).await;
+                    }
+                }
+            }
+        });
+
+        let (close_signal, _) = watch::channel(false);
+        let (cache_sender, cache_reader) = mpsc::channel(1);
+        let auto_commit = tmq_conf.auto_commit == "true";
+
+        Consumer {
+            conn: builder.build_conn_request(),
+            builder,
+            conn_id: 1,
+            tmq_conf,
+            sender: tmq_sender,
+            close_signal,
+            timeout: Timeout::Duration(Duration::from_secs(1)),
+            topics: Arc::new(RwLock::new(Vec::new())),
+            support_fetch_raw: Arc::new(AtomicBool::new(false)),
+            auto_commit,
+            auto_commit_interval_ms: None,
+            auto_commit_offset: (None, Instant::now()),
+            message_id: AtomicU64::new(0),
+            cache_sender,
+            cache_reader: Mutex::new(cache_reader),
+            last_poll_time: AtomicU64::new(0),
+            tz: None,
+        }
+    }
 
     #[tokio::test]
     async fn test_ws_tmq_meta_batch() -> anyhow::Result<()> {
@@ -2344,6 +2450,63 @@ mod tests {
         taos.exec_many([
             "drop topic topic_1741674686",
             "drop database test_1741674686",
+        ])
+        .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tmq_adapter_ha_subscribe() -> anyhow::Result<()> {
+        use std::sync::atomic::Ordering;
+        use taos_query::prelude::*;
+
+        let taos = TaosBuilder::from_dsn("ws://localhost:6041")?
+            .build()
+            .await?;
+
+        taos.exec_many([
+            "drop topic if exists topic_1779348321",
+            "drop database if exists test_1779348321",
+            "create database test_1779348321",
+            "create topic topic_1779348321 as database test_1779348321",
+            "use test_1779348321",
+            "create table t0 (ts timestamp, c1 int)",
+            "insert into t0 values(now, 1)",
+        ])
+        .await?;
+
+        let builder = TmqBuilder::new(
+            "ws://localhost:6041?group.id=9865&auto.offset.reset=earliest&adapter_ha=true",
+        )?;
+
+        assert_eq!(builder.info.build_conn_request().list_instances, Some(true));
+        assert!(!builder.info.instances_fetched.load(Ordering::Acquire));
+
+        let mut consumer = builder.build_consumer().await?;
+        assert_eq!(
+            consumer.builder.build_conn_request().list_instances,
+            Some(true)
+        );
+        assert!(!consumer.builder.instances_fetched.load(Ordering::Acquire));
+
+        consumer.subscribe(["topic_1779348321"]).await?;
+
+        assert!(consumer.builder.instances_fetched.load(Ordering::Acquire));
+        assert_eq!(
+            consumer.builder.build_conn_request().list_instances,
+            Some(false)
+        );
+
+        let addrs = consumer.builder.addrs.read().unwrap().clone();
+        assert!(!addrs.is_empty());
+        assert!(addrs.iter().all(|addr| crate::is_valid_host_port(addr)));
+
+        consumer.unsubscribe().await;
+
+        taos.exec_many([
+            "drop topic if exists topic_1779348321",
+            "drop database if exists test_1779348321",
         ])
         .await?;
 
@@ -3496,12 +3659,118 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_subscribe_with_adapter_ha_merges_instances_from_response() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        let existing_addr = builder.addrs.read().unwrap()[0].clone();
+        let mut consumer = build_mock_consumer(
+            builder,
+            tmq_conf(Some("1")),
+            vec![Ok(TmqRecvData::Subscribe {
+                list_instances: Some(vec![
+                    existing_addr,
+                    "127.0.0.1:6042".to_string(),
+                    "127.0.0.1:6042".to_string(),
+                    "invalid-instance".to_string(),
+                ]),
+            })],
+        );
+
+        taos_query::prelude::AsAsyncConsumer::subscribe(&mut consumer, ["topic_test"]).await?;
+
+        let addrs = consumer.builder.addrs.read().unwrap().clone();
+        assert!(consumer.builder.instances_fetched.load(Ordering::Acquire));
+        assert!(addrs.contains(&"127.0.0.1:6042".to_string()));
+        assert_eq!(
+            addrs
+                .iter()
+                .filter(|addr| addr.as_str() == "127.0.0.1:6042")
+                .count(),
+            1
+        );
+        assert!(!addrs.iter().any(|addr| addr == "invalid-instance"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_retries_when_batch_meta_not_supported() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        let mut consumer = build_mock_consumer(
+            builder,
+            tmq_conf(Some("1")),
+            vec![
+                Err(taos_query::prelude::RawError::new(
+                    0xFFFE,
+                    "batch meta is unsupported",
+                )),
+                Ok(TmqRecvData::Subscribe {
+                    list_instances: Some(vec!["127.0.0.1:6043".to_string()]),
+                }),
+            ],
+        );
+
+        taos_query::prelude::AsAsyncConsumer::subscribe(&mut consumer, ["topic_test"]).await?;
+
+        assert!(consumer.builder.instances_fetched.load(Ordering::Acquire));
+        assert_eq!(
+            consumer.builder.build_conn_request().list_instances,
+            Some(false)
+        );
+        let addrs = consumer.builder.addrs.read().unwrap().clone();
+        assert!(addrs.contains(&"127.0.0.1:6043".to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_returns_error_when_batch_meta_disabled() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        let mut consumer = build_mock_consumer(
+            builder,
+            tmq_conf(None),
+            vec![Err(taos_query::prelude::RawError::new(
+                0xFFFE,
+                "batch meta is unsupported",
+            ))],
+        );
+
+        let err = taos_query::prelude::AsAsyncConsumer::subscribe(&mut consumer, ["topic_test"])
+            .await
+            .unwrap_err();
+        let code: i32 = err.code().into();
+        assert_eq!(code & 0xFFFF, 0xFFFE);
+        assert!(!consumer.builder.instances_fetched.load(Ordering::Acquire));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_returns_error_on_unexpected_response() -> anyhow::Result<()> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        let mut consumer = build_mock_consumer(
+            builder,
+            tmq_conf(Some("1")),
+            vec![Ok(TmqRecvData::Unsubscribe)],
+        );
+
+        let err = taos_query::prelude::AsAsyncConsumer::subscribe(&mut consumer, ["topic_test"])
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("unexpected subscribe response: Unsubscribe"));
+
+        Ok(())
+    }
+
     #[test]
     fn test_tmq_builder_available_params() {
         use taos_query::TBuilder;
 
         let expected = [
             "token",
+            "adapter_ha",
             "timeout",
             "group.id",
             "client.id",

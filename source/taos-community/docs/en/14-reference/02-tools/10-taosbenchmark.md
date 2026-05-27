@@ -498,7 +498,7 @@ Below are a few examples of configuration files:
 <summary>insert.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taosBenchmark/example/insert.json}}
+{{#include tools/taosBenchmark/example/insert.json}}
 ```
 
 </details>
@@ -509,7 +509,7 @@ Below are a few examples of configuration files:
 <summary>query.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taosBenchmark/example/query.json}}
+{{#include tools/taosBenchmark/example/query.json}}
 ```
 
 </details>
@@ -518,7 +518,7 @@ Below are a few examples of configuration files:
 <summary>queryStb.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taosBenchmark/example/queryStb.json}}
+{{#include tools/taosBenchmark/example/queryStb.json}}
 ```
 
 </details>
@@ -529,7 +529,7 @@ Below are a few examples of configuration files:
 <summary>tmq.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taosBenchmark/example/tmq.json}}
+{{#include tools/taosBenchmark/example/tmq.json}}
 ```
 
 </details>
@@ -540,7 +540,7 @@ Below are a few examples of configuration files:
 <summary>csv-export.json</summary>
 
 ```json
-{{#include source/taos-community/tools/taosBenchmark/example/csv-export.json}}
+{{#include tools/taosBenchmark/example/csv-export.json}}
 ```
 
 </details>

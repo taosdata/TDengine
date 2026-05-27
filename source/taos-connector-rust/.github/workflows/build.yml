@@ -63,11 +63,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      
       - name: Checkout TDengine
         uses: actions/checkout@v4
         with:
           repository: "taosdata/TDengine"
           path: "TDengine"
+          ref: "main"
+
+      - name: Checkout taosadapter
+        uses: actions/checkout@v4
+        with:
+          repository: "taosdata/taosadapter"
+          path: "taosadapter"
           ref: "main"
 
       - name: Prepare development tools
@@ -82,6 +91,12 @@ jobs:
         with:
           cmakeVersion: 3.31.6
 
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.10"
+          cache-dependency-path: taosadapter/go.sum
+
       - name: Build TDengine
         env:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -90,7 +105,7 @@ jobs:
           echo use commit ${BRANCH_NAME}
           sed -iE "/ExternalProject_Add(ext_taosws/,/GIT_TAG.*/s#GIT_TAG.*#GIT_TAG ${BRANCH_NAME}#" tools/CMakeLists.txt
           mkdir release && cd release
-          cmake .. -DBUILD_JDBC=false -DBUILD_HTTP=false -DWEBSOCKET=true -DVERNUMBER=3.9.9.9 -DBUILD_DEPENDENCY_TESTS=false
+          cmake .. -DBUILD_JDBC=false -DBUILD_HTTP=false -DWEBSOCKET=true -DBUILD_CONTRIB=ON -DBUILD_VER_NUMBER=3.9.9.9 -DBUILD_DEPENDENCY_TESTS=false
 
       - uses: actions/cache@v4
         id: cache-rust-target
@@ -102,14 +117,24 @@ jobs:
         run: |
           cd TDengine/release/
           make -j8 || exit 1
-          make install
+          sudo make install
           nohup sudo taosd > /dev/null 2>&1 &
           sleep 5
+
+      - name: Build and install taosadapter
+        run: |
+          cd taosadapter
+          go mod download
+          go build -o taosadapter
+          sudo install -m 755 taosadapter /bin/taosadapter
+          taosadapter --version
           nohup sudo taosadapter > /dev/null 2>&1 &
+
+      - name: Build C WebSocket package artifacts
+        run: cargo build -p taos-ws-sys --release
 
       - name: Run examples
         run: |
-          cd TDengine/.externals/build/ext_taosws/src/ext_taosws
           ./taos-ws-sys/ci/package.sh
           cd ./target/libtaosws
           make

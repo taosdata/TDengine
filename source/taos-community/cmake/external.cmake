@@ -414,12 +414,15 @@ if(BUILD_MSVCREGEX)      # {
         INC_DIR          include
         LIB              lib/${ext_msvcregex_static}
     )
-    # Originally from https://gitee.com/l0km/libgnurx-msvc (mirrored on GitLab)
+    # Use public gitee commit archive to avoid internal network dependency and
+    # keep reproducible source contents.
     get_from_local_if_exists(
-        "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest/libgnurx-msvc-1a6514d.tar.gz"
+        "https://gitee.com/l0km/libgnurx-msvc/repository/archive/1a6514d.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
     )
-    set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-master")
+    # ExternalProject extracts single-root archives into ext_msvcregex_source.
+    # Use the source root directly to avoid path mismatch across archive layouts.
+    set(ext_msvcregex_archive_source "${ext_msvcregex_source}")
     ExternalProject_Add(ext_msvcregex
         URL ${_url}
         PREFIX "${_base}"
