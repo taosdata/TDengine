@@ -64,15 +64,33 @@ static SZstdAccel g_zstdAccel;
 static SLz4Accel  g_lz4Accel;
 
 // ---- Wrappers (signatures match l2*Impl_* in tcompression.c) ---------------
+//
+// Defensive bounds checks mirror the L2 dispatch contract (callers always pass
+// outputSize > inputSize + 1 and compressedSize > 1). Without them, an
+// out-of-spec caller or an accel library returning a wrong size that we then
+// re-feed here would underflow `outputSize - 1` / `compressedSize - 1` into
+// ULONG_MAX / SIZE_MAX and turn the subsequent codec call or fallback memcpy
+// into a buffer overrun. The stock implementations in tcompression.c rely on
+// the same invariants but skip the checks; this dispatch lives behind dlopen
+// and is the more exposed surface, so we harden it here (gemini-code-assist
+// security review on PR #35367).
 
 static int32_t accelCompress_zlib(const char *const input, const int32_t inputSize, char *const output,
                                   int32_t outputSize, const char type, int8_t lvl) {
+  if (inputSize < 0 || outputSize <= 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   unsigned long dstLen = (unsigned long)(outputSize - 1);
   int           rc     = g_zlibAccel.compress2_fn((unsigned char *)(output + 1), &dstLen,
                                                    (const unsigned char *)input, (unsigned long)inputSize, lvl);
   if (rc == 0 /* Z_OK */) {
     output[0] = 1;
     return (int32_t)dstLen + 1;
+  }
+  // Fallback path stores the input verbatim, prefixed with a 0 marker byte;
+  // refuse if the output buffer can't fit it rather than overflow it.
+  if (outputSize - 1 < inputSize) {
+    return TSDB_CODE_INVALID_PARA;
   }
   output[0] = 0;
   memcpy(output + 1, input, inputSize);
@@ -81,6 +99,9 @@ static int32_t accelCompress_zlib(const char *const input, const int32_t inputSi
 
 static int32_t accelDecompress_zlib(const char *const input, const int32_t compressedSize, char *const output,
                                     int32_t outputSize, const char type) {
+  if (compressedSize <= 0 || outputSize < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (input[0] == 1) {
     unsigned long len = (unsigned long)outputSize;
     int           rc  = g_zlibAccel.uncompress_fn((unsigned char *)output, &len,
@@ -89,6 +110,9 @@ static int32_t accelDecompress_zlib(const char *const input, const int32_t compr
     if (rc == 0) return (int32_t)len;
     return TSDB_CODE_THIRDPARTY_ERROR;
   } else if (input[0] == 0) {
+    if (outputSize < compressedSize - 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;
   }
@@ -97,10 +121,16 @@ static int32_t accelDecompress_zlib(const char *const input, const int32_t compr
 
 static int32_t accelCompress_zstd(const char *const input, const int32_t inputSize, char *const output,
                                   int32_t outputSize, const char type, int8_t lvl) {
+  if (inputSize < 0 || outputSize <= 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   size_t len = g_zstdAccel.compress_fn(output + 1, (size_t)(outputSize - 1), input, (size_t)inputSize, lvl);
   // ZSTD_isError() returns a value > srcSize for error codes, so the same
   // sentinel as the stock path catches both error and ratio-not-worth-it.
   if (len > (size_t)inputSize) {
+    if (outputSize - 1 < inputSize) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     output[0] = 0;
     memcpy(output + 1, input, inputSize);
     return inputSize + 1;
@@ -111,9 +141,15 @@ static int32_t accelCompress_zstd(const char *const input, const int32_t inputSi
 
 static int32_t accelDecompress_zstd(const char *const input, const int32_t compressedSize, char *const output,
                                     int32_t outputSize, const char type) {
+  if (compressedSize <= 0 || outputSize < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (input[0] == 1) {
     return (int32_t)g_zstdAccel.decompress_fn(output, (size_t)outputSize, input + 1, (size_t)(compressedSize - 1));
   } else if (input[0] == 0) {
+    if (outputSize < compressedSize - 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;
   }
@@ -122,8 +158,14 @@ static int32_t accelDecompress_zstd(const char *const input, const int32_t compr
 
 static int32_t accelCompress_lz4(const char *const input, const int32_t inputSize, char *const output,
                                  int32_t outputSize, const char type, int8_t lvl) {
+  if (inputSize < 0 || outputSize <= 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   const int32_t n = g_lz4Accel.compress_default_fn(input, output + 1, inputSize, outputSize - 1);
   if (n <= 0 || n > inputSize) {
+    if (outputSize - 1 < inputSize) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     output[0] = 0;
     memcpy(output + 1, input, inputSize);
     return inputSize + 1;
@@ -134,6 +176,9 @@ static int32_t accelCompress_lz4(const char *const input, const int32_t inputSiz
 
 static int32_t accelDecompress_lz4(const char *const input, const int32_t compressedSize, char *const output,
                                    int32_t outputSize, const char type) {
+  if (compressedSize <= 0 || outputSize < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (input[0] == 1) {
     const int32_t n = g_lz4Accel.decompress_safe_fn(input + 1, output, compressedSize - 1, outputSize);
     if (n < 0) {
@@ -142,6 +187,9 @@ static int32_t accelDecompress_lz4(const char *const input, const int32_t compre
     }
     return n;
   } else if (input[0] == 0) {
+    if (outputSize < compressedSize - 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;
   }
