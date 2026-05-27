@@ -28,8 +28,13 @@ echo "pkg_dir: ${pkg_dir}"
 echo "spec_file: ${spec_file}"
 
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null; then
     csudo="sudo "
+else
+    echo "makerpm.sh requires root or a working sudo" >&2
+    exit 1
 fi
 
 resolve_existing_dir() {
