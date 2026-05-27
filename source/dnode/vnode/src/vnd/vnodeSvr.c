@@ -2563,6 +2563,15 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
     return code;
   }
 
+  if (aColData[0].nData != aColData[0].nVal * sizeof(int64_t)) {
+    code = TSDB_CODE_INVALID_MSG;
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64
+           " first column data length:%d is not equal to nVal:%d * bytes of type:%d flag:%" PRIi8,
+           TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid,
+           aColData[0].nData, aColData[0].nVal, aColData[0].type, aColData[0].flag);
+    return code;
+  }
+
   for (int32_t i = 1; i < numCols; ++i) {
     if (aColData[i].nVal != aColData[0].nVal) {
       code = TSDB_CODE_INVALID_MSG;

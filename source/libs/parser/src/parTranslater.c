@@ -18538,6 +18538,7 @@ static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt
 static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
   SKillCompactReq killReq = {0};
   killReq.compactId = pStmt->targetId;
+  killReq.force = pStmt->force ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_KILL_COMPACT, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
 }
 

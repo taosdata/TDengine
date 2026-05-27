@@ -7879,6 +7879,18 @@ _err:
   return NULL;
 }
 
+SNode* createKillCompactStmt(SAstCreateContext* pCxt, const SToken* pId, bool force) {
+  CHECK_PARSER_STATUS(pCxt);
+  SKillStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_KILL_COMPACT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->targetId = taosStr2Int32(pId->z, NULL, 10);
+  pStmt->force = force;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId) {
   CHECK_PARSER_STATUS(pCxt);
   SKillQueryStmt* pStmt = NULL;
