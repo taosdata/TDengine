@@ -53,12 +53,19 @@ fi
 
 NEEDS_INITDB=0
 
+# PIDs of every long-running child we start. Used by the watchdog at the bottom
+# of this script to take the whole container down if any single one of them
+# dies (#34179). Without this, taosd being OOM-killed would leave the container
+# alive (taosadapter still up) and Docker's --restart would never fire.
+PIDS=""
+
 # if dnode has been created or has mnode ep set or the host is first ep or not for cluster, just start.
 if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
     [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
     [ "$FQDN" = "$FIRST_EP_HOST" ]; then
     echo "start taosd with mnode ep set"
     taosd &
+    PIDS="$PIDS $!"
     while true; do
         es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
         echo ${es}
@@ -88,6 +95,7 @@ else
     if [ "$TAOS_FIRST_EP" = "" ]; then
         echo "run TDengine with single node."
         taosd &
+        PIDS="$PIDS $!"
     fi
     while true; do
         es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
@@ -101,8 +109,9 @@ else
     done
 fi
 
-if [ "$DISABLE_ADAPTER" = "0" ]; then
-    which taosadapter >/dev/null && taosadapter &
+if [ "$DISABLE_ADAPTER" = "0" ] && which taosadapter >/dev/null; then
+    taosadapter &
+    PIDS="$PIDS $!"
     # wait for 6041 port ready
     for _ in $(seq 1 20); do
         curl -sf http://localhost:6041/metrics && break
@@ -110,9 +119,10 @@ if [ "$DISABLE_ADAPTER" = "0" ]; then
     done
 fi
 
-if [ "$DISABLE_KEEPER" = "0" ]; then
+if [ "$DISABLE_KEEPER" = "0" ] && which taoskeeper >/dev/null; then
     sleep 3
-    which taoskeeper >/dev/null && taoskeeper &
+    taoskeeper &
+    PIDS="$PIDS $!"
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
         curl -sf http://localhost:6043/metrics && break
@@ -120,8 +130,9 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     done
 fi
 
-if [ "$DISABLE_EXPLORER" = "0" ]; then
-    which taos-explorer >/dev/null && taos-explorer &
+if [ "$DISABLE_EXPLORER" = "0" ] && which taos-explorer >/dev/null; then
+    taos-explorer &
+    PIDS="$PIDS $!"
     # wait for 6060 port ready
     for _ in $(seq 1 20); do
         curl -sf http://localhost:6060/metrics && break
@@ -158,5 +169,31 @@ fi
 
 sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
-trap 'echo "Received stop signal, killing children"; pkill -P $$ || true; exit 0' SIGINT SIGTERM
-wait
+trap 'echo "Received stop signal, killing children"; pkill -P $$ 2>/dev/null || true; exit 0' SIGINT SIGTERM
+
+# Watchdog: if any of taosd / taosadapter / taoskeeper / taos-explorer dies
+# (e.g. taosd OOM-killed), tear the whole container down so Docker's --restart
+# can bring it back. Before this, only taosd dying would silently leave
+# taosadapter accepting requests it could not fulfill (#34179).
+#
+# Polling instead of `wait -n` keeps this compatible with bash versions that
+# do not support `-n`; the 2s tick is negligible CPU.
+if [ -z "$PIDS" ]; then
+    # cluster non-first node with every sidecar disabled — nothing to watch.
+    # Stay alive so the trap above can still catch docker stop signals.
+    echo "No background TDengine processes to watch; idling"
+    while true; do sleep 3600; done
+fi
+
+echo "All services started, watching child processes: $PIDS"
+while true; do
+    for pid in $PIDS; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "child process $pid exited; shutting container down so Docker can restart it"
+            pkill -P $$ 2>/dev/null || true
+            sleep 1
+            exit 1
+        fi
+    done
+    sleep 2
+done
