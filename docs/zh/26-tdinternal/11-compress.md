@@ -69,14 +69,14 @@ ABI 必须与上游相同（参数顺序、返回值语义）。绝大多数硬�
 
 **确认加载成功**：taosd 启动日志会显示一行类似：
 
-```
+```text
 UTL INFO  accel zlib: loaded from /opt/qat-zlib/libz.so, L2_ZLIB dispatch patched
 UTL INFO  accel zstd: loaded from /opt/qat-zlib/libzstd.so, L2_ZSTD dispatch patched
 ```
 
 如果完全没设环境变量，则会看到：
 
-```
+```text
 UTL INFO  accel compression: TAOS_COMPRESS_ACCEL{,_ZLIB,_ZSTD,_LZ4} unset; using stock L2 implementations
 ```
 
