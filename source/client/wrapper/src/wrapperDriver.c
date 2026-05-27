@@ -146,6 +146,10 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_stmt2_prepare, "taos_stmt2_prepare");
   LOAD_FUNC(fp_taos_stmt2_bind_param, "taos_stmt2_bind_param");
   LOAD_FUNC(fp_taos_stmt2_bind_param_a, "taos_stmt2_bind_param_a");
+  if (driverType == DRIVER_NATIVE) {
+    LOAD_FUNC(fp_taos_stmt2_bind_param_column, "taos_stmt2_bind_param_column");
+    LOAD_FUNC(fp_taos_stmt2_bind_param_column_a, "taos_stmt2_bind_param_column_a");
+  }
   LOAD_FUNC(fp_taos_stmt2_exec, "taos_stmt2_exec");
   LOAD_FUNC(fp_taos_stmt2_close, "taos_stmt2_close");
   LOAD_FUNC(fp_taos_stmt2_is_insert, "taos_stmt2_is_insert");
