@@ -33,11 +33,16 @@
 extern TCmprL2FnSet compressL2Dict[];
 
 /* Stock compress pointers – used for backend=stock|accel detection.
- * On Windows/Darwin these all alias lz4, so we detect by name instead. */
+ * On Windows/Darwin tcompression.c does NOT define the zlib/zstd/xz variants;
+ * compressL2Dict[] there aliases all of them to l2CompressImpl_lz4 instead.
+ * Only extern what actually exists on the target platform or the link breaks
+ * with "Undefined symbols _l2CompressImpl_{zlib,zstd,xz}" on macOS/Windows. */
 extern int32_t l2CompressImpl_lz4(const char *const, const int32_t, char *const, int32_t, const char, int8_t);
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64)
 extern int32_t l2CompressImpl_zlib(const char *const, const int32_t, char *const, int32_t, const char, int8_t);
 extern int32_t l2CompressImpl_zstd(const char *const, const int32_t, char *const, int32_t, const char, int8_t);
 extern int32_t l2CompressImpl_xz(const char *const, const int32_t, char *const, int32_t, const char, int8_t);
+#endif
 
 /* tsGetCompressL2Level lives in tcompression.c but has no header prototype */
 extern int8_t tsGetCompressL2Level(uint8_t alg, uint8_t lvl);
@@ -180,9 +185,18 @@ static const char *detect_backend(int codec_idx) {
   __data_compress_l2_fn_t fn = compressL2Dict[codec_idx].comprFn;
   switch (codec_idx) {
     case L2_LZ4:  return (fn == l2CompressImpl_lz4)  ? "stock" : "accel";
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64)
     case L2_ZLIB: return (fn == l2CompressImpl_zlib) ? "stock" : "accel";
     case L2_ZSTD: return (fn == l2CompressImpl_zstd) ? "stock" : "accel";
     case L2_XZ:   return (fn == l2CompressImpl_xz)   ? "stock" : "accel";
+#else
+    // Windows / Darwin alias these three to lz4 in tcompression.c, so the
+    // stock fn pointer is the lz4 one. accel substitution isn't compiled
+    // on those platforms anyway (BUILD_WITH_ACCEL_COMPRESS is Linux-only).
+    case L2_ZLIB:
+    case L2_ZSTD:
+    case L2_XZ:   return (fn == l2CompressImpl_lz4)  ? "stock" : "accel";
+#endif
     default:      return "auto";
   }
 }
