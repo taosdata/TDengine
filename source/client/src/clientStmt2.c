@@ -2234,6 +2234,7 @@ static int stmtPrepareLiteral2(TAOS_STMT2* stmt) {
 
   STscObj *pObj = acquireTscObj(connId);
   if (pObj != pStmt->taos) {
+    releaseTscObj(connId);
     SET_ERR("internal logic error");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR); // TODO: a new error code?
   }
