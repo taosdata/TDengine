@@ -834,6 +834,17 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
       code = terrno;
       goto _unlock;
     }
+    if (leaderOnlyFidCount >= leaderOnlyFidCap) {
+      int32_t  newCap = leaderOnlyFidCap == 0 ? 16 : leaderOnlyFidCap * 2;
+      int32_t* tmp = taosMemoryRealloc(leaderOnlyFids, newCap * sizeof(int32_t));
+      if (tmp == NULL) {
+        code = terrno;
+        goto _unlock;
+      }
+      leaderOnlyFids = tmp;
+      leaderOnlyFidCap = newCap;
+    }
+    leaderOnlyFids[leaderOnlyFidCount++] = fid;
   }
 
   // second pass: check leader files not known by follower (within reported fids)
@@ -910,6 +921,17 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
               code = terrno;
               goto _unlock;
             }
+            if (leaderOnlyFidCount >= leaderOnlyFidCap) {
+              int32_t  newCap = leaderOnlyFidCap == 0 ? 16 : leaderOnlyFidCap * 2;
+              int32_t* tmp = taosMemoryRealloc(leaderOnlyFids, newCap * sizeof(int32_t));
+              if (tmp == NULL) {
+                code = terrno;
+                goto _unlock;
+              }
+              leaderOnlyFids = tmp;
+              leaderOnlyFidCap = newCap;
+            }
+            leaderOnlyFids[leaderOnlyFidCount++] = fid;
             goto _next_fset;
           }
         }
@@ -929,6 +951,17 @@ int32_t tsdbDetermineFidSyncMode(STsdb* pTsdb, const void* pFileArr, int32_t fil
               code = terrno;
               goto _unlock;
             }
+            if (leaderOnlyFidCount >= leaderOnlyFidCap) {
+              int32_t  newCap = leaderOnlyFidCap == 0 ? 16 : leaderOnlyFidCap * 2;
+              int32_t* tmp = taosMemoryRealloc(leaderOnlyFids, newCap * sizeof(int32_t));
+              if (tmp == NULL) {
+                code = terrno;
+                goto _unlock;
+              }
+              leaderOnlyFids = tmp;
+              leaderOnlyFidCap = newCap;
+            }
+            leaderOnlyFids[leaderOnlyFidCount++] = fid;
             goto _next_fset;
           }
         }
