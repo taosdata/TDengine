@@ -22,7 +22,6 @@ compact [db_name.]vgroups IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [
 show compacts;
 show compact compact_id;
 kill compact compact_id;
-kill compact compact_id force;
 ```
 
 ### 效果
@@ -43,7 +42,6 @@ kill compact compact_id force;
 
 - compact 为异步，执行 compact 命令后不会等 compact 结束就会返回。如果上一个 compact 没有完成则再发起一个 compact 任务，则会等上一个任务完成后再返回。
 - compact 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
-- `kill compact compact_id force` 会绕过 mnode 对 compact 任务的正常清理流程，强制从 SDB 中删除 compact 记录，允许在某个 dnode 离线时立即终止任务，而无需等待其恢复。**此操作存在风险**：compact 执行过程中正在修改的数据文件可能处于中间状态，强制删除记录不会触发离线节点侧的清理，可能导致数据文件损坏。**建议仅在节点彻底损坏、无法恢复的极端情况下使用**；若节点尚能正常启动，应优先将其拉起，再使用不带 `force` 的 `kill compact` 命令终止任务。
 
 ## 数据扫描
 
