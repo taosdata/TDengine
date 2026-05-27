@@ -27,6 +27,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     flag = pFD->flag;
   int64_t     lc_size = 0;
 
+  tsdbInfo("tsdb open file %s", path);
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
     if (TD_FILE_READ == flag) {

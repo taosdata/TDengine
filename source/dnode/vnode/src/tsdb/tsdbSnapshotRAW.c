@@ -537,6 +537,7 @@ int32_t tsdbSnapRAWWriterPrepareClose(STsdbSnapRAWWriter* writer) {
   code = tsdbSnapRAWWriteFileSetEnd(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // TODO dmchen writer->fopArr to fSetArrTmp
   code = tsdbFSEditBegin(writer->tsdb->pFS, writer->fopArr, TSDB_FEDIT_COMMIT);
   TSDB_CHECK_CODE(code, lino, _exit);
 

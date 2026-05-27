@@ -126,6 +126,9 @@ static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFil
       .fid = writer->config->fid,
       .nf = writer->file,
   };
+  // TODO dmchen append to ctx->opArr
+  tsdbInfo("vgId:%d, append to ctx->opArr, fid:%d, ftype:%d, minVer:%" PRId64 ", maxVer:%" PRId64,
+           TD_VID(writer->config->tsdb->pVnode), op.fid, op.nf.type, op.nf.minVer, op.nf.maxVer);
   TAOS_CHECK_GOTO(TARRAY2_APPEND(opArr, op), &lino, _exit);
 
   SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
@@ -155,6 +158,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   }
 
   tsdbTFileName(writer->config->tsdb, &writer->file, fname);
+  tsdbInfo("vgId:%d, raw writer open data fd:%s", TD_VID(writer->config->tsdb->pVnode), fname);
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, writer->file.lcn), &lino, _exit);
 
 _exit:

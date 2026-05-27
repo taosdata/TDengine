@@ -58,6 +58,10 @@ static int32_t tsdbFSetRAWWriterFinish(SFSetRAWWriter *writer, TFileOpArray *fop
 
   STFileOp op;
   TARRAY2_FOREACH(writer->ctx->fopArr, op) {
+    // TODO dmchen from writer->ctx->fopArr to writer->fopArr
+    tsdbInfo("vgId:%d, rom writer->ctx->fopArr to writer->fopArr, fid:%d, ftype:%d, minVer:%" PRId64
+             ", maxVer:%" PRId64,
+             TD_VID(writer->config->tsdb->pVnode), op.fid, op.nf.type, op.nf.minVer, op.nf.maxVer);
     code = TARRAY2_APPEND(fopArr, op);
     TSDB_CHECK_CODE(code, lino, _exit);
   }

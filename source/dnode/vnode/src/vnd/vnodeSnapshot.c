@@ -230,6 +230,8 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
       // else: missingFids==NULL means no filtering, RAW reader processes all fids in snapshot
     }
 
+    vInfo("vgId:%d, snapshot missingFids: %d", TD_VID(pVnode), pReader->missingFidCount);
+
     // toggle snap replication mode
     vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d, sver:%" PRId64, TD_VID(pVnode), tsdbOpts.format,
           pReader->sver);

@@ -249,6 +249,7 @@ static int32_t apply_commit(STFileSystem *fs) {
     if (fset1 && fset2) {
       if (fset1->fid < fset2->fid) {
         // delete fset1
+        tsdbInfo("delete fset1, fset1:%d, fset2:%d", fset1->fid, fset2->fid);
         tsdbTFileSetRemove(fset1);
         i1++;
       } else if (fset1->fid > fset2->fid) {
@@ -268,6 +269,7 @@ static int32_t apply_commit(STFileSystem *fs) {
       }
     } else if (fset1) {
       // delete fset1
+      tsdbInfo("delete fset1, fset1:%d", fset1->fid);
       tsdbTFileSetRemove(fset1);
       i1++;
     } else {
