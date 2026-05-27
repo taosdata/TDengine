@@ -3049,6 +3049,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
   char stringBuf[512];
   char *output = taosMemoryMalloc(tbase64_encode_len(BASE64_MAX_INPUT_LEN) + VARSTR_HEADER_SIZE);
   SArray *formats = NULL;
+  timezone_t utcTz = NULL;
 
   if (!output) {
     SCL_ERR_RET(terrno);
@@ -3091,14 +3092,14 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
         case TSDB_TIME_PRECISION_NANO:  format = "yyyy-mm-dd hh24:mi:ss.ns+00"; break;
         default:                        format = "yyyy-mm-dd hh24:mi:ss.ms+00"; break;
       }
-      timezone_t utcTz = tzalloc("UTC");
       if (!utcTz) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _return;
+        utcTz = tzalloc("UTC");
+        if (!utcTz) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _return;
+        }
       }
-      code = taosTs2Char(format, &formats, *(int64_t *)input, precision, stringBuf, sizeof(stringBuf), utcTz);
-      tzfree(utcTz);
-      if (code != TSDB_CODE_SUCCESS) goto _return;
+      SCL_ERR_JRET(taosTs2Char(format, &formats, *(int64_t *)input, precision, stringBuf, sizeof(stringBuf), utcTz));
       srcLen = strlen(stringBuf);
       pSrc = (const uint8_t *)stringBuf;
     } else {
@@ -3121,6 +3122,7 @@ int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOu
 
 _return:
   taosArrayDestroy(formats);
+  if (utcTz) tzfree(utcTz);
   taosMemoryFree(output);
   return code;
 }
