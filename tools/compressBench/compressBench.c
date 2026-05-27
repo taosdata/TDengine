@@ -12,6 +12,11 @@
  * Run:   compressBench --help
  */
 
+// Standalone bench: it does not participate in the TDengine memory/file/clock
+// accounting layer, so it calls libc malloc/free/fopen/clock_gettime directly.
+// The escape hatch must be defined BEFORE any include that pulls in os/.
+#define ALLOW_FORBID_FUNC
+
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
