@@ -1,10 +1,10 @@
-# 概要设计说明书（Functional Spec）- taosBackup
+# 概要设计说明书（Functional Spec）- 新 taosdump
 
 # 修订记录
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
-| 2026-03-31 | 2026-03-31 | 1.0 | Alex Duan | 初版创建，基于源代码反推 |
+| 2026-03-31 | 2026-05-26 | 1.0 | Alex Duan | 新建 |
 
 # 背景
 
@@ -14,7 +14,7 @@ TDengine 现有的 taosdump 工具采用 Avro 行存储格式导出数据，在�
 2. **文件大**：行存储格式压缩效率有限
 3. **恢复低效**：STMT2 逐表绑定（bind_one），无多表批量模式
 
-taosBackup 工具旨在提供高性能、紧凑存储的数据库备份恢复方案，作为 taosdump 的替代和升级。
+新 taosdump 工具旨在提供高性能、紧凑存储的数据库备份恢复方案，作为 taosdump 的替代和升级。
 
 # 定义
 
@@ -37,10 +37,10 @@ taosBackup 工具旨在提供高性能、紧凑存储的数据库备份恢复方
 ### 用法
 
 ```text
-taosBackup [OPTION...] dbname [tbname ...] -o outpath    # 备份指定库/表
-taosBackup [OPTION...] -o outpath                        # 备份所有库
-taosBackup [OPTION...] -i inpath                         # 恢复
-taosBackup [OPTION...] --databases db1,db2,... -o outpath
+taosdump [OPTION...] dbname [tbname ...] -o outpath    # 备份指定库/表
+taosdump [OPTION...] -o outpath                        # 备份所有库
+taosdump [OPTION...] -i inpath                         # 恢复
+taosdump [OPTION...] --databases db1,db2,... -o outpath
 ```
 
 ### 参数列表
@@ -88,44 +88,44 @@ taosBackup [OPTION...] --databases db1,db2,... -o outpath
 
 ```bash
 # 备份所有数据库到 /data/backup/
-taosBackup -o /data/backup/
+taosdump -o /data/backup/
 
 # 备份指定数据库
-taosBackup -D db1,db2 -o /data/backup/
+taosdump -D db1,db2 -o /data/backup/
 
 # 备份指定子表
-taosBackup db1 t1 t2 t3 -o /data/backup/
+taosdump db1 t1 t2 t3 -o /data/backup/
 
 # 仅备份 Schema
-taosBackup -D db1 -s -o /data/backup/
+taosdump -D db1 -s -o /data/backup/
 
 # 备份指定时间范围
-taosBackup -D db1 -S 1625068800000 -E 1625155200000 -o /data/backup/
-taosBackup -D db1 -S 2021-07-01T00:00:00.000+0800 -o /data/backup/
+taosdump -D db1 -S 1625068800000 -E 1625155200000 -o /data/backup/
+taosdump -D db1 -S 2021-07-01T00:00:00.000+0800 -o /data/backup/
 
 # Parquet 格式
-taosBackup -D db1 -F parquet -o /data/backup/
+taosdump -D db1 -F parquet -o /data/backup/
 
 # 恢复
-taosBackup -i /data/backup/
+taosdump -i /data/backup/
 
 # 恢复并重命名
-taosBackup -W "db1=newdb1|db2=newdb2" -i /data/backup/
+taosdump -W "db1=newdb1|db2=newdb2" -i /data/backup/
 
 # 使用 STMT1 恢复
-taosBackup -v 1 -i /data/backup/
+taosdump -v 1 -i /data/backup/
 
 # WebSocket 连接
-taosBackup -Z WebSocket -h 192.168.1.100 -D db1 -o /data/backup/
+taosdump -Z WebSocket -h 192.168.1.100 -D db1 -o /data/backup/
 
 # DSN/Cloud 连接
-taosBackup -X "https://cloud.tdengine.com?token=xxx" -D db1 -o /data/backup/
+taosdump -X "https://cloud.tdengine.com?token=xxx" -D db1 -o /data/backup/
 
 # 断点续传备份
-taosBackup -C -D db1 -o /data/backup/
+taosdump -C -D db1 -o /data/backup/
 
 # 调试模式
-taosBackup -g -D db1 -o /data/backup/
+taosdump -g -D db1 -o /data/backup/
 ```
 
 ## 备份行为
@@ -310,7 +310,7 @@ taosBackup -g -D db1 -o /data/backup/
 
 ```text
 ===========================================================================
-  taosBackup - BACKUP
+  taosdump - BACKUP
 ===========================================================================
   Connect Mode : Native
   Server       : localhost:6030
@@ -346,7 +346,7 @@ taosBackup -g -D db1 -o /data/backup/
 
 基准数据（源自 `docs/benchmark.md`，12 核 CPU，62 GiB RAM，1 亿行）：
 
-| 对比项 | taosBackup binary T8 | taosdump SQL T8 | 倍数 |
+| 对比项 | taosdump binary T8 | taosdump SQL T8 | 倍数 |
 | --- | :---: | :---: | :---: |
 | 备份耗时 | 28s | 1m28s | 3.1x |
 | 恢复耗时 | 29s | — | — |
@@ -359,17 +359,17 @@ taosBackup -g -D db1 -o /data/backup/
 
 # 兼容性
 
-无破坏性变更。taosBackup 是新增工具，不影响 taosdump 或其他组件。
+无破坏性变更。taosdump 是新增工具，不影响 taosdump 或其他组件。
 
 # 运维
 
 1. 依赖 TDengine 客户端库（libtaos）；Parquet 后端静态链接 Arrow/Parquet 库
 2. 通过 CMake 编译（`CMakeLists.txt`），自动检测平台（Linux/macOS），Parquet 在非 Windows 下编译
-3. 编译产物位于 `${CMAKE_BINARY_DIR}/build/bin/taosBackup`
+3. 编译产物位于 `${CMAKE_BINARY_DIR}/build/bin/taosdump`
 
 # 使用场景
 
-1. **定期全量备份**：`taosBackup -o /backup/$(date +%Y%m%d)` 定时任务
+1. **定期全量备份**：`taosdump -o /backup/$(date +%Y%m%d)` 定时任务
 2. **数据迁移**：从环境 A 备份、在环境 B 恢复，支持 `-W` 重命名
 3. **Schema-only 迁移**：`-s` 仅迁移表结构
 4. **增量时间窗口备份**：`-S`/`-E` 指定时间范围仅备份增量数据
@@ -407,16 +407,16 @@ taosBackup -g -D db1 -o /data/backup/
 
 # 可观测性
 
-taosBackup 为独立命令行工具，不影响 taos shell、taosExplorer、TDinsight 等组件行为。
+taosdump 为独立命令行工具，不影响 taos shell、taosExplorer、TDinsight 等组件行为。
 
 # 安装和卸载
 
-- 随 TDengine 一起编译安装，二进制位于 `bin/taosBackup`
+- 随 TDengine 一起编译安装，二进制位于 `bin/taosdump`
 - 卸载时随安装目录删除即可
 
 # 文档
 
-- 需更新官网文档（工具类文档增加 taosBackup 章节）
+- 需更新官网文档（工具类文档增加 taosdump 章节）
 
 # 参考文档
 

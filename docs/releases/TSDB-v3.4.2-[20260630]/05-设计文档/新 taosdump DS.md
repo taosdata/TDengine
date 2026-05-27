@@ -1,20 +1,20 @@
-# 详细设计说明书（Design Spec）- taosBackup
+# 详细设计说明书（Design Spec）-新 taosdump
 
 # 修订记录
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
-| 2026-03-31 | 2026-03-31 | 1.0 | Alex Duan | 初版创建，基于源代码反推 |
+| 2026-03-31 | 2026-05-26 | 1.0 | Alex Duan | 新建 |
 
 # 引言
 
 ## 目的
 
-本文档描述 taosBackup 工具的详细设计，包括模块划分、核心数据结构、备份/恢复流程、文件格式及线程模型，供开发和维护人员参考。
+本文档描述新 taosdump 工具的详细设计，包括模块划分、核心数据结构、备份/恢复流程、文件格式及线程模型，供开发和维护人员参考。
 
 ## 范围
 
-涵盖 taosBackup 工具的所有已实现功能，包括备份、恢复、存储格式、连接池、断点续传、Schema 变更检测等。
+涵盖新 taosdump 工具的所有已实现功能，包括备份、恢复、存储格式、连接池、断点续传、Schema 变更检测等。
 
 ## 受众
 
@@ -36,7 +36,7 @@
 
 ## 架构
 
-taosBackup 采用分层模块化设计：
+新 taosdump 采用分层模块化设计：
 
 ```text
 ┌─────────────┐
@@ -577,7 +577,7 @@ CONN_EMPTY ──┬── taos_connect() ──→ CONN_IDLE
 
 ## 部署流程
 
-1. 随 TDengine 整体编译：`cmake .. && make` 在 `build/build/bin/` 生成 `taosBackup`
+1. 随 TDengine 整体编译：`cmake .. && make` 在 `build/build/bin/` 生成 `新 taosdump`
 2. 安装到 TDengine bin 目录
 
 ## 配置管理

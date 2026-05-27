@@ -1,10 +1,10 @@
-# 需求规格说明书（Requirement Spec）- taosBackup
+# 需求规格说明书（Requirement Spec）- 新 taosdump
 
 # 修订记录
 
 | 编写日期 | 发布日期 | 版本 | 修订人 | 主要修改内容 |
 | --- | --- | --- | --- | --- |
-| 2026-03-31 | 2026-03-31 | 1.0 | Alex Duan | 初版创建，基于源代码反推 |
+| 2026-03-31 | 2026-05-26 | 1.0 | Alex Duan | 新建 |
 
 # 引言
 
@@ -42,7 +42,7 @@ P0 级核心功能，作为 TDengine 生态工具链的重要组成部分，需�
 
 # 需求目标
 
-TDengine 现有的备份工具 taosdump 采用 Avro 行存储格式存储数据，在大数据量场景下备份/恢复速度慢、文件体积大。需要设计并实现一个新的备份恢复工具 taosBackup，采用列存储方式，具备以下核心目标：
+TDengine 现有的备份工具 taosdump 采用 Avro 行存储格式存储数据，在大数据量场景下备份/恢复速度慢、文件体积大。需要设计并实现一个新的备份恢复工具 taosdump，采用列存储方式，具备以下核心目标：
 
 1. **高性能**：备份/恢复速度显著优于 taosdump，支持多线程并行处理
 2. **紧凑存储**：采用私有二进制列存格式（zstd 逐列压缩）或 Apache Parquet 列存格式存储数据，文件体积显著小于 Avro 行存储
@@ -57,7 +57,7 @@ TDengine 现有的备份工具 taosdump 采用 Avro 行存储格式存储数据�
 | --- | --- | --- | --- |
 | 1 | 备份 | 全量数据库备份 | 不指定 `-D` 时，通过 `SHOW DATABASES` 发现所有非系统数据库（排除 `information_schema`、`performance_schema`）并逐库备份 |
 | 2 | 备份 | 指定数据库备份 | 通过 `-D db1,db2,...` 指定一个或多个数据库（上限 64 个） |
-| 3 | 备份 | 指定表备份 | 位置参数 `taosBackup dbname tb1 tb2 ...` 指定库内特定子表（上限 1000 个），仅备份指定表的数据 |
+| 3 | 备份 | 指定表备份 | 位置参数 `taosdump dbname tb1 tb2 ...` 指定库内特定子表（上限 1000 个），仅备份指定表的数据 |
 | 4 | 备份 | Schema-only 备份 | `-s` / `--schemaonly` 仅备份 DDL（db.sql / stb.sql / ntb.sql / vtb.sql / *.csv），跳过数据文件 |
 | 5 | 备份 | 时间范围过滤 | `-S` / `-E` 参数指定起止时间，支持 epoch 毫秒或 ISO8601 格式，生成 `WHERE ts >= ... AND ts <= ...` 过滤条件 |
 | 6 | 备份 | 元数据备份 | 按库导出：db.sql（`SHOW CREATE DATABASE`）、stb.sql（`SHOW CREATE TABLE`，每 STB 一行）、{stb}.csv（DESCRIBE 输出的列 Schema）、tags/ 目录存放标签数据、ntb.sql、vtb.sql、vtags/ |

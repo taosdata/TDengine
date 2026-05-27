@@ -1,8 +1,8 @@
-# taosBackup 与 taosdump 参数对比
+# 新 taosdump 与 taosdump 参数对比
 
 ## 概要
 
-| 对比项 | taosdump | taosBackup |
+| 对比项 | taosdump | 新 taosdump |
 | --- | --- | --- |
 | 存储格式 | Avro 行存储 | 私有二进制列存（.dat, zstd）/ Parquet 列存（.par） |
 | 写入方式 | STMT2 参数化绑定（逐表） | STMT2 多表模式 / STMT1 参数化绑定 |
@@ -13,7 +13,7 @@
 
 以下参数在两个工具中均存在且语义一致：
 
-| 短选项 | 长选项 | 说明 | taosdump 默认 | taosBackup 默认 | 差异说明 |
+| 短选项 | 长选项 | 说明 | taosdump 默认 | 新 taosdump 默认 | 差异说明 |
 | :---: | --- | --- | :---: | :---: | --- |
 | `-h` | `--host` | 服务器地址 | localhost | localhost | 一致 |
 | `-P` | `--port` | 服务器端口 | 6030 | 6030 | 一致 |
@@ -40,23 +40,23 @@
 
 ## 仅 taosdump 支持的参数
 
-| 短选项 | 长选项 | 说明 | taosBackup 替代方案 |
+| 短选项 | 长选项 | 说明 | 新 taosdump 替代方案 |
 | :---: | --- | --- | --- |
-| `-c` | `--config-dir` | TDengine 配置目录 | 无，taosBackup 不读取 taos.cfg |
-| `-r` | `--resultFile` | 结果文件路径 | 无，taosBackup 直接输出到 stdout/stderr |
-| `-a` | `--allow-sys` | 允许导出系统库 | 无，taosBackup 始终排除系统库 |
+| `-c` | `--config-dir` | TDengine 配置目录 | 无，新 taosdump 不读取 taos.cfg |
+| `-r` | `--resultFile` | 结果文件路径 | 无，新 taosdump 直接输出到 stdout/stderr |
+| `-a` | `--allow-sys` | 允许导出系统库 | 无，新 taosdump 始终排除系统库 |
 | `-A` | `--all-databases` | 备份所有数据库 | 不指定 `-D` 时自动备份所有库 |
-| `-e` | `--escape-character` | 转义数据库名 | 无需，taosBackup 内部自动处理 |
-| `-N` | `--without-property` | 不导出数据库属性 | 无，taosBackup 始终导出数据库属性 |
-| `-d` | `--avro-codec` | Avro 编解码器（null/deflate/snappy/lzma） | 无，taosBackup 使用 zstd 或 Parquet |
+| `-e` | `--escape-character` | 转义数据库名 | 无需，新 taosdump 内部自动处理 |
+| `-N` | `--without-property` | 不导出数据库属性 | 无，新 taosdump 始终导出数据库属性 |
+| `-d` | `--avro-codec` | Avro 编解码器（null/deflate/snappy/lzma） | 无，新 taosdump 使用 zstd 或 Parquet |
 | `-I` | `--inspect` | 查看 Avro 文件内容 | 无 |
 | `-L` | `--loose-mode` | 宽松模式（仅字母数字） | 无 |
 | `-n` | `--no-escape` | 不使用转义字符 | 无 |
 | `-Q` | `--dot-replace` | 表名点号替换为下划线 | 无 |
-| `-C` | `--cloud` | DSN 别名（等同 `-X`） | `-C` 在 taosBackup 中用于断点续传（含义不同） |
+| `-C` | `--cloud` | DSN 别名（等同 `-X`） | `-C` 在 新 taosdump 中用于断点续传（含义不同） |
 | `-t` | `--timeout` | WebSocket 超时（秒） | 无独立超时参数 |
 
-## 仅 taosBackup 支持的参数
+## 仅 新 taosdump 支持的参数
 
 | 短选项 | 长选项 | 说明 | taosdump 对应 |
 | :---: | --- | --- | --- |
@@ -67,7 +67,7 @@
 
 ## 参数名相同但语义/用法有差异
 
-| 短选项 | 参数名 | taosdump 语义 | taosBackup 语义 |
+| 短选项 | 参数名 | taosdump 语义 | 新 taosdump 语义 |
 | :---: | --- | --- | --- |
 | `-C` | cloud / checkpoint | DSN 连接串别名（等同 `-X`） | 启用断点续传（flag） |
 | `-B` | data-batch | 默认 16,384 | STMT2 默认 10,000 / STMT1 默认 60,000 |
@@ -75,7 +75,7 @@
 
 ## 功能对比汇总
 
-| 功能 | taosdump | taosBackup |
+| 功能 | taosdump | 新 taosdump |
 | --- | :---: | :---: |
 | 存储格式 | Avro（行存储） | Binary 列存 / Parquet 列存 |
 | 压缩算法 | null/deflate/snappy/lzma（Avro 编解码器） | zstd（逐列压缩） |
