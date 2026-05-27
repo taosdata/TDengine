@@ -11,35 +11,9 @@ taosdump 是 TDengine TSDB 提供的高性能数据备份/恢复工具。备份�
 从 v3.4.2.0 开始，taosdump 进行了全新升级，升级后的版本提供了更高性能、更小备份数据大小及增加了更多实用功能。
 新版本支持老版本生成的 avro 格式数据导入，但不再支持生成 avro 格式备份数据。
 
-## 性能提升
-
-| 工具            | 备份  | 恢复  |
-| -------------  | ----  | ---- |
-| 老版本（基准）   | 1x    | 1x  |
-| 新版本          | 5x    | 3x |
-
-## 备份数据压缩率提升
-
-| 工具           |  存储格式 | 占比   |
-| ------------- | ------ | ---- |
-| 老版本（基准）  | 行存   | 100% |
-| 新版本        | 列存   | 42% |
-
-## 新增功能
-
-- 断点续传
-- 导出 [Parquet](https://parquet.apache.org/) 格式
-- STMT2 导入
-- 多线程元数据备份
-- 仅恢复指定数据库
-- 全新展示界面
-- 优化多表低频场景的备份/恢复性能
-
-新版本支持绝大部分老版本命令行参数（个别参数除外）。
-
 ## 工具获取
 
-taosdump 在 TDengine TSDB v3.4.2.0 及之后版本的服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../03-quick-start/index.md)
+taosdump 在 TDengine TSDB 服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../03-quick-start/index.md)
 
 ## 运行
 
@@ -113,126 +87,6 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-g, --debug` | 开关参数，开启调试信息输出，默认关闭 |
 | `-V, --version` | 显示版本信息并退出 |
 | `--help` | 显示帮助信息并退出 |
-
-## 常用使用场景
-
-### 备份数据
-
-#### 备份所有数据库
-
-```bash
-taosdump -h my-server -o /root/backup/
-```
-
-备份所有用户数据库（`information_schema` 和 `performance_schema` 自动排除）到 `/root/backup/` 目录。
-
-#### 备份指定数据库
-
-```bash
-taosdump -h my-server -D db1,db2 -o /root/backup/
-```
-
-仅备份 `db1` 和 `db2` 两个数据库。
-
-#### 备份指定数据库中的指定超级表或普通表
-
-```bash
-taosdump -h my-server -o /root/backup/ mydb meters d1 d2
-```
-
-备份 `mydb` 库中的超级表 `meters` 以及普通表 `d1`、`d2`。其中第一个位置参数为数据库名，后续参数为该库中的表名或超级表名，以空格分隔。
-
-#### 按时间范围备份
-
-```bash
-taosdump -h my-server -D test -S "2024-01-01T00:00:00.000+0800" -E "2024-12-31T23:59:59.999+0800" -o /root/backup/
-```
-
-仅备份 `test` 数据库中 2024 年全年的数据。
-
-#### 仅备份元数据（Schema）
-
-```bash
-taosdump -h my-server -D test -s -o /root/backup/
-```
-
-仅备份 `test` 数据库的表结构和标签信息，不备份时序数据，适用于快速迁移表结构。
-
-#### 备份为 Parquet 格式
-
-```bash
-taosdump -h my-server -D test -F parquet -o /root/backup/
-```
-
-将 `test` 数据库以 Parquet 格式导出，便于与大数据生态（如 Spark、Hive、DuckDB）对接。
-
-#### 断点续传备份
-
-断点续传功能默认不开启，需要通过 `-C` 参数显式指定。当备份过程中因故中断时，再次运行相同命令并加上 `-C` 参数，taosdump 会自动跳过已成功完成的数据库/超级表/子表，继续备份未完成的部分。
-说明：断点续传只针对数据备份有效，元数据备份因速度快，不提供断点续传功能。
-
-```bash
-# 第一次备份（因故中断）
-taosdump -h my-server -D test -o /root/backup/
-
-# 再次运行，开启断点续传，跳过已完成的超级表/子表
-taosdump -h my-server -D test -o /root/backup/ -C
-```
-
-taosdump 每次运行都会在输出目录中自动写入检查点文件。使用 `-C` 参数重新运行时，会读取检查点文件并跳过已成功完成的项目，从中断位置继续执行。
-
-:::tip
-
-- `-o` 参数指定的目录下如果已存在备份文件，taosdump 在未开启断点续传模式时会直接覆盖同名文件，建议使用空目录进行全量备份。
-- 如果备份数据量很大，建议配合 `-S`/`-E` 参数分段备份，或使用 `-C` 断点续传。
-
-:::
-
-### 恢复数据
-
-#### 恢复到原库
-
-```bash
-taosdump -h my-server -i /root/backup/
-```
-
-将 `/root/backup/` 目录下的备份数据恢复到 `my-server`。恢复时会自动创建对应数据库、超级表及子表（若已存在则跳过建表）。
-
-#### 恢复时重命名数据库
-
-```bash
-taosdump -h my-server -i /root/backup/ -W "db1=db1_restored|db2=db2_restored"
-```
-
-将备份中的 `db1` 恢复为 `db1_restored`，`db2` 恢复为 `db2_restored`，适用于测试验证或平行运行场景。
-
-#### 断点续传恢复
-
-```bash
-taosdump -h my-server -i /root/backup/ -C
-```
-
-恢复同样支持断点续传模式，再次运行时自动跳过已成功恢复的数据文件。
-
-#### Schema 变更场景下的恢复
-
-taosdump 在恢复时会自动检测备份时的表结构与目标服务端现有表结构的差异。当目标端超级表的列集合与备份相比有变化（如新增或删除了列）时，taosdump 会自动计算公共列并执行部分列写入，保证数据安全写入，无需人工干预。
-
-#### 调整写入批量以避免 WAL 溢出
-
-```bash
-taosdump -h my-server -i /root/backup/ -B 2000
-```
-
-恢复时如遇到 `WAL size exceeds limit` 错误，可通过 `-B` 参数减小每次批量写入的行数。
-
-#### 连接 TDengine Cloud
-
-```bash
-taosdump -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
-```
-
-通过 DSN 连接 TDengine Cloud 服务进行数据恢复，驱动类型自动切换为 WebSocket。
 
 ## 备份文件结构
 
@@ -317,3 +171,152 @@ taosdump -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 :::tip
 若发现失败数量不为零，可添加 `-g` 参数开启调试输出，查看详细错误信息，或检查 TDengine 服务端日志进行排查。
 :::
+
+## 常用使用场景
+
+### 备份数据
+
+#### 备份所有数据库
+
+```bash
+taosdump -h my-server -o /root/backup/
+```
+
+备份所有用户数据库（`information_schema` 和 `performance_schema` 自动排除）到 `/root/backup/` 目录。
+
+#### 备份指定数据库
+
+```bash
+taosdump -h my-server -D db1,db2 -o /root/backup/
+```
+
+仅备份 `db1` 和 `db2` 两个数据库。
+
+#### 备份指定数据库中的指定超级表或普通表
+
+```bash
+taosdump -h my-server -o /root/backup/ mydb meters d1 d2
+```
+
+备份 `mydb` 库中的超级表 `meters` 以及普通表 `d1`、`d2`。其中第一个位置参数为数据库名，后续参数为该库中的表名或超级表名，以空格分隔。
+
+#### 按时间范围备份
+
+```bash
+taosdump -h my-server -D test -S "2024-01-01T00:00:00.000+0800" -E "2024-12-31T23:59:59.999+0800" -o /root/backup/
+```
+
+仅备份 `test` 数据库中 2024 年全年的数据。
+
+#### 仅备份元数据（Schema）
+
+```bash
+taosdump -h my-server -D test -s -o /root/backup/
+```
+
+仅备份 `test` 数据库的表结构和标签信息，不备份时序数据，适用于快速迁移表结构。
+
+#### 备份为 Parquet 格式
+
+```bash
+taosdump -h my-server -D test -F parquet -o /root/backup/
+```
+
+将 `test` 数据库以 Parquet 格式导出，便于与大数据生态（如 Spark、Hive、DuckDB）对接。
+
+#### 断点续传备份
+
+断点续传功能默认不开启，需要通过 `-C` 参数显式指定。当备份过程中因故中断时，再次运行相同命令并加上 `-C` 参数，taosdump 会自动跳过已成功完成的数据库/超级表/子表，继续备份未完成的部分。
+
+说明：断点续传只针对数据备份有效，元数据备份因速度快，不提供断点续传功能。
+
+```bash
+# 第一次备份（因故中断）
+taosdump -h my-server -D test -o /root/backup/
+
+# 再次运行，开启断点续传，跳过已完成的超级表/子表
+taosdump -h my-server -D test -o /root/backup/ -C
+```
+
+taosdump 每次运行都会在输出目录中自动写入检查点文件。使用 `-C` 参数重新运行时，会读取检查点文件并跳过已成功完成的项目，从中断位置继续执行。
+
+:::tip
+
+- `-o` 参数指定的目录下如果已存在备份文件，taosdump 在未开启断点续传模式时会直接覆盖同名文件，建议使用空目录进行全量备份。
+- 如果备份数据量很大，建议配合 `-S`/`-E` 参数分段备份，或使用 `-C` 断点续传。
+
+:::
+
+### 恢复数据
+
+#### 恢复到原库
+
+```bash
+taosdump -h my-server -i /root/backup/
+```
+
+将 `/root/backup/` 目录下的备份数据恢复到 `my-server`。恢复时会自动创建对应数据库、超级表及子表（若已存在则跳过建表）。
+
+#### 恢复时重命名数据库
+
+```bash
+taosdump -h my-server -i /root/backup/ -W "db1->db1_restored|db2->db2_restored"
+```
+
+将备份中的 `db1` 恢复为 `db1_restored`，`db2` 恢复为 `db2_restored`，适用于测试验证或平行运行场景。
+
+#### 断点续传恢复
+
+```bash
+taosdump -h my-server -i /root/backup/ -C
+```
+
+恢复同样支持断点续传模式，再次运行时自动跳过已成功恢复的数据文件。
+
+#### Schema 变更场景下的恢复
+
+taosdump 在恢复时会自动检测备份时的表结构与目标服务端现有表结构的差异。当目标端超级表的列集合与备份相比有变化（如新增或删除了列）时，taosdump 会自动计算公共列并执行部分列写入，保证数据安全写入，无需人工干预。
+
+#### 调整写入批量以避免 WAL 溢出
+
+```bash
+taosdump -h my-server -i /root/backup/ -B 2000
+```
+
+恢复时如遇到 `WAL size exceeds limit` 错误，可通过 `-B` 参数减小每次批量写入的行数。
+
+#### 连接 TDengine Cloud
+
+```bash
+taosdump -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
+```
+
+通过 DSN 连接 TDengine Cloud 服务进行数据恢复，驱动类型自动切换为 WebSocket。
+
+## 新版本行为变更
+
+### 性能提升
+
+| 工具            | 备份  | 恢复  |
+| -------------  | ----  | ---- |
+| 老版本（基准）   | 1x    | 1x  |
+| 新版本          | 5x    | 3x |
+
+### 备份数据压缩率提升
+
+| 工具           |  存储格式 | 占比   |
+| ------------- | ------ | ---- |
+| 老版本（基准）  | 行存   | 100% |
+| 新版本        | 列存   | 42% |
+
+### 新增功能
+
+- 断点续传
+- 导出 [Parquet](https://parquet.apache.org/) 格式
+- STMT2 导入
+- 多线程元数据备份
+- 仅恢复指定数据库
+- 全新展示界面
+- 优化多表低频场景的备份/恢复性能
+
+新版本支持绝大部分老版本命令行参数（个别参数除外）。

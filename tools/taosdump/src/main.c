@@ -49,7 +49,7 @@ static void printStartSummary(enum ActionType action) {
                   (argDriver() == CONN_MODE_INVALID && argIsDsn());
     printf("\n");
     printf("===========================================================================\n");
-    printf("  taosBackup - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
+    printf("  taosdump - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
     printf("===========================================================================\n");
     printf("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
     printf("  Config Dir   : %s\n", argConfigDir());

@@ -14,7 +14,7 @@ ADD_LIBRARY(compatAvro STATIC ${COMPAT_AVRO_SRCS})
 # Include paths
 target_include_directories(compatAvro PRIVATE
     ${CMAKE_BINARY_DIR}/build/include       # TDengine headers (taos.h, tdef.h, etc.)
-    ${CMAKE_CURRENT_SOURCE_DIR}/../inc      # taosBackup headers (bck.h, bckLog.h, etc.)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../inc      # taosBackup headers (bck.h, bckLog.h, etc.)
     ${CMAKE_CURRENT_SOURCE_DIR}             # compatAvro internal headers
 )
 
