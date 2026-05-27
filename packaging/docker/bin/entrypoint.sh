@@ -59,6 +59,23 @@ NEEDS_INITDB=0
 # alive (taosadapter still up) and Docker's --restart would never fire.
 PIDS=""
 
+# Install cleanup traps early so that *any* exit path (signal, set -e, watchdog)
+# still tears down the background children we are about to start. Without an
+# EXIT trap, a `set -e` failure during initdb / create-dnode / create-snode
+# would leave orphans behind for tini to reap, and the container would just
+# blink instead of going through the normal "restart" loop.
+cleanup_children() {
+    # Use the saved PIDS first so we don't accidentally signal anything else
+    # tini may have adopted. pkill -P $$ is the safety net for anything
+    # backgrounded that we forgot to record.
+    for pid in $PIDS; do
+        kill -TERM "$pid" 2>/dev/null || true
+    done
+    pkill -P $$ 2>/dev/null || true
+}
+trap 'echo "Received stop signal, killing children"; cleanup_children; exit 0' SIGINT SIGTERM
+trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "entrypoint exiting abnormally (rc=$rc), killing children"; cleanup_children; fi' EXIT
+
 # if dnode has been created or has mnode ep set or the host is first ep or not for cluster, just start.
 if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
     [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
@@ -169,8 +186,6 @@ fi
 
 sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create snode on dnode 1;'"
 
-trap 'echo "Received stop signal, killing children"; pkill -P $$ 2>/dev/null || true; exit 0' SIGINT SIGTERM
-
 # Watchdog: if any of taosd / taosadapter / taoskeeper / taos-explorer dies
 # (e.g. taosd OOM-killed), tear the whole container down so Docker's --restart
 # can bring it back. Before this, only taosd dying would silently leave
@@ -178,9 +193,13 @@ trap 'echo "Received stop signal, killing children"; pkill -P $$ 2>/dev/null || 
 #
 # Polling instead of `wait -n` keeps this compatible with bash versions that
 # do not support `-n`; the 2s tick is negligible CPU.
+# Cleanup traps were installed at the top of this script — both the SIGINT/
+# SIGTERM and the EXIT trap call cleanup_children, so we don't need to repeat
+# the pkill plumbing here.
+
 if [ -z "$PIDS" ]; then
     # cluster non-first node with every sidecar disabled — nothing to watch.
-    # Stay alive so the trap above can still catch docker stop signals.
+    # Stay alive so the SIGINT/SIGTERM trap can still stop the container.
     echo "No background TDengine processes to watch; idling"
     while true; do sleep 3600; done
 fi
@@ -190,7 +209,8 @@ while true; do
     for pid in $PIDS; do
         if ! kill -0 "$pid" 2>/dev/null; then
             echo "child process $pid exited; shutting container down so Docker can restart it"
-            pkill -P $$ 2>/dev/null || true
+            # cleanup_children runs via the EXIT trap; just give children a
+            # beat to actually wind down before we let the container exit.
             sleep 1
             exit 1
         fi
