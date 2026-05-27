@@ -1995,3 +1995,248 @@ class TestCopyModeRepair:
         if not self._ssh_ok:
             pytest.skip("passwordless SSH to 127.0.0.1 not available")
         self._do_test_exit_code_partial_failure(source_host=self.source_host)
+
+    def _do_test_missing_dnode_in_nodeinfo(self, source_host=None):
+        """Source vnode.json's nodeInfo does not contain the target dnodeId.
+
+        The repair tool should detect this before any destructive operations
+        and fail immediately without creating .bak or copying any files."""
+        env = self._setup_env()
+        vid = env["vnode_id"]
+
+        # Create source vnode with nodeInfo that does NOT contain target_dnode_id (2)
+        # Only include dnode 1 and 3 — dnode 2 is missing
+        bad_dnode_ids = [1, 3]
+
+        fsets = [
+            {
+                "fid": 1, "last_compact": 0, "last_commit": 0,
+                "files": [
+                    {"type": 0, "fid": 1, "cid": 10, "size": 512,
+                     "did_level": 0, "did_id": 0, "lcn": 0},
+                    {"type": 1, "fid": 1, "cid": 10, "size": 1024,
+                     "did_level": 0, "did_id": 0, "lcn": 0},
+                ],
+            },
+        ]
+        make_source_vnode(env["src_data"], vid, fsets, bad_dnode_ids, my_index=0)
+
+        # Pre-create target vnode directory with some existing data to verify
+        # it is NOT disturbed (no backup rename should happen)
+        tgt_vnode_dir = os.path.join(env["tgt_data"], "vnode", f"vnode{vid}")
+        tgt_tsdb_dir = os.path.join(tgt_vnode_dir, "tsdb")
+        os.makedirs(tgt_tsdb_dir, exist_ok=True)
+        marker_file = os.path.join(tgt_tsdb_dir, "marker.txt")
+        write_file(marker_file, "original data")
+
+        result = self._run_repair(env["tgt_cfg_dir"], env["src_cfg"], str(vid),
+                                  source_host=source_host)
+
+        # Should fail with exit code 4 (all vnodes failed)
+        tdSql.checkEqual(result.returncode, 4,
+                         f"Expected exit code 4, got {result.returncode}\n"
+                         f"stdout: {result.stdout}\nstderr: {result.stderr}")
+
+        # Verify error message mentions dnodeId not found in nodeInfo
+        combined = result.stdout + result.stderr
+        tdSql.checkEqual("nodeInfo" in combined.lower() or "dnodeId" in combined, True,
+                         "Expected error message about dnodeId not found in nodeInfo")
+
+        # Verify NO .bak was created (fail-fast before backup)
+        bak_dir = os.path.join(env["tgt_data"], "vnode", f"vnode{vid}.bak")
+        tdSql.checkEqual(not os.path.exists(bak_dir), True,
+                         "No .bak should be created when nodeInfo validation fails early")
+
+        # Verify original target data is undisturbed
+        tdSql.checkEqual(os.path.isfile(marker_file), True,
+                         "Original target data should not be touched")
+        tdSql.checkEqual(read_file(marker_file), "original data",
+                         "Original target file content should be unchanged")
+
+    def test_missing_dnode_in_nodeinfo_local(self):
+        """Missing dnodeId in source nodeInfo — local mode
+
+        1. Create source vnode.json with nodeInfo that excludes the target dnodeId.
+        2. Run repair in local mode.
+        3. Expect immediate failure (rc=4) without any backup or copy operations.
+        4. Verify target data is untouched and no .bak directory is created.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-21 Bomin Zhang created
+        """
+        self._do_test_missing_dnode_in_nodeinfo()
+
+    def test_missing_dnode_in_nodeinfo_remote(self):
+        """Missing dnodeId in source nodeInfo — remote mode
+
+        1. Create source vnode.json with nodeInfo that excludes the target dnodeId.
+        2. Run repair in remote mode via SSH.
+        3. Expect immediate failure (rc=4) without any backup or copy operations.
+        4. Verify target data is untouched and no .bak directory is created.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-21 Bomin Zhang created
+        """
+        if not self._ssh_ok:
+            pytest.skip("passwordless SSH to 127.0.0.1 not available")
+        self._do_test_missing_dnode_in_nodeinfo(source_host=self.source_host)
+
+    # --- Stale source detection tests ---
+
+    def _do_test_stale_source_warning(self, source_host=None):
+        """Local target has fid=1 and fid=2, but source only has fid=1.
+
+        The repair should succeed (rc=0) but emit a stale source warning
+        because local fid=2 is not present in the source and will be discarded."""
+        env = self._setup_env()
+        vid = env["vnode_id"]
+
+        # Source only has fid=1
+        src_fsets = [
+            {
+                "fid": 1, "last_compact": 0, "last_commit": 0,
+                "files": [
+                    {"type": 0, "fid": 1, "cid": 10, "size": 512,
+                     "did_level": 0, "did_id": 0, "lcn": 0},
+                    {"type": 1, "fid": 1, "cid": 10, "size": 1024,
+                     "did_level": 0, "did_id": 0, "lcn": 0},
+                ],
+            },
+        ]
+        src_contents = make_source_vnode(
+            env["src_data"], vid, src_fsets, env["dnode_ids"])
+
+        # Pre-populate target with fid=1 AND fid=2 (local has more than source)
+        tgt_tsdb = os.path.join(env["tgt_data"], "vnode", f"vnode{vid}", "tsdb")
+        os.makedirs(tgt_tsdb, exist_ok=True)
+
+        # Create fid=1 files on target (same as source)
+        for (fid, cid, suffix, mid, lcn), content in src_contents.items():
+            if fid == 1:
+                fname = tsdb_filename(vid, fid, cid, suffix, mid=mid, lcn=lcn)
+                write_file(os.path.join(tgt_tsdb, fname), content)
+
+        # Create fid=2 files on target (local-only, not in source)
+        local_only_files = [
+            {"type": 0, "fid": 2, "cid": 20, "size": 256,
+             "did_level": 0, "did_id": 0, "lcn": 0},
+            {"type": 1, "fid": 2, "cid": 20, "size": 512,
+             "did_level": 0, "did_id": 0, "lcn": 0},
+        ]
+        for f in local_only_files:
+            fname = tsdb_filename(vid, f["fid"], f["cid"],
+                                  {0: "head", 1: "data"}[f["type"]],
+                                  mid=f.get("mid", 0), lcn=f.get("lcn", 0))
+            make_fake_file(os.path.join(tgt_tsdb, fname), f["size"])
+
+        # Write local current.json with fid=1 and fid=2
+        local_fsets = [
+            {
+                "fid": 1, "last_compact": 0, "last_commit": 0,
+                "files": [
+                    {"type": 0, "fid": 1, "cid": 10, "size": 512,
+                     "did_level": 0, "did_id": 0, "lcn": 0},
+                    {"type": 1, "fid": 1, "cid": 10, "size": 1024,
+                     "did_level": 0, "did_id": 0, "lcn": 0},
+                ],
+            },
+            {
+                "fid": 2, "last_compact": 0, "last_commit": 0,
+                "files": local_only_files,
+            },
+        ]
+        write_file(os.path.join(tgt_tsdb, "current.json"), make_current_json(local_fsets))
+
+        result = self._run_repair(env["tgt_cfg_dir"], env["src_cfg"], str(vid),
+                                  source_host=source_host)
+
+        # Should succeed (rc=0) — stale source is a warning, not a failure
+        tdSql.checkEqual(result.returncode, 0,
+                         f"Expected rc=0, got {result.returncode}\n"
+                         f"stdout: {result.stdout}\nstderr: {result.stderr}")
+
+        # Verify stale source warning in output
+        combined = result.stdout + result.stderr
+        tdSql.checkEqual("stale" in combined.lower(), True,
+                         "Expected 'stale' warning in output")
+        tdSql.checkEqual("fid 2" in combined or "fid=2" in combined, True,
+                         "Expected local-only fid 2 mentioned in warning")
+
+        # Verify the repair completed: fid=1 files exist, fid=2 discarded
+        tgt_tsdb_after = os.path.join(env["tgt_data"], "vnode", f"vnode{vid}", "tsdb")
+        current = json.loads(read_file(os.path.join(tgt_tsdb_after, "current.json")))
+        fids = sorted([fs["fid"] for fs in current["fset"]])
+        tdSql.checkEqual(fids, [1], "After repair, only source fid=1 should remain")
+
+        # Verify summary mentions "stale source"
+        tdSql.checkEqual("stale source" in combined.lower(), True,
+                         "Expected '(stale source)' in summary output")
+
+        # Verify .bak cleaned up (repair succeeded)
+        bak_dir = os.path.join(env["tgt_data"], "vnode", f"vnode{vid}.bak")
+        tdSql.checkEqual(not os.path.exists(bak_dir), True,
+                         "Backup dir should be deleted after successful repair")
+
+    def test_stale_source_warning_local(self):
+        """Stale source detection — local mode
+
+        1. Target has local current.json with fid=1 and fid=2.
+        2. Source only has fid=1.
+        3. Repair succeeds (rc=0) but warns that source may be stale.
+        4. After repair, only fid=1 remains; fid=2 is discarded.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-22 Bomin Zhang created
+        """
+        self._do_test_stale_source_warning()
+
+    def test_stale_source_warning_remote(self):
+        """Stale source detection — remote mode
+
+        1. Target has local current.json with fid=1 and fid=2.
+        2. Source only has fid=1 (accessed via SSH).
+        3. Repair succeeds (rc=0) but warns that source may be stale.
+        4. After repair, only fid=1 remains; fid=2 is discarded.
+
+        Catalog:
+            - Others:RepairCopy
+
+        Since: v3.3.6.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-5-22 Bomin Zhang created
+        """
+        if not self._ssh_ok:
+            pytest.skip("passwordless SSH to 127.0.0.1 not available")
+        self._do_test_stale_source_warning(source_host=self.source_host)

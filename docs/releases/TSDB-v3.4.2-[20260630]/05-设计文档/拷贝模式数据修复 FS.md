@@ -126,17 +126,29 @@ taosd -r --mode copy --node-type vnode \
     - 如只有部分磁盘上有vnodeN.bak，一般是执行步骤 5l 出错导致的，修复工作实质上已经完成，删除备份文件即可；但为确保数据正确，建议删除所有磁盘上的 vnodeN 和 vnodeN.bak 后重新执行整个 vnode 的恢复。
 
     b. 检查源端是否存在对应的 vnode，如不存在则跳过此 vnode；如存在则读取其 current.json，构建文件清单。
+
     c. 读取本地 current.json，如不存在或无法解析则后续拷贝源端所有的文件组，否则后续只拷贝本地缺失的文件组或本地有文件缺失的文件组。
+
     d. 在所有磁盘上将文件夹 vnodeN 重命名为 vnodeN.bak，如果某个磁盘上没有文件夹 vnodeN，则创建一个空的 vnodeN.bak 文件夹。
+
     e. 在所有磁盘上，创建文件夹 vnodeN。
+
     f. 从源端拷贝 vnodeN 文件夹下除 vnodeN/tsdb 之外的所有文件和文件夹到主磁盘上的文件夹 vnodeN，每个文件拷贝完毕后，检查其大小与源端一致。
+
     g. 对 vnodeN.bak/tsdb/ 文件夹下需要保留的文件，在其所在磁盘的 vnodeN/tsdb 文件夹下创建同名硬链接文件。
+
     h. 对每个要从源端拷贝的文件组中的文件，计算其磁盘 ID 重映射关系，并从源端拷贝到对应磁盘的 vnodeN/tsdb 下，每个文件拷贝完成后，检查其大小与源端一致。
+
     i. 生成正确的 vnodeN/tsdb/current.json 文件。
+
     j. 根据第 2 步中获取的信息，更新 vnodeN/vnode.json和vnodeN/sync/raft_config.json的 syncCfg.myIndex 字段。
+
     k. 删除 vnodeN/sync/文件夹下的 raft_store.json 和所有 *.bak 文件。
+
     l. 删除所有磁盘上的备份文件夹 vnodeN.bak。
+
     m. 在执行步骤 5d 到 5k 的过程中，如遇到错误，则删除所有磁盘上的 vnodeN 文件夹后将 vnodeN.bak 重命名为 vnodeN，然后终止对此 vnode 的修复。
+
 6. **输出汇总报告并退出** （报告包括每个 vnode 的修复结果：已修复、失败、跳过）
 
 ### 4.4 磁盘 ID 重映射规则
