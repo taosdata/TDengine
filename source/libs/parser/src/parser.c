@@ -26,8 +26,8 @@
 #include "tname.h"
 #include "ttime.h"
 
-bool qIsLiteralSql(const char* pStr, size_t length) {
-  if (NULL == pStr) {
+bool qIsLiteralSql(const char* pStr) {
+  if (NULL == pStr || !*pStr) {
     return false;
   }
 
@@ -171,7 +171,7 @@ next_value:
     ADVANCE();
     goto next_value;
   } else if (MATCH(TK_NK_RP)) {
-    if (nr_values != nr_names) {
+    if (nr_names && nr_values != nr_names) {
       RETURN_EXPECTING("`,`");
     }
   } else {

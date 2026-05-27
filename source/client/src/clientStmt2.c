@@ -2285,7 +2285,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   }
   pStmt->sql.sqlLen = length;
 
-  if (qIsLiteralSql(pStmt->sql.sqlStr, pStmt->sql.sqlLen)) {
+  if (qIsLiteralSql(pStmt->sql.sqlStr)) {
     return stmtPrepareLiteral2(stmt);
   }
 

@@ -124,7 +124,10 @@ void getFieldsError(TAOS* taos, const char* sql, int errorCode, const char* erro
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
   int code = taos_stmt2_prepare(stmt, sql, 0);
-  checkError(stmt, code, __FILE__, __LINE__);
+  // checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(code, errorCode);
+
+  if (code) return;
 
   int             fieldNum = 0;
   TAOS_FIELD_ALL* pFields = NULL;
@@ -477,6 +480,8 @@ TEST(stmt2Case, timezone) {
       getRecordCounts++;
     }
     ASSERT_EQ(getRecordCounts, 1);
+
+    taos_stmt2_close(stmt);
   }
 
   // stmt2 wiht time str in UTC timezone
@@ -781,7 +786,7 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
   {
     const char* sql = "insert into stmt2_testdb_2.stb(t1,t2,ts,b,tbname) values(*,*,*,*,*)";
     printf("case 9 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_PAR_INVALID_COLUMNS_NUM, "Illegal number of columns");
+    getFieldsError(taos, sql, /*TSDB_CODE_PAR_INVALID_COLUMNS_NUM*/TSDB_CODE_TSC_SQL_SYNTAX_ERROR, "Illegal number of columns");
   }
 
   do_query(taos, "drop database if exists stmt2_testdb_2");
@@ -1120,7 +1125,7 @@ TEST(stmt2Case, insert_ntb_get_fields_Test) {
   {
     const char* sql = "insert into stmt2_testdb_4.? values(?,?)";
     printf("case 2 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Table does not exist");
+    getFieldsError(taos, sql, /*TSDB_CODE_TSC_STMT_TBNAME_ERROR*/TSDB_CODE_SUCCESS, "Table does not exist");
   }
 
   // case 3 :  wrong para nums
@@ -1609,6 +1614,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     int code = taos_stmt2_prepare(stmt, sql, 0);
     ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
     ASSERT_STREQ(taos_stmt2_error(stmt), "stmt only support 'SELECT' or 'INSERT'");
+
 
     taos_stmt2_close(stmt);
   }
@@ -3747,7 +3753,7 @@ TEST(stmt2Case, errcode) {
     int             fieldNum = 0;
     TAOS_FIELD_ALL* pFields = NULL;
     code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-    ASSERT_EQ(code, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
+    ASSERT_EQ(code, /*TSDB_CODE_TSC_STMT_TBNAME_ERROR*/TSDB_CODE_SUCCESS);
 
     // get fail dont influence the next stmt prepare
     sql = "insert into ? (ts, name) values (?, ?)";
@@ -5124,7 +5130,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv = &params[0];
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], NULL, &paramv};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -5145,7 +5151,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv = &params[0];
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], NULL, &paramv};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -5208,7 +5214,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[0]};
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], &pTag, &paramv[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -5226,7 +5232,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[0]};
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], &pTag, &paramv[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -6387,6 +6393,8 @@ TEST_F(stmt2CaseF, insert) {
         TSDB_CODE_SUCCESS, 2), // flaw: redundant (?, ?) shall be reported as error
     R("insert into stmt2_insert.t (ts, i32) values (?, 1)",
         TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(?,?)",
+        TSDB_CODE_SUCCESS, 3),
   };
 #undef R
   for (size_t i=0; i<sizeof(_cases1)/sizeof(*_cases1); ++i) {

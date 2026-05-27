@@ -27,7 +27,7 @@ extern "C" {
 #include <syslog.h>
 
 #if 0   /* { */
-#if 1       /* { */
+#if 0       /* { */
 #define D(fmt, ...)                                                            \
   fprintf(stderr, "@[%p]%s[%d]:%s():" fmt "\n",                                \
       (void*)(uintptr_t)taosThreadSelf(), __FILE__, __LINE__, __func__,        \
@@ -200,7 +200,7 @@ typedef struct SPureInsertParserCtx {
 } SPureInsertParserCtx;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
-bool    qIsLiteralSql(const char* pStr, size_t length);
+bool    qIsLiteralSql(const char* pStr);
 
 // NOTE: only for insert into [db.]? (...) values (...)
 int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr);
