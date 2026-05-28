@@ -108,7 +108,7 @@ variables:
   # ── 基础路径配置（按部署环境修改这两个变量即可）──────────────────────────
   CI_BASE_DIR: "/data1/tdengine-ci"        # CI 工作根目录（workspace、platform、fail-logs 均在此）
   CI_CACHE_DIR: "/data/cache/tsdb-builder" # 构建缓存目录（externals stamps、Docker layer 等）
-  BUILDER_IMAGE_TAG: "0.3.1"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
+  BUILDER_IMAGE_TAG: "latest"                 # 构建镜像版本（与 BUILDER_SCRIPT_IMAGE 保持同步）
   BUILDER_SCRIPT_IMAGE: "others:${BUILDER_IMAGE_TAG}" # build.sh --image 参数；切换镜像时改此处即可（如 core:${BUILDER_IMAGE_TAG}）
   BUILDER_IMAGE: "harbor.tdengine.net/tsdb-builder/others:${BUILDER_IMAGE_TAG}-amd64"
   # ── 调度激进度（0=保守, 1=折中激进[默认], 2=激进）───────────────────────────
@@ -117,6 +117,10 @@ variables:
   #   1: stop=80%  tiers=40/65/85%   idle=ncpus*0.75  max_conc=nproc*0.7  ← 推荐
   #   2: stop=85%  tiers=50/75/100%  idle=ncpus*1.00  max_conc=nproc*0.8
   CI_SCHED_AGGR: "1"
+  # ── Cleanup 保留参数（在此修改即可，也可在 GitLab → Settings → CI/CD → Variables 中按需覆盖）──
+  CLEANUP_KEEP_DAYS: "5"        # 正常保留天数（mr/fail-logs/job/state/daily/web/push），5天覆盖周末
+  CLEANUP_KEEP_DAYS_URGENT: "3" # 磁盘用量 ≥ 90% 时的紧急保留天数
+  DAILY_KEEP_COUNT: "3"         # 每分支保留最新几个 daily-<branch>-YYYYMMDD 构建
 
 .rules-code-change:
   rules:
@@ -132,6 +136,7 @@ variables:
         - ".gitlab/.gitlab-ci.yml"
         - "source/**/test/ci/cases.task"
         - "tests/ci/scripts/**"
+        - "tools/tsdb-builder/**/*"
     - if: $PARENT_PIPELINE_SOURCE != "merge_request_event"
 
 # ======================================================================
@@ -147,7 +152,8 @@ prepare-workspace:
   script:
     - |
       if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
-        WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}"
+        # MR 场景：路径带 pipeline ID，避免同一 MR 多次 push 的新旧 pipeline 竞争同一目录
+        WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}-p${CI_PIPELINE_ID}"
       elif [ "${PARENT_PIPELINE_SOURCE}" = "schedule" ]; then
         WORKSPACE="${CI_BASE_DIR}/daily-${CI_COMMIT_BRANCH}-$(date +%Y%m%d)"
       elif [ "${PARENT_PIPELINE_SOURCE}" = "web" ]; then
@@ -213,34 +219,30 @@ prepare-workspace:
         fi
       }
 
+      # ── 辅助函数：首次 clone 或 rerun 时复用已有 repo ──────────────────
+      # rerun 场景：build 产物（debug-others/）由 Docker 以 root 写入 TSDB_SRC，
+      # 导致 rm -rf 无论是普通删除还是 Docker cleanup 都可能静默失败，
+      # 最终 git clone 报 "destination path already exists"。
+      # 当 .git 已存在时，直接 fetch + checkout，完全绕开删目录的问题。
+      _clone_or_fetch() {
+        local _dir="$1"
+        if [ -d "${_dir}/.git" ]; then
+          echo "[prepare] ${_dir} already exists (rerun?), fetching instead of clone..."
+          cd "${_dir}"
+          git fetch --depth 50 origin "${_BRANCH}"
+        else
+          rm -rf "${_dir}" 2>/dev/null || true   # 清理无 .git 的残留目录（幂等）
+          git clone --branch "${_BRANCH}" --depth 50 \
+            git@git.tdengine.net:rd-public/tsdb.git "${_dir}"
+        fi
+      }
+
       # NoSan 源码目录
-      git clone --branch "${_BRANCH}" --depth 50 \
-        git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC}"
+      _clone_or_fetch "${TSDB_SRC}"
       _checkout_merged "${TSDB_SRC}"
       # San 独立源码目录（与 NoSan 并行构建，互不干扰）
-      git clone --branch "${_BRANCH}" --depth 50 \
-        git@git.tdengine.net:rd-public/tsdb.git "${TSDB_SRC_SAN}"
+      _clone_or_fetch "${TSDB_SRC_SAN}"
       _checkout_merged "${TSDB_SRC_SAN}"
-
-    - |
-      # 确保 platform 工具仓库存在并为最新；flock 防止多 MR 并发时同时 clone/pull
-      PLATFORM_DIR="${CI_BASE_DIR}/platform"
-      PLATFORM_BRANCH="main"
-      mkdir -p "$(dirname "${PLATFORM_DIR}")"
-      (
-        flock -x 9
-        if [ ! -d "${PLATFORM_DIR}/.git" ]; then
-          echo "[prepare] Cloning platform repo (branch: ${PLATFORM_BRANCH})..."
-          git clone --branch "${PLATFORM_BRANCH}" \
-            git@git.tdengine.net:rd-public/platform.git "${PLATFORM_DIR}"
-        else
-          echo "[prepare] Updating platform repo (branch: ${PLATFORM_BRANCH})..."
-          git -C "${PLATFORM_DIR}" fetch origin --prune
-          git -C "${PLATFORM_DIR}" checkout "${PLATFORM_BRANCH}" 2>/dev/null \
-            || git -C "${PLATFORM_DIR}" checkout -b "${PLATFORM_BRANCH}" "origin/${PLATFORM_BRANCH}"
-          git -C "${PLATFORM_DIR}" reset --hard "origin/${PLATFORM_BRANCH}"
-        fi
-      ) 9>${CI_BASE_DIR}/.platform-clone.lock
 
   artifacts:
     reports:
@@ -353,7 +355,7 @@ build-externals:
             fi
           fi
         done
-        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+        "${TSDB_SRC}/tools/tsdb-builder/build.sh" \
           --image ${BUILDER_SCRIPT_IMAGE} \
           --src "${TSDB_SRC}" \
           --cache ${CI_CACHE_DIR}/ \
@@ -384,7 +386,7 @@ build-externals:
           [ -d "${_ext_dir}" ] && mkdir -p "${_ext_dir}/tmp" "${_ext_dir}/src" 2>/dev/null || true
         done
         echo "[build-externals] post-cmake: ensured tmp/src for all ext_* (concurrency safety)"
-      ) 9>${CI_CACHE_DIR}/.externals-build.lock
+      ) 9>>${CI_CACHE_DIR}/.externals-build.lock
       echo "=== [build-externals] Externals done ==="
       # 若切换回 --image core:${BUILDER_IMAGE_TAG}，需要将 externals-core-amd64 符号链接到 externals-others-amd64：
       # ln -sfn "${CI_CACHE_DIR}/externals-core-amd64" \
@@ -427,7 +429,7 @@ build-noasan:
           fi
         done
         echo "[build-noasan] externals validation passed, starting build"
-        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+        "${TSDB_SRC}/tools/tsdb-builder/build.sh" \
             --image ${BUILDER_SCRIPT_IMAGE} \
             --src "${TSDB_SRC}" \
             --cache ${CI_CACHE_DIR}/ \
@@ -486,7 +488,7 @@ build-asan:
           fi
         done
         echo "[build-asan] externals validation passed, starting build"
-        ${CI_BASE_DIR}/platform/tsdb-builder/build.sh \
+        "${TSDB_SRC}/tools/tsdb-builder/build.sh" \
             --image ${BUILDER_SCRIPT_IMAGE} \
             --src "${TSDB_SRC_SAN}" \
             --cache ${CI_CACHE_DIR}/ \
@@ -859,8 +861,14 @@ upload-nexus:
           _NOSAN_BIN="${TSDB_SRC}/debug-others/build/bin"
           _NOSAN_LIB="${TSDB_SRC}/debug-others/build/lib"
           echo "[pack] [asan] Supplementing test-only binaries from noasan build..."
-          for _tbin in tmq_get_meta_json tmq_vtable tmq_batch_alter_tag tmq_taosx_ci tmq_sim \
-                       replay_test sml_test get_db_name_test varbinary_test write_raw_block_test; do
+          # 全量 tmq_* 测试工具（ASAN 构建 BUILD_TEST=OFF，统一从 noasan 补充，
+          # 避免测试用例通过 run_container.sh 在 worker 上找不到这些二进制产物）
+          while IFS= read -r _bin; do
+            _bn=$(basename "$_bin")
+            cp "$_bin" "${TAR_BIN}/" && echo "  [OK] ${_bn}"
+          done < <(find "${_NOSAN_BIN}" -maxdepth 1 -name 'tmq_*' -type f -executable 2>/dev/null)
+          # 其他 ctest 测试工具
+          for _tbin in replay_test sml_test get_db_name_test varbinary_test write_raw_block_test; do
             if [ -f "${_NOSAN_BIN}/${_tbin}" ]; then
               cp "${_NOSAN_BIN}/${_tbin}" "${TAR_BIN}/"
               echo "  [OK] ${_tbin}"
@@ -1116,7 +1124,7 @@ upload-nexus:
 # coordinator — 运行于 test-builder，为所有 worker 提供用例队列服务
 # 端口 = CI_PIPELINE_ID % 10000 + 20000（所有 job 中相同）
 # coordinator 跟随 TSDB_BUILDER_TAG 路由，与 prepare/build/upload 落在同一台 builder
-# test-linux worker 在 step 3 通过 case 语句从 TSDB_BUILDER_TAG 推导 coordinator 主机名
+# test-linux worker 在 step 3 通过 COORDINATOR_HOST（prepare 写入 build.env）连接
 # ======================================================================
 coordinator:
   stage: test
@@ -1257,22 +1265,43 @@ coordinator:
     CI_NODE_INDEX: "14"
 
 # ======================================================================
-# Stage: cleanup
+# Stage: cleanup — coordinator workspace 清理 + 全局历史目录回收 + worker 磁盘清理
 # ======================================================================
-# cleanup-workspace 暂时禁用（隐藏 job，不会被 GitLab 执行），待后续决定是否启用
-.cleanup-workspace:
+# cleanup-workspace (coordinator 节点, $TSDB_BUILDER_TAG):
+#   test 阶段完成后始终执行（when: always），不管测试成功或失败。
+#   删除当前 pipeline 的 workspace (mr<N>/ daily-* 等)。
+#
+# cleanup-coordinator-sweep (coordinator 节点, $TSDB_BUILDER_TAG):
+#   始终执行（when: always），test 阶段完成后运行，扫描当前节点所有历史目录：
+#   · merged/closed 的 MR → 始终删整个目录
+#   · open/unknown，空闲 ≥ CLEANUP_KEEP_DAYS 天 → 删整个目录
+#   · 旧 coordinator-state/pipeline-* / daily-* / web-* / push-* → 超期删除
+#   GitLab API 鉴权通过内置 CI_JOB_TOKEN（无需额外配置）
+#
+# cleanup-worker [*] (各 worker 节点，时间驱动清理，与本次 pipeline 结果无关):
+#   · test 阶段完成后运行（when: always，不设置 needs:）
+#   · job-<N>/ 工作目录: 无活跃进程且超过保留天数 → 删除
+#   · fail-logs/job-<N>/: 超过保留天数删除
+#   保留策略: 磁盘 < 90% 用 CLEANUP_KEEP_DAYS 天(默认5)，≥ 90% 用 CLEANUP_KEEP_DAYS_URGENT 天(默认3)
+# ======================================================================
+
+# ── coordinator Step 1: 删除当前 workspace（test 阶段完成后始终执行）────────────────
+cleanup-workspace:
   stage: cleanup
   tags: [$TSDB_BUILDER_TAG]
-  timeout: 5 minutes
-  when: manual   # 手动触发：调试期间保留工作区，调试完毕后手动运行此 job 清理
-  needs:
-    - job: upload-nexus
-      optional: true
+  timeout: 15 minutes
+  when: always           # 无论 pipeline 成功/失败均执行；不设置 needs: 隐式等待 test 阶段所有 job 完成
+  allow_failure: true
+  extends: .rules-code-change
+
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "1"
 
   script:
     - |
       if [ "${PARENT_PIPELINE_SOURCE}" = "merge_request_event" ]; then
-        WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}"
+        WORKSPACE="${CI_BASE_DIR}/mr${CI_MERGE_REQUEST_IID}-p${CI_PIPELINE_ID}"
       elif [ "${PARENT_PIPELINE_SOURCE}" = "schedule" ]; then
         WORKSPACE="${CI_BASE_DIR}/daily-${CI_COMMIT_BRANCH}-$(date +%Y%m%d)"
       elif [ "${PARENT_PIPELINE_SOURCE}" = "web" ]; then
@@ -1280,14 +1309,127 @@ coordinator:
       else
         WORKSPACE="${CI_BASE_DIR}/push-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHORT_SHA}"
       fi
-      echo "Cleaning up workspace: ${WORKSPACE}"
+      echo "[cleanup] Current workspace: ${WORKSPACE}"
       if [ -d "${WORKSPACE}" ]; then
         chmod -R u+w "${WORKSPACE}" 2>/dev/null || true
         rm -rf "${WORKSPACE}" 2>/dev/null || true
       fi
+      # 如果普通删除失败（Docker 产生的 root 文件），通过容器以 root 身份清理
       if [ -d "${WORKSPACE}" ]; then
+        echo "[cleanup] rm -rf failed, retrying via Docker (root)..."
         docker run --rm -v "${WORKSPACE}":/cleanup "${BUILDER_IMAGE}" \
           sh -c 'chmod -R 777 /cleanup && find /cleanup -mindepth 1 -delete' 2>/dev/null || true
         rm -rf "${WORKSPACE}" 2>/dev/null || true
       fi
-      echo "Done."
+      [ ! -d "${WORKSPACE}" ] \
+        && echo "[cleanup] Workspace removed." \
+        || echo "[WARN] Workspace still exists (will be caught by coordinator sweep): ${WORKSPACE}"
+
+# ── coordinator Step 2: 历史目录扫描（始终执行，与本次 pipeline 结果无关）──────────
+cleanup-coordinator-sweep:
+  stage: cleanup
+  tags: [$TSDB_BUILDER_TAG]
+  timeout: 15 minutes
+  when: always           # 无论 pipeline 成功/失败均扫描历史目录
+  allow_failure: true
+  # 不设置 needs:，隐式等待 test 阶段所有 job 完成后再运行
+  extends: .rules-code-change
+
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "1"
+
+  script:
+    # coordinator-wide 清理：已合并/关闭的 MR + 空闲 MR 构建产物 + 旧 state/daily/web/push
+    # 使用 CI_JOB_TOKEN（GitLab 内置，无需配置，对本项目 API 自动有权限）
+    - |
+      echo "[cleanup] Running coordinator-wide sweep..."
+      GITLAB_TOKEN="${CI_JOB_TOKEN}" \
+      GITLAB_TOKEN_HEADER="JOB-TOKEN" \
+      GITLAB_URL="${CI_SERVER_URL}" \
+      PROJECT_PATH="${CI_PROJECT_PATH}" \
+      WORKDIR="${CI_BASE_DIR}" \
+      LOG_FILE=/dev/stdout \
+      bash "${CI_PROJECT_DIR}/tools/ci/scripts/cleanup-coordinator.sh" \
+        || echo "[WARN] cleanup-coordinator.sh exited non-zero (已忽略)" 
+# ── worker 节点: 清理旧 job 目录 + fail-logs（按磁盘压力动态调整保留时间）──────
+.cleanup-worker-base:
+  stage: cleanup
+  timeout: 10 minutes
+  when: always
+  allow_failure: true
+  # 不设置 needs:，隐式等待 test 阶段所有 job 完成后再运行
+  extends: .rules-code-change
+
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: "1"
+
+  script:
+    - |
+      echo "=== [cleanup-worker] $(hostname)  CI_BASE_DIR=${CI_BASE_DIR} ==="
+      GITLAB_TOKEN="${CI_JOB_TOKEN}" \
+      GITLAB_TOKEN_HEADER="JOB-TOKEN" \
+      GITLAB_URL="${CI_SERVER_URL}" \
+      PROJECT_PATH="${CI_PROJECT_PATH}" \
+      WORKDIR="${CI_BASE_DIR}" \
+      LOG_FILE=/dev/stdout \
+      HOSTNAME_SHORT="$(hostname -s)" \
+      bash "${CI_PROJECT_DIR}/tools/ci/scripts/cleanup-worker.sh" \
+        || echo "[WARN] cleanup-worker.sh exited non-zero (已忽略)"
+
+"cleanup-worker [u3-141]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-141]
+
+"cleanup-worker [u3-142]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-142]
+
+"cleanup-worker [u3-143]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-143]
+
+"cleanup-worker [u0-210]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u0-210]
+
+"cleanup-worker [u1-63]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u1-63]
+
+"cleanup-worker [u1-59]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u1-59]
+
+"cleanup-worker [u0-212]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u0-212]
+
+"cleanup-worker [u1-47]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u1-47]
+
+"cleanup-worker [u3-145]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-145]
+
+"cleanup-worker [u3-146]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-146]
+
+"cleanup-worker [u3-147]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u3-147]
+
+"cleanup-worker [u2-205]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u2-205]
+
+"cleanup-worker [u2-210]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u2-210]
+
+"cleanup-worker [u2-217]":
+  extends: .cleanup-worker-base
+  tags: [X64, Linux, worker, TSDB-CI, u2-217]

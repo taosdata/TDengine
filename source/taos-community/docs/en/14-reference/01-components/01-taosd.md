@@ -280,11 +280,10 @@ On Linux/macOS, the client automatically reads the time zone information set by 
 
 ```text
 timezone UTC-8
-timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone UTC-8` is not supported, and must be written as `timezone Asia/Shanghai`.
+Both are valid settings for the east-8 (Beijing) time zone. Note that under the POSIX sign convention, `UTC-8` means 8 hours east of UTC — the sign is counterintuitive. When in doubt, use an IANA name such as `Asia/Shanghai` to avoid confusion. For the full list of accepted timezone formats, see [Supported Timezone Formats](../03-taos-sql/95-timezone.md#supported-timezone-formats).
 
 The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set +e
-#set -x
+# set -x
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
   TD_OS="Darwin"
@@ -22,11 +22,14 @@ cd "$SCRIPT_DIR"/../ || exit 1
 SCRIPT_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
-if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../../
+if [[ "${SCRIPT_DIR}" == *"taos-community"* ]]; then
+  TOP_DIR="${TEST_CODE_DIR}/../../../"
+elif [[ "${SCRIPT_DIR}" == *"${IN_TDINTERNAL}"* ]]; then
+  TOP_DIR="${TEST_CODE_DIR}/../../"
 else
-  cd ../
+  TOP_DIR="${TEST_CODE_DIR}/../"
 fi
+
 if [[ -n "$WORK_DIR" ]]; then
   echo "WORK_DIR: $WORK_DIR"
   TAOS_DIR=$WORK_DIR  

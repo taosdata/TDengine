@@ -91,8 +91,7 @@ ENDIF ()
 #   libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
 
 # AVRO compatibility module
-ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/../compatible
-                 ${CMAKE_CURRENT_BINARY_DIR}/compatible)
+ADD_SUBDIRECTORY(compatible)
 
 # include
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
@@ -149,7 +148,7 @@ if(NOT ${TD_WINDOWS})
 
     # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
     # which collide with ext_arrow's statically bundled ZSTD.
-    if(NOT APPLE)
+    if(NOT TD_DARWIN)
         target_link_options(taosdump PRIVATE
             -Wl,--gc-sections
             -Wl,-Bsymbolic-functions
@@ -204,7 +203,7 @@ TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
 
 # link AVRO compatibility module
 TARGET_LINK_LIBRARIES(taosdump PRIVATE compatAvro)
-target_include_directories(taosdump PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../compatible)
+target_include_directories(taosdump PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/compatible)
 target_compile_definitions(taosdump PRIVATE COMPAT_AVRO_ENABLED)
 
 if(TD_WINDOWS)
@@ -225,7 +224,7 @@ endif()
 # taosdump binary keeps its own DWARF info (file/line in backtraces) but
 # does not bloat with Arrow/Parquet/Thrift internals.
 if(NOT ${TD_WINDOWS})
-    if(APPLE)
+    if(TD_DARWIN)
         set(_strip_flag -S)
     else()
         set(_strip_flag --strip-debug)
@@ -259,7 +258,7 @@ else()
 endif()
 
 # On macOS, Arrow's bundled thrift / zlib need these system frameworks
-if(APPLE)
+if(TD_DARWIN)
     target_link_libraries(taosdump PRIVATE
         "-framework CoreFoundation"
         "-framework Security"

@@ -210,12 +210,13 @@ cancel_handler() {
     echo ""
     echo "[run-test-dynamic] *** Job cancelled — stopping containers for ${JOB_CONTAINER_PREFIX} ***"
     _ci_unregister_job
-    # 先按命名前缀停（当前 job 的容器）
-    docker ps --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
-        | xargs -r docker stop --time 15 2>/dev/null || true
-    sleep 2
+    # 直接 docker kill（发 SIGKILL 给容器），避免 docker stop 的等待时间超过
+    # GitLab runner graceful_kill_timeout（默认 10 s），否则本脚本自身会被 SIGKILL
+    # 打断，导致容器残留、trap 不再执行
     docker ps --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
         | xargs -r docker kill 2>/dev/null || true
+    docker ps -a --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
+        | xargs -r docker rm -f 2>/dev/null || true
     # 恢复 core_pattern
     [ -n "${ORIG_CORE_PATTERN}" ] && echo "${ORIG_CORE_PATTERN}" > /proc/sys/kernel/core_pattern 2>/dev/null || true
     exit 130
@@ -228,9 +229,9 @@ _on_exit() {
     [[ ${_heartbeat_pid:-0} -gt 0 ]] && kill "${_heartbeat_pid}" 2>/dev/null || true
     _ci_unregister_job
     docker ps --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
-        | xargs -r docker stop --time 10 2>/dev/null || true
+        | xargs -r timeout 30 docker stop --time 5 2>/dev/null || true
     docker ps -a --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
-        | xargs -r docker rm -f 2>/dev/null || true
+        | xargs -r timeout 20 docker rm -f 2>/dev/null || true
     [ -n "${ORIG_CORE_PATTERN}" ] && echo "${ORIG_CORE_PATTERN}" > /proc/sys/kernel/core_pattern 2>/dev/null || true
 }
 trap _on_exit EXIT
@@ -277,6 +278,10 @@ run_case_in_slot() {
     mkdir -p "${_tvol}"
     [[ ! -d "${_tvol}/ci" ]] && cp -rf "${TDENGINE_DIR}/test/ci" "${_tvol}/ci" 2>/dev/null || true
 
+    # 清理可能存在的同名旧容器（上次 job 异常退出/cancel 时 _on_exit trap 未执行导致残留）
+    # docker rm -f 对不存在的容器会返回非 0 但无副作用，2>/dev/null 屏蔽错误输出
+    docker rm -f "${container_name}" 2>/dev/null || true
+
     timeout --kill-after=15 "${CASE_TIMEOUT}" \
         bash "${_rc_script}" \
             -w "${WORKDIR}" \
@@ -291,8 +296,10 @@ run_case_in_slot() {
     # timeout 返回 124(SIGTERM) 或 137(SIGKILL+15s)，强制停容器
     if [[ ${rc} -eq 124 || ${rc} -eq 137 ]]; then
         echo "[run-test-dynamic] CASE TIMEOUT (${CASE_TIMEOUT}s): killing container ${container_name}" >> "${log_file}"
-        docker stop --time 10 "${container_name}" >/dev/null 2>&1 || true
-        docker rm -f "${container_name}" >/dev/null 2>&1 || true
+        # docker stop/rm 本身可能因 Docker daemon 负载过重而无限阻塞，
+        # 加外层 timeout 防止 slot 子进程（以及整个 drain loop）被卡住。
+        timeout 30 docker stop --time 5 "${container_name}" >/dev/null 2>&1 || true
+        timeout 15 docker rm -f "${container_name}" >/dev/null 2>&1 || true
         rc=124
     fi
     local elapsed_ms=$(( $(date +%s%3N) - start_ms ))
@@ -635,21 +642,22 @@ CASETXT
                 ln -sf "${_shared_bin}/${_bin_name}" "${_retain_dir}/build/bin/${_bin_name}" 2>/dev/null || true
             fi
         done
-        # libtaosnative.so 放入共享目录，每个用例做 symlink（供 GDB solib-search-path 使用）
-        local _lib_name="libtaosnative.so"
-        if [[ -f "${_debug_lib}/${_lib_name}" ]]; then
-            if [[ ! -f "${_shared_lib}/${_lib_name}" ]] || \
-               ! cmp -s "${_debug_lib}/${_lib_name}" "${_shared_lib}/${_lib_name}"; then
-                cp "${_debug_lib}/${_lib_name}" "${_shared_lib}/${_lib_name}" 2>/dev/null || true
+        # 将关键 .so 放入共享目录，供 GDB solib-search-path 使用（libtaosnative.so / libtaos.so）
+        for _lib_name in libtaosnative.so libtaos.so; do
+            if [[ -f "${_debug_lib}/${_lib_name}" ]]; then
+                if [[ ! -f "${_shared_lib}/${_lib_name}" ]] || \
+                   ! cmp -s "${_debug_lib}/${_lib_name}" "${_shared_lib}/${_lib_name}"; then
+                    cp "${_debug_lib}/${_lib_name}" "${_shared_lib}/${_lib_name}" 2>/dev/null || true
+                fi
+                mkdir -p "${_retain_dir}/build/lib"
+                ln -sf "${_shared_lib}/${_lib_name}" "${_retain_dir}/build/lib/${_lib_name}" 2>/dev/null || true
             fi
-            mkdir -p "${_retain_dir}/build/lib"
-            ln -sf "${_shared_lib}/${_lib_name}" "${_retain_dir}/build/lib/${_lib_name}" 2>/dev/null || true
-        fi
+        done
         echo "[retain] Saved to ${_retain_dir}/"
         echo "[retain] Browse: http://${MY_IP}:${FAIL_HTTP_PORT}/job-${CI_JOB_ID:-local}/${_case_slug}/"
 
         # ── coredump GDB 摘要（retain 已就绪，_debug_bin / _shared_bin 均已定义）──
-        # 识别崩溃进程 → 查找对应 binary → 在容器内运行 gdb --batch 'thread apply all bt'
+        # 识别崩溃进程 → 查找对应 binary → 宿主机 gdb --batch 'thread apply all bt'
         # 结果打印到 job 日志 + 保存到 ${_retain_dir}/coredump/gdb-bt-*.txt
         if [[ -n "${_coredump_files_for_gdb}" ]]; then
             local _gdb_dir="${_retain_dir}/coredump"
@@ -693,27 +701,30 @@ CASETXT
                 local _gdb_out="${_gdb_dir}/gdb-bt-${_cf_name}.txt"
                 if [[ -n "${_exe}" ]]; then
                     local _exe_real; _exe_real=$(readlink -f "${_exe}" 2>/dev/null || echo "${_exe}")
-                    # lib 目录与 bin 目录同级：debugNoSan/build/lib 或 debugSan/build/lib
-                    local _lib_dir; _lib_dir=$(dirname "$(dirname "${_exe_real}")")/lib
+                    # _debug_lib 已在上方计算（debugNoSan/build/lib 或 debugSan/build/lib）
+                    # 注意：若 exe 来自 _shared_bin，dirname(dirname(exe))/lib 路径不存在；
+                    # 直接使用 _debug_lib 确保路径始终正确。
+                    local _lib_dir="${_debug_lib}"
                     echo "Exe   : ${_exe_real}"
                     echo "Lib   : ${_lib_dir}"
                     echo "[GDB] running thread apply all bt (timeout 90s) ..."
-                    local _lib_vol=""
-                    [[ -d "${_lib_dir}" ]] && _lib_vol="-v ${_lib_dir}:/_lib:ro"
-                    timeout 90 docker run --rm \
-                        -v "${_exe_real}:/_exe:ro" \
-                        -v "${_cf}:/_core:ro" \
-                        ${_lib_vol} \
-                        "${BUILDER_IMAGE}" bash -c '
-                            which gdb >/dev/null 2>&1 || { echo "(gdb not available in image)"; exit 0; }
-                            gdb --batch -q \
-                                -ex "set pagination off" \
-                                -ex "set print thread-events off" \
-                                -ex "set solib-search-path /_lib" \
-                                -ex "thread apply all bt" \
-                                /_exe /_core 2>&1 | head -500
-                        ' 2>/dev/null | tee "${_gdb_out}" \
-                        || echo "[coredump] GDB timed out or failed"
+                    # 方案：宿主机 GDB + solib-search-path 指向 TDengine .so 目录。
+                    # 系统库（libc/libpthread 等）由 GDB 从宿主机默认路径加载即可；
+                    # 不提取容器系统库——容器镜像可能已更新，版本不一定匹配 core 文件，
+                    # 反而会触发 .dynamic section mismatch 导致符号完全失效。
+                    if which gdb >/dev/null 2>&1; then
+                        timeout 90 gdb --batch -q \
+                            -iex "set auto-load safe-path /" \
+                            -ex "set pagination off" \
+                            -ex "set print thread-events off" \
+                            -ex "set solib-search-path ${_lib_dir}" \
+                            -ex "bt" \
+                            -ex "thread apply all bt" \
+                            "${_exe_real}" "${_cf}" 2>&1 | head -500 | tee "${_gdb_out}" \
+                            || echo "[coredump] GDB timed out or failed"
+                    else
+                        echo "(host gdb not found, skipping GDB analysis)" | tee "${_gdb_out}"
+                    fi
                 else
                     echo "(binary '${_bin_hint:-unknown}' not found in debug/shared dirs — manual GDB needed)"
                     echo "  _debug_bin : ${_debug_bin}"
@@ -799,30 +810,32 @@ while [[ ${_all_done} -eq 0 ]]; do
             "${COORDINATOR_URL}/api/next?worker=${MY_HOSTNAME}&ip=${MY_IP}&slots=${req_slots}&caps=${WORKER_CAPS}" \
         ) || {
             _coord_fail_streak=$(( _coord_fail_streak + 1 ))
-            echo "[run-test-dynamic] WARN: coordinator unreachable (streak=${_coord_fail_streak}), retry in ${POLL_INTERVAL}s"
-            # 两种情况下主动退出：
-            # 快速退出策略：
-            # 1. 连续失败 >= 5 次（15s）且无 in_flight → coordinator 已退出，立即退出
-            # 2. 连续失败 >= 5 次（15s）且有 in_flight → 进入 drain 模式，耗尽当前任务后退出
-            # 3. 兜底：连续失败 >= 120 次时强制退出（临时网络抖动保护）
-            if [[ ${_coord_fail_streak} -ge 5 ]]; then
+            # ── 三段退出策略（网络恢复容错窗口）──────────────────────────────
+            # streak 1-4  (<30s)  ：快速重试，应对短暂抖动
+            # streak 5-24 (30s~5min)：退避 10s 重试，覆盖交换机重启/网络波动
+            #   · 本地 in-flight case 继续在后台运行，heartbeat 子进程每 30s 独立发送
+            #   · coordinator 侧：120s 心跳超时后将 in-flight 标 rc=-1；
+            #     worker 重连后上报真实结果，/api/done 的 overwrite 逻辑会用真实值覆盖
+            # streak ≥ 25 (>5min)：coordinator 确认不可达，进入 drain/退出
+            if [[ ${_coord_fail_streak} -ge 25 ]]; then
+                echo "[run-test-dynamic] Coordinator unreachable for ~5min (streak=${_coord_fail_streak}), giving up"
+                _coord_gone=1
+                _all_done=1
                 if [[ ${in_flight} -eq 0 ]]; then
-                    echo "[run-test-dynamic] Coordinator gone and no local work. Exiting."
+                    echo "[run-test-dynamic] No local work remaining. Exiting."
                 else
-                    echo "[run-test-dynamic] Coordinator gone with ${in_flight} in-flight case(s). Draining."
+                    echo "[run-test-dynamic] ${in_flight} in-flight case(s) will drain locally."
                 fi
-                _coord_gone=1
-                _all_done=1
                 break
+            elif [[ ${_coord_fail_streak} -ge 5 ]]; then
+                echo "[run-test-dynamic] WARN: coordinator unreachable (streak=${_coord_fail_streak}), backoff 10s (network recovery window)"
+                sleep 10
+                continue
+            else
+                echo "[run-test-dynamic] WARN: coordinator unreachable (streak=${_coord_fail_streak}), retry in ${POLL_INTERVAL}s"
+                sleep "${POLL_INTERVAL}"
+                continue
             fi
-            if [[ ${_coord_fail_streak} -ge 120 ]]; then
-                echo "[run-test-dynamic] Coordinator unreachable for too long. Exiting."
-                _coord_gone=1
-                _all_done=1
-                break
-            fi
-            sleep "${POLL_INTERVAL}"
-            continue
         }
         _coord_fail_streak=0   # 成功则清零
 
@@ -924,9 +937,26 @@ while [[ ${_all_done} -eq 0 ]]; do
 done
 
 # ── 等待所有 in-flight 完成 ───────────────────────────────────────────────────
+# drain_deadline：进入 drain 时记录时间，超过 CASE_TIMEOUT + 60s 后强制中断
+# 防止 docker stop 阻塞导致 slot 子进程永久挂起、drain loop 无限等待。
 echo ""
 echo "[run-test-dynamic] Queue done, draining ${in_flight} in-flight case(s)..."
+_drain_start=$(date +%s)
+_drain_deadline=$(( _drain_start + CASE_TIMEOUT + 60 ))
 while (( in_flight > 0 )); do
+    if (( $(date +%s) > _drain_deadline )); then
+        echo "[run-test-dynamic] WARN: drain timeout (${CASE_TIMEOUT}+60s), force-killing remaining slot processes"
+        for (( _ds=0; _ds<TEST_CONCURRENCY; _ds++ )); do
+            if [[ ${SLOT_PIDS[${_ds}]:-0} -ne 0 ]]; then
+                kill -9 "${SLOT_PIDS[${_ds}]}" 2>/dev/null || true
+                SLOT_PIDS[${_ds}]=0
+            fi
+        done
+        # 强制清理该 job 所有残留容器
+        docker ps -a --filter "name=${JOB_CONTAINER_PREFIX}" --format "{{.Names}}" 2>/dev/null \
+            | xargs -r timeout 20 docker rm -f 2>/dev/null || true
+        break
+    fi
     harvest_one
     process_finished_slot "${FINISHED_SLOT}"
     in_flight=$(( in_flight - 1 ))

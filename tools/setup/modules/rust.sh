@@ -3,17 +3,25 @@
 # modules/rust.sh — Rust toolchain + Nora registry + sccache
 # ============================================================================
 
+get_rustc_version() {
+    rustc --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true
+}
+
+get_cargo_version() {
+    cargo --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true
+}
+
 mod_rust_check() {
     header "Rust Toolchain"
 
     # rustc
     if cmd_exists rustc; then
         local ver
-        ver=$(rustc --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-        if version_gte "$ver" "$REQUIRED_RUST_VERSION"; then
+        ver=$(get_rustc_version)
+        if [[ -n "$ver" ]] && version_gte "$ver" "$REQUIRED_RUST_VERSION"; then
             ok "rustc $ver (>= $REQUIRED_RUST_VERSION)"
         else
-            warn "rustc $ver (need >= $REQUIRED_RUST_VERSION)"
+            warn "rustc unavailable or below required version (need >= $REQUIRED_RUST_VERSION)"
             ISSUES_FOUND=$((ISSUES_FOUND + 1))
         fi
     else
@@ -23,15 +31,28 @@ mod_rust_check() {
 
     # cargo
     if cmd_exists cargo; then
-        ok "cargo $(cargo --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+        local cargo_ver
+        cargo_ver=$(get_cargo_version)
+        if [[ -n "$cargo_ver" ]]; then
+            ok "cargo ${cargo_ver}"
+        else
+            warn "cargo unavailable or no default Rust toolchain configured"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        fi
     else
         fail "cargo not found"
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
     fi
 
-    # cargo config → Nora
+    # cargo config
     local cargo_config="$HOME/.cargo/config.toml"
-    if [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        if [[ ! -f "$cargo_config" ]] || ! grep -qF "nora.tdengine.net" "$cargo_config"; then
+            ok "Cargo registry → crates.io (public mode)"
+        else
+            info "Cargo config still points to Nora while TSDB_PUBLIC_DEPS=1"
+        fi
+    elif [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
         ok "Cargo registry → Nora (internal)"
     else
         warn "Cargo not configured for internal Nora registry"
@@ -56,10 +77,13 @@ mod_rust_check() {
 
 mod_rust_install() {
     # rustup + toolchain
-    if ! cmd_exists rustc || ! version_gte "$(rustc --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" "$REQUIRED_RUST_VERSION"; then
+    local rustc_ver
+    rustc_ver=$(get_rustc_version)
+    if [[ -z "$rustc_ver" ]] || ! version_gte "$rustc_ver" "$REQUIRED_RUST_VERSION"; then
         if confirm "Install/upgrade Rust via rustup?"; then
             if cmd_exists rustup; then
-                rustup update stable
+                rustup toolchain install stable
+                rustup default stable
             else
                 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
                 # shellcheck disable=SC1091
@@ -85,25 +109,29 @@ mod_rust_install() {
 mod_rust_config() {
     local cargo_config="$HOME/.cargo/config.toml"
 
-    # Cargo config.toml → Nora
-    if [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using default crates.io registry"
         return 0
-    fi
-
-    if [[ -n "$CARGO_CONFIG_SRC" ]]; then
-        info "Cargo config source: $CARGO_CONFIG_SRC"
     else
-        info "Will write default Nora registry config"
-    fi
-
-    if confirm "Write Cargo config to $cargo_config?"; then
-        mkdir -p "$(dirname "$cargo_config")"
-        backup_file "$cargo_config"
+        # Cargo config.toml → Nora
+        if [[ -f "$cargo_config" ]] && grep -qF "nora.tdengine.net" "$cargo_config"; then
+            return 0
+        fi
 
         if [[ -n "$CARGO_CONFIG_SRC" ]]; then
-            cp "$CARGO_CONFIG_SRC" "$cargo_config"
+            info "Cargo config source: $CARGO_CONFIG_SRC"
         else
-            cat > "$cargo_config" <<'CARGO_EOF'
+            info "Will write default Nora registry config"
+        fi
+
+        if confirm "Write Cargo config to $cargo_config?"; then
+            mkdir -p "$(dirname "$cargo_config")"
+            backup_file "$cargo_config"
+
+            if [[ -n "$CARGO_CONFIG_SRC" ]]; then
+                cp "$CARGO_CONFIG_SRC" "$cargo_config"
+            else
+                cat > "$cargo_config" <<'CARGO_EOF'
 [source.crates-io]
 replace-with = 'internal'
 
@@ -120,9 +148,10 @@ timeout = 120
 [net]
 git-fetch-with-cli = true
 CARGO_EOF
+            fi
+            ok "Cargo config written to $cargo_config"
+            CHANGES_MADE=$((CHANGES_MADE + 1))
         fi
-        ok "Cargo config written to $cargo_config"
-        CHANGES_MADE=$((CHANGES_MADE + 1))
     fi
 
     # sccache (optional, don't push)

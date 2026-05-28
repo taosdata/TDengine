@@ -31,6 +31,7 @@ extern "C" {
 char   *taosCharsetReplace(char *charsetstr);
 void    taosGetSystemLocale(char *outLocale, char *outCharset);
 int32_t taosSetSystemLocale(const char *inLocale);
+int32_t taosGetOSFirstDayOfWeek(void);
 
 #ifdef __cplusplus
 }

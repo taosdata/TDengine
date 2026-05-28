@@ -8,8 +8,8 @@ DOCS_CI_WORKDIR="${DOCS_CI_WORKDIR:-${DOCS_CI_WORKDIR_BASE}/slot-${CI_CONCURRENT
 TSDB_REPO_URL="${TSDB_REPO_URL:-https://git.tdengine.net/rd-public/tsdb.git}"
 ZH_DOC_REPO_URL="${ZH_DOC_REPO_URL:-https://github.com/taosdata/docs.taosdata.com.git}"
 EN_DOC_REPO_URL="${EN_DOC_REPO_URL:-https://github.com/taosdata/docs.tdengine.com.git}"
-ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-feat/tsdb-path-env}"
-EN_DOC_BRANCH="${EN_DOC_BRANCH:-feat/tsdb-path-env}"
+ZH_DOC_BRANCH="${ZH_DOC_BRANCH:-master}"
+EN_DOC_BRANCH="${EN_DOC_BRANCH:-main}"
 
 TSDB_DIR="${TSDB_DIR:-${DOCS_CI_WORKDIR}/tsdb}"
 ZH_DOC_DIR="${ZH_DOC_DIR:-${DOCS_CI_WORKDIR}/docs.taosdata.com}"
@@ -21,7 +21,17 @@ ensure_repo() {
   local repo_dir="$2"
 
   if [ ! -d "${repo_dir}/.git" ]; then
-    git clone "${repo_url}" "${repo_dir}"
+    local attempt
+    for attempt in 1 2 3; do
+      if git clone "${repo_url}" "${repo_dir}"; then
+        return 0
+      fi
+      echo "ensure_repo: clone attempt ${attempt} failed, retrying in 5s..." >&2
+      rm -rf "${repo_dir}"
+      sleep 5
+    done
+    echo "ensure_repo: clone failed after 3 attempts" >&2
+    return 1
   fi
 }
 
@@ -33,7 +43,18 @@ prepare_docs_repo_on_host() {
   mkdir -p "${DOCS_CI_WORKDIR}"
   ensure_repo "${repo_url}" "${repo_dir}"
   git -C "${repo_dir}" remote set-url origin "${repo_url}"
-  git -C "${repo_dir}" fetch origin "${branch}" --prune
+  local attempt
+  for attempt in 1 2 3; do
+    if git -C "${repo_dir}" fetch origin "${branch}" --prune; then
+      break
+    fi
+    echo "prepare_docs_repo_on_host: fetch attempt ${attempt} failed, retrying in 5s..." >&2
+    sleep 5
+    if [ "${attempt}" -eq 3 ]; then
+      echo "prepare_docs_repo_on_host: fetch failed after 3 attempts" >&2
+      return 1
+    fi
+  done
   git -C "${repo_dir}" reset --hard FETCH_HEAD
   git -C "${repo_dir}" clean -fd
   git -C "${repo_dir}" checkout -B "${branch}" FETCH_HEAD

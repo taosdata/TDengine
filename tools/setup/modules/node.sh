@@ -85,6 +85,11 @@ mod_node_install() {
 }
 
 mod_node_config() {
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using default npm registry"
+        return 0
+    fi
+
     # Configure npm/pnpm registry → internal Nora npm mirror
     # NPM_REGISTRY_URL is set by config.sh from .build-args
     local nora_npm_url="${NPM_REGISTRY_URL:-https://nora.tdengine.net/npm/}"

@@ -77,6 +77,8 @@ Not applicable, either because there is no explainable query plan or the syntax 
 
 `EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a row with detailed statistical information.
 
+If the optimizer can prove at compile time that a query always returns no rows, for example `EXPLAIN SELECT * FROM meters WHERE 0 = 1`, the statement is pruned directly. No executable plan is generated, and the statement does not enter the execution phase. As a result, this kind of query typically does not produce meaningful `EXPLAIN` / `EXPLAIN ANALYZE` output for diagnosis.
+
 The execution plan is displayed as a tree:
 
 - The topmost node is where the final result is produced

@@ -1512,7 +1512,7 @@ function updateProduct() {
   fi
 
   cd $script_dir
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^\/") || :
+  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 function installProduct() {
@@ -1572,7 +1572,7 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^\/") || :
+  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 check_java_env() {

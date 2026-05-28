@@ -209,7 +209,10 @@ impl TmqFetch {
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub enum TmqRecvData {
-    Subscribe,
+    Subscribe {
+        #[serde(default)]
+        list_instances: Option<Vec<String>>,
+    },
     Unsubscribe,
     Poll(TmqPoll),
     Fetch(TmqFetch),
@@ -306,14 +309,60 @@ impl WsMessage {
     }
 }
 
-#[test]
-fn test_serde_recv_data() {
-    let json = r#"{
-        "code": 1,
-        "message": "",
-        "action": "poll",
-        "req_id": 1
-    }"#;
-    let d: TmqRecv = serde_json::from_str(json).unwrap();
-    let _ = dbg!(d.ok());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serde_recv_data() {
+        let json = r#"{
+            "code": 1,
+            "message": "",
+            "action": "poll",
+            "req_id": 1
+        }"#;
+        let recv: TmqRecv = serde_json::from_str(json).unwrap();
+        let (_, _, ok) = recv.ok();
+        assert!(ok.is_err());
+    }
+
+    #[test]
+    fn test_serde_recv_subscribe_with_list_instances() {
+        let json = r#"{
+            "code": 0,
+            "message": "",
+            "action": "subscribe",
+            "req_id": 1,
+            "list_instances": ["host1:6041", "host2:6041"]
+        }"#;
+        let recv: TmqRecv = serde_json::from_str(json).unwrap();
+        let (_, data, ok) = recv.ok();
+        ok.unwrap();
+        match data {
+            TmqRecvData::Subscribe { list_instances } => {
+                assert_eq!(
+                    list_instances,
+                    Some(vec!["host1:6041".to_string(), "host2:6041".to_string()])
+                );
+            }
+            data => panic!("unexpected data: {data:?}"),
+        }
+    }
+
+    #[test]
+    fn test_serde_recv_subscribe_without_list_instances() {
+        let json = r#"{
+            "code": 0,
+            "message": "",
+            "action": "subscribe",
+            "req_id": 1
+        }"#;
+        let recv: TmqRecv = serde_json::from_str(json).unwrap();
+        let (_, data, ok) = recv.ok();
+        ok.unwrap();
+        match data {
+            TmqRecvData::Subscribe { list_instances } => assert_eq!(list_instances, None),
+            data => panic!("unexpected data: {data:?}"),
+        }
+    }
 }

@@ -157,6 +157,8 @@ You can use the above syntax to modify the client's configuration parameters, an
 
 To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](../01-components/02-taosc.md)
 
+Connection-level parameter modification commands `SET TIMEZONE` and `SET FIRST_DAY_OF_WEEK` are documented in [Timezone and Natural Time Units](./95-timezone.md).
+
 ## View Client Configuration
 
 ```sql

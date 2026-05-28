@@ -1,0 +1,52 @@
+# =============================================================================
+# tsdb-docs-cd — docs site deploy pipeline (child of .gitlab-ci.yml)
+#
+# Triggered by the parent on `schedule` only (for now). Builds zh + en docs
+# in parallel inside the docs-ci image and rsyncs the static output to the
+# deploy hosts.
+#
+# Required CI variables (project/group):
+#   DOCS_CI_IMAGE       same image used by tsdb-docs CI
+#
+# Secrets fetched at runtime from Infisical via OIDC:
+#   DOCS_FEISHU_WEBHOOK_URL   (path: /docs-cd)
+#   DOCS_DEPLOY_SSH_KEY       (future, path: /docs-cd)
+# =============================================================================
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+
+stages:
+  - deploy
+
+.docs-cd-job:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline"
+  id_tokens:
+    CI_JOB_JWT_V2:
+      aud: https://infisical.tdengine.net
+  variables:
+    GIT_DEPTH: "0"
+  tags: [X64, Linux, TSDB-DOCS, u0-30]
+  after_script:
+    - |
+      if [ "${CI_JOB_STATUS:-}" = "failed" ]; then
+        echo "Docs CD failed. Logs above. Legacy CD on 192.168.0.30 cron still runs."
+      fi
+
+deploy-zh:
+  stage: deploy
+  extends: .docs-cd-job
+  variables:
+    DEPLOY_LANG: zh
+  script:
+    - bash .gitlab/scripts/tsdb-docs-cd/deploy.sh --lang zh
+
+deploy-en:
+  stage: deploy
+  extends: .docs-cd-job
+  variables:
+    DEPLOY_LANG: en
+  script:
+    - bash .gitlab/scripts/tsdb-docs-cd/deploy.sh --lang en

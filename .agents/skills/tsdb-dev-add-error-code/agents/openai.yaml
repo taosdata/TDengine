@@ -1,0 +1,7 @@
+interface:
+  display_name: "TDinternal Error Code"
+  short_description: "Add or verify TDinternal error codes"
+  default_prompt: "Use $tsdb-dev-add-error-code to add or verify a TDinternal error code across taoserror.h, terror.c, and the Chinese and English docs."
+
+policy:
+  allow_implicit_invocation: true

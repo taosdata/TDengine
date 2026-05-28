@@ -87,9 +87,10 @@ typedef struct SRepairFileSet {
 
 // Per-vnode repair result.
 typedef struct SRepairVnodeResult {
-  int8_t      result;     // 0=success, 1=failed, 2=skipped
-  bool        hasSsFile;  // true if any source file has lcn > 1 (shared storage)
-  const char *reason;     // failure/skip reason (string literal)
+  int8_t      result;          // 0=success, 1=failed, 2=skipped
+  bool        hasSsFile;       // true if any source file has lcn > 1 (shared storage)
+  bool        hasStaleSource;  // true if source is missing fids that exist locally
+  const char *reason;          // failure/skip reason (string literal)
 } SRepairVnodeResult;
 
 // Buffer sizes for shell-quoted paths and SSH commands.
@@ -753,8 +754,9 @@ static void dmBuildTsdbFilePath(const char *diskPath, int32_t vnodeId, const SRe
 // Otherwise it needs copying from source.
 // Sets *ppCopyFids to a new SArray of int32_t fids that need copying (caller frees).
 // Sets *ppRetainFids to a new SArray of int32_t fids that can be hard-linked from backup.
+// If pHasStaleSource is non-NULL, sets it to true when local has fids not present in source.
 static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets, STfs *pTgtTfs, int32_t vnodeId,
-                              SArray **ppCopyFids, SArray **ppRetainFids) {
+                              SArray **ppCopyFids, SArray **ppRetainFids, bool *pHasStaleSource) {
   int32_t nSrc = taosArrayGetSize(srcSets);
   *ppCopyFids = taosArrayInit(nSrc, sizeof(int32_t));
   *ppRetainFids = taosArrayInit(nSrc, sizeof(int32_t));
@@ -811,6 +813,107 @@ static int32_t dmDiffFileSets(const SArray *srcSets, const SArray *localSets, ST
       return -1;
     }
   }
+
+  // Detect and warn about local fids not present in source (stale source indicator)
+  if (localSets != NULL) {
+    int32_t nLocal = taosArrayGetSize(localSets);
+    int32_t nLocalOnly = 0;
+    for (int32_t l = 0; l < nLocal; l++) {
+      SRepairFileSet *pLocal = taosArrayGet(localSets, l);
+      bool            foundInSrc = false;
+      for (int32_t s = 0; s < nSrc; s++) {
+        SRepairFileSet *pSrc = taosArrayGet(srcSets, s);
+        if (pSrc->fid == pLocal->fid) {
+          foundInSrc = true;
+          break;
+        }
+      }
+      if (!foundInSrc) {
+        uWarn("repair: vnode%d   local fid %d not in source (will be discarded after repair)", vnodeId, pLocal->fid);
+        nLocalOnly++;
+      }
+    }
+    if (nLocalOnly > 0) {
+      uWarn("repair: vnode%d WARNING \xe2\x80\x94 source data may be stale: %d local fid(s) not present in source", vnodeId, nLocalOnly);
+      if (pHasStaleSource != NULL) {
+        *pHasStaleSource = true;
+      }
+    }
+  }
+
+  return 0;
+}
+
+// Pre-validate that source vnode.json's syncCfg.nodeInfo contains the target dnodeId.
+// This check runs BEFORE any destructive operations (backup/copy) to fail fast.
+// Returns 0 if dnodeId found, -1 if not found or on error.
+static int32_t dmValidateSourceNodeInfo(const SRepairTfs *pSrcTfs, const char *host, int32_t vnodeId,
+                                        int32_t dnodeId) {
+  const char *primaryDir = pSrcTfs->disks[pSrcTfs->primaryIdx].dir;
+  char        srcPath[PATH_MAX];
+  snprintf(srcPath, sizeof(srcPath), "%s%svnode%svnode%d%svnode.json", primaryDir, TD_DIRSEP, TD_DIRSEP, vnodeId,
+           TD_DIRSEP);
+
+  char *content = NULL;
+  if (host == NULL || host[0] == '\0') {
+    if (dmReadFileContent(srcPath, &content, NULL) != 0) {
+      uError("repair: vnode%d failed to read source vnode.json: %s", vnodeId, srcPath);
+      return -1;
+    }
+  } else {
+    char tmpPath[PATH_MAX];
+    if (dmSshFetchFile(host, srcPath, tmpPath, sizeof(tmpPath)) != 0) {
+      uError("repair: vnode%d failed to fetch source vnode.json via SSH", vnodeId);
+      return -1;
+    }
+    int32_t rc = dmReadFileContent(tmpPath, &content, NULL);
+    (void)taosRemoveFile(tmpPath);
+    if (rc != 0) {
+      uError("repair: vnode%d failed to read fetched source vnode.json", vnodeId);
+      return -1;
+    }
+  }
+
+  SJson *pRoot = tjsonParse(content);
+  taosMemoryFree(content);
+  if (pRoot == NULL) {
+    uError("repair: vnode%d failed to parse source vnode.json", vnodeId);
+    return -1;
+  }
+
+  SJson *pConfig = tjsonGetObjectItem(pRoot, "config");
+  if (pConfig == NULL) {
+    uError("repair: vnode%d source vnode.json missing 'config'", vnodeId);
+    tjsonDelete(pRoot);
+    return -1;
+  }
+
+  SJson  *pNodeInfoArr = tjsonGetObjectItem(pConfig, "syncCfg.nodeInfo");
+  int32_t myIndex = -1;
+  if (pNodeInfoArr != NULL) {
+    int32_t nNodes = tjsonGetArraySize(pNodeInfoArr);
+    for (int32_t i = 0; i < nNodes; i++) {
+      SJson  *pNode = tjsonGetArrayItem(pNodeInfoArr, i);
+      int32_t nodeId = 0;
+      int32_t code = 0;
+      tjsonGetNumberValue(pNode, "nodeId", nodeId, code);
+      if (code >= 0 && nodeId == dnodeId) {
+        myIndex = i;
+        break;
+      }
+    }
+  }
+
+  tjsonDelete(pRoot);
+
+  if (myIndex < 0) {
+    uError("repair: vnode%d dnodeId %d not found in source syncCfg.nodeInfo — source vnode does not belong to this "
+           "node",
+           vnodeId, dnodeId);
+    return -1;
+  }
+
+  uInfo("repair: vnode%d source nodeInfo validated — dnodeId %d found at index %d", vnodeId, dnodeId, myIndex);
   return 0;
 }
 
@@ -2122,9 +2225,18 @@ int32_t dmRepairCopyMode(const SRepairCopyOpt *pOpts) {
     // Step b: Read and parse source current.json
     SArray *srcFileSets = dmReadSourceCurrentJson(&srcTfs, remoteHost, vnodeId);
     if (srcFileSets == NULL) {
-      uInfo("repair: vnode%d SKIPPED — source current.json not found or unreadable", vnodeId);
+      uInfo("repair: vnode%d SKIPPED \xe2\x80\x94 source current.json not found or unreadable", vnodeId);
       vnResults[v].result = 2;
       vnResults[v].reason = "source current.json not found";
+      continue;
+    }
+
+    // Step b': Validate source vnode.json contains target dnodeId (fail-fast before backup)
+    if (dmValidateSourceNodeInfo(&srcTfs, remoteHost, vnodeId, dnodeId) != 0) {
+      uError("repair: vnode%d FAILED \xe2\x80\x94 source nodeInfo does not contain local dnodeId %d", vnodeId, dnodeId);
+      vnResults[v].result = 1;
+      vnResults[v].reason = "dnodeId not found in source nodeInfo";
+      dmDestroyRepairFileSets(srcFileSets);
       continue;
     }
 
@@ -2145,12 +2257,14 @@ int32_t dmRepairCopyMode(const SRepairCopyOpt *pOpts) {
     SArray *localFileSets = dmReadLocalCurrentJson(pTgtTfs, vnodeId);
     SArray *copyFids = NULL;
     SArray *retainFids = NULL;
-    if (dmDiffFileSets(srcFileSets, localFileSets, pTgtTfs, vnodeId, &copyFids, &retainFids) != 0) {
+    bool    hasStaleSource = false;
+    if (dmDiffFileSets(srcFileSets, localFileSets, pTgtTfs, vnodeId, &copyFids, &retainFids, &hasStaleSource) != 0) {
       uError("repair: vnode%d FAILED \xe2\x80\x94 memory allocation failed in diff", vnodeId);
       vnResults[v].result = 1;
       vnResults[v].reason = "memory allocation failed";
       goto _vnodeCleanup;
     }
+    vnResults[v].hasStaleSource = hasStaleSource;
 
     int32_t nCopy = taosArrayGetSize(copyFids);
     int32_t nRetain = taosArrayGetSize(retainFids);
@@ -2266,7 +2380,11 @@ int32_t dmRepairCopyMode(const SRepairCopyOpt *pOpts) {
       uInfo("repair:   vnode%-6d SKIPPED (%s)", vnodeId, vnResults[v].reason);
     } else {
       nSuccess++;
-      uInfo("repair:   vnode%-6d SUCCESS", vnodeId);
+      if (vnResults[v].hasStaleSource) {
+        uInfo("repair:   vnode%-6d SUCCESS (stale source)", vnodeId);
+      } else {
+        uInfo("repair:   vnode%-6d SUCCESS", vnodeId);
+      }
     }
   }
   uInfo("repair: total=%d  success=%d  skipped=%d  failed=%d", nVnodes, nSuccess, nSkipped, nFailed);

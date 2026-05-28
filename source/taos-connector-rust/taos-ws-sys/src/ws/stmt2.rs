@@ -51,6 +51,26 @@ pub struct TAOS_STMT2_BINDV {
 }
 
 #[repr(C)]
+#[derive(Clone, Debug)]
+#[allow(non_camel_case_types)]
+pub struct TAOS_STMT2_COLUMN_BIND {
+    pub buffer_type: c_int,
+    pub buffer: *mut c_void,
+    pub length: *mut i32,
+    pub is_null: *mut c_char,
+}
+
+#[repr(C)]
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+pub struct TAOS_STMT2_COLUMN_BINDV {
+    pub num_columns: c_int,
+    pub num_rows: c_int,
+    pub num_tables: c_int,
+    pub columns: *mut TAOS_STMT2_COLUMN_BIND,
+}
+
+#[repr(C)]
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub struct TAOS_FIELD_ALL {
@@ -258,6 +278,32 @@ pub unsafe extern "C" fn taos_stmt2_bind_param_a(
     param: *mut c_void,
 ) -> c_int {
     0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn taos_stmt2_bind_param_column(
+    _stmt: *mut TAOS_STMT2,
+    _bindv: *mut TAOS_STMT2_COLUMN_BINDV,
+) -> c_int {
+    stmt2_column_bind_not_implemented("taos_stmt2_bind_param_column")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn taos_stmt2_bind_param_column_a(
+    _stmt: *mut TAOS_STMT2,
+    _bindv: *mut TAOS_STMT2_COLUMN_BINDV,
+    fp: __taos_async_fn_t,
+    param: *mut c_void,
+) -> c_int {
+    let code = stmt2_column_bind_not_implemented("taos_stmt2_bind_param_column_a");
+    fp(param, ptr::null_mut(), code);
+    code
+}
+
+fn stmt2_column_bind_not_implemented(api: &str) -> c_int {
+    let msg = format!("{api} is not implemented");
+    error!("{msg}");
+    set_err_and_get_code(TaosError::new(Code::FAILED, &msg))
 }
 
 #[no_mangle]
@@ -908,6 +954,67 @@ mod tests {
                 num: $length.len() as _,
             }
         };
+    }
+
+    #[test]
+    fn test_stmt2_column_bind_c_abi_shape() {
+        let bindv = TAOS_STMT2_COLUMN_BINDV {
+            num_columns: 0,
+            num_rows: 0,
+            num_tables: 0,
+            columns: ptr::null_mut(),
+        };
+
+        let _ = format!("{bindv:?}");
+
+        let _bind: unsafe extern "C" fn(*mut TAOS_STMT2, *mut TAOS_STMT2_COLUMN_BINDV) -> c_int =
+            taos_stmt2_bind_param_column;
+        let _bind_a: unsafe extern "C" fn(
+            *mut TAOS_STMT2,
+            *mut TAOS_STMT2_COLUMN_BINDV,
+            __taos_async_fn_t,
+            *mut c_void,
+        ) -> c_int = taos_stmt2_bind_param_column_a;
+    }
+
+    static STMT2_COLUMN_BIND_CALLBACK_CODE: std::sync::atomic::AtomicI32 =
+        std::sync::atomic::AtomicI32::new(0);
+
+    extern "C" fn capture_column_bind_code(_param: *mut c_void, res: *mut TAOS_RES, code: c_int) {
+        assert!(res.is_null());
+        STMT2_COLUMN_BIND_CALLBACK_CODE.store(code, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    #[test]
+    fn test_stmt2_column_bind_stubs_report_unsupported() {
+        use crate::ws::error::{format_errno, taos_errstr};
+
+        let expected = format_errno(Code::FAILED.into());
+        unsafe {
+            assert_eq!(
+                taos_stmt2_bind_param_column(ptr::null_mut(), ptr::null_mut()),
+                expected
+            );
+            let err = CStr::from_ptr(taos_errstr(ptr::null_mut()))
+                .to_str()
+                .unwrap();
+            assert!(err.contains("not implemented"), "{err}");
+
+            STMT2_COLUMN_BIND_CALLBACK_CODE.store(0, std::sync::atomic::Ordering::SeqCst);
+            assert_eq!(
+                taos_stmt2_bind_param_column_a(
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    capture_column_bind_code,
+                    ptr::null_mut(),
+                ),
+                expected
+            );
+            assert_eq!(
+                STMT2_COLUMN_BIND_CALLBACK_CODE.load(std::sync::atomic::Ordering::SeqCst),
+                expected
+            );
+        }
     }
 
     #[test]

@@ -22,7 +22,14 @@ mod_go_check() {
 
     # GOPROXY
     local current_goproxy="${GOPROXY:-}"
-    if [[ "$current_goproxy" == *"nexus.tdengine.net"* ]] || \
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        if [[ "$current_goproxy" == *"proxy.golang.org"* ]] || \
+           (rc_has_line "GOPROXY=" && grep -qF "$GO_PROXY" "$SHELL_RC" 2>/dev/null); then
+            ok "GOPROXY configured to public proxy"
+        else
+            info "GOPROXY not set to proxy.golang.org yet"
+        fi
+    elif [[ "$current_goproxy" == *"nexus.tdengine.net"* ]] || \
        (rc_has_line "GOPROXY=" && grep -qF "$GO_PROXY" "$SHELL_RC" 2>/dev/null); then
         ok "GOPROXY configured to internal proxy"
     else
@@ -46,7 +53,7 @@ mod_go_install() {
         apt|yum|dnf)
             local go_arch="$SETUP_ARCH"
             [[ "$go_arch" == "arm64" ]] && go_arch="arm64"
-            local go_url="https://go.dev/dl/go${REQUIRED_GO_VERSION}.linux-${go_arch}.tar.gz"
+            local go_url="https://go.dev/dl/go${GO_TOOLCHAIN_VERSION}.linux-${go_arch}.tar.gz"
             info "Downloading Go from $go_url"
             curl -fsSL "$go_url" -o /tmp/go.tar.gz
             sudo rm -rf /usr/local/go
@@ -60,6 +67,12 @@ mod_go_install() {
 
 mod_go_config() {
     local expected="${GO_PROXY},direct"
+
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        go env -w GOPROXY="https://proxy.golang.org,direct"
+        ok "Public mode: using proxy.golang.org"
+        return 0
+    fi
 
     # GOPROXY
     if [[ "${GOPROXY:-}" == *"$GO_PROXY"* ]]; then

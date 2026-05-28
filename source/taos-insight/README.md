@@ -1,6 +1,11 @@
 # Grafana Plugin for TDengine
 
 - [Grafana Plugin for TDengine](#grafana-plugin-for-tdengine)
+  - [Prerequisites](#prerequisites)
+  - [Building](#building)
+  - [Testing](#testing)
+  - [Packaging](#packaging)
+  - [Installation](#installation)
   - [Usage](#usage)
     - [Add Data Source](#add-data-source)
     - [Import Dashboard](#import-dashboard)
@@ -19,6 +24,7 @@
   - [Monitor TDengine Database with TDinsight Dashboard](#monitor-tdengine-database-with-tdinsight-dashboard)
   - [Docker Stack](#docker-stack)
   - [Dashboards](#dashboards)
+  - [License](#license)
 
 [TDengine] is open-sourced big data platform under GNU AGPL v3.0, designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT Infrastructure and Application Monitoring, developed by [TDengine](https://tdengine.com/).
 
@@ -27,6 +33,96 @@
 At first, please refer to [Add a data source](https://grafana.com/docs/grafana/latest/datasources/add-a-data-source/) for instructions on how to add a data source to Grafana. Note that, only users with the organization admin role can add data sources.
 
 To install this plugin, please refer to [Install the Grafana Plugin for TDengine](https://github.com/taosdata/grafanaplugin/blob/master/INSTALLATION.md)
+
+## Prerequisites
+To build the plugin from source, prepare both the Go backend toolchain and the Node.js frontend toolchain.
+
+- Go 1.21 or above
+- Node.js 22 or above
+- Yarn 1.22.4 (recommended by `packageManager`) or npm for running equivalent scripts
+- `jq` and `zip` if you want to create the release zip from `scripts/package.sh`
+- A local Grafana instance if you want to load and verify the built plugin interactively
+
+A common Linux setup is:
+```bash
+# Ubuntu/Debian example
+sudo apt update
+sudo apt install -y golang-go jq zip
+corepack enable
+corepack prepare yarn@1.22.4 --activate
+```
+
+## Building
+From the repository root, install dependencies for both parts of the plugin and then build the frontend bundle plus the backend executable.
+
+```bash
+yarn install --frozen-lockfile
+go mod download
+```
+
+- Frontend only:
+  ```bash
+  yarn build
+  ```
+- Backend only:
+  ```bash
+  go run github.com/magefile/mage@latest
+  ```
+- Full distributable `dist/` directory (frontend bundle + backend executable):
+  ```bash
+  yarn build:dist
+  ```
+
+If you already have `mage` installed, you can replace `go run github.com/magefile/mage@latest` with `mage`.
+
+## Testing
+Run the frontend and backend tests separately:
+
+- Frontend unit tests:
+  ```bash
+  yarn test:ci
+  ```
+  Equivalent npm command:
+  ```bash
+  npm run test:ci
+  ```
+- Backend tests:
+  ```bash
+  go test ./...
+  ```
+- Optional static checks before packaging:
+  ```bash
+  yarn typecheck
+  yarn lint
+  ```
+
+## Packaging
+The production build output is written to `dist/`. To create a release archive after building:
+
+```bash
+yarn build:dist
+yarn package
+```
+
+This uses `scripts/package.sh` to copy `dist/` into a `tdengine-datasource/` staging directory and generate `tdengine-datasource-<version>.zip`.
+
+If you need a signed package for distribution, configure the appropriate Grafana signing credentials and run:
+```bash
+yarn build:all
+```
+
+## Installation
+For a local Grafana installation, copy the built plugin into Grafana's plugins directory and restart Grafana.
+
+```bash
+GF_PLUGINS_DIR=/var/lib/grafana/plugins
+yarn build:dist
+sudo rsync -rlzP dist/ "$GF_PLUGINS_DIR/tdengine-datasource"
+sudo chmod +x "$GF_PLUGINS_DIR/tdengine-datasource"/tdengine-datasource*
+sudo systemctl restart grafana-server
+```
+
+If your Grafana installation uses a different plugins directory, adjust `GF_PLUGINS_DIR` accordingly. For additional installation options, including prebuilt release downloads and macOS-specific guidance, see [Install the Grafana Plugin for TDengine](https://github.com/taosdata/grafanaplugin/blob/master/INSTALLATION.md).
 
 ## Usage
 
@@ -271,3 +367,6 @@ You could open a pr to add one if you want to share your dashboard with TDengine
 
 [TDengine]: https://github.com/taosdata/TDengine
 [Grafana]: https://grafana.com
+
+## License
+[GNU AGPL v3.0](./LICENSE)

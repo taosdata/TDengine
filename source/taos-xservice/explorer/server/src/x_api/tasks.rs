@@ -234,13 +234,53 @@ pub async fn update_task(
         config.to = fixed;
     }
 
+    let dsn = get_dsn(&args, &req).await?;
+
+    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+    let current_task = query_one::<TaskRecord>(&dsn, &sql)
+        .await?
+        .ok_or_else(|| Error::not_found(format!("task {task_id} not found")))?;
+
+    let sql = build_update_task_sql(task_id, &current_task.name, &config)?;
+    exec(&dsn, &sql).await?;
+
+    // start
+    let sql = format!("START XNODE TASK {}", task_id);
+    exec(&dsn, &sql).await?;
+    Ok(Json(()))
+}
+
+fn build_update_task_sql(
+    task_id: i64,
+    current_name: &str,
+    config: &HaTask,
+) -> anyhow::Result<String> {
     let mut sql = format!(
-        "ALTER XNODE TASK {} FROM '{}' TO '{}'",
-        task_id, config.from, config.to
+        "ALTER XNODE TASK {} FROM {} TO {}",
+        task_id,
+        sql_value_escaped_fmt(&config.from),
+        sql_value_escaped_fmt(&config.to)
     );
-    if config.parser.is_some() || config.via.is_some() {
+
+    let name_changed = config.name != current_name;
+    if name_changed || config.labels.is_some() || config.parser.is_some() || config.via.is_some() {
         sql.push_str(" WITH");
     }
+
+    if name_changed {
+        sql.push_str(&format!(" NAME {}", sql_value_escaped_fmt(&config.name)));
+    }
+
+    if let Some(labels) = config
+        .labels
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .context("failed to serialize labels")?
+    {
+        sql.push_str(&format!(" LABELS {}", sql_value_escaped_fmt(&labels)));
+    }
+
     if let Some(parser) = config
         .parser
         .as_ref()
@@ -248,20 +288,14 @@ pub async fn update_task(
         .transpose()
         .context("failed to serialize parser")?
     {
-        sql.push_str(&format!(" PARSER {} ", sql_value_escaped_fmt(&parser)));
+        sql.push_str(&format!(" PARSER {}", sql_value_escaped_fmt(&parser)));
     }
 
     if let Some(via) = config.via {
         sql.push_str(&format!(" VIA {}", via));
     }
 
-    let dsn = get_dsn(&args, &req).await?;
-    exec(&dsn, &sql).await?;
-
-    // start
-    let sql = format!("START XNODE TASK {}", task_id);
-    exec(&dsn, &sql).await?;
-    Ok(Json(()))
+    Ok(sql)
 }
 
 pub async fn delete_task(
@@ -1113,6 +1147,109 @@ mod tests {
     use super::*;
     use serde_json::json;
     use tempfile::tempdir;
+
+    fn make_config(name: &str, from: &str, to: &str) -> HaTask {
+        HaTask {
+            name: name.to_string(),
+            from: from.to_string(),
+            to: to.to_string(),
+            parser: None,
+            via: None,
+            labels: None,
+        }
+    }
+
+    #[test]
+    fn build_alter_sql_no_changes_omits_with_clause() {
+        let config = make_config("my_task", "taos://localhost/db1", "taos://localhost/db2");
+        let sql = build_update_task_sql(42, "my_task", &config).unwrap();
+        assert_eq!(
+            sql,
+            "ALTER XNODE TASK 42 FROM 'taos://localhost/db1' TO 'taos://localhost/db2'"
+        );
+    }
+
+    #[test]
+    fn build_alter_sql_name_changed_includes_with_name() {
+        let config = make_config("new_name", "taos://localhost/db1", "taos://localhost/db2");
+        let sql = build_update_task_sql(42, "old_name", &config).unwrap();
+
+        assert!(sql.contains("WITH"));
+        assert!(sql.contains("NAME"));
+        assert!(sql.contains("new_name"));
+    }
+
+    #[test]
+    fn build_alter_sql_labels_present_includes_labels() {
+        let mut config = make_config("my_task", "taos://localhost/db1", "taos://localhost/db2");
+        config.labels = Some(json!({"type": "datain", "env": "test"}));
+        let sql = build_update_task_sql(42, "my_task", &config).unwrap();
+
+        assert!(sql.contains("WITH"));
+        assert!(sql.contains("LABELS"));
+        assert!(sql.contains("datain"));
+    }
+
+    #[test]
+    fn build_alter_sql_name_and_labels_changed() {
+        let mut config = make_config("renamed", "taos://localhost/db1", "taos://localhost/db2");
+        config.labels = Some(json!({"owner": "qa"}));
+        let sql = build_update_task_sql(100, "original", &config).unwrap();
+
+        assert!(sql.contains("WITH"));
+        assert!(sql.contains("NAME"));
+        assert!(sql.contains("renamed"));
+        assert!(sql.contains("LABELS"));
+        assert!(sql.contains("qa"));
+    }
+
+    #[test]
+    fn build_alter_sql_with_parser() {
+        let mut config = make_config("my_task", "taos://localhost/db1", "taos://localhost/db2");
+        config.parser = Some(json!({"type": "regex", "pattern": ".*"}));
+        let sql = build_update_task_sql(1, "my_task", &config).unwrap();
+
+        assert!(sql.contains("WITH"));
+        assert!(sql.contains("PARSER"));
+        assert!(sql.contains("regex"));
+    }
+
+    #[test]
+    fn build_alter_sql_with_via() {
+        let mut config = make_config("my_task", "taos://localhost/db1", "taos://localhost/db2");
+        config.via = Some(7);
+        let sql = build_update_task_sql(1, "my_task", &config).unwrap();
+
+        assert!(sql.contains("WITH"));
+        assert!(sql.contains("VIA 7"));
+    }
+
+    #[test]
+    fn build_alter_sql_all_fields_changed() {
+        let mut config = make_config("new_name", "taos://localhost/src", "taos://localhost/dst");
+        config.parser = Some(json!({"type": "json"}));
+        config.via = Some(3);
+        config.labels = Some(json!({"suite": "full"}));
+        let sql = build_update_task_sql(99, "old_name", &config).unwrap();
+
+        assert!(sql.contains("ALTER XNODE TASK 99"));
+        assert!(sql.contains("WITH"));
+        assert!(sql.contains("NAME"));
+        assert!(sql.contains("new_name"));
+        assert!(sql.contains("PARSER"));
+        assert!(sql.contains("VIA 3"));
+        assert!(sql.contains("LABELS"));
+    }
+
+    #[test]
+    fn build_alter_sql_only_name_unchanged_labels_not_provided() {
+        let config = make_config("same_name", "taos://localhost/db1", "taos://localhost/db2");
+        let sql = build_update_task_sql(10, "same_name", &config).unwrap();
+
+        assert!(!sql.contains("WITH"));
+        assert!(!sql.contains("NAME"));
+        assert!(!sql.contains("LABELS"));
+    }
 
     fn export_result_with_from(from: serde_json::Value) -> ExportTaskResult {
         serde_json::from_value(json!({

@@ -80,6 +80,26 @@ int32_t taosParseShortWeekday(const char* str);
 int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, timezone_t tz);
 char    getPrecisionUnit(int32_t precision);
 
+/*
+ * Resolve the UTC offset that is in effect at the specified timestamp.
+ *
+ * Unlike taosGetTZOffsetSeconds(), this API is target-instant aware and must
+ * be used when DST or historical timezone rules can affect the result.
+ * Result convention is east-positive (tm_gmtoff style).
+ */
+int32_t taosGetTimezoneOffsetAtSeconds(time_t timeSec, timezone_t tz, int64_t *pOffsetSeconds);
+
+/* 1970-01-01 is Thursday; used for week-alignment in TIMETRUNCATE */
+#define UNIX_EPOCH_WDAY  4
+
+/*
+ * DST-aware TIMETRUNCATE for a single timestamp.
+ * Truncates to midnight of the appropriate day (or week start per fdow).
+ * Returns the truncated timestamp in ticks, or the original ts on error.
+ */
+int64_t taosTimeTruncateIANA(int64_t ts, int64_t truncateUnit, int8_t fdow,
+                             int32_t precision, timezone_t tz);
+
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
 int32_t convertCalendarTimeFromUnitToPrecision(int64_t time,  char fromUnit, int32_t toPrecision,int64_t* pRes);
 int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);
@@ -89,6 +109,7 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 char*   formatTimestampLocal(char* buf, int32_t cap, int64_t val, int precision);
+char*   formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, timezone_t tz);
 struct STm {
   struct tm tm;
   int64_t   fsec;  // in NANOSECOND
@@ -123,6 +144,34 @@ int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const c
 /// @param offset seconds, eg: +08 offset -28800, -01 offset 3600
 /// @return 0 success, other fail
 int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
+
+/*
+ * Validate a timezone string (IANA name or fixed offset) and optionally
+ * return a timezone_t handle.  Rejects ambiguous abbreviations (CST, EST).
+ * Accepted formats: IANA ("Asia/Shanghai"), "UTC", "Z", "+HH", "+HHMM",
+ * "+HH:MM".  If pTz is non-NULL and validation succeeds, *pTz is set
+ * to a freshly allocated timezone_t (caller must tzfree).
+ */
+int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz);
+
+/*
+ * Validate and normalize a timezone string for all platforms.
+ * If valid, stores the canonical name in normBuf:
+ *   - IANA name         -> written as-is ("Asia/Shanghai")
+ *   - Windows TZ name   -> mapped to its IANA equivalent ("Asia/Shanghai")
+ *   - fixed-offset      -> POSIX UTC±h[:mm] string ("UTC+8", "UTC-5:30")
+ *                          sign is preserved (+ = west, - = east)
+ *   - UTC±N (POSIX)     -> written as-is ("UTC-8")
+ *   - UTC±HH:MM / HHMM  -> simplified to POSIX short form
+ *                          ("UTC+08:00" -> "UTC+8")
+ *   - UTC/Z             -> "UTC"
+ *   - GMT/GMT±N         -> rejected (use UTC series)
+ * normBuf must be at least TD_TIMEZONE_LEN bytes.
+ * *pTz is set (and caller must tzfree) only when pTz != NULL.
+ */
+int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
+                                         char *normBuf, int32_t normBufLen,
+                                         timezone_t *pTz);
 
 bool checkRecursiveTsmaInterval(int64_t baseInterval, int8_t baseUnit, int64_t interval, int8_t unit, int8_t precision,
                                 bool checkEq);

@@ -89,8 +89,15 @@ mod_cpp_install() {
 
     # conan
     if ! cmd_exists conan; then
-        if confirm "Install conan (via pip)?"; then
-            pip3 install --user conan 2>/dev/null || pip install --user conan
+        if confirm "Install conan (via virtualenv)?"; then
+            local conan_venv="$HOME/.local/share/tsdb-setup/conan-venv"
+            case "$PKG_MGR" in
+                apt) pkg_install python3-venv ;;
+            esac
+            python3 -m venv "$conan_venv"
+            "$conan_venv/bin/pip" install --upgrade pip
+            "$conan_venv/bin/pip" install conan
+            rc_append "export PATH=${conan_venv}/bin:\$PATH" "cpp"
             CHANGES_MADE=$((CHANGES_MADE + 1))
         fi
     fi
@@ -105,6 +112,11 @@ mod_cpp_config() {
             ok "CMAKE_*_COMPILER_LAUNCHER=ccache written to $SHELL_RC"
             CHANGES_MADE=$((CHANGES_MADE + 1))
         fi
+    fi
+
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using Conan Center (default)"
+        return 0
     fi
 
     # conan remote

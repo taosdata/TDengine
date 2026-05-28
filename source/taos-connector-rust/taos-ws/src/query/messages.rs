@@ -33,6 +33,8 @@ pub struct WsConnReq {
     pub(crate) totp_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) bearer_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) list_instances: Option<bool>,
 }
 
 impl WsConnReq {
@@ -49,6 +51,7 @@ impl WsConnReq {
             connector: crate::CONNECTOR_INFO.to_string(),
             totp_code: None,
             bearer_token: None,
+            list_instances: None,
         }
     }
 }
@@ -224,7 +227,10 @@ impl WsRecv {
 #[serde(tag = "action")]
 #[serde(rename_all = "snake_case")]
 pub enum WsRecvData {
-    Conn,
+    Conn {
+        #[serde(default)]
+        list_instances: Option<Vec<String>>,
+    },
     OptionsConnection {
         timing: u64,
     },
@@ -526,6 +532,26 @@ mod tests {
     }
 
     #[test]
+    fn test_serde_send_with_list_instances() {
+        let mut req = WsConnReq::new(test_username(), test_password());
+        req.list_instances = Some(true);
+        let conn = WsSend::Conn { req_id: 1, req };
+        let actual = serde_json::to_value(conn).unwrap();
+        let expected = serde_json::json!({
+            "action": "conn",
+            "args": {
+                "req_id": 1,
+                "user": test_username(),
+                "password": test_password(),
+                "db": "",
+                "connector": crate::CONNECTOR_INFO,
+                "list_instances": true,
+            }
+        });
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_serde_recv_data() {
         let json = r#"{
         "code": 0,
@@ -535,6 +561,42 @@ mod tests {
         }"#;
         let d: WsRecv = serde_json::from_str(json).unwrap();
         dbg!(d);
+    }
+
+    #[test]
+    fn test_serde_recv_conn_with_list_instances() {
+        let json = r#"{
+        "code": 0,
+        "message": "",
+        "action": "conn",
+        "req_id": 1,
+        "list_instances": ["host1:6041", "host2:6041"]
+        }"#;
+        let d: WsRecv = serde_json::from_str(json).unwrap();
+        match d.data {
+            WsRecvData::Conn { list_instances } => {
+                assert_eq!(
+                    list_instances,
+                    Some(vec!["host1:6041".to_string(), "host2:6041".to_string()])
+                );
+            }
+            data => panic!("unexpected data: {data:?}"),
+        }
+    }
+
+    #[test]
+    fn test_serde_recv_conn_without_list_instances() {
+        let json = r#"{
+        "code": 0,
+        "message": "",
+        "action": "conn",
+        "req_id": 1
+        }"#;
+        let d: WsRecv = serde_json::from_str(json).unwrap();
+        match d.data {
+            WsRecvData::Conn { list_instances } => assert_eq!(list_instances, None),
+            data => panic!("unexpected data: {data:?}"),
+        }
     }
 
     #[test]

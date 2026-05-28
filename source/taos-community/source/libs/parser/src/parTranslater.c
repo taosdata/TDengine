@@ -38,6 +38,7 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "ttime.h"
+#include "osTimezone.h"
 #include "tutil.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
@@ -4444,6 +4445,43 @@ static int32_t rewriteFuncToValue(STranslateContext* pCxt, char** pLiteral, SNod
   return pCxt->errCode;
 }
 
+static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
+  timezone_t sessionTz = pCxt->pParseCxt->timezone;
+  char*      pTzName = NULL;
+  if (sessionTz != NULL && pTimezoneNameMap != NULL) {
+    char* tzName = (char*)taosHashGet(pTimezoneNameMap, &sessionTz, sizeof(timezone_t));
+    pTzName = taosStrdup(tzName ? tzName : tsTimezoneStr);
+  } else {
+    pTzName = taosStrdup(tsTimezoneStr);  /* L3→L5 fallback */
+  }
+  if (pTzName == NULL) {
+    return terrno;
+  }
+  int32_t code = rewriteFuncToValue(pCxt, &pTzName, pNode);
+  taosMemoryFree(pTzName);
+  return code;
+}
+
+static int32_t rewriteFirstDayOfWeekFunc(STranslateContext* pCxt, SNode** pNode) {
+  char    fdowBuf[8] = {0};
+  int32_t fdow = (pCxt->pParseCxt->firstDayOfWeek >= 0 && pCxt->pParseCxt->firstDayOfWeek <= 6)
+                     ? pCxt->pParseCxt->firstDayOfWeek
+                     : tsFirstDayOfWeek;
+
+  if (snprintf(fdowBuf, sizeof(fdowBuf), "%d", fdow) <= 0) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char* pFdow = taosStrdup(fdowBuf);
+  if (pFdow == NULL) {
+    return terrno;
+  }
+
+  int32_t code = rewriteFuncToValue(pCxt, &pFdow, pNode);
+  taosMemoryFree(pFdow);
+  return code;
+}
+
 static int32_t rewriteDatabaseFunc(STranslateContext* pCxt, SNode** pNode) {
   char* pCurrDb = NULL;
   if (NULL != pCxt->pParseCxt->db) {
@@ -4520,6 +4558,10 @@ static int32_t rewriteSystemInfoFunc(STranslateContext* pCxt, SNode** pNode) {
     case FUNCTION_TYPE_CURRENT_USER:
     case FUNCTION_TYPE_USER:
       return rewriteUserFunc(pCxt, pNode);
+    case FUNCTION_TYPE_TIMEZONE:
+      return rewriteTimezoneFunc(pCxt, pNode);
+    case FUNCTION_TYPE_FIRST_DAY_OF_WEEK:
+      return rewriteFirstDayOfWeekFunc(pCxt, pNode);
     default:
       break;
   }
@@ -5160,7 +5202,7 @@ static SNode* getGroupByNode(SNode* pNode) {
 
 static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   if (isDistinctOrderBy(pCxt)) {
-    return TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION;
+    return TSDB_CODE_PAR_NOT_SELECT_EXPRESSION;
   }
   if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pGroupByList) {
     return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
@@ -10611,51 +10653,18 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
 /*
  * Validate one STATE_WINDOW key expression.
  *
- * The expression type must be supported by STATE_WINDOW. In addition,
- * fold the expression once locally and reject it if it collapses to a
- * constant value. Direct tag columns remain invalid.
+ * The expression result type must be integer, boolean, or string.
+ * Constants, tag columns, and tbname are all accepted as state keys.
  */
 static int32_t checkStateExpr(STranslateContext* pCxt, SNode* pNode) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
   int32_t type = ((SExprNode*)pNode)->resType.type;
-  SNode*  pCloned = NULL;
 
   if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
-    code = generateSyntaxErrMsg(&pCxt->msgBuf,
+    return generateSyntaxErrMsg(&pCxt->msgBuf,
                                 TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
-    QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  code = nodesCloneNode(pNode, &pCloned);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-  /* scalarCalculateConstants rewrites in place: pCloned and the output point
-   * to the same memory after success, so a single destroy at _end is safe. */
-  code = scalarCalculateConstants(pCloned, &pCloned);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-  if (QUERY_NODE_VALUE == nodeType(pCloned)) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf,
-                                   TSDB_CODE_PAR_INVALID_STATE_WIN_COL,
-                                   "STATE_WINDOW key expression cannot be constant");
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-  if (QUERY_NODE_COLUMN == nodeType(pNode) &&
-      COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
-    code = generateSyntaxErrMsg(&pCxt->msgBuf,
-                                TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-_end:
-  nodesDestroyNode(pCloned);
-  if (code != TSDB_CODE_SUCCESS) {
-    parserError("%s failed, lino:%d, reason:%s", __func__, lino,
-                tstrerror(code));
-  }
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool isMultiColumnStateWindow(const SStateWindowNode* pStateWin) {
@@ -12078,6 +12087,41 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
   return code;
 }
 
+typedef struct {
+  uint8_t dstPrecision;
+} SFixStmtTsPlaceholderCtx;
+
+static EDealRes fixStmtTsPlaceholderPrecisionWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_VALUE != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SValueNode* pVal = (SValueNode*)pNode;
+  if (pVal->placeholderNo <= 0 || TSDB_DATA_TYPE_TIMESTAMP != pVal->node.resType.type) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFixStmtTsPlaceholderCtx* pCxt = (SFixStmtTsPlaceholderCtx*)pContext;
+  uint8_t                   srcPrecision = pVal->node.resType.precision;
+  uint8_t                   dstPrecision = pCxt->dstPrecision;
+  if (srcPrecision != dstPrecision) {
+    pVal->datum.i = convertTimePrecision(pVal->datum.i, srcPrecision, dstPrecision);
+    *(int64_t*)&pVal->typeData = pVal->datum.i;
+    pVal->node.resType.precision = dstPrecision;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static void fixStmtTsPlaceholderPrecisionInWhere(SSelectStmt* pSelect) {
+  if (NULL == pSelect || NULL == pSelect->pWhere) {
+    return;
+  }
+
+  SFixStmtTsPlaceholderCtx cxt = {.dstPrecision = pSelect->precision};
+  nodesWalkExpr(pSelect->pWhere, fixStmtTsPlaceholderPrecisionWalker, &cxt);
+}
+
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -12087,6 +12131,10 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                         "%%%%trows can not be used with WHERE clause."));
   }
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
+  if (pCxt->pParseCxt->stmtBindVersion == 2) {
+    fixStmtTsPlaceholderPrecisionInWhere(pSelect);
+    return code;
+  }
   PAR_ERR_RET(
       getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable));
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
@@ -23622,6 +23670,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       code = translateAlterLocal(pCxt, (SAlterLocalStmt*)pNode);
       break;
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      break;
     case QUERY_NODE_EXPLAIN_STMT:
       code = translateExplain(pCxt, (SExplainStmt*)pNode);
       break;
@@ -25865,7 +25916,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecif
     }
   }
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNew(pTagArray, 1, false, ppTag);
+    code = tTagNewWithName(pTagArray, tagName, getTableTagSchema(pSuperTableMeta), numOfTags, 1, ppTag);
   }
 
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
@@ -26184,7 +26235,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, 
   if (TSDB_CODE_SUCCESS == code) {
     pParFileCxt->tagNameFilled = true;
     if (!isJson) {
-      code = tTagNew(pParFileCxt->aTagVals, 1, false, &pParFileCxt->pTag);
+      code = tTagNewWithName(pParFileCxt->aTagVals, pParFileCxt->aTagNames, pSchemas, numOfTags, 1,
+                             &pParFileCxt->pTag);
     }
   }
 
@@ -29586,6 +29638,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
     case QUERY_NODE_ALTER_LOCAL_STMT:
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:

@@ -124,7 +124,7 @@ When using time windows, note:
 
 ### State Window
 
-State windows are divided according to the continuity of one or more state keys. Multiple state keys have been supported since v3.4.2.0. State keys support integers, booleans, and strings, and can also be `CASE WHEN` or `IF` expressions that return these types. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
+State windows are divided according to the continuity of one or more state keys. Multiple state keys have been supported since v3.4.2.0. State keys support integers, booleans, and strings, and can also be expressions that return these types, such as `CASE WHEN`, `IF`, comparison expressions, `IN`, `BETWEEN`, `IS NULL` / `IS NOT NULL`, and logical expressions composed with `AND`, `OR`, and `NOT`. Adjacent rows compare state keys in the order they are written in SQL. If any key changes, the current window closes and a new one starts. The diagram below shows a single-key example, where the two resulting windows are [2019-04-28 14:22:07, 2019-04-28 14:22:10] and [2019-04-28 14:22:11, 2019-04-28 14:22:12].
 
 ![State windows](../../assets/time-series-extensions-02-state-window.png)
 
@@ -139,7 +139,7 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 Where:
 
-- `state_expr` is one or more state keys. It can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`, and tag columns are not supported.
+- `state_expr` is one or more state keys. It can be a column reference or a tag column, or an expression such as `CASE WHEN`, `IF`, `CAST`, comparison expressions, `IN`, `BETWEEN`, `IS NULL` / `IS NOT NULL`, or logical expressions composed with `AND`, `OR`, and `NOT`. The result type must be integer, boolean, or `VARCHAR`.
 - `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
 - `ZEROTH_STATE(...)` optionally specifies the zero state. A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. By specifying these baseline values with `ZEROTH_STATE`, matching windows are filtered out automatically and are neither calculated nor returned, which keeps the result set focused. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both. For `EVENT_WINDOW`, also supports `start(...)` for open-condition streak thresholds and `end(...)` for close-condition streak thresholds.
@@ -213,7 +213,25 @@ PARTITION BY tbname
 STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
 ```
 
-Note that `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
+Since v3.4.2.0, you can also use tag columns or `tbname` directly as state keys, for example `STATE_WINDOW(groupId)` or `STATE_WINDOW(tbname)`.
+
+Since v3.4.2.0, you can also use logical expressions directly as state keys. For example, you can split windows by a boolean condition directly:
+
+```sql
+SELECT _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(voltage > 235);
+```
+
+More complex logical combinations are also supported:
+
+```sql
+SELECT _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(voltage BETWEEN 205 AND 235 AND current IS NOT NULL, phase IN ('A', 'B'));
+```
 
 ##### EXTEND Parameter
 

@@ -66,6 +66,11 @@ mod_dotnet_config() {
         return 0
     fi
 
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using default NuGet"
+        return 0
+    fi
+
     # NuGet source → internal mirror (if available)
     # NUGET_SOURCE_URL is set by config.sh from .build-args
     local nora_nuget_url="${NUGET_SOURCE_URL:-https://nora.tdengine.net/nuget/v3/index.json}"

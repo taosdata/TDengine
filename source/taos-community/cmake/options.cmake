@@ -36,6 +36,13 @@ endif()
 
 option(BUILD_WITH_LEMON    "If build with lemon"                    ON)
 option(BUILD_WITH_UDF      "If build with UDF"                      ON)
+option(BUILD_PYUDF         "If build Python UDF plugin (libtaospyudf)" ON)
+
+# Python UDF: auto-download a single CPython SDK from python-build-standalone
+# for compile-time headers/import-lib. Runtime still probes installed Python at
+# execution time via udfd.
+set(BUILD_PYUDF_PYTHON_VERSION  "3.15.0b1" CACHE STRING
+  "Single Python version for pyudf SDK selection (must match PBS release)")
 
 if(NOT BUILD_ASTRA)
   option(BUILD_GEOS          "If build with geos"                   ON)
@@ -59,10 +66,13 @@ else()
   option(BUILD_WITH_LZMA2    "If build with lzma2"                  ON)
 endif()
 
-if(TD_LINUX)
+if(TD_LINUX OR TD_WINDOWS)
   option(BUILD_SHARED_STORAGE "If build with shared storage"        ON)
   option(BUILD_WITH_S3        "If build with s3"                    ON)
   option(BUILD_WITH_COS       "If build with cos"                   OFF)
+endif()
+
+if(TD_LINUX)
   option(BUILD_WITH_LZMA2     "If build with lzma2"                 ON)
 endif()
 
@@ -73,15 +83,15 @@ else()
 endif()
 
 # NOTE: set option variable in this ways is not a good practice
-if((NOT TD_ENTERPRISE) OR TD_WINDOWS)
-  MESSAGE("switch shared storage off with community/windows edition")
+if(NOT TD_ENTERPRISE)
+  MESSAGE("switch shared storage off with community edition")
   set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
 ELSE()
-  MESSAGE("switch shared storage ON with enterprise Linux edition")
+  MESSAGE("switch shared storage ON with enterprise edition")
   set(BUILD_SHARED_STORAGE ON)
-  set(BUILD_WITH_S3 ON)  
+  set(BUILD_WITH_S3 ON)
 ENDIF ()
 
 IF(${BUILD_SHARED_STORAGE})
@@ -125,6 +135,7 @@ option(BUILD_LIBSASL          "If build libsasl2"                    ON)
 option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
 option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
 option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
+option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
 
 # When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
 # CMake built-in Release flags and ExternalProject configuration align.

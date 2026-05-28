@@ -23,6 +23,7 @@
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
+#include "ttime.h"
 #include "tunit.h"
 #include "tutil.h"
 
@@ -335,7 +336,22 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
            cfgStypeStr(stype));
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
-  TAOS_CHECK_RETURN(osSetTimezone(value));
+
+  /* Unified validation + normalization (same gate as SET TIMEZONE):
+   *   - rejects ambiguous abbreviations (CST, EST ...)
+   *   - converts fixed-offset ISO strings to POSIX UTC±h[:mm]
+   *   - maps Windows names to IANA names
+   *   - rejects GMT/GMT± series (use UTC instead)
+   *   - rejects empty / obviously malformed strings */
+  char    normBuf[TD_TIMEZONE_LEN] = {0};
+  int32_t code = taosValidateAndNormalizeTimezone(value, normBuf, sizeof(normBuf), NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("cfg:%s, type:%s src:%s, invalid timezone value '%s'", pItem->name, cfgDtypeStr(pItem->dtype),
+           cfgStypeStr(stype), value);
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  }
+
+  TAOS_CHECK_RETURN(osSetTimezone(normBuf));
 
   TAOS_CHECK_RETURN(doSetConf(pItem, tsTimezoneStr, stype));
 

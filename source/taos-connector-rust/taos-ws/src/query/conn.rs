@@ -1,6 +1,4 @@
 use std::collections::HashSet;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -9,7 +7,6 @@ use flume::{Receiver, Sender};
 use futures::{SinkExt, StreamExt, TryStreamExt};
 use taos_query::prelude::RawError;
 use taos_query::util::generate_req_id;
-use taos_query::RawResult;
 use tokio::sync::{mpsc, watch};
 use tokio::time;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
@@ -19,14 +16,14 @@ use crate::query::asyn::{ConnState, WsQuerySender, WS_ERROR_NO};
 use crate::query::messages::{MessageId, ReqId, ToMessage, WsMessage, WsRecv, WsRecvData, WsSend};
 use crate::query::{Error, WsConnReq, WsTaos};
 use crate::{
-    handle_disconnect_error, send_request_with_timeout, TaosBuilder, WsStream, WsStreamReader,
-    WsStreamSender,
+    handle_disconnect_error, send_request_with_timeout, TaosBuilder, WsConnectCallbackFuture,
+    WsStream, WsStreamReader, WsStreamSender,
 };
 
 pub fn send_conn_request(
     conn_req: WsConnReq,
     conn_timeout: Duration,
-) -> impl for<'a> Fn(&'a mut WsStream) -> Pin<Box<dyn Future<Output = RawResult<()>> + Send + 'a>> {
+) -> impl for<'a> Fn(&'a mut WsStream) -> WsConnectCallbackFuture<'a> {
     move |ws_stream| {
         let conn_req = conn_req.clone();
 
@@ -65,7 +62,7 @@ pub fn send_conn_request(
                         let (_, data, ok) = resp.ok();
                         ok?;
                         match data {
-                            WsRecvData::Conn => return Ok(()),
+                            WsRecvData::Conn { list_instances } => return Ok(list_instances),
                             WsRecvData::Version { .. } => {}
                             _ => {
                                 return Err(RawError::from_string(format!(
@@ -425,7 +422,7 @@ fn parse_text_message(text: String, query_sender: WsQuerySender, cache: MessageC
     cache.remove(&req_id);
 
     match &data {
-        WsRecvData::Conn
+        WsRecvData::Conn { .. }
         | WsRecvData::Version { .. }
         | WsRecvData::Block { .. }
         | WsRecvData::BlockNew { .. }

@@ -43,6 +43,8 @@ tsdb-ci:
     # CI_MERGE_REQUEST_IID 是 MR 类预定义变量，GitLab 不保证自动导出到子流水线作业环境，
     # 显式透传以确保 coordinator.py 的 _compute_workspace() 能正确计算工作区路径。
     PARENT_MR_IID: $CI_MERGE_REQUEST_IID
+    # 透传父 pipeline ID，供子 pipeline 中的 coordinator 在 MR 合并时取消整条流水线
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
   rules:
     - if: $RUN_TSDB_CI == "true"
     # MR 场景：仅当代码相关文件变更时触发（排除纯文档/打包/tdgpt 变更）
@@ -67,7 +69,7 @@ tsdb-ci:
         - CMakeLists.txt
         - .gitlab/.gitlab-ci.yml
         - .gitlab-ci.yml
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_DOCS_CD != "true"
     - if: $CI_PIPELINE_SOURCE == "web"
 
 tsdb-docs:
@@ -89,3 +91,17 @@ tsdb-docs:
         - source/taos-community/docs/**/*
         - .gitlab/scripts/tsdb-docs-ci/**/*
         - .gitlab/tsdb-build-docs.yml
+
+# docs CD — schedule-only deploy. Configure a GitLab pipeline schedule on the
+# main branch with whatever cadence you want (e.g. every 2h). Legacy CD on
+# 192.168.0.30 stays alive until this is verified.
+tsdb-docs-cd:
+  stage: dispatch
+  trigger:
+    include:
+      - local: .gitlab/tsdb-deploy-docs.yml
+    strategy: depend
+    forward:
+      pipeline_variables: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_DOCS_CD == "true"

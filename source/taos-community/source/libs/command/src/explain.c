@@ -254,7 +254,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
   taosMemoryFree(pCtx);
 }
 
-static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, EExplainMode mode) {
+static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, EExplainMode mode, timezone_t tz) {
   int32_t      code = 0;
   SExplainCtx *ctx = taosMemoryCalloc(1, sizeof(SExplainCtx));
   if (NULL == ctx) {
@@ -277,6 +277,7 @@ static int32_t qExplainInitCtx(SExplainCtx **pCtx, bool verbose, double ratio, E
   ctx->mode = mode;
   ctx->verbose = verbose;
   ctx->ratio = ratio;
+  ctx->tz = tz;
   ctx->tbuf = tbuf;
   ctx->rows = rows;
 
@@ -605,10 +606,10 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   }
 
   if (nodeNum == 1) {
-    if (formatTimestampLocal(createAvgTs, sizeof(createAvgTs), execInfo.execCreate,
-                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+    if (formatTimestampTz(createAvgTs, sizeof(createAvgTs), execInfo.execCreate,
+                          TSDB_TIME_PRECISION_MICRO, ctx->tz) == NULL) {
       /*
-        If formatTimestampLocal fails, set the first char to '\0' to ensure
+        If formatTimestampTz fails, set the first char to '\0' to ensure
         createAvgTs is an empty string to avoid using uninitialized data.
       */
       createAvgTs[0] = '\0';
@@ -630,12 +631,12 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   } else if (nodeNum > 1) {
     int64_t createAvgUs = execInfo.execCreate / nodeNum;
     int64_t createMaxUs = maxExecInfo.execCreate;
-    if (formatTimestampLocal(createAvgTs, sizeof(createAvgTs), createAvgUs,
-                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+    if (formatTimestampTz(createAvgTs, sizeof(createAvgTs), createAvgUs,
+                          TSDB_TIME_PRECISION_MICRO, ctx->tz) == NULL) {
       createAvgTs[0] = '\0';
     }
-    if (formatTimestampLocal(createMaxTs, sizeof(createMaxTs), createMaxUs,
-                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+    if (formatTimestampTz(createMaxTs, sizeof(createMaxTs), createMaxUs,
+                          TSDB_TIME_PRECISION_MICRO, ctx->tz) == NULL) {
       createMaxTs[0] = '\0';
     }
     EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT_EXT,
@@ -2793,7 +2794,7 @@ static int32_t qExplainBuildCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
     QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  QRY_ERR_JRET(qExplainInitCtx(&ctx, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode));
+  QRY_ERR_JRET(qExplainInitCtx(&ctx, pDag->explainInfo.verbose, pDag->explainInfo.ratio, pDag->explainInfo.mode, pDag->explainInfo.tz));
 
   QRY_ERR_JRET(qExplainBuildPlanCtx(pDag, &ctx->planCtx));
   ctx->groupNum = ctx->planCtx.groupNum;

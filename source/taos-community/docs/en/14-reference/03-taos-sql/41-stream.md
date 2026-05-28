@@ -167,7 +167,7 @@ STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(z
 
 A state window trigger divides the written data of the trigger table into windows based on one or more state keys. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
-- state_expr: One or more state keys. Each state key can be a column reference or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`. Tag columns are not supported.
+- state_expr: One or more state keys. Each state key can be a column reference or a tag column, or an expression such as `CASE WHEN`, `IF`, or `CAST`. The result type must be integer, boolean, or `VARCHAR`.
 - extend_val (optional): Specifies the extension strategy for the start and end of a window. `EXTEND(0)` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
 - zeroth_val (optional): Specifies the zero state. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
 - true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
@@ -206,8 +206,6 @@ CREATE STREAM s_tag_state
   INTO meters_state_out
   AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
 ```
-
-- However, `STATE_WINDOW(groupId)` is still not supported. If you want to use a tag column, it must participate in an expression instead of being used directly as the state expression.
 
 Multi-key state-window example:
 

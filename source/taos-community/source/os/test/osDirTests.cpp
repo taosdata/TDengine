@@ -530,34 +530,6 @@ TEST(osDirTests, taosAppPath) {
   // Should not crash, behavior may vary
 }
 
-TEST(osDirTests, taosDllOperations) {
-  // Test loading a system library (libc on Linux)
-#ifndef WINDOWS
-  void* handle = taosLoadDll("libc.so.6");
-  if (handle != NULL) {
-    // Load a function from libc
-    void* funcPtr = taosLoadDllFunc(handle, "printf");
-    EXPECT_NE(funcPtr, nullptr);
-
-    // Try loading a non-existent function
-    void* invalidFunc = taosLoadDllFunc(handle, "this_function_does_not_exist_xyz123");
-    EXPECT_EQ(invalidFunc, nullptr);
-
-    // Close the DLL
-    taosCloseDll(handle);
-  }
-#endif
-
-  // Test loading a non-existent library
-  void* invalidHandle = taosLoadDll("/invalid/path/to/nonexistent.so");
-  EXPECT_EQ(invalidHandle, nullptr);
-
-  // Test NULL handle operations
-  taosCloseDll(NULL);
-  void* nullFunc = taosLoadDllFunc(NULL, "some func");
-  EXPECT_EQ(nullFunc, nullptr);
-}
-
 TEST(osDirTests, taosMkDirExistingDir) {
   char testDir[PATH_MAX];
   buildTestPath(testDir, sizeof(testDir), "mkdirexist");

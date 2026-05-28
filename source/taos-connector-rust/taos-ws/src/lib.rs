@@ -1,11 +1,12 @@
 #![recursion_limit = "256"]
 
 use std::cmp;
+use std::collections::HashSet;
 use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use chrono_tz::Tz;
@@ -59,6 +60,9 @@ type Version = String;
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type WsStreamReader = SplitStream<WsStream>;
 type WsStreamSender = SplitSink<WsStream, Message>;
+
+type WsConnectCallbackFuture<'a> =
+    Pin<Box<dyn Future<Output = RawResult<Option<Vec<String>>>> + Send + 'a>>;
 
 const CONNECTOR_INFO: &str = concat!(
     "rust-ws-v",
@@ -130,7 +134,9 @@ struct TlsConfig {
 #[derive(Debug, Clone)]
 pub struct TaosBuilder {
     https: Arc<AtomicBool>,
-    addrs: Vec<String>,
+    addrs: Arc<RwLock<Vec<String>>>,
+    adapter_ha: bool,
+    instances_fetched: Arc<AtomicBool>,
     current_addr_index: Arc<AtomicUsize>,
     auth: WsAuth,
     database: Option<String>,
@@ -203,7 +209,7 @@ impl taos_query::TBuilder for TaosBuilder {
     type Target = Taos;
 
     fn available_params() -> &'static [&'static str] {
-        &["token"]
+        &["token", "adapter_ha"]
     }
 
     fn from_dsn<D: IntoDsn>(dsn: D) -> RawResult<Self> {
@@ -477,6 +483,17 @@ impl TaosBuilder {
 
         let token = dsn.params.remove("token");
 
+        let adapter_ha = dsn
+            .remove("adapter_ha")
+            .and_then(|s| {
+                if s.trim().is_empty() {
+                    Some(false)
+                } else {
+                    s.trim().parse::<bool>().ok()
+                }
+            })
+            .unwrap_or(false);
+
         let mut addrs = Vec::with_capacity(dsn.addresses.len());
         for addr in &dsn.addresses {
             let addr = if addr.host.as_deref() == Some("localhost") && addr.port.is_none() {
@@ -492,6 +509,7 @@ impl TaosBuilder {
         }
 
         addrs.shuffle(&mut rand::rng());
+        let addrs = Arc::new(RwLock::new(addrs));
 
         let compression = dsn
             .params
@@ -615,6 +633,8 @@ impl TaosBuilder {
         Ok(TaosBuilder {
             https,
             addrs,
+            adapter_ha,
+            instances_fetched: Arc::new(AtomicBool::new(false)),
             auth,
             database: dsn.subject,
             server_version: OnceCell::new(),
@@ -646,7 +666,8 @@ impl TaosBuilder {
     }
 
     pub(crate) async fn connect_with_ty(&self, ty: EndpointType) -> RawResult<(WsStream, Version)> {
-        self.connect_with_opt_cb::<fn(&mut WsStream) -> Pin<Box<dyn Future<Output = RawResult<()>> + Send + '_>>>(ty, None).await
+        self.connect_with_opt_cb::<fn(&mut WsStream) -> WsConnectCallbackFuture<'_>>(ty, None)
+            .await
     }
 
     pub(crate) async fn connect_with_cb<F>(
@@ -655,7 +676,7 @@ impl TaosBuilder {
         cb: F,
     ) -> RawResult<(WsStream, Version)>
     where
-        F: for<'a> Fn(&'a mut WsStream) -> Pin<Box<dyn Future<Output = RawResult<()>> + Send + 'a>>,
+        F: for<'a> Fn(&'a mut WsStream) -> WsConnectCallbackFuture<'a>,
     {
         self.connect_with_opt_cb(ty, Some(cb)).await
     }
@@ -666,7 +687,7 @@ impl TaosBuilder {
         cb: Option<F>,
     ) -> RawResult<(WsStream, Version)>
     where
-        F: for<'a> Fn(&'a mut WsStream) -> Pin<Box<dyn Future<Output = RawResult<()>> + Send + 'a>>,
+        F: for<'a> Fn(&'a mut WsStream) -> WsConnectCallbackFuture<'a>,
     {
         let mut config = WebSocketConfig::default();
         config.max_frame_size = None;
@@ -685,7 +706,8 @@ impl TaosBuilder {
         let mut last_err = None;
         let connector = self.build_tls_connector()?;
 
-        for _ in 0..self.addrs.len() {
+        let addrs_len = self.addrs.read().unwrap().len();
+        for _ in 0..addrs_len {
             let mut url = self.to_url(ty);
             for i in 0..=self.retry_policy.retries {
                 tracing::trace!("connecting to TDengine WebSocket server, url: {url}");
@@ -725,7 +747,22 @@ impl TaosBuilder {
                         );
 
                         if let Some(ref cb) = cb {
-                            call!(cb(&mut ws_stream), "call callback");
+                            let instances = call!(cb(&mut ws_stream), "call callback");
+                            if self.adapter_ha
+                                && self
+                                    .instances_fetched
+                                    .compare_exchange(
+                                        false,
+                                        true,
+                                        Ordering::AcqRel,
+                                        Ordering::Relaxed,
+                                    )
+                                    .is_ok()
+                            {
+                                if let Some(instances) = instances {
+                                    self.merge_instances(instances);
+                                }
+                            }
                         }
 
                         if !self.conn_options.is_empty() {
@@ -777,11 +814,14 @@ impl TaosBuilder {
             }
 
             let cur_idx = self.current_addr_index.load(Ordering::Relaxed);
-            let next_idx = (cur_idx + 1) % self.addrs.len();
+            let next_idx = (cur_idx + 1) % addrs_len;
             self.current_addr_index.store(next_idx, Ordering::Relaxed);
         }
 
-        tracing::error!("failed to connect to all addresses: {:?}", self.addrs);
+        tracing::error!(
+            "failed to connect to all addresses: {:?}",
+            self.addrs.read().unwrap()
+        );
 
         if let Some(err) = last_err {
             Err(err)
@@ -977,6 +1017,31 @@ impl TaosBuilder {
         }
     }
 
+    pub(crate) fn merge_instances(&self, instances: Vec<String>) {
+        let mut addrs = self.addrs.write().unwrap();
+        let new_instances: Vec<String> = {
+            let existing: HashSet<&str> = addrs.iter().map(String::as_str).collect();
+            let mut seen = HashSet::new();
+            instances
+                .into_iter()
+                .filter(|s| {
+                    is_valid_host_port(s)
+                        && !existing.contains(s.as_str())
+                        && seen.insert(s.clone())
+                })
+                .collect()
+        };
+
+        if !new_instances.is_empty() {
+            tracing::info!(
+                "adapter HA: discovered {} new instances: {:?}",
+                new_instances.len(),
+                new_instances
+            );
+            addrs.extend(new_instances);
+        }
+    }
+
     pub(crate) fn build_conn_request(&self) -> WsConnReq {
         let (user, password) = match &self.auth {
             WsAuth::Token(_) => ("root", "taosdata"),
@@ -994,6 +1059,11 @@ impl TaosBuilder {
             connector: self.connector_info.clone(),
             totp_code: self.totp_code.clone(),
             bearer_token: self.bearer_token.clone(),
+            list_instances: if self.adapter_ha {
+                Some(!self.instances_fetched.load(Ordering::Acquire))
+            } else {
+                None
+            },
         }
     }
 
@@ -1038,10 +1108,34 @@ impl TaosBuilder {
     }
 
     #[inline]
-    fn active_addr(&self) -> &String {
-        let cur_addr_idx = self.current_addr_index.load(Ordering::Relaxed);
-        &self.addrs[cur_addr_idx]
+    fn active_addr(&self) -> String {
+        let addrs = self.addrs.read().unwrap();
+        let cur_addr_idx = self.current_addr_index.load(Ordering::Relaxed) % addrs.len();
+        addrs[cur_addr_idx].clone()
     }
+}
+
+fn is_valid_host_port(s: &str) -> bool {
+    let Some((host, port)) = s.rsplit_once(':') else {
+        return false;
+    };
+
+    if host.is_empty() || !port.parse::<u16>().is_ok_and(|p| p > 0) {
+        return false;
+    }
+
+    if host.chars().any(|c| c.is_whitespace()) || host.contains(['/', '\\', '?', '#', '@']) {
+        return false;
+    }
+
+    if host.starts_with('[') || host.ends_with(']') {
+        return host
+            .strip_prefix('[')
+            .and_then(|h| h.strip_suffix(']'))
+            .is_some_and(|h| h.contains(':'));
+    }
+
+    !host.contains(':')
 }
 
 async fn send_request_with_timeout(
@@ -1222,6 +1316,8 @@ fn parse_ca_to_certs(input: &str) -> Result<Vec<CertificateDer<'static>>, DsnErr
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::Ordering;
+
     use futures::{SinkExt, StreamExt};
     use taos_query::prelude::*;
 
@@ -1323,6 +1419,151 @@ mod tests {
             .contains("invalid parameter for version_prefer: 4.x"),);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_taos_builder_available_params() {
+        use taos_query::TBuilder;
+
+        assert_eq!(TaosBuilder::available_params(), ["token", "adapter_ha"]);
+    }
+
+    #[test]
+    fn test_adapter_ha_build_conn_request_list_instances() -> Result<(), anyhow::Error> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041")?;
+        assert_eq!(builder.build_conn_request().list_instances, None);
+
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=false")?;
+        assert_eq!(builder.build_conn_request().list_instances, None);
+
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=")?;
+        assert_eq!(builder.build_conn_request().list_instances, None);
+
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=invalid")?;
+        assert_eq!(builder.build_conn_request().list_instances, None);
+
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        assert_eq!(builder.build_conn_request().list_instances, Some(true));
+
+        builder.instances_fetched.store(true, Ordering::Release);
+        assert_eq!(builder.build_conn_request().list_instances, Some(false));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_adapter_ha_connect_and_disable_next_fetch() -> Result<(), anyhow::Error> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+
+        let taos = builder.build().await?;
+        taos.exec("select server_version()").await?;
+
+        assert!(builder.instances_fetched.load(Ordering::Acquire));
+        assert_eq!(builder.build_conn_request().list_instances, Some(false));
+
+        let addrs_after_first = builder.addrs.read().unwrap().clone();
+        assert!(!addrs_after_first.is_empty());
+        assert!(addrs_after_first
+            .iter()
+            .all(|addr| is_valid_host_port(addr)));
+
+        let mut deduped = addrs_after_first.clone();
+        deduped.sort_unstable();
+        deduped.dedup();
+        assert_eq!(deduped.len(), addrs_after_first.len());
+
+        let _ = builder.build().await?;
+        let addrs_after_second = builder.addrs.read().unwrap().clone();
+        assert_eq!(addrs_after_second, addrs_after_first);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_merge_instances_no_new_entries_keeps_addresses() -> Result<(), anyhow::Error> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        let before = builder.addrs.read().unwrap().clone();
+
+        builder.merge_instances(vec![
+            before[0].clone(),
+            "localhost".to_string(),
+            "localhost:0".to_string(),
+            "invalid:port".to_string(),
+        ]);
+
+        let after = builder.addrs.read().unwrap().clone();
+        assert_eq!(after, before);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_merge_instances_filters_invalid_and_duplicates() -> Result<(), anyhow::Error> {
+        let builder = TaosBuilder::from_dsn("ws://localhost:6041?adapter_ha=true")?;
+        let initial_addrs = builder.addrs.read().unwrap().clone();
+
+        builder.merge_instances(vec![
+            initial_addrs[0].clone(),
+            "127.0.0.1:6042".to_string(),
+            "127.0.0.1:6042".to_string(),
+            "127.0.0.1".to_string(),
+            ":6041".to_string(),
+            "localhost:abc".to_string(),
+            "localhost:0".to_string(),
+            "localhost:65536".to_string(),
+            "evil.com/path:6041".to_string(),
+            "evil.com?x=1:6041".to_string(),
+            "user@evil.com:6041".to_string(),
+            "a b:6041".to_string(),
+            "::1:6041".to_string(),
+            "[::1:6041".to_string(),
+            "localhost:6043".to_string(),
+            "[::1]:6041".to_string(),
+        ]);
+
+        let addrs = builder.addrs.read().unwrap().clone();
+        assert!(addrs.contains(&initial_addrs[0]));
+        assert!(addrs.contains(&"127.0.0.1:6042".to_string()));
+        assert!(addrs.contains(&"localhost:6043".to_string()));
+        assert!(addrs.contains(&"[::1]:6041".to_string()));
+        assert_eq!(
+            addrs
+                .iter()
+                .filter(|addr| addr.as_str() == "127.0.0.1:6042")
+                .count(),
+            1
+        );
+        assert!(!addrs.iter().any(|addr| addr == "127.0.0.1"));
+        assert!(!addrs.iter().any(|addr| addr == ":6041"));
+        assert!(!addrs.iter().any(|addr| addr == "localhost:abc"));
+        assert!(!addrs.iter().any(|addr| addr == "localhost:0"));
+        assert!(!addrs.iter().any(|addr| addr == "localhost:65536"));
+        assert!(!addrs.iter().any(|addr| addr == "evil.com/path:6041"));
+        assert!(!addrs.iter().any(|addr| addr == "evil.com?x=1:6041"));
+        assert!(!addrs.iter().any(|addr| addr == "user@evil.com:6041"));
+        assert!(!addrs.iter().any(|addr| addr == "a b:6041"));
+        assert!(!addrs.iter().any(|addr| addr == "::1:6041"));
+        assert!(!addrs.iter().any(|addr| addr == "[::1:6041"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_valid_host_port_cases() {
+        assert!(is_valid_host_port("localhost:6041"));
+        assert!(is_valid_host_port("127.0.0.1:1"));
+        assert!(is_valid_host_port("[::1]:6041"));
+        assert!(!is_valid_host_port("localhost"));
+        assert!(!is_valid_host_port(":6041"));
+        assert!(!is_valid_host_port("localhost:0"));
+        assert!(!is_valid_host_port("localhost:65536"));
+        assert!(!is_valid_host_port("localhost:abc"));
+        assert!(!is_valid_host_port("evil.com/path:6041"));
+        assert!(!is_valid_host_port("evil.com?x=1:6041"));
+        assert!(!is_valid_host_port("user@evil.com:6041"));
+        assert!(!is_valid_host_port("a b:6041"));
+        assert!(!is_valid_host_port("::1:6041"));
+        assert!(!is_valid_host_port("[::1:6041"));
     }
 
     #[tokio::test(flavor = "multi_thread")]

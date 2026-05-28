@@ -642,7 +642,7 @@ namespace TDEngineDR
         }
 
         // Return an AFEventSource object for this custom data reference
-        static public object CreateDataPipe()
+        public static AFEventSource CreateDataPipe()
         {
             TDEventSource pipe = new TDEventSource();
             return pipe;

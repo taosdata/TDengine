@@ -231,6 +231,7 @@ typedef struct SExplainCtx {
   EExplainMode mode;
   double       ratio;
   bool         verbose;
+  timezone_t   tz;       /* session timezone for formatting timestamps */
 
   SRWLatch     lock;
   int32_t      dataSize;

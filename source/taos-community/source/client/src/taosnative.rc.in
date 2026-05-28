@@ -1,6 +1,6 @@
 1 VERSIONINFO
- FILEVERSION ${BUILD_VER_NUMBER}
- PRODUCTVERSION ${BUILD_VER_NUMBER}
+ FILEVERSION ${BUILD_VER_NUMBER_COMMA}
+ PRODUCTVERSION ${BUILD_VER_NUMBER_COMMA}
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -18,7 +18,7 @@ BEGIN
             VALUE "FileDescription", "Internal C Driver for TDengine"
             VALUE "FileVersion", "${BUILD_VER_NUMBER}"
             VALUE "InternalName", "taosnative.dll(${BUILD_VER_CPUTYPE})"
-            VALUE "LegalCopyright", "Copyright (C) 2025 TAOS Data"
+            VALUE "LegalCopyright", "Copyright (C) 2026 TAOS Data"
             VALUE "OriginalFilename", ""
             VALUE "ProductName", "taosnative.dll(${BUILD_VER_CPUTYPE})"
             VALUE "ProductVersion", "${BUILD_VER_NUMBER}"

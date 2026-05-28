@@ -125,7 +125,9 @@ Options:
   --pull-image IMAGE     拉远端镜像并打 tag 用作本地镜像
   --image-name IMAGE     镜像 tag（默认：docs-ci:local）
   --tsdb-branch BRANCH   指定 tsdb 分支（指定时会 fetch + checkout，否则不动工作区）
-  --docs-branch BRANCH   两个 docs 框架仓库使用的分支（默认：feat/tsdb-path-env）
+  --docs-branch BRANCH   两个 docs 框架仓库使用的分支（默认：zh=master, en=main）
+  --zh-docs-branch BR    仅覆盖中文 docs 分支（默认：master）
+  --en-docs-branch BR    仅覆盖英文 docs 分支（默认：main）
   --fix                  在校验前先跑 autocorrect / markdownlint --fix
   -h, --help             显示帮助
 ```

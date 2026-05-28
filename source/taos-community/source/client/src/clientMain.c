@@ -120,7 +120,7 @@ void tzCleanup() {
 }
 
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
-static timezone_t setConnnectionTz(const char *val) {
+static timezone_t setConnectionTz(const char *val) {
   timezone_t  tz = NULL;
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
   if (tmp != NULL && *tmp != NULL) {
@@ -129,17 +129,18 @@ static timezone_t setConnnectionTz(const char *val) {
   }
 
   tscDebug("set timezone to %s", val);
-  tz = tzalloc(val);
-  if (tz == NULL) {
-    tscWarn("%s unknown timezone %s change to UTC", __func__, val);
-    tz = tzalloc("UTC");
-    if (tz == NULL) {
-      tscError("%s set timezone UTC error", __func__);
-      terrno = TAOS_SYSTEM_ERROR(ERRNO);
-      goto END;
-    }
+
+  /* Validate and allocate via the shared implementation in ttime.c.
+   * This covers: empty string rejection, ambiguous abbreviation rejection,
+   * fixed-offset normalization, and tzalloc. */
+  int32_t code = taosValidateTimezone(val, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%s invalid timezone '%s', code:0x%x", __func__, val, code);
+    terrno = code;
+    goto END;
   }
-  int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
+
+  code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
   if (code != 0) {
     tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);
@@ -162,6 +163,70 @@ END:
 }
 #endif
 
+/* Snapshot the current client-level timezone (tsTimezoneStr) into the
+ * session-level timezone (pObj->optionInfo.timezone) at the time the
+ * connection is established.  Subsequent ALTER LOCAL timezone calls change
+ * the client-level setting only; the session-level snapshot stays at the
+ * connection-time value and is independent. */
+int32_t tscInitSessionTimezone(STscObj *pObj) {
+#if defined(WINDOWS) || defined(TD_ASTRA)
+  (void)pObj;
+  return TSDB_CODE_SUCCESS;
+#else
+  if (pTimezoneMap == NULL) {
+    /* tzInit() not yet called; skip silently */
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Extract the IANA name from tsTimezoneStr.
+   * The string has the form "Name (Abbrev, +HHMM)". */
+  char        tzName[TD_TIMEZONE_LEN] = {0};
+  const char *pSpace = strchr(tsTimezoneStr, ' ');
+  int32_t     nameLen = pSpace ? (int32_t)(pSpace - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
+  if (nameLen <= 0 || nameLen >= TD_TIMEZONE_LEN) {
+    tscWarn("tscInitSessionTimezone: unexpected tsTimezoneStr format: '%s', "
+            "skip session-level init", tsTimezoneStr);
+    return TSDB_CODE_SUCCESS;  /* malformed; leave session tz unset */
+  }
+  tstrncpy(tzName, tsTimezoneStr, nameLen + 1);
+
+  timezone_t tz = setConnectionTz(tzName);
+  if (tz == NULL) {
+    /* Non-fatal: session tz stays NULL; timestamp parsing falls back to
+     * getGlobalDefaultTZ() at query time (live global tz, not a snapshot). */
+    tscWarn("tscInitSessionTimezone: setConnectionTz failed for '%s', "
+            "session-level timezone not snapshotted", tzName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pObj->optionInfo.timezone = tz;
+  tstrncpy(pObj->optionInfo.timezoneName, tzName, sizeof(pObj->optionInfo.timezoneName));
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
+// Get connection's session timezone (opaque handle for C API bindings).
+// Returns an opaque pointer to internal timezone_t.
+/*
+ * Return the timezone snapshot captured when the result was created.
+ * The returned handle is owned by pTimezoneMap; caller must NOT tzfree().
+ * Returns NULL for META/RAW/BATCH_META results or NULL input.
+ */
+void *taos_get_result_tz(TAOS_RES *res) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return NULL;
+  }
+
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    return pRequest->body.resInfo.timezone;
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
+    SReqResultInfo *info = tmqGetCurResInfo(res);
+    return info->timezone;
+  }
+  return NULL;
+}
+
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char *val) {
   if (taos == NULL) {
     return terrno = TSDB_CODE_INVALID_PARA;
@@ -169,7 +234,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
 #ifdef WINDOWS
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
-    return terrno = TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
+    return terrno = TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
   }
 #endif
 
@@ -217,14 +282,16 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       if (val[0] == 0) {
         val = "UTC";
       }
-      timezone_t tz = setConnnectionTz(val);
+      timezone_t tz = setConnectionTz(val);
       if (tz == NULL) {
         code = terrno;
         goto END;
       }
       pObj->optionInfo.timezone = tz;
+      tstrncpy(pObj->optionInfo.timezoneName, val, sizeof(pObj->optionInfo.timezoneName));
     } else {
       pObj->optionInfo.timezone = NULL;
+      pObj->optionInfo.timezoneName[0] = '\0';
     }
 #endif
   }
@@ -2041,7 +2108,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   (*pCxt)->minSecLevel = pTscObj->minSecLevel;
@@ -2983,7 +3051,7 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
     return stmtGetStbColFields2(stmt, count, fields);
   }
   if (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt))) {
-    return stmtGetParamNum2(stmt, count, fields);
+    return stmtGetParamNum2(stmt, count);
   }
 
   tscError("Invalid sql for stmt %s", pStmt->sql.sqlStr);

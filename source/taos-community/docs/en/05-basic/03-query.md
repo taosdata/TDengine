@@ -37,6 +37,25 @@ The above SQL queries records from the supertable `meters` where the `voltage` i
 Query OK, 5 row(s) in set (0.145403s)
 ```
 
+## Query Timezone
+
+In time-series queries, whether timestamps can be interpreted stably and accurately is often just as important as the SQL itself. This matters especially in cross-region deployments, in client/server-separated architectures, when reports must be shown in local time, or when query conditions involve natural calendar boundaries such as days and weeks. In these cases, timezone configuration directly affects how time strings are parsed, how timestamps are displayed in result sets, and how some time functions and window calculations behave.
+
+TDengine TSDB follows a clear timezone management model: UTC timestamps are stored at the storage layer, while the client or current connection is responsible for parsing time strings into UTC during query execution and converting returned timestamps back into local time for display in the active timezone. This keeps the storage layer uniform while allowing the query layer to match business usage. Applications in different regions can read local time directly, and timezone logic does not need to be embedded in each table or each record.
+
+This model balances usability and rigor:
+
+1. For usability, if no extra configuration is provided, the client uses the current operating system timezone, so common queries work out of the box.
+2. For controllability, you can override the timezone through client default configuration, connection parameters, or the current session, which supports multi-tenant, multi-region, and multi-application access to the same dataset.
+3. For rigor, if you use Unix timestamps directly in SQL, or RFC 3339 / ISO-8601 time strings that include timezone offsets, the meaning of the time no longer depends on the current timezone setting. This significantly reduces ambiguity and is especially suitable for cross-timezone collaboration and DST scenarios.
+
+If you need the concrete configuration methods, continue with the following references:
+
+- [Modify the server default timezone configuration](../14-reference/01-components/01-taosd.md)
+- [Modify the client default timezone configuration](../14-reference/01-components/02-taosc.md)
+- [Set the current session timezone](../14-reference/03-taos-sql/95-timezone.md#set-timezone)
+- [Understand how DST affects writes and queries](../27-train-faq/02-dst.md)
+
 ## Aggregate Query
 
 TDengine supports aggregate queries through the GROUP BY clause. When an SQL statement includes a GROUP BY clause, the SELECT list can only contain the following expressions:
@@ -369,37 +388,18 @@ STATE_WINDOW(state_expr [, state_expr ...])
 
 Where:
 
-- `state_expr` can be a column reference, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE), TIMESTAMP, and tag columns are not supported. Arithmetic expressions (e.g., `col1 + col2`), comparison/boolean expressions (e.g., `col1 > 0`), and constants are not supported.
+- `state_expr` can be a column reference, a tag column, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE) and TIMESTAMP are not supported.
 - `EXTEND(0|1|2)` specifies the window boundary extension strategy.
 - `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` can be used to skip a position.
 - `TRUE_FOR(...)` filters windows by duration, row count, or both. For `EVENT_WINDOW`, also supports `start(...)` / `end(...)` for open/close streak thresholds. See [Event Window TRUE_FOR](../14-reference/03-taos-sql/24-distinguished.md#event-window).
 
-`NULL` values in state keys are handled as follows:
+For detailed information, see [TDengine Distinctive Queries](../14-reference/03-taos-sql/24-distinguished.md#state-window).
 
-- If all state-key columns are `NULL`, the row follows the existing `NULL` behavior of state windows.
-- If only some state-key columns are `NULL`, those `NULL` positions do not participate in key-by-key comparison. Consecutive partial-`NULL` rows are handled as a whole and may merge into the previous window, merge into the next window, or become an independent window.
-- If a consecutive run of partial-`NULL` rows contains all-`NULL` rows in the middle, those all-`NULL` rows are handled together with the surrounding partial-`NULL` run.
-
-The table below shows the most common merge outcomes. In each row, “merge into previous”, “merge into next”, and “independent window” all refer to the consecutive partial-`NULL` rows in the middle:
-
-| Input sequence (state keys) | `EXTEND(0)` | `EXTEND(1)` | `EXTEND(2)` |
-| --- | --- | --- | --- |
-| `(1, 10) -> (1, NULL) -> (1, 20)` | Merge into previous | Merge into previous | Merge into next |
-| `(1, 'a') -> (1, NULL) -> (2, 'a')` | Merge into previous | Merge into previous | Independent window |
-| `(1, 'a') -> (NULL, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
-| `(1, 'a') -> (NULL, 'b') -> (2, 'a')` | Independent window | Independent window | Independent window |
-| `(NULL, 'b') -> (1, 'b') -> (1, 'b')` | Merge into next | Independent window | Merge into next |
-| `(1, 'a') -> (1, 'a') -> (1, NULL)` | Merge into previous | Merge into previous | Independent window |
-
-If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
-
-`ZEROTH_STATE(...)` also works position by position. A window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
-
-In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns, as long as the final result type is still integer, boolean, or string. For example, `CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END` is valid. However, `STATE_WINDOW(groupId)` is not supported because the tag column cannot be used directly as the state expression.
+#### Example
 
 ```sql
-SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
-FROM meters 
+SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
+FROM meters
 WHERE ts >= "2022-01-01T00:00:00+08:00" 
 AND ts < "2022-01-01T00:05:00+08:00" 
 PARTITION BY tbname 
@@ -409,7 +409,7 @@ STATE_WINDOW(
 SLIMIT 2;
 ```
 
-The above SQL queries data from the supertable `meters`, where the timestamp is greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by the subtable name `tbname`. It then divides into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. Data is first partitioned by subtable name `tbname`, then divided into state windows based on whether the voltage is within the normal range. Finally, it retrieves data from the first 2 partitions as the result. The query results are as follows: (Since the data is randomly generated, the number of data entries in the result set may vary)
 
 ```text
  tbname |         _wstart         |          _wend          |  _wduration   |    status     |
@@ -443,15 +443,15 @@ Multi-key example:
 
 ```sql
 SELECT _wstart, _wend, count(*),
-        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
-        CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
 FROM meters
 WHERE ts >= "2022-01-01T00:00:00+08:00"
-    AND ts <  "2022-01-01T00:05:00+08:00"
+  AND ts <  "2022-01-01T00:05:00+08:00"
 PARTITION BY tbname
 STATE_WINDOW(
-        CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
-        CASE WHEN current > 12 THEN 1 ELSE 0 END
+    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
+    CASE WHEN current > 12 THEN 1 ELSE 0 END
 )
 SLIMIT 2;
 ```
@@ -459,7 +459,7 @@ SLIMIT 2;
 The query above uses both the voltage status (whether it remains in the normal range of 225V to 235V) and the current status (whether it exceeds 12A) as state keys. The current window closes and a new one starts whenever either status changes. The query result is as follows:
 
 ```text
-                 _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
+         _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
 ============================================================================================================================
  2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
  2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
@@ -474,26 +474,6 @@ The query above uses both the voltage status (whether it remains in the normal r
 ...
 Query OK, 42 row(s) in set (2.012420s)
 ```
-
-If you need boundary extension or zero-state filtering, you can continue appending clauses after `STATE_WINDOW(...)`, for example:
-
-```sql
-SELECT _wstart, _wduration, _wend, count(*)
-FROM state_window_example
-STATE_WINDOW(status)
-EXTEND(1);
-```
-
-```sql
-SELECT _wstart, _wend, count(*), c1, c2
-FROM ntb_null
-STATE_WINDOW(c1, c2)
-EXTEND(0)
-ZEROTH_STATE(1, NO_ZEROTH)
-TRUE_FOR(COUNT 2);
-```
-
-The SQL above applies zero-state filtering only to `c1 = 1`; `c2` does not participate in zero-state matching.
 
 ### Session Window
 
@@ -677,20 +657,20 @@ In queries of time series databases, it is often necessary to query based on the
 |:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
 | Yesterday​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
 | Today |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
-| Last Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1d) - (7 + WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000 |
-| This Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) + (7 - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000 |
-| Last Month | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) |TO_TIMESTAMP(TO_CHAR(NOW() -1n, 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM') |
-| This Month | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') |TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1n, 'YYYY-MM'), 'YYYY-MM') |
-| Last Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TO_TIMESTAMP(CASE WHEN TO_CHAR(NOW(), 'MM') < 4 THEN CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') - 1 AS VARCHAR(5)), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') + 8) / 3) &ast; 3 + 1 AS VARCHAR(3))) ELSE CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 4) / 3) &ast; 3 + 1 AS VARCHAR(3))) END, 'YYYY-MM'),<br/>TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM') |
-| This Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') + CASE WHEN TO_CHAR(NOW(), 'MM') > 9 THEN 1 ELSE 0 END AS VARCHAR), "-", CAST((FLOOR((TO_CHAR(NOW(), 'MM') + 2) / 3) &ast; 3 + 1) % 12 AS VARCHAR)), 'YYYY-MM') |
-| Last Year | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TO_TIMESTAMP(TO_CHAR(NOW() - 1y, 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY') |
-| This Year | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
+| Last Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1w) - 1w,<br/> TIMETRUNCATE(NOW(), 1w) |
+| This Week | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1w),<br/> TIMETRUNCATE(NOW(), 1w) + 1w |
+| Last Month | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1n) - 1n,<br/> TIMETRUNCATE(NOW(), 1n) |
+| This Month | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') | TIMETRUNCATE(NOW(), 1n),<br/> TIMETRUNCATE(NOW(), 1n) + 1n |
+| Last Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1q) - 1q,<br/> TIMETRUNCATE(NOW(), 1q) |
+| This Quarter | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TIMETRUNCATE(NOW(), 1q),<br/> TIMETRUNCATE(NOW(), 1q) + 1q |
+| Last Year | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1y) - 1y,<br/> TIMETRUNCATE(NOW(), 1y) |
+| This Year | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TIMETRUNCATE(NOW(), 1y),<br/> TIMETRUNCATE(NOW(), 1y) + 1y |
 
 ### Description
 
 1. Each time range interval is left-closed and right-open.
 2. The writing style is not unique, and this is provided here as an example for reference only.
-3. Here, Monday is used as the start of the week, and scenarios that do not start on Monday need to be adjusted.
+3. The week-related ranges here do not take the first day of the week into account. TDengine supports configuring the first day of the week; see [firstDayOfWeek](../14-reference/01-components/02-taosc.md#region-related).
 4. Here, the timestamp in the TDengine example uses milliseconds as the time unit.
 
 ## Time-Series Extensions

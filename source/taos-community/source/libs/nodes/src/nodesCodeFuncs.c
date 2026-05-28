@@ -21,6 +21,8 @@
 #include "querynodes.h"
 #include "taoserror.h"
 #include "tdatablock.h"
+#include "tglobal.h"
+#include "ttime.h"
 #include "tjson.h"
 #include "tmsg.h"
 
@@ -245,6 +247,10 @@ const char* nodesNodeName(ENodeType type) {
       return "DropConsumerGroupStmt";
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return "AlterLocalStmt";
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+      return "SetTimezoneStmt";
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return "SetFirstDayOfWeekStmt";
     case QUERY_NODE_EXPLAIN_STMT:
       return "ExplainStmt";
     case QUERY_NODE_DESCRIBE_STMT:
@@ -2559,6 +2565,8 @@ static const char* jkTableScanPhysiPlanFilesetDelimited = "FilesetDelimited";
 static const char* jkTableScanPhysiPlanNeedCountEmptyTable = "NeedCountEmptyTable";
 static const char* jkTableScanPhysiPlanParaTablesSort = "ParaTablesSort";
 static const char* jkTableScanPhysiPlanSmallDataTsSort = "SmallDataTsSort";
+static const char* jkTableScanPhysiPlanFirstDayOfWeek = "FirstDayOfWeek";
+static const char* jkTableScanPhysiPlanTimezoneName = "TimezoneName";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -2653,6 +2661,12 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanSmallDataTsSort, pNode->smallDataTsSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanTimezoneName, pNode->timezoneName);
   }
   return code;
 }
@@ -2763,6 +2777,22 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanSmallDataTsSort, &pNode->smallDataTsSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
+    if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanFirstDayOfWeek) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkTableScanPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    char tzBuf[TD_TIMEZONE_LEN] = {0};
+    if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanTimezoneName) != NULL) {
+      code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanTimezoneName, tzBuf);
+    }
+    if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
+      code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                    &pNode->ownsTimezone);
+    }
   }
   return code;
 }
@@ -3621,6 +3651,8 @@ static const char* jkIntervalPhysiPlanOffset = "Offset";
 static const char* jkIntervalPhysiPlanSliding = "Sliding";
 static const char* jkIntervalPhysiPlanIntervalUnit = "intervalUnit";
 static const char* jkIntervalPhysiPlanSlidingUnit = "slidingUnit";
+static const char* jkIntervalPhysiPlanFirstDayOfWeek = "firstDayOfWeek";
+static const char* jkIntervalPhysiPlanTimezoneName = "timezoneName";
 static const char* jkIntervalPhysiPlanStartTime = "StartTime";
 static const char* jkIntervalPhysiPlanEndTime = "EndTime";
 
@@ -3642,6 +3674,12 @@ static int32_t physiIntervalNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanSlidingUnit, pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkIntervalPhysiPlanTimezoneName, pNode->timezoneName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkIntervalPhysiPlanStartTime, pNode->timeRange.skey);
@@ -3671,6 +3709,23 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanSlidingUnit, &pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    /* field added in this branch; default to epoch alignment when absent */
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
+    if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanFirstDayOfWeek) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkIntervalPhysiPlanFirstDayOfWeek, &pNode->firstDayOfWeek);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    char tzBuf[TD_TIMEZONE_LEN] = {0};
+    if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanTimezoneName) != NULL) {
+      code = tjsonGetStringValue(pJson, jkIntervalPhysiPlanTimezoneName, tzBuf);
+    }
+    if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
+      code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                    &pNode->ownsTimezone);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkIntervalPhysiPlanStartTime, &pNode->timeRange.skey);
@@ -11076,6 +11131,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropConsumerGroupStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return alterLocalStmtToJson(pObj, pJson);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;  // local-only statement, intentionally not serialized for network transmission.
     case QUERY_NODE_EXPLAIN_STMT:
       return explainStmtToJson(pObj, pJson);
     case QUERY_NODE_DESCRIBE_STMT:
@@ -11574,6 +11632,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDropConsumerGroupStmt(pJson, pObj);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return jsonToAlterLocalStmt(pJson, pObj);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;  // local-only statement, intentionally not deserialized from network.
     case QUERY_NODE_EXPLAIN_STMT:
       return jsonToExplainStmt(pJson, pObj);
     case QUERY_NODE_DESCRIBE_STMT:

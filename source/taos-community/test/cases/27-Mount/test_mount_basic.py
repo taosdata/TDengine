@@ -136,9 +136,9 @@ class TestMountBasic:
     def refactConfBetweenHostAndMnt(self, toMnt = True):
         try:
             if toMnt:
-                self.replace_string_in_file(self.configFile, 'multi', 'mnt')
+                self.replace_string_in_file(self.configFile, self.hostPath, self.mountPath)
             else:
-                self.replace_string_in_file(self.configFile, 'mnt', 'multi')
+                self.replace_string_in_file(self.configFile, self.mountPath, self.hostPath)
         except Exception as e:
             raise Exception(f"failed to refact conf in {self.configFile}: {repr(e)}")
 

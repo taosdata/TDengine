@@ -1495,8 +1495,14 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
   for (int32_t k = rowStart; k < rowEnd; k++) {
     SColVal colVal = {0};
     STREAM_CHECK_RET_GOTO(tColDataGetValue(colData, k, &colVal));
-    STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k - rowStart, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
-                                        !COL_VAL_IS_VALUE(&colVal)));
+    if (IS_VAR_DATA_TYPE(colVal.value.type)) {
+      STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, rows + k - rowStart,
+                                             (const char*)colVal.value.pData, colVal.value.nData,
+                                             !COL_VAL_IS_VALUE(&colVal)));
+    } else {
+      STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k - rowStart, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
+                                          !COL_VAL_IS_VALUE(&colVal)));
+    }    
   }
   end:
   return code;
@@ -4050,6 +4056,13 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
                                                     req.taskId));
       STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
     } else {
+      // Must set scalar extra BEFORE reset: qResetTableScan rebuilds the table
+      // list which evaluates TagCond (RemoteValueList scalar subquery).  The
+      // thread-local gTaskScalarExtra.pSubJobCtx must point to THIS task's
+      // context so that sendFetchRemoteNodeReq uses the correct execId for
+      // routing to the right non-topTask exec slot.
+      qSetStreamGen(sStreamReaderCalcInfo->pTaskInfo, sStreamReaderCalcInfo->rtInfo.funcInfo.streamGen);
+      setTaskScalarExtraInfo(sStreamReaderCalcInfo->pTaskInfo);
       STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, &handle));
     }
 
@@ -4060,9 +4073,17 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
     qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, (void*)req.pOpParam);
   }
 
+  qSetStreamGen(sStreamReaderCalcInfo->pTaskInfo, sStreamReaderCalcInfo->rtInfo.funcInfo.streamGen);
+
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
   uint64_t ts = 0;
+  // Stream fetches enter via vnode worker threads that may not have
+  // initialized the thread_local gTaskScalarExtra for this task.  Without
+  // this, scalar subqueries embedded in the operator (e.g. WHERE ts >=
+  // (SELECT last_row(ts) FROM ref)) fail with "no subJob ctx" on whichever
+  // event happens to land on a fresh worker thread.
+  setTaskScalarExtraInfo(sStreamReaderCalcInfo->pTaskInfo);
   STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
 
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){

@@ -244,6 +244,20 @@ if(DEFINED BUILD_DEPS_MIRROR_URL AND "${LOCAL_URL}" STREQUAL "")
   set(LOCAL_URL "${BUILD_DEPS_MIRROR_URL}" CACHE STRING "local archives storage to use" FORCE)
 endif()
 
+# When BUILD_USE_PUBLIC_DEPS is ON, force LOCAL_URL and LOCAL_REPO to empty so that
+# get_from_local_if_exists() / get_from_local_repo_if_exists() use original public URLs.
+# This also overrides any cached values from a previous configure.
+if(BUILD_USE_PUBLIC_DEPS)
+  if(DEFINED BUILD_DEPS_MIRROR_URL AND NOT "${BUILD_DEPS_MIRROR_URL}" STREQUAL "")
+    message(WARNING
+      "BUILD_USE_PUBLIC_DEPS=ON but BUILD_DEPS_MIRROR_URL is also set. "
+      "Ignoring BUILD_DEPS_MIRROR_URL and using public URLs.")
+  endif()
+  set(LOCAL_URL "" CACHE STRING "local archives storage to use" FORCE)
+  set(LOCAL_REPO "" CACHE STRING "local repositories storage to use" FORCE)
+  message(STATUS "BUILD_USE_PUBLIC_DEPS=ON: ExternalProject will use original public URLs")
+endif()
+
 if(NOT "${LOCAL_URL}" STREQUAL "")
   message(STATUS "ExternalProject mirror: ${LOCAL_URL}")
 endif()
@@ -400,12 +414,15 @@ if(BUILD_MSVCREGEX)      # {
         INC_DIR          include
         LIB              lib/${ext_msvcregex_static}
     )
-    # Originally from https://gitee.com/l0km/libgnurx-msvc (mirrored on GitLab)
+    # Use public gitee commit archive to avoid internal network dependency and
+    # keep reproducible source contents.
     get_from_local_if_exists(
-        "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest/libgnurx-msvc-1a6514d.tar.gz"
+        "https://gitee.com/l0km/libgnurx-msvc/repository/archive/1a6514d.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
     )
-    set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-master")
+    # ExternalProject extracts single-root archives into ext_msvcregex_source.
+    # Use the source root directly to avoid path mismatch across archive layouts.
+    set(ext_msvcregex_archive_source "${ext_msvcregex_source}")
     ExternalProject_Add(ext_msvcregex
         URL ${_url}
         PREFIX "${_base}"
@@ -1500,90 +1517,131 @@ if(TD_TAOS_TOOLS)
     add_dependencies(build_externals ext_avro)     # this is for github workflow in cache-miss step.
 endif()
 
+# libxml2
+if(TD_LINUX)
+    set(ext_libxml2_static libxml2.a)
+elseif(TD_DARWIN)
+    set(ext_libxml2_static libxml2.a)
+elseif(TD_WINDOWS)
+    if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
+        set(ext_libxml2_static libxml2sd.lib)
+    else()
+        set(ext_libxml2_static libxml2s.lib)
+    endif()
+    # On Windows, libxml2 is built as a static library, consumers must define LIBXML_STATIC
+    macro(DEP_ext_libxml2_INC tgt)
+        if(${ext_libxml2_build_contrib})
+            target_include_directories(${tgt} PUBLIC "${ext_libxml2_inc_dir}")
+            target_compile_definitions(${tgt} PUBLIC LIBXML_STATIC)
+            if(NOT TD_EXTERNALS_USE_ONLY)
+                set_target_properties(ext_libxml2_imp PROPERTIES
+                    IMPORTED_LOCATION "${ext_libxml2_libs}"
+                )
+                add_dependencies(${tgt} ext_libxml2)
+            endif()
+            add_definitions(-D_ext_libxml2)
+        endif()
+    endmacro()
+endif()
+
+INIT_EXT(ext_libxml2
+    INC_DIR          include/libxml2
+    LIB              lib/${ext_libxml2_static}
+)
+set(_libxml2_depends "")
+set(_libxml2_extra_args "")
+if(TD_WINDOWS AND BUILD_WITH_ICONV)
+    list(APPEND _libxml2_depends ext_iconv)
+    list(APPEND _libxml2_extra_args "-DIconv_INCLUDE_DIR:STRING=${ext_iconv_inc_dir}")
+    list(APPEND _libxml2_extra_args "-DIconv_LIBRARY:STRING=${ext_iconv_libs}")
+elseif(TD_WINDOWS)
+    list(APPEND _libxml2_extra_args "-DLIBXML2_WITH_ICONV:BOOL=OFF")
+endif()
+get_from_local_if_exists(
+    "https://github.com/GNOME/libxml2/archive/refs/tags/v2.14.0.tar.gz"
+    "libxml2-v2.14.0.tar.gz"
+)
+ExternalProject_Add(ext_libxml2
+    URL ${_url}
+    URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
+    PREFIX "${_base}"
+    DEPENDS ${_libxml2_depends}
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+    CMAKE_ARGS -DCMAKE_DEBUG_POSTFIX:STRING=
+    CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_PROGRAMS:BOOL=OFF
+    CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
+    CMAKE_ARGS ${_libxml2_extra_args}
+    BUILD_COMMAND COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
+
+# libs3
+if(TD_LINUX)
+    set(ext_libs3_static liblibs3.a)
+elseif(TD_DARWIN)
+    set(ext_libs3_static liblibs3.a)
+elseif(TD_WINDOWS)
+    set(ext_libs3_static libs3.lib)
+endif()
+INIT_EXT(ext_libs3
+    INC_DIR          include
+    LIB              lib/${ext_libs3_static}
+)
+string(JOIN " " _ssl_libs ${ext_ssl_libs})
+set(_libs3_extra_args "")
+set(_libs3_depends ext_libxml2 ext_curl ext_zlib)
+if(TD_WINDOWS)
+    list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC")
+    list(APPEND _libs3_extra_args "-DPTHREAD_INCLUDE:STRING=${ext_pthread_inc_dir}")
+    list(APPEND _libs3_extra_args "-DPTHREAD_LIBS:STRING=${ext_pthread_libs}")
+    list(APPEND _libs3_depends ext_pthread)
+endif()
+# Source: https://github.com/taosdata/libs3 commit f727a1e (bji/libs3@98f667b + Windows/MSVC support)
+get_from_local_if_exists(
+    "https://github.com/taosdata/libs3/archive/f727a1e5da21ed518c323a849dda70d39ccfe647.tar.gz"
+    "libs3-f727a1e5da21.tar.gz"
+)
+set(_libs3_ts_args "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    list(APPEND _libs3_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
+ExternalProject_Add(ext_libs3
+    URL ${_url}
+    URL_HASH SHA256=008ce6c8881b84313b22025303b0076b75a2da9a94e7cb255e25ec39d01b096c
+    ${_libs3_ts_args}
+    DEPENDS ${_libs3_depends}
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    CMAKE_ARGS ${_libs3_extra_args}
+    CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
+    CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
+    CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
+    CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
+    CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
+    CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
+    CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
+    CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
+    CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
 
 if(NOT TD_WINDOWS)        # {
-    # libxml2
-    if(TD_LINUX)
-        set(ext_libxml2_static libxml2.a)
-    elseif(TD_DARWIN)
-        set(ext_libxml2_static libxml2.a)
-    elseif(TD_WINDOWS)
-        set(ext_libxml2_static libxml2.lib)
-    endif()
-    INIT_EXT(ext_libxml2
-        INC_DIR          include/libxml2
-        LIB              lib/${ext_libxml2_static}
-    )
-    get_from_local_if_exists(
-        "https://github.com/GNOME/libxml2/archive/refs/tags/v2.14.0.tar.gz"
-        "libxml2-v2.14.0.tar.gz"
-    )
-    ExternalProject_Add(ext_libxml2
-        URL ${_url}
-        URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_PYTHON:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_PROGRAMS:BOOL=OFF
-        CMAKE_ARGS -DLIBXML2_WITH_TESTS:BOOL=OFF
-
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_libxml2)     # this is for github workflow in cache-miss step.
-
-    # libs3
-    if(TD_LINUX)
-        set(ext_libs3_static liblibs3.a)
-    elseif(TD_DARWIN)
-        set(ext_libs3_static liblibs3.a)
-    elseif(TD_WINDOWS)
-        set(ext_libs3_static libs3.lib)
-    endif()
-    INIT_EXT(ext_libs3
-        INC_DIR          include
-        LIB              lib/${ext_libs3_static}
-    )
-    string(JOIN " " _ssl_libs ${ext_ssl_libs})
-    get_from_local_if_exists(
-        "https://github.com/bji/libs3/archive/98f667b248a7288c1941582897343171cfdf441c.tar.gz"
-        "libs3-98f667b248a7.tar.gz"
-    )
-    ExternalProject_Add(ext_libs3
-        URL ${_url}
-        URL_HASH SHA256=d06a6cd66b731d3d16ba2620dccff6ce4eaaed5f7e6f5f4a62e504fb5e209b0f
-        DEPENDS ext_libxml2 ext_curl ext_zlib
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCURL_INCLUDE:STRING=${ext_curl_inc_dir}
-        CMAKE_ARGS -DCURL_LIBS:STRING=${ext_curl_libs}
-        CMAKE_ARGS -DOPENSSL_INCLUDE:STRING=${ext_ssl_inc_dir}
-        CMAKE_ARGS -DOPENSSL_LIBS:STRING=${ext_ssl_lib_ssl}
-        CMAKE_ARGS -DCRYPTO_LIBS:STRING=${ext_ssl_lib_crypto}
-        CMAKE_ARGS -DLIBXML2_INCLUDE:STRING=${ext_libxml2_inc_dir}
-        CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
-        CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
-        CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
-        PATCH_COMMAND
-          COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/libs3.CMakeLists.txt.in ${ext_libs3_source}/CMakeLists.txt
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_dependencies(build_externals ext_libs3)     # this is for github workflow in cache-miss step.
-
     # azure
     if(TD_LINUX)
         set(ext_azure_static libtd_azure_sdk.a)
@@ -1878,7 +1936,11 @@ else()
         LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
     )
 endif()
-get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+# Source: https://github.com/apache/arrow tag apache-arrow-19.0.1
+get_from_local_if_exists(
+    "https://github.com/apache/arrow/archive/refs/tags/apache-arrow-19.0.1.tar.gz"
+    "arrow-apache-arrow-19.0.1.tar.gz"
+)
 # Platform-specific cmake args for the Arrow sub-build
 set(ARROW_EXTRA_CMAKE_ARGS "")
 if(NOT ${TD_WINDOWS})
@@ -1976,13 +2038,14 @@ else()
         "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
     )
 endif()
+set(_arrow_ts_args "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    list(APPEND _arrow_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
 ExternalProject_Add(ext_arrow
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG        apache-arrow-19.0.1
-    GIT_SHALLOW    TRUE
-    # parquet-testing and arrow-testing are only used by Arrow's own unit
-    # tests.  Skipping them saves ~200 MB of clone traffic.
-    GIT_SUBMODULES  ""
+    URL ${_url}
+    URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    ${_arrow_ts_args}
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -2031,3 +2094,103 @@ ExternalProject_Add(ext_arrow
 )
 add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
 endif(TD_TAOS_TOOLS)
+if(BUILD_PYUDF)
+
+# ── CPython SDK (headers + import libs, auto-downloaded) ─────────────────
+# Downloads prebuilt Python from python-build-standalone. Eliminates the
+# need to install Python on the build machine.
+# BUILD_PYUDF_PYTHON_VERSION must be set (default provided in options.cmake).
+
+# PBS release tag — internal, tightly coupled to version list above.
+set(_pyudf_pbs_release "20260510")
+
+if(NOT BUILD_PYUDF_PYTHON_VERSION)
+    message(FATAL_ERROR
+    "[pyudf] BUILD_PYUDF=ON but BUILD_PYUDF_PYTHON_VERSION is not set.\n"
+    "  Set -DBUILD_PYUDF_PYTHON_VERSION:STRING=\"3.15.0b1\" "
+        "or set -DBUILD_PYUDF=OFF to disable Python UDF plugin.")
+endif()
+set(_pyver "${BUILD_PYUDF_PYTHON_VERSION}")
+
+# Platform triple for python-build-standalone
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64|arm64")
+    set(_pbs_arch "aarch64")
+else()
+    set(_pbs_arch "x86_64")
+endif()
+if(TD_WINDOWS)
+    set(_pbs_triple "${_pbs_arch}-pc-windows-msvc")
+elseif(APPLE)
+    set(_pbs_triple "${_pbs_arch}-apple-darwin")
+else()
+    set(_pbs_triple "${_pbs_arch}-unknown-linux-gnu")
+endif()
+
+set(PYUDF_CPYTHON_TARGET "" CACHE INTERNAL "Single ext_cpython target for pyudf")
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)" _ver_short "${_pyver}")
+if(NOT _ver_short)
+    message(FATAL_ERROR "[pyudf] Invalid BUILD_PYUDF_PYTHON_VERSION='${_pyver}', expected format like 3.15.0b1")
+endif()
+string(REPLACE "." "_" _ver_safe "${_ver_short}")
+string(REPLACE "." "" _vermm "${_ver_short}")
+set(_extname "ext_cpython_${_ver_safe}")
+
+INIT_DIRS(${_extname} ${TD_EXTERNALS_BASE_DIR})
+
+get_from_local_if_exists(
+    "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz"
+    "cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz"
+)
+
+ExternalProject_Add(${_extname}
+    URL "${_url}"
+    PREFIX "${_base}"
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "<SOURCE_DIR>" "${_ins}/python"
+    EXCLUDE_FROM_ALL TRUE
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+add_dependencies(build_externals ${_extname})
+
+# Store paths for pyudf/CMakeLists.txt
+# The archive top-level "python/" becomes SOURCE_DIR after extraction.
+# On Windows, headers are at include/ (flat), on Linux at include/python3.XX/
+if(TD_WINDOWS)
+    set(${_extname}_inc_dir  "${_ins}/python/include" CACHE INTERNAL "")
+    # abi3: prefer the stable import lib so taospyudf.dll imports
+    # python3.dll instead of a minor-locked python3XX.dll.
+    # For supported SDK baselines (3.14.3 / 3.15.0b1), python3.lib is present.
+    set(${_extname}_lib_path "${_ins}/python/libs/python3.lib" CACHE INTERNAL "")
+else()
+    set(${_extname}_inc_dir  "${_ins}/python/include/python${_ver_short}" CACHE INTERNAL "")
+    set(${_extname}_lib_path "" CACHE INTERNAL "")  # Linux: no libpython linking
+endif()
+set(${_extname}_ver_short "${_ver_short}" CACHE INTERNAL "")
+set(${_extname}_ver_safe  "${_ver_safe}"  CACHE INTERNAL "")
+
+set(PYUDF_CPYTHON_TARGET "${_extname}" CACHE INTERNAL "Single ext_cpython target for pyudf")
+
+message(STATUS "[pyudf] Will download CPython ${_pyver} SDK for ${_pbs_triple}")
+
+# ── plog (header-only, for Python UDF plugin logging) ────────────────────
+INIT_EXT(ext_plog
+    INC_DIR          include
+)
+get_from_local_repo_if_exists("https://github.com/SergiusTheBest/plog.git")
+ExternalProject_Add(ext_plog
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG 1.1.10
+    GIT_SHALLOW TRUE
+    PREFIX "${_base}"
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/include"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ext_plog_source}/include/plog" "${_ins}/include/plog"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_plog)
+endif() # BUILD_PYUDF

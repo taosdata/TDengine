@@ -414,24 +414,145 @@ SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
 
 ### Environment Setup
 
+Starting from v3.4.1.12, the Python UDF plugin `libtaospyudf.so` (Linux) or `taospyudf.dll` (Windows) is shipped built-in with the TDengine TSDB installation package. No additional installation is required. Just ensure that Python 3 runtime is available on the system.
+
+The `taosudf` process automatically detects and loads the system-installed Python at runtime. No manual environment variable configuration is needed.
+
+#### Linux
+
+On Linux, `libtaospyudf.so` is **not bound to a specific Python version**. `taosudf` automatically detects and pre-loads the system's `libpython3.XX.so` at runtime, so a single binary package is compatible with any Python 3.9–3.15.
+
 The specific steps to prepare the environment are as follows:
 
-- Step 1, prepare the Python runtime environment. If you compile and install Python locally, be sure to enable the `--enable-shared` option, otherwise the subsequent installation of taospyudf will fail due to failure to generate a shared library.
-- Step 2, install the Python package taospyudf. The command is as follows.
+- Step 1, install the Python 3 development package (which includes the `libpython3.XX.so` shared library):
 
-    ```shell
-    pip3 install taospyudf
-    ```
+  ```shell
+  # Ubuntu/Debian
+  apt install python3-dev
+  # CentOS/RHEL
+  yum install python3-devel
+  ```
 
-- Step 3, execute the command ldconfig.
-- Step 4, start the taosd service.
+- Step 2, start the taosd service.
 
-The installation process will compile C++ source code, so cmake and gcc must be present on the system. The compiled libtaospyudf.so file will automatically be copied to the /usr/local/lib/ directory, so if you are not a root user, you need to add sudo during installation. After installation, you can check if this file is in the directory:
+After installing TDengine TSDB, you can verify that `libtaospyudf.so` is properly installed:
 
 ```shell
-root@server11 ~/udf $ ls -l /usr/local/lib/libtaos*
--rw-r--r-- 1 root root 671344 May 24 22:54 /usr/local/lib/libtaospyudf.so
+ls -l /usr/lib/libtaospyudf.so
 ```
+
+:::tip
+If auto-detection fails, you can specify the Python installation path via the `PYTHONHOME` environment variable:
+
+```shell
+export PYTHONHOME=/usr/local/python3.12
+```
+
+:::
+
+#### Windows
+
+On Windows, `taosudf.exe` automatically locates `python.exe` in the system PATH and sets `PYTHONHOME` accordingly. No manual environment variable configuration is required.
+
+The installation package includes a single plugin library: `taospyudf.dll`.
+
+Just ensure the following:
+
+- The system has Python 3.10+ installed. Download from [python.org](https://www.python.org/downloads/).
+- During Python installation, check "Add python.exe to PATH", or manually add the Python installation directory to the system PATH.
+
+:::tip
+If `python.exe` is not in PATH (e.g., using a portable/embedded Python), you can manually set the `PYTHONHOME` environment variable to point to the Python installation directory:
+
+```powershell
+$env:PYTHONHOME = "C:\Python315"
+```
+
+:::
+
+:::note
+For versions prior to v3.4.1.12, you need to manually install the Python UDF plugin via `pip3 install taospyudf`. Starting from v3.4.1.12, this step is no longer necessary.
+:::
+
+### Manually Building taospyudf (Optional)
+
+In most cases, manual compilation is unnecessary because `taospyudf` is already shipped with TDengine. If you need to rebuild it (for development/debugging), build it from the TDengine source tree.
+
+The source files are located in `source/taos-community/source/libs/pyudf/src/` in the TDengine source tree, and can also be downloaded from [GitHub](https://github.com/taosdata/TDengine/tree/main/source/taos-community/source/libs/pyudf/src).
+
+#### Linux / macOS
+
+On Linux, the recommended manual build flow is the lightweight 1/2/3/4 process below (no full-repo `cmake` configure required).
+
+```bash
+# 1. Install dependencies (Linux)
+#    Ubuntu/Debian:
+sudo apt install python3-dev g++
+#    CentOS/RHEL:
+sudo yum install python3-devel gcc-c++
+
+# 2. Prepare headers (pybind11 is no longer required)
+#    plog:
+git clone --depth=1 https://github.com/SergiusTheBest/plog.git /tmp/plog
+#    Python include flags are obtained automatically via python3-config
+
+# 3. Compile (run from pyudf source directory)
+cd source/taos-community/source/libs/pyudf/src
+g++ -std=c++17 -fPIC -shared taospyudf.cpp \
+    -o libtaospyudf.so \
+    -I/tmp/plog/include \
+    -I/usr/local/taos/include \
+    -I. \
+    $(python3-config --includes) \
+    -Wno-attributes -Wno-deprecated-declarations \
+    -Wl,--allow-shlib-undefined -ldl
+
+# 4. Install to system path (Linux)
+sudo cp libtaospyudf.so /usr/local/taos/driver/
+sudo ln -sf /usr/local/taos/driver/libtaospyudf.so /usr/lib/libtaospyudf.so
+sudo ldconfig
+
+# Fallback: build only taospyudf target from TDengine source tree
+cmake -S source/taos-community -B debug -DCMAKE_BUILD_TYPE=Release -DBUILD_PYUDF=ON
+cmake --build debug --target taospyudf -j
+```
+
+:::note
+The generated library name is `libtaospyudf.so` on Linux and `libtaospyudf.dylib` on macOS.
+:::
+
+#### Windows
+
+On Windows, the recommended manual build flow is the lightweight 1/2/3/4 process below (no full-repo `cmake` configure required).
+
+```powershell
+# 1. Install dependencies (Windows)
+#    - Visual Studio 2019/2022 (with "Desktop development with C++" workload)
+#    - Python 3.10+ (installer build, preferably added to PATH)
+
+# 2. Prepare headers (pybind11 is no longer required)
+git clone --depth=1 https://github.com/SergiusTheBest/plog.git C:\tmp\plog
+
+# 3. Compile (run in "Developer PowerShell for VS")
+cd source\taos-community\source\libs\pyudf\src
+
+# Get Python include directory from the current interpreter
+$pyInc = (python -c "import sysconfig; print(sysconfig.get_path('include'))").Trim()
+
+# Use export macros and build DLL directly
+cl /std:c++17 /EHsc /LD taospyudf.cpp /I C:\tmp\plog\include /I C:\TDengine\include /I . /I "$pyInc" /DBUILDING_DLL /D_CRT_SECURE_NO_WARNINGS /link /OUT:taospyudf.dll
+
+# 4. Install to system path (Windows)
+copy taospyudf.dll "C:\TDengine\bin\"
+
+# Fallback: build only taospyudf target from TDengine source tree
+cmake -S source/taos-community -B debug -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_PYUDF=ON
+cmake --build debug --target taospyudf
+```
+
+:::note
+The generated library name on Windows is `taospyudf.dll`.
+:::
 
 ### Interface Definition
 
@@ -624,7 +745,7 @@ Found the following error messages.
 05/24 22:46:28.733561 01665799 UDF ERROR can not load python plugin. lib path libtaospyudf.so
 ```
 
-The error is clear: the Python plugin `libtaospyudf.so` was not loaded. If you encounter this error, please refer to the previous section on setting up the environment.
+The error is clear: the Python plugin `libtaospyudf.so` was not loaded. Starting from v3.4.1.12, this plugin is shipped built-in with TDengine TSDB. If you encounter this error, ensure that TDengine TSDB is properly installed and run `ldconfig` to refresh the dynamic library cache. For versions prior to v3.4.1.12, install the plugin manually via `pip3 install taospyudf`.
 
 After fixing the environment error, execute again as follows.
 

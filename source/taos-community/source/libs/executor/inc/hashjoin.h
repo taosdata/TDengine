@@ -94,6 +94,9 @@ typedef struct SHJoinColMap {
 typedef struct SHJoinPrimExprCtx {
   int64_t truncateUnit;
   int64_t timezoneUnit;
+  timezone_t tz;  /* DST-aware IANA handle, NULL → fixed offset */
+  int8_t   fdow;  /* firstDayOfWeek 0-6, for week trunc alignment */
+  int32_t  precision;
   int32_t targetSlotId;
 } SHJoinPrimExprCtx;
 

@@ -976,6 +976,9 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->sliding = pScanLogicNode->sliding;
   pTableScan->intervalUnit = pScanLogicNode->intervalUnit;
   pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
+  pTableScan->firstDayOfWeek = pScanLogicNode->firstDayOfWeek;
+  pTableScan->timezone = pScanLogicNode->timezone;
+  tstrncpy(pTableScan->timezoneName, pScanLogicNode->timezoneName, sizeof(pTableScan->timezoneName));
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
   pTableScan->igExpired = pScanLogicNode->igExpired;
@@ -1474,45 +1477,157 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
 
 static int32_t extractHashJoinOpCols(int64_t lBlkId, int64_t rBlkId, SNode* pEq, SHashJoinPhysiNode* pJoin) {
   int32_t code = 0;
-  if (QUERY_NODE_OPERATOR == nodeType(pEq)) {
-    SOperatorNode* pOp = (SOperatorNode*)pEq;
-    SColumnNode*   pLeft = (SColumnNode*)pOp->pLeft;
-    SColumnNode*   pRight = (SColumnNode*)pOp->pRight;
-    if (lBlkId == pLeft->dataBlockId && rBlkId == pRight->dataBlockId) {
-      SNode *pL = NULL, *pR = NULL;
-      code = nodesCloneNode(pOp->pLeft, &pL);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnLeft, pL);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesCloneNode(pOp->pRight, &pR);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnRight, pR);
-      }
-    } else if (rBlkId == pLeft->dataBlockId && lBlkId == pRight->dataBlockId) {
-      SNode *pL = NULL, *pR = NULL;
-      code = nodesCloneNode(pOp->pRight, &pR);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnLeft, pR);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesCloneNode(pOp->pLeft, &pL);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnRight, pL);
-      }
-    } else {
-      planError("Invalid join equal cond, lbid:%" PRId64 ", rbid:%" PRId64 ", oplid:%" PRId64 ", oprid:%" PRId64, lBlkId, rBlkId, pLeft->dataBlockId,
-                pRight->dataBlockId);
-      return TSDB_CODE_PLAN_INTERNAL_ERROR;
-    }
-
-    return code;
+  if (QUERY_NODE_OPERATOR != nodeType(pEq)) {
+    planError("Invalid join equal node type:%d", nodeType(pEq));
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
-  planError("Invalid join equal node type:%d", nodeType(pEq));
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  SOperatorNode* pOp = (SOperatorNode*)pEq;
+  int64_t        leftExprBlkId = 0;
+  int64_t        rightExprBlkId = 0;
+
+  switch (nodeType(pOp->pLeft)) {
+    case QUERY_NODE_COLUMN:
+      leftExprBlkId = ((SColumnNode*)pOp->pLeft)->dataBlockId;
+      break;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pOp->pLeft;
+      if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
+        planError("Invalid hash join left function type:%d", pFunc->funcType);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+        planError("Invalid hash join left timetruncate param type:%d", NULL == pParam ? -1 : nodeType(pParam));
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      leftExprBlkId = ((SColumnNode*)pParam)->dataBlockId;
+      break;
+    }
+    default:
+      planError("Invalid hash join left node type:%d", nodeType(pOp->pLeft));
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  switch (nodeType(pOp->pRight)) {
+    case QUERY_NODE_COLUMN:
+      rightExprBlkId = ((SColumnNode*)pOp->pRight)->dataBlockId;
+      break;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pOp->pRight;
+      if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
+        planError("Invalid hash join right function type:%d", pFunc->funcType);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+        planError("Invalid hash join right timetruncate param type:%d", NULL == pParam ? -1 : nodeType(pParam));
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      rightExprBlkId = ((SColumnNode*)pParam)->dataBlockId;
+      break;
+    }
+    default:
+      planError("Invalid hash join right node type:%d", nodeType(pOp->pRight));
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNode* pLeftExpr = NULL;
+  SNode* pRightExpr = NULL;
+
+  if (lBlkId == leftExprBlkId && rBlkId == rightExprBlkId) {
+    if (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) {
+      code = nodesCloneNode(pOp->pLeft, &pLeftExpr);
+    } else {
+      STargetNode* pTarget = (STargetNode*)pJoin->leftPrimExpr;
+      SColumnNode* pCol = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+      if (TSDB_CODE_SUCCESS == code) {
+        pCol->dataBlockId = pTarget->dataBlockId;
+        pCol->slotId = pTarget->slotId;
+        pCol->colType = COLUMN_TYPE_COLUMN;
+        pCol->node.resType = ((SExprNode*)pTarget->pExpr)->resType;
+        tstrncpy(pCol->colName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.aliasName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.userAlias, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+        pLeftExpr = (SNode*)pCol;
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pJoin->pOnLeft, pLeftExpr);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (QUERY_NODE_COLUMN == nodeType(pOp->pRight)) {
+        code = nodesCloneNode(pOp->pRight, &pRightExpr);
+      } else {
+        STargetNode* pTarget = (STargetNode*)pJoin->rightPrimExpr;
+        SColumnNode* pCol = NULL;
+        code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (TSDB_CODE_SUCCESS == code) {
+          pCol->dataBlockId = pTarget->dataBlockId;
+          pCol->slotId = pTarget->slotId;
+          pCol->colType = COLUMN_TYPE_COLUMN;
+          pCol->node.resType = ((SExprNode*)pTarget->pExpr)->resType;
+          tstrncpy(pCol->colName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.aliasName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.userAlias, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+          pRightExpr = (SNode*)pCol;
+        }
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pJoin->pOnRight, pRightExpr);
+    }
+  } else if (rBlkId == leftExprBlkId && lBlkId == rightExprBlkId) {
+    if (QUERY_NODE_COLUMN == nodeType(pOp->pRight)) {
+      code = nodesCloneNode(pOp->pRight, &pRightExpr);
+    } else {
+      STargetNode* pTarget = (STargetNode*)pJoin->leftPrimExpr;
+      SColumnNode* pCol = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+      if (TSDB_CODE_SUCCESS == code) {
+        pCol->dataBlockId = pTarget->dataBlockId;
+        pCol->slotId = pTarget->slotId;
+        pCol->colType = COLUMN_TYPE_COLUMN;
+        pCol->node.resType = ((SExprNode*)pTarget->pExpr)->resType;
+        tstrncpy(pCol->colName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.aliasName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.userAlias, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+        pRightExpr = (SNode*)pCol;
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pJoin->pOnLeft, pRightExpr);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) {
+        code = nodesCloneNode(pOp->pLeft, &pLeftExpr);
+      } else {
+        STargetNode* pTarget = (STargetNode*)pJoin->rightPrimExpr;
+        SColumnNode* pCol = NULL;
+        code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (TSDB_CODE_SUCCESS == code) {
+          pCol->dataBlockId = pTarget->dataBlockId;
+          pCol->slotId = pTarget->slotId;
+          pCol->colType = COLUMN_TYPE_COLUMN;
+          pCol->node.resType = ((SExprNode*)pTarget->pExpr)->resType;
+          tstrncpy(pCol->colName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.aliasName, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.userAlias, ((SExprNode*)pTarget->pExpr)->aliasName, TSDB_COL_NAME_LEN);
+          pLeftExpr = (SNode*)pCol;
+        }
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pJoin->pOnRight, pLeftExpr);
+    }
+  } else {
+    planError("Invalid join equal cond, lbid:%" PRId64 ", rbid:%" PRId64 ", oplid:%" PRId64 ", oprid:%" PRId64,
+              lBlkId, rBlkId, leftExprBlkId, rightExprBlkId);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  return code;
 }
 
 static int32_t extractHashJoinOnCols(int64_t lBlkId, int64_t rBlkId, SNode* pEq, SHashJoinPhysiNode* pJoin) {
@@ -2857,6 +2972,9 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->intervalUnit = pWindowLogicNode->intervalUnit;
   pInterval->slidingUnit = pWindowLogicNode->slidingUnit;
   pInterval->timeRange = pWindowLogicNode->timeRange;
+  pInterval->firstDayOfWeek = pWindowLogicNode->firstDayOfWeek;
+  pInterval->timezone = pWindowLogicNode->timezone;
+  tstrncpy(pInterval->timezoneName, pWindowLogicNode->timezoneName, sizeof(pInterval->timezoneName));
 
   int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
@@ -4058,6 +4176,7 @@ static void setExplainInfo(SPlanContext* pCxt, SQueryPlan* pPlan) {
     pPlan->explainInfo.mode = pStmt->analyze ? EXPLAIN_MODE_ANALYZE : EXPLAIN_MODE_STATIC;
     pPlan->explainInfo.verbose = pStmt->pOptions->verbose;
     pPlan->explainInfo.ratio = pStmt->pOptions->ratio;
+    pPlan->explainInfo.tz = pCxt->timezone;
   } else {
     pPlan->explainInfo.mode = EXPLAIN_MODE_DISABLE;
   }

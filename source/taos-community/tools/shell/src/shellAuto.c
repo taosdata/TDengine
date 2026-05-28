@@ -188,7 +188,9 @@ SWords shellCommands[] = {
     {"select now();", 0, 0, NULL},
     {"select today();", 0, 0, NULL},
     {"select timezone();", 0, 0, NULL},
+    {"set first_day_of_week ", 0, 0, NULL},
     {"set max_binary_display_width ", 0, 0, NULL},
+    {"set timezone ", 0, 0, NULL},
     {"show apps;", 0, 0, NULL},
     {"show alive;", 0, 0, NULL},
     {"show anodes;", 0, 0, NULL},
@@ -313,6 +315,8 @@ char* functions[] = {
     "sqrt(",          "timediff(",
     "timezone(",      "timetruncate(",
     "twa(",           "to_unixtimestamp(",
+    "to_iso8601(",    "to_char(",
+    "to_json(",
     "unique(",        "upper(",
     "pi(",            "round(",
     "truncate(",      "exp(",
@@ -336,6 +340,7 @@ char* functions[] = {
     "nvl2(",           "isnull(",
     "isnotnull(",      "coalesce(",
     "date(",           "corr(",
+    "first_day_of_week()",
     "cols(",           "find_in_set(",
     "like_in_set(",    "regexp_in_set(",
     "case ",           "when "
@@ -728,7 +733,11 @@ void showHelp() {
     select now();\n\
     select today();\n\
     select timezone();\n\
+    select first_day_of_week();\n\
+    set first_day_of_week ...\n\
     set max_binary_display_width ...\n\
+    set timezone ...\n\
+    subscribe <topic_name> -g <group_id> [-c <client_id>] [-o latest|earliest] [-n <count>] [-t <timeout_ms>]\n\
     show apps;\n\
     show alive;\n\
     show anodes;\n\

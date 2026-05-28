@@ -104,19 +104,27 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char               **envUdfdWithPEnv = NULL;
 
   char path[PATH_MAX] = {0};
-  if (tsProcPath == NULL) {
-    path[0] = '.';
-#ifdef WINDOWS
-    GetModuleFileName(NULL, path, PATH_MAX);
-    TAOS_DIRNAME(path);
-#elif defined(_TD_DARWIN_64)
-    uint32_t pathSize = sizeof(path);
-    _NSGetExecutablePath(path, &pathSize);
-    TAOS_DIRNAME(path);
-#endif
-  } else {
+  if (tsProcPath != NULL && tsProcPath[0] != '\0') {
     TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
     TAOS_DIRNAME(path);
+#ifdef WINDOWS
+    // If tsProcPath is a bare filename (e.g. "taosd") without directory,
+    // TAOS_DIRNAME yields empty string.  Fall back to GetModuleFileName.
+    if (strlen(path) == 0) {
+      GetModuleFileName(NULL, path, PATH_MAX);
+      TAOS_DIRNAME(path);
+    }
+#endif
+  }
+
+  // argv[0] may be only a basename when launched via wrappers (e.g. screen),
+  // which makes dirname("taosd") empty and incorrectly falls back to /usr/bin.
+  // Use executable path probing as a second chance before default fallback.
+  if (strlen(path) == 0) {
+    path[0] = '\0';
+    if (taosAppPath(path, PATH_MAX) != 0) {
+      path[0] = '\0';
+    }
   }
 
 #ifdef WINDOWS
@@ -300,7 +308,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     }
     uv_os_free_environ(uvEnvItems, uvEnvItemCount);
     uvEnvItems = NULL;
-
+    
     for (int32_t i = 0; i < lenEnvUdfd; i++) {
       if (envUdfd[i] != NULL) {
         size_t len = strlen(envUdfd[i]) + 1;

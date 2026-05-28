@@ -41,7 +41,11 @@ namespace TDEngineDR.TDEngineClient.Models
             List<TDValue> tdValues = new List<TDValue>();
             foreach (List<string> dataItem in Data)
             {
-                int quality = Convert.ToInt32(dataItem[2]);
+                int quality = 0;
+                if (dataItem.Count >= 3)
+                {
+                    quality = Convert.ToInt32(dataItem[2]);
+                }
                 DateTime timestamp = DateTime.Parse(dataItem[0]);
                 object value = GenerateValue(dataItem[1], valueType);
 

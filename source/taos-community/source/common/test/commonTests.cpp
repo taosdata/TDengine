@@ -1313,6 +1313,43 @@ TEST(testCase, taosTimeTruncate_DST_day_interval) {
   tzfree(ny);
   // TzRestoreGuard destructor handles taosSetGlobalTimezone("Asia/Shanghai")
 }
+
+TEST(testCase, formatTimestampTz_negative_fraction) {
+  TzRestoreGuard tzGuard;
+
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  char buf[128];
+
+  /* -500ms: val = -500, precision = MILLI (0)
+   * Expected: 1969-12-31 23:59:59.500, NOT .:-500
+   */
+  char *r = formatTimestampTz(buf, sizeof(buf), -500, TSDB_TIME_PRECISION_MILLI, utc);
+  ASSERT_NE(r, nullptr);
+  std::string s(buf);
+  EXPECT_NE(s.find(".500"), std::string::npos)
+      << "Negative ms timestamp fraction should be positive: " << s;
+  /* fraction must not be negative (e.g. ".-500") */
+  EXPECT_EQ(s.find(".-"), std::string::npos)
+      << "Fraction part should not be negative: " << s;
+
+  /* -1us: val = -1, precision = MICRO (1) → should be .999999 */
+  r = formatTimestampTz(buf, sizeof(buf), -1, TSDB_TIME_PRECISION_MICRO, utc);
+  ASSERT_NE(r, nullptr);
+  s = std::string(buf);
+  EXPECT_NE(s.find(".999999"), std::string::npos)
+      << "Negative us timestamp fraction should be 999999: " << s;
+
+  /* -1ns: val = -1, precision = NANO (2) → should be .999999999 */
+  r = formatTimestampTz(buf, sizeof(buf), -1, TSDB_TIME_PRECISION_NANO, utc);
+  ASSERT_NE(r, nullptr);
+  s = std::string(buf);
+  EXPECT_NE(s.find(".999999999"), std::string::npos)
+      << "Negative ns timestamp fraction should be 999999999: " << s;
+
+  tzfree(utc);
+}
 #endif
 
 #pragma GCC diagnostic pop

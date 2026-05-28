@@ -1,0 +1,4 @@
+interface:
+  display_name: "TSDB Code Review"
+  short_description: "Review GitHub PRs, GitLab MRs, and base..HEAD diffs"
+  default_prompt: "Use $tsdb-review-code to review this GitHub PR, GitLab MR, or explicit base..HEAD branch diff, and output only validated issues."

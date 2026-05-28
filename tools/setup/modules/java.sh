@@ -60,6 +60,11 @@ mod_java_install() {
 }
 
 mod_java_config() {
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using Maven Central"
+        return 0
+    fi
+
     # Maven settings.xml — configure internal Nexus mirror if available
     local mvn_settings="$HOME/.m2/settings.xml"
     # MAVEN_MIRROR_URL is set by config.sh from .build-args

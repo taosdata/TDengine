@@ -87,6 +87,11 @@ mod_python_install() {
 }
 
 mod_python_config() {
+    if [[ "${TSDB_PUBLIC_DEPS:-0}" == "1" ]]; then
+        ok "Public mode: using default PyPI"
+        return 0
+    fi
+
     # Configure pip index → internal Nora PyPI mirror
     # PYPI_MIRROR and PYPI_TRUSTED_HOST are set by config.sh from .build-args
     local nora_pypi_url="${PYPI_MIRROR:-https://nora.tdengine.net/simple/}"

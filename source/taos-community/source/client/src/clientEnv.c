@@ -522,6 +522,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
+  (*pObj)->optionInfo.firstDayOfWeek = (int8_t)tsFirstDayOfWeek;
   if (user == NULL) {
     (*pObj)->user[0] = 0;
     (*pObj)->pass[0] = 0;
@@ -550,6 +551,11 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   }
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
+
+  /* Snapshot the current client timezone (L3) into the session timezone (L2)
+   * so that ALTER LOCAL timezone only affects L3 going forward; this session's
+   * L2 remains the value captured at connection creation. */
+  (void)tscInitSessionTimezone(*pObj);
 
   updateConnAccessInfo(&(*pObj)->sessInfo);
   tscInfo("conn:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
@@ -597,6 +603,7 @@ int32_t createRequest(uint64_t connId, int32_t type, int64_t reqid, SRequestObj 
 
   (*pRequest)->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   (*pRequest)->body.resInfo.charsetCxt = pTscObj->optionInfo.charsetCxt;
+  (*pRequest)->body.resInfo.timezone = (void *)pTscObj->optionInfo.timezone;
   (*pRequest)->type = type;
   (*pRequest)->allocatorRefId = -1;
 

@@ -1,13 +1,56 @@
 # TSDB 编译构建优化指南
 
 > **目标读者**：TSDB 研发工程师
-> **最后更新**：2026-05-20
+> **最后更新**：2026-05-22
 
 ---
 
-## 1. 设计目标
+## 1. 仓库架构与双编译体系
 
-本轮编译构建优化围绕两个核心目标展开：
+### 1.1 Monorepo 架构
+
+TSDB 开发基于内网 GitLab 的 monorepo（`tsdb` 仓库），所有组件代码集中在 `source/` 目录下。内网 monorepo 通过定时同步机制，将各子文件夹分别推送到 GitHub `taosdata` 组织下的独立仓库：
+
+| monorepo 子目录 | GitHub 仓库 | 组件说明 |
+|---|---|---|
+| `source/taos-community` | [taosdata/TDengine](https://github.com/taosdata/TDengine) | 社区版引擎核心 |
+| `source/taos-internal` | _(不独立发布)_ | 企业版扩展插件，随 taos-community 一起编译（`-DBUILD_ENTERPRISE=ON`） |
+| `source/taos-adapter` | [taosdata/taosadapter](https://github.com/taosdata/taosadapter) | RESTful 适配器 (Go) |
+| `source/taos-xservice` | [taosdata/taosx](https://github.com/taosdata/taosx) | 零代码数据接入 (Rust) |
+| `source/taos-gen` | [taosdata/taosgen](https://github.com/taosdata/taosgen) | 数据生成工具 (C++) |
+| `source/taos-insight` | [taosdata/grafanaplugin](https://github.com/taosdata/grafanaplugin) | Grafana 插件 |
+| `source/taos-connector-go` | [taosdata/driver-go](https://github.com/taosdata/driver-go) | Go 连接器 |
+| `source/taos-connector-jdbc` | [taosdata/taos-connector-jdbc](https://github.com/taosdata/taos-connector-jdbc) | Java 连接器 |
+| `source/taos-connector-python` | [taosdata/taos-connector-python](https://github.com/taosdata/taos-connector-python) | Python 连接器 |
+| `source/taos-connector-rust` | [taosdata/taos-connector-rust](https://github.com/taosdata/taos-connector-rust) | Rust 连接器 |
+| `source/taos-connector-node` | [taosdata/taos-connector-node](https://github.com/taosdata/taos-connector-node) | Node.js 连接器 |
+| `source/taos-connector-dotnet` | [taosdata/taos-connector-dotnet](https://github.com/taosdata/taos-connector-dotnet) | C# 连接器 |
+| `source/taos-connector-odbc` | [taosdata/taos-connector-odbc](https://github.com/taosdata/taos-connector-odbc) | ODBC 连接器 |
+| `source/taos-grant-lib` | _(不独立发布)_ | 授权库（二进制） |
+
+> **分支说明**：tsdb 仓库有三条保护分支——`main`、`3.3.6`、`3.0`，编译构建体系在三条分支上保持一致。`source/taos-udf`（UDF 运行时）仅存在于 `main` 和 `3.0` 分支。
+
+### 1.2 双编译体系
+
+围绕 monorepo 与 GitHub 多仓库的并行开发模式，设计了两套独立的编译构建方案：
+
+| | 方案一：内网 monorepo 编译 | 方案二：GitHub 单仓库编译 |
+|---|---|---|
+| **适用场景** | 内网 GitLab `tsdb` 仓库的日常开发、CI/CD | GitHub `taosdata/*` 各仓库的开源构建 |
+| **入口** | `tools/tsdb-builder/build.sh`（容器化编译） | 各 `source/*/README.md` 中的英文构建文档 |
+| **依赖下载** | **统一走内网代理**，杜绝直连外网 | **默认直连外网**下载依赖包 |
+| **环境** | Docker 容器（core/dev/others 镜像） | 用户自行搭建或参考 README 指引 |
+| **覆盖范围** | 所有组件统一构建 | 每个仓库独立构建 |
+
+**桥接机制**：`build.sh` 提供 `--public` 参数，可将所有依赖源切换到公网 URL，使容器化构建也能在外网环境（如 GitHub Actions）中工作。详见 [外网构建（`--public` 模式）](#72-外网构建public-模式) 章节。
+
+**GitHub 仓库独立构建**：每个 `source/*/README.md` 均包含完整的英文编译指南（通常位于 `## Building` 或 `## Build` 章节），涵盖前置条件、依赖安装、编译命令和测试方法。这些 README 随代码同步到 GitHub，确保开源社区用户可以自主完成构建。
+
+---
+
+## 2. 优化设计目标
+
+本轮编译构建优化围绕两个核心目标展开（针对方案一——内网 monorepo 编译）：
 
 | # | 目标 | 核心动机 |
 |---|------|----------|
@@ -16,9 +59,9 @@
 
 ---
 
-## 2. 整体架构
+## 3. 整体架构
 
-### 2.1 关键产出物
+### 3.1 关键产出物
 
 | 路径 | 作用 |
 |------|------|
@@ -30,7 +73,7 @@
 | `source/taos-community/cmake/external.cmake` | C/C++ ExternalProject 定义及镜像下载宏 |
 | `source/taos-community/packaging/setup_env.sh` | CI/裸机环境初始化 |
 
-### 2.2 架构分层
+### 3.2 架构分层
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -64,7 +107,7 @@
                        (CI/裸机)
 ```
 
-### 2.3 配置层次
+### 3.3 配置层次
 
 `.build-args` 是镜像 URL 和工具版本的**唯一数据源**（single source of truth），被以下系统消费：
 
@@ -88,9 +131,9 @@ NUGET_SOURCE_URL=https://nora.tdengine.net/nuget/v3/index.json
 
 ---
 
-## 3. 数据流向对比
+## 4. 数据流向对比
 
-### 3.1 优化前
+### 4.1 优化前
 
 ```
 开发者/CI 机器
@@ -106,7 +149,7 @@ NUGET_SOURCE_URL=https://nora.tdengine.net/nuget/v3/index.json
 
 **问题**：公网下载慢、不稳定、CI 经常因网络超时失败；每次 clean build 重复下载所有依赖。
 
-### 3.2 优化后
+### 4.2 优化后
 
 ```
 开发者/CI 机器
@@ -137,9 +180,9 @@ NUGET_SOURCE_URL=https://nora.tdengine.net/nuget/v3/index.json
 
 ---
 
-## 4. 各语言依赖处理方式详解
+## 5. 各语言依赖处理方式详解
 
-### 4.1 总览对比表
+### 5.1 总览对比表
 
 | 语言 | 依赖类型 | 内网源 | 下载方式 | 缓存目录 | 编译缓存 | 缓存隔离 |
 |------|---------|--------|---------|---------|---------|---------|
@@ -152,11 +195,26 @@ NUGET_SOURCE_URL=https://nora.tdengine.net/nuget/v3/index.json
 | **Python** | PyPI 包 | ✅ Nora PyPI（`build.sh` 运行时覆盖） | pip | pip cache | — | 全局共享 |
 | **.NET** | NuGet 包 | ✅ Nora NuGet（`build.sh` 运行时注入） | dotnet restore | `nuget/` | — | 全局共享 |
 
-### 4.2 C/C++ — ExternalProject 依赖
+### 5.2 C/C++ — ExternalProject 依赖
 
 #### 原理
 
-`external.cmake` 中的每个第三方库通过 `ExternalProject_Add()` 管理。优化引入了 `get_from_local_if_exists()` 宏，在设置了 `BUILD_DEPS_MIRROR_URL` 时将下载地址重写为内网镜像：
+`external.cmake` 中的每个第三方库通过 `ExternalProject_Add()` 管理。优化引入了 `get_from_local_if_exists()` 宏，通过两个 cmake 参数控制下载来源：
+
+| cmake 参数 | 默认值 | 说明 |
+|---|---|---|
+| `BUILD_DEPS_MIRROR_URL` | _(空)_ | 设置后，所有 ExternalProject 下载地址重写为此前缀下的文件（内网镜像）。`build.sh` 默认自动注入。 |
+| `BUILD_USE_PUBLIC_DEPS` | `OFF` | 设为 `ON` 时强制清空镜像 URL，使用原始公网地址。`build.sh --public` 自动设置。 |
+
+**内网/外网切换逻辑**：
+
+| 场景 | 参数设置 | 下载来源 |
+|---|---|---|
+| 内网编译（`build.sh` 默认） | `BUILD_DEPS_MIRROR_URL=<内网URL>` | GitLab Package Registry |
+| 外网编译（`build.sh --public`） | `BUILD_USE_PUBLIC_DEPS=ON` | GitHub 原始 URL |
+| GitHub 独立仓库编译 | 两参数均不设 | GitHub 原始 URL（cmake 默认行为） |
+
+宏实现：
 
 ```cmake
 macro(get_from_local_if_exists url)
@@ -197,7 +255,7 @@ GitHub (上游) → 下载 tarball → 计算 SHA256 → 上传到 GitLab Packag
 > **为什么缓存按镜像+架构隔离？** core/dev/others 三个镜像的 GCC 版本不同（7/9/14），
 > 编译产物 ABI 不兼容，混用会导致链接错误。
 
-### 4.3 C/C++ — Conan 依赖
+### 5.3 C/C++ — Conan 依赖
 
 #### 原理
 
@@ -215,7 +273,7 @@ conan remote add nexus https://nexus.tdengine.net/repository/conan/ --force
 
 缓存目录 `conan2-{arch}/` 按架构隔离，挂载到容器内 `/root/.conan2`。
 
-### 4.4 Rust 依赖
+### 5.4 Rust 依赖
 
 #### 内网下载
 
@@ -251,7 +309,7 @@ git-fetch-with-cli = true    # 通过 git CLI 拉取，支持 SSH 鉴权
 
 `preheat-rust.sh` 脚本在 CI 开始前运行 `cargo fetch`，预下载所有依赖到缓存。
 
-### 4.5 Go 依赖
+### 5.5 Go 依赖
 
 #### 内网下载
 
@@ -274,7 +332,7 @@ Go 模块先从内网 Nexus 代理获取，只在代理缺失时回退到 `direc
 
 `preheat-go.sh` 脚本对主要 Go 模块运行 `go mod download`，预填充模块缓存。
 
-### 4.6 Node.js 依赖
+### 5.6 Node.js 依赖
 
 | 项目 | 详情 |
 |------|------|
@@ -284,7 +342,7 @@ Go 模块先从内网 Nexus 代理获取，只在代理缺失时回退到 `direc
 | 缓存目录 | `pnpm-store/`（挂载到 `/mnt/.pnpm-store`） |
 | 适用镜像 | others（Insight、Explorer UI） |
 
-### 4.7 Java 依赖
+### 5.7 Java 依赖
 
 | 项目 | 详情 |
 |------|------|
@@ -293,7 +351,7 @@ Go 模块先从内网 Nexus 代理获取，只在代理缺失时回退到 `direc
 | 缓存目录 | `m2-repository/`（挂载到 `/root/.m2/repository`） |
 | 适用镜像 | others（connector-jdbc） |
 
-### 4.8 Python 依赖
+### 5.8 Python 依赖
 
 | 项目 | 详情 |
 |------|------|
@@ -304,7 +362,7 @@ Go 模块先从内网 Nexus 代理获取，只在代理缺失时回退到 `direc
 
 > **设计说明**：`PYPI_MIRROR`（阿里云）用于 Dockerfile 镜像构建（公网可达），`PYPI_INTERNAL_URL`（Nora）用于容器编译运行时（内网）。`build.sh` 在容器启动后覆盖 pip config，确保开发编译走内网。
 
-### 4.9 .NET 依赖
+### 5.9 .NET 依赖
 
 | 项目 | 详情 |
 |------|------|
@@ -315,7 +373,7 @@ Go 模块先从内网 Nexus 代理获取，只在代理缺失时回退到 `direc
 
 ---
 
-## 5. 缓存策略对比表
+## 6. 缓存策略对比表
 
 | 缓存类型 | 目录 | 隔离粒度 | 大小限制 | 清理条件 |
 |---------|------|---------|---------|---------|
@@ -333,9 +391,9 @@ Go 模块先从内网 Nexus 代理获取，只在代理缺失时回退到 `direc
 
 ---
 
-## 6. 使用说明
+## 7. 使用说明
 
-### 6.1 Docker 容器编译（推荐）
+### 7.1 Docker 容器编译（推荐，内网）
 
 ```bash
 cd /path/to/tsdb
@@ -369,22 +427,104 @@ cd /path/to/tsdb
 - 配置 ccache 并将其加入 PATH
 - 添加 Conan 内网 remote
 
-### 6.2 本地开发环境配置
+### 7.2 外网构建（`--public` 模式）
+
+当代码同步到 GitHub 后，外部用户或 GitHub Actions 需要从公网依赖源编译。`build.sh` 提供 `--public` 参数切换所有依赖到公网源：
 
 ```bash
-# 按组件安装所需工具链并配置内网镜像
-./tools/setup/setup-macos.sh engine taosx adapter
+# 外网构建（使用公网依赖源）
+./tools/tsdb-builder/build.sh --image core --public engine taosx
 
-# 安装所有语言环境
-./tools/setup/setup-linux.sh --all
+# 内网构建（默认行为，无需额外参数）
+./tools/tsdb-builder/build.sh --image core engine taosx
+```
+
+`--public` 模式下各语言依赖的切换对照：
+
+| 依赖系统 | 内网（默认） | 外网（`--public`） |
+|---|---|---|
+| CMake ExternalProject | `git.tdengine.net` 通用包仓库 | GitHub 原始 URL |
+| Cargo registry | `nora.tdengine.net/cargo/` | crates.io（默认） |
+| Go modules | `nexus.tdengine.net/goproxy/` | `proxy.golang.org` |
+| npm | `nora.tdengine.net/npm/` | `registry.npmjs.org` |
+| Maven | `nexus.tdengine.net/maven-public/` | Maven Central |
+| NuGet | `nora.tdengine.net/nuget/` | `nuget.org` |
+| PyPI | `nora.tdengine.net/simple/` | `pypi.org` |
+| Conan | `nexus.tdengine.net/conan/` | Conan Center（内置） |
+
+> **注意**：`--public` 模式在三条保护分支（main、3.3.6、3.0）上均可用。
+
+### 7.3 GitHub 单仓库独立构建
+
+对于 GitHub 上 `taosdata/*` 各仓库的用户，无需使用 `build.sh`。每个仓库的 README.md 包含完整的英文编译指南（通常在 `## Building` 章节），涵盖：
+
+- 前置条件（编译器、工具链版本）
+- 依赖安装命令
+- 编译命令
+- 测试方法
+
+示例：
+- [TDengine 引擎构建](https://github.com/taosdata/TDengine)：`source/taos-community/README.md`
+- [taosAdapter 构建](https://github.com/taosdata/taosadapter)：`source/taos-adapter/README.md`
+- [taosx 构建](https://github.com/taosdata/taosx)：`source/taos-xservice/README.md`
+
+这些 README 默认使用公网源下载依赖，适合开源社区用户直接使用。
+
+### 7.4 本地开发环境配置（非容器）
+
+不使用 Docker 容器的开发者可使用 `tools/setup/` 框架配置宿主机编译环境。
+
+**内网/外网模式**：setup 脚本**默认配置内网依赖源**（从 `.build-args` 读取 URL）。如需切换到公网源，设置 `TSDB_PUBLIC_DEPS=1`：
+
+```bash
+# 内网模式（默认）——依赖从内网代理下载
+./tools/setup/setup-linux.sh --component adapter
+
+# 外网模式——依赖从公网下载
+export TSDB_PUBLIC_DEPS=1
+./tools/setup/setup-linux.sh --component adapter
+```
+
+> **GitHub 用户无需 setup 脚本**：从 GitHub 克隆单个仓库时，直接按 README.md 的 Building 章节操作即可。标准工具（`go build`、`cargo build`、`cmake`）默认就使用公网源。`tools/setup/` 仅用于 monorepo 内网开发场景。
+
+**按组件配置示例**：
+
+```bash
+# 编译 taos-adapter（Go 组件）
+./tools/setup/setup-linux.sh --component adapter
+source ~/.bashrc
+cd source/taos-adapter && go build ./...
+
+# 编译 taosx（Rust 组件）
+./tools/setup/setup-linux.sh --component taosx
+source ~/.bashrc
+cd source/taos-xservice && cargo build
+
+# 编译 TDengine 引擎（C/C++ 组件）
+./tools/setup/setup-linux.sh --component engine
+cd source/taos-community && mkdir -p debug && cd debug
+cmake .. -DBUILD_CONTRIB=ON && make -j$(nproc)
+
+# 一次配置多个组件
+./tools/setup/setup-linux.sh --component engine adapter taosx
+
+# macOS
+./tools/setup/setup-macos.sh --component engine taosx
+
+# 仅检查，不修改
+./tools/setup/setup-linux.sh --check --all
 ```
 
 setup 脚本自动：
 - 从 `.build-args` 读取镜像 URL（与 Docker 构建保持一致）
+- 安装所需工具链（Go、Rust、CMake 等），检查版本
 - 配置 Go proxy、Cargo registry、Conan remote、npm registry 等
+- 验证内网服务连通性
 - 检查已有配置，避免重复写入
 
-### 6.3 管理 C/C++ 内网 tarball 镜像
+详见 [`tools/setup/README.md`](tools/setup/README.md)。
+
+### 7.5 管理 C/C++ 内网 tarball 镜像
 
 ```bash
 # 查看当前所有 ExternalProject 依赖
@@ -403,7 +543,7 @@ setup 脚本自动：
     --upload zlib-v1.4.0.tar.gz
 ```
 
-### 6.4 预热缓存
+### 7.6 预热缓存
 
 在 CI/CD 首次运行或缓存失效后：
 
@@ -421,7 +561,7 @@ setup 脚本自动：
 
 ---
 
-## 7. 常见问题
+## 8. 常见问题
 
 ### Q1: 首次编译报错找不到 xxhash/zstd 等头文件
 

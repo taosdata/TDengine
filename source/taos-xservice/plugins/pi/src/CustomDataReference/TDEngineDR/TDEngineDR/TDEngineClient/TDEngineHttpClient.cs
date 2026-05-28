@@ -48,8 +48,8 @@ namespace TDEngineDR.TDEngineClient
 
         public async Task<TDEngineResponse> CreateDatabase(string database)
         {
-            database = database.ToDatabaseName();
-            string sqlCommand = $"CREATE DATABASE IF NOT EXISTS {database};";
+            database = database.SanitizeIdentifier();
+            string sqlCommand = $"CREATE DATABASE IF NOT EXISTS `{database}`;";
             return await this.httpClient.RetrieveDataAsync(sqlCommand);
         }
 
@@ -78,7 +78,7 @@ namespace TDEngineDR.TDEngineClient
 
         internal TDEngineResponse CreateTableForPIPoint(string database, string table, string superTable)
         {
-            string sqlCommand = $"CREATE TABLE IF NOT EXISTS {table.ToDatabaseName()} USING {superTable.ToDatabaseName()} TAGS (\"-1\");";
+            string sqlCommand = $"CREATE TABLE IF NOT EXISTS `{table.SanitizeIdentifier()}` USING `{superTable.SanitizeIdentifier()}` TAGS (\"-1\");";
             return this.httpClient.RetrieveData(sqlCommand, database);
         }
 
@@ -88,7 +88,7 @@ namespace TDEngineDR.TDEngineClient
             {
                 tdColumnType += "(100)";
             }
-            string sqlCommand = $"CREATE STABLE IF NOT EXISTS {superTable.ToDatabaseName()} (ts TIMESTAMP, val {tdColumnType}, quality INT) TAGS (pointId INT);";
+            string sqlCommand = $"CREATE STABLE IF NOT EXISTS `{superTable.SanitizeIdentifier()}` (ts TIMESTAMP, val {tdColumnType}, quality INT) TAGS (pointId INT);";
             return this.httpClient.RetrieveData(sqlCommand, database);
         }
 

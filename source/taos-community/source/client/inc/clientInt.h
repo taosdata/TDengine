@@ -195,11 +195,13 @@ typedef struct {
 
 typedef struct {
   timezone_t    timezone;
+  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA name from SET TIMEZONE */
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
   char          cInfo[CONNECTOR_INFO_LEN];
   uint32_t      userIp;
   SIpRange      userDualIp;  // user ip range
+  int8_t        firstDayOfWeek;  // 0-6, snapshotted from tsFirstDayOfWeek at connection creation
 }SOptionInfo;
 
 typedef struct {
@@ -285,6 +287,7 @@ typedef struct SReqResultInfo {
   int32_t        payloadLen;
   char*          convertJson;
   void*          charsetCxt;
+  void*          timezone;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
@@ -423,6 +426,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 int32_t  createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo,
                       STscObj** p);
 void     destroyTscObj(void* pObj);
+int32_t  tscInitSessionTimezone(STscObj *pObj);
 STscObj* acquireTscObj(int64_t rid);
 void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);

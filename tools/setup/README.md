@@ -6,7 +6,7 @@ developers building outside the `tsdb-builder` Docker container.
 ## Quick Start
 
 ```bash
-# Linux
+# Linux — 按组件配置（自动识别所需语言环境）
 ./tools/setup/setup-linux.sh --component engine taosx
 
 # macOS
@@ -18,6 +18,96 @@ developers building outside the `tsdb-builder` Docker container.
 # Check what's missing (no changes)
 ./tools/setup/setup-macos.sh --check --all              # Linux/macOS
 .\tools\setup\setup-windows.ps1 -All -CheckOnly         # Windows
+```
+
+## Ubuntu 24 Notes
+
+- `setup-linux.sh` 在 Ubuntu 24 上会从 `tools/tsdb-builder/.build-args` 读取完整的 Go 版本号（例如 `1.23.4`）并下载对应 tarball。
+- `setup-linux.sh --component engine` 在 Ubuntu 24 上安装 Conan 时使用隔离 virtualenv，避免 `pip --user` 触发 PEP 668 的 `externally-managed-environment` 错误。
+- `setup-linux.sh` 负责准备工具链和镜像配置；是否能直接完成组件构建，仍取决于组件 README 中声明的系统前置条件（例如本机动态库、Cargo mirror 完整性等）。
+
+## 内网 vs 外网模式
+
+setup 脚本**默认配置内网依赖源**（从 `tools/tsdb-builder/.build-args` 读取 URL）。
+
+如需切换到公网源（例如在外网环境或 GitHub clone 后使用），设置环境变量：
+
+```bash
+export TSDB_PUBLIC_DEPS=1
+./tools/setup/setup-linux.sh --component adapter
+```
+
+| 模式 | `TSDB_PUBLIC_DEPS` | 效果 |
+|---|---|---|
+| 内网（默认） | 不设置 或 `0` | GOPROXY → Nexus, Cargo → Nora, Conan → Nexus, npm/Maven/NuGet/PyPI → 内网 |
+| 外网 | `1` | GOPROXY → proxy.golang.org, Cargo → crates.io, npm/Maven/NuGet/PyPI → 公网 |
+
+> **GitHub 用户无需 setup 脚本**：如果是从 GitHub 克隆单个仓库（如 `taosdata/TDengine`），直接按 README.md 中的 `## Building` 章节操作即可，标准工具默认就使用公网源。`tools/setup/` 仅用于 monorepo 内网开发场景。
+
+## 常见开发场景示例
+
+### 在内网宿主机编译 taos-adapter（Go 组件）
+
+```bash
+# 1. 配置 Go 工具链 + 内网 GOPROXY
+./tools/setup/setup-linux.sh --component adapter
+
+# 2. 重新加载 shell 配置（首次安装后需要）
+source ~/.bashrc
+
+# 3. 编译（前提：本机已具备 libtaosnative.so，且链接器可见）
+cd source/taos-adapter
+export CGO_ENABLED=1
+go build -o taosadapter
+```
+
+setup 自动完成：安装 Go ≥ 1.23 → 配置 `GOPROXY=https://nexus.tdengine.net/repository/goproxy/,direct` → 设置 `GONOSUMDB`/`GONOSUMCHECK` → 验证内网连通性。
+
+### 在内网宿主机编译 taosx（Rust 组件）
+
+```bash
+# 1. 配置 Rust 工具链 + 内网 Cargo registry
+./tools/setup/setup-linux.sh --component taosx
+
+# 2. 重新加载 shell 配置
+source ~/.bashrc
+
+# 3. 安装 taosx README 依赖的 cargo 子命令
+cargo install cargo-make toml-cli
+
+# 4. 按 taosx README 执行构建
+cd source/taos-xservice
+cargo make build-all
+```
+
+setup 自动完成：安装 Rust ≥ 1.90 → 复制 `.cargo/config.toml`（Nora 内网 registry）→ 安装 protoc → 验证内网连通性。
+
+> 说明：`cargo make build-all` 还依赖 `taos-xservice/README.md` 中列出的额外前置条件；在内网模式下，如果 Nora Cargo mirror 缺少某些 crate，需补齐镜像或切换 `TSDB_PUBLIC_DEPS=1` 后再构建。
+
+### 在内网宿主机编译 TDengine 引擎（C/C++ 组件）
+
+```bash
+# 1. 配置 C/C++ 工具链 + 内网 Conan remote
+./tools/setup/setup-linux.sh --component engine
+
+# 2. 编译（首次需要 BUILD_CONTRIB=ON）
+cd source/taos-community
+mkdir -p debug && cd debug
+cmake .. -DBUILD_CONTRIB=ON \
+  -DBUILD_DEPS_MIRROR_URL="https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
+make -j$(nproc)
+```
+
+### 在外网宿主机编译（GitHub clone）
+
+```bash
+# 切换到公网源
+export TSDB_PUBLIC_DEPS=1
+./tools/setup/setup-linux.sh --component engine adapter taosx
+
+source ~/.bashrc
+
+# 之后按正常流程编译即可
 ```
 
 ## Usage

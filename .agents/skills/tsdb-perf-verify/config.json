@@ -1,0 +1,23 @@
+{
+  "name": "tsdb-perf-verify",
+  "displayName": "Performance Verification",
+  "description": "Re-run performance test scenarios to verify optimization improvements. Compare metrics before and after, iterate until performance goals are met.",
+  "version": "1.0.0",
+  "author": "beryl",
+  "enabled": true,
+  "priority": 100,
+  "contexts": [
+    "performance",
+    "verification",
+    "benchmark",
+    "regression",
+    "tdengine"
+  ],
+  "triggers": [
+    "verify performance",
+    "compare metrics",
+    "performance regression",
+    "before after comparison",
+    "optimization result"
+  ]
+}

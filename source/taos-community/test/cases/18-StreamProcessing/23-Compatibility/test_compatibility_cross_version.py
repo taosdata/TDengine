@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import re
 import platform
 import time
 import sys
@@ -22,7 +23,7 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, tdCb, cluster, tdCo
 
 # Import enterprise package downloader
 current_dir = os.path.dirname(os.path.realpath(__file__))
-enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../../../../enterprise/utils/download_enterprise_package.py"))
+enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../../../../taos-internal/utils/download_enterprise_package.py"))
 
 # Check if enterprise downloader exists
 if not os.path.exists(enterprise_downloader_path):
@@ -46,6 +47,12 @@ class TestStreamCompatibility:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+        cls.old_bin_dir = ""
+        cls.old_lib_dir = ""
+
+    @property
+    def _old_taos_prefix(self):
+        return f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taos"
 
     def test_stream_compatibility(self):
         """Comp: stream cross-version
@@ -186,76 +193,81 @@ class TestStreamCompatibility:
         tdLog.printNoPrefix(f"========== All stream compatibility tests completed for {len(BASE_VERSIONS)} versions ==========")
 
     def installTaosd(self, bPath, cPath, base_version):
-        """Install specific version of TDengine using enterprise package"""
+        """Extract specific version of TDengine and start using extracted binaries"""
         dataPath = cPath + "../data/"
-        
-        # Use enterprise package downloader
+
+        # Use enterprise package downloader (extract-only, no install.sh)
         downloader = EnterprisePackageDownloader()
+        
         tdLog.info(f"Downloading and installing enterprise version {base_version}")
-        package_path = downloader.download_and_install(base_version, "enterprise", "-e no")
-        tdLog.info(f"Successfully installed enterprise package from {package_path}")
+        bin_dir, lib_dir = downloader.download_and_extract(base_version, "enterprise")
+        self.old_bin_dir = bin_dir
+        self.old_lib_dir = lib_dir
+        tdLog.info(f"Using extracted binaries: bin={bin_dir}, lib={lib_dir}")
         
         tdCb.stopTaosdCompletely()
 
-        print(f"rm -rf {dataPath}* && nohup /usr/bin/taosd -c {cPath} &")
-        os.system(f"rm -rf {dataPath}* && nohup /usr/bin/taosd -c {cPath} &")
+
+        print(f"rm -rf {dataPath}* && LD_LIBRARY_PATH={lib_dir} nohup {bin_dir}/taosd -c {cPath} &")
+        os.system(f"rm -rf {dataPath}* && LD_LIBRARY_PATH={lib_dir} nohup {bin_dir}/taosd -c {cPath} &")
         time.sleep(5)
 
     def createStreamOnOldVersion(self, base_version):
         """Create snode and streams on old version"""
         tdLog.printNoPrefix(f"==========Creating snode, streams and TSMAs on old version {base_version}==========")
+        tp = self._old_taos_prefix
 
         # Create test database and tables
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'drop database if exists stream_test;'")
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'create database stream_test;'")
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'use stream_test;'")
-        
+        os.system(f"{tp} -s 'drop database if exists stream_test;'")
+        os.system(f"{tp} -s 'create database stream_test;'")
+        os.system(f"{tp} -s 'use stream_test;'")
+
         # Create super table and child tables
-        os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'create table stream_test.meters (ts timestamp, voltage int, current float, phase float) tags (location binary(64), groupid int);'""")
-        os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'create table stream_test.d1001 using stream_test.meters tags ("California.SanFrancisco", 2);'""")
-        os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'create table stream_test.d1002 using stream_test.meters tags ("California.LosAngeles", 2);'""")
-        
+        os.system(f"""{tp} -s 'create table stream_test.meters (ts timestamp, voltage int, current float, phase float) tags (location binary(64), groupid int);'""")
+        os.system(f"""{tp} -s 'create table stream_test.d1001 using stream_test.meters tags ("California.SanFrancisco", 2);'""")
+        os.system(f"""{tp} -s 'create table stream_test.d1002 using stream_test.meters tags ("California.LosAngeles", 2);'""")
+
         # Insert test data
-        os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'insert into stream_test.d1001 values ("2018-10-03 14:38:05.000", 10, 2.30, 0.23) ("2018-10-03 14:38:15.000", 12, 2.20, 0.33) ("2018-10-03 14:38:16.800", 13, 2.32, 0.43);'""")
-        os.system("""LD_LIBRARY_PATH=/usr/lib taos -s 'insert into stream_test.d1002 values ("2018-10-03 14:38:16.650", 10, 2.30, 0.23) ("2018-10-03 14:38:05.000", 11, 2.20, 0.33) ("2018-10-03 14:38:06.500", 12, 2.32, 0.43);'""")
-        
+        os.system(f"""{tp} -s 'insert into stream_test.d1001 values ("2018-10-03 14:38:05.000", 10, 2.30, 0.23) ("2018-10-03 14:38:15.000", 12, 2.20, 0.33) ("2018-10-03 14:38:16.800", 13, 2.32, 0.43);'""")
+        os.system(f"""{tp} -s 'insert into stream_test.d1002 values ("2018-10-03 14:38:16.650", 10, 2.30, 0.23) ("2018-10-03 14:38:05.000", 11, 2.20, 0.33) ("2018-10-03 14:38:06.500", 12, 2.32, 0.43);'""")
+
         # Create snode
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'create snode on dnode 1;'")
+        os.system(f"{tp} -s 'create snode on dnode 1;'")
         tdLog.info("Created snode on dnode 1")
-        
+
         # Verify snode creation
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show snodes;'")
-        
+        os.system(f"{tp} -s 'show snodes;'")
+
         # Create streams (old format)
         stream_sqls = [
             "create stream avg_stream into stream_test.avg_output as select _wstart, avg(voltage) as avg_voltage from stream_test.meters interval(5s);",
             "create stream max_stream trigger at_once into stream_test.max_output as select ts, max(current) as max_current from stream_test.meters partition by tbname;",
             "create stream count_stream into stream_test.count_output as select _wstart, count(*) as total_count from stream_test.meters where voltage > 10 interval(10s);"
         ]
-        
+
         for sql in stream_sqls:
-            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            os.system(f"{tp} -s '{sql}'")
             tdLog.info(f"Created stream: {sql[:50]}...")
-        
+
         # Create TSMA (Time-Range Small Materialized Aggregates)
         tsma_sqls = [
             "create tsma tsma_meters on stream_test.meters function(avg(voltage), max(current), min(voltage), count(ts)) interval(1m);",
             "create tsma tsma_meters_hourly on stream_test.meters function(avg(voltage), max(current), min(current), count(ts)) interval(1h);",
             "create tsma tsma_meters_detail on stream_test.meters function(sum(voltage), avg(current), max(phase), min(phase)) interval(30s);"
         ]
-        
+
         for sql in tsma_sqls:
-            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            os.system(f"{tp} -s '{sql}'")
             tdLog.info(f"Created TSMA: {sql[:50]}...")
-        
+
         # Show streams and TSMAs
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show streams;'")
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show snodes;'")
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show stream_test.tsmas;'")
-        
+        os.system(f"{tp} -s 'show streams;'")
+        os.system(f"{tp} -s 'show snodes;'")
+        os.system(f"{tp} -s 'show stream_test.tsmas;'")
+
         # Flush database
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'flush database stream_test;'")
-        
+        os.system(f"{tp} -s 'flush database stream_test;'")
+
         tdLog.info("Stream and TSMA creation on old version completed")
 
     def tryStartWithNewVersion(self, bPath):
@@ -289,54 +301,56 @@ class TestStreamCompatibility:
     def restartTaosd(self, cPath):
         """Restart taosd"""
         tdCb.stopTaosdCompletely()
+
         time.sleep(2)
-        os.system(f"nohup /usr/bin/taosd -c {cPath} &")
+        os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} nohup {self.old_bin_dir}/taosd -c {cPath} &")
         time.sleep(5)
 
     def cleanupStreamsOnOldVersion(self, bPath, cPath, base_version):
         """Start old version and cleanup streams"""
         tdLog.printNoPrefix(f"==========Cleaning up streams and TSMAs on old version {base_version}==========")
+        tp = self._old_taos_prefix
 
         # Restart old version
         self.restartTaosd(cPath)
         time.sleep(5)
-        
+
         # Drop streams
         cleanup_sqls = [
             "drop stream if exists avg_stream;",
-            "drop stream if exists max_stream;", 
+            "drop stream if exists max_stream;",
             "drop stream if exists count_stream;",
         ]
-        
+
         for sql in cleanup_sqls:
-            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            os.system(f"{tp} -s '{sql}'")
             tdLog.info(f"Executed cleanup: {sql}")
-        
+
         # Drop TSMAs (must be done before dropping database)
         tsma_cleanup_sqls = [
             "drop tsma if exists stream_test.tsma_meters;",
             "drop tsma if exists stream_test.tsma_meters_hourly;",
             "drop tsma if exists stream_test.tsma_meters_detail;"
         ]
-        
+
         for sql in tsma_cleanup_sqls:
-            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            os.system(f"{tp} -s '{sql}'")
             tdLog.info(f"Executed TSMA cleanup: {sql}")
-        
+
         # Drop snode and database
         final_cleanup_sqls = [
             "drop snode on dnode 1;",
             "drop database if exists stream_test;"
         ]
-        
+
         for sql in final_cleanup_sqls:
-            os.system(f"LD_LIBRARY_PATH=/usr/lib taos -s '{sql}'")
+            os.system(f"{tp} -s '{sql}'")
             tdLog.info(f"Executed cleanup: {sql}")
-        
+
         # Verify cleanup
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show streams;'")
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show snodes;'")
-        os.system("LD_LIBRARY_PATH=/usr/lib taos -s 'show databases;'")
+        os.system(f"{tp} -s 'show streams;'")
+        os.system(f"{tp} -s 'show snodes;'")
+        os.system(f"{tp} -s 'show databases;'")
         
         # Stop taosd before filesystem cleanup
         tdCb.stopTaosdCompletely()
