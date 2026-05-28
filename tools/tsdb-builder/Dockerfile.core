@@ -52,9 +52,9 @@ RUN cat /etc/environment
 # Cross-compile mage natively (avoids QEMU emulation issues with Go runtime)
 ARG GO_VERSION=1.23.4
 ARG GO_PROXY=https://nexus.tdengine.net/repository/goproxy/
-RUN . /etc/environment && \
-    wget -q https://go.dev/dl/go${GO_VERSION}.linux-$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/').tar.gz -O /tmp/go.tar.gz && \
-    tar -C /usr/local -xzf /tmp/go.tar.gz && rm /tmp/go.tar.gz && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
+    tar -C /usr/local -xzf /mnt/packages/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz && \
     GOROOT=/usr/local/go GOPROXY=${GO_PROXY} \
     GOOS=linux GOARCH=${GO_ARCH} CGO_ENABLED=0 \
     /usr/local/go/bin/go install github.com/magefile/mage@latest && \
@@ -68,7 +68,26 @@ FROM --platform=linux/amd64 quay.io/pypa/manylinux2014_x86_64 AS stage2-amd64
 FROM --platform=linux/arm64 quay.io/pypa/manylinux2014_aarch64 AS stage2-arm64
 
 # ============================================================================
-# Stage 3: mold-builder - Compile mold from source with GCC 10.2
+# Stage 3: make-builder - Compile GNU Make 4.2.1 from source
+# Make 3.82 (CentOS 7 default) has known parallel scheduling bugs (PR #12610)
+# causing ext_curl configure to run twice concurrently in BUILD_IN_SOURCE.
+# Make 4.2.1 fixes these issues and is fully compatible with glibc 2.17.
+# ============================================================================
+FROM stage2-${TARGETARCH} AS make-builder
+ARG MAKE_VERSION=4.2.1
+
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    tar -xzf /mnt/packages/make-${MAKE_VERSION}.tar.gz -C /tmp && \
+    cd /tmp/make-${MAKE_VERSION} && \
+    ./configure --prefix=/opt/make --without-guile && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    rm -rf make-${MAKE_VERSION} && \
+    /opt/make/bin/make --version | head -1
+
+# ============================================================================
+# Stage 4: mold-builder - Compile mold from source with GCC 10.2
 # mold requires C++20 (GCC ≥ 10.2) but the main image downgrades to GCC 7.3.
 # Build mold here while devtoolset-10 is still available, then COPY the binary.
 # MOLD_MOSTLY_STATIC=ON statically links libstdc++ to avoid runtime dependency.
@@ -106,21 +125,30 @@ RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
 # devtoolset-10 (pre-installed in manylinux2014) provides C++17 needed by ccache.
 FROM stage2-${TARGETARCH} AS ccache-builder
 ARG CCACHE_VERSION
-RUN source scl_source enable devtoolset-10 && \
-    cd /tmp && \
-    curl -fsSL "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/ccache-${CCACHE_VERSION}.tar.gz" \
-        -o ccache.tar.gz && \
-    tar xf ccache.tar.gz && \
-    cd ccache-${CCACHE_VERSION} && \
+ARG ZSTD_VERSION=1.5.6
+ARG HIREDIS_VERSION=1.2.0
+ARG XXHASH_VERSION=0.8.2
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    source scl_source enable devtoolset-10 && \
+    tar -xzf /mnt/packages/ccache-${CCACHE_VERSION}.tar.gz -C /tmp && \
+    tar -xzf /mnt/packages/zstd-${ZSTD_VERSION}.tar.gz -C /tmp && \
+    tar -xzf /mnt/packages/hiredis-${HIREDIS_VERSION}.tar.gz -C /tmp && \
+    tar -xzf /mnt/packages/xxhash-${XXHASH_VERSION}.tar.gz -C /tmp && \
+    cd /tmp/ccache-${CCACHE_VERSION} && \
     mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
-          -DZSTD_FROM_INTERNET=ON \
-          -DHIREDIS_FROM_INTERNET=ON \
+          -DDEP_ZSTD=DOWNLOAD \
+          -DDEP_HIREDIS=DOWNLOAD \
+          -DDEP_XXHASH=DOWNLOAD \
+          -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
+          -DFETCHCONTENT_SOURCE_DIR_ZSTD=/tmp/zstd-${ZSTD_VERSION} \
+          -DFETCHCONTENT_SOURCE_DIR_HIREDIS=/tmp/hiredis-${HIREDIS_VERSION} \
+          -DFETCHCONTENT_SOURCE_DIR_XXHASH=/tmp/xxHash-${XXHASH_VERSION} \
           -DENABLE_TESTING=OFF \
           .. && \
     make -j$(nproc) && \
     make install DESTDIR=/opt/ccache-install && \
-    rm -rf /tmp/ccache*
+    rm -rf /tmp/ccache* /tmp/zstd* /tmp/hiredis* /tmp/xxHash*
 
 # ============================================================================
 # Stage 4: Main - Build environment
@@ -146,8 +174,8 @@ ARG CCACHE_VERSION=4.10.2
 ARG SCCACHE_VERSION=0.15.0
 
 # Python Package Versions
-ARG TAOSPY_VERSION=2.8.8
-ARG TAOS_WS_PY_VERSION=0.6.5
+ARG TAOSPY_VERSION=2.8.9
+ARG TAOS_WS_PY_VERSION=0.6.9
 
 # Mirror Configuration
 ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
@@ -170,9 +198,7 @@ RUN chmod +x /usr/local/bin/verify-image.sh
 # ============================================================================
 ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8 \
-    RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup \
-    RUSTUP_DIST_SERVER=https://rsproxy.cn
+    LC_ALL=en_US.UTF-8
 
 
 # ============================================================================
@@ -232,6 +258,14 @@ RUN ARCH=$(uname -m) && \
 ENV PATH=/opt/rh/devtoolset-7/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # ============================================================================
+# Layer 1b: GNU Make 4.2.1 (replace CentOS 7 make 3.82)
+# Fixes parallel scheduling bugs that cause ext_curl configure failures
+# ============================================================================
+COPY --from=make-builder /opt/make/bin/make /usr/bin/make
+RUN make --version && \
+    echo "Make upgraded to 4.2.1 (fixes PR #12610 parallel build bug)"
+
+# ============================================================================
 # Layer 2: Go toolchain (from packages build context)
 # ============================================================================
 RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
@@ -260,10 +294,15 @@ RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
     ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cpack /usr/local/bin/cpack
 
 # ============================================================================
-# Layer 4: Rust toolchain
+# Layer 4: Rust toolchain (offline standalone installer)
 # ============================================================================
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain ${RUST_VERSION}
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    _arch=$(uname -m) && \
+    tar -xf /mnt/packages/rust-${RUST_VERSION}-${_arch}-unknown-linux-gnu.tar.xz -C /tmp && \
+    /tmp/rust-${RUST_VERSION}-${_arch}-unknown-linux-gnu/install.sh \
+      --destdir=/root --prefix=.cargo \
+      --components=rustc,cargo,clippy-preview,rustfmt-preview,rust-std-${_arch}-unknown-linux-gnu && \
+    rm -rf /tmp/rust-${RUST_VERSION}-*
 
 ENV PATH=/root/.cargo/bin:${PATH}
 
@@ -272,9 +311,11 @@ COPY .cargo/config.toml /root/.cargo/config.toml
 
 # sccache: prebuilt musl binary for Rust compile caching (opt-in via --sccache)
 ARG SCCACHE_VERSION
-RUN _arch=$(uname -m) && \
-    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl.tar.gz" \
-        | tar xz -C /usr/local/bin --strip-components=1 "sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl/sccache" && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    _arch=$(uname -m) && \
+    tar xz -C /usr/local/bin --strip-components=1 \
+        -f /mnt/packages/sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl.tar.gz \
+        "sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl/sccache" && \
     chmod +x /usr/local/bin/sccache && \
     sccache --version
 
@@ -296,14 +337,23 @@ RUN PY_TAG=$(echo ${PYTHON_VERSION} | tr -d '.') && \
 RUN pip3 config set global.index-url ${PYPI_MIRROR} && \
     pip3 config set global.trusted-host ${PYPI_TRUSTED_HOST}
 
-# Install uv (modern Python package manager)
-RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+# Install uv (modern Python package manager, from offline package)
+ARG UV_VERSION=0.7.12
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    _arch=$(uname -m) && \
+    tar xz -C /usr/local/bin --strip-components=1 \
+        -f /mnt/packages/uv-${UV_VERSION}-${_arch}-unknown-linux-musl.tar.gz \
+        "uv-${_arch}-unknown-linux-musl/uv" \
+        "uv-${_arch}-unknown-linux-musl/uvx" && \
+    chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
-# Install Python packages
-RUN pip3 install --no-cache-dir \
-    taospy==${TAOSPY_VERSION} \
-    taos-ws-py==${TAOS_WS_PY_VERSION} \
-    conan && \
+# Install Python packages (from offline wheels)
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    pip3 install --no-cache-dir --no-index \
+      --find-links=/mnt/packages/pip/ \
+      taospy==${TAOSPY_VERSION} \
+      taos-ws-py==${TAOS_WS_PY_VERSION} \
+      conan && \
     conan profile detect --force && \
     conan remote add nexus ${CONAN_REMOTE_URL} --index 0 && \
     sed -i 's/compiler.cppstd=gnu14/compiler.cppstd=gnu17/' /root/.conan2/profiles/default
@@ -328,15 +378,14 @@ RUN mkdir -p /usr/lib64/ccache && \
     ln -sf /usr/local/bin/ccache /usr/lib64/ccache/cc && \
     ln -sf /usr/local/bin/ccache /usr/lib64/ccache/c++
 
-RUN . /etc/environment && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
     # Install tini
-    wget -O /bin/tini https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TINI_ARCH} && \
+    cp /mnt/packages/tini-${TINI_ARCH}-${TINI_VERSION} /bin/tini && \
     chmod +x /bin/tini && \
     # Install protoc
-    wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip && \
-    unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ && \
-    chmod +x /usr/bin/protoc && \
-    rm -f protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip
+    unzip -o /mnt/packages/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ && \
+    chmod +x /usr/bin/protoc
 
 # ============================================================================
 # Layer 7: Environment configuration and final setup

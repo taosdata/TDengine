@@ -3,7 +3,7 @@
 # Build tsdb-builder-dev Docker image
 # Usage: ./build-dev-image.sh [--arch amd64|arm64] --version X.Y.Z [--packages /path/to/packages] [--local]
 #
-# Builds from Dockerfile.dev (manylinux2014, glibc 2.17, GCC 9.3.1)
+# Builds from Dockerfile.dev (manylinux2014, glibc 2.17, GCC 11.2.1/x86_64, GCC 10.2/arm64)
 # Produces: harbor.tdengine.net/tsdb-builder/dev:<version>-<arch>
 # ============================================================================
 
@@ -99,7 +99,7 @@ else
 fi
 
 echo "[INFO] Building ${VERSION_TAG}..."
-echo "[INFO] Base    : manylinux2014 (glibc 2.17, CentOS 7, GCC 9.3.1)"
+echo "[INFO] Base    : manylinux2014 (glibc 2.17, CentOS 7, GCC 11.2.1/x86_64, GCC 10.2/arm64)"
 echo "[INFO] Packages: ${PACKAGES_DIR}"
 echo "[INFO] Components: ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX (without EXPLORER_UI)"
 

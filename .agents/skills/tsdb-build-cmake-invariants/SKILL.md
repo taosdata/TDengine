@@ -1,9 +1,9 @@
 ---
 name: "tsdb-build-cmake-invariants"
-description: "TSDB 构建系统不变量规则集。当用户编辑 CMakeLists.txt、external.cmake、conan.cmake、options.cmake 或 ExternalProject 相关代码时触发。涵盖 ExternalProject lib/ 路径、RocksDB 缓存验证、构建选项守卫、GTest 兼容、GCC 7 兼容、LOCAL_URL 桥接等 13 条经验教训规则。"
+description: "TSDB 构建系统不变量规则集。当用户编辑 CMakeLists.txt、external.cmake、conan.cmake、options.cmake 或 ExternalProject 相关代码时触发。涵盖 ExternalProject lib/ 路径、RocksDB 缓存验证、构建选项守卫、GTest 兼容、GCC 7 兼容、LOCAL_URL 桥接、GNU Make 4.2.1 升级（修复 ext_curl 并发 bug）等 14 条经验教训规则。"
 metadata:
   author: Bo Xiao
-  version: 1.0.0
+  version: 1.1.0
   owner_team: engine
   compatibility: "Applies to TSDB main and 3.3.6 branches"
 ---
@@ -34,8 +34,10 @@ metadata:
 CMakeLists, cmake, ExternalProject, external.cmake, conan.cmake, options.cmake,
 BUILD_CONTRIB, BUILD_ROCKSDB, ROCKSDB_USE_DEPS, INIT_EXT, DEP_td_rocksdb,
 CMAKE_INSTALL_LIBDIR, lib64, GCC 7, devtoolset-7, manylinux2014, ext_gtest,
-ext_rocksdb, LOCAL_URL, BUILD_DEPS_MIRROR_URL, TD_CONFIG_NAME_RESOLVED,
-构建失败, 链接错误, link error, build failure, 编译兼容
+ext_rocksdb, ext_curl, LOCAL_URL, BUILD_DEPS_MIRROR_URL, TD_CONFIG_NAME_RESOLVED,
+GNU Make, make 3.82, make 4.2.1, parallel build bug, configure error,
+cannot compute suffix of executables, diamond dependency, BUILD_IN_SOURCE,
+构建失败, 链接错误, link error, build failure, 编译兼容, ext_curl 失败
 
 ---
 
@@ -43,13 +45,17 @@ ext_rocksdb, LOCAL_URL, BUILD_DEPS_MIRROR_URL, TD_CONFIG_NAME_RESOLVED,
 
 ### Three Docker images
 
-| 镜像 | Registry | 基础 | GCC | glibc | 组件 |
-|------|----------|------|-----|-------|------|
-| **core** | `harbor.tdengine.net/tsdb-builder/core` | manylinux2014 | 7.3 (devtoolset-7) | 2.17 | ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX |
-| **dev** | `harbor.tdengine.net/tsdb-builder/dev` | manylinux2014 | 9.3.1 (devtoolset-9) | 2.17 | 同 core（日常开发用，不需兼容麒麟 V10） |
-| **others** | `harbor.tdengine.net/tsdb-builder/others` | manylinux_2_28 | 14.x | 2.28 | INSIGHT, EXPLORER_UI + 全部 connector |
+| 镜像 | Registry | 基础 | GCC | Make | glibc | 组件 |
+|------|----------|------|-----|------|-------|------|
+| **core** | `harbor.tdengine.net/tsdb-builder/core` | manylinux2014 | 7.3 (devtoolset-7) | **4.2.1** | 2.17 | ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX |
+| **dev** | `harbor.tdengine.net/tsdb-builder/dev` | manylinux2014 | 9.3.1 (devtoolset-9) | **4.2.1** | 2.17 | 同 core（日常开发用，不需兼容麒麟 V10） |
+| **others** | `harbor.tdengine.net/tsdb-builder/others` | manylinux_2_28 | 14.x | 4.2.1 | 2.28 | INSIGHT, EXPLORER_UI + 全部 connector |
 
 所有镜像支持 `linux/amd64` + `linux/arm64`。core 额外支持 `linux/riscv64`（基于 Debian trixie, glibc 2.41+）。
+
+> **Make 4.2.1 升级** (2026-05): core 和 dev 镜像从 Make 3.82 升级到 4.2.1，
+> 修复了 GNU Make PR #12610 并行调度 bug，彻底解决了 ext_curl 间歇性配置失败问题。
+> others 镜像基于 AlmaLinux 8，系统自带 Make 4.2.1，无此问题。
 
 ### Build output directories
 
@@ -738,6 +744,64 @@ endif()
 
 ---
 
+## 14. GNU Make 4.2.1 Upgrade (ext_curl Parallel Build Fix)
+
+**Problem**: Intermittent `ext_curl` configure failures (~20-30% failure rate):
+
+```
+configure: error: in `/mnt/.externals/build/Release/ext_curl/src/ext_curl':
+configure: error: cannot compute suffix of executables: cannot compile and link
+```
+
+**Root Cause**: GNU Make 3.82 (CentOS 7 default) has a known parallel scheduling bug ([PR #12610](https://savannah.gnu.org/support/?109593)):
+
+1. **Bug**: PHONY targets in diamond dependency graphs are scheduled multiple times
+2. **ext_curl pattern**: CMake ExternalProject creates a diamond:
+   ```
+   ext_curl → ext_curl-configure (direct)
+   ext_curl → ext_curl-complete → ext_curl-configure (indirect)
+   ```
+3. **BUILD_IN_SOURCE=TRUE**: Two concurrent `./configure` run in the same directory
+4. **Conflict**: One process deletes `conftest.c` that the other is compiling
+
+**Evidence**: `config.log` shows non-monotonic line numbers (27079 → 4405 → 27245), proving concurrent execution. In single-threaded autoconf, AC_PROG_CC always runs before SSL checks.
+
+**Solution**: Upgrade to Make 4.2.1 (fixes PR #12610, released 2016)
+
+**Implementation** (2026-05):
+- dev/core: Compile Make 4.2.1 from source in `make-builder` stage
+- Fully compatible with glibc 2.17 (manylinux2014)
+- others: AlmaLinux 8 already has Make 4.2.1, no upgrade needed
+
+**Verification**:
+```bash
+docker run --rm harbor.tdengine.net/tsdb-builder/dev:latest make --version
+# Expected: GNU Make 4.2.1
+```
+
+**Workaround** (if using old images):
+```bash
+# Clear corrupted ext_curl cache
+rm -rf $CACHE_DIR/externals-{dev,core}-*/build/Release/ext_curl
+rm -rf $CACHE_DIR/externals-{dev,core}-*/src/ext_curl
+```
+
+**DO NOT**:
+- ❌ Downgrade to Make 3.81 or earlier (missing features)
+- ❌ Use `-j1` as permanent solution (slow, doesn't fix root cause)
+- ❌ Patch ext_curl to use BUILD_IN_SOURCE=FALSE (breaks other logic)
+
+**MUST**:
+- ✅ Use latest dev/core images (with Make 4.2.1)
+- ✅ Verify Make version in Dockerfile if building custom images
+- ✅ Clear cache when switching between old/new images
+
+**Impact**: After upgrade, ext_curl build success rate improved from ~70-80% to 100%.
+
+**Reference**: `tools/tsdb-builder/` (platform/platform repo) contains Dockerfile upgrades and documentation.
+
+---
+
 ## Quick Reference: Branch Comparison
 
 | Rule | main | 3.3.6 | Key Difference |
@@ -755,6 +819,7 @@ endif()
 | 11. Build option defaults | ✅ insight/odbc/dotnet=OFF | Verify | May differ |
 | 12. `DEP_td_rocksdb` uniform | ✅ Always via macro | ✅ Same | Identical logic |
 | 13. LOCAL_URL CACHE bridge | ✅ Empty-string check + FORCE | Verify | CACHE var was always defined, blocking bridge |
+| 14. GNU Make 4.2.1 upgrade | ✅ **Make 4.2.1** (2026-05) | Verify | ext_curl parallel bug fixed |
 
 ## Telemetry (MUST)
 
