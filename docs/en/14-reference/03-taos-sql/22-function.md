@@ -1293,13 +1293,13 @@ taos> select repeat('abc',-1);
 TO_BASE64(expr)
 ```
 
-**Function Description**: Returns the base64 encoding of `expr`. For non-string types, the value is first converted to its string representation before encoding.
+**Function Description**: Returns the base64 encoding of the string `expr`s.
 
 **Return Type**: VARCHAR.
 
 **Applicable Data Types**:
 
-- `expr`: BOOL, numeric types, TIMESTAMP, VARCHAR, NCHAR.
+- `expr`: VARCHAR, NCHAR.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -1308,32 +1308,14 @@ TO_BASE64(expr)
 **Usage Notes**:
 
 - If `expr` is NULL, returns NULL.
-- If the base64-encoded result exceeds the maximum VARCHAR length, an error is returned.
-- BOOL type: TRUE is encoded as the string `'1'`, FALSE as `'0'`.
-- TIMESTAMP type: always formatted in UTC as `yyyy-mm-dd hh24:mi:ss.{precision}+00` (where precision is ms/us/ns depending on the column) before encoding. This ensures results are timezone-independent and preserve full precision.
 
 **Example**:
 
 ```sql
-taos> select to_base64(NULL);
- to_base64(null) |
-==================
- NULL            |
-
 taos> select to_base64("");
  to_base64("") |
 ================
                |
-
-taos> select to_base64(14324);
- to_base64(14324) |
-====================
- MTQzMjQ=         |
-
-taos> select to_base64("14324");
- to_base64("14324") |
-====================
- MTQzMjQ=         |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |

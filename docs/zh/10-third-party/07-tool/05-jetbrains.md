@@ -36,7 +36,6 @@ TDengine Driver Integration 插件为 JetBrains IDE 提供 TDengine 数据源设
 
 ![连接测试](./jetbrains/jetbrains-connection.webp)
 
-
 ## SQL 开发支持
 
 安装插件后，在 TDengine SQL Console 中可获得以下能力：

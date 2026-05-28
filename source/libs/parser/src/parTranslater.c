@@ -16643,6 +16643,7 @@ static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt
 static int32_t translateKillCompact(STranslateContext* pCxt, SKillStmt* pStmt) {
   SKillCompactReq killReq = {0};
   killReq.compactId = pStmt->targetId;
+  killReq.force = pStmt->force ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_KILL_COMPACT, (FSerializeFunc)tSerializeSKillCompactReq, &killReq);
 }
 
@@ -24003,7 +24004,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecif
     }
   }
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNew(pTagArray, 1, false, ppTag);
+    code = tTagNewWithName(pTagArray, tagName, getTableTagSchema(pSuperTableMeta), numOfTags, 1, ppTag);
   }
 
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
@@ -24322,7 +24323,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, 
   if (TSDB_CODE_SUCCESS == code) {
     pParFileCxt->tagNameFilled = true;
     if (!isJson) {
-      code = tTagNew(pParFileCxt->aTagVals, 1, false, &pParFileCxt->pTag);
+      code = tTagNewWithName(pParFileCxt->aTagVals, pParFileCxt->aTagNames, pSchemas, numOfTags, 1,
+                             &pParFileCxt->pTag);
     }
   }
 

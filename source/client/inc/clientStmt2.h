@@ -107,6 +107,12 @@ typedef struct {
   int32_t           placeholderOfTags;
   int32_t           placeholderOfCols;
   SStbInterlaceInfo siInfo;
+  // Field cache for columnar binding (initialized lazily by column bind)
+  int               cachedFieldNum;
+  TAOS_FIELD_ALL   *cachedFields;
+  bool              cachedIsInsert;
+  bool              cachedHasTbnameColumn;
+  int               cachedTbnameColIdx;
 } SStmtSQLInfo2;
 /*
 typedef struct SStmtStatInfo {
@@ -139,10 +145,14 @@ uint64_t    qRemainNum;
 */
 typedef struct {
   TAOS_STMT2       *stmt;
-  TAOS_STMT2_BINDV *bindv;
   int32_t           col_idx;
   __taos_async_fn_t fp;
   void             *param;
+  bool              is_columnar;  // true for columnar binding, false for row binding
+  union {
+    TAOS_STMT2_BINDV         *bindv;         // row binding (when is_columnar=false)
+    TAOS_STMT2_COLUMN_BINDV *column_bindv;   // columnar binding (when is_columnar=true)
+  };
 } ThreadArgs;
 
 typedef struct AsyncBindParam {
@@ -261,6 +271,7 @@ int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbRe
 int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
+int         stmtEnsureColumnFieldCache2(TAOS_STMT2 *stmt);
 int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 bool        stmt2IsInsert(TAOS_STMT2 *stmt);
 bool        stmt2IsSelect(TAOS_STMT2 *stmt);
