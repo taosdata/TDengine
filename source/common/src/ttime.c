@@ -592,6 +592,10 @@ int32_t convertCalendarTimeFromUnitToPrecision(
 }
 
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
+  if (NULL == inputData || NULL == timeVal) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   int32_t charLen = 0;
   char*   dataVal = NULL;
 
@@ -1802,7 +1806,6 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         break;
     }
   }
-  *s = '\0';
   return TSDB_CODE_SUCCESS;
 }
 

@@ -10,7 +10,7 @@ import { Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
-If TDengine TSDB cannot connect directly to your data source, you can install [taosX-Agent](../../14-reference/01-components/05-taosx-agent/index.md) on the network where your data source is located. You can install taosX-Agent on the machine where your data source is located or on a different machine on the same network that can access the data source. TDengine TSDB can then connect to your data source through taosX-Agent.
+If TDengine TSDB cannot connect directly to your data source, you can install [taosX-Agent](../../14-reference/01-components/05-taosx-agent.md) on the network where your data source is located. You can install taosX-Agent on the machine where your data source is located or on a different machine on the same network that can access the data source. TDengine TSDB can then connect to your data source through taosX-Agent.
 
 :::note
 
@@ -83,4 +83,4 @@ If TDengine TSDB cannot connect directly to your data source, you can install [t
 
 When you create data in tasks, you can use this agent to connect to your data source.
 
-For full configuration options, see [taosX-Agent](../../14-reference/01-components/05-taosx-agent/index.md).
+For full configuration options, see [taosX-Agent](../../14-reference/01-components/05-taosx-agent.md).
