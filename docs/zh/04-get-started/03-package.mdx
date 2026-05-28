@@ -49,7 +49,7 @@ import PkgList from "/src/components/PkgList";
 完成安装后，请在终端执行以下脚本，启动所有服务：
 
 ```bash
-start-all.sh 
+sudo start-all.sh 
 ```
 
 TDengine TSDB 的所有组件均使用 systemd 来进行服务管理，可以使用以下命令查看服务的状态：
