@@ -3947,6 +3947,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="md-nav__link">
+        KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4806,6 +4817,17 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_cluster_threads.TestDb.test_cluster_threads" class="md-nav__link">
         Cluster threads 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="md-nav__link">
+        KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline 
       </a>
       
     </li>
@@ -6409,6 +6431,46 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_compact_db_conflict.py" target="_blank">
                       cases/70-Cluster/test_compact_db_conflict.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="doc doc-heading">
+
+<a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1.  Start 3-dnode cluster; create DB with replica 3, 16 vgroups.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2.  Insert data and flush to disk.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3.  Stop dnode 3.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4.  Start compact on the database.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5.  KILL COMPACT &lt;id&gt; FORCE.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6.  Verify show compacts returns 0 rows (SDB records deleted).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7.  Restart dnode 3; wait until all 3 dnodes are online again.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8.  BALANCE VGROUP LEADER.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9.  Query data — verify row count matches what was inserted.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Run a normal compact and wait for it to finish.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Insert more data, run compact again, wait for finish.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Final query — verify total row count is correct.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_kill_compact_force.py" target="_blank">
+                      cases/70-Cluster/test_kill_compact_force.py
                     </a>
                   </div>
         </div>

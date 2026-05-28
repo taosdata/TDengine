@@ -2648,8 +2648,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_twstart_workaround" class="md-nav__link">
-        inicio_descarga as trigger + _twstart in body (control test). 
+      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_subquery_per_event" class="md-nav__link">
+        All remote-subquery flavours must be refreshed per stream event. 
       </a>
       
     </li>
@@ -2670,30 +2670,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_row_subquery" class="md-nav__link">
-        REMOTE_ROW must be refreshed per stream event. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_in_list_subquery" class="md-nav__link">
-        REMOTE_VALUE_LIST must be refreshed per stream event. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_exists_subquery" class="md-nav__link">
-        REMOTE_ZERO_ROWS (EXISTS) must be refreshed per stream event. 
+      <a href="#18-StreamProcessing.02-Stream.test_stream_data_types.TestStreamDatatypes.test_stream_all_datatypes" class="md-nav__link">
+        Stream all datatypes correctness 
       </a>
       
     </li>
@@ -2947,17 +2925,6 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.stream_subquery_in_vtable2.TestStreamSubQueryInVtable2.test_stream_subquery_in_vtable2" class="md-nav__link">
         Test virtual tables in IN subqueries - edge, complex, data type and advanced cases 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_where_subquery" class="md-nav__link">
-        WHERE scalar subquery is re-evaluated per trigger event. 
       </a>
       
     </li>
@@ -4146,8 +4113,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_twstart_workaround" class="md-nav__link">
-        inicio_descarga as trigger + _twstart in body (control test). 
+      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_subquery_per_event" class="md-nav__link">
+        All remote-subquery flavours must be refreshed per stream event. 
       </a>
       
     </li>
@@ -4168,30 +4135,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_row_subquery" class="md-nav__link">
-        REMOTE_ROW must be refreshed per stream event. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_in_list_subquery" class="md-nav__link">
-        REMOTE_VALUE_LIST must be refreshed per stream event. 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_exists_subquery" class="md-nav__link">
-        REMOTE_ZERO_ROWS (EXISTS) must be refreshed per stream event. 
+      <a href="#18-StreamProcessing.02-Stream.test_stream_data_types.TestStreamDatatypes.test_stream_all_datatypes" class="md-nav__link">
+        Stream all datatypes correctness 
       </a>
       
     </li>
@@ -4445,17 +4390,6 @@
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.stream_subquery_in_vtable2.TestStreamSubQueryInVtable2.test_stream_subquery_in_vtable2" class="md-nav__link">
         Test virtual tables in IN subqueries - edge, complex, data type and advanced cases 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_where_subquery" class="md-nav__link">
-        WHERE scalar subquery is re-evaluated per trigger event. 
       </a>
       
     </li>
@@ -5059,6 +4993,58 @@
   
   
   
+<h2 id="18-StreamProcessing.02-Stream.test_stream_data_types.TestStreamDatatypes.test_stream_all_datatypes" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_data_types.TestStreamDatatypes.test_stream_all_datatypes" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream all datatypes correctness</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verify all supported data types pass through stream processing correctly,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">including VARCHAR/NCHAR/VARBINARY which require varstr header wrapping in setColData.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test design:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1. Insert ROW_COUNT rows into a super table, exactly 1 row per second (1000 ms apart).</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2. Use interval(1s) stream: each 1-second window contains exactly one source row.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    3. last() of a single-row window equals the original row value — no aggregation distortion.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    4. Stream produces ROW_COUNT-1 output rows: the final window is unclosed (no subsequent</div>
+                          <div style="margin-left: 5.6000000000000005em; white-space: pre-wrap;">       data arrives to trigger it), so it never appears in the stream output.</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    5. Compare each stream output row against the corresponding source row, column by column,</div>
+                          <div style="margin-left: 5.6000000000000005em; white-space: pre-wrap;">       for all 15 data types.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The key insight: because each 1s window holds exactly one data point, last(col) == col.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Any data corruption, type conversion bug, or missing varstr header in setColData is</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">directly detected by the exact-match comparison between source table and stream output.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Covered types: bool, tinyint, smallint, int, bigint, tinyint unsigned, smallint unsigned,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">int unsigned, bigint unsigned, float, double, varchar, nchar, varbinary</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Data insertion uses the STMT2 (parameter-binding) API because the bug is STMT2-specific:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">STMT2 submits data with SUBMIT_REQ_COLUMN_DATA_FORMAT, which takes the column-data branch</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">in vnodeStream.c and calls setColData() on each SColData block.  Plain SQL submits data</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">in row format (SRow) and takes a completely different branch that never calls setColData(),</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">so plain SQL cannot trigger this bug.  Using STMT2 is required to reproduce the crash.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_data_types.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_data_types.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="18-StreamProcessing.02-Stream.test_stream_long_name.TestStreamLongName.test_stream_long_name" class="doc doc-heading">
 
 <a href="#18-StreamProcessing.02-Stream.test_stream_long_name.TestStreamLongName.test_stream_long_name" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5192,164 +5178,23 @@
   
   
   
-<h2 id="18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_where_subquery" class="doc doc-heading">
+<h2 id="18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_subquery_per_event" class="doc doc-heading">
 
-<a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_where_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_subquery_per_event" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>WHERE scalar subquery is re-evaluated per trigger event.</strong> 
+                    <strong>All remote-subquery flavours must be refreshed per stream event.</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build linea_descarga (trigger), cumple_descarga (secondary</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   source), inicio_descarga (referenced by WHERE subquery).</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Pre-seed cumple_descarga with three rows so SUM differs by</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the lower bound the subquery returns.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert one row into inicio_descarga BEFORE creating the</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   stream so the subquery is resolvable at plan time.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Create a count_window(1,1,pressure) stream whose body filters</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   cumple_descarga by ts &gt;= (select last_row(ts) from inicio_descarga).</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Drive three trigger events one at a time, advancing</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   inicio_descarga before each one - the customer pattern.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify cumulative output after every event:</div>
-                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     after event 1: 1 row,  SUM=(3, 3)</div>
-                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     after event 2: 2 rows, (3,3) then (2,2)</div>
-                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     after event 3: 3 rows, (3,3) (2,2) (1,1)</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   A regression to constant SUM=3 means the subquery has been</div>
-                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   constant-folded again and is no longer per-event.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py" target="_blank">
-                      cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_twstart_workaround" class="doc doc-heading">
-
-<a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_twstart_workaround" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>inicio_descarga as trigger + _twstart in body (control test).</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This documents the workaround the customer used before the</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">engine fix and serves as a regression guard for the trigger /</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">_twstart path, independent of the scalar-subquery code.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py" target="_blank">
-                      cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_in_list_subquery" class="doc doc-heading">
-
-<a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_in_list_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>REMOTE_VALUE_LIST must be refreshed per stream event.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Bug: in stream mode, the LIST cache check in sclInitParam()</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">short-circuited once VALUELIST_FLAG_VAL_UNSET was cleared on</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the first event. Every subsequent trigger event reused the same</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">pHashFilter, so the IN-list never reflected later changes to</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the source table.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py" target="_blank">
-                      cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_row_subquery" class="doc doc-heading">
-
-<a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_row_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>REMOTE_ROW must be refreshed per stream event.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`&gt; ANY (subquery)` is rewritten by the planner to `&gt; MIN(...)`,</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">which materialises into a REMOTE_ROW node. In stream mode the</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ROW cache check in sclInitParam() short-circuited once</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">pRemote-&gt;valSet was set on the first event, so the threshold</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">was frozen forever.</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py" target="_blank">
-                      cases/18-StreamProcessing/02-Stream/test_stream_subquery_per_event.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_exists_subquery" class="doc doc-heading">
-
-<a href="#18-StreamProcessing.02-Stream.test_stream_subquery_per_event.TestStreamSubqueryPerEvent.test_exists_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>REMOTE_ZERO_ROWS (EXISTS) must be refreshed per stream event.</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">`EXISTS (subquery)` is rewritten by the planner to a</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">REMOTE_ZERO_ROWS node holding a 0/1 row count. handleRemoteZeroRowsRes</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">forces the AST node type to QUERY_NODE_VALUE after fetching, so the</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">scalar walker stops re-dispatching the case and replays the cached</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">row count for every later event. The fix restores the</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">QUERY_NODE_REMOTE_ZERO_ROWS type in stream mode so the next trigger</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">re-fetches.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Runs all 5 subquery variants in parallel via a single checkAll</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">to overlap stream processing time:</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  1. WHERE scalar subquery (REMOTE_VALUE)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  2. _twstart workaround (control)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  3. IN-list subquery (REMOTE_VALUE_LIST)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  4. Row-comparison subquery (REMOTE_ROW)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  5. EXISTS subquery (REMOTE_ZERO_ROWS)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
