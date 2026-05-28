@@ -88,6 +88,9 @@ extern int (*fp_taos_stmt2_prepare)(TAOS_STMT2 *stmt, const char *sql, unsigned 
 extern int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
 extern int (*fp_taos_stmt2_bind_param_a)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx,
                                          __taos_async_fn_t fp, void *param);
+extern int (*fp_taos_stmt2_bind_param_column)(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv);
+extern int (*fp_taos_stmt2_bind_param_column_a)(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv,
+                                                __taos_async_fn_t fp, void *param);
 extern int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows);
 extern int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt);
 extern int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert);

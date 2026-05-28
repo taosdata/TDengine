@@ -2189,6 +2189,7 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         break;
     }
   }
+  *s = '\0';
   return TSDB_CODE_SUCCESS;
 }
 

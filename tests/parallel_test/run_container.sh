@@ -117,18 +117,30 @@ fi
 SIM_VOL="$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}"
 CORE_VOL="$TMP_DIR/thread_volume/$thread_no/coredump:/home/coredump"
 
-docker_cmd="docker run --privileged=true \
-    -v \"${REP_MOUNT_PARAM}\" \
-    -v \"${REP_MOUNT_DEBUG}\" \
-    -v \"${REP_MOUNT_LIB}\" \
-    -v \"${MOUNT_DIR}\" \
-    -v \"${SOURCEDIR}:/usr/local/src/\" \
-    -v \"${SIM_VOL}\" \
-    -v \"${CORE_VOL}\" \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d ${exec_dir} -c \"${cmd}\" ${extra_param}"
+docker_cmd=(
+    docker run --privileged=true
+    -v "${REP_MOUNT_PARAM}"
+    -v "${REP_MOUNT_DEBUG}"
+    -v "${REP_MOUNT_LIB}"
+    -v "${MOUNT_DIR}"
+    -v "${SOURCEDIR}:/usr/local/src/"
+    -v "${SIM_VOL}"
+    -v "${CORE_VOL}"
+    --rm --ulimit core=-1
+    "${DOCKER_IMAGE_NAME:-tdengine-ci:0.3}"
+    "$CONTAINER_TESTDIR/tests/parallel_test/run_case.sh"
+    -d "${exec_dir}"
+    -c "${cmd}"
+)
 
-echo "$docker_cmd"  
-eval "$docker_cmd"
+if [[ -n "${extra_param:-}" ]]; then
+    read -r -a _extra_args <<< "${extra_param}"
+    docker_cmd+=("${_extra_args[@]}")
+fi
+
+printf '%q ' "${docker_cmd[@]}"
+echo
+"${docker_cmd[@]}"
 
 ret=$?
 exit "$ret"

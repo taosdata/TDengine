@@ -1,10 +1,11 @@
 #include "clientInt.h"
 #include "clientLog.h"
+#include "taoserror.h"
 #include "tdef.h"
 #include "tglobal.h"
-
 #include "clientStmt.h"
 #include "clientStmt2.h"
+#include "querynodes.h"
 #include "tencode.h"
 #include "tmsg.h"
 #include "tname.h"
@@ -1545,6 +1546,11 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
   pStmt->sql.siInfo.pTableCols = NULL;
 
+  // Free field cache for columnar binding
+  if (pStmt->sql.cachedFields != NULL) {
+    taos_stmt2_free_fields((TAOS_STMT2*)pStmt, pStmt->sql.cachedFields);
+    pStmt->sql.cachedFields = NULL;
+  }
   taosMemoryFreeClear(pStmt->sql.siInfo.dbname);
 
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
@@ -2209,6 +2215,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   } else {
     return stmtBuildErrorMsgWithCode(pStmt, "stmt only support 'SELECT' or 'INSERT'", TSDB_CODE_PAR_SYNTAX_ERROR);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3637,6 +3644,117 @@ int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
   return stmtFetchStbColFields2(stmt, nums, fields);
 }
 
+static void stmtClearColumnFieldCache2(STscStmt2* pStmt) {
+  pStmt->sql.cachedFieldNum = 0;
+  pStmt->sql.cachedIsInsert = false;
+  pStmt->sql.cachedHasTbnameColumn = false;
+  pStmt->sql.cachedTbnameColIdx = -1;
+  if (pStmt->sql.cachedFields != NULL) {
+    taos_stmt2_free_fields((TAOS_STMT2*)pStmt, pStmt->sql.cachedFields);
+    pStmt->sql.cachedFields = NULL;
+  }
+}
+
+int stmtEnsureColumnFieldCache2(TAOS_STMT2* stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  int32_t    code = TSDB_CODE_SUCCESS;
+
+  if (pStmt->sql.cachedFieldNum > 0 && pStmt->sql.cachedFields != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t savedStatus = pStmt->sql.status;
+  int32_t savedErrCode = pStmt->errCode;
+  STMT_TYPE savedType = pStmt->sql.type;
+  bool savedStbInterlaceMode = pStmt->sql.stbInterlaceMode;
+  bool savedAutoCreateTbl = pStmt->sql.autoCreateTbl;
+  int32_t savedPlaceholderOfTags = pStmt->sql.placeholderOfTags;
+  int32_t savedPlaceholderOfCols = pStmt->sql.placeholderOfCols;
+
+  stmtClearColumnFieldCache2(pStmt);
+  pStmt->sql.cachedIsInsert = stmt2IsInsert(stmt);
+
+  if (pStmt->sql.cachedIsInsert) {
+    code = stmtGetStbColFields2(stmt, &pStmt->sql.cachedFieldNum, &pStmt->sql.cachedFields);
+    if (code == TSDB_CODE_SUCCESS) {
+      for (int32_t i = 0; i < pStmt->sql.cachedFieldNum; ++i) {
+        if (pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_TBNAME) {
+          pStmt->sql.cachedHasTbnameColumn = true;
+          pStmt->sql.cachedTbnameColIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (pStmt->sql.siInfo.pDataCtx != NULL) {
+      qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
+      pStmt->sql.siInfo.pDataCtx = NULL;
+    }
+    pStmt->bInfo.tagsCached = false;
+    pStmt->bInfo.boundColsCached = false;
+    int32_t cleanCode = stmtCleanExecInfo(pStmt, false, true);
+    if (code == TSDB_CODE_SUCCESS && cleanCode != TSDB_CODE_SUCCESS) {
+      code = cleanCode;
+    }
+    qDestroyQuery(pStmt->sql.pQuery);
+    pStmt->sql.pQuery = NULL;
+    pStmt->sql.siInfo.pQuery = NULL;
+    taosHashCleanup(pStmt->sql.pVgHash);
+    pStmt->sql.pVgHash = NULL;
+    taosMemoryFreeClear(pStmt->sql.pBindInfo);
+  } else if (stmt2IsSelect(stmt)) {
+    int32_t paramNum = 0;
+    if (pStmt->sql.pQuery != NULL && pStmt->sql.pQuery->pPlaceholderValues != NULL) {
+      paramNum = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+    }
+
+    pStmt->sql.cachedFieldNum = paramNum;
+    pStmt->sql.placeholderOfTags = 0;
+    pStmt->sql.placeholderOfCols = paramNum;
+
+    if (paramNum > 0) {
+      pStmt->sql.cachedFields = (TAOS_FIELD_ALL*)taosMemoryCalloc(paramNum, sizeof(TAOS_FIELD_ALL));
+      if (pStmt->sql.cachedFields == NULL) {
+        code = terrno;
+      } else {
+        for (int32_t i = 0; i < paramNum; ++i) {
+          SValueNode* pVal = (SValueNode*)taosArrayGetP(pStmt->sql.pQuery->pPlaceholderValues, i);
+          TAOS_FIELD_ALL* pField = &pStmt->sql.cachedFields[i];
+          snprintf(pField->name, sizeof(pField->name), "$%d", i + 1);
+          pField->field_type = TAOS_FIELD_QUERY;
+          if (pVal != NULL) {
+            pField->type = pVal->node.resType.type;
+            pField->precision = pVal->node.resType.precision;
+            pField->scale = pVal->node.resType.scale;
+            pField->bytes = pVal->node.resType.bytes;
+          }
+        }
+      }
+    }
+  } else {
+    code = TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
+  pStmt->sql.type = savedType;
+  pStmt->sql.stbInterlaceMode = savedStbInterlaceMode;
+  pStmt->sql.autoCreateTbl = savedAutoCreateTbl;
+  pStmt->sql.placeholderOfTags = savedPlaceholderOfTags;
+  pStmt->sql.placeholderOfCols = savedPlaceholderOfCols;
+  pStmt->sql.status = savedStatus;
+  pStmt->errCode = savedErrCode;
+
+  if (code != TSDB_CODE_SUCCESS || pStmt->sql.cachedFieldNum <= 0 || pStmt->sql.cachedFields == NULL) {
+    stmtClearColumnFieldCache2(pStmt);
+    return code == TSDB_CODE_SUCCESS ? TSDB_CODE_INVALID_PARA : code;
+  }
+
+  STMT2_DLOG("cached column field info, fieldNum:%d, isInsert:%d, hasTbname:%d, tbnameColIdx:%d",
+             pStmt->sql.cachedFieldNum, pStmt->sql.cachedIsInsert, pStmt->sql.cachedHasTbnameColumn,
+             pStmt->sql.cachedTbnameColIdx);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int stmtGetParamNum2(TAOS_STMT2* stmt, int* nums) {
   int32_t    code = 0;
   STscStmt2* pStmt = (STscStmt2*)stmt;
@@ -3708,7 +3826,12 @@ int32_t stmtAsyncBindThreadFunc(void* args) {
   ThreadArgs* targs = (ThreadArgs*)args;
   STscStmt2*  pStmt = (STscStmt2*)targs->stmt;
 
-  int code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
+  int code;
+  if (targs->is_columnar) {
+    code = taos_stmt2_bind_param_column(targs->stmt, targs->column_bindv);
+  } else {
+    code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
+  }
   targs->fp(targs->param, NULL, code);
   (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
   (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);

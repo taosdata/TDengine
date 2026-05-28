@@ -1385,13 +1385,13 @@ UPPER(expr)
 TO_BASE64(expr)
 ```
 
-**功能说明**: 传回字符串“expr”的 Base64 编码。
+**功能说明**: 返回 `expr` 的 Base64 编码。对于非字符串类型，先将值转换为字符串表示再进行编码。
 
 **返回结果类型**: VARCHAR
 
 **适用数据类型**:
 
-- `expr`: VARCHAR, NCHAR.
+- `expr`: BOOL、数值类型、TIMESTAMP、VARCHAR、NCHAR。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -1400,14 +1400,32 @@ TO_BASE64(expr)
 **使用说明**:
 
 - 若 expr 为 NULL，返回 NULL。
+- 若 Base64 编码结果超过 VARCHAR 最大长度，返回错误。
+- BOOL 类型：TRUE 视为字符串 `'1'`、FALSE 视为字符串 `'0'`。
+- TIMESTAMP 类型：始终以 UTC 时区格式化为 `yyyy-mm-dd hh24:mi:ss.{精度}+00`（精度根据列定义为 ms/us/ns），编码结果与会话时区无关且保留完整精度。
 
 **举例**:
 
 ```sql
+taos> select to_base64(NULL);
+ to_base64(null) |
+==================
+ NULL            |
+
 taos> select to_base64("");
  to_base64("") |
 ================
                |
+
+taos> select to_base64(14324);
+ to_base64(14324) |
+=====================
+ MTQzMjQ=         |
+
+taos> select to_base64("14324");
+ to_base64("14324") |
+=====================
+ MTQzMjQ=          |
 
 taos> select to_base64("Hello, world!");
  to_base64("Hello, world!") |
