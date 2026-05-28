@@ -301,6 +301,96 @@ class TestTmqBugs:
     #
     # ------------------- 9 ----------------
     #
+    def do_spot_trading(self):
+        # Issue 6995592605: when the INSERT tag binding column order
+        # differs from the STABLE TAGS schema order, tTagNew() sorts
+        # the tag value array by cid while the tag name array stays in
+        # binding order, producing wrong tagName/value pairs in the
+        # tmq JSON meta for the auto-created child table.
+        #
+        # The STABLE schema TAGS order is:
+        #   tab, underlying_date, trade_date, company_code,
+        #   company_name, un_name, unit_alias_name, un_id
+        # The INSERT below binds tags in a DIFFERENT order
+        # (un_id appears before un_name / unit_alias_name).
+        # The C verifier (tmq_spot_trading) parses the auto-create-ctb
+        # JSON meta and asserts that tag 'un_id' has value '19' etc.
+        db_name = "spot_trading"
+        topic_name = "topic_spot_trading"
+
+        tdSql.execute(f"drop topic if exists {topic_name}")
+        tdSql.execute(f"drop database if exists {db_name}")
+        tdSql.execute(
+            f"create database if not exists {db_name} vgroups 1 wal_retention_period 3600"
+        )
+        tdSql.execute(f"use {db_name}")
+
+        tdSql.execute(
+            "CREATE STABLE `trade_realtime_log` ("
+            "`ts` TIMESTAMP,"
+            "`u_date` TIMESTAMP,"
+            "`t_date` TIMESTAMP,"
+            "`receive_time` TIMESTAMP,"
+            "`pull_time` TIMESTAMP,"
+            "`time_code` TINYINT,"
+            "`buy_price1` DOUBLE,"
+            "`sale_price1` DOUBLE,"
+            "`tradeseq_id` VARCHAR(50),"
+            "`tab_name` VARCHAR(100),"
+            "`new_price` DOUBLE"
+            ") TAGS ("
+            "`tab` VARCHAR(100),"
+            "`underlying_date` TIMESTAMP,"
+            "`trade_date` TIMESTAMP,"
+            "`company_code` VARCHAR(50),"
+            "`company_name` VARCHAR(200),"
+            "`un_name` VARCHAR(200),"
+            "`unit_alias_name` VARCHAR(200),"
+            "`un_id` VARCHAR(50))"
+        )
+
+        tdSql.execute(
+            f"create topic {topic_name} with meta as database {db_name}"
+        )
+
+        def _insert(ts):
+            return (
+                "INSERT INTO spot_trading.`realtime_20260524_20260520_19_11` "
+                "USING spot_trading.trade_realtime_log "
+                "(`tab`, `underlying_date`, `trade_date`, `company_code`, "
+                " `company_name`, `un_id`, `un_name`, `unit_alias_name`) "
+                "TAGS ('2026spot-trade-20260524', '2026-05-24 00:00:00', "
+                "      '2026-05-20 00:00:00', '91320811MADR1RFF2J01', "
+                "      'GuangJing-Energy-Company-Long-Name', '19', "
+                "      'GuangJing-Energy-UnName', 'GuangJing-Energy-UnitAlias') "
+                "(ts, u_date, t_date, receive_time, pull_time, time_code, "
+                " buy_price1, sale_price1, tradeseq_id, tab_name, new_price) "
+                f"VALUES ('{ts}', '2026-05-24 00:00:00', '2026-05-20 00:00:00', "
+                f"        '{ts}', '{ts}', 11, 327.3, 328.0, "
+                "         'PHDJS2026052442000811', 'spot-trade-2026-05-24', "
+                "         328.0)"
+            )
+
+        tdSql.execute(_insert("2026-05-20 16:03:46"))
+        tdSql.execute(_insert("2026-05-20 16:04:46"))
+
+        tdSql.query(f"select count(*) from {db_name}.trade_realtime_log")
+        tdSql.checkData(0, 0, 2)
+
+        buildPath = tdCom.getBuildPath()
+        cmdStr = f"{buildPath}/build/bin/tmq_spot_trading {topic_name}"
+        tdLog.info(cmdStr)
+        ret = os.system(cmdStr)
+        if ret != 0:
+            raise Exception(f"{cmdStr} failed, ret={ret}")
+
+        tdSql.execute(f"drop topic if exists {topic_name}")
+
+        print("bug 6995592605 (spot_trading) ................ [passed]")
+
+    #
+    # ------------------- 9 ----------------
+    #
     def do_td37436(self):
         tdSql.execute(f'create snode on dnode 1')
         tdSql.execute(f'drop database if exists test')
@@ -984,23 +1074,26 @@ class TestTmqBugs:
          - Test tmq consumer can switch topics after unsubscribe.
         8. Jira TD-35698:
          - Test tmq consumption with meta topic containing decimal columns.
-        9. Jira TD-37436:
+        9. Issue 6995592605:
+         - Test tmq JSON meta tagName/value pairing when INSERT tag
+           binding order differs from the STABLE TAGS schema order.
+        10. Jira TD-37436:
          - Test tmq consumption with meta topic on database containing stream.
-        10. Jira TD-38404:
+        11. Jira TD-38404:
          - Tmq_get_json_meta behaves unexpectedly when the tags of subscribed meta messages contain empty strings.
-        11. Jira TS-4563:
+        12. Jira TS-4563:
          - Test tmq consumption of unordered data inserted by stmt.
-        12. Jira TS-5466:
+        13. Jira TS-5466:
          - Test tmq consumption with meta topic after altering stable to add many columns.
-        13. Jira TS-5906:
+        14. Jira TS-5906:
          - Test tmq consumption after altering child table tags and inserting new data.
-        14. Jira TS-6115:
+        15. Jira TS-6115:
          - Test tmq consumption with large amount of data inserted by taosBenchmark.
-        15. Jira TS-6392:
+        16. Jira TS-6392:
          - Test tmq consumer group rebalance and recovery after dnode restart with WAL retention.
-        16. Jira TS-7402:
+        17. Jira TS-7402:
          - Test tmq consumption with meta topic created on stable with filter conditions.
-        17. Jira TS-7662:
+        18. Jira TS-7662:
          - Test tmq consumption with meta topic created on stable with where clause.
         19. Jira TS-4674:
          - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.
@@ -1042,6 +1135,7 @@ class TestTmqBugs:
         self.do_td32526()
         self.do_td33504()
         self.do_td35698()
+        self.do_spot_trading()
         self.do_td37436()
         self.do_td38404()
         self.do_ts4563()

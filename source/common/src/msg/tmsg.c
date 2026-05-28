@@ -8276,6 +8276,7 @@ int32_t tSerializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *pR
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->compactId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
   ENCODESQL();
 
   tEndEncode(&encoder);
@@ -8298,6 +8299,9 @@ int32_t tDeserializeSKillCompactReq(void *buf, int32_t bufLen, SKillCompactReq *
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->compactId));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
+  }
   DECODESQL();
 
   tEndDecode(&decoder);

@@ -130,8 +130,8 @@ end:
  * @param msg
  * @return int32_t
  */
-static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchema, STag** ppTag, SArray** tagName,
-                              SMsgBuf* msg, void* charsetCxt) {
+static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchema, int32_t numOfTags, STag** ppTag,
+                              SArray** tagName, SMsgBuf* msg, void* charsetCxt) {
   int     code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
@@ -161,7 +161,8 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     }
     TSDB_CHECK_NULL(taosArrayPush(pTagArray, &val), code, lino, end, terrno);
   }
-  code = tTagNew(pTagArray, 1, false, ppTag);
+  code = tTagNewWithName(pTagArray, *tagName, pSchema, numOfTags, 1, ppTag);
+  TSDB_CHECK_CODE(code, lino, end);
 
 end:
   if (code != 0) {
@@ -288,7 +289,7 @@ int32_t smlBindData(SQuery* query, bool dataFormat, SArray* tags, SArray* colsSc
   TSDB_CHECK_CODE(ret, lino, end);
 
   STag* pTag = NULL;
-  ret = smlBuildTagRow(tags, &bindTags, pTagsSchema, &pTag, &tagName, &pBuf, charsetCxt);
+  ret = smlBuildTagRow(tags, &bindTags, pTagsSchema, getNumOfTags(pTableMeta), &pTag, &tagName, &pBuf, charsetCxt);
   TSDB_CHECK_CODE(ret, lino, end);
 
   pCreateTblReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
