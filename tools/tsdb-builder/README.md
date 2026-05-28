@@ -5,12 +5,12 @@ TDengine TSDB 多语言编译环境 Docker 镜像构建工具，提供三套独�
 | 镜像 | 用途 | 基础 |
 |---|---|---|
 | **`harbor.tdengine.net/tsdb-builder/core`** | 核心组件：ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX | manylinux2014 (glibc 2.17, GCC 7.3) |
-| **`harbor.tdengine.net/tsdb-builder/dev`** | 核心组件（开发用）：ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX | manylinux2014 (glibc 2.17, GCC 9.3.1) |
+| **`harbor.tdengine.net/tsdb-builder/dev`** | 核心组件（开发用）：ENGINE, ENTERPRISE, ADAPTER, KEEPER, TOOLS, GEN, TAOSX | manylinux2014 (glibc 2.17, GCC 11.2.1/x86_64, GCC 10.2/arm64) |
 | **`harbor.tdengine.net/tsdb-builder/others`** | 周边组件：INSIGHT, EXPLORER_UI + 所有 connector | manylinux_2_28 (glibc 2.28) |
 
 三套镜像均支持 `linux/amd64` 和 `linux/arm64` 两种架构。core 镜像额外支持 `linux/riscv64`（基于 Debian trixie）。
 
-> **dev 镜像 vs core 镜像**：dev 镜像与 core 镜像唯一的区别是编译器版本——dev 使用 devtoolset-9 (GCC 9.3.1)，core 使用 devtoolset-7 (GCC 7.3.1)。dev 镜像适用于日常开发，core 镜像兼容麒麟 V10 运行环境。组件范围、工具链、基础系统完全一致。
+> **dev 镜像 vs core 镜像**：dev 镜像与 core 镜像唯一的区别是编译器版本——dev 在 x86_64 上使用 devtoolset-11 (GCC 11.2.1)，在 arm64 上保留 devtoolset-10 (GCC 10.2.1)（aarch64 SCL 仓库无 devtoolset-11）；core 使用 devtoolset-7 (GCC 7.3.1)。dev 镜像适用于日常开发，core 镜像兼容麒麟 V10 运行环境。组件范围、工具链、基础系统完全一致。
 
 **仓库地址**：<https://git.tdengine.net/taosdata/rd-dept/platform/platform>
 
@@ -51,7 +51,7 @@ TSDB 采用内网 GitLab monorepo（`tsdb` 仓库）进行日常开发，所有�
 tsdb-builder/
 ├── Dockerfile.core         # core 镜像构建文件（manylinux2014, glibc 2.17, GCC 7.3）
 ├── Dockerfile.core-riscv64 # core 镜像构建文件（debian:trixie, riscv64 专用）
-├── Dockerfile.dev          # dev 镜像构建文件（manylinux2014, glibc 2.17, GCC 9.3.1）
+├── Dockerfile.dev          # dev 镜像构建文件（manylinux2014, glibc 2.17, GCC 11.2.1/x86_64, GCC 10.2/arm64）
 ├── Dockerfile.others       # others 镜像构建文件（manylinux_2_28, glibc 2.28）
 ├── build-core-image.sh     # 构建并推送 harbor.../tsdb-builder/core
 ├── build-dev-image.sh      # 构建并推送 harbor.../tsdb-builder/dev
@@ -59,6 +59,7 @@ tsdb-builder/
 ├── build.sh                # 统一构建入口（--image 必填，支持组件名和 cmake 参数透传）
 ├── verify-image.sh         # 镜像组件验证脚本
 ├── scripts/
+│   ├── download-packages.sh    # 下载离线安装包到本地（镜像构建优化）
 │   ├── prepare-externals.sh    # 下载并上传外部依赖 tarball 到 GitLab Package Registry
 │   └── externals-manifest.txt  # 依赖清单及 SHA256 校验值
 ├── .cargo/                 # Cargo 配置（Rust 镜像源）
@@ -66,9 +67,17 @@ tsdb-builder/
 ```
 
 > **离线安装包不存入本仓库。**
-> 安装包体积较大，统一存放于宿主机 `/data/packages/`。
+> 安装包体积较大，统一存放于宿主机指定目录（默认 `/data/packages/`，可自定义）。
 >
-> 构建镜像前，请确认所需文件已放置在宿主机的 `/data/packages/` 目录下。
+> **首次构建镜像前，必须先下载离线包**：
+> ```bash
+> cd tools/tsdb-builder
+> ./scripts/download-packages.sh ~/packages
+> ```
+> 这将下载 Go、CMake、mold、make、ccache、sccache、protoc、tini、bison、Rust、uv、ccache 依赖（zstd/hiredis/xxhash）及 pip wheels 等离线包到 `~/packages/` 目录。
+> 构建镜像时通过 `--packages ~/packages` 参数指定离线包路径，实现完全离线构建（除 yum 外）。
+>
+> 详见下方 [离线包加速构建](#离线包加速构建) 章节。
 
 ---
 
@@ -80,9 +89,10 @@ tsdb-builder/
 |---|---|---|
 | glibc | 2.17（riscv64: 2.41+） | manylinux2014，兼容旧发行版；riscv64 使用 Debian trixie |
 | GCC / G++ | 7.x（riscv64: 14.x） | CentOS 7 devtoolset-7（兼容麒麟 V10）；riscv64 使用 Debian 系统 GCC |
+| **GNU Make** | **4.2.1** | **从源码编译，修复 ext_curl 并行构建 bug（PR #12610）** |
 | Go | 1.23.4 | GOPROXY=nexus.tdengine.net/repository/goproxy/ |
 | CMake | 3.21.5 | |
-| Rust / Cargo | 1.90.0 | rsproxy.cn 镜像 |
+| Rust / Cargo | 1.90.0 | 离线 standalone installer |
 | Python | 3.12 | manylinux2014 预装 |
 | mold | 2.40.3 | 高速链接器（源码编译，兼容 glibc 2.17） |
 | protoc | 33.0 | Protocol Buffers |
@@ -90,16 +100,17 @@ tsdb-builder/
 
 ### tsdb-builder-dev（glibc 2.17）
 
-与 core 镜像基础完全一致（manylinux2014），唯一区别是使用 devtoolset-9 (GCC 9.3.1) 替代 devtoolset-7 (GCC 7.3.1)。
+与 core 镜像基础完全一致（manylinux2014），区别是使用更高版本的 GCC：x86_64 使用 devtoolset-11 (GCC 11.2.1)，arm64 保留 devtoolset-10 (GCC 10.2.1)（aarch64 SCL 仓库最高只到 devtoolset-9，devtoolset-10 为 manylinux2014 基础镜像内置）。
 适用于日常开发场景，不需要兼容麒麟 V10。
 
 | 工具 | 版本 | 说明 |
 |---|---|---|
 | glibc | 2.17 | manylinux2014 |
-| GCC / G++ | 9.x | CentOS 7 devtoolset-9 |
+| GCC / G++ | 11.x (x86_64) / 10.x (arm64) | x86_64: devtoolset-11; arm64: devtoolset-10（SCL 仓库无更高版本） |
+| **GNU Make** | **4.2.1** | **从源码编译，修复 ext_curl 并行构建 bug（PR #12610）** |
 | Go | 1.23.4 | GOPROXY=nexus.tdengine.net/repository/goproxy/ |
 | CMake | 3.21.5 | |
-| Rust / Cargo | 1.90.0 | rsproxy.cn 镜像 |
+| Rust / Cargo | 1.90.0 | 离线 standalone installer |
 | Python | 3.12 | manylinux2014 预装 |
 | mold | 2.40.3 | 高速链接器（源码编译，兼容 glibc 2.17） |
 | protoc | 33.0 | Protocol Buffers |
@@ -113,6 +124,7 @@ tsdb-builder/
 |---|---|---|
 | glibc | 2.28 | manylinux_2_28 / AlmaLinux 8 |
 | GCC / G++ | 14.x | AlmaLinux 8 gcc-toolset-14 |
+| **GNU Make** | **4.2.1** | **AlmaLinux 8 系统自带（无需升级）** |
 | Node.js | 22.14.0 | 官方二进制，含 yarn + pnpm |
 | JDK | 8u144 (amd64) / 8u441 (arm64) | OpenJDK 8 |
 | Maven | 3.8.4 | |
@@ -122,19 +134,36 @@ tsdb-builder/
 
 ## 离线安装包清单
 
-两套镜像共用同一份安装包，统一存放于宿主机 `/data/packages/`（各自使用其中需要的文件）：
+三套镜像共用同一份安装包，统一存放于宿主机 `/data/packages/`（各自使用其中需要的文件）：
 
 | 文件名 | 适用架构 | 用于 |
 |---|---|---|
-| `go1.23.4.linux-amd64.tar.gz` | amd64 | core + others |
-| `go1.23.4.linux-arm64.tar.gz` | arm64 | core + others |
+| `go1.23.4.linux-amd64.tar.gz` | amd64 | core + dev + others |
+| `go1.23.4.linux-arm64.tar.gz` | arm64 | core + dev + others |
 | `go1.23.4.linux-riscv64.tar.gz` | riscv64 | core |
 | `jdk-8u144-linux-x64.tar.gz` | amd64 | others |
 | `jdk-8u441-linux-aarch64.tar.gz` | arm64 | others |
 | `apache-maven-3.8.4-bin.tar.gz` | 通用 | others |
-| `cmake-3.21.5-linux-x86_64.tar.gz` | amd64 | core + others |
-| `cmake-3.21.5-linux-aarch64.tar.gz` | arm64 | core + others |
+| `cmake-3.21.5-linux-x86_64.tar.gz` | amd64 | core + dev + others |
+| `cmake-3.21.5-linux-aarch64.tar.gz` | arm64 | core + dev + others |
 | `mold-2.40.3.tar.gz` | 通用 | core + dev |
+| `make-4.2.1.tar.gz` | 通用 | core + dev |
+| `ccache-4.10.2.tar.gz` | 通用 | core + dev + others |
+| `zstd-1.5.6.tar.gz` | 通用 | core + dev + others（ccache 编译依赖） |
+| `hiredis-1.2.0.tar.gz` | 通用 | core + dev + others（ccache 编译依赖） |
+| `xxhash-0.8.2.tar.gz` | 通用 | core + dev + others（ccache 编译依赖） |
+| `sccache-v0.15.0-x86_64-unknown-linux-musl.tar.gz` | amd64 | core + dev + others |
+| `sccache-v0.15.0-aarch64-unknown-linux-musl.tar.gz` | arm64 | core + dev + others |
+| `rust-1.90.0-x86_64-unknown-linux-gnu.tar.xz` | amd64 | core + dev + others |
+| `rust-1.90.0-aarch64-unknown-linux-gnu.tar.xz` | arm64 | core + dev + others |
+| `uv-0.7.12-x86_64-unknown-linux-musl.tar.gz` | amd64 | core + dev + others |
+| `uv-0.7.12-aarch64-unknown-linux-musl.tar.gz` | arm64 | core + dev + others |
+| `protoc-33.0-linux-x86_64.zip` | amd64 | core + dev + others |
+| `protoc-33.0-linux-aarch_64.zip` | arm64 | core + dev + others |
+| `tini-amd64-v0.19.0` | amd64 | core + dev + others |
+| `tini-arm64-v0.19.0` | arm64 | core + dev + others |
+| `bison-3.8.2.tar.gz` | 通用 | others |
+| `pip/` (目录) | 通用 | core + dev + others（taospy、taos-ws-py、conan、maturin 及依赖的离线 wheel） |
 
 **others 镜像额外需要以下 TDengine 客户端文件**（用于 ODBC 等连接器编译）：
 
@@ -162,7 +191,7 @@ docker login harbor.tdengine.net
 ./build-core-image.sh --arch riscv64 --version 0.3.0    # 需在 riscv64 主机上原生构建
 ./build-core-image.sh --version 0.3.0 --packages /data/packages   # 显式指定安装包目录
 
-# 构建并推送 dev 镜像（与 core 相同组件，GCC 9.3.1）
+# 构建并推送 dev 镜像（与 core 相同组件，GCC 11.2.1/x86_64, GCC 10.2/arm64）
 ./build-dev-image.sh --version 0.3.0
 ./build-dev-image.sh --arch arm64 --version 0.3.0
 
@@ -205,7 +234,7 @@ docker login harbor.tdengine.net
 加 `--local` 参数可跳过推送，仅在本地构建镜像（不打 `latest-*` tag、不推送、不更新 manifest）。适合测试 Dockerfile 修改。
 
 > **强烈建议在原生架构主机上构建对应镜像。**
-> 由于 mold 是源码编译，且 yum/pip/rustup 等步骤较多，跨架构（QEMU 模拟）构建会慢 10–20 倍（实测 8 分钟 → 2 小时）。
+> 由于 mold 是源码编译，且 yum 等步骤较多，跨架构（QEMU 模拟）构建会慢 10–20 倍（实测 8 分钟 → 2 小时）。
 > 默认情况下脚本会拒绝跨架构构建：在 amd64 主机上跑 `--arch amd64`，在 arm64 主机上跑 `--arch arm64`，两侧都推送完成后脚本会自动合成多架构 manifest。
 > 如确实需要单机跨架构构建，可加 `--allow-emulation` 强制继续。
 
@@ -253,7 +282,7 @@ cd /path/to/TDengine
 
 # 基本用法
 ./path/to/tsdb-builder/build.sh --image core engine taosx
-./path/to/tsdb-builder/build.sh --image dev engine taosx          # 使用 dev 镜像（GCC 9）
+./path/to/tsdb-builder/build.sh --image dev engine taosx          # 使用 dev 镜像（GCC 11/x86_64, GCC 10/arm64）
 ./path/to/tsdb-builder/build.sh --image others explorer-ui insight jdbc
 ./path/to/tsdb-builder/build.sh --image core:0.3.0 engine
 ./path/to/tsdb-builder/build.sh --image others --pull-image explorer-ui
@@ -436,8 +465,8 @@ Stage 4 (主镜像 / manylinux2014)
   ├─ Layer 1 : yum 基础包 + CentOS 7 镜像源 + GCC 降级至 devtoolset-7
   ├─ Layer 2 : Go（离线 tar.gz）+ mage（COPY from builder）
   ├─ Layer 3 : CMake（离线 tar.gz）
-  ├─ Layer 4 : Rust（rustup，rsproxy.cn）
-  ├─ Layer 5 : Python 3.12（预装，symlink）+ pip + taospy
+  ├─ Layer 4 : Rust（离线 standalone installer）
+  ├─ Layer 5 : Python 3.12（预装，symlink）+ uv（离线二进制）+ pip wheels（离线）
   ├─ Layer 6 : mold（COPY from mold-builder，注册为默认链接器）+ protoc + tini
   └─ Layer 7 : 环境变量、SSH、时区等
 ```
@@ -455,12 +484,12 @@ Stage 3 (mold-builder / manylinux_2_28, GCC 14)
   └─ 源码编译 mold（release 二进制 arm64 需 glibc ≥ 2.31，但本镜像仅 2.28）
 
 Stage 4 (主镜像 / manylinux_2_28)
-  ├─ Layer 1 : yum 基础包（AlmaLinux 8 自带仓库）
+  ├─ Layer 1 : yum 基础包（AlmaLinux 8 自带仓库）+ bison（离线源码编译）
   ├─ Layer 2 : Go（离线 tar.gz）+ mage
   ├─ Layer 3 : JDK + Maven（离线 tar.gz）
   ├─ Layer 4 : CMake（离线 tar.gz）
-  ├─ Layer 5 : Rust（rustup，rsproxy.cn）
-  ├─ Layer 6 : Python 3.12（预装，symlink）+ pip + taospy
+  ├─ Layer 5 : Rust（离线 standalone installer）
+  ├─ Layer 6 : Python 3.12（预装，symlink）+ uv（离线二进制）+ pip wheels（离线，含 maturin）
   ├─ Layer 7 : .NET SDK（官方安装脚本）
   ├─ Layer 8 : Node.js 22 + yarn + pnpm（官方二进制）
   ├─ Layer 9 : mold（COPY from mold-builder，注册为默认链接器）+ protoc + tini
@@ -468,9 +497,9 @@ Stage 4 (主镜像 / manylinux_2_28)
   └─ Layer 11: 环境变量、SSH、时区等
 ```
 
-### Dockerfile.dev（双架构，均 glibc 2.17，GCC 9.3.1）
+### Dockerfile.dev（双架构，均 glibc 2.17，GCC 11.2.1/x86_64, GCC 10.2/arm64）
 
-与 Dockerfile.core 结构完全一致，唯一差异是将 devtoolset-7 (GCC 7.3.1) 替换为 devtoolset-9 (GCC 9.3.1)。
+与 Dockerfile.core 结构完全一致，差异是使用更高版本 GCC：x86_64 升级到 devtoolset-11 (GCC 11.2.1)，arm64 保留 devtoolset-10 (GCC 10.2.1)（aarch64 SCL 仓库无 devtoolset-11）。
 不需要兼容麒麟 V10 运行环境的开发场景推荐使用 dev 镜像。
 
 ```text
@@ -482,14 +511,14 @@ Stage 2: 架构选择
   └─ manylinux2014_x86_64 或 manylinux2014_aarch64
 
 Stage 3 (mold-builder / manylinux2014, devtoolset-10)
-  └─ 从 packages/ 解压 mold 源码并编译（需 C++20；主镜像降级到 GCC 9 后无法编译）
+  └─ 从 packages/ 解压 mold 源码并编译（需 C++20）
 
 Stage 4 (主镜像 / manylinux2014)
-  ├─ Layer 1 : yum 基础包 + CentOS 7 镜像源 + GCC 替换为 devtoolset-9
+  ├─ Layer 1 : yum 基础包 + CentOS 7 镜像源 + GCC 升级（x86_64: devtoolset-11, arm64: 保留 devtoolset-10）
   ├─ Layer 2 : Go（离线 tar.gz）+ mage（COPY from builder）
   ├─ Layer 3 : CMake（离线 tar.gz）
-  ├─ Layer 4 : Rust（rustup，rsproxy.cn）
-  ├─ Layer 5 : Python 3.12（预装，symlink）+ pip + taospy
+  ├─ Layer 4 : Rust（离线 standalone installer）
+  ├─ Layer 5 : Python 3.12（预装，symlink）+ uv（离线二进制）+ pip wheels（离线）
   ├─ Layer 6 : mold（COPY from mold-builder，注册为默认链接器）+ protoc + tini
   └─ Layer 7 : 环境变量、SSH、时区等
 ```
@@ -521,14 +550,14 @@ Stage 2 (主镜像 / debian:trixie)
 | core 用 glibc 2.17，others 用 glibc 2.28 | Node 22 arm64 官方二进制需要 glibc >= 2.25；core 不需要 Node，保持 2.17 最大兼容性 |
 | others 双架构统一用 manylinux_2_28 | 两个架构 glibc 一致，消除 arm64 特殊处理 |
 | core 降级 GCC 至 devtoolset-7 (7.3) | 兼容麒麟 V10 运行环境 |
-| dev 使用 devtoolset-9 (9.3.1) | 提供更高版本 GCC 用于日常开发，不需要兼容麒麟 V10 时使用 |
+| dev 使用 devtoolset-11 (x86_64) / devtoolset-10 (arm64) | 提供更高版本 GCC 用于日常开发，不需要兼容麒麟 V10 时使用。aarch64 SCL 仓库无 devtoolset-11，保留基础镜像自带的 devtoolset-10 |
 | mold 源码编译（multi-stage） | mold release 二进制需 glibc ≥ 2.24 (x86_64) / ≥ 2.31 (arm64)，超出两套镜像的 glibc 版本。在独立 stage 中用高版本 GCC 编译，`-DMOLD_MOSTLY_STATIC=ON` 静态链接 libstdc++ |
 | mold 注册为默认链接器（amd64/arm64） | 两套镜像均通过 `update-alternatives` 和 gcc-toolset alternatives 覆盖将 mold 设为默认链接器。core 镜像额外需要 `-DMOLD_USE_MIMALLOC=OFF` 编译 mold，因为 mimalloc 在 glibc 2.17 arm64 上会 segfault |
 | riscv64 mold 不设为默认链接器 | mold 在 riscv64 上链接 Go CGO 二进制时会破坏 Go runtime 的 ELF 布局（pclntab），导致 taosadapter 等组件启动时 SIGSEGV。riscv64 镜像保留 GNU ld 为默认链接器，`build.sh` 通过 `-DCMAKE_LINKER=mold` 仅对 C/C++ 目标使用 mold |
 | riscv64 使用独立 Dockerfile | manylinux2014 不支持 riscv64，且 CentOS 7 无 riscv64 生态，因此使用 `debian:trixie` 作为基础镜像，工具链（cmake/protoc/mold/tini）均从 apt 安装 |
 | riscv64 无需 buildx | riscv64 主机的 Docker 可能不包含 buildx 插件，使用原生 `docker build` 即可，通过临时构建上下文传递安装包 |
 | mage 在 builder stage 交叉编译（core） | Go runtime 在 QEMU amd64 仿真下崩溃，因此在原生架构 builder stage 中交叉编译 |
-| 离线安装包优先（Go/JDK/Maven/CMake） | 避免构建时依赖外部网络；`--mount=type=bind` 不写入镜像层 |
+| 离线安装包优先（Go/JDK/Maven/CMake/Rust/uv/pip/ccache deps） | 避免构建时依赖外部网络；`--mount=type=bind` 不写入镜像层 |
 | Python 使用 manylinux 预装版 | 省去源码编译时间，且内置 OpenSSL |
 | pthread cmake 修复（core/dev 镜像） | manylinux2014 的 FindThreads 会尝试 -lpthreads（不存在），需显式传入五个 cmake 变量；`build.sh` 使用 core 或 dev 镜像时已自动处理 |
 
@@ -725,7 +754,7 @@ TSDB 的 cmake 体系有多个构建模式参数，它们的交互关系需要�
 | 切换场景 | `--clean` | 删 `conan2-{arch}/` | 删 `externals-*` |
 |---|---|---|---|
 | Debug ↔ Release | ✅ | ❌ | ❌ |
-| core ↔ dev（GCC 7 ↔ GCC 9） | ✅ | ✅ | ❌（已隔离） |
+| core ↔ dev（GCC 7 ↔ GCC 11/10） | ✅ | ✅ | ❌（已隔离） |
 | core ↔ others（GCC 7 ↔ GCC 14） | ✅ | ✅ | ❌（已隔离） |
 | 同镜像不同版本（GCC 版本变了） | ✅ | ✅ | ❌（已隔离） |
 | 同镜像不同版本（GCC 版本没变） | ✅ | ❌ | ❌ |
@@ -744,7 +773,7 @@ cmake 的 `CMakeCache.txt` 会缓存 `CMAKE_BUILD_TYPE`，不清除会继续使�
 
 **切换 core ↔ dev ↔ others 镜像：必须清 conan2**
 
-`conan2-{arch}/` 被三种镜像共享，但 Conan profile 缓存了 `compiler=gcc` + `compiler.version`。不同镜像的 GCC 版本不同（core=7, dev=9, others=14），旧 profile 和已编译的包会导致 ABI 不兼容。
+`conan2-{arch}/` 被三种镜像共享，但 Conan profile 缓存了 `compiler=gcc` + `compiler.version`。不同镜像的 GCC 版本不同（core=7, dev=11/10, others=14），旧 profile 和已编译的包会导致 ABI 不兼容。
 
 ```bash
 rm -rf ~/cache/tsdb-builder/conan2-amd64
@@ -1280,3 +1309,170 @@ git clone https://github.com/taosdata/taos-connector-rust.git
 cd taos-connector-rust
 cargo build
 ```
+
+---
+
+## 离线包加速构建
+
+### 快速开始
+
+**首次构建镜像前，必须先下载离线包**。三套镜像（core/dev/others）的 Rust、uv、pip、ccache 依赖等工具均采用离线安装，不再从公网下载（yum 系统包除外）：
+
+```bash
+cd tools/tsdb-builder
+
+# 下载离线包到指定目录（默认当前目录下的 packages/）
+./scripts/download-packages.sh ~/packages
+
+# 使用离线包构建镜像
+./build-dev-image.sh --arch amd64 --version 3.4.1 --packages ~/packages
+```
+
+### 离线包清单
+
+`download-packages.sh` 脚本会下载以下文件：
+
+| 文件 | 大小 | 用途 |
+|------|------|------|
+| `go1.23.4.linux-{amd64,arm64}.tar.gz` | 70M×2 | Go 工具链 |
+| `cmake-3.21.5-linux-{x86_64,aarch64}.tar.gz` | 40M×2 | CMake |
+| `mold-2.40.3.tar.gz` | 4.5M | 高速链接器源码 |
+| `make-4.2.1.tar.gz` | 1.9M | GNU Make 4.2.1（修复 ext_curl 并行 bug） |
+| `ccache-4.10.2.tar.gz` | 650K | C/C++ 编译缓存 |
+| `zstd-1.5.6.tar.gz` + `hiredis-1.2.0.tar.gz` + `xxhash-0.8.2.tar.gz` | ~2M | ccache 编译依赖 |
+| `sccache-v0.15.0-{x86_64,aarch64}-unknown-linux-musl.tar.gz` | 9M×2 | Rust 编译缓存 |
+| `rust-1.90.0-{x86_64,aarch64}-unknown-linux-gnu.tar.xz` | 200M×2 | Rust 工具链（standalone installer） |
+| `uv-0.7.12-{x86_64,aarch64}-unknown-linux-musl.tar.gz` | 12M×2 | Python 包管理器 |
+| `protoc-33.0-linux-{x86_64,aarch_64}.zip` | 3.4M×2 | Protocol Buffers 编译器 |
+| `tini-{amd64,arm64}-v0.19.0` | 24K×2 | 容器 init 进程 |
+| `bison-3.8.2.tar.gz` | 5.4M | GNU Bison 解析器生成器（others 镜像） |
+| `pip/` (目录) | ~30M | taospy、taos-ws-py、conan、maturin 及全部依赖 wheel |
+
+**总大小**: 约 700MB（含两个架构）
+
+### 离线包使用说明
+
+所有 `build-*-image.sh` 脚本均支持 `--packages <path>` 参数：
+
+```bash
+# 使用默认路径 /data/packages（如果存在）
+./build-dev-image.sh --arch amd64 --version 3.4.1
+
+# 显式指定离线包路径
+./build-dev-image.sh --arch amd64 --version 3.4.1 --packages ~/packages
+
+# 多架构构建
+./build-dev-image.sh --arch amd64,arm64 --version 3.4.1 --packages ~/packages
+```
+
+**路径优先级**：
+1. `--packages` 参数指定的路径
+2. `/data/packages/`（默认路径，如果存在）
+3. `$HOME/packages/`（如果存在）
+
+### 手动准备离线包
+
+如果不使用 `download-packages.sh` 脚本，也可以手动下载文件到指定目录。
+确保文件名与上述清单一致，并放置在同一目录下。
+
+### 离线包更新
+
+当工具版本升级时（如 Rust 升级到 1.91.0），需要重新下载离线包：
+
+```bash
+# 删除旧版本离线包
+rm -rf ~/packages/*
+
+# 重新下载
+./scripts/download-packages.sh ~/packages
+```
+
+---
+
+## 故障排查
+
+### ext_curl 并发配置错误
+
+**症状**：
+```
+configure: error: in `/mnt/.externals/build/Release/ext_curl/src/ext_curl':
+configure: error: cannot compute suffix of executables: cannot compile and link
+See `config.log' for more details
+make[2]: *** [ext_curl-configure] Error 1
+```
+
+**根因**：
+GNU Make 3.82 存在已知的并行调度 bug（[PR #12610](https://savannah.gnu.org/support/?109593)），在处理 diamond 依赖图时会导致 PHONY target 被多次调度。ext_curl 使用 `BUILD_IN_SOURCE=TRUE`，两个并发的 `./configure` 进程在同一目录执行，其中一个进程删除了另一个正在编译的 `conftest.c` 文件，导致配置失败。
+
+**解决方案**：
+1. **使用新版镜像**（推荐）：dev/core 镜像已升级到 Make 4.2.1，彻底修复此问题。
+   ```bash
+   # 拉取最新镜像
+   docker pull harbor.tdengine.net/tsdb-builder/dev:latest
+   
+   # 或重新构建
+   cd tools/tsdb-builder
+   ./build-dev-image.sh --arch amd64 --version latest
+   ```
+
+2. **临时缓解方案**：清理 cache 目录后重试
+   ```bash
+   # 删除 ext_curl 缓存
+   rm -rf /root/cache/tsdb-builder/externals-dev-amd64/build/Release/ext_curl
+   rm -rf /root/cache/tsdb-builder/externals-dev-amd64/src/ext_curl
+   
+   # 重新构建
+   ./build.sh --image dev --src /data/tsdb --cache /root/cache/tsdb-builder --clean
+   ```
+
+3. **历史版本镜像**：如果必须使用旧镜像，build.sh 会在并行构建失败后自动使用 `-j1` 重试（但效率较低）。
+
+**技术细节**：
+- Make 3.82 的 bug 在 Make 4.0（2013 年）中修复
+- Make 4.2.1 在 glibc 2.17 环境下完全兼容
+- others 镜像基于 AlmaLinux 8，系统自带 Make 4.2.1，无此问题
+
+### 镜像构建失败：无法下载离线包
+
+**症状**：
+```
+ERROR: failed to solve: failed to compute cache key: ... no such file or directory
+```
+
+**原因**：
+Dockerfile 尝试从 `--build-context packages=<path>` 挂载离线包，但指定的路径不存在或为空。
+
+**解决方案**：
+1. 使用 `--packages` 参数指定正确的离线包路径
+2. 先运行 `download-packages.sh` 下载所有离线包
+
+```bash
+# 先下载离线包
+./scripts/download-packages.sh ~/packages
+./build-dev-image.sh --arch amd64 --version 3.4.1 --packages ~/packages
+```
+
+### glibc 版本兼容性
+
+**问题**：Make 4.2.1 是否兼容 glibc 2.17？
+
+**答案**：完全兼容。Make 4.2.1 编译时使用 `--without-guile` 选项，仅依赖以下库：
+- `libdl.so.2` (glibc 2.0+)
+- `libc.so.6` (glibc 2.2.5+)
+- `ld-linux-x86-64.so.2` (glibc 2.2.5+)
+
+所有依赖均满足 glibc 2.17（CentOS 7 / manylinux2014）的要求。
+
+可通过以下命令验证：
+```bash
+docker run --rm harbor.tdengine.net/tsdb-builder/dev:latest ldd /usr/bin/make
+```
+
+### 构建性能优化建议
+
+1. **使用离线包**：首次构建前运行 `download-packages.sh` 下载离线包（必需）
+2. **启用 ccache**：默认启用，第二次构建可节省 90%+ 编译时间
+3. **多核编译**：build.sh 自动使用 `-j$(nproc)`，充分利用多核 CPU
+4. **缓存目录持久化**：`--cache` 参数指定的目录应在宿主机持久化，避免重复构建外部依赖
+
+---

@@ -85,12 +85,12 @@ RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
     tar -xzf /mnt/packages/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.tar.gz -C /usr/local && \
     ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cmake /usr/local/bin/cmake
 
-# Download and compile mold from source (with vendored third-party deps)
+# Extract and compile mold from pre-downloaded tarball in packages/
 # GCC 14 (pre-installed in manylinux_2_28) supports C++20.
 # MOLD_MOSTLY_STATIC=ON statically links libstdc++ to avoid runtime dependency.
-RUN git clone --depth 1 --branch v${MOLD_VERSION} --recurse-submodules --shallow-submodules \
-      https://github.com/rui314/mold.git /tmp/mold && \
-    cd /tmp/mold && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    tar -xzf /mnt/packages/mold-${MOLD_VERSION}.tar.gz -C /tmp && \
+    cd /tmp/mold-${MOLD_VERSION} && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DMOLD_MOSTLY_STATIC=ON \
           -DCMAKE_INSTALL_PREFIX=/opt/mold \
@@ -98,27 +98,36 @@ RUN git clone --depth 1 --branch v${MOLD_VERSION} --recurse-submodules --shallow
           -B build && \
     cmake --build build -j$(nproc) && \
     cmake --install build && \
-    rm -rf /tmp/mold
+    rm -rf /tmp/mold-${MOLD_VERSION}
 
 # ── ccache builder (compile from source for AlmaLinux 8) ─────────────────────
 # manylinux_2_28 does not include ccache; building from source avoids EPEL.
 # GCC 14 (pre-installed in manylinux_2_28) provides C++17 needed by ccache.
 FROM stage2-${TARGETARCH} AS ccache-builder
 ARG CCACHE_VERSION
-RUN cd /tmp && \
-    curl -fsSL "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/ccache-${CCACHE_VERSION}.tar.gz" \
-        -o ccache.tar.gz && \
-    tar xf ccache.tar.gz && \
-    cd ccache-${CCACHE_VERSION} && \
+ARG ZSTD_VERSION=1.5.6
+ARG HIREDIS_VERSION=1.2.0
+ARG XXHASH_VERSION=0.8.2
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    tar -xzf /mnt/packages/ccache-${CCACHE_VERSION}.tar.gz -C /tmp && \
+    tar -xzf /mnt/packages/zstd-${ZSTD_VERSION}.tar.gz -C /tmp && \
+    tar -xzf /mnt/packages/hiredis-${HIREDIS_VERSION}.tar.gz -C /tmp && \
+    tar -xzf /mnt/packages/xxhash-${XXHASH_VERSION}.tar.gz -C /tmp && \
+    cd /tmp/ccache-${CCACHE_VERSION} && \
     mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
-          -DZSTD_FROM_INTERNET=ON \
-          -DHIREDIS_FROM_INTERNET=ON \
+          -DDEP_ZSTD=DOWNLOAD \
+          -DDEP_HIREDIS=DOWNLOAD \
+          -DDEP_XXHASH=DOWNLOAD \
+          -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
+          -DFETCHCONTENT_SOURCE_DIR_ZSTD=/tmp/zstd-${ZSTD_VERSION} \
+          -DFETCHCONTENT_SOURCE_DIR_HIREDIS=/tmp/hiredis-${HIREDIS_VERSION} \
+          -DFETCHCONTENT_SOURCE_DIR_XXHASH=/tmp/xxHash-${XXHASH_VERSION} \
           -DENABLE_TESTING=OFF \
           .. && \
     make -j$(nproc) && \
     make install DESTDIR=/opt/ccache-install && \
-    rm -rf /tmp/ccache*
+    rm -rf /tmp/ccache* /tmp/zstd* /tmp/hiredis* /tmp/xxHash*
 
 # ============================================================================
 # Stage 4: Main - Build environment
@@ -150,8 +159,8 @@ ARG BISON_VERSION=3.8.2
 ARG FLEX_VERSION=2.6.4
 
 # Python Package Versions
-ARG TAOSPY_VERSION=2.8.8
-ARG TAOS_WS_PY_VERSION=0.6.5
+ARG TAOSPY_VERSION=2.8.9
+ARG TAOS_WS_PY_VERSION=0.6.9
 
 # Mirror Configuration
 ARG PYPI_MIRROR=http://mirrors.aliyun.com/pypi/simple/
@@ -174,9 +183,7 @@ RUN chmod +x /usr/local/bin/verify-image.sh
 # ============================================================================
 ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8 \
-    RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup \
-    RUSTUP_DIST_SERVER=https://rsproxy.cn
+    LC_ALL=en_US.UTF-8
 
 
 # ============================================================================
@@ -206,8 +213,8 @@ RUN echo "retries=10" >> /etc/yum.conf && \
 # Layer 1b: Bison (AlmaLinux 8 ships 3.0.4; taos-connector-odbc needs >= 3.6
 #           for --warning=counterexamples support)
 # ============================================================================
-RUN wget https://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.gz && \
-    tar -xzf bison-${BISON_VERSION}.tar.gz && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    tar -xzf /mnt/packages/bison-${BISON_VERSION}.tar.gz && \
     cd bison-${BISON_VERSION} && \
     ./configure --prefix=/usr/local && \
     make -j$(nproc) && \
@@ -276,11 +283,16 @@ RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
     ln -sf /usr/local/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}/bin/cpack /usr/local/bin/cpack
 
 # ============================================================================
-# Layer 5: Rust toolchain
+# Layer 5: Rust toolchain (offline standalone installer)
 # Used by: taos-connector-rust
 # ============================================================================
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain ${RUST_VERSION}
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    _arch=$(uname -m) && \
+    tar -xf /mnt/packages/rust-${RUST_VERSION}-${_arch}-unknown-linux-gnu.tar.xz -C /tmp && \
+    /tmp/rust-${RUST_VERSION}-${_arch}-unknown-linux-gnu/install.sh \
+      --destdir=/root --prefix=.cargo \
+      --components=rustc,cargo,clippy-preview,rustfmt-preview,rust-std-${_arch}-unknown-linux-gnu && \
+    rm -rf /tmp/rust-${RUST_VERSION}-*
 
 ENV PATH=/root/.cargo/bin:${PATH}
 
@@ -289,9 +301,11 @@ COPY .cargo/config.toml /root/.cargo/config.toml
 
 # sccache: prebuilt musl binary for Rust compile caching (opt-in via --sccache)
 ARG SCCACHE_VERSION
-RUN _arch=$(uname -m) && \
-    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl.tar.gz" \
-        | tar xz -C /usr/local/bin --strip-components=1 "sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl/sccache" && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    _arch=$(uname -m) && \
+    tar xz -C /usr/local/bin --strip-components=1 \
+        -f /mnt/packages/sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl.tar.gz \
+        "sccache-v${SCCACHE_VERSION}-${_arch}-unknown-linux-musl/sccache" && \
     chmod +x /usr/local/bin/sccache && \
     sccache --version
 
@@ -313,15 +327,24 @@ RUN PY_TAG=$(echo ${PYTHON_VERSION} | tr -d '.') && \
 RUN pip3 config set global.index-url ${PYPI_MIRROR} && \
     pip3 config set global.trusted-host ${PYPI_TRUSTED_HOST}
 
-# Install uv (modern Python package manager)
-RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+# Install uv (modern Python package manager, from offline package)
+ARG UV_VERSION=0.7.12
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    _arch=$(uname -m) && \
+    tar xz -C /usr/local/bin --strip-components=1 \
+        -f /mnt/packages/uv-${UV_VERSION}-${_arch}-unknown-linux-musl.tar.gz \
+        "uv-${_arch}-unknown-linux-musl/uv" \
+        "uv-${_arch}-unknown-linux-musl/uvx" && \
+    chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
-# Install Python packages
-RUN pip3 install --no-cache-dir \
-    taospy==${TAOSPY_VERSION} \
-    taos-ws-py==${TAOS_WS_PY_VERSION} \
-    conan \
-    maturin && \
+# Install Python packages (from offline wheels)
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    pip3 install --no-cache-dir --no-index \
+      --find-links=/mnt/packages/pip/ \
+      taospy==${TAOSPY_VERSION} \
+      taos-ws-py==${TAOS_WS_PY_VERSION} \
+      conan \
+      maturin && \
     conan profile detect --force && \
     conan remote add nexus ${CONAN_REMOTE_URL} --index 0 && \
     sed -i 's/compiler.cppstd=gnu14/compiler.cppstd=gnu17/' /root/.conan2/profiles/default
@@ -345,11 +368,12 @@ ENV PATH=${DOTNET_ROOT}:${PATH}
 # Used by: INSIGHT (taos-insight), EXPLORER_UI (taos-explorer), connector-node
 # Both amd64 and arm64 use official nodejs.org binaries (glibc 2.28 satisfies requirements)
 # ============================================================================
+ARG NPM_REGISTRY_URL=https://registry.npmjs.org/
 RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
     . /etc/environment && \
     tar -xJf /mnt/packages/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz \
         -C /usr/local --strip-components=1 && \
-    npm install -g yarn pnpm@${PNPM_VERSION}
+    npm install -g --registry=${NPM_REGISTRY_URL} yarn pnpm@${PNPM_VERSION}
 
 # ============================================================================
 # Layer 9: Modern tools (mold + protoc + tini)
@@ -371,15 +395,14 @@ RUN mkdir -p /usr/lib64/ccache && \
     ln -sf /usr/local/bin/ccache /usr/lib64/ccache/cc && \
     ln -sf /usr/local/bin/ccache /usr/lib64/ccache/c++
 
-RUN . /etc/environment && \
+RUN --mount=type=bind,from=packages,source=.,target=/mnt/packages \
+    . /etc/environment && \
     # Install tini
-    wget -O /bin/tini https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TINI_ARCH} && \
+    cp /mnt/packages/tini-${TINI_ARCH}-${TINI_VERSION} /bin/tini && \
     chmod +x /bin/tini && \
     # Install protoc
-    wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip && \
-    unzip -o protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ && \
-    chmod +x /usr/bin/protoc && \
-    rm -f protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip
+    unzip -o /mnt/packages/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip -d /usr/ && \
+    chmod +x /usr/bin/protoc
 
 # ============================================================================
 # Layer 10: TDengine client headers and libraries (from packages build context)
