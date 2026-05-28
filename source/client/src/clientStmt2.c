@@ -2331,6 +2331,7 @@ int stmtBindLiteral2(TAOS_STMT2 *stmt) {
 
   SET_ERR("no data binding required for literal sql statement");
   STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
