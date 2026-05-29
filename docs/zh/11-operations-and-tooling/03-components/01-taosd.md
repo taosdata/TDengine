@@ -1615,6 +1615,31 @@ charset 的有效值是 UTF-8。
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 v3.1.0.0 版本开始引入
 
+#### snapshotRateLimit
+
+- 说明：控制每个 dnode 快照发送的总带宽上限。当多个 vgroup 同时进行快照复制时，可通过此参数限制快照发送速率，避免对 follower 节点产生 IO 瓶颈。设置为 0 表示不限速。
+- 类型：整数
+- 单位：MB/s
+- 默认值：0
+- 最小值：0
+- 最大值：10240
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+示例：
+
+```sql
+-- 设置单个 dnode 快照限速为 50 MB/s
+ALTER DNODE 1 'snapshotRateLimit' '50';
+
+-- 设置所有 dnode 快照限速为 50 MB/s
+ALTER ALL DNODES 'snapshotRateLimit' '50';
+
+-- 取消限速
+ALTER ALL DNODES 'snapshotRateLimit' '0';
+```
+
 #### arbHeartBeatIntervalSec
 
 - 说明：用于同步模块调试 **`内部参数`**

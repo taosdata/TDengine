@@ -161,6 +161,7 @@ extern int32_t tsMnodeElectIntervalMs;
 extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
+extern int32_t tsSnapshotRateLimit;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsRoutineReportInterval;

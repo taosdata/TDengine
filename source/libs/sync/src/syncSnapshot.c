@@ -26,6 +26,79 @@
 
 static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
 
+// global snapshot rate limiter
+static SSnapshotRateLimiter *gSnapshotRateLimiter = NULL;
+
+int32_t snapshotRateLimiterCreate(SSnapshotRateLimiter **ppLimiter) {
+  SSnapshotRateLimiter *pLimiter = taosMemoryCalloc(1, sizeof(SSnapshotRateLimiter));
+  if (pLimiter == NULL) {
+    return terrno;
+  }
+  int32_t code = taosThreadMutexInit(&pLimiter->mutex, NULL);
+  if (code != 0) {
+    taosMemoryFree(pLimiter);
+    return TAOS_SYSTEM_ERROR(code);
+  }
+  pLimiter->tokens = 0;
+  pLimiter->lastFillMs = 0;
+  *ppLimiter = pLimiter;
+  gSnapshotRateLimiter = pLimiter;
+  return 0;
+}
+
+void snapshotRateLimiterDestroy(SSnapshotRateLimiter **ppLimiter) {
+  if (ppLimiter == NULL || *ppLimiter == NULL) return;
+  SSnapshotRateLimiter *pLimiter = *ppLimiter;
+  (void)taosThreadMutexDestroy(&pLimiter->mutex);
+  taosMemoryFree(pLimiter);
+  *ppLimiter = NULL;
+  gSnapshotRateLimiter = NULL;
+}
+
+void snapshotRateLimiterCleanUp(void) { snapshotRateLimiterDestroy(&gSnapshotRateLimiter); }
+
+bool snapshotRateLimiterTryConsume(void) {
+  int32_t rateLimit = tsSnapshotRateLimit;
+  if (rateLimit <= 0) return true;
+
+  SSnapshotRateLimiter *pLimiter = gSnapshotRateLimiter;
+  if (pLimiter == NULL) return true;
+
+  bool allowed = false;
+  (void)taosThreadMutexLock(&pLimiter->mutex);
+
+  int64_t nowMs = taosGetTimestampMs();
+  if (pLimiter->lastFillMs == 0) {
+    pLimiter->lastFillMs = nowMs;
+    pLimiter->tokens = (int64_t)rateLimit * 1024 * 1024;
+  }
+
+  int64_t elapsedMs = nowMs - pLimiter->lastFillMs;
+  if (elapsedMs > 0) {
+    int64_t refill = elapsedMs * (int64_t)rateLimit * 1024 * 1024 / 1000;
+    int64_t cap = (int64_t)rateLimit * 1024 * 1024;  // 1 second cap
+    pLimiter->tokens = TMIN(pLimiter->tokens + refill, cap);
+    pLimiter->lastFillMs = nowMs;
+  }
+
+  allowed = (pLimiter->tokens > 0);
+
+  (void)taosThreadMutexUnlock(&pLimiter->mutex);
+  return allowed;
+}
+
+void snapshotRateLimiterDeduct(int32_t bytes) {
+  int32_t rateLimit = tsSnapshotRateLimit;
+  if (rateLimit <= 0) return;
+
+  SSnapshotRateLimiter *pLimiter = gSnapshotRateLimiter;
+  if (pLimiter == NULL) return;
+
+  (void)taosThreadMutexLock(&pLimiter->mutex);
+  pLimiter->tokens -= bytes;
+  (void)taosThreadMutexUnlock(&pLimiter->mutex);
+}
+
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
     if (pBuf->entryDeleteCb) {
@@ -276,9 +349,10 @@ _OUT:
 
 // when sender receive ack, call this function to send msg from seq
 // seq = ack + 1, already updated
-static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
+static int32_t snapshotSend(SSyncSnapshotSender *pSender, int32_t *pSentBytes) {
   int32_t        code = 0;
   SyncSnapBlock *pBlk = NULL;
+  if (pSentBytes) *pSentBytes = 0;
 
   if (pSender->seq < SYNC_SNAPSHOT_SEQ_END) {
     pSender->seq++;
@@ -336,6 +410,7 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     pBlk = NULL;
     pSender->pSndBuf->end = TMAX(pSender->seq + 1, pSender->pSndBuf->end);
   }
+  if (pSentBytes) *pSentBytes = blockLen;
   pSender->lastSendTime = nowMs;
 
 _OUT:;
@@ -373,7 +448,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   }
 
   if (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if ((code = snapshotSend(pSender, NULL)) != 0) {
       goto _out;
     }
   }
@@ -1224,7 +1299,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // update next index
   syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
 
-  code = snapshotSend(pSender);
+  code = snapshotSend(pSender, NULL);
 
 _out:
   (void)taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
@@ -1295,13 +1370,19 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
   }
 
   while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < tsSnapReplMaxWaitN) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if (!snapshotRateLimiterTryConsume()) {
+      sDebug("snapshot rate limited, current rate: %d MB/s", tsSnapshotRateLimit);
+      break;
+    }
+    int32_t sentBytes = 0;
+    if ((code = snapshotSend(pSender, &sentBytes)) != 0) {
       goto _out;
     }
+    snapshotRateLimiterDeduct(sentBytes);
   }
 
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if ((code = snapshotSend(pSender, NULL)) != 0) {
       goto _out;
     }
   }

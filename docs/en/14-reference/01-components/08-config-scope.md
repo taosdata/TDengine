@@ -121,6 +121,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | syncHeartbeatInterval | taosd | Internal parameter, for debugging synchronization module |
 | syncHeartbeatTimeout | taosd | Internal parameter, for debugging synchronization module |
 | syncSnapReplMaxWaitN | taosd | Internal parameter, for debugging synchronization module |
+| snapshotRateLimit | taosd | Controls the total snapshot sending bandwidth per dnode (MB/s), 0 means no limit |
 | arbHeartBeatIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbCheckSyncIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbSetAssignedTimeoutSec | taosd | Internal parameter, for debugging synchronization module |

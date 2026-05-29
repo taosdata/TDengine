@@ -218,7 +218,7 @@ class TestCheckErrorCode:
         """Check the consistency of error codes between header file and doc files.
 
         1. Read all error codes from include/util/taoserror.h
-        2. Read all error codes from docs/zh/14-reference/09-error-code.md
+        2. Read all error codes from docs/zh/09-developer-guide/09-error-codes.md
         3. Read all error codes from docs/en/14-reference/09-error-code.md
         4. Check whether all error codes in header file are documented in both doc files
         5. Check whether the description, possible cause and suggested actions are provided in both doc files
@@ -240,7 +240,7 @@ class TestCheckErrorCode:
         codes = self.readHeadCodes(hFile)
 
         # read zh codes
-        zhDoc = f"{tdFindPath.getTDenginePath()}/docs/zh/14-reference/09-error-code.md"
+        zhDoc = f"{tdFindPath.getTDenginePath()}/docs/zh/09-developer-guide/09-error-codes.md"
         zhCodes = self.readDocCodes(zhDoc)
 
         # read en codes
