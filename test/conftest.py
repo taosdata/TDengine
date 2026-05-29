@@ -307,7 +307,10 @@ def before_test_class(request):
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
-        tdSql.execute("create qnode on dnode 1")
+        try:
+            tdSql.execute("create qnode on dnode 1", queryTimes=1)
+        except Exception:
+            pass  # Qnode may already exist in enterprise builds
         tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
         tdSql.query("show local variables")
         for i in range(len(tdSql.queryResult)):

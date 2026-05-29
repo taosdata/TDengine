@@ -1791,6 +1791,9 @@ _exit:
   if (vMetaRsp.pColRefs) {
     taosMemoryFree(vMetaRsp.pColRefs);
   }
+  if (vMetaRsp.pTagRefs) {
+    taosMemoryFree(vMetaRsp.pTagRefs);
+  }
   return 0;
 }
 

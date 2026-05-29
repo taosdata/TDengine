@@ -158,7 +158,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option_keep.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_option.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_db_alter_replica.py -N 4
-,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_cache_last_shards.py
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/03-Alter/test_cache_lastest_op_dnodelistt_shards.py
 ## 04-Query
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_table.py
@@ -298,22 +298,81 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ctb.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ntb.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ntb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_2.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_3.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_3.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_3.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_4.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_4.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_vtb_ref_4.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_vtb_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_eliminate_virtual_scan.py
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_optimize_type_mismatch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ctb.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ntb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_2.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_3.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_4.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_5.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_2.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_2.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_2.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_3.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_3.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_3.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_4.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_4.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_4.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_5.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_5.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_vtb_ref_5.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma_vtb_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group_vtb_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project_vtb_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window_vtb_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_reference_col.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_boundary.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_ts_subquery_pushdown.py
@@ -321,15 +380,62 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_direct_vchild_ref_vchild.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_direct_vchild_ref_vchild.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_direct_vchild_ref_vchild.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_mixed_stb_vtb_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_mixed_stb_vtb_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_mixed_stb_vtb_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_mixed_stb_vtb_ref_cross_db.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_mixed_stb_vtb_ref_cross_db.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_mixed_stb_vtb_ref_cross_db.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_vstb_ref_vstb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_vstb_ref_vstb.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_vstb_ref_vstb.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_vstb_ref_vstb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_vstb_ref_vstb.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_vstb_ref_vstb.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter_tag_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter_tag_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter_tag_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_alter.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_alter.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_ins_tags.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_ins_tags.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_ins_tags.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_multihop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_multihop.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_multihop.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_select_tags.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_select_tags.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_select_tags.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_show_desc.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_show_desc.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_show_desc.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_mixed_ref_literal_stb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_mixed_ref_literal_stb.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_mixed_ref_literal_stb.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vstable_chain_bug.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_set_tag_batch.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_set_tag_batch.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_set_tag_batch.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_decimal.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_nchar_length.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_validate_referencing.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py
-# Performance and Stress tests
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py -Q 3
+# Performance and Stress tests (run in nightly, not every CI)
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_performance.py
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stress.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stmt2_query.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stmt2_query.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stmt2_query.py -Q 3
 
 # 06-DataIngestion
 ## 01-SQL
@@ -721,6 +827,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db3.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db4.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable_tag_ref.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable_tag_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable_tag_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_batch_alter_tag.py
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_basic.py
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3

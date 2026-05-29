@@ -180,6 +180,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pMsgCb = pHandle->pMsgCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   (*pTaskInfo)->enableExplain = enableExplain;
 

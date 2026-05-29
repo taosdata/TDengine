@@ -81,12 +81,15 @@ typedef struct {
   col_id_t colId;
   int32_t  vgId;
   int32_t  rversion;
+  int8_t   refType;  // 0: column reference, 1: tag reference
 } SColRefInfo;
 
 typedef struct SVtbScanDynCtrlInfo {
   bool             batchProcessChild;
   bool             scanAllCols;
+  bool             useTagScan;
   bool             isSuperTable;
+  bool             hasLocalTag;     // Planner flag: STB has local (non-ref) tags
   bool             needRedeploy;
   bool             hasPartition;
   bool             genNewParam;
@@ -111,6 +114,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        newAddedVgInfo;
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
+  SHashObj*        resolvedColRefMap; // key: root db.table.col ref, value: SDynResolvedColRef*
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
@@ -122,6 +126,14 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        vtbGroupIdTagListMap; // key: vtbGroupId, value: SHashObj <key: vtbUid, value: SArray<STagValue>>
   SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
   SOperatorParam*  vtbScanParam;
+  SHashObj*        tableCfgCache;       // key: "dbFName.tbName" (string), value: STableCfgRsp*; per-query tag-ref chain memo
+  SHashObj*        pExcludedSourceNames; // key: non-matching local source child name (string), value: NULL; for tag-ref filter
+  char*            tagRefFilterColName;  // virtual table tag column name used in the tag-ref filter
+  col_id_t         tagRefFilterColId;    // source tag column ID for tag-ref filter matching
+  char             tagRefTerminalColName[TSDB_COL_NAME_LEN]; // terminal physical tag column name (resolved by planner)
+  // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
+  SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation
+  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo> — columns needed by the filter (defines data block schema)
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

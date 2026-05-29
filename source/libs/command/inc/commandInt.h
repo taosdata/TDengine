@@ -28,6 +28,7 @@ extern "C" {
 
 //newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s"
+#define EXPLAIN_TAG_REF_SOURCE_FORMAT "TagRefSource on %s.%s"
 #define EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT "Virtual Table Scan on %s"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s"
 #define EXPLAIN_TBL_MERGE_SCAN_FORMAT "Table Merge Scan on %s"

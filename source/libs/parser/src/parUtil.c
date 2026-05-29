@@ -413,12 +413,38 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     return NULL;
   }
 
-  size_t      size = TABLE_META_FULL_SIZE(pTableMeta);
-  STableMeta* p = taosMemoryMalloc(size);
+  size_t baseSize = TABLE_META_BASE_SIZE(pTableMeta);
+  bool   hasSchemaExt = (pTableMeta->schemaExt != NULL);
+  size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
+  bool   bHasColRef = (pTableMeta->colRef != NULL && pTableMeta->numOfColRefs > 0);
+  size_t colRefSize = bHasColRef ? pTableMeta->numOfColRefs * sizeof(SColRef) : 0;
+  bool   bHasTagRef = (pTableMeta->tagRef != NULL && pTableMeta->numOfTagRefs > 0);
+  size_t tagRefSize = bHasTagRef ? pTableMeta->numOfTagRefs * sizeof(SColRef) : 0;
+
+  size_t      totalSize = baseSize + schemaExtSize + colRefSize + tagRefSize;
+  STableMeta* p = taosMemoryMalloc(totalSize);
   if (NULL == p) return NULL;
 
-  memcpy(p, pTableMeta, size);
-  tableMetaResetPointers(p);
+  memcpy(p, pTableMeta, baseSize);
+  if (hasSchemaExt) {
+    p->schemaExt = (SSchemaExt*)(((char*)p) + baseSize);
+    memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
+  } else {
+    p->schemaExt = NULL;
+  }
+  if (bHasColRef) {
+    p->colRef = (SColRef*)(((char*)p) + baseSize + schemaExtSize);
+    memcpy(p->colRef, pTableMeta->colRef, colRefSize);
+  } else {
+    p->colRef = NULL;
+  }
+  if (bHasTagRef) {
+    p->tagRef = (SColRef*)(((char*)p) + baseSize + schemaExtSize + colRefSize);
+    memcpy(p->tagRef, pTableMeta->tagRef, tagRefSize);
+  } else {
+    p->tagRef = NULL;
+    p->numOfTagRefs = 0;
+  }
   return p;
 }
 
@@ -1243,7 +1269,7 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableName, (void**)&pMeta);
   if (TSDB_CODE_SUCCESS == code) {
     if (!pMeta) code = TSDB_CODE_PAR_INTERNAL_ERROR;
-    const char* pTableName = (const char *)pMeta + TABLE_META_FULL_SIZE(pMeta);
+    const char* pTableName = (const char*)pMeta + TABLE_META_FULL_SIZE(pMeta);
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
 
@@ -1605,7 +1631,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemaExt = pSchemaExt;
 
   SColRef *pColRef = NULL;
-  if (hasRefCol(pCfg->tableType) && pCfg->pColRefs) {
+  if (hasColRef(pCfg->tableType) && pCfg->pColRefs) {
     int32_t colRefSize = pCfg->numOfColumns * sizeof(SColRef);
     pColRef = taosMemoryMalloc(colRefSize);
     if (!pColRef) goto err;
@@ -1615,7 +1641,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pColRefs = pColRef;
 
   SColRef *pTagRef = NULL;
-  if (hasRefCol(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
+  if (hasTagRef(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
     int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
     pTagRef = taosMemoryMalloc(tagRefSize);
     if (!pTagRef) goto err;
