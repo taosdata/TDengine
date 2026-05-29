@@ -1,86 +1,123 @@
 # -*- coding: utf-8 -*-
 
+import subprocess
 import time
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, etool
 
 
 class TestTaosShellSubscribe:
     """Integration tests for taos CLI subscribe command.
 
-    SQL operations (CREATE, INSERT, DROP) use tdSql (framework connection).
-    The subscribe command uses self.taos() (conftest-injected CLI wrapper).
+    All operations use taos -s to run against the system taosd directly,
+    since the subscribe feature is purely client-side.
     """
 
     DB_NAME = "test_sub_db"
     STABLE_NAME = "meters"
     TOPIC_NAME = "test_sub_topic"
 
+    @classmethod
+    def _run_taos_cls(cls, sql, timeout=10):
+        """Execute SQL via taos -s (class-level)."""
+        taos_bin = etool.binFile("taos")
+        cmd = f'{taos_bin} -s "{sql}"'
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=timeout
+            )
+            return (result.stdout + result.stderr).splitlines()
+        except subprocess.TimeoutExpired:
+            return []
+
+    def _run_taos(self, sql, timeout=10):
+        """Execute SQL via taos -s and return output lines."""
+        return self._run_taos_cls(sql, timeout)
+
     def _subscribe(self, args, timeout=10):
-        """Run subscribe command via taos CLI and return output lines."""
-        rlist = self.taos(f'-s "subscribe {args};"')
-        return rlist
+        """Run subscribe command via taos -s and return output lines."""
+        taos_bin = etool.binFile("taos")
+        cmd = f'{taos_bin} -s "subscribe {args};"'
+        tdLog.info(cmd)
+        try:
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=timeout
+            )
+            output = result.stdout + result.stderr
+        except subprocess.TimeoutExpired as e:
+            stdout = e.stdout or b""
+            stderr = e.stderr or b""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode("utf-8", errors="replace")
+            if isinstance(stderr, bytes):
+                stderr = stderr.decode("utf-8", errors="replace")
+            output = stdout + stderr
+        return output.splitlines()
 
     def _exec_sql(self, sql):
-        """Execute SQL via tdSql (framework connection)."""
-        tdSql.execute(sql)
+        """Execute a SQL statement via taos -s (fire and forget)."""
+        self._run_taos(sql)
+
+    def _drop_group(self, group):
+        """Drop a single consumer group."""
+        self._run_taos(f"DROP CONSUMER GROUP FORCE `{group}` ON {self.TOPIC_NAME}")
 
     def _insert_rows(self, table="d0", count=5, start_ts=1700000000000):
         """Insert rows into specified child table (batched)."""
-        values = " ".join(
+        values = ", ".join(
             f"({start_ts + i}, {10.0 + i}, {220 + i}, {0.5 + i * 0.1})"
             for i in range(count)
         )
         self._exec_sql(f"INSERT INTO {self.DB_NAME}.{table} VALUES {values}")
 
     def _create_topic(self, select_sql=None):
-        """Create topic via tdSql."""
+        """Create topic."""
         if select_sql is None:
             select_sql = f"SELECT ts, current, voltage, phase FROM {self.DB_NAME}.{self.STABLE_NAME}"
         self._exec_sql(f"CREATE TOPIC IF NOT EXISTS {self.TOPIC_NAME} AS {select_sql}")
 
-    ALL_GROUPS = [
-        "grp_earliest", "grp_limit", "grp_offset", "grp_a", "grp_b",
-        "grp_timeout", "grp_clientid", "grp_content", "grp_header",
-        "grp_tbname", "grp_multi", "grp_unk", "grp1"
-    ]
-
-    def setup_class(self):
-        """One-time setup: create database and tables."""
-        tdSql.execute(f"DROP TOPIC IF EXISTS {self.TOPIC_NAME}")
-        tdSql.execute(f"DROP DATABASE IF EXISTS {self.DB_NAME}")
-        tdSql.execute(f"CREATE DATABASE {self.DB_NAME} PRECISION 'ms'")
-        tdSql.execute(
-            f"CREATE STABLE {self.DB_NAME}.{self.STABLE_NAME} "
+    @classmethod
+    def setup_class(cls):
+        """One-time setup: create database, tables, and default topic."""
+        ALL_GROUPS = [
+            "grp_earliest", "grp_limit", "grp_offset", "grp_a", "grp_b",
+            "grp_timeout", "grp_clientid", "grp_content", "grp_header",
+            "grp_tbname", "grp_multi", "grp_unk", "grp1"
+        ]
+        for g in ALL_GROUPS:
+            cls._run_taos_cls(f"DROP CONSUMER GROUP FORCE `{g}` ON {cls.TOPIC_NAME}")
+        cls._run_taos_cls(f"DROP TOPIC IF EXISTS {cls.TOPIC_NAME}")
+        cls._run_taos_cls(f"DROP DATABASE IF EXISTS {cls.DB_NAME}")
+        cls._run_taos_cls(f"CREATE DATABASE {cls.DB_NAME} PRECISION 'ms'")
+        cls._run_taos_cls(
+            f"CREATE STABLE {cls.DB_NAME}.{cls.STABLE_NAME} "
             f"(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
             f"TAGS (groupid INT, location BINARY(24))"
         )
-        tdSql.execute(f"CREATE TABLE {self.DB_NAME}.d0 USING {self.DB_NAME}.{self.STABLE_NAME} TAGS(1, 'Beijing')")
-        tdSql.execute(f"CREATE TABLE {self.DB_NAME}.d1 USING {self.DB_NAME}.{self.STABLE_NAME} TAGS(2, 'Shanghai')")
+        cls._run_taos_cls(f"CREATE TABLE {cls.DB_NAME}.d0 USING {cls.DB_NAME}.{cls.STABLE_NAME} TAGS(1, 'Beijing')")
+        cls._run_taos_cls(f"CREATE TABLE {cls.DB_NAME}.d1 USING {cls.DB_NAME}.{cls.STABLE_NAME} TAGS(2, 'Shanghai')")
 
-    def teardown_class(self):
+    @classmethod
+    def teardown_class(cls):
         """One-time teardown: drop everything."""
-        for g in self.ALL_GROUPS:
-            try:
-                tdSql.execute(f"DROP CONSUMER GROUP FORCE `{g}` ON {self.TOPIC_NAME}", queryTimes=1)
-            except Exception:
-                pass
-        try:
-            tdSql.execute(f"DROP TOPIC IF EXISTS {self.TOPIC_NAME}", queryTimes=1)
-        except Exception:
-            pass
-        tdSql.execute(f"DROP DATABASE IF EXISTS {self.DB_NAME}")
+        ALL_GROUPS = [
+            "grp_earliest", "grp_limit", "grp_offset", "grp_a", "grp_b",
+            "grp_timeout", "grp_clientid", "grp_content", "grp_header",
+            "grp_tbname", "grp_multi", "grp_unk", "grp1"
+        ]
+        for g in ALL_GROUPS:
+            cls._run_taos_cls(f"DROP CONSUMER GROUP FORCE `{g}` ON {cls.TOPIC_NAME}")
+        cls._run_taos_cls(f"DROP TOPIC IF EXISTS {cls.TOPIC_NAME}")
+        cls._run_taos_cls(f"DROP DATABASE IF EXISTS {cls.DB_NAME}")
 
     def setup_method(self):
-        """Per-test: drop topic and recreate tables for clean WAL state."""
-        try:
-            tdSql.execute(f"DROP TOPIC IF EXISTS {self.TOPIC_NAME}")
-        except Exception:
-            pass
-        tdSql.execute(f"DROP TABLE IF EXISTS {self.DB_NAME}.d0")
-        tdSql.execute(f"DROP TABLE IF EXISTS {self.DB_NAME}.d1")
-        tdSql.execute(f"CREATE TABLE {self.DB_NAME}.d0 USING {self.DB_NAME}.{self.STABLE_NAME} TAGS(1, 'Beijing')")
-        tdSql.execute(f"CREATE TABLE {self.DB_NAME}.d1 USING {self.DB_NAME}.{self.STABLE_NAME} TAGS(2, 'Shanghai')")
+        """Per-test: drop topic and truncate tables for clean WAL state."""
+        self._run_taos(f"DROP TOPIC IF EXISTS {self.TOPIC_NAME}")
+        # Recreate tables to ensure clean vgroup state for TMQ
+        self._run_taos(f"DROP TABLE IF EXISTS {self.DB_NAME}.d0")
+        self._run_taos(f"DROP TABLE IF EXISTS {self.DB_NAME}.d1")
+        self._run_taos(f"CREATE TABLE {self.DB_NAME}.d0 USING {self.DB_NAME}.{self.STABLE_NAME} TAGS(1, 'Beijing')")
+        self._run_taos(f"CREATE TABLE {self.DB_NAME}.d1 USING {self.DB_NAME}.{self.STABLE_NAME} TAGS(2, 'Shanghai')")
 
     def _check_output(self, rlist, expected):
         """Check that expected string exists in output."""
