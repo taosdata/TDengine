@@ -4218,7 +4218,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
       }
     }
   }
-  if (pTaskInfo->pStreamRuntimeInfo && pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc /*&&got table list*/) {
+  if (pTaskInfo->pStreamRuntimeInfo && pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc
+      /*&&got table list*/) {
     code = createStreamMultiGrpTableListInfo(pScanNode, pGroupTags, groupSort,
                                     pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, groupIdMap);
     if (code) {

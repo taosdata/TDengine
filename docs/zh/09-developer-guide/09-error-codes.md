@@ -708,6 +708,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006209 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
 | 0x8000620A | Virtual table query find invalid origin scan                               | 虚拟表查询在主键条件下推时，优化器生成了非法的 origin scan 节点               | 保留 SQL 和 explain 执行计划，联系开发处理     |
 | 0x8000620B | Virtual table query cannot find origin timestamp column                    | 虚拟表查询在下推 ts 条件时，origin scan 的 schema 中找不到所需的时间戳主键列    | 保留 SQL 和 explain plan，然后联系开发处理   |
+| 0x8000620C | Virtual table reference depth exceeds limit                                | 虚拟表查询在递归解析引用链时，引用层级超过了执行器支持的最大深度              | 检查虚拟表引用链，缩短引用层级或联系开发处理  |
+| 0x8000620D | Virtual table query cannot resolve ref column                              | 虚拟表查询在递归解析引用列时，找不到合法的下一跳引用或最终引用列               | 检查虚拟表引用链和元数据定义，必要时联系开发处理 |
+| 0x8000620E | Virtual table circular reference detected                                  | 虚拟表查询在递归解析引用链时，检测到循环引用（A→B→...→A）                | 检查虚拟表引用链，消除循环依赖             |
 
 #### TDgpt
 

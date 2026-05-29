@@ -363,6 +363,8 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
                                    SNode* pRef);
 SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     const SToken* pLiteral);
+SNode* createAlterTableAlterTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pTagName,
+                                   SNode* pRef);
 SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList);
 SNode* createAlterMultiTableUpdateTagValStmt(SAstCreateContext* pCxt, SNodeList* pTableList);
 SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList, SNode* pWhere);

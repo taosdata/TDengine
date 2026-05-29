@@ -737,8 +737,10 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
-  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
-  int32_t pTagRefSize = (hasRefCol(msg->tableType) && msg->pTagRefs && !isStb) ? sizeof(SColRef) * msg->numOfTagRefs : 0;
+  int32_t pColRefSize = (hasColRef(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
+  // Virtual super tables also need tagRef so planner can create TagRefSourceLogicNode
+  bool    needTagRef = hasTagRef(msg->tableType) && msg->pTagRefs && (!isStb || msg->virtualStb);
+  int32_t pTagRefSize = needTagRef ? sizeof(SColRef) * msg->numOfTagRefs : 0;
 
   int32_t sz = metaSize + schemaExtSize + pColRefSize + pTagRefSize;
   STableMeta *pTableMeta = taosMemoryCalloc(1, sz);
@@ -786,14 +788,14 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     pTableMeta->schemaExt = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
+  if (hasColRef(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
   } else {
     pTableMeta->colRef = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pTagRefs && !isStb) {
+  if (needTagRef) {
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
     memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
     pTableMeta->numOfTagRefs = msg->numOfTagRefs;
@@ -831,7 +833,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
-  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
+  int32_t pColRefSize = (hasColRef(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
 
@@ -867,7 +869,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     pTableMeta->schemaExt = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
+  if (hasColRef(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = pColRef;
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
   } else {

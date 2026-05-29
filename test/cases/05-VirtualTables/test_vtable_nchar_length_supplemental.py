@@ -242,9 +242,9 @@ class TestVtableNcharLengthSupplemental:
                     f"FROM {db}.vtb_scenario_gt ORDER BY ts;")
         tdSql.checkRows(3)
 
-        # Row 1: 'This is exactly 23 bytes!' = 23 bytes
+        # Row 1: 'This is exactly 23 bytes!' = 25 bytes
         tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
-        tdSql.checkData(0, 1, 23)
+        tdSql.checkData(0, 1, 25)
         tdSql.checkData(0, 2, '这是一段测试中文')
         tdSql.checkData(0, 3, 8)  # 8 Chinese characters
 
@@ -287,9 +287,9 @@ class TestVtableNcharLengthSupplemental:
                     f"FROM {db}.vtb_scenario_eq ORDER BY ts;")
         tdSql.checkRows(3)
 
-        # Row 1: 'This is exactly 23 bytes!' = 23 bytes
+        # Row 1: 'This is exactly 23 bytes!' = 25 bytes
         tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
-        tdSql.checkData(0, 1, 23)
+        tdSql.checkData(0, 1, 25)
         tdSql.checkData(0, 2, '这是一段测试中文')
         tdSql.checkData(0, 3, 8)
 
@@ -314,7 +314,7 @@ class TestVtableNcharLengthSupplemental:
         Setup: vtable BINARY(8) < src BINARY(32), vtable NCHAR(8) < src NCHAR(32)
 
         Expected: Data longer than BINARY(8) must still be returned in full.
-        The 'This is exactly 23 bytes!' string (23 bytes) must NOT be truncated
+        The 'This is exactly 23 bytes!' string (25 bytes) must NOT be truncated
         to 8 bytes even though vtable defines BINARY(8).
 
         Catalog:
@@ -338,10 +338,10 @@ class TestVtableNcharLengthSupplemental:
                     f"FROM {db}.vtb_scenario_lt ORDER BY ts;")
         tdSql.checkRows(3)
 
-        # Row 1: 'This is exactly 23 bytes!' = 23 bytes
-        # KEY ASSERTION: Despite vtable BINARY(8), full 23-byte string is returned
+        # Row 1: 'This is exactly 23 bytes!' = 25 bytes
+        # KEY ASSERTION: Despite vtable BINARY(8), full 25-byte string is returned
         tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
-        tdSql.checkData(0, 1, 23)  # NOT 8 - must be 23
+        tdSql.checkData(0, 1, 25)  # NOT 8 - must be 25
         tdSql.checkData(0, 2, '这是一段测试中文')
         tdSql.checkData(0, 3, 8)  # NOT 8 limit - full 8 chars returned
 

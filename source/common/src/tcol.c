@@ -367,7 +367,11 @@ bool withExtSchema(uint8_t tableType) {
          TSDB_VIRTUAL_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
 }
 
-bool hasRefCol(uint8_t tableType) {
+bool hasColRef(uint8_t tableType) {
+  return TSDB_VIRTUAL_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
+}
+
+bool hasTagRef(uint8_t tableType) {
   return TSDB_VIRTUAL_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
 }
 

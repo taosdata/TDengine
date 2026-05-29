@@ -189,7 +189,40 @@ typedef struct SVirtualScanLogicNode {
   SVgroupsInfo* pVgroupList;
   EScanType     scanType;
   SName         tableName;
+
+  // TagRef support fields - for tag references only (NOT column references)
+  SNodeList*    pTagRefSources;  // STagRefSourceLogicNode list for tag references
+  SNodeList*    pLocalTags;      // Local tags (no reference) - use TagScan
+  SNodeList*    pRefTagCols;     // Referenced tag columns - need source table scan
+  SNode*        pTagFilterCond;  // Tag filter condition extracted from WHERE clause
+
+  // Flags
+  bool          hasTagRef;        // true if has tag references
+  bool          hasLocalTag;      // true if has local tags
 } SVirtualScanLogicNode;
+
+// Tag reference column information
+typedef struct STagRefColumn {
+  ENodeType type;
+  col_id_t  colId;        // Column ID in virtual table
+  col_id_t  sourceColId;  // Tag column ID in source table
+  char      colName[TSDB_COL_NAME_LEN];
+  char      sourceColName[TSDB_COL_NAME_LEN];  // Tag name in source table
+  int32_t   bytes;                             // Tag bytes
+  int8_t    dataType;                          // Tag data type
+} STagRefColumn;
+
+// Tag reference source node - represents a source table that provides referenced tags
+typedef struct STagRefSourceLogicNode {
+  SLogicNode    node;
+  SName         sourceTableName;  // Source table name (db.table)
+  uint64_t      sourceSuid;       // Source super table uid
+  int32_t       sourceId;         // Source ID for matching
+  SNodeList*    pRefCols;         // STagRefColumn list - tags to fetch from this source
+  SVgroupsInfo* pVgroupList;      // Vgroup information for this source table
+  bool          isUsedInFilter;   // true if used in WHERE clause for filtering
+  bool          isUsedInProjection; // true if used in SELECT clause for output
+} STagRefSourceLogicNode;
 
 typedef struct SAggLogicNode {
   SLogicNode node;
@@ -275,6 +308,7 @@ typedef struct SDynQueryCtrlVtbScan {
   bool          hasPartition;
   bool          scanAllCols;
   bool          isSuperTable;
+  bool          hasLocalTag;       // Planner flag: true if STB has local (non-ref) tags
   bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tbName[TSDB_TABLE_NAME_LEN];
@@ -284,6 +318,11 @@ typedef struct SDynQueryCtrlVtbScan {
   SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
   SNodeList*    pScanCols;
+  // Tag-ref filter optimization: TERMINAL physical source info (resolved through chain)
+  uint64_t      tagRefSourceSuid;     // Terminal physical STB UID (0 = not available)
+  col_id_t      tagRefSourceColId;    // Terminal physical tag column ID
+  int8_t        tagRefSourceColType;  // Terminal physical tag column data type
+  char          tagRefTerminalColName[TSDB_COL_NAME_LEN]; // Terminal physical tag column name
 } SDynQueryCtrlVtbScan;
 
 
@@ -546,6 +585,19 @@ typedef struct STagScanPhysiNode {
 
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
+// Tag reference source physical node - represents a source table scan for referenced tags
+typedef struct STagRefSourcePhysiNode {
+  SPhysiNode    node;
+  SName         sourceTableName;  // Source table name (db.table)
+  uint64_t      sourceSuid;       // Source super table uid
+  int32_t       sourceId;         // Source ID for matching
+  SNodeList*    pRefCols;         // STagRefColumn list - tags to fetch from this source
+  SVgroupsInfo* pVgroupList;      // Vgroup information for this source table
+  SNodeList*    pScanCols;        // Columns to scan from source table
+  bool          isUsedInFilter;   // true if used in WHERE clause for filtering
+  bool          isUsedInProjection; // true if used in SELECT clause for output
+} STagRefSourcePhysiNode;
+
 typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pGroupTags;
@@ -556,6 +608,16 @@ typedef struct SVirtualScanPhysiNode {
   SNode*         pSubtable;
   int8_t         igExpired;
   int8_t         igCheckUpdate;
+
+  // TagRef support fields - for tag references only (NOT column references)
+  SNodeList*     pTagRefSources;  // STagRefSourcePhysiNode list for tag references
+  SNodeList*     pLocalTags;      // Local tags (no reference) - use TagScan
+  SNodeList*     pRefTagCols;     // Referenced tag columns - need source table scan
+  SNode*         pTagFilterCond;  // Tag filter condition extracted from WHERE clause
+
+  // Flags
+  bool           hasTagRef;        // true if has tag references
+  bool           hasLocalTag;      // true if has local tags
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
@@ -748,6 +810,7 @@ typedef struct SVtbScanDynCtrlBasic {
   bool       hasPartition;
   bool       scanAllCols;
   bool       isSuperTable;
+  bool       hasLocalTag;       // Planner flag: true if STB has local (non-ref) tags
   char       dbName[TSDB_DB_NAME_LEN];
   char       tbName[TSDB_TABLE_NAME_LEN];
   uint64_t   suid;
@@ -757,6 +820,14 @@ typedef struct SVtbScanDynCtrlBasic {
   SEpSet     mgmtEpSet;
   SNodeList *pScanCols;
   SNodeList *pOrgVgIds;
+  // Tag-ref filter optimization: propagated from VirtualScanPhysiNode
+  SNode*     pTagFilterCond;   // WHERE tag_ref_col = const condition
+  SNodeList *pRefTagCols;      // SColumnNode list of ref-tag columns
+  // Tag-ref filter optimization: TERMINAL physical source info (resolved through chain)
+  uint64_t   tagRefSourceSuid;     // Terminal physical STB UID (0 = not available)
+  col_id_t   tagRefSourceColId;    // Terminal physical tag column ID
+  int8_t     tagRefSourceColType;  // Terminal physical tag column data type
+  char       tagRefTerminalColName[TSDB_COL_NAME_LEN]; // Terminal physical tag column name
 } SVtbScanDynCtrlBasic;
 
 typedef struct SVtbWindowDynCtrlBasic {

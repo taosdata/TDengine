@@ -366,10 +366,12 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
     SET_META_TYPE_CTABLE(output->metaType);
 
     CTG_ERR_JRET(queryCreateCTableMetaFromMsg(rspMsg, &output->ctbMeta));
-  } else if (TSDB_VIRTUAL_CHILD_TABLE == rspMsg->tableType && NULL == rspMsg->pSchemas) {
+  } else if (TSDB_VIRTUAL_CHILD_TABLE == rspMsg->tableType) {
     tstrncpy(output->ctbName, rspMsg->tbName, sizeof(output->ctbName));
 
     SET_META_TYPE_VCTABLE(output->metaType);
+    ctgDebug("ctgUpdateTbMeta VCTABLE path for tb:%s numColRefs=%d numTagRefs=%d pSchemas=%p",
+             rspMsg->tbName, rspMsg->numOfColRefs, rspMsg->numOfTagRefs, rspMsg->pSchemas);
 
     CTG_ERR_JRET(queryCreateVCTableMetaFromMsg(rspMsg, &output->vctbMeta));
   } else {

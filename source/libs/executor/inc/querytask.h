@@ -97,6 +97,7 @@ struct SExecTaskInfo {
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
+  SMsgCb*                  pMsgCb;            // RPC callback (from client or qnode), safe for pure computation operators
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;

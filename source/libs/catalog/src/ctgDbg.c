@@ -446,18 +446,23 @@ void ctgdShowTableMeta(SCatalog *pCtg, const char *tbName, STableMeta *p) {
     return;
   }
 
-  STableComInfo *c = &p->tableInfo;
-
   if (TSDB_CHILD_TABLE == p->tableType) {
     ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64, tbName, p->tableType, p->vgId,
              p->uid, p->suid);
     return;
-  } else {
-    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64
-             ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
-             tbName, p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision,
-             c->numOfColumns, c->rowSize);
   }
+
+  if (TSDB_VIRTUAL_CHILD_TABLE == p->tableType) {
+    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64 ",rver:%d, colRefs:%d, tagRefs:%d",
+             tbName, p->tableType, p->vgId, p->uid, p->suid, p->rversion, p->numOfColRefs, p->numOfTagRefs);
+    return;
+  }
+
+  STableComInfo *c = &p->tableInfo;
+  ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64
+           ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+           tbName, p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision,
+           c->numOfColumns, c->rowSize);
 
   int32_t colNum = c->numOfColumns + c->numOfTags;
   for (int32_t i = 0; i < colNum; ++i) {

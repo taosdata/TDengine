@@ -1125,6 +1125,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
     }
   } else {
     paramList[0].numOfRows = *rowNum;
+    paramList[0].param = ctx->param;
   }
 
   if (0 == *rowNum) {
