@@ -57,6 +57,7 @@ static bool    syncNodeCanChange(SSyncNode* pSyncNode);
 static int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
 static int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
 static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
+static int32_t syncNodeRepairWalIfNeeded(SSyncNode* pSyncNode);
 
 static ESyncStrategy syncNodeStrategy(SSyncNode* pSyncNode);
 
@@ -1397,6 +1398,13 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   pSyncNode->commitIndex = commitIndex;
   sInfo("vgId:%d, sync node commitIndex initialized as %" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
+  // Must run here, before syncNodeLogStoreRestoreOnNeed(), because the log
+  // buffer has not been initialised yet.
+  if ((code = syncNodeRepairWalIfNeeded(pSyncNode)) != 0) {
+    terrno = code;
+    goto _error;
+  }
+
   // restore log store on need
   if ((code = syncNodeLogStoreRestoreOnNeed(pSyncNode)) < 0) {
     terrno = code;
@@ -1545,6 +1553,24 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
   }
 }
 #endif
+
+static int32_t syncNodeRepairWalIfNeeded(SSyncNode* pSyncNode) {
+  int32_t   code = 0;
+  SyncIndex firstVer = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+  if (firstVer <= 0 || firstVer <= pSyncNode->commitIndex + 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+  sWarn("vgId:%d, WAL lost replay entries: need ver:%" PRId64 " but WAL firstVer:%" PRId64
+        ", treating as corruption, clearing WAL",
+        pSyncNode->vgId, pSyncNode->commitIndex + 1, firstVer);
+  code = walClearCorruption(pSyncNode->pWal, pSyncNode->commitIndex);
+  if (code != 0) {
+    sError("vgId:%d, failed to clear WAL corruption since %s", pSyncNode->vgId, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  sInfo("vgId:%d, WAL head-loss cleared, new firstVer will be:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex + 1);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
 
 int32_t syncNodeRestore(SSyncNode* pSyncNode) {
   int32_t code = 0;
