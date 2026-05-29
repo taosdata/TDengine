@@ -377,12 +377,18 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![TDengine TSDB Database 事件窗口示意图](assets/event_window.png)
 
-事件窗口支持使用 TRUE_FOR 参数来设定窗口的过滤条件。只有满足条件的窗口才会返回计算结果。支持以下四种模式：
+事件窗口支持使用 TRUE_FOR 参数来设定窗口整体过滤条件，以及开窗/关窗连续满足门限。三种参数均可选，顺序任意，最多各出现一次：
+
+**窗口整体过滤（`limit_expr`）**：对已完成的窗口按持续时长或行数过滤，只有满足条件的窗口才会返回计算结果：
 
 - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
 - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
 - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
 - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+**开窗连续满足条件（`start(limit_expr)`）**：指定开窗条件（`START WITH` 表达式）必须连续满足 `limit_expr` 指定的行数或时长后，窗口才真正打开。`_wstart` 取 streak 第一行的时间戳（streak 期间的"预热"行包含在窗口内）。streak 中途中断（出现不满足开窗条件的行）则重新计数。仅支持单开窗条件的 `EVENT_WINDOW`。
+
+**关窗连续满足条件（`end(limit_expr)`）**：指定关窗条件（`END WITH` 表达式）必须连续满足 `limit_expr` 指定的行数或时长后，窗口才真正关闭。`_wend` 取关窗 streak 第一行的时间戳（streak 期间的后续行不计入窗口）。streak 中途中断（出现不满足关窗条件的行）则重新计数，窗口保持开启。仅支持单开窗条件的 `EVENT_WINDOW`。
 
 例如，设置最短持续时长为 3s：
 
@@ -400,6 +406,24 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
+```
+
+或者要求开窗条件连续满足 2 行后才真正开窗：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (start(COUNT 2));
+```
+
+或者要求关窗条件连续满足 3s 后才真正关窗：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (end(3s));
+```
+
+或者同时设置开窗和关窗的连续满足条件，并过滤持续时长不足 5s 的窗口：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (5s, start(COUNT 2), end(COUNT 3));
 ```
 
 ### 计数窗口

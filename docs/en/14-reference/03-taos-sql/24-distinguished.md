@@ -142,7 +142,7 @@ Where:
 - `state_expr` is one or more state keys. It can be a column reference or a tag column, or an expression such as `CASE WHEN`, `IF`, `CAST`, comparison expressions, `IN`, `BETWEEN`, `IS NULL` / `IS NOT NULL`, or logical expressions composed with `AND`, `OR`, and `NOT`. The result type must be integer, boolean, or `VARCHAR`.
 - `EXTEND(extend_val)` optionally specifies the boundary extension strategy. `0` is the default behavior. `EXTEND(1)` keeps the window start unchanged and extends the window end forward to just before the next window starts. `EXTEND(2)` keeps the window end unchanged and extends the window start backward to just after the previous window ends.
 - `ZEROTH_STATE(...)` optionally specifies the zero state. A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. By specifying these baseline values with `ZEROTH_STATE`, matching windows are filtered out automatically and are neither calculated nor returned, which keeps the result set focused. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` means the corresponding position does not participate in zero-state matching. A window is filtered only when all constrained positions match their zero-state values.
-- `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both.
+- `TRUE_FOR(true_for_expr)` optionally filters windows by duration, row count, or both. For `EVENT_WINDOW`, also supports `start(...)` for open-condition streak thresholds and `end(...)` for close-condition streak thresholds.
 
 `NULL` values in state keys are handled as follows:
 
@@ -384,12 +384,18 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![Event windows](../../assets/time-series-extensions-04-event-window.png)
 
-The event window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+The event window supports using the TRUE_FOR parameter to set window-level filtering conditions and open/close streak thresholds. All three sub-parameters are optional and may appear in any order, at most once each:
+
+**Window-level filter (`limit_expr`)**: Filters completed windows by duration or row count. Only windows meeting the condition return results:
 
 - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
 - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
 - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
 - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+**Open-condition streak threshold (`start(limit_expr)`)**: The `START WITH` expression must be continuously satisfied for the duration or row count specified by `limit_expr` before the window actually opens. `_wstart` is set to the timestamp of the **first** row in the streak (the "warm-up" rows are included in the window). If the streak is interrupted (a row fails the open condition), the counter resets. Only supported for single-condition `EVENT_WINDOW`.
+
+**Close-condition streak threshold (`end(limit_expr)`)**: The `END WITH` expression must be continuously satisfied for the duration or row count specified by `limit_expr` before the window actually closes. `_wend` is set to the timestamp of the **first** row of the close streak (subsequent streak rows are not counted in the window). If the streak is interrupted, the counter resets and the window remains open. Only supported for single-condition `EVENT_WINDOW`.
 
 For example, setting the minimum duration to 3 seconds:
 
@@ -407,6 +413,24 @@ Or requiring both duration and row count conditions:
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
+```
+
+Or requiring the open condition to be continuously satisfied for 2 rows before the window opens:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (start(COUNT 2));
+```
+
+Or requiring the close condition to be continuously satisfied for 3 seconds before the window closes:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (end(3s));
+```
+
+Or combining open/close streak thresholds with a window-level filter:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (5s, start(COUNT 2), end(COUNT 3));
 ```
 
 ### Count Window

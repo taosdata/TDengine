@@ -391,7 +391,7 @@ Where:
 - `state_expr` can be a column reference, a tag column, a `CASE WHEN` expression, an `IF` expression, a `CAST` expression, or a function call. The result type must be integer (TINYINT, SMALLINT, INT, BIGINT, and their unsigned counterparts), boolean (BOOL), or string (VARCHAR, NCHAR). Floating-point types (FLOAT, DOUBLE) and TIMESTAMP are not supported.
 - `EXTEND(0|1|2)` specifies the window boundary extension strategy.
 - `ZEROTH_STATE(...)` specifies zero-state filtering. The number of arguments must match the number of state keys. Any argument other than `NO_ZEROTH` must be a constant and convertible to the corresponding state-key type. `NO_ZEROTH` can be used to skip a position.
-- `TRUE_FOR(...)` filters windows by duration, row count, or both.
+- `TRUE_FOR(...)` filters windows by duration, row count, or both. For `EVENT_WINDOW`, also supports `start(...)` / `end(...)` for open/close streak thresholds. See [Event Window TRUE_FOR](../14-reference/03-taos-sql/24-distinguished.md#event-window).
 
 For detailed information, see [TDengine Distinctive Queries](../14-reference/03-taos-sql/24-distinguished.md#state-window).
 

@@ -35,7 +35,16 @@ trigger_type: {
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
-true_for_expr: {
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
     duration_time
   | COUNT count_val
   | duration_time AND COUNT count_val
@@ -224,13 +233,16 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
 
 - start_condition：事件开始条件的定义，可以是任意合法条件表达式。
 - end_condition：事件结束条件的定义，可以是任意合法条件表达式。
-- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
-  - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
-  - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
-  - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
-  - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+- true_for_expr：可选，指定窗口的过滤条件和开/关窗连续满足门限。三种参数均可选，顺序任意，最多各出现一次：
+  - **窗口整体过滤（`limit_expr`）**：只有满足条件的窗口才会产生触发：
+    - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+    - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+    - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+    - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+  - **开窗连续满足条件（`start(limit_expr)`）**：`START WITH` 条件连续满足 `limit_expr` 指定的行数或时长后，窗口才真正打开。`_wstart` 取 streak 第一行时间戳。streak 中断则重新计数。
+  - **关窗连续满足条件（`end(limit_expr)`）**：`END WITH` 条件连续满足 `limit_expr` 指定的行数或时长后，窗口才真正关闭。`_wend` 取关窗 streak 第一行时间戳，streak 后续行不计入窗口。streak 中断则重新计数，窗口保持开启。
 
-  其中 `duration_time` 为时间范围正值，时间单位参见[时间单位](../../04-tdengine-sql/01-datatype.md#时间单位)（仅支持毫秒至周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`。
+  其中 `duration_time` 为时间范围正值，时间单位参见[时间单位](../../04-tdengine-sql/01-datatype.md#时间单位)（仅支持毫秒至周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`、`TRUE_FOR(start(COUNT 2))`、`TRUE_FOR(end(3s))`、`TRUE_FOR(5s, start(COUNT 2), end(COUNT 3))`。`start(...)` 和 `end(...)` 仅支持单开窗条件的 `EVENT_WINDOW`。
 
 使用说明：
 

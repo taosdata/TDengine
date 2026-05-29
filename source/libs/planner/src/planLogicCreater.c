@@ -2743,6 +2743,22 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
       pWindow->trueForDuration = pDuration ? ((SValueNode*)pDuration)->datum.i : 0;
     }
   }
+  // Extract start/end limits if present (new feature: delayed-open / deferred-close).
+  if (pEvent->pTrueForLimit != NULL && QUERY_NODE_TRUE_FOR == nodeType(pEvent->pTrueForLimit)) {
+    STrueForNode* pTF = (STrueForNode*)pEvent->pTrueForLimit;
+    if (pTF->pStartLimit != NULL) {
+      STrueForNode* pSL = (STrueForNode*)pTF->pStartLimit;
+      pWindow->startTrueForType     = pSL->trueForType;
+      pWindow->startTrueForCount    = pSL->count;
+      pWindow->startTrueForDuration = pSL->pDuration ? ((SValueNode*)pSL->pDuration)->datum.i : 0;
+    }
+    if (pTF->pEndLimit != NULL) {
+      STrueForNode* pEL = (STrueForNode*)pTF->pEndLimit;
+      pWindow->endTrueForType     = pEL->trueForType;
+      pWindow->endTrueForCount    = pEL->count;
+      pWindow->endTrueForDuration = pEL->pDuration ? ((SValueNode*)pEL->pDuration)->datum.i : 0;
+    }
+  }
   pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
   pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
 

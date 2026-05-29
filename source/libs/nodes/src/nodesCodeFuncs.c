@@ -4050,6 +4050,24 @@ static int32_t physiEventWindowNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkEventWindowPhysiPlanTrueForDuration, pNode->trueForDuration);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "StartTrueForType", pNode->startTrueForType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "StartTrueForCount", pNode->startTrueForCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "StartTrueForDuration", pNode->startTrueForDuration);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "EndTrueForType", pNode->endTrueForType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "EndTrueForCount", pNode->endTrueForCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "EndTrueForDuration", pNode->endTrueForDuration);
+  }
 
   return code;
 }
@@ -4072,6 +4090,24 @@ static int32_t jsonToPhysiEventWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkEventWindowPhysiPlanTrueForDuration, &pNode->trueForDuration);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "StartTrueForType", (int32_t*)&pNode->startTrueForType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "StartTrueForCount", &pNode->startTrueForCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, "StartTrueForDuration", &pNode->startTrueForDuration);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "EndTrueForType", (int32_t*)&pNode->endTrueForType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "EndTrueForCount", &pNode->endTrueForCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, "EndTrueForDuration", &pNode->endTrueForDuration);
   }
 
   return code;
@@ -7231,6 +7267,12 @@ static int32_t trueForNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTrueForCount, pNode->count);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->pStartLimit != NULL) {
+    code = tjsonAddObject(pJson, "StartLimit", nodeToJson, pNode->pStartLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pEndLimit != NULL) {
+    code = tjsonAddObject(pJson, "EndLimit", nodeToJson, pNode->pEndLimit);
+  }
   return code;
 }
 
@@ -7245,6 +7287,12 @@ static int32_t jsonToTrueForNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkTrueForCount, &pNode->count);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, "StartLimit", &pNode->pStartLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, "EndLimit", &pNode->pEndLimit);
   }
   return code;
 }

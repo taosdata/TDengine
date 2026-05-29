@@ -122,6 +122,14 @@ typedef struct SEventTrigger {
   int32_t trueForType;
   int32_t trueForCount;
   int64_t trueForDuration;
+  // start condition consecutive-streak limit (0 = no limit)
+  int32_t startTrueForType;
+  int32_t startTrueForCount;
+  int64_t startTrueForDuration;
+  // end condition consecutive-streak limit (0 = no limit)
+  int32_t endTrueForType;
+  int32_t endTrueForCount;
+  int64_t endTrueForDuration;
 } SEventTrigger;
 
 typedef struct SCountTrigger {

@@ -3079,6 +3079,12 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   pEvent->trueForType = pWindowLogicNode->trueForType;
   pEvent->trueForCount = pWindowLogicNode->trueForCount;
   pEvent->trueForDuration = pWindowLogicNode->trueForDuration;
+  pEvent->startTrueForType     = pWindowLogicNode->startTrueForType;
+  pEvent->startTrueForCount    = pWindowLogicNode->startTrueForCount;
+  pEvent->startTrueForDuration = pWindowLogicNode->startTrueForDuration;
+  pEvent->endTrueForType       = pWindowLogicNode->endTrueForType;
+  pEvent->endTrueForCount      = pWindowLogicNode->endTrueForCount;
+  pEvent->endTrueForDuration   = pWindowLogicNode->endTrueForDuration;
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pEvent->window, pWindowLogicNode);
   }

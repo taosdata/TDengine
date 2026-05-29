@@ -84,6 +84,7 @@ typedef struct SStateDeferredState {
   bool    hasPendingPartialNull;
 } SStateDeferredState;
 
+
 typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   int64_t                          gid;
@@ -104,6 +105,11 @@ typedef struct SSTriggerRealtimeGroup {
       char                 *pFirstSubWinOpenNotify;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
+      // streak state (start/end, always scalar — sub-event + start/end is rejected at parse time)
+      int32_t startCondCount;
+      TSKEY   startCondFirstTs;
+      int32_t endCondCount;
+      TSKEY   endCondFirstTs;
     };
     int64_t totalCount;  // for count window trigger
   };
@@ -411,6 +417,8 @@ typedef struct SStreamTriggerTask {
       SNodeList   *pStartCondCols;
       SNodeList   *pEndCondCols;
       STrueForInfo eventTrueForInfo;
+      STrueForInfo startTrueForInfo;  // start condition consecutive-streak limit
+      STrueForInfo endTrueForInfo;    // end condition consecutive-streak limit
     };
   };
   int32_t trigTsIndex;
