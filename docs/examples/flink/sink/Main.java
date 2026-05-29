@@ -68,7 +68,7 @@ public class Main {
     static void testRowDataToSuperTable() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-        RowData[] rows = new GenericRowData[10];
+        RowData[] rowDatas = new GenericRowData[10];
         Random random = new Random(System.currentTimeMillis());
         for (int i = 0; i < 10; i++) {
             GenericRowData row = new GenericRowData(7);
@@ -80,9 +80,9 @@ public class Main {
             row.setField(4, StringData.fromString("location_" + i)); // location
             row.setField(5, i); // groupid
             row.setField(6, StringData.fromString("d0" + i)); // tbname
-            rows[i] = row;
+            rowDatas[i] = row;
         }
-        DataStream<RowData> dataStream = env.fromElements(RowData.class, rows);
+        DataStream<RowData> dataStream = env.fromElements(RowData.class, rowDatas);
 
         Properties sinkProps = new Properties();
         sinkProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
@@ -104,7 +104,7 @@ public class Main {
     static void testRowDataToNormalTable() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-        RowData[] rows = new GenericRowData[10];
+        RowData[] rowDatas = new GenericRowData[10];
         Random random = new Random(System.currentTimeMillis());
         for (int i = 0; i < 10; i++) {
             GenericRowData row = new GenericRowData(4);
@@ -113,9 +113,9 @@ public class Main {
             row.setField(1, random.nextFloat() * 30); // current
             row.setField(2, 300 + (i + 1)); // voltage
             row.setField(3, random.nextFloat()); // phase
-            rows[i] = row;
+            rowDatas[i] = row;
         }
-        DataStream<RowData> dataStream = env.fromElements(RowData.class, rows);
+        DataStream<RowData> dataStream = env.fromElements(RowData.class, rowDatas);
 
         Properties sinkProps = new Properties();
         sinkProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
@@ -137,7 +137,7 @@ public class Main {
     static void testCustomTypeToSink() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-        ResultBean[] rows = new ResultBean[10];
+        ResultBean[] rowDatas = new ResultBean[10];
         Random random = new Random(System.currentTimeMillis());
         for (int i = 0; i < 10; i++) {
             ResultBean rowData = new ResultBean();
@@ -149,10 +149,10 @@ public class Main {
             rowData.setLocation("location_" + i);
             rowData.setGroupid(i);
             rowData.setTbname("d0" + i);
-            rows[i] = rowData;
+            rowDatas[i] = rowData;
         }
 
-        DataStream<ResultBean> dataStream = env.fromElements(ResultBean.class, rows);
+        DataStream<ResultBean> dataStream = env.fromElements(ResultBean.class, rowDatas);
 
         Properties sinkProps = new Properties();
         sinkProps.setProperty(TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
@@ -265,7 +265,7 @@ public class Main {
         String tbname = "d001";
         int groupId = 1;
         String location = "California.SanFrancisco";
-        List<Row> rows = new ArrayList<>();
+        List<Row> rowDatas = new ArrayList<>();
         Random random = new Random(System.currentTimeMillis());
         for (int i = 0; i < 50; i++) {
             sum += 300 + (i + 1);
@@ -280,7 +280,7 @@ public class Main {
                     tbname
 
             );
-            rows.add(row);
+            rowDatas.add(row);
         }
         
         Table inputTable = tEnv.fromValues(
@@ -293,7 +293,7 @@ public class Main {
                         DataTypes.FIELD("groupid", DataTypes.INT()),
                         DataTypes.FIELD("tbname", DataTypes.STRING())
                 ),
-                rows
+                rowDatas
         );
 
         TableResult result = inputTable.executeInsert("sink_meters");

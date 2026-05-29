@@ -322,8 +322,8 @@ void basic_consume_loop(ws_tmq_t* tmq) {
 }
 // ANCHOR_END: basic_consume_loop
 
-// ANCHOR: consume_repeatedly
-void consume_repeatedly(ws_tmq_t* tmq) {
+// ANCHOR: consume_repeatly
+void consume_repeatly(ws_tmq_t* tmq) {
   int32_t                  numOfAssignment = 0;
   ws_tmq_topic_assignment* pAssign = NULL;
 
@@ -355,7 +355,7 @@ void consume_repeatedly(ws_tmq_t* tmq) {
   // let's consume the messages again
   basic_consume_loop(tmq);
 }
-// ANCHOR_END: consume_repeatedly
+// ANCHOR_END: consume_repeatly
 
 // ANCHOR: manual_commit
 void manual_commit(ws_tmq_t* tmq) {
@@ -450,7 +450,7 @@ int main(int argc, char* argv[]) {
   basic_consume_loop(tmq);
   // ANCHOR_END: subscribe_3
 
-  consume_repeatedly(tmq);
+  consume_repeatly(tmq);
 
   manual_commit(tmq);
 

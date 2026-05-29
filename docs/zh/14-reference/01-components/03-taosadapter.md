@@ -1181,7 +1181,7 @@ reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_
 ###### 参数说明
 
 - **`rejectQuerySqlRegex`**
-  - 配置禁用查询 SQL 的正则表达式列表。支持 [Google RE2 语法](https://github.com/google/re2/wiki/Syntax)。
+  - 配置禁用查询 SQL 的正则表达式列表。支持 [Goole RE2 语法](https://github.com/google/re2/wiki/Syntax)。
   - 默认值：空列表，表示不禁用任何查询 SQL。
 
 ###### 示例说明

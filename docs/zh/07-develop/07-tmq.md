@@ -585,7 +585,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatedly}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
 1. 通过 `tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
@@ -656,7 +656,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c/tmq_demo.c:consume_repeatedly}}
+{{#include docs/examples/c/tmq_demo.c:consume_repeatly}}
 ```
 
 1. 通过 `tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。

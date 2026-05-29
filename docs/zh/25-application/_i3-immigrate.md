@@ -175,7 +175,7 @@ tar -zxvf dataX.tar.gz
             "connection": [
               {
                 "table": [
-                  "metric1"
+                  "matric1"
                 ],
                 "jdbcUrl": "jdbc:TAOS://192.168.1.101:6030/test?timestampFormat=TIMESTAMP"
               }

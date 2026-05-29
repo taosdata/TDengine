@@ -482,7 +482,7 @@ Record this information.
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatedly}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
 1. Use the `tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
@@ -552,7 +552,7 @@ Not supported
 
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c/tmq_demo.c:consume_repeatedly}}
+{{#include docs/examples/c/tmq_demo.c:consume_repeatly}}
 ```
 
 1. Use the `tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.

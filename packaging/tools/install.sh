@@ -591,10 +591,12 @@ function install_lib() {
   rm -f ${lib_link_dir}/libtaos.* || :
   rm -f ${lib_link_dir}/libtaosnative.* || :
   rm -f ${lib_link_dir}/libtaosws.* || :
+  rm -f ${lib_link_dir}/libtaospyudf.* || :
   if [ "$osType" != "Darwin" ]; then
     rm -f ${lib64_link_dir}/libtaos.* || :
     rm -f ${lib64_link_dir}/libtaosnative.* || :
     rm -f ${lib64_link_dir}/libtaosws.* || :
+    rm -f ${lib64_link_dir}/libtaospyudf.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
   cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
@@ -608,6 +610,7 @@ function install_lib() {
     ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
     ln -sf ${driver_dir}/libtaosws.so.* ${lib_link_dir}/libtaosws.so
+    ln -sf ${driver_dir}/libtaospyudf.so.* ${lib_link_dir}/libtaospyudf.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -617,6 +620,7 @@ function install_lib() {
       ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
       ln -sf ${driver_dir}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+      ln -sf ${driver_dir}/libtaospyudf.so.* ${lib64_link_dir}/libtaospyudf.so || :
     fi
 
     # Update library cache
@@ -632,6 +636,9 @@ function install_lib() {
 
     for f in ${driver_dir}/libtaosws.dylib.*; do
       [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
+    done
+    for f in ${driver_dir}/libtaospyudf.dylib.*; do
+      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaospyudf.dylib"
     done
     # Update dyld shared cache
     if [[ $user_mode -eq 0 ]]; then

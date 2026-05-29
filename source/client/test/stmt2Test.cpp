@@ -6163,4 +6163,55 @@ TEST(stmt2Case, query_timestamp_auto_precision) {
   taos_close(taos);
 }
 
+TEST(stmt2Case, query_event_window_concat_date) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists ggdl_scss");
+  do_query(taos, "create database if not exists ggdl_scss");
+  do_query(taos, "create table ggdl_scss.scss_dc_pwr_spd_irrad(ts timestamp, dccode binary(32), pwr double)");
+
+  do_query(taos,
+           "insert into ggdl_scss.scss_dc_pwr_spd_irrad values"
+           "('2026-05-20 00:00:00', 'dc_a', 10.0)"
+           "('2026-05-20 00:10:00', 'dc_a', 30.0)"
+           "('2026-05-20 00:00:00', 'dc_b', 1.0)"
+           "('2026-05-20 00:05:00', 'dc_b', 2.0)"
+           "('2026-05-20 00:10:00', 'dc_b', 3.0)");
+
+  const char* sql =
+      "SELECT st AS data_time, SUM(val) AS sum_pwr "
+      "FROM ("
+      "  SELECT _wstart AS st, last(pwr) AS val "
+      "  FROM ggdl_scss.scss_dc_pwr_spd_irrad "
+      "  WHERE ts >= CONCAT(?, ' 00:00:00') "
+      "    AND ts <= CONCAT(?, ' 23:59:59') "
+      "  PARTITION BY dccode "
+      "  INTERVAL(5m) "
+      "  FILL(PREV)"
+      ") t "
+      "GROUP BY st "
+      "ORDER BY st";
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, sql, 0);
+
+  int32_t          date_len[2] = {0};
+  char             isnull[1] = {1};
+  TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_BINARY, (void*)NULL, &date_len[0], isnull, 1},
+                                {TSDB_DATA_TYPE_BINARY, (void*)NULL, &date_len[0], isnull, 1}};
+  TAOS_STMT2_BIND* paramv = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  code = taos_stmt2_exec(stmt, NULL);
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists ggdl_scss");
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop
