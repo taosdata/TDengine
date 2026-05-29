@@ -17076,7 +17076,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecif
     }
   }
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNew(pTagArray, 1, false, ppTag);
+    code = tTagNewWithName(pTagArray, tagName, getTableTagSchema(pSuperTableMeta), numOfTags, 1, ppTag);
   }
 
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
@@ -17139,7 +17139,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SNodeList* pValsOfT
   }
 
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNew(pTagArray, 1, false, ppTag);
+    code = tTagNewWithName(pTagArray, tagName, getTableTagSchema(pSuperTableMeta), getNumOfTags(pSuperTableMeta), 1, ppTag);
   }
 
   for (int32_t i = 0; i < TARRAY_SIZE(pTagArray); ++i) {
@@ -17394,7 +17394,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, 
   if (TSDB_CODE_SUCCESS == code) {
     pParFileCxt->tagNameFilled = true;
     if (!isJson) {
-      code = tTagNew(pParFileCxt->aTagVals, 1, false, &pParFileCxt->pTag);
+      code = tTagNewWithName(pParFileCxt->aTagVals, pParFileCxt->aTagNames, pSchemas, numOfTags, 1,
+                             &pParFileCxt->pTag);
     }
   }
 

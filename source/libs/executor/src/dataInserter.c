@@ -703,7 +703,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       }
     }
     STag* pTag = NULL;
-    code = tTagNew(pTagVals, 1, false, &pTag);
+    code = tTagNewWithName(pTagVals, TagNames, pInserter->pTagSchema->pSchema, pInserter->pTagSchema->nCols, 1, &pTag);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
       qError("failed to create tag, error:%s", tstrerror(code));

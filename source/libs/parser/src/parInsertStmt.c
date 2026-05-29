@@ -170,10 +170,6 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         goto end;
       }
     }
-    if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = terrno;
-      goto end;
-    }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bind[c].buffer);
@@ -243,10 +239,16 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         code = terrno;
         goto end;
       }
+      if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
+        code = terrno;
+        goto end;
+      }
     }
   }
 
-  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+  if (!isJson &&
+      (code = tTagNewWithName(pTagArray, tagName, pSchema, pDataBlock->pMeta->tableInfo.numOfTags, 1, &pTag)) !=
+          TSDB_CODE_SUCCESS) {
     goto end;
   }
 
@@ -505,6 +507,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SMsgBuf        pBuf = {.buf = msgBuf, .len = msgBufLen};
   int32_t        code = TSDB_CODE_SUCCESS;
+  SArray*        tagName = NULL;
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
     return buildInvalidOperationMsg(&pBuf, "tags is null");
@@ -515,7 +518,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
 
-  SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
   if (!tagName) {
     code = buildInvalidOperationMsg(&pBuf, "out of memory");
     goto end;
@@ -547,10 +550,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         goto end;
       }
     }
-    if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = terrno;
-      goto end;
-    }
+
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bind[c].buffer);
@@ -627,10 +627,16 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         code = terrno;
         goto end;
       }
+      if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
+        code = terrno;
+        goto end;
+      }
     }
   }
 
-  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+  if (!isJson &&
+      (code = tTagNewWithName(pTagArray, tagName, pSchema,
+                              pDataBlock->pMeta->tableInfo.numOfTags, 1, &pTag)) != TSDB_CODE_SUCCESS) {
     goto end;
   }
 

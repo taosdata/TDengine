@@ -1057,7 +1057,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !isJson) {
-    code = tTagNew(pTagVals, 1, false, &pTag);
+    code = tTagNewWithName(pTagVals, pTagName, pSchema, getNumOfTags(pStmt->pTableMeta), 1, &pTag);
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !autoCreate) {
@@ -2001,7 +2001,9 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
-      code = tTagNew(pStbRowsCxt->aTagVals, 1, false, &pStbRowsCxt->pTag);
+      SSchema* pTagsSchema = getTableTagSchema(pStbRowsCxt->pStbMeta);
+      code = tTagNewWithName(pStbRowsCxt->aTagVals, pStbRowsCxt->aTagNames, pTagsSchema,
+                             getNumOfTags(pStbRowsCxt->pStbMeta), 1, &pStbRowsCxt->pTag);
     }
   }
 
