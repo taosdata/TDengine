@@ -158,7 +158,6 @@ SWal   *walOpen(const char *path, SWalCfg *pCfg);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
 int32_t walPersist(SWal *);
 void    walClose(SWal *);
-int32_t walClearCorruption(SWal *, int64_t commitIndex);
 
 // write interfaces
 // By assigning index by the caller, wal gurantees linearizability

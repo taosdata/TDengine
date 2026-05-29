@@ -299,14 +299,7 @@ func (gm *GeneralMetric) lineWriteBody(buf *bytes.Buffer, qid uint64) error {
 	latency := endTime.Sub(startTime)
 
 	if err != nil {
-		statusCode := -1
-		if resp != nil {
-			statusCode = resp.StatusCode
-			if resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-		}
-		gmLogger.Errorf("latency:%v, req_data:%v, url:%s, resp:%d, err:%s", latency, req_data, urlWithQid.String(), statusCode, err)
+		gmLogger.Errorf("latency:%v, req_data:%v, url:%s, resp:%d, err:%s", latency, req_data, urlWithQid.String(), resp.StatusCode, err)
 		return err
 	}
 	if logger.Logger.IsLevelEnabled(logrus.TraceLevel) {

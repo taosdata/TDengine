@@ -189,7 +189,6 @@ SWords shellCommands[] = {
     {"select today();", 0, 0, NULL},
     {"select timezone();", 0, 0, NULL},
     {"set max_binary_display_width ", 0, 0, NULL},
-    {"subscribe ", 0, 0, NULL},
     {"show apps;", 0, 0, NULL},
     {"show alive;", 0, 0, NULL},
     {"show anodes;", 0, 0, NULL},
