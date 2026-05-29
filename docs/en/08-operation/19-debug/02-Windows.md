@@ -20,7 +20,7 @@ If no `.dmp` file was produced in the previous step, the crash may not be captur
 
 Save the following content as a `.reg` file and double-click it to import into the registry, enabling out-of-process dump capture:
 
-```
+```ini
 Windows Registry Editor Version 5.00
 
 ; Enable WER out-of-process dump for taosd.exe
@@ -46,6 +46,7 @@ Windows Registry Editor Version 5.00
 ```
 
 Configuration options:
+
 - **DumpCount**: Maximum number of `.dmp` files to keep. The oldest file is deleted when the limit is exceeded (default: 10).
 - **DumpFolder**: Directory where `.dmp` files are stored (e.g., `C:\TDengine\core\`).
 
@@ -53,7 +54,6 @@ Configuration options:
 
 A crash stack trace can only be resolved to function names and line numbers when combined with PDB files. PDB files can be obtained as follows:
 
-- **Community Edition users**: Download from the official symbol server at https://www.taosdata.com/symbols/ — select the matching version.
 - **Enterprise Edition users**: PDB files are not currently available for download. Contact TDengine technical support to obtain them.
 - **Self-compiled builds**: PDB files are in the same directory as the compiled executables.
 
@@ -77,7 +77,7 @@ To run an ASan build of TDengine on a target machine, copy the ASan runtime DLL 
 
 Location of the ASan runtime DLL on the build machine (VS 2022):
 
-```
+```text
 C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\
 ```
 
@@ -88,7 +88,7 @@ C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.3520
 
 ### ASan Report Output Location
 
-**Default output: stderr**
+#### Default output: stderr
 
 The ASan report is written to stderr by default. Where it ends up depends on how taosd is launched:
 
@@ -135,7 +135,7 @@ void test() {
 
 ASan successfully detects the out-of-bounds access and reports:
 
-```
+```text
 =================================================================
 ==12345==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffde5c1f8f0 at pc 0x0000000000000 bp 0x7ffde5c1f8a0 sp 0x7ffde5c1f890
 READ of size 8 at 0x7ffde5c1f8f0 thread T0
