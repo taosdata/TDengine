@@ -6395,6 +6395,20 @@ TEST_F(stmt2CaseF, insert) {
         TSDB_CODE_SUCCESS, 1),
     R("insert into stmt2_insert.? values(?,?)",
         TSDB_CODE_SUCCESS, 3),
+    R("insert into stmt2_insert.? values(now(),?)",
+        TSDB_CODE_SUCCESS, 2),
+    R("insert into stmt2_insert.? values(now,?)",
+        TSDB_CODE_SUCCESS, 2),
+    R("insert into stmt2_insert.? values(now,null)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,true)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,false)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,-1)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,-1.2)",
+        TSDB_CODE_SUCCESS, 1),
   };
 #undef R
   for (size_t i=0; i<sizeof(_cases1)/sizeof(*_cases1); ++i) {

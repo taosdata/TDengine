@@ -27,8 +27,9 @@ char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "setta
 static inline void
 stmt2LiteralCtxReset(SStmt2LiteralCtx *ctx) {
   ctx->code = 0;
-  ctx->prepared = 0;
-  ctx->executed = 0;
+  ctx->prepared  = 0;
+  ctx->executing = 0;
+  ctx->executed  = 0;
 }
 
 static inline void
@@ -2203,18 +2204,39 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
 static void stmtLiteralCallback(void *param, TAOS_RES *res, int code) {
   TAOS_STMT2* stmt = (TAOS_STMT2*)param;
   STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  pStmt->ctx.code  = code; // NOTE: currently taos_stmt2_xxx is NOT thread-safe
+
   if (pStmt->exec.pRequest == NULL) {
+    // NOTE: preparing stage for literal statement by stmt2
+    //       transfer `res` which is created by buildRequest
     pStmt->exec.pRequest = res;
+    // NOTE: wake up waiting thread
+    tsem_post(&pStmt->ctx.sem);
   } else {
-    // NOTE: internal logic error, not recoverable!!!
+    // NOTE: executing stage for literal statement by stmt2
     if (pStmt->exec.pRequest != res) {
+      // NOTE: internal logic error, not recoverable!!!
       STMT2_ELOG("%s[%d]:%s():internal logic error",
           __FILE__, __LINE__, __func__);
       abort();
     }
+
+    if (pStmt->options.asyncExecFn) {
+      // NOTE: user requires asynchronous execution via `taos_stmt2_init`
+      // TODO: a well-defined reentrancy protection is desired, but ...
+
+      // NOTE: `executing` and `executed` are mutually exclusive
+      pStmt->ctx.executing = 0;
+      pStmt->ctx.executed = 1;
+
+      pStmt->options.asyncExecFn(pStmt->options.userdata,
+          pStmt->exec.pRequest, pStmt->ctx.code);
+    } else {
+      // NOTE: wake up waiting thread
+      tsem_post(&pStmt->ctx.sem);
+    }
   }
-  pStmt->ctx.code  = code;
-  tsem_post(&pStmt->ctx.sem);
 }
 
 static int stmtPrepareLiteral2(TAOS_STMT2* stmt) {
@@ -2330,8 +2352,7 @@ int stmtBindLiteral2(TAOS_STMT2 *stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   SET_ERR("no data binding required for literal sql statement");
-  STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
-  return TSDB_CODE_SUCCESS;
+  STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
 }
 
 static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
@@ -3484,32 +3505,47 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  if (pStmt->ctx.executed) {
-    SET_ERR("multiple execution of literal sql statement not supported yet");
+  if (pStmt->ctx.executing) {
+    SET_ERR("previous execution of literal sql statement still in progress");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
   }
 
-  pStmt->ctx.executed = 1;
+  if (pStmt->ctx.executed) {
+    SET_ERR("multiple execution of a prepared literal sql statement "
+        "not supported yet");
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+  }
 
+  pStmt->ctx.executing = 1;
+
+  // NOTE: triggering execution logic of a prepared literal sql statement
   taosAsyncExecLiteral(stmt);
-  tsem_wait(&pStmt->ctx.sem);
 
-  if (affected_rows) {
+  if (pStmt->options.asyncExecFn == NULL) {
+    // NOTE: waiting for execution process to finish
+    tsem_wait(&pStmt->ctx.sem);
+
+    // NOTE: `executing` and `executed` are mutualy exclusive
+    pStmt->ctx.executing = 0;
+    pStmt->ctx.executed = 1;
+
     if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
-      TAOS_RES *res = pStmt->exec.pRequest;
-      *affected_rows = taos_affected_rows(res);
-    } else {
-      *affected_rows = 0;
+      if (affected_rows) {
+        if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
+          // NOTE: literal sql statement does not generate any result set
+          TAOS_RES *res = pStmt->exec.pRequest;
+          *affected_rows = taos_affected_rows(res);
+        } else {
+          // NOTE: literal sql statement generates a result set
+          *affected_rows = 0;
+        }
+      }
     }
+    return pStmt->ctx.code;
   }
 
-  if (pStmt->options.asyncExecFn) {
-    // TODO: a well-defined reentrancy protection is desired, but ...
-    pStmt->options.asyncExecFn(pStmt->options.userdata,
-        pStmt->exec.pRequest, pStmt->ctx.code);
-  }
-
-  return pStmt->ctx.code;
+  // NOTE: what if taosAsyncExecLiteral failed prematurelly?
+  return TSDB_CODE_SUCCESS;
 }
 
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
@@ -3731,10 +3767,16 @@ int stmtClose2(TAOS_STMT2* stmt) {
 const char* stmt2Errstr(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  if (stmt == NULL || NULL == pStmt->exec.pRequest) {
-    if (stmt && stmtIsLiteral(pStmt)) {
+  if (stmt && stmtIsLiteral(pStmt)) {
+    if (NULL == pStmt->exec.pRequest) {
+      // NOTE: since pStmt->exec.pRequest not fully prepared yet
+      //       error msg is stored in pStmt->msgBuf via `SET_ERR`
       return pStmt->msgBuf;
     }
+    return tstrerror(pStmt->ctx.code);
+  }
+
+  if (stmt == NULL || NULL == pStmt->exec.pRequest) {
     return (char*)tstrerror(terrno);
   }
 

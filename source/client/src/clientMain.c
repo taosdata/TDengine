@@ -1897,7 +1897,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
+    if (NEED_CLIENT_HANDLE_ERROR(code) && (pRequest->stmtBindVersion == 0 || (pRequest->stmtBindVersion == 2 && pRequest->literal_by_stmt2))) {
+      // NOTE: also cover literal statement by stmt2
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       restartAsyncQuery(pRequest, code);
@@ -2150,8 +2151,13 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   if (pRequest->literal_by_stmt2) {
-    doRequestCallback(pRequest, code);
-    return;
+    TAOS_STMT2* stmt = pRequest->literal_by_stmt2;
+    STscStmt2* pStmt = (STscStmt2*)stmt;
+    if (pStmt->ctx.prepared == 0) {
+      // NOTE: preparing stage for literal statement by stmt2
+      doRequestCallback(pRequest, code);
+      return;
+    }
   }
 
   assert(pWrapper == pRequest->pWrapper);

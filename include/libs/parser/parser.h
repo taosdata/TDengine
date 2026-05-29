@@ -24,34 +24,6 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
-#include <syslog.h>
-
-#if 0   /* { */
-#if 0       /* { */
-#define D(fmt, ...)                                                            \
-  fprintf(stderr, "@[%p]%s[%d]:%s():" fmt "\n",                                \
-      (void*)(uintptr_t)taosThreadSelf(), __FILE__, __LINE__, __func__,        \
-      ##__VA_ARGS__)
-
-#define A(expr, fmt, ...)                                                      \
-  if (!(expr)) {                                                               \
-    D("assert `%s` failure:" fmt "", #expr, ##__VA_ARGS__);                    \
-    abort();                                                                   \
-  }
-#else       /* }{ */
-#define D(fmt, ...)                                                            \
-  syslog(LOG_DEBUG, "@[%p]%s[%d]:%s():" fmt "\n",                              \
-      (void*)(uintptr_t)taosThreadSelf(), __FILE__, __LINE__, __func__,        \
-      ##__VA_ARGS__)
-
-#define A(expr, fmt, ...)                                                      \
-  if (!(expr)) {                                                               \
-    D("assert `%s` failure:" fmt "", #expr, ##__VA_ARGS__);                    \
-    abort();                                                                   \
-  }
-#endif      /* } */
-#endif  /* } */
-
 #define PAR_ERR_RET(c)                \
   do {                                \
     int32_t _code = c;                \

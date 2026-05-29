@@ -152,18 +152,53 @@ next_value:
   if (MATCH(TK_NK_QUESTION)) {
     ++pCtx->nr_params;
     ++nr_values;
+    ADVANCE();
   } else if (MATCH(TK_NK_INTEGER)
       || MATCH(TK_NK_FLOAT)
-      || MATCH(TK_NK_STRING)) {
+      || MATCH(TK_NK_STRING)
+      || MATCH(TK_NK_BOOL)
+      || MATCH(TK_NULL)) {
     if (nr_values == nr_names) {
       RETURN_EXPECTING("`)`");
+    }
+    ++nr_values;
+    ADVANCE();
+  } else if (MATCH(TK_NK_MINUS)) {
+    SToken t1 = token;
+    ADVANCE();
+    if (!MATCH(TK_NK_INTEGER) && !MATCH(TK_NK_FLOAT)) {
+      RETURN_EXPECTING("<integer>|<float>");
+    }
+    if (t1.n + token.n != token.z + token.n - t1.z) {
+      token = t1;
+      RETURN_EXPECTING("<integer>|<float>");
+    }
+    ADVANCE();
+    ++nr_values;
+  } else if (MATCH(TK_NOW)) {
+    ADVANCE();
+    if (MATCH(TK_NK_LP)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_RP)) {
+        RETURN_EXPECTING("`)`");
+      }
+      ADVANCE();
+    }
+    ++nr_values;
+  } else if (MATCH(TK_TODAY)) {
+    ADVANCE();
+    if (MATCH(TK_NK_LP)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_RP)) {
+        RETURN_EXPECTING("`)`");
+      }
+      ADVANCE();
     }
     ++nr_values;
   } else {
     RETURN_EXPECTING("`?` or <INTEGER> or <FLOAT> or <STRING>");
   }
 
-  ADVANCE();
   if (MATCH(TK_NK_COMMA)) {
     if (nr_values == nr_names) {
       RETURN_EXPECTING("`)`");
