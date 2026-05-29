@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
     taos_query_a(taos, sql, taos_insert_call_back, (void *)(tableList + i));
   }
 
-  printf("once insert finished, presse any key to query\n");
+  printf("once insert finished, press any key to query\n");
   getchar();
 
   while (1) {

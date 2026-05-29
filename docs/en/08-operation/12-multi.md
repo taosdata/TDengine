@@ -74,7 +74,7 @@ The configuration items related to shared storage are stored in `/etc/taos/taos.
 
 | Parameter Name           | Description                                                  |
 | :----------------------- | :----------------------------------------------------------- |
-| ssEnabled                | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migation. |
+| ssEnabled                | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migration. |
 | ssAccessString           | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, available options differ from storage device types, please refer the next section for details. |
 | ssUploadDelaySec         | How long a data file remains unchanged before being uploaded to shared storage, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
 | ssPageCacheSize          | Number of shared storage page cache pages, in pages. Minimum: 4; Maximum: 1024 *1024* 1024, default value 4096 |
