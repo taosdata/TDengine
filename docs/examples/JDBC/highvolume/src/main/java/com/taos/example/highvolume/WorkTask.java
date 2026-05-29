@@ -19,7 +19,7 @@ class WorkTask implements Runnable, Stoppable {
     private final String dbName;
     private volatile boolean  active = true;
     public WorkTask(int taskId,
-                    int writeThradCount,
+                    int writeThreadCount,
                     int batchSizeByRow,
                     int cacheSizeByRow,
                     int rowsPerTable,
@@ -27,7 +27,7 @@ class WorkTask implements Runnable, Stoppable {
                     int subTableEndIndex,
                     String dbName) {
         this.taskId = taskId;
-        this.writeThreadCount = writeThradCount;
+        this.writeThreadCount = writeThreadCount;
         this.batchSizeByRow = batchSizeByRow;
         this.cacheSizeByRow = cacheSizeByRow;
         this.rowsPerTable = rowsPerTable;

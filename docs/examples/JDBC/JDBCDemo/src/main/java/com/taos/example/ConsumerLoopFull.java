@@ -21,7 +21,7 @@ public class ConsumerLoopFull {
     static private Statement statement;
     static private volatile boolean stopThread = false;
     static private String groupId = "group1";
-    static private String clientId = "clinet1";
+    static private String clientId = "client1";
 
         public static TaosConsumer<ResultBean> getConsumer() throws Exception {
 // ANCHOR: create_consumer
@@ -33,7 +33,7 @@ public class ConsumerLoopFull {
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
         config.setProperty("group.id", "group1");
-        config.setProperty("client.id", "clinet1");
+        config.setProperty("client.id", "client1");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
         config.setProperty("value.deserializer", "com.taos.example.ConsumerLoopFull$ResultDeserializer");

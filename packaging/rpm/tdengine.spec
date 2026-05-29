@@ -51,6 +51,8 @@ nativelibfile="libtaosnative.so"
 pkg_nativelibfile="libtaosnative.so.%{_version}"
 wslibfile="libtaosws.so"
 pkg_wslibfile="libtaosws.so.%{_version}"
+pyudflibfile="libtaospyudf.so"
+pkg_pyudflibfile="libtaospyudf.so.%{_version}"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -109,8 +111,14 @@ cp %{_internalpackagingdir}/stop-all.sh  %{buildroot}%{homepath}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
-if [ -f %{_taosxdir}/target/release/taos-explorer ]; then
+# taos-explorer: prefer package_inputs (stripped), then taosx cargo, then cmake output
+pkg_inputs_explorer=$(find "%{_compiledir}/taos-xservice/package_inputs" -path "*/taosx/bin/taos-explorer" 2>/dev/null | head -1)
+if [ -n "${pkg_inputs_explorer}" ] && [ -f "${pkg_inputs_explorer}" ]; then
+    cp ${pkg_inputs_explorer} %{buildroot}%{homepath}/bin
+elif [ -f %{_taosxdir}/target/release/taos-explorer ]; then
     cp %{_taosxdir}/target/release/taos-explorer %{buildroot}%{homepath}/bin
+elif [ -f %{_compiledir}/build/bin/taos-explorer ]; then
+    cp %{_compiledir}/build/bin/taos-explorer %{buildroot}%{homepath}/bin
 fi
 
 if [ -f %{_compiledir}/build/bin//taoskeeper ]; then
@@ -123,6 +131,9 @@ fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver/${pkg_libfile}
 cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver/${pkg_nativelibfile}
 cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver/${pkg_wslibfile} ||:
+if [ -f "%{_compiledir}/build/lib/${pyudflibfile}" ]; then
+    cp %{_compiledir}/build/lib/${pyudflibfile}     %{buildroot}%{homepath}/driver/${pkg_pyudflibfile} ||:
+fi
 cp %{_communitysourcedir}/include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_communitysourcedir}/include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_communitysourcedir}/include/util/taoserror.h       %{buildroot}%{homepath}/include
@@ -166,7 +177,7 @@ if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     fi
 fi
 ls -al %{buildroot}%{homepath}/bin
-tree -L 5
+command -v tree >/dev/null 2>&1 && tree -L 5 || :
 echo "==============================copying files done"
 #Scripts executed before installation
 %pre
@@ -175,7 +186,9 @@ if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
   exit 1
 fi
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 
@@ -210,7 +223,9 @@ ${csudo}rm -f %{homepath}/driver/libtaos*   || :
 #Scripts executed after installation
 %post
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 cd %{homepath}/script
@@ -219,7 +234,9 @@ ${csudo}./post.sh
 # Scripts executed before uninstall
 %preun
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 # only remove package to call preun.sh, not but update(2)
@@ -262,6 +279,8 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${lib64_link_dir}/libtaosnative.so  || :
     ${csudo}rm -f ${lib_link_dir}/libtaosws.so  || :
     ${csudo}rm -f ${lib64_link_dir}/libtaosws.so  || :
+    ${csudo}rm -f ${lib_link_dir}/libtaospyudf.*  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaospyudf.*  || :
 
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :
@@ -279,7 +298,9 @@ fi
 # clean build dir
 %clean
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 ${csudo}rm -rf %{buildroot}

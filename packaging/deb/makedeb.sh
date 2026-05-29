@@ -64,6 +64,8 @@ nativelibfile="libtaosnative.so"
 pkg_nativelibfile="libtaosnative.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
 pkg_wslibfile="libtaosws.so.${tdengine_ver}"
+pyudflibfile="libtaospyudf.so"
+pkg_pyudflibfile="libtaospyudf.so.${tdengine_ver}"
 
 # create install dir
 install_home_path="/usr/local/taos"
@@ -148,14 +150,23 @@ if [ -f "${compile_dir}/build/bin/taoskeeper" ]; then
     cp ${compile_dir}/build/bin/taoskeeper                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
-if [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
+# taos-explorer: prefer package_inputs (stripped), then taosx cargo, then cmake output
+pkg_inputs_explorer=$(find "${compile_dir}/taos-xservice/package_inputs" -path "*/taosx/bin/taos-explorer" 2>/dev/null | head -1)
+if [ -n "${pkg_inputs_explorer}" ] && [ -f "${pkg_inputs_explorer}" ]; then
+    cp ${pkg_inputs_explorer} ${pkg_dir}${install_home_path}/bin ||:
+elif [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
     cp ${taosx_dir}/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
+elif [ -f "${compile_dir}/build/bin/taos-explorer" ]; then
+    cp ${compile_dir}/build/bin/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver/${pkg_libfile}     
 cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver/${pkg_nativelibfile}
 cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver/${pkg_wslibfile} ||:
+if [ -f "${compile_dir}/build/lib/${pyudflibfile}" ]; then
+    cp ${compile_dir}/build/lib/${pyudflibfile}     ${pkg_dir}${install_home_path}/driver/${pkg_pyudflibfile} ||:
+fi
 cp ${top_dir}/include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${top_dir}/include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${top_dir}/include/util/taoserror.h       ${pkg_dir}${install_home_path}/include

@@ -20,7 +20,7 @@ If no `.dmp` file was produced in the previous step, the crash may not be captur
 
 Save the following content as a `.reg` file and double-click it to import into the registry, enabling out-of-process dump capture:
 
-```reg
+```ini
 Windows Registry Editor Version 5.00
 
 ; Enable WER out-of-process dump for taosd.exe
