@@ -1345,9 +1345,9 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
   }
 }
 
-#define STREAM_TRIGGER_CHECKPOINT_INIT_VERSION          1
-#define STREAM_TRIGGER_CHECKPOINT_ADD_LAST_SCAN_VERSION 2
-#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION        2
+#define STREAM_TRIGGER_CHECKPOINT_INIT_VERSION             1
+#define STREAM_TRIGGER_CHECKPOINT_ADD_LAST_SCAN_VERSION    2
+#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION           2
 
 static int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen, int32_t version) {
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -1387,7 +1387,7 @@ static int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *
     QUERY_CHECK_CODE(code, lino, _end);
     code = tEncodeI64(&encoder, pProgress->startVer);
     QUERY_CHECK_CODE(code, lino, _end);
-    // the stream may be recovering
+    // the stream may be recovering; doneVer already accounts for any in-progress streak rewind
     int64_t doneVer = TMAX(pProgress->savedVer, pProgress->doneVer);
     code = tEncodeI64(&encoder, doneVer);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -3293,6 +3293,12 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->eventTrueForInfo.trueForType = pEvent->trueForType;
       pTask->eventTrueForInfo.count = pEvent->trueForCount;
       pTask->eventTrueForInfo.duration = pEvent->trueForDuration;
+      pTask->startTrueForInfo.trueForType = pEvent->startTrueForType;
+      pTask->startTrueForInfo.count       = pEvent->startTrueForCount;
+      pTask->startTrueForInfo.duration    = pEvent->startTrueForDuration;
+      pTask->endTrueForInfo.trueForType   = pEvent->endTrueForType;
+      pTask->endTrueForInfo.count         = pEvent->endTrueForCount;
+      pTask->endTrueForInfo.duration      = pEvent->endTrueForDuration;
       code = nodesCollectColumnsFromNode(pTask->pStartCond, NULL, COLLECT_COL_TYPE_ALL, &pTask->pStartCondCols);
       QUERY_CHECK_CODE(code, lino, _end);
       if (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST) {
@@ -6408,16 +6414,54 @@ _check:
     forwardDoneVer = (nRunningReq == 0);
   }
   pContext->recovering = false;
+  // For STREAM_TRIGGER_EVENT, pre-compute the set of vgIds that currently have at
+  // least one group with an active start/end streak. This replaces an O(G) scan
+  // per progress entry (total O(G x V)) with a single O(G) build + O(1) lookup
+  // per progress entry (total O(G + V)).
+  SHashObj *pFrozenVgIds = NULL;
+  if (forwardDoneVer && pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pRealtimeContext != NULL &&
+      pTask->pRealtimeContext->pGroups != NULL) {
+    pFrozenVgIds = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (pFrozenVgIds != NULL) {
+      int32_t                  giter = 0;
+      SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, NULL, &giter);
+      while (ppGroup != NULL) {
+        SSTriggerRealtimeGroup *pGroup = *ppGroup;
+        if (pGroup != NULL && (pGroup->startCondCount > 0 || pGroup->endCondCount > 0)) {
+          int32_t vgId = pGroup->vgId;
+          if (taosHashPut(pFrozenVgIds, &vgId, sizeof(int32_t), &vgId, sizeof(int32_t)) != 0) {
+            taosHashCleanup(pFrozenVgIds);
+            pFrozenVgIds = NULL;
+            break;
+          }
+        }
+        ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, ppGroup, &giter);
+      }
+    }
+  }
   int32_t               iter = 0;
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
   while (pProgress != NULL) {
     if (forwardDoneVer) {
-      pProgress->doneVer = pProgress->lastScanVer;
+      int64_t newDoneVer = pProgress->lastScanVer;
+      if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+        // Freeze doneVer if any group on this vnode has an active streak so that WAL replay
+        // from doneVer+1 naturally rebuilds the streak state on restart.
+        int32_t vgId = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
+        if (pFrozenVgIds != NULL && taosHashGet(pFrozenVgIds, &vgId, sizeof(int32_t)) != NULL) {
+          newDoneVer = pProgress->doneVer;  // freeze at current position
+        }
+      }
+      pProgress->doneVer = newDoneVer;
     }
     if (pProgress->lastScanVer < pProgress->savedVer) {
       pContext->recovering = true;
     }
     pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+  if (pFrozenVgIds != NULL) {
+    taosHashCleanup(pFrozenVgIds);
+    pFrozenVgIds = NULL;
   }
 
   if (IS_PATCHING_VITRUAL_TABLE(pContext)) {
@@ -9739,6 +9783,12 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
     pGroup->ds.numDeferredTailAllNull = 0;
     pGroup->ds.firstDeferredPartialNullTs = INT64_MIN;
     pGroup->ds.lastDeferredPartialNullTs = INT64_MIN;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    // Scalar streak defaults
+    pGroup->startCondCount   = 0;
+    pGroup->startCondFirstTs = INT64_MIN;
+    pGroup->endCondCount     = 0;
+    pGroup->endCondFirstTs   = INT64_MIN;
   }
   pGroup->prevWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   code = taosObjListInit(&pGroup->windows, &pContext->windowPool);
@@ -9855,6 +9905,15 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
     }
     if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
       threshold = TMIN(threshold, pGroup->parentWindow.range.skey - 1);
+    }
+    // Preserve WAL metadata covering an in-progress start-condition streak that
+    // spans multiple blocks. Without this, batch N may delete metadata for
+    // earlier streak rows so that when the streak finally satisfies in batch
+    // N+1 the window opens at startCondFirstTs but the data for [startCondFirstTs..]
+    // is no longer available for %%trows fetch.
+    if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->startCondCount > 0 &&
+        pGroup->startCondFirstTs != INT64_MIN) {
+      threshold = TMIN(threshold, pGroup->startCondFirstTs - 1);
     }
   } else if (pTask->watermark > 0) {
     threshold = pGroup->newThreshold;
@@ -10790,17 +10849,35 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     bool     checkSubEvent = (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST);
     for (int32_t i = startIdx; i < endIdx; i++) {
       if ((pWin == NULL) && ps[i]) {
+        // Start-condition streak check
+        bool  _startNow = true;
+        TSKEY _skey     = pTsData[i];  // default skey = current row; overridden to firstTs on streak satisfy
+        if (pTask->startTrueForInfo.count || pTask->startTrueForInfo.duration) {
+          // sub-event + start/end is rejected at parse time, so checkSubEvent is always false here
+          if (!pGroup->startCondCount) {
+            pGroup->startCondFirstTs  = pTsData[i];
+          }
+          pGroup->startCondCount++;
+          _startNow = isTrueForSatisfied(&pTask->startTrueForInfo, pGroup->startCondFirstTs, pTsData[i],
+                                         pGroup->startCondCount);
+          if (_startNow) {
+            _skey = pGroup->startCondFirstTs;  // window starts at FIRST row of streak
+            pGroup->startCondCount    = 0;
+            pGroup->startCondFirstTs  = INT64_MIN;
+          }
+        }
+        if (_startNow) {
         if (checkSubEvent) {
           if (pGroup->numSubWindows == 0) {
-            pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = pTsData[i], .range.ekey = INT64_MAX};
+            pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = _skey, .range.ekey = INT64_MAX};
             if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
               code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, -1, pGroup->gid,
-                                                   pTsData[i], 0, &pGroup->parentWindow.pWinOpenNotify);
+                                                   _skey, 0, &pGroup->parentWindow.pWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
               // A single sub-event is still a regular event window. Keep the first sub-window open pending until a
               // second sub-window proves that parent/child window events are needed.
               code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, 0, pGroup->gid,
-                                                   pTsData[i], pGroup->parentWindow.range.skey,
+                                                   _skey, pGroup->parentWindow.range.skey,
                                                    &pGroup->pFirstSubWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
             }
@@ -10810,7 +10887,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         }
 
         SSTriggerNotifyWindow newWin = {0};
-        newWin.range.skey = pTsData[i];
+        newWin.range.skey = _skey;
         newWin.range.ekey = INT64_MAX;
         pWin = taosArrayPush(pContext->pWindows, &newWin);
         QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
@@ -10821,9 +10898,14 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           }
           int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
           code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, winIdx, pGroup->gid,
-                                               pTsData[i], parentWindowStart, &pWin->pWinOpenNotify);
+                                               _skey, parentWindowStart, &pWin->pWinOpenNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        }  // if (_startNow)
+      } else if (pWin == NULL && !ps[i]) {
+        // Start condition not firing: reset streak state.
+        pGroup->startCondCount    = 0;
+        pGroup->startCondFirstTs  = INT64_MIN;
       }
 
       if (pWin == NULL) {
@@ -10846,6 +10928,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
+        pGroup->endCondCount   = 0;
+        pGroup->endCondFirstTs = INT64_MIN;
         // continue to open the new sub window
         i--;
         continue;
@@ -10857,9 +10941,37 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         pGroup->parentWindow.wrownum++;
         pGroup->parentWindow.range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
       }
-      if (pe[i] || (checkSubEvent && !ps[i])) {
+
+      // End-condition streak tracking and close decision
+      // _ekey: the window's official close timestamp.
+      // For end-streak: first row of the satisfying streak; for immediate close: current row.
+      TSKEY _ekey     = pTsData[i];
+      bool  _closeNow = (checkSubEvent && !ps[i]);  // sub-event: close when no condition fires
+      if (pe[i]) {
+        if (pTask->endTrueForInfo.count || pTask->endTrueForInfo.duration) {
+          if (!pGroup->endCondCount) {
+            pGroup->endCondFirstTs  = pTsData[i];
+          }
+          pGroup->endCondCount++;
+          if (isTrueForSatisfied(&pTask->endTrueForInfo, pGroup->endCondFirstTs, pTsData[i],
+                                 pGroup->endCondCount)) {
+            _ekey = pGroup->endCondFirstTs;  // window ends at FIRST row of end streak
+            pGroup->endCondCount    = 0;
+            pGroup->endCondFirstTs  = INT64_MIN;
+            _closeNow = true;
+          }
+        } else {
+          _closeNow = true;
+        }
+      } else {
+        // End condition interrupted: reset streak.
+        pGroup->endCondCount    = 0;
+        pGroup->endCondFirstTs  = INT64_MIN;
+      }
+
+      if (_closeNow) {
         SSTriggerNotifyWindow *pClosedWin = pWin;
-        pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+        pWin->range.ekey = _ekey;
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int32_t winIdx = -1;
           if (checkSubEvent && pGroup->numSubWindows > 1) {
@@ -10871,8 +10983,10 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
+        pGroup->endCondCount   = 0;
+        pGroup->endCondFirstTs = INT64_MIN;
         if (checkSubEvent) {
-          pGroup->parentWindow.range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
+          pGroup->parentWindow.range.ekey = _ekey;
           if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
             code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, -1, pGroup->gid,
                                                  pGroup->parentWindow.range.skey, 0,

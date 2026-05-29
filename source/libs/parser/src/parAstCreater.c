@@ -2034,6 +2034,48 @@ _err:
   return NULL;
 }
 
+SNode* createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_DURATION_ONLY;
+  pTrueFor->count = 0;
+  pTrueFor->pDuration = pDuration;
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode(pDuration);
+  nodesDestroyNode((SNode*)pTrueFor);
+  return NULL;
+}
+
+SNode* createTrueForFullNode (SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit) {
+  STrueForNode* pNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  if (pWindowLimit != NULL) {
+    STrueForNode* pW = (STrueForNode*)pWindowLimit;
+    pNode->trueForType = pW->trueForType;
+    pNode->count = pW->count;
+    pNode->pDuration = pW->pDuration;
+    pW->pDuration = NULL;
+    nodesDestroyNode(pWindowLimit);
+    pWindowLimit = NULL;
+  }
+  pNode->pStartLimit = pStartLimit;
+  pNode->pEndLimit   = pEndLimit;
+  return (SNode*)pNode;
+
+_err:
+  nodesDestroyNode(pWindowLimit);
+  nodesDestroyNode(pStartLimit);
+  nodesDestroyNode(pEndLimit);
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
 SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
                              SNodeList* pColList) {
   SCountWindowNode* pCount = NULL;

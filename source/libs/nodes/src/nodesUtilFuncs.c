@@ -1770,6 +1770,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TRUE_FOR: {
       STrueForNode* pTrueFor = (STrueForNode*)pNode;
       nodesDestroyNode(pTrueFor->pDuration);
+      nodesDestroyNode(pTrueFor->pStartLimit);
+      nodesDestroyNode(pTrueFor->pEndLimit);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {

@@ -510,6 +510,8 @@ typedef struct STrueForNode {
   ETrueForType trueForType;
   int32_t      count;     // Row count threshold (0 if duration-only)
   SNode*       pDuration;
+  SNode*       pStartLimit;  // STrueForNode* or NULL: start condition threshold (NULL = no limit)
+  SNode*       pEndLimit;    // STrueForNode* or NULL: end condition threshold (NULL = no limit)
 } STrueForNode;
 
 typedef struct {

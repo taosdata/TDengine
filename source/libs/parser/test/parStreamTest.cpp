@@ -2241,6 +2241,18 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(10s and 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
   run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(10s or 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 
+  // TRUE_FOR start/end sub-expression syntax tests
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(end(count 3)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(start(count 3)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(end(2s)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(start(2s)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(3s, end(count 2)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(3s, start(count 2)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(3s, start(count 2), end(count 3)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(start(count 2), end(count 3)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(end(2s and count 3)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(end(2s or count 3)) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
   // invalid count window
 
   // count val greater equal than INT32_MAX

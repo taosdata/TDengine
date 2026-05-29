@@ -19985,6 +19985,26 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
   }
   createStreamReqGetTrueForOptions(pTriggerWindow->pTrueForLimit, &pReq->trigger.event.trueForType,
                                    &pReq->trigger.event.trueForCount, &pReq->trigger.event.trueForDuration);
+  if (pTriggerWindow->pTrueForLimit != NULL &&
+      nodeType(pTriggerWindow->pTrueForLimit) == QUERY_NODE_TRUE_FOR) {
+    STrueForNode* pTrueFor = (STrueForNode*)pTriggerWindow->pTrueForLimit;
+    bool isSubEvent = (nodeType(pTriggerWindow->pStartCond) == QUERY_NODE_NODE_LIST);
+    if (isSubEvent && (pTrueFor->pStartLimit != NULL || pTrueFor->pEndLimit != NULL)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                     "true_for start/end is not supported in sub-event window "
+                                     "(START WITH multiple conditions)");
+    }
+    if (pTrueFor->pStartLimit != NULL) {
+      createStreamReqGetTrueForOptions(pTrueFor->pStartLimit, &pReq->trigger.event.startTrueForType,
+                                       &pReq->trigger.event.startTrueForCount,
+                                       &pReq->trigger.event.startTrueForDuration);
+    }
+    if (pTrueFor->pEndLimit != NULL) {
+      createStreamReqGetTrueForOptions(pTrueFor->pEndLimit, &pReq->trigger.event.endTrueForType,
+                                       &pReq->trigger.event.endTrueForCount,
+                                       &pReq->trigger.event.endTrueForDuration);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 

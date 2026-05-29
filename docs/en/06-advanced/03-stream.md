@@ -37,7 +37,16 @@ trigger_type: {
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
 
-true_for_expr: {
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
     duration_time
   | COUNT count_val
   | duration_time AND COUNT count_val

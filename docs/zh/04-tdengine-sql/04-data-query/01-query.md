@@ -386,7 +386,7 @@ STATE_WINDOW(state_expr [, state_expr ...])
 - `state_expr` 可以是列引用、`CASE WHEN` 表达式、`IF` 表达式或函数调用。返回类型必须是整数（TINYINT、SMALLINT、INT、BIGINT 及对应的无符号类型）、布尔值（BOOL）或字符串（VARCHAR、NCHAR），不支持浮点数（FLOAT、DOUBLE）、TIMESTAMP 和 tag 列。不支持算术运算表达式（如 `col1 + col2`）、比较/逻辑表达式（如 `col1 > 0`）和常量。
 - `EXTEND(0|1|2)` 指定窗口边界扩展策略。
 - `ZEROTH_STATE(...)` 指定零状态过滤，参数个数需与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，并且可以转换为对应状态键的数据类型；`NO_ZEROTH` 可用于跳过某个位置。
-- `TRUE_FOR(...)` 指定窗口过滤条件，支持基于持续时间、记录条数或两者组合过滤。
+- `TRUE_FOR(...)` 指定窗口过滤条件，以及（仅事件窗口）开窗/关窗连续满足门限。支持基于持续时间、记录条数或两者组合过滤，也可用 `start(...)` 指定开窗连续满足条件、`end(...)` 指定关窗连续满足条件。详见 [事件窗口 TRUE_FOR 参数](./06-distinguished.md#事件窗口)。
 
 详细说明参见 [TDengine TSDB 特色查询](./06-distinguished.md#状态窗口)。
 
