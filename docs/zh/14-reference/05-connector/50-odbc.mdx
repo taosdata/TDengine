@@ -68,8 +68,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
 
 6. 原生连接（Native）和 WebSocket 连接在同一进程中**不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式，请在创建数据源时确定所需的连接类型。
 
-7. WebSocket 连接支持配置传输压缩开关（`COMPRESSION=0/1`），用于控制传输是否启用压缩；Native 连接不支持该参数。
-
 ### WebSocket 连接
 
 1. 【开始】菜单搜索打开【ODBC 数据源 (32 位)】或者【ODBC 数据源 (64 位)】管理工具
@@ -95,8 +93,6 @@ TDengine TSDB ODBC 支持两种连接 TDengine TSDB 数据库方式：WebSocket 
     4.6【密码】仅供第 5 步测试连接使用，选填，数据库用户密码，如果不填，TDengine TSDB 默认 taosdata
 
     4.7【兼容软件】支持对 ADO 和工业软件（KingSCADA、Kepware 等）的兼容性适配，通常情况下，选择默认值 General 即可
-
-    4.8【启用传输压缩】仅 WebSocket 连接可用，选填。勾选后等价于设置 `COMPRESSION=1`，不勾选等价于 `COMPRESSION=0`。该参数用于控制 WebSocket 传输是否启用压缩。
 
 5. 点【测试连接】测试连接情况，如果成功，提示"成功连接到 URL"
 

@@ -223,7 +223,7 @@ docker run \
     -v "${GREEN_LOCAL_DIR}:/green_versions" \
     -v "${LOG_DIR}:/upgrade_logs" \
     --rm --ulimit core=-1 \
-    ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} \
+    tdengine-ci:0.1 \
     ${CONTAINER_SCRIPT}
 ret=$?
 

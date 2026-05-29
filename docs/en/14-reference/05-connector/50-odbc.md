@@ -68,8 +68,6 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
 6. Native connections and WebSocket connections **cannot be used simultaneously within the same process, and switching between them at runtime is not allowed**. A single process can only use one connection type. Please determine the required connection type when creating the data source.
 
-7. WebSocket connections support a transport compression switch (`COMPRESSION=0/1`) to control whether compression is enabled during transmission; this parameter is not supported for Native connections.
-
 ### WebSocket Connection
 
 1. Search and open the **ODBC Data Sources (32-bit)** or **ODBC Data Sources (64-bit)** management tool from the **Start** menu
@@ -95,8 +93,6 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
     4.6 **Password**: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
 
     4.7 **Compatible Software**: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., with ADO support included. Usually, the default value General is sufficient for most scenarios
-
-    4.8 **Enable Transport Compression**: Optional and available only for WebSocket connections. Checked is equivalent to `COMPRESSION=1`, unchecked is equivalent to `COMPRESSION=0`. This parameter controls whether WebSocket transmission compression is enabled.
 
 5. Click **Test Connection** to test the connection status. If successful, a "Successfully connected to URL" message will appear.
 
