@@ -1258,10 +1258,8 @@ int32_t taosSetGlobalTimezone(const char *tz) {
     found = 1;
   } else {
     const char *p = tz;
-    bool hasPrefix = false;
     if (strncasecmp(p, "UTC", 3) == 0 || strncasecmp(p, "GMT", 3) == 0) {
       p += 3;
-      hasPrefix = true;
     }
 
     if (*p == '+' || *p == '-') {
@@ -1274,12 +1272,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         char utc_sign = (sign == '-') ? '+' : '-';
         snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", sign, tzHours, tzMins);
 
-        if (hasPrefix) {
-          snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utc_sign, tzHours, tzMins);
-        } else {
-          snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
-                   sign, tzHours, tzMins, utc_sign, tzHours, tzMins);
-        }
+        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utc_sign, tzHours, tzMins);
         found = 1;
       }
     }
