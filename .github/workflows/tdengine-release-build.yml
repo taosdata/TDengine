@@ -96,8 +96,7 @@ jobs:
           make -j 4
           make install
           which taosd
-          which taosadapter
-          which taoskeeper
+          which taosBenchmark
 
       - name: Statistics ldd
         run: |
@@ -114,9 +113,6 @@ jobs:
           sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
           sudo bash -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
           nohup sudo taosd -c  /etc/taos &
-
-      - name: Start taosadapter
-        run: nohup sudo taosadapter &
 
       - name: Run tests with taosBenchmark
         run: |
