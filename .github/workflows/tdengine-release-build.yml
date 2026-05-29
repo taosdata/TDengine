@@ -123,4 +123,3 @@ jobs:
         if: always()
         run: |
           if pgrep taosd; then sudo pkill taosd; fi
-          if pgrep taosadapter; then sudo pkill taosadapter; fi
