@@ -87,6 +87,8 @@ jobs:
             -DBUILD_TEST=true \
             -DWEBSOCKET=true \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_CONTRIB=ON \
+            -DBUILD_ROCKSDB=ON \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           make install
