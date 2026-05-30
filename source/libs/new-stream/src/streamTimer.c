@@ -14,7 +14,6 @@
  */
 
 #include "streamInt.h"
-#include "osSleep.h"
 #include "ttimer.h"
 
 int32_t streamTimerInit(void** ppTimer) {
@@ -34,17 +33,6 @@ int32_t streamTimerGetInstance(tmr_h* pTmr) {
 }
 
 void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg) {
-  // Refuse to (re-)arm any stream timer once cleanup has been signaled. Without
-  // this gate, the timer callbacks (streamHbStart, stTriggerTaskCheckWaitSession)
-  // would keep re-scheduling themselves from their _exit path and race with
-  // streamMgmtCleanup() / stTriggerTaskEnvCleanup() that frees the very objects
-  // those callbacks dereference, producing an ASan UAF in atomic_store_32 /
-  // taosWUnLockLatch (see streamUtil.c stmHbAddStreamStatus).
-  if (atomic_load_8(&gStreamMgmt.tmrStopped)) {
-    stTrace("stream timer stopped, skip start %s tmr", pMsg);
-    return;
-  }
-
   if (*pTmrId == NULL) {
     *pTmrId = taosTmrStart(fp, mseconds, pParam, pHandle);
     if (*pTmrId == NULL) {
@@ -69,52 +57,10 @@ void streamTmrStop(tmr_h tmrId) {
   }
 }
 
-// Spin-wait until every stream timer callback that may have already been
-// dispatched (and is therefore beyond the reach of taosTmrStop) has finished.
-//
-// Caller MUST set gStreamMgmt.tmrStopped = 1 before invoking this helper,
-// otherwise a callback could re-arm itself after we observe zero inflight and
-// race with subsequent cleanup.
-//
-// On hard-cap timeout we log an error and return rather than abort: aborting
-// during dnode shutdown would mask the real defect with a SIGABRT crash dump.
-// The hard cap is a last-resort safety valve to keep shutdown from hanging
-// forever; if it ever trips, the error log is the signal to investigate the
-// stuck callback.
-void streamTmrWaitAllCallbacks(void) {
-  const int32_t poll_ms       = 10;
-  const int32_t warn_step_ms  = 1000;
-  const int32_t hard_cap_ms   = 30000;
-
-  int32_t waited = 0;
-  int32_t inflight;
-  while ((inflight = atomic_load_32(&gStreamMgmt.tmrInflight)) > 0) {
-    if (waited == 0) {
-      stDebug("waiting for stream timer callbacks to drain, inflight:%d", inflight);
-    } else if (waited % warn_step_ms == 0) {
-      stWarn("still waiting for stream timer callbacks, inflight:%d, waited:%dms",
-             inflight, waited);
-    }
-    if (waited >= hard_cap_ms) {
-      stError("stream timer callbacks drain timeout, inflight:%d still running after %dms, giving up "
-              "to avoid blocking shutdown indefinitely (subsequent cleanup may race)",
-              inflight, waited);
-      return;
-    }
-    taosMsleep(poll_ms);
-    waited += poll_ms;
-  }
-  stDebug("stream timer callbacks drained after %dms", waited);
-}
-
 
 void streamTimerCleanUp() {
   stInfo("cleanup stream timer, %p", gStreamMgmt.timer);
-
-  // NOTE: tmrStopped has already been set by streamCleanup() before any
-  // module-level cleanup ran, and streamTmrWaitAllCallbacks() has already
-  // drained every in-flight callback.  At this point no callback can be
-  // executing or pending in the wheel, so it is safe to tear the module down.
+  streamTmrStop(gStreamMgmt.hb.hbTmr);
   taosTmrCleanUp(gStreamMgmt.timer);
   gStreamMgmt.timer = NULL;
 }
