@@ -3914,7 +3914,11 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
       pStmt->errCode = TSDB_CODE_TSC_STMT_API_ERROR;
       return NULL;
     }
-    if (taos_num_fields(pStmt->exec.pRequest) == 0) {
+    if (pStmt->exec.pRequest &&
+        pStmt->exec.pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+      // NOTE: empty result when `QueryTbNotExistAsEmpty` is set
+      //       and table not exists
+    } else if (taos_num_fields(pStmt->exec.pRequest) == 0) {
       STMT2_ELOG_E("useResult only for query statement even it's literal");
       return NULL;
     }
