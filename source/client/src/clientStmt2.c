@@ -2223,6 +2223,17 @@ static void stmtLiteralCallback(void *param, TAOS_RES *res, int code) {
       abort();
     }
 
+    int nr_fields = taos_num_fields(pStmt->exec.pRequest);
+    if (nr_fields ||
+        (pStmt->exec.pRequest &&
+          pStmt->exec.pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT)) {
+      // NOTE: literal sql statement generates a result set
+      // 1. normal query with result set
+      // 2. empty result when `QueryTbNotExistAsEmpty` is set
+      //    and table not exists
+      pStmt->ctx.has_result_set = 1;
+    }
+
     if (pStmt->options.asyncExecFn) {
       // NOTE: user requires asynchronous execution via `taos_stmt2_init`
       // TODO: a well-defined reentrancy protection is desired, but ...
@@ -3531,16 +3542,6 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
     pStmt->ctx.executed = 1;
 
     if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
-      int nr_fields = taos_num_fields(pStmt->exec.pRequest);
-      if (nr_fields ||
-          (pStmt->exec.pRequest &&
-            pStmt->exec.pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT)) {
-        // NOTE: literal sql statement generates a result set
-        // 1. normal query with result set
-        // 2. empty result when `QueryTbNotExistAsEmpty` is set
-        //    and table not exists
-        pStmt->ctx.has_result_set = 1;
-      }
       if (affected_rows) {
         if (pStmt->ctx.has_result_set) {
           // NOTE: literal sql statement generates a result set
@@ -3920,7 +3921,7 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
   STMT2_TLOG_E("start to use result");
 
   if (stmtIsLiteral(pStmt)) {
-    if (pStmt->ctx.executing == 0) {
+    if (pStmt->ctx.executing) {
       SET_ERR("literal sql statement still in progress");
       pStmt->errCode = TSDB_CODE_TSC_STMT_API_ERROR;
       return NULL;
