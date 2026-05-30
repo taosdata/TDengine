@@ -189,26 +189,18 @@ IF(TD_WINDOWS)
 ENDIF()
 
 # ── Linux Release binary size optimization ────────────────────────────────────
-# Problem: mold linker produces larger binaries than GNU ld because it does not
-# deduplicate .debug_macro sections (~18 MB bloat) and retains more symbols in
-# .symtab/.strtab (~9 MB bloat).
+# Compile:  -ffunction-sections -fdata-sections  (isolate each function/data)
+# Link:     --gc-sections   (remove unreferenced dead code/data sections)
+#           --icf=all       (merge identical code — mold & lld only, skipped on GNU ld)
 #
-# Solution (linker-agnostic — works with mold, lld, and GNU ld):
-#   Compile:  -ffunction-sections -fdata-sections  (isolate each function/data)
-#   Link:     --gc-sections   (remove unreferenced sections)
-#             --icf=all       (merge identical code — mold & lld only, skipped on GNU ld)
-#             --strip-debug   (remove .debug_* sections from the output binary)
-#
-# Result: mold-linked binaries become ≤ GNU ld in compressed size and comparable
-# in raw size, while gaining mold's ~2-5× faster link speed.
-#
-# Note: --strip-debug removes debug info from the *final* binary only.  Use
-# build.sh --split-debug to preserve debug info in separate .debug files.
+# Debug info is deliberately kept in Release binaries by default so that
+# coredumps can be symbolicated.  Use build.sh --split-debug to separate
+# DWARF info into .debug files and strip the originals for shipping.
 IF(TD_LINUX AND CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections")
 
-    set(_ld_size_flags "-Wl,--gc-sections -Wl,--strip-debug")
+    set(_ld_size_flags "-Wl,--gc-sections")
     # ICF (Identical Code Folding) is supported by mold and lld but not GNU ld (bfd).
     # Probe the actual linker with a test link to avoid false positives when the
     # system `ld` is mold but the user overrides with -fuse-ld=bfd.
