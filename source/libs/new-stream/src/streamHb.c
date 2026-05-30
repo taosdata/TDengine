@@ -113,8 +113,10 @@ void streamHbStart(void* param, void* tmrId) {
   SStreamHbMsg reqMsg = {0};
   SEpSet epSet = {0};
 
+  STREAM_TMR_CB_ENTER("stream hb");
+
   stTrace("stream hb begin");
-  
+
   TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg, &skipHb));
   if (skipHb) {
     stTrace("stream hb skipped");
@@ -135,6 +137,8 @@ _exit:
   } else {
     stTrace("stream hb end");
   }
+
+  STREAM_TMR_CB_LEAVE();
 }
 
 int32_t streamHbInit(SStreamHbInfo* pHb) {
