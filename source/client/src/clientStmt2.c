@@ -27,9 +27,10 @@ char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "setta
 static inline void
 stmt2LiteralCtxReset(SStmt2LiteralCtx *ctx) {
   ctx->code = 0;
-  ctx->prepared  = 0;
-  ctx->executing = 0;
-  ctx->executed  = 0;
+  ctx->prepared       = 0;
+  ctx->executing      = 0;
+  ctx->executed       = 0;
+  ctx->has_result_set = 0;
 }
 
 static inline void
@@ -3530,14 +3531,24 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
     pStmt->ctx.executed = 1;
 
     if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
+      int nr_fields = taos_num_fields(pStmt->exec.pRequest);
+      if (nr_fields ||
+          (pStmt->exec.pRequest &&
+            pStmt->exec.pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT)) {
+        // NOTE: literal sql statement generates a result set
+        // 1. normal query with result set
+        // 2. empty result when `QueryTbNotExistAsEmpty` is set
+        //    and table not exists
+        pStmt->ctx.has_result_set = 1;
+      }
       if (affected_rows) {
-        if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
+        if (pStmt->ctx.has_result_set) {
+          // NOTE: literal sql statement generates a result set
+          *affected_rows = 0;
+        } else {
           // NOTE: literal sql statement does not generate any result set
           TAOS_RES *res = pStmt->exec.pRequest;
           *affected_rows = taos_affected_rows(res);
-        } else {
-          // NOTE: literal sql statement generates a result set
-          *affected_rows = 0;
         }
       }
     }
@@ -3909,17 +3920,18 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
   STMT2_TLOG_E("start to use result");
 
   if (stmtIsLiteral(pStmt)) {
+    if (pStmt->ctx.executing == 0) {
+      SET_ERR("literal sql statement still in progress");
+      pStmt->errCode = TSDB_CODE_TSC_STMT_API_ERROR;
+      return NULL;
+    }
     if (pStmt->ctx.executed == 0) {
       SET_ERR("literal sql statement not executed yet");
       pStmt->errCode = TSDB_CODE_TSC_STMT_API_ERROR;
       return NULL;
     }
-    if (pStmt->exec.pRequest &&
-        pStmt->exec.pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-      // NOTE: empty result when `QueryTbNotExistAsEmpty` is set
-      //       and table not exists
-    } else if (taos_num_fields(pStmt->exec.pRequest) == 0) {
-      STMT2_ELOG_E("useResult only for query statement even it's literal");
+    if (!pStmt->ctx.has_result_set) {
+      STMT2_ELOG_E("useResult only for query statement");
       return NULL;
     }
     return pStmt->exec.pRequest;

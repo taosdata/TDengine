@@ -87,14 +87,15 @@ SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 */
 typedef struct SStmt2LiteralCtx {
-  tsem_t       sem;
+  tsem_t   sem;
 
-  int32_t      code;
+  int32_t  code;
 
-  uint8_t      sem_valid:1;   // sem valid or not
-  uint8_t      prepared:1;    // literal statement prepared by stmt2 or not
-  uint8_t      executing:1;   // literal statement executing by stmt2 or not
-  uint8_t      executed:1;    // literal statement executed by stmt2 or not
+  uint8_t  sem_valid:1;       // sem valid or not
+  uint8_t  prepared:1;        // literal statement prepared by stmt2 or not
+  uint8_t  executing:1;       // literal statement executing by stmt2 or not
+  uint8_t  executed:1;        // literal statement executed by stmt2 or not
+  uint8_t  has_result_set:1;  // literal statement generates result set or not
 } SStmt2LiteralCtx;
 
 typedef struct {
