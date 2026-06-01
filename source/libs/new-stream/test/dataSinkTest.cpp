@@ -878,6 +878,79 @@ TEST(dataSinkTest, testWriteFileSize) {
   destroyStreamDataCache(pCache);
 }
 
+TEST(dataSinkTest, readReusedFileBlockOnce) {
+  INIT_DATA_SINK();
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
+
+  int64_t streamId = 4;
+  int64_t taskId = 1;
+  void*   pCache = NULL;
+  int32_t code = initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_EXPIRED, 0, &pCache);
+  ASSERT_EQ(code, 0);
+
+  SSDataBlock* pOldBlock1 = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pOldBlock1, nullptr);
+  SSDataBlock* pOldBlock2 = createTestBlock(baseTestTime1 + 100, 0);
+  ASSERT_NE(pOldBlock2, nullptr);
+  TSKEY   oldStart = baseTestTime1;
+  TSKEY   oldEnd = baseTestTime1 + 100;
+  int64_t groupId = 1;
+  code = putStreamDataCache(pCache, groupId, oldStart, oldEnd, pOldBlock1, 0, 99);
+  ASSERT_EQ(code, 0);
+  TSKEY oldStart2 = oldEnd;
+  TSKEY oldEnd2 = oldStart2 + 100;
+  code = putStreamDataCache(pCache, groupId, oldStart2, oldEnd2, pOldBlock2, 0, 99);
+  ASSERT_EQ(code, 0);
+  SSlidingTaskDSMgr* pTaskMgr = (SSlidingTaskDSMgr*)pCache;
+  SSlidingGrpMgr**   ppGrpMgr = (SSlidingGrpMgr**)taosHashGet(pTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
+  ASSERT_NE(ppGrpMgr, nullptr);
+  code = moveSlidingGrpMemCache(pTaskMgr, *ppGrpMgr);
+  ASSERT_EQ(code, 0);
+
+  void* pIter = NULL;
+  code = getStreamDataCache(pCache, groupId, oldEnd2, oldEnd2 + 99, &pIter);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pIter, nullptr);
+  SSDataBlock* pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+
+  TSKEY        newStart = oldEnd2;
+  TSKEY        newEnd = newStart + 100;
+  SSDataBlock* pNewBlock = createTestBlock(newStart, 0);
+  ASSERT_NE(pNewBlock, nullptr);
+  code = putStreamDataCache(pCache, groupId, newStart, newEnd, pNewBlock, 0, 99);
+  ASSERT_EQ(code, 0);
+  code = moveSlidingGrpMemCache(pTaskMgr, *ppGrpMgr);
+  ASSERT_EQ(code, 0);
+
+  pIter = NULL;
+  code = getStreamDataCache(pCache, groupId, newStart, newEnd - 1, &pIter);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pIter, nullptr);
+  pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_NE(pBlock, nullptr);
+  ASSERT_EQ(pBlock->info.rows, 100);
+  ASSERT_EQ(compareBlock(pNewBlock, pBlock), true);
+  blockDataDestroy(pBlock);
+
+  pBlock = NULL;
+  code = getNextStreamDataCache(&pIter, &pBlock);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pBlock, nullptr);
+  ASSERT_EQ(pIter, nullptr);
+
+  blockDataDestroy(pOldBlock1);
+  blockDataDestroy(pOldBlock2);
+  blockDataDestroy(pNewBlock);
+  destroyStreamDataCache(pCache);
+  destroyDataSinkMgr();
+}
+
 TEST(dataSinkTest, multiThreadGet) {
   INIT_DATA_SINK(); 
   const int producerCount = 1;
@@ -996,6 +1069,7 @@ TEST(dataSinkTest, multiThreadGet) {
   for (auto& t : consumers) t.join();
 
   destroyStreamDataCache(pCache);
+  destroyDataSinkMgr();
 }
 
 TEST(dataSinkTest, cleanSlidingStreamData) {

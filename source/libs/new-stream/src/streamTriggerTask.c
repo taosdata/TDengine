@@ -968,6 +968,8 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   SListNode *pNode = NULL;
   SList      readylist = {0};
 
+  STREAM_TMR_CB_ENTER("stream trigger check");
+
   taosWLockLatch(&gStreamTriggerWaitLatch);
   tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
@@ -1035,6 +1037,12 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
 
   streamTmrStart(stTriggerTaskCheckWaitSession, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
                  &gStreamTriggerTimerId, "stream-trigger");
+
+  // The self re-arm above is gated by tmrStopped inside streamTmrStart(),
+  // so once cleanup has begun no new dispatch can sneak in here.  Keep the
+  // LEAVE as the last statement so cleanup sees inflight drop to zero only
+  // after every shared object access has completed.
+  STREAM_TMR_CB_LEAVE();
   return;
 }
 

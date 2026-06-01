@@ -10213,6 +10213,22 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
 
   PLAN_ERR_JRET(checkAllStateExprsSameOriginTable(pNewWindow->pStateExprs, pVirtualScan, &sameOrigin, &pStateColScan));
   pNewWindow->node.pChildren = NULL;
+  pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
+  QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+  nodesDestroyNode(pNewWindow->pTspk);
+  pNewWindow->pTspk = NULL;
+  PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+  PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
+  ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
+  // pNewWindow --> pStateColScan
+  PLAN_ERR_JRET(rewriteAndPushVtableWindowConditions(pVirtualScan, (SScanLogicNode*)pStateColScan, &canOptimize));
+  if (!canOptimize) {
+    nodesDestroyNode((SNode*)pNewWindow);
+    pNewWindow = NULL;
+    nodesDestroyNode((SNode*)pVirtualScan);
+    pVirtualScan = NULL;
+    goto _return;
+  }
 
   if (sameOrigin) {
     // same origin table: attach StateWindow directly to the single origin TableScan
