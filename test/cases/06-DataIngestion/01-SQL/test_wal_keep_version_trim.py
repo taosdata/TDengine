@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """WAL keep log dropped
+        """Wal keep trim
         
         This test verifies:
         1. prepare data
@@ -20,6 +20,9 @@ class TestWalKeepVersionTrim:
         3. check wal keep version
         4. trim database wal
         5. check wal log dropped after trim
+
+        Catalog:
+            - Database:WAL
 
         Since: v3.3.6.31
 
@@ -41,10 +44,10 @@ class TestWalKeepVersionTrim:
         tdSql.execute("flush database test")
 
         tdSql.query("show test.vgroups")
-        tdSql.checkData(0, 20, 0)
-        tdSql.checkData(1, 20, -1)
+        tdSql.checkData(0, 18, 0)
+        tdSql.checkData(1, 18, -1)
 
-        max_retry = 240
+        max_retry = 30
         # check wal vgId 3 firstVer is greater than 0 means flush finished
         for dnode_id in [1,2,3]:
             check_ver = False
@@ -73,7 +76,6 @@ class TestWalKeepVersionTrim:
 
         # trim database wal
         tdSql.execute("trim database test wal")
-        # duplicate exec trim database test wal to test the core from feishu project 6686737748
         tdSql.execute("trim database test wal")
 
         # check wal vgId 2 firstVer is greater than 0 after trim

@@ -32,8 +32,6 @@ For detailed migration guide, please refer to: [Connection Methods](index.md#con
 
 | Connector Version | Major Changes                                                                                                            | TDengine Version   |
 |-------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
-| 3.2.2             | Support taosAdapter high availability.                                                                                   | 3.4.1.14 and higher                  |
-| 3.2.1             | Support BLOB type for SQL/STMT2 write and query; support DECIMAL type for SQL/STMT2 write and query.                    | 3.4.1.8 and higher                  |
 | 3.2.0             | Support WebSocket failover with multi-address connections.                                                               | -                  |
 | 3.1.10            | Support TDengine TSDB Token authentication.                                                                              | -                  |
 | 3.1.9             | The external interface of stmt remains unchanged; the internal implementation has been refactored into stmt2.            | -                  |
@@ -157,14 +155,12 @@ Supported parameters include:
 - `reconnectRetryCount`: Number of reconnect rounds, default is 3.
 - `reconnectIntervalMs`: Interval between reconnect rounds in milliseconds, default is 2000.
 - `bearerToken`: Token for connecting to TDengine TSDB (supported in version `3.1.10` and above).
-- `adapterHA`: Whether to enable taosAdapter high availability, default is false (supported in version `3.2.2` and above). When enabled, the connector requests available adapter instance lists from taosAdapter during connection and subscription, and automatically adds newly discovered nodes to the failover address pool. When a node is decommissioned, it will no longer appear in subsequent responses and the connector removes it from the address pool automatically. This feature requires the taosAdapter service registration mechanism.
 
 ###### Failover Notes
 
 - WebSocket failover is available in `3.2.0` and later.
 - The initial WebSocket connection automatically tries the configured addresses. `autoReconnect` only controls failover after an established connection becomes unavailable.
 - The connector uses a **Least Connections** algorithm for address selection: it prefers the node with the fewest active connections. When `autoReconnect=true`, it tries the last successful address first and then falls back to the remaining configured addresses in least-connections order.
-- When `adapterHA=true`, the connector dynamically expands or shrinks the failover address pool based on the instance list returned by taosAdapter after each successful connection or subscription. Multiple connections within the same process share a global registry, so nodes discovered by any connection become immediately available to all others.
 - Native connections do not support multi-address failover.
 
 ##### <font color="red">Native Connection, Deprecated, will be discontinued on 2027-01-01</font>
@@ -774,7 +770,6 @@ Supported properties for creating consumers:
 - `ws.reconnect.retry.count`: Number of reconnection attempts, default is 3.
 - `ws.reconnect.interval.ms`: Reconnection interval in milliseconds, default is 2000.
 - `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above, currently only for timezone functionality when parsing result sets). Only available for .NET 6+ and supports IANA timezone format exclusively. For details, see [Timezone Settings](#timezone-settings).
-- `adapterHA`: Whether to enable taosAdapter high availability, default is false (supported in version `3.2.2` and above). When enabled, the consumer requests available instance lists from taosAdapter during subscription, and automatically expands or shrinks the failover address pool.
 
 For other parameters, please refer to: [Consumer Parameter List](../../07-develop/07-tmq.md), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 

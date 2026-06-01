@@ -44,7 +44,7 @@ class TestSysinfo:
             tdLog.info(f"version_c_file: {version_c_file}")
             version_info = str(
                 subprocess.run(
-                    f'cat {version_c_file} |grep "SET(BUILD_VER_NUMBER "',
+                    f'cat {version_c_file} |grep "SET(TD_VER_NUMBER "',
                     shell=True,
                     capture_output=True,
                 ).stdout.decode("utf8")
@@ -58,7 +58,7 @@ class TestSysinfo:
         tdSql.checkData(0, 0, 1)
         #!for bug
         tdDnodes.stoptaosd(1)
-        time.sleep(self.delaytime * 10)
+        time.sleep(self.delaytime * 5)
         tdSql.error("select server_status()")
 
     def check_current_user(self):
