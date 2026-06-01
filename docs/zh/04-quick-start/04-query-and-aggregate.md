@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：数据查询'
+sidebar_label: '数据查询'
 title: 数据查询
 description: 查询数据的详细语法
 ---

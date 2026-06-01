@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：可视化管理'
+sidebar_label: '可视化管理'
 title: 可视化管理
 toc_max_heading_level: 4
 ---

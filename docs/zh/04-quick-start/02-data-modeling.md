@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：数据建模'
+sidebar_label: '数据建模'
 title: 数据建模
 toc_max_heading_level: 4
 ---

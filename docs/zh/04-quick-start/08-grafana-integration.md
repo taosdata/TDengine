@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：Grafana 集成'
+sidebar_label: 'Grafana 集成'
 title: Grafana 集成
 toc_max_heading_level: 4
 ---

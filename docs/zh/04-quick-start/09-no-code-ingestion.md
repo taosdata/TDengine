@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：零代码数据写入'
+sidebar_label: '零代码数据写入'
 title: 零代码数据写入
 toc_max_heading_level: 4
 ---

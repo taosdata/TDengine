@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：流式计算'
+sidebar_label: '流式计算'
 title: 流式计算
 toc_max_heading_level: 4
 ---

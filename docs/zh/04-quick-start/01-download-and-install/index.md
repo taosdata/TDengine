@@ -1,5 +1,5 @@
 ---
-sidebar_label: '任务：下载与安装'
+sidebar_label: '下载与安装'
 title: 下载与安装
 description: '快速设置 TDengine TSDB 环境并体验其高效写入和查询'
 ---
