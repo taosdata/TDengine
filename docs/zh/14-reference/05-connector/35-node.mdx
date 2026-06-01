@@ -23,6 +23,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.5.0       | 支持 taosAdapter HA（高可用） | - |
 |        3.4.0       | 1. 支持 BLOB 数据类型 <br/> 2. 参数绑定支持 DECIMAL 数据类型 <br/> 3. 支持上报用户 APP 名称和 IP 地址 | - |
 |        3.3.0       | 支持负载均衡和故障转移 | - |
 |        3.2.3       | 1. 支持令牌身份认证 <br/> 2. 支持上报连接器版本信息 | - |
@@ -112,11 +113,12 @@ Node.js 连接器（`@tdengine/websocket`）通过 taosAdapter 提供的 WebSock
 
 - **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
 - **username/password**：数据库用户名和密码。
-- **addresses**：地址列表，支持一个或多个 `host:port`，多个地址之间使用英文逗号分隔（例如 `localhost:6041,localhost:6042`）。`@tdengine/websocket` 同时支持 IPv4 和 IPv6 两种地址格式。对于 IPv6 地址，必须使用中括号包裹（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免与端口号解析冲突。
+- **addresses**：地址列表，支持一个或多个 `host:port`，多个地址之间使用英文逗号分隔（例如 `node1:6041,node2:6041`）。`@tdengine/websocket` 同时支持 IPv4 和 IPv6 两种地址格式。对于 IPv6 地址，必须使用中括号包裹（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免与端口号解析冲突。
 - **database**：数据库名称。
 - **params**：
   - `token`：用于 TDengine TSDB 云服务身份认证。
   - `bearer_token`：用于 TDengine TSDB 身份认证，优先级高于用户名/密码。
+  - `adapter_ha`：是否启用 `taosAdapter` 高可用。`true` 为启用，`false` 为不启用，默认值为 `false`。启用后，连接成功即可自动获取集群中所有 `taosAdapter` 端点并加入地址池用于负载均衡和故障转移，需要 TDengine TSDB 版本大于等于 `3.4.2.0`。
   - `retries`：连接失败时的最大重试次数，默认为 5。
   - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。该值会随连续失败按指数增长，直到达到最大等待时间。
   - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
@@ -131,7 +133,10 @@ ws://root:taosdata@localhost:6041
 ws://root:taosdata@[::1]:6041
 
 // 多地址（可用于负载均衡和故障转移场景）:
-ws://root:taosdata@localhost:6041,localhost:6042,localhost:6043
+ws://root:taosdata@node1:6041,node2:6041,node3:6041
+
+// 启用 taosAdapter HA，连接成功后自动发现集群中的其他 taosAdapter 端点：
+ws://root:taosdata@node1:6041,node2:6041/power?adapter_ha=true
 ```
 
 ### WSConfig
