@@ -953,7 +953,10 @@ int32_t vnodeProcessCheckHasCtbReq(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, req.suid, 0);
-  if (pCur != NULL) {
+  if (pCur == NULL) {
+    code = (terrno != 0) ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    vError("vgId:%d, failed to open ctb cursor for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+  } else {
     tb_uid_t id = metaCtbCursorNext(pCur);
     metaCloseCtbCursor(pCur);
     if (id != 0) {

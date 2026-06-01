@@ -958,6 +958,10 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
                         pCfg->parentStbNames[i]);
       }
     }
+    if (pCfg->virtualStb) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " VIRTUAL 1");
+    }
     len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                     " SECURITY_LEVEL %d", pCfg->securityLevel);
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
