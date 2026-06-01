@@ -4,7 +4,7 @@ title: Native 数据订阅
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。数据订阅的主题管理等基础知识参考 [文档](../topic/) ，详细 API 可参考 [开发指南](../../09-developer-guide/07-subscription-api.md)。
+TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。数据订阅的主题管理等基础知识参考 [文档](./index.md) ，详细 API 可参考 [开发指南](../09-developer-guide/07-subscription-api.md)。
 
 ## 创建主题
 

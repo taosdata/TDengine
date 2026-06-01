@@ -4,9 +4,12 @@ title: 数据订阅
 
 为了满足应用程序实时获取 TDengine TSDB 写入的数据的需求，或以事件到达顺序处理数据，TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。
 
-```mdx-code-block
-import DocCardList from '@theme/DocCardList';
-import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
+与 Kafka 类似，用户需要在 TDengine TSDB 中定义主题（topic）。TDengine TSDB 的主题可以是一个数据库、一张超级表，或者基于现有超级表、子表或普通表的查询条件，即一条查询语句。用户可以利用 SQL 对标签、表名、列、表达式等条件进行过滤，并对数据进行标量函数与 UDF 计算（不包括数据聚合）。与其他消息队列工具相比，这是 TDengine TSDB 数据订阅功能的最大优势。它提供了更高的灵活性，数据的粒度由定义主题的 SQL 决定，而且数据的过滤与预处理由 TDengine TSDB 自动完成，从而减少传输的数据量并降低应用程序的复杂度。
 
-<DocCardList items={useCurrentSidebarCategory().items}/>
-```
+消费者订阅主题后，可以实时接收最新的数据。多个消费者可以组成一个消费组，共享消费进度，实现多线程、分布式地消费数据，提高消费速度。不同消费组的消费者即使消费同一个主题，也不共享消费进度。一个消费者可以订阅多个主题。如果主题对应的是超级表或库，数据可能会分布在多个不同的节点或数据分片上。当一个消费组中有多个消费者时，可以提高消费效率。TDengine TSDB 的消息队列提供了消息的 ACK（Acknowledgment，确认，也译作收到）机制，确保在宕机、重启等复杂环境下实现至少一次（at least once）消费。
+
+为实现上述功能，TDengine TSDB 会为预写数据日志（Write-Ahead Logging，WAL）文件自动创建索引，以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制。用户可以根据需求指定 WAL 文件的保留时间和大小。通过这些方法，WAL 被改造成一个保留事件到达顺序的、可持久化的存储引擎。对于以主题形式创建的查询，TDengine TSDB 将从 WAL 读取数据。在消费过程中，TDengine TSDB 根据当前消费进度从 WAL 直接读取数据，并使用统一的查询引擎实现过滤、变换等操作，然后将数据推送给消费者。
+
+从 3.2.0.0 版本开始，数据订阅支持 vnode 迁移和分裂。由于数据订阅依赖 wal 文件，而在 vnode 迁移和分裂的过程中，wal 文件并不会进行同步。因此，在迁移或分裂操作完成后，您将无法继续消费之前尚未消费完 wal 数据。请务必在执行 vnode 迁移或分裂之前，将所有 wal 数据消费完毕。
+
+**说明**：全新流计算从 `v3.3.7.0` 开始支持。

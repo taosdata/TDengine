@@ -18,7 +18,7 @@ toc_max_heading_level: 4
 
 TDengine TSDB 的流计算引擎还提供了其他使用上的便利。针对结果延迟的不同需求，支持用户在结果时效性与资源负载之间进行平衡。针对非正常顺序写入场景的不同需求，支持用户灵活选择适合的处理方式与策略。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
 
-流计算的使用方法如下，详细内容参见 [SQL 手册](../05-stream-processing/01-getting-started-and-syntax/01-stream-overview.md)。
+流计算的使用方法如下，详细内容参见 [SQL 手册](../05-stream-processing/index.md)。
 
 ## 流式计算的创建
 

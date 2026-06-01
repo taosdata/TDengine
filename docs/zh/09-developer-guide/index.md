@@ -18,10 +18,3 @@ description: 让开发者能够快速上手的指南
 如果你希望深入了解 SQL 的使用，需要查看 [SQL 手册](../04-tdengine-sql/index.md)。如果想更深入地了解各连接器的使用，请阅读 [连接器参考指南](08-connectors-reference/index.md)。如果还希望想将 TDengine TSDB 与第三方系统集成起来，比如 Grafana，请参考 [第三方工具](../12-ecosystem-integrations/index.md)。
 
 如果在开发过程中遇到任何问题，请点击每个页面下方的 [反馈问题](https://github.com/taosdata/TDengine/issues/new/choose)，在 GitHub 上直接递交 Issue。
-
-```mdx-code-block
-import DocCardList from '@theme/DocCardList';
-import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-
-<DocCardList items={useCurrentSidebarCategory().items}/>
-```
