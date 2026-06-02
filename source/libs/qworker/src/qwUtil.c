@@ -293,6 +293,12 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
   // Note: free/kill may in RC
   void *osinkHandle = atomic_load_ptr(&ctx->sinkHandle);
   if (osinkHandle && osinkHandle == atomic_val_compare_exchange_ptr(&ctx->sinkHandle, osinkHandle, NULL)) {
+    if (ctx->inFetch) {
+      qWarn("free sink handle:%p while fetch is running, qTask:%p, thread:%" PRId64, osinkHandle, ctx,
+            taosGetSelfPthreadId());
+    } else {
+      qDebug("free sink handle:%p, qTask:%p, thread:%" PRId64, osinkHandle, ctx, taosGetSelfPthreadId());
+    }
     QW_SINK_ENABLE_MEMPOOL(ctx);
     dsDestroyDataSinker(osinkHandle);
     QW_SINK_DISABLE_MEMPOOL();
@@ -407,6 +413,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   }
 
   octx = *ctx;
+  void *osinkHandle = atomic_exchange_ptr(&ctx->sinkHandle, NULL);
 
   if (ctx->pJobInfo && TSDB_CODE_SUCCESS != ctx->pJobInfo->errCode) {
     QW_UPDATE_RSP_CODE(ctx, ctx->pJobInfo->errCode);
@@ -415,16 +422,30 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   }
 
   atomic_store_ptr(&ctx->taskHandle, NULL);
-  atomic_store_ptr(&ctx->sinkHandle, NULL);
   atomic_store_ptr(&ctx->pJobInfo, NULL);
   atomic_store_ptr(&ctx->memPoolSession, NULL);
   atomic_store_ptr(&ctx->tbInfo, NULL);
+
+  octx.sinkHandle = NULL;
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
     QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
     return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
+  }
+
+  if (osinkHandle != NULL) {
+    if (octx.inFetch) {
+      QW_TASK_WLOG("drop task ctx takes sink handle:%p while fetch is running, thread:%" PRId64, osinkHandle,
+                   taosGetSelfPthreadId());
+    } else {
+      QW_TASK_DLOG("drop task ctx takes sink handle:%p, thread:%" PRId64, osinkHandle, taosGetSelfPthreadId());
+    }
+    QW_SINK_ENABLE_MEMPOOL(&octx);
+    dsDestroyDataSinker(osinkHandle);
+    QW_SINK_DISABLE_MEMPOOL();
+    (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskSinkDestroyNum, 1);
   }
 
   qwFreeTaskCtx(QW_FPARAMS(), &octx);
@@ -888,4 +909,3 @@ void qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs) {
     pIter = taosHashIterate(mgmt->ctxHash, pIter);
   }
 }
-

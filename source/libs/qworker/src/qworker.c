@@ -449,17 +449,24 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output);
 int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
   if (QUERY_RSP_POLICY_QUICK != tsQueryRspPolicy) {
     return TSDB_CODE_SUCCESS;
   }
 
   SQWTaskCtx *ctx = NULL;
+  bool        fetchGuard = false;
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   if (!QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
     goto _return;
   }
+
+  QW_LOCK(QW_WRITE, &ctx->lock);
+  QW_SET_PHASE(ctx, QW_PHASE_PRE_FETCH);
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
+  fetchGuard = true;
 
   void       *rsp = NULL;
   int32_t     dataLen = 0;
@@ -503,6 +510,17 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
 _return:
 
   if (ctx) {
+    if (fetchGuard) {
+      QW_LOCK(QW_WRITE, &ctx->lock);
+      QW_SET_PHASE(ctx, QW_PHASE_POST_FETCH);
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+      SQWPhaseInput input = {.code = code};
+      int32_t       postCode = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_FETCH, &input, NULL);
+      if (TSDB_CODE_SUCCESS == code && postCode) {
+        code = postCode;
+      }
+    }
     qwReleaseTaskCtx(mgmt, ctx);
   }
 
@@ -697,7 +715,15 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
-    if (QW_PHASE_POST_FETCH != phase || ((!QW_QUERY_RUNNING(ctx)) && qwTaskNotInExec(ctx))) {
+    bool pendingQuickFetch = (QW_PHASE_POST_QUERY == phase && QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy &&
+                              QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH));
+    if ((QW_FETCH_RUNNING(ctx) || pendingQuickFetch) && QW_PHASE_POST_FETCH != phase) {
+      QW_TASK_WLOG("defer drop while fetch is pending or running, phase:%s, drop:%d, fetch:%d, sinkHandle:%p, thread:%" PRId64,
+                   qwPhaseStr(phase), QW_GET_EVENT(ctx, QW_EVENT_DROP), QW_GET_EVENT(ctx, QW_EVENT_FETCH),
+                   ctx->sinkHandle, taosGetSelfPthreadId());
+    } else if (QW_PHASE_POST_FETCH != phase || ((!QW_QUERY_RUNNING(ctx)) && qwTaskNotInExec(ctx))) {
+      QW_TASK_WLOG("drop task in post phase:%s, sinkHandle:%p, thread:%" PRId64, qwPhaseStr(phase), ctx->sinkHandle,
+                   taosGetSelfPthreadId());
       QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
       QW_ERR_JRET(ctx->rspCode);
     }
@@ -1131,6 +1157,10 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (QW_QUERY_RUNNING(ctx)) {
     QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROP, ctx->dynamicTask));
+  } else if (QW_FETCH_RUNNING(ctx) ||
+             (QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH))) {
+    QW_TASK_WLOG("defer direct drop while fetch is pending or running, sinkHandle:%p, thread:%" PRId64, ctx->sinkHandle,
+                 taosGetSelfPthreadId());
   } else {
     QW_ERR_JRET(qwDropTask(QW_FPARAMS()));
     dropped = true;
