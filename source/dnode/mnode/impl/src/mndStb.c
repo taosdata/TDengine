@@ -63,6 +63,8 @@ static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbO
                                void *alterOriData, int32_t alterOriDataLen);
 static int32_t  mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                                               void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter);
+static int32_t  mndAlterStbDropBaseOnImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb,
+                                         SStbObj *pOld, void *alterOriData, int32_t alterOriDataLen);
 
 static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
@@ -3399,6 +3401,46 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndAlterStbDropBaseOnImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb,
+                                        SStbObj *pOld, void *alterOriData, int32_t alterOriDataLen) {
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "alter-stb-drop-baseon");
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  mInfo("trans:%d, used to alter stb drop base on:%s", pTrans->id, pStb->name);
+  mndTransSetDbName(pTrans, pDb->name, pStb->name);
+  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
+
+  mndTransSetSerial(pTrans);
+
+  // VCT check actions (verify current VST doesn't have child tables)
+  // Although DROP BASE ON may be allowed even with child VSTs,
+  // we need to ensure VCT colRef mappings are updated if they exist.
+  int64_t vstSuid = pStb->uid;
+  TAOS_CHECK_GOTO(mndSetCheckHasCtbRedoActions(pMnode, pTrans, pDb, &vstSuid, 1), NULL, _OVER);
+
+  // ALTER STB actions (executed after checks pass)
+  void   *pCont = NULL;
+  int32_t contLen = 0;
+  TAOS_CHECK_GOTO(mndBuildSMAlterStbRsp(pDb, pStb, &pCont, &contLen), NULL, _OVER);
+  mndTransSetRpcRsp(pTrans, pCont, contLen);
+
+  TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+
+  code = 0;
+
+_OVER:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                                              void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter) {
   int32_t code = -1;
@@ -4000,6 +4042,11 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     code = mndAlterStbAddBaseOnImp(pMnode, pReq, pDb, &stbObj,
                                    &stbObj.parentSuids[pOld->numParents], numNew,
                                    pReq->pCont, pReq->contLen);
+  } else if (pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    // Check if this VST has any child VSTs before dropping inheritance.
+    // If children exist, this change is a structural alteration and needs coordination.
+    code = mndAlterStbDropBaseOnImp(pMnode, pReq, pDb, &stbObj, pOld,
+                                    pReq->pCont, pReq->contLen);
   } else if (updateTagIndex == false) {
     code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
   } else {
