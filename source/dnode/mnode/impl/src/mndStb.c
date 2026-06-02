@@ -231,6 +231,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   }
   SDB_SET_INT16(pRaw, dataPos, pStb->ownColStart, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pStb->ownTagStart, _OVER)
+  // since 3.x.x - STB_VER_SUPPORT_HAS_CHILDREN_CACHE
+  SDB_SET_INT8(pRaw, dataPos, pStb->hasChildren, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -405,11 +407,19 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_INT16(pRaw, dataPos, &pStb->ownColStart, _OVER)
     SDB_GET_INT16(pRaw, dataPos, &pStb->ownTagStart, _OVER)
+    // since 3.x.x - STB_VER_SUPPORT_HAS_CHILDREN_CACHE
+    // Skip persisted hasChildren (may be stale after restart); always recompute.
+    if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+      int8_t dummy;
+      SDB_GET_INT8(pRaw, dataPos, &dummy, _OVER)
+    }
+    pStb->hasChildren = -1;  // unknown, will be computed on demand
   } else {
     pStb->numParents = 0;
     memset(pStb->parentSuids, 0, sizeof(pStb->parentSuids));
     pStb->ownColStart = 0;
     pStb->ownTagStart = 0;
+    pStb->hasChildren = 0;  // no inheritance, so no children
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -594,26 +604,37 @@ SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
-// VST inheritance utility: check if a VST is a parent of any other VST
-bool mndStbHasChildren(SMnode *pMnode, int64_t suid) {
+// VST inheritance utility: check if a VST is a parent of any other VST.
+// Uses in-memory cache (hasChildren field) to avoid repeated full scans.
+// Caller must hold a reference to pParent (via mndAcquireStb / sdbFetch).
+bool mndStbHasChildren(SMnode *pMnode, SStbObj *pParent) {
+  if (pParent->hasChildren == 1) return true;
+  if (pParent->hasChildren == 0) return false;
+  // hasChildren == -1: unknown, perform full scan
+
   SSdb    *pSdb = pMnode->pSdb;
   void    *pIter = NULL;
   SStbObj *pStb = NULL;
-  bool     hasChildren = false;
+  bool     found = false;
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
     if (pIter == NULL) break;
     for (int8_t i = 0; i < pStb->numParents; ++i) {
-      if (pStb->parentSuids[i] == suid) {
-        hasChildren = true;
-        sdbRelease(pSdb, pStb);
-        sdbCancelFetch(pSdb, pIter);
-        return true;
+      if (pStb->parentSuids[i] == pParent->uid) {
+        found = true;
+        break;
       }
     }
     sdbRelease(pSdb, pStb);
+    if (found) {
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
   }
-  return hasChildren;
+
+  pParent->hasChildren = found ? 1 : 0;
+  return found;
 }
 
 // VST inheritance utility: DAG cycle detection
@@ -1413,7 +1434,10 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
       dst++;
     }
 
-    for (int8_t i = 0; i < stbObj.numParents; ++i) mndReleaseStb(pMnode, pParents[i]);
+    for (int8_t i = 0; i < stbObj.numParents; ++i) {
+      pParents[i]->hasChildren = -1;  // invalidate cache, will be recomputed on first query
+      mndReleaseStb(pMnode, pParents[i]);
+    }
 
     taosMemoryFree(stbObj.pColumns);
     taosMemoryFree(stbObj.pTags);
@@ -2984,7 +3008,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
   pRsp->secLvl = pStb->securityLevel;
   pRsp->secureDelete = pStb->secureDelete;
-  pRsp->hasInheritors = (pMnode != NULL && pStb->virtualStb && mndStbHasChildren(pMnode, pStb->uid)) ? 1 : 0;
+  pRsp->hasInheritors = (pMnode != NULL && pStb->virtualStb && mndStbHasChildren(pMnode, pStb)) ? 1 : 0;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -3741,6 +3765,42 @@ static bool mndIsTagFromParent(const SStbObj *pParent, const char *tagName) {
   return false;
 }
 
+static bool mndContainsParentUid(const int64_t *pParentSuids, int8_t numParents, int64_t suid) {
+  for (int8_t i = 0; i < numParents; ++i) {
+    if (pParentSuids[i] == suid) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Invalidate hasChildren cache on parent STBs by their UIDs.
+// Single-pass scan: O(numSTBs), sets all matching parents to -1 (unknown).
+static void mndInvalidateParentHasChildrenCache(SMnode *pMnode, const int64_t *parentSuids, int8_t numParents) {
+  if (numParents <= 0) return;
+
+  SSdb *pSdb = pMnode->pSdb;
+  bool  found[TSDB_MAX_VST_PARENTS] = {0};
+  int8_t numFound = 0;
+  void  *pIter = NULL;
+  SStbObj *pStb = NULL;
+
+  while (numFound < numParents) {
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    if (pIter == NULL) break;
+    for (int8_t i = 0; i < numParents; ++i) {
+      if (!found[i] && pStb->uid == parentSuids[i]) {
+        pStb->hasChildren = -1;
+        found[i] = true;
+        numFound++;
+        break;
+      }
+    }
+    sdbRelease(pSdb, pStb);
+  }
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+}
+
 static int32_t mndAlterStbDropBaseOn(SMnode *pMnode, SStbObj *pOld, SStbObj *pNew, const SMAlterStbReq *pAlter) {
   int32_t code = 0;
   if (pAlter->numParents <= 0) {
@@ -4042,11 +4102,26 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
     code = mndAlterStbAddBaseOnImp(pMnode, pReq, pDb, &stbObj,
                                    &stbObj.parentSuids[pOld->numParents], numNew,
                                    pReq->pCont, pReq->contLen);
+    if (code == 0 && numNew > 0) {
+      mndInvalidateParentHasChildrenCache(pMnode, &stbObj.parentSuids[pOld->numParents], numNew);
+    }
   } else if (pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
     // Check if this VST has any child VSTs before dropping inheritance.
     // If children exist, this change is a structural alteration and needs coordination.
     code = mndAlterStbDropBaseOnImp(pMnode, pReq, pDb, &stbObj, pOld,
                                     pReq->pCont, pReq->contLen);
+    if (code == 0) {
+      int64_t droppedParentSuids[TSDB_MAX_VST_PARENTS] = {0};
+      int8_t  numDropped = 0;
+      for (int8_t i = 0; i < pOld->numParents; ++i) {
+        if (!mndContainsParentUid(stbObj.parentSuids, stbObj.numParents, pOld->parentSuids[i])) {
+          droppedParentSuids[numDropped++] = pOld->parentSuids[i];
+        }
+      }
+      if (numDropped > 0) {
+        mndInvalidateParentHasChildrenCache(pMnode, droppedParentSuids, numDropped);
+      }
+    }
   } else if (updateTagIndex == false) {
     code = mndAlterStbImp(pMnode, pReq, pDb, &stbObj, needRsp, pReq->pCont, pReq->contLen);
   } else {
@@ -4364,13 +4439,17 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   }
 
   // VST inheritance: refuse DROP if this VST has child VSTs
-  if (pStb->virtualStb && mndStbHasChildren(pMnode, pStb->uid)) {
+  if (pStb->virtualStb && mndStbHasChildren(pMnode, pStb)) {
     code = TSDB_CODE_MND_VST_HAS_CHILDREN;
     goto _OVER;
   }
 
   code = mndDropStb(pMnode, pReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (code == 0) {
+    // Invalidate parent caches so they recompute hasChildren on next query
+    mndInvalidateParentHasChildrenCache(pMnode, pStb->parentSuids, pStb->numParents);
+    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  }
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
@@ -5241,6 +5320,7 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
 
   SArray       *queue = NULL;
   SHashObj     *seen = NULL;
+  SHashObj     *nonLeaf = NULL;  // tracks descendants that have their own children within the tree
   SArray       *allDescs = NULL;
   SArray       *leavesArr = NULL;
 
@@ -5251,9 +5331,10 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
 
   queue = taosArrayInit(16, sizeof(int64_t));
   seen = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  nonLeaf = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   allDescs = taosArrayInit(16, sizeof(int64_t));
   leavesArr = taosArrayInit(16, sizeof(SVstLeafInfo));
-  if (queue == NULL || seen == NULL || allDescs == NULL || leavesArr == NULL) {
+  if (queue == NULL || seen == NULL || nonLeaf == NULL || allDescs == NULL || leavesArr == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
@@ -5276,6 +5357,8 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
       for (int8_t i = 0; i < pStb->numParents; ++i) {
         if (pStb->parentSuids[i] == curSuid) {
           int64_t child = pStb->uid;
+          // Mark curSuid as non-leaf (it has at least one child in the tree)
+          taosHashPut(nonLeaf, &curSuid, sizeof(int64_t), &curSuid, sizeof(int64_t));
           if (taosHashGet(seen, &child, sizeof(int64_t)) == NULL) {
             if (taosArrayPush(allDescs, &child) == NULL ||
                 taosArrayPush(queue, &child) == NULL ||
@@ -5293,34 +5376,32 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
     }
   }
 
-  // Among descendants, find leaves (those with no children of their own)
+  // Among descendants, find leaves (those with no children of their own within the tree)
   size_t numDescs = taosArrayGetSize(allDescs);
   for (size_t d = 0; d < numDescs; ++d) {
     int64_t suid = *(int64_t *)taosArrayGet(allDescs, d);
-    bool hasChild = mndStbHasChildren(pMnode, suid);
-    if (!hasChild) {
-      void   *pIter = NULL;
-      SStbObj *pStb = NULL;
-      while (1) {
-        pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
-        if (pIter == NULL) break;
-        if (pStb->uid == suid) {
-          SVstLeafInfo info = {0};
-          mndExtractDbNameFromStbFullName(pStb->name, info.dbFName);
-          mndExtractTbNameFromStbFullName(pStb->name, info.stbName, TSDB_TABLE_NAME_LEN);
-          info.suid = pStb->uid;
-          if (taosArrayPush(leavesArr, &info) == NULL) {
-            sdbRelease(pSdb, pStb);
-            sdbCancelFetch(pSdb, pIter);
-            code = TSDB_CODE_OUT_OF_MEMORY;
-            goto _OVER;
-          }
+    if (taosHashGet(nonLeaf, &suid, sizeof(int64_t)) != NULL) continue;  // has child, not a leaf
+    void   *pIter = NULL;
+    SStbObj *pStb = NULL;
+    while (1) {
+      pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+      if (pIter == NULL) break;
+      if (pStb->uid == suid) {
+        SVstLeafInfo info = {0};
+        mndExtractDbNameFromStbFullName(pStb->name, info.dbFName);
+        mndExtractTbNameFromStbFullName(pStb->name, info.stbName, TSDB_TABLE_NAME_LEN);
+        info.suid = pStb->uid;
+        if (taosArrayPush(leavesArr, &info) == NULL) {
           sdbRelease(pSdb, pStb);
           sdbCancelFetch(pSdb, pIter);
-          break;
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _OVER;
         }
         sdbRelease(pSdb, pStb);
+        sdbCancelFetch(pSdb, pIter);
+        break;
       }
+      sdbRelease(pSdb, pStb);
     }
   }
 
@@ -5341,6 +5422,7 @@ static int32_t mndProcessGetVstLeavesReq(SRpcMsg *pReq) {
 _OVER:
   if (queue) taosArrayDestroy(queue);
   if (seen) taosHashCleanup(seen);
+  if (nonLeaf) taosHashCleanup(nonLeaf);
   if (allDescs) taosArrayDestroy(allDescs);
   if (leavesArr) taosArrayDestroy(leavesArr);
   return code;

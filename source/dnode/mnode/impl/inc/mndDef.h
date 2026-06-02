@@ -994,6 +994,7 @@ typedef struct {
   int64_t  parentSuids[TSDB_MAX_VST_PARENTS];
   int16_t  ownColStart;
   int16_t  ownTagStart;
+  int8_t   hasChildren;  // Cache: whether this VST has child VSTs (1=yes, 0=no, -1=unknown)
 } SStbObj;
 
 typedef struct {

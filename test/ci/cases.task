@@ -237,6 +237,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stress.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_inheritance_cascade.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_has_children_cache.py
 
 # 06-DataIngestion
 ## 01-SQL
