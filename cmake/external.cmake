@@ -2182,11 +2182,13 @@ message(STATUS "[pyudf] Will download CPython ${_pyver} SDK for ${_pbs_triple}")
 INIT_EXT(ext_plog
     INC_DIR          include
 )
-get_from_local_repo_if_exists("https://github.com/SergiusTheBest/plog.git")
+get_from_local_if_exists(
+    "https://github.com/SergiusTheBest/plog/archive/refs/tags/1.1.10.tar.gz"
+    "plog-1.1.10.tar.gz"
+)
 ExternalProject_Add(ext_plog
-    GIT_REPOSITORY ${_git_url}
-    GIT_TAG 1.1.10
-    GIT_SHALLOW TRUE
+    URL "${_url}"
+    URL_HASH SHA256=55a090fc2b46ab44d0dde562a91fe5fc15445a3caedfaedda89fe3925da4705a
     PREFIX "${_base}"
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
@@ -2194,6 +2196,7 @@ ExternalProject_Add(ext_plog
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/include"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ext_plog_source}/include/plog" "${_ins}/include/plog"
     EXCLUDE_FROM_ALL TRUE
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     VERBATIM
 )
 add_dependencies(build_externals ext_plog)
