@@ -518,6 +518,11 @@ class StreamUtil:
         tdSql.query("show snodes")
         tdSql.checkKeyExist(index)
 
+    def ensureSnode(self, index=1):
+        tdSql.query("show snodes")
+        if tdSql.queryRows == 0:
+            self.createSnode(index)
+
     def dropSnode(self, index=1):
         sql = f"drop snode on dnode {index}"
         tdSql.query(sql)

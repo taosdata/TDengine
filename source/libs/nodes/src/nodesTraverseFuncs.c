@@ -231,6 +231,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
         res = walkExprs(pTrigger->pPartitionList, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pTrigger->pRollupTagList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pTrigger->pOptions, order, walker, pContext);
       }
       break;

@@ -740,6 +740,8 @@ Below are the business error codes for each module.
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs |
+| 0x80004118 | Stream rollup tag path is illegal | The ROLLUP BY tag path is invalid | Check and correct the rollup tag path |
+| 0x80004119 | Invalid ROLLUP BY clause | The stream ROLLUP BY clause is invalid | Check and correct the stream creation statement |
 
 #### xnode
 

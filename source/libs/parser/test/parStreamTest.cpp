@@ -13,11 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <array>
 #include <fstream>
 #include <memory>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
+#include "parInt.h"
 #include "parTestUtil.h"
 #include "plannodes.h"
 
@@ -190,6 +192,248 @@ static void pstCheckCalcPlanExternalWindowNeedCalcTimeRangeCount(const SQuery* p
 
   int32_t count = pstCountExternalWindowNodesNeedCalcTimeRange((const SQueryPlan*)pPlanNode);
   EXPECT_EQ(count, expectedCount);
+}
+
+static void pstCheckRollupTagList(SNodeList* pRollupTagList, const char* const* pExpectedColNames,
+                                  int32_t expectedColNum) {
+  ASSERT_NE(pRollupTagList, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pRollupTagList), expectedColNum);
+  for (int32_t i = 0; i < expectedColNum; ++i) {
+    SNode* pTagNode = nodesListGetNode(pRollupTagList, i);
+    ASSERT_NE(pTagNode, nullptr);
+    ASSERT_EQ(nodeType(pTagNode), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)pTagNode)->colName, pExpectedColNames[i]);
+  }
+}
+
+static void pstCheckParsedStreamRollupTagCols(const char* pSql, const char* const* pExpectedColNames,
+                                              int32_t expectedColNum) {
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "wangxiaoyu";
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+
+  SQuery* pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, parse(&cxt, &pQuery)) << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  const SCreateStreamStmt*  pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  const SStreamTriggerNode* pTrigger = (const SStreamTriggerNode*)pStmt->pTrigger;
+  ASSERT_NE(pTrigger, nullptr);
+  pstCheckRollupTagList(pTrigger->pRollupTagList, pExpectedColNames, expectedColNum);
+
+  char*   pStr = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pQuery->pRoot, false, &pStr, &len));
+  SNode* pCopy = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pStr, &pCopy));
+  taosMemoryFreeClear(pStr);
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> copyGuard(pCopy, nodesDestroyNode);
+
+  const SCreateStreamStmt*  pCopyStmt = (const SCreateStreamStmt*)pCopy;
+  const SStreamTriggerNode* pCopyTrigger = (const SStreamTriggerNode*)pCopyStmt->pTrigger;
+  ASSERT_NE(pCopyTrigger, nullptr);
+  pstCheckRollupTagList(pCopyTrigger->pRollupTagList, pExpectedColNames, expectedColNum);
+}
+
+static void pstCheckParsedStreamRollupTagCol(const char* pSql, const char* pExpectedColName) {
+  const char* expectedColNames[] = {pExpectedColName};
+  pstCheckParsedStreamRollupTagCols(pSql, expectedColNames, 1);
+}
+
+static int32_t pstTranslateCreateStreamSql(const char* pSql, SQuery** ppQuery, char* pMsg, int32_t msgLen) {
+  SParseContext cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "stream_streamdb";
+  cxt.pUser = "wangxiaoyu";
+  cxt.isSuperUser = true;
+  cxt.enableSysInfo = true;
+  cxt.privInfo = UINT16_MAX;
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = pMsg;
+  cxt.msgLen = msgLen;
+
+  int32_t code = parse(&cxt, ppQuery);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  code = authenticate(&cxt, *ppQuery, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    qDestroyQuery(*ppQuery);
+    *ppQuery = nullptr;
+    return code;
+  }
+  code = translate(&cxt, *ppQuery, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    qDestroyQuery(*ppQuery);
+    *ppQuery = nullptr;
+  }
+  return code;
+}
+
+static void pstCheckCreateStreamReqRollupTagCols(const char* pSql, const char* const* pExpectedColNames,
+                                                 int32_t expectedColNum) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.rollupTagCols, nullptr);
+
+  SNodeList* pList = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToList((char*)req.rollupTagCols, &pList));
+  unique_ptr<SNodeList, decltype(&nodesDestroyList)> listGuard(pList, nodesDestroyList);
+  ASSERT_NE(pList, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pList), expectedColNum);
+  for (int32_t i = 0; i < expectedColNum; ++i) {
+    SNode* pColNode = nodesListGetNode(pList, i);
+    ASSERT_NE(pColNode, nullptr);
+    ASSERT_EQ(nodeType(pColNode), QUERY_NODE_COLUMN);
+
+    const SColumnNode* pCol = (const SColumnNode*)pColNode;
+    EXPECT_STREQ(pCol->colName, pExpectedColNames[i]);
+    EXPECT_EQ(pCol->colType, COLUMN_TYPE_TAG);
+    EXPECT_NE(pCol->colId, 0);
+    EXPECT_TRUE(pCol->node.resType.type == TSDB_DATA_TYPE_BINARY || pCol->node.resType.type == TSDB_DATA_TYPE_NCHAR);
+  }
+}
+
+static void pstCheckCreateStreamReqRollupTagCol(const char* pSql, const char* pExpectedColName) {
+  const char* expectedColNames[] = {pExpectedColName};
+  pstCheckCreateStreamReqRollupTagCols(pSql, expectedColNames, 1);
+}
+
+static void pstCheckTriggerScanPseudoColPresent(const char* pSql, const char* pExpectedColName) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.triggerScanPlan, nullptr);
+  ASSERT_NE(req.rollupTagCols, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.triggerScanPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+  ASSERT_EQ(nodeType(pPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+
+  const SSubplan* pSubplan = (const SSubplan*)pPlanNode;
+  ASSERT_NE(pSubplan->pNode, nullptr);
+  ASSERT_TRUE(nodeType(pSubplan->pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+              nodeType(pSubplan->pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+
+  bool   found = false;
+  SNode* pTargetNode = nullptr;
+  FOREACH(pTargetNode, ((const SScanPhysiNode*)pSubplan->pNode)->pScanPseudoCols) {
+    ASSERT_EQ(nodeType(pTargetNode), QUERY_NODE_TARGET);
+    const SNode* pExpr = ((const STargetNode*)pTargetNode)->pExpr;
+    if (pExpr != nullptr && nodeType(pExpr) == QUERY_NODE_COLUMN) {
+      found = found || (0 == strcmp(((const SColumnNode*)pExpr)->colName, pExpectedColName));
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+static void pstCheckCreateStreamReqRollupTagColsWithSubtableExpr(const char* pSql, const char* const* pExpectedColNames,
+                                                                 int32_t expectedColNum) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.subTblNameExpr, nullptr);
+  EXPECT_GT(strlen((const char*)req.subTblNameExpr), 0);
+  ASSERT_NE(req.rollupTagCols, nullptr);
+
+  SNodeList* pList = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToList((char*)req.rollupTagCols, &pList));
+  unique_ptr<SNodeList, decltype(&nodesDestroyList)> listGuard(pList, nodesDestroyList);
+  ASSERT_NE(pList, nullptr);
+  ASSERT_EQ(LIST_LENGTH(pList), expectedColNum);
+  for (int32_t i = 0; i < expectedColNum; ++i) {
+    SNode* pColNode = nodesListGetNode(pList, i);
+    ASSERT_NE(pColNode, nullptr);
+    ASSERT_EQ(nodeType(pColNode), QUERY_NODE_COLUMN);
+    EXPECT_STREQ(((const SColumnNode*)pColNode)->colName, pExpectedColNames[i]);
+  }
+}
+
+static void pstCheckCreateStreamReqRollupTagColWithSubtableExpr(const char* pSql, const char* pExpectedColName) {
+  const char* expectedColNames[] = {pExpectedColName};
+  pstCheckCreateStreamReqRollupTagColsWithSubtableExpr(pSql, expectedColNames, 1);
+}
+
+static void pstCheckCreateStreamReqNoRollupTagCol(const char* pSql) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  EXPECT_EQ(req.rollupTagCols, nullptr);
+}
+
+static void pstCheckCreateStreamRollupError(const char* pSql, int32_t expectedCode, const char* pExpectedMsg) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  int32_t           code = pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size());
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  EXPECT_EQ(code, expectedCode) << msgBuf.data();
+  if (pExpectedMsg != nullptr) {
+    EXPECT_NE(strstr(msgBuf.data(), pExpectedMsg), nullptr) << msgBuf.data();
+  }
+}
+
+static void pstCheckCreateStreamRollupTagPlaceholderType(const char* pSql, int8_t expectedType, int32_t expectedBytes) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+
+  const SCreateStreamStmt* pStmt = (const SCreateStreamStmt*)pQuery->pRoot;
+  ASSERT_NE(pStmt->pQuery, nullptr);
+  ASSERT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
+  const SSelectStmt* pSelect = (const SSelectStmt*)pStmt->pQuery;
+  ASSERT_NE(pSelect->pProjectionList, nullptr);
+  ASSERT_GE(LIST_LENGTH(pSelect->pProjectionList), 2);
+
+  SNode* pProjNode = nodesListGetNode(pSelect->pProjectionList, 1);
+  ASSERT_NE(pProjNode, nullptr);
+  ASSERT_EQ(nodeType(pProjNode), QUERY_NODE_FUNCTION);
+  const SFunctionNode* pFunc = (const SFunctionNode*)pProjNode;
+  EXPECT_STREQ(pFunc->functionName, "_placeholder_rollup_tag");
+  EXPECT_EQ(pFunc->node.resType.type, expectedType);
+  EXPECT_EQ(pFunc->node.resType.bytes, expectedBytes);
 }
 
 static const SSelectStmt* pstGetCreateStreamSelect(const SQuery* pQuery, ParserStage stage) {
@@ -1442,6 +1686,163 @@ TEST_F(ParserStreamTest, TestTriggerPartition) {
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tbname, tag1, tag2, tag3 into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
   clearCreateStreamReq();
+}
+
+TEST_F(ParserStreamTest, TestTriggerRollupBy) {
+  pstCheckParsedStreamRollupTagCol(
+      "create stream stream_streamdb.s1 count_window(1) from stream_triggerdb.st1 rollup by tag1 as select * from "
+      "stream_querydb.stream_t2",
+      "tag1");
+  pstCheckParsedStreamRollupTagCol(
+      "create stream stream_streamdb.s1 count_window(1) from stream_triggerdb.st1 partition by tbname rollup by tag2 "
+      "as select * from stream_querydb.stream_t2",
+      "tag2");
+}
+
+TEST_F(ParserStreamTest, TestCreateStreamRollupSemantic) {
+  setAsyncFlag("-1");
+
+  pstCheckCreateStreamReqRollupTagCol(
+      "create stream stream_streamdb.s_rollup interval(1s) sliding(1s) from stream_triggerdb.st1 rollup by tag2 "
+      "into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      "tag2");
+  pstCheckTriggerScanPseudoColPresent(
+      "create stream stream_streamdb.s_rollup interval(1s) sliding(1s) from stream_triggerdb.st1 rollup by tag2 "
+      "into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      "tag2");
+  pstCheckCreateStreamReqNoRollupTagCol(
+      "create stream stream_streamdb.s_no_rollup interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
+
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_no_from period(1s) rollup by tag2 into stream_outdb.rollup_no_from "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "requires explicit FROM");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_no_from_interval interval(1s) sliding(1s) rollup by tag2 "
+      "into stream_outdb.rollup_no_from_interval as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "requires explicit FROM");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_count count_window(10) from stream_triggerdb.st1 rollup by tag2 "
+      "into stream_outdb.rollup_count as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "unsupported trigger window");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_partition interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "partition by tbname rollup by tag2 into stream_outdb.rollup_partition "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "PARTITION BY");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_delete interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 stream_options(delete_output_table) into stream_outdb.rollup_delete "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "DELETE_OUTPUT_TABLE");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_col interval(1s) sliding(1s) from stream_triggerdb.st1 rollup by c1 "
+      "into stream_outdb.rollup_col as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "tag column");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_int interval(1s) sliding(1s) from stream_triggerdb.st1 rollup by tag1 "
+      "into stream_outdb.rollup_int as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "VARCHAR or NCHAR");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_normal interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "rollup by c2 into stream_outdb.rollup_normal as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "super table");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_child interval(1s) sliding(1s) from stream_triggerdb.st1s1 "
+      "rollup by tag2 into stream_outdb.rollup_child as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "super table");
+}
+
+TEST_F(ParserStreamTest, TestCreateStreamRollupPlaceholderSemantic) {
+  setAsyncFlag("-1");
+
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_missing interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "into stream_outdb.rollup_ph_missing as select _tlocaltime, %%rollup_tag from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "require ROLLUP BY");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_missing_subtable interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "into stream_outdb.rollup_ph_missing_subtable output_subtable(cast(%%rollup_tag as varchar(20))) "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_SUBTABLE, "OUTPUT_SUBTABLE");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_missing_tags interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "into stream_outdb.rollup_ph_missing_tags tags(rollup_tag varchar(256) as %%rollup_tag) "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_OUT_TAGS, "Tags");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_missing_trigger_count "
+      "event_window(start with _trollup_tbcount > 0 end with c1 > 0) from stream_triggerdb.st1 "
+      "into stream_outdb.rollup_ph_missing_trigger_count as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "create stream's query part");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_missing_trigger_tag "
+      "event_window(start with %%rollup_tag is not null end with c1 > 0) from stream_triggerdb.st1 "
+      "into stream_outdb.rollup_ph_missing_trigger_tag as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "create stream's query part");
+  pstCheckCreateStreamReqRollupTagCol(
+      "create stream stream_streamdb.s_rollup_ph_query interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_query(ts, rollup_tag, tbcount) "
+      "as select _tlocaltime, %%rollup_tag, _trollup_tbcount from stream_querydb.stream_t2",
+      "tag2");
+  pstCheckCreateStreamRollupTagPlaceholderType(
+      "create stream stream_streamdb.s_rollup_ph_type interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_type(ts, rollup_tag) "
+      "as select _tlocaltime, %%rollup_tag from stream_querydb.stream_t2",
+      TSDB_DATA_TYPE_BINARY, 20);
+  pstCheckCreateStreamReqRollupTagCol(
+      "create stream stream_streamdb.s_rollup_ph_out interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_out output_subtable(cast(%%rollup_tag as varchar(20))) (ts, v) "
+      "tags(rollup_tag varchar(256) as %%rollup_tag) as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      "tag2");
+  pstCheckCreateStreamReqRollupTagColWithSubtableExpr(
+      "create stream stream_streamdb.s_rollup_ph_default_subtable interval(1s) sliding(1s) "
+      "from stream_triggerdb.st1 rollup by tag2 into stream_outdb.rollup_ph_default_subtable (ts, v) "
+      "tags(rollup_tag varchar(256) as %%rollup_tag) as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      "tag2");
+  pstCheckCreateStreamReqRollupTagCol(
+      "create stream stream_streamdb.s_rollup_ph_path interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_path (ts, v) "
+      "tags(path varchar(256) as %%1) as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      "tag2");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_path_bad interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_path_bad (ts, v) "
+      "tags(path varchar(256) as %%2) as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "partition index out of range");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_subtable interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_subtable output_subtable(cast(_trollup_tbcount as varchar(20))) "
+      "(ts, v) tags(rollup_tag varchar(256) as %%rollup_tag) "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "_trollup_tbcount");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_tags interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 into stream_outdb.rollup_ph_tags output_subtable(cast(%%rollup_tag as varchar(20))) (ts, v) "
+      "tags(tbcount int as _trollup_tbcount) "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "_trollup_tbcount");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_prefilter_count interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 stream_options(pre_filter(_trollup_tbcount > 0)) "
+      "into stream_outdb.rollup_ph_prefilter_count as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "create stream's query part");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_prefilter_tag interval(1s) sliding(1s) from stream_triggerdb.st1 "
+      "rollup by tag2 stream_options(pre_filter(%%rollup_tag is not null)) "
+      "into stream_outdb.rollup_ph_prefilter_tag as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "create stream's query part");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_trigger_count "
+      "event_window(start with _trollup_tbcount > 0 end with c1 > 0) from stream_triggerdb.st1 rollup by tag2 "
+      "into stream_outdb.rollup_ph_trigger_count as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "unsupported trigger window");
+  pstCheckCreateStreamRollupError(
+      "create stream stream_streamdb.s_rollup_ph_trigger_tag "
+      "event_window(start with %%rollup_tag is not null end with c1 > 0) from stream_triggerdb.st1 rollup by tag2 "
+      "into stream_outdb.rollup_ph_trigger_tag as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_ROLLUP, "unsupported trigger window");
 }
 
 TEST_F(ParserStreamTest, TestNotify) {

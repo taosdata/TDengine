@@ -1658,6 +1658,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pTrigger->pOptions);
       nodesDestroyNode(pTrigger->pNotify);
       nodesDestroyList(pTrigger->pPartitionList);
+      nodesDestroyList(pTrigger->pRollupTagList);
       break;
     }
     case QUERY_NODE_STREAM_CALC_RANGE: {

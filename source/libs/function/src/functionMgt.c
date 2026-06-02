@@ -839,19 +839,24 @@ const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStre
 }
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
-  switch (funcMgtBuiltins[funcId].type) {
+  int32_t type = funcMgtBuiltins[funcId].type;
+  switch (type) {
     case FUNCTION_TYPE_TGRPID:
       return &pStreamRuntimeFuncInfo->groupId;
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT:
+      return &pStreamRuntimeFuncInfo->rollupTbCount;
     default:
       break;
   }
 
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
-  switch (funcMgtBuiltins[funcId].type) {
+  switch (type) {
     case FUNCTION_TYPE_TPREV_TS:
       return &pParams->prevTs;
     case FUNCTION_TYPE_TCURRENT_TS:
@@ -872,12 +877,6 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->triggerTime;
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
       return &pParams->nextLocalTime;
-    case FUNCTION_TYPE_TGRPID:
-      return &pStreamRuntimeFuncInfo->groupId;
-    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
-    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_TIDLESTART:
       return &pParams->idlestart;
     case FUNCTION_TYPE_TIDLEEND:
@@ -888,12 +887,56 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
+static int32_t fmSetRollupTagValue(SValueNode* pNode, SArray* pVals) {
+  SStreamGroupValue* pValue = taosArrayGet(pVals, 0);
+  if (pValue == NULL) {
+    uError("failed to set rollup tag, invalid group column value");
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pValue->isNull) {
+    pNode->isNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pValue->data.type != pNode->node.resType.type) {
+    uError("failed to set rollup tag, source type:%d mismatch result type:%d", pValue->data.type,
+           pNode->node.resType.type);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  const char* pLeaf = NULL;
+  int32_t     leafLen = 0;
+  int32_t     code = tGetStreamRollupGroupLeaf(pValue, &pLeaf, &leafLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to set rollup tag, invalid source type:%d, data length:%d", pValue->data.type, pValue->data.nData);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t bufSize = leafLen + VARSTR_HEADER_SIZE;
+  char*   tmp = taosMemoryCalloc(1, bufSize);
+  if (tmp == NULL) {
+    return terrno;
+  }
+
+  if (leafLen > 0) {
+    (void)memcpy(varDataVal(tmp), pLeaf, leafLen);
+  }
+
+  taosMemFree(pNode->datum.p);
+  pNode->datum.p = tmp;
+  varDataSetLen(pNode->datum.p, leafLen);
+  pNode->isNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
 bool fmIsStreamPesudoColVal(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
-  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN
-         || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME;
+  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN ||
+         funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME ||
+         funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG;
 }
 
 int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
@@ -976,6 +1019,24 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       }
     }
     ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
+  } else if (FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG == t) {
+    SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    code = fmSetRollupTagValue((SValueNode*)pFirstParam, pVal);
+    if (code != 0) {
+      return code;
+    }
+  } else if (FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT == t) {
+    const int32_t* pVal = (const int32_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
   } else if (FUNCTION_TYPE_PLACEHOLDER_TBNAME == t) {
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
@@ -992,7 +1053,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
-  } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+  } else if (FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
       uError("invalid stream external window column param list %p, len: %d", pParamNodes,
              pParamNodes ? LIST_LENGTH(pParamNodes) : 0);
@@ -1050,7 +1111,6 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     uError("invalid placeholder function type: %d", t);
     return TSDB_CODE_INTERNAL_ERROR;
   }
-  
+
   return code;
 }
-

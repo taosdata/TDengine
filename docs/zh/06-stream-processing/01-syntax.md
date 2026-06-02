@@ -11,7 +11,7 @@ toc_max_heading_level: 4
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
     
 trigger_type: {
@@ -327,7 +327,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 
 | 触发方式                           | 支持的分组类型              |
 | --------------------------------- | -------------------------- |
-| PERIOD、SLIDING、INTERVAL、SESSION | 按子表分组、按标签分组、不分组 |
+| PERIOD、SLIDING、INTERVAL、SESSION | 按子表分组、按标签分组、层级标签汇总分组、不分组 |
 | 其他窗口触发                       | 按子表分组                    |
 
 ##### 触发表
@@ -345,6 +345,23 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ```sql
 [PARTITION BY col1 [, ...]]
 ```
+
+也可以指定一个层级标签汇总分组列。`ROLLUP BY` 与 `PARTITION BY` 互斥，只支持一个标签列。
+
+```sql
+[ROLLUP BY tag_name]
+```
+
+`ROLLUP BY` 用于标签值包含层级路径的场景，例如 `factory.workshop.line`。系统使用固定分隔符 `.` 将 `tag_name` 的字符串值展开为从根到当前节点的所有路径前缀，每个路径前缀都是一个独立的触发分组。例如标签值为 `A.B.C` 时，会展开为 `A`、`A.B`、`A.B.C` 三个分组；该子表的数据同时参与这三个分组的触发和计算。父级分组的数据集合包含本级路径以及所有后代路径的子表数据。
+
+使用说明：
+
+- `tag_name` 必须是触发超级表或虚拟超级表上的 `VARCHAR` 或 `NCHAR` 类型标签列。
+- `ROLLUP BY` 支持 `PERIOD`、`SLIDING`、`INTERVAL`、`SESSION` 四类触发；不支持状态窗口、事件窗口和计数窗口。
+- 使用 `ROLLUP BY` 时必须显式指定 `FROM <table_name>`，即使触发类型为 `PERIOD`。
+- 标签值为 `NULL` 或空字符串时，不产生 rollup 分组，不触发、不计算。
+- 标签值不能包含前导分隔符、尾随分隔符、连续分隔符、空路径段、控制字符或路径段首尾空白。检测到非法路径时，流进入错误状态。
+- 被 `ROLLUP BY` 引用的标签列不允许修改、删除或重命名；删除源子表不会删除已经生成的输出子表。
 
 ### 流式计算的结果输出
 
@@ -364,13 +381,13 @@ tag_definition:
   - 不存在触发分组时该表为普通表。
   - 只触发通知不计算，或计算结果只通知不保存时，不需要指定。
 - [NODELAY_CREATE_SUBTABLE]：可选，指定在建流的时候立即创建每个分组的计算输出子表/普通表，默认情况下计算输出子表在有一条计算数据写入时才创建。如果添加该选项，创建流之后，子表/普通表会异步的创建，如果未全部创建成功，则流的状态会是 `Idle` ；如果创建成功，则状态会变更为  `Running` 。输出表为普通表和超级表默认会在建流的时候自动建立，无需进行配置。
-- [OUTPUT_SUBTABLE(tbname_expr)]：可选，指定每个触发分组的计算输出表（子表）名，没有触发分组时不可以指定。未指定时自动为每个分组生成唯一的输出表（子表）名。`tbname_expr` 为任意输出字符串的表达式，可根据需要选择触发表分组列（来自 `[PARTITION BY col1[, ...]]`），输出长度不能超过表名最大长度，超过时截断处理。如果不希望不同分组输出到同一子表中，用户需确保每个分组输出表名都是唯一的。
+- [OUTPUT_SUBTABLE(tbname_expr)]：可选，指定每个触发分组的计算输出表（子表）名，没有触发分组时不可以指定。未指定时自动为每个分组生成唯一的输出表（子表）名。`tbname_expr` 为任意输出字符串的表达式，可根据需要选择触发表分组列（来自 `[PARTITION BY col1[, ...]]`）。使用 `ROLLUP BY` 时，可以使用 `%%1` 引用当前 rollup 节点完整路径，使用 `%%rollup_tag` 引用当前 rollup 节点本级标签值；不能使用 `_trollup_tbcount`。输出长度不能超过表名最大长度，超过时截断处理。如果不希望不同分组输出到同一子表中，用户需确保每个分组输出表名都是唯一的。
 - [(column_name1, column_name2 [COMPOSITE KEY][, ...])]：可选，指定输出表的每列列名，未指定时每列列名与计算结果的每列列名相同。可以通过 `[COMPOSITE KEY]` 指定第二列为主键列，与第一列共同组成复合主键。
-- [TAGS (tag_definition [, ...])]：可选，指定输出超级表的标签列定义与值的列表，只有存在触发分组时才可以指定。未指定时，标签列的定义和值来自于所有分组列，此时分组列中不可以存在相同的列名。当按子表分组时，默认产生的标签列名为 `tag_tbname`，类型为 `VARCHAR(270)`。具体的 `tag_definition` 参数说明如下：
+- [TAGS (tag_definition [, ...])]：可选，指定输出超级表的标签列定义与值的列表，只有存在触发分组时才可以指定。未指定时，标签列的定义和值来自于所有分组列，此时分组列中不可以存在相同的列名。当按子表分组时，默认产生的标签列名为 `tag_tbname`，类型为 `VARCHAR(270)`；当使用 `ROLLUP BY` 时，默认标签值为当前 rollup 节点完整路径。具体的 `tag_definition` 参数说明如下：
   - tag_name：标签列名
   - type_name：标签列类型
   - string_value：标签列说明
-  - expr：标签值计算表达式，可根据需要选择任意触发表分组列（来自 `[PARTITION BY col1[, ...]]`）。
+  - expr：标签值计算表达式，可根据需要选择任意触发表分组列（来自 `[PARTITION BY col1[, ...]]`）。使用 `ROLLUP BY` 时，可以使用 `%%1` 和 `%%rollup_tag`，不能使用 `_trollup_tbcount`。
 
 ### 流式计算的计算任务
 
@@ -402,14 +419,18 @@ tag_definition:
 | 空闲触发 | _tidleend        | IDLE 或 RESUME 事件的触发时间（精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidleend/1000000 as timestamp)` 进行转换。 |
 | 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
 | 通用     | _tlocaltime | 本次触发时刻的系统时间（精度：ns）       |
-| 通用     | %%n         | 触发分组列的引用<br/>n 为分组列（来自 `[PARTITION BY col1[, ...]]`）的下标（从 1 开始）       |
+| 通用     | %%n         | 触发分组列的引用<br/>n 为分组列（来自 `[PARTITION BY col1[, ...]]`）的下标（从 1 开始）<br/>使用 `ROLLUP BY` 时，`%%1` 表示当前 rollup 节点完整路径       |
 | 通用     | %%tbname    | 触发表每个分组表名的引用<br/>只有触发分组含 tbname 时可用<br/>可作为查询表名使用（`FROM %%tbname`）  |
-| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用<br/>定时触发时为上次与本次触发之间写入的触发表数据<br/>只可作为查询表名使用（`FROM %%trows`）<br/>只适用于 `WINDOW_CLOSE` 触发使用<br/>推荐在小数据量场景下使用|
+| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用<br/>定时触发时为上次与本次触发之间写入的触发表数据<br/>使用 `ROLLUP BY` 时，表示当前 rollup 节点本级路径及所有后代路径关联子表的触发数据集<br/>只可作为查询表名使用（`FROM %%trows`）<br/>只适用于 `WINDOW_CLOSE` 触发使用<br/>推荐在小数据量场景下使用|
+| ROLLUP BY | %%rollup_tag | 当前 rollup 节点路径的最后一级标签值。路径不含 `.` 时取完整路径 |
+| ROLLUP BY | _trollup_tbcount | 当前 rollup 节点在本次触发时关联的源子表数量 |
 
 使用限制：
 
 - %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤，不支持对 %%trows 进行关联查询。
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
+- %%rollup_tag：只在使用 `ROLLUP BY` 时可用，可以用于 `OUTPUT_SUBTABLE`、`TAGS`、`AS subquery` 中现有触发占位符允许的位置。
+- _trollup_tbcount：只在使用 `ROLLUP BY` 时可用，只能用于 `AS subquery`，不能用于 `OUTPUT_SUBTABLE` 或 `TAGS`。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
 ### 流式计算的控制选项
@@ -426,7 +447,7 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 - EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
 - IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。乱序数据既包括新的乱序数据的写入，也包括对已写入数据的更新操作。
 - DELETE_RECALC：指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
-- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按子表分组的场景，未指定时触发子表被删除不会删除其输出子表。
+- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按子表分组的场景，不适用于 `PARTITION BY` 标签分组和 `ROLLUP BY` 层级标签汇总分组。未指定时触发子表被删除不会删除其输出子表。
 - FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
 - FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算，未指定时从最早的记录开始触发计算。该选项适合在需要按照时间顺序计算历史数据且历史数据计算完成前不需要实时计算的场景下指定，未指定时优先实时计算，不能与 `FILL_HISTORY` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
 - CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表，未指定时默认会保存到输出表。

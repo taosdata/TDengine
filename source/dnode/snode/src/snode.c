@@ -240,6 +240,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
       TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
       TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
       calcReq.gid = req.pStRtFuncInfo->groupId;
+      calcReq.rollupTbCount = req.pStRtFuncInfo->rollupTbCount;
     }
     calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
   }

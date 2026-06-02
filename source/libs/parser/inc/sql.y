@@ -1612,8 +1612,8 @@ stream_outtable_opt(A) ::= .                                                    
 stream_outtable_opt(A) ::= INTO full_table_name(B) nodelay_create_subtable_opt(F) output_subtable_opt(C) column_name_opt(D) stream_tags_def_opt(E).        { A = createStreamOutTableNode(pCxt, B, C, D, E, F); }
 
 /********** stream_trigger **********/
-stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D)
-                      trigger_options_opt(E) notification_opt(F).                                                           { A = createStreamTriggerNode(pCxt, B, C, D, E, F); }
+stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_opt(D) stream_rollup_by_opt(E)
+                      trigger_options_opt(F) notification_opt(G).                                                           { A = createStreamTriggerNode(pCxt, B, C, D, E, F, G); }
 
 /***** trigger type *****/
 
@@ -1665,6 +1665,13 @@ stream_partition_list(A) ::= stream_partition_list(B) NK_COMMA stream_partition_
 
 stream_partition_item(A) ::= expr_or_subquery(B).                                             { A = releaseRawExprNode(pCxt, B); }
 stream_partition_item(A) ::= expr_or_subquery(B) column_alias(C).                             { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
+
+/***** stream_rollup_by_opt *****/
+
+%type stream_rollup_by_opt                                                                    { SNodeList* }
+%destructor stream_rollup_by_opt                                                              { nodesDestroyList($$); }
+stream_rollup_by_opt(A) ::= .                                                                 { A = NULL; }
+stream_rollup_by_opt(A) ::= ROLLUP BY column_name(B).                                         { A = createNodeList(pCxt, createColumnNode(pCxt, NULL, &B)); }
 
 /***** trigger_options_opt *****/
 
@@ -2270,8 +2277,10 @@ pseudo_column(A) ::= TPREV_LOCALTIME(B).                                        
 pseudo_column(A) ::= TNEXT_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TLOCALTIME(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TGRPID(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= TROLLUP_TBCOUNT(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= NK_PH NK_INTEGER(B).                                         { A = createRawExprNode(pCxt, &B, createPlaceHolderColumnNode(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B))); }
 pseudo_column(A) ::= NK_PH TBNAME(B).                                             { A = createRawExprNode(pCxt, &B, createPHTbnameFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= NK_PH column_name(B).                                        { A = createRawExprNode(pCxt, &B, createPHRollupTagFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= IMPROWTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= IMPMARK(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= ANOMALYMARK(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }

@@ -945,6 +945,11 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_basic.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_expand.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_mgmt.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_topology.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_trigger_matrix.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_td37724.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_6570600210.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_check_name.py
