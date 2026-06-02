@@ -583,6 +583,7 @@ typedef struct SStreamTriggerNode {
   SNode*      pOptions; // SStreamTriggerOptions
   SNode*      pNotify; // SStreamNotifyOptions
   SNodeList*  pPartitionList;
+  SNodeList*  pRollupTagList;  // SNodeList<SColumnNode>; NULL = not rollup
 } SStreamTriggerNode;
 
 typedef struct SStreamOutTableNode {

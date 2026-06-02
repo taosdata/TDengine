@@ -36,6 +36,23 @@ bool mstWaitLock(SRWLatch* pLock, bool readLock) {
   return true;
 }
 
+int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg) {
+  taosMemoryFreeClear(*ppMsg);
+  if (msg == NULL || msg[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppMsg = taosStrdup(msg);
+  return *ppMsg == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+void mstDestroySStmTaskStatus(void* param) {
+  SStmTaskStatus* pTask = (SStmTaskStatus*)param;
+  if (pTask != NULL) {
+    taosMemoryFreeClear(pTask->extraErrMsg);
+  }
+}
+
 void mstDestroySStmVgStreamStatus(void* p) { 
   SStmVgStreamStatus* pStatus = (SStmVgStreamStatus*)p;
   taosArrayDestroy(pStatus->trigReaders); 
@@ -116,25 +133,27 @@ void mstDestroySStmVgroupStatus(void* param) {
 
 void mstFreeTrigOReaderList(void* param) {
   SArray** ppList = (SArray**)param;
-  taosArrayDestroy(*ppList);
+  taosArrayDestroyEx(*ppList, mstDestroySStmTaskStatus);
 }
 
 void mstResetSStmStatus(SStmStatus* pStatus) {
   (void)mstWaitLock(&pStatus->resetLock, false);
 
-  taosArrayDestroy(pStatus->trigReaders);
+  taosArrayDestroyEx(pStatus->trigReaders, mstDestroySStmTaskStatus);
   pStatus->trigReaders = NULL;
   taosArrayDestroyEx(pStatus->trigOReaders, mstFreeTrigOReaderList);
   pStatus->trigOReaders = NULL;
-  pStatus->calcReaders = tdListFree(pStatus->calcReaders);
+  tdListFreeP(pStatus->calcReaders, mstDestroySStmTaskStatus);
+  pStatus->calcReaders = NULL;
   if (pStatus->triggerTask) {
     (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
     taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
     taosWUnLockLatch(&pStatus->triggerTask->detailStatusLock);
+    mstDestroySStmTaskStatus(pStatus->triggerTask);
   }
   taosMemoryFreeClear(pStatus->triggerTask);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
-    taosArrayDestroy(pStatus->runners[i]);
+    taosArrayDestroyEx(pStatus->runners[i], mstDestroySStmTaskStatus);
     pStatus->runners[i] = NULL;
   }
   pStatus->lastTrigMgmtReqId = 0;
@@ -145,6 +164,7 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
 void mstDestroySStmStatus(void* param) {
   SStmStatus* pStatus = (SStmStatus*)param;
   taosMemoryFreeClear(pStatus->streamName);
+  taosMemoryFreeClear(pStatus->extraErrMsg);
 
   mstResetSStmStatus(pStatus);
 
@@ -274,7 +294,7 @@ int32_t mstCheckSnodeExists(SMnode *pMnode) {
   return TSDB_CODE_SNODE_NOT_DEPLOYED;
 }
 
-void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg) {
+int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg) {
   pTask->id.taskId = pMsg->taskId;
   pTask->id.deployId = pMsg->deployId;
   pTask->id.seriousId = pMsg->seriousId;
@@ -284,7 +304,10 @@ void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskSt
   pTask->type = pMsg->type;
   pTask->flags = pMsg->flags;
   pTask->status = pMsg->status;
+  pTask->errCode = pMsg->errorCode;
   pTask->lastUpTs = pCtx->currTs;
+  TAOS_CHECK_RETURN(mstSetExtraErrMsg(&pTask->extraErrMsg, pMsg->extraErrMsg));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
@@ -791,7 +814,13 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   switch (stopped) {
     case 1:
       STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
-      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
+      if (pStatus->extraErrMsg != NULL) {
+        snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError),
+                 pStatus->extraErrMsg, pStatus->fatalRetryTimes);
+      } else {
+        snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError),
+                 pStatus->fatalRetryTimes);
+      }
       STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
       goto _exit;
       break;
@@ -919,7 +948,11 @@ int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusS
   
   STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[pTask->status], statusSize);
   if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
-    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s", tstrerror(pTask->errCode));
+    if (pTask->extraErrMsg != NULL) {
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s", tstrerror(pTask->errCode), pTask->extraErrMsg);
+    } else {
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s", tstrerror(pTask->errCode));
+    }
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     return TSDB_CODE_SUCCESS;
   }

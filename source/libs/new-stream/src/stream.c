@@ -285,4 +285,3 @@ void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
   atomic_store_32(&(*task)->errorCode, errCode);
   atomic_store_32((int32_t*)&(*task)->status, STREAM_STATUS_FAILED);
 }
-

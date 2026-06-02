@@ -820,6 +820,36 @@ static void mndCancelGetNextStreamRecalculates(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
 }
 
+static void mndStreamMarkTagsFlag(void *pCols, const char *colName, SSchema *pTags, int32_t tagNum) {
+  if (pCols == NULL) {
+    return;
+  }
+
+  SNodeList *pList = NULL;
+  int32_t    code = nodesStringToList(pCols, &pList);
+  if (code) {
+    nodesDestroyList(pList);
+    mstError("%s [%s] nodesStringToList failed with error:%s", colName, (char *)pCols, tstrerror(code));
+    return;
+  }
+
+  SNode *pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+
+    SColumnNode *pCol = (SColumnNode *)pNode;
+    for (int32_t i = 0; i < tagNum; ++i) {
+      if (pCol->colId == pTags[i].colId) {
+        pTags[i].flags |= COL_REF_BY_STM;
+        break;
+      }
+    }
+  }
+
+  nodesDestroyList(pList);
+}
 
 static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SStreamObj *pStream = pObj;
@@ -837,34 +867,12 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
     return true;
   }
 
-  if (NULL == pStream->pCreate->partitionCols) {
-    return true;
-  }
-
-  SNodeList* pList = NULL;
-  int32_t code = nodesStringToList(pStream->pCreate->partitionCols, &pList);
-  if (code) {
-    nodesDestroyList(pList);
-    mstError("partitionCols [%s] nodesStringToList failed with error:%s", (char*)pStream->pCreate->partitionCols, tstrerror(code));
-    return true;
-  }
-
   SSchema* pTags = (SSchema*)p2;
   int32_t* tagNum = (int32_t*)p3;
 
-  SNode* pNode = NULL;
-  FOREACH(pNode, pList) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    for (int32_t i = 0; i < *tagNum; ++i) {
-      if (pCol->colId == pTags[i].colId) {
-        pTags[i].flags |= COL_REF_BY_STM;
-        break;
-      }
-    }
-  }
+  mndStreamMarkTagsFlag(pStream->pCreate->partitionCols, "partitionCols", pTags, *tagNum);
+  mndStreamMarkTagsFlag(pStream->pCreate->rollupTagCols, "rollupTagCols", pTags, *tagNum);
 
-  nodesDestroyList(pList);
-  
   return true;
 }
 
@@ -1044,7 +1052,7 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
-  
+
   atomic_store_8(&pStream->userStopped, 0);
 
   pStream->updateTime = taosGetTimestampMs();
@@ -1590,6 +1598,18 @@ static int32_t mndProcessGetStreamCreateSqlReq(SRpcMsg* pReq) {
   rsp.sql = taosStrdup(pStream->pCreate->sql);
   if (rsp.sql == NULL) {
     TAOS_CHECK_EXIT(terrno);
+  }
+  if (pStream->pCreate->triggerDB) {
+    rsp.triggerDB = taosStrdup(pStream->pCreate->triggerDB);
+    if (rsp.triggerDB == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  if (pStream->pCreate->triggerTblName) {
+    rsp.triggerTblName = taosStrdup(pStream->pCreate->triggerTblName);
+    if (rsp.triggerTblName == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
   }
 
   if ((contLen = tSerializeGetStreamCreateSqlRsp(NULL, 0, &rsp)) < 0) {

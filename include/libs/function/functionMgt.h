@@ -211,8 +211,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IMPUTATION_ROWTS,
   FUNCTION_TYPE_IMPUTATION_MARK,
   FUNCTION_TYPE_ANOMALY_MARK,
-  FUNCTION_TYPE_TIDLESTART,          // _tidlestart
-  FUNCTION_TYPE_TIDLEEND,            // _tidleend
+  FUNCTION_TYPE_TIDLESTART,                  // _tidlestart
+  FUNCTION_TYPE_TIDLEEND,                    // _tidleend
+  FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,      // %%rollup_tag
+  FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,  // _trollup_tbcount
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,

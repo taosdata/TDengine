@@ -475,6 +475,7 @@ static const char* jkCreateStreamReqNotifyHistory        = "notifyHistory";
 static const char* jkCreateStreamReqTriggerFilterCols    = "triggerFilterCols";
 static const char* jkCreateStreamReqTriggerCols          = "triggerCols";
 static const char* jkCreateStreamReqPartitionCols        = "partitionCols";
+static const char* jkCreateStreamReqRollupTagCols        = "rollupTagCols";
 static const char* jkCreateStreamReqOutCols              = "outCols";
 static const char* jkCreateStreamReqOutTags              = "outTags";
 static const char* jkCreateStreamReqMaxDelay             = "maxDelay";
@@ -610,6 +611,9 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   if (NULL != pReq->partitionCols) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
       pJson, jkCreateStreamReqPartitionCols, (const char*)pReq->partitionCols));
+  }
+  if (NULL != pReq->rollupTagCols) {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkCreateStreamReqRollupTagCols, (const char*)pReq->rollupTagCols));
   }
 
   // out cols
@@ -865,6 +869,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqTriggerCols, (char**)&pReq->triggerCols));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkCreateStreamReqPartitionCols, (char**)&pReq->partitionCols));
+  TAOS_CHECK_RETURN(tjsonDupStringValue(pJson, jkCreateStreamReqRollupTagCols, (char**)&pReq->rollupTagCols));
   // out cols
   TAOS_CHECK_RETURN(tjsonToTArray(
     pJson, jkCreateStreamReqOutCols, jsonToSFieldWithOptions,

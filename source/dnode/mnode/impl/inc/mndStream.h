@@ -202,6 +202,7 @@ typedef struct SStmTaskStatus {
   SRWLatch        detailStatusLock;
   void*           detailStatus;     // SSTriggerRuntimeStatus*, only for trigger task now
   int32_t         errCode;
+  char*           extraErrMsg;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
 } SStmTaskStatus;
@@ -273,6 +274,7 @@ typedef struct SStmStatus {
   int64_t           deployTimes;
   int64_t           lastActionTs;
   int32_t           fatalError;
+  char*             extraErrMsg;
   int64_t           fatalRetryDuration;
   int64_t           fatalRetryTs;
   int64_t           fatalRetryTimes;
@@ -504,7 +506,9 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
 int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
-void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
+int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
+int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg);
+void    mstDestroySStmTaskStatus(void* param);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SRpcMsg *pReq, SRpcMsg* pRspMsg);

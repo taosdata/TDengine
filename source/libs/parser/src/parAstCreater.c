@@ -404,6 +404,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
         snprintf(pExpr->userAlias, sizeof(pExpr->userAlias), "%%%%%s", pColId->literal);
       } else if (strcmp(((SFunctionNode*)pExpr)->functionName, "_placeholder_tbname") == 0) {
         tstrncpy(pExpr->userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+      } else if (strcmp(((SFunctionNode*)pExpr)->functionName, "_placeholder_rollup_tag") == 0) {
+        tstrncpy(pExpr->userAlias, "%%rollup_tag", TSDB_COL_NAME_LEN);
       } else {
         tstrncpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
       }
@@ -1528,6 +1530,27 @@ _err:
   return NULL;
 }
 
+SNode* createPHRollupTagFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (pFuncName->n != strlen("rollup_tag") || 0 != strncasecmp(pFuncName->z, "rollup_tag", pFuncName->n)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid placeholder, only %%%%rollup_tag is supported");
+    goto _err;
+  }
+
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  tstrncpy(func->functionName, "_placeholder_rollup_tag", TSDB_FUNC_NAME_LEN);
+  func->pParameterList = pParameterList;
+  func->tz = pCxt->pQueryCxt->timezone;
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  return (SNode*)func;
+_err:
+  nodesDestroyList(pParameterList);
+  return NULL;
+}
+
 SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt) {
   SFunctionNode* func = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -2171,21 +2194,28 @@ _err:
 
 SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding) {
   SIntervalWindowNode* pInterval = NULL;
+  SSlidingWindowNode*  pSlidingWin = (SSlidingWindowNode*)pSliding;
   CHECK_PARSER_STATUS(pCxt);
   if (pInter) {
     pInterval = (SIntervalWindowNode*)pInter;
   } else {
     pCxt->errCode = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, (SNode**)&pInterval);
     CHECK_MAKE_NODE(pInterval);
+    pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pInterval->pCol);
   }
-  pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
-  CHECK_MAKE_NODE(pInterval->pCol);
-  pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
-  pInterval->pSOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+  pInterval->pSliding = pSlidingWin->pSlidingVal;
+  pInterval->pSOffset = pSlidingWin->pOffset;
+  pSlidingWin->pSlidingVal = NULL;
+  pSlidingWin->pOffset = NULL;
+  nodesDestroyNode(pSliding);
   return (SNode*)pInterval;
 _err:
-  nodesDestroyNode((SNode*)pInter);
-  nodesDestroyNode((SNode*)pInterval);
+  if (pInter) {
+    nodesDestroyNode(pInter);
+  } else {
+    nodesDestroyNode((SNode*)pInterval);
+  }
   nodesDestroyNode((SNode*)pSliding);
   return NULL;
 }
@@ -7519,7 +7549,8 @@ _err:
 }
 
 SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, SNode* pTriggerTable,
-                               SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification) {
+                               SNodeList* pPartitionList, SNodeList* pRollupTagList, SNode* pOptions,
+                               SNode* pNotification) {
   SStreamTriggerNode* pTrigger = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger);
@@ -7529,6 +7560,7 @@ SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, S
   pTrigger->pNotify = pNotification;
   pTrigger->pTrigerTable = pTriggerTable;
   pTrigger->pPartitionList = pPartitionList;
+  pTrigger->pRollupTagList = pRollupTagList;
   pTrigger->pTriggerWindow = pTriggerWindow;
   return (SNode*)pTrigger;
 
@@ -7539,6 +7571,7 @@ _err:
   nodesDestroyNode(pOptions);
   nodesDestroyNode(pNotification);
   nodesDestroyList(pPartitionList);
+  nodesDestroyList(pRollupTagList);
   return NULL;
 }
 
@@ -7834,20 +7867,29 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
     goto _err;
   }
   nodesDestroyNode(pStream);
+  pStream = NULL;
 
   pStmt->ignoreExists = ignoreExists;
   pStmt->pTrigger = pTrigger;
   pStmt->pQuery = pQuery;
-  pStmt->pTags = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pTags : NULL;
-  pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
-  pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
-  pStmt->nodelayCreateSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->nodelayCreateSubtable : 0;
+  if (pOutTable) {
+    SStreamOutTableNode* pOut = (SStreamOutTableNode*)pOutTable;
+    pStmt->pTags = pOut->pTags;
+    pStmt->pSubtable = pOut->pSubtable;
+    pStmt->pCols = pOut->pCols;
+    pStmt->nodelayCreateSubtable = pOut->nodelayCreateSubtable;
+    pOut->pTags = NULL;
+    pOut->pSubtable = NULL;
+    pOut->pCols = NULL;
+    nodesDestroyNode(pOutTable);
+  }
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pStream);
   nodesDestroyNode(pOutTable);
-  nodesDestroyNode(pQuery);
   nodesDestroyNode(pTrigger);
   nodesDestroyNode(pQuery);
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 

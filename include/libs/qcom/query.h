@@ -548,10 +548,11 @@ void* getTaskPoolWorkerCb();
 
 #define IS_VIEW_REQUEST(_type) ((_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
 
-#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
-  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
-   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||     \
-   (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA)
+#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                       \
+  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE ||      \
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||          \
+   (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA || \
+   (_type) == TDMT_MND_CREATE_STREAM || (_type) == TDMT_MND_DROP_STREAM)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \

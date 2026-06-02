@@ -1083,6 +1083,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SUBTABLE,        "Invalid subtable in
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TAGS,        "Invalid out tags in create stream clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY_COND,     "Invalid notify condition in create stream clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,    "Invalid placeholder in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_ROLLUP_ILLEGAL_PATH,     "Stream rollup tag path is illegal")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_ROLLUP,          "Invalid ROLLUP BY clause")
 
 
 // TDLite

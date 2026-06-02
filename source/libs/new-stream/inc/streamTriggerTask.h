@@ -31,12 +31,12 @@ extern "C" {
 // #define SKIP_SEND_CALC_REQUEST
 
 typedef struct SSTriggerVirtTableInfo {
-  int64_t tbGid;
   int64_t tbUid;
   int64_t tbVer;
   int32_t vgId;
   SArray *pTrigColRefs;  // SArray<SSTriggerTableColRef>
   SArray *pCalcColRefs;  // SArray<SSTriggerTableColRef>
+  SArray *tbGids;        // SArray<int64_t>
 } SSTriggerVirtTableInfo;
 
 typedef struct SSTriggerOrigTableInfo {
@@ -242,6 +242,8 @@ typedef struct SSTriggerRealtimeContext {
   SSTriggerRealtimeGroup *pMinGroup;
   SArray                 *groupsToDelete;
   SSHashObj              *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
+  SSHashObj              *pRollupTbCount;      // SSHashObj<gid, int32_t>
+  SSHashObj              *pRollupTbCountSeen;  // SSHashObj<{vgId, gid}, int32_t>
 
   // these fields need to be cleared each round
   bool       needCheckAgain;
@@ -329,6 +331,8 @@ typedef struct SSTriggerHistoryContext {
   Heap                  *pMaxDelayHeap;
   SSTriggerHistoryGroup *pMinGroup;
   SSHashObj             *pGroupColVals;  // SSHashObj<gid, SArray<SStreamGroupValue>*>
+  SSHashObj             *pRollupTbCount;      // SSHashObj<gid, int32_t>
+  SSHashObj             *pRollupTbCountSeen;  // SSHashObj<{vgId, gid}, int32_t>
 
   // these fields are shared by all groups and do not need to be destroyed
   bool                    reenterCheck;
@@ -435,6 +439,7 @@ typedef struct SStreamTriggerTask {
   bool    fillHistoryFirst;
   bool    lowLatencyCalc;
   bool    hasPartitionBy;
+  bool    isRollup;
   bool    isVirtualTable;
   bool    isSuperTable;
   bool    stbPartByTbname;

@@ -7132,6 +7132,7 @@ static const char* jkStreamTriggerTriggerTable = "TriggerTable";
 static const char* jkStreamTriggerOptions = "Options";
 static const char* jkStreamTriggerNotify = "Notify";
 static const char* jkStreamTriggerPartitionList = "PartitionList";
+static const char* jkStreamTriggerRollupTagList = "RollupTagList";
 
 static int32_t streamTriggerNodeToJson(const void* pObj, SJson* pJson) {
   const SStreamTriggerNode* pNode = (const SStreamTriggerNode*)pObj;
@@ -7147,6 +7148,9 @@ static int32_t streamTriggerNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkStreamTriggerPartitionList, pNode->pPartitionList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkStreamTriggerRollupTagList, pNode->pRollupTagList);
   }
   return code;
 }
@@ -7165,6 +7169,9 @@ static int32_t jsonToStreamTriggerNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkStreamTriggerPartitionList, &pNode->pPartitionList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkStreamTriggerRollupTagList, &pNode->pRollupTagList);
   }
   return code;
 }
@@ -10399,7 +10406,7 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkCreateStreamStmtIgnoreExists, pNode->ignoreExists);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkCreateStreamStmtQuery, nodeToJson, pNode->pTrigger);
+    code = tjsonAddObject(pJson, jkCreateStreamStmtTrigger, nodeToJson, pNode->pTrigger);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkCreateStreamStmtQuery, nodeToJson, pNode->pQuery);

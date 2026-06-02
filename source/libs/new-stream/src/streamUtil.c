@@ -51,6 +51,32 @@ _exit:
   return code;
 }
 
+static int32_t stmCloneTaskExtraErrMsg(SStreamTask* pTask, SStmTaskStatusMsg* pStatus) {
+  pStatus->extraErrMsg = NULL;
+  if (pTask->extraErrMsg == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pStatus->extraErrMsg = taosStrdup(pTask->extraErrMsg);
+  return pStatus->extraErrMsg == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t stmPushTaskStatus(SStreamHbMsg* pMsg, SStreamTask* pTask) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (taosArrayPush(pMsg->pStreamStatus, pTask) == NULL) {
+    return terrno;
+  }
+
+  SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
+  code = stmCloneTaskExtraErrMsg(pTask, pStatus);
+  if (code != TSDB_CODE_SUCCESS) {
+    TARRAY_SIZE(pMsg->pStreamStatus)--;
+  }
+
+  return code;
+}
+
 int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTask* triggerTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -95,15 +121,17 @@ int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pT
   int32_t code = 0, lino = 0;
 
   taosWLockLatch(&pTask->mgmtReqLock);
-  if (pTask->pMgmtReq) {
-    TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, pTask), code, lino, _exit, terrno);
+  SStreamMgmtReq* pMgmtReq = pTask->pMgmtReq;
+  if (pMgmtReq) {
+    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask));
     SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
-    TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pStatus->pMgmtReq, &pStatus->pMgmtReq));
+    pStatus->pMgmtReq = NULL;
+    TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pMgmtReq, &pStatus->pMgmtReq));
     TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
   } else {
-    TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, pTask), code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask));
   }
-  
+
 _exit:
 
   taosWUnLockLatch(&pTask->mgmtReqLock);
@@ -144,7 +172,7 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
       pTask = (SStreamTask*)pReader;
-      TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pReader->task), code, lino, _exit, terrno);
+      TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pReader->task));
       //if (pReader->task.pMgmtReq) {
       //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
       //}
@@ -181,7 +209,7 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
         TAOS_CHECK_EXIT(stRunnerBuildTaskMgmtReq(pRunner));
         TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask));
       } else {
-        TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
+        TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pRunner->task));
       }
       ST_TASK_DLOG("task status added to hb %s mgmtReq", pRunner->task.pMgmtReq ? "with" : "without");
     }
@@ -233,6 +261,12 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
   return code;
 }
 
+static void stmClearTaskExtraErrMsg(SStreamTask* pTask) {
+  if (pTask != NULL) {
+    taosMemoryFreeClear(pTask->extraErrMsg);
+  }
+}
+
 void stmDestroySStreamInfo(void* param) {
   if (NULL == param) {
     return;
@@ -247,6 +281,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->readerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
+    stmClearTaskExtraErrMsg(pTask);
     SListNode* tmp = tdListPopNode(p->readerList, listNode);
     ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
     taosMemoryFreeClear(tmp);
@@ -257,6 +292,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->triggerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
+    stmClearTaskExtraErrMsg(pTask);
     SListNode* tmp = tdListPopNode(p->triggerList, listNode);
     ST_TASK_DLOG("task removed from stream triggerList, remain:%d", TD_DLIST_NELES(p->triggerList));
     taosMemoryFreeClear(tmp);
@@ -267,6 +303,7 @@ void stmDestroySStreamInfo(void* param) {
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
+    stmClearTaskExtraErrMsg(pTask);
     SListNode* tmp = tdListPopNode(p->runnerList, listNode);
     ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
     taosMemoryFreeClear(tmp);

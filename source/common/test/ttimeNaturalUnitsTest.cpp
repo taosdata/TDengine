@@ -18,6 +18,9 @@
 #include <chrono>
 #include "ttime.h"
 
+using PerformanceClock = std::chrono::steady_clock;
+static_assert(PerformanceClock::is_steady, "Performance tests require a steady clock");
+
 /**
  * Test suite for natural time unit boundary alignment
  *
@@ -424,11 +427,11 @@ TEST_F(TimeNaturalUnitsTest, PerformanceAlignToNaturalBoundary) {
   int64_t   ts = makeTimestamp(2026, 3, 10, 15, 30, 0);
 
   // Test week unit performance
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
     alignToNaturalBoundary(ts + i * 1000, 'w', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
   }
-  auto   end = std::chrono::high_resolution_clock::now();
+  auto   end = PerformanceClock::now();
   auto   duration_week = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   double avg_week = duration_week / (double)iterations;
 
@@ -437,11 +440,11 @@ TEST_F(TimeNaturalUnitsTest, PerformanceAlignToNaturalBoundary) {
   EXPECT_LT(avg_week, 1000.0);  // Should be < 1ms (1000 us)
 
   // Test month unit performance
-  start = std::chrono::high_resolution_clock::now();
+  start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
     alignToNaturalBoundary(ts + i * 1000, 'n', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
   }
-  end = std::chrono::high_resolution_clock::now();
+  end = PerformanceClock::now();
   auto   duration_month = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   double avg_month = duration_month / (double)iterations;
 
@@ -450,11 +453,11 @@ TEST_F(TimeNaturalUnitsTest, PerformanceAlignToNaturalBoundary) {
   EXPECT_LT(avg_month, 1000.0);  // Should be < 1ms (1000 us)
 
   // Test year unit performance
-  start = std::chrono::high_resolution_clock::now();
+  start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
     alignToNaturalBoundary(ts + i * 1000, 'y', 1, 0, TSDB_TIME_PRECISION_MILLI, tz);
   }
-  end = std::chrono::high_resolution_clock::now();
+  end = PerformanceClock::now();
   auto   duration_year = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   double avg_year = duration_year / (double)iterations;
 
@@ -472,11 +475,11 @@ TEST_F(TimeNaturalUnitsTest, PerformanceGetDuration) {
   int64_t   result = 0;
 
   // Test week unit performance
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
     getDuration(1 + (i % 100), 'w', &result, TSDB_TIME_PRECISION_MILLI);
   }
-  auto   end = std::chrono::high_resolution_clock::now();
+  auto   end = PerformanceClock::now();
   auto   duration_week = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   double avg_week = duration_week / (double)iterations;
 
@@ -485,11 +488,11 @@ TEST_F(TimeNaturalUnitsTest, PerformanceGetDuration) {
   EXPECT_LT(avg_week, 1000.0);  // Should be < 1ms (1000 us)
 
   // Test day unit performance
-  start = std::chrono::high_resolution_clock::now();
+  start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
     getDuration(1 + (i % 100), 'd', &result, TSDB_TIME_PRECISION_MILLI);
   }
-  end = std::chrono::high_resolution_clock::now();
+  end = PerformanceClock::now();
   auto   duration_day = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   double avg_day = duration_day / (double)iterations;
 
@@ -498,11 +501,11 @@ TEST_F(TimeNaturalUnitsTest, PerformanceGetDuration) {
   EXPECT_LT(avg_day, 1000.0);  // Should be < 1ms (1000 us)
 
   // Test hour unit performance
-  start = std::chrono::high_resolution_clock::now();
+  start = PerformanceClock::now();
   for (int i = 0; i < iterations; i++) {
     getDuration(1 + (i % 100), 'h', &result, TSDB_TIME_PRECISION_MILLI);
   }
-  end = std::chrono::high_resolution_clock::now();
+  end = PerformanceClock::now();
   auto   duration_hour = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   double avg_hour = duration_hour / (double)iterations;
 

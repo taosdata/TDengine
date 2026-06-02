@@ -21,7 +21,7 @@ TDengine TSDB’s stream processing engine also offers additional usability bene
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
     
 trigger_type: {
@@ -337,7 +337,7 @@ In summary, the number of output tables (subtables or regular tables) produced b
 
 | Trigger Mechanism                      | Supported Grouping      |
 | -------------------------------------- | ----------------------- |
-| PERIOD, SLIDING, INTERVAL, and SESSION | Subtable, tag, and none |
+| PERIOD, SLIDING, INTERVAL, and SESSION | Subtable, tag, rollup tag, and none |
 | Other                                  | Subtable                |
 
 ##### Trigger Tables
@@ -355,6 +355,23 @@ Specifies the columns used for trigger grouping. Multiple columns are supported,
 ```sql
 [PARTITION BY col1 [, ...]]
 ```
+
+You can also specify a hierarchical tag rollup grouping column. `ROLLUP BY` is mutually exclusive with `PARTITION BY` and supports only one tag column.
+
+```sql
+[ROLLUP BY tag_name]
+```
+
+`ROLLUP BY` is intended for tag values that encode a hierarchy, for example `factory.workshop.line`. TDengine uses the fixed separator `.` to expand the string value of `tag_name` into all path prefixes from the root to the current node. Each prefix is an independent trigger group. For example, a tag value `A.B.C` is expanded into `A`, `A.B`, and `A.B.C`; data from that child table participates in all three groups. A parent rollup group includes data from child tables whose full path is the parent path itself or any descendant path.
+
+Usage notes:
+
+- `tag_name` must be a `VARCHAR` or `NCHAR` tag column on the trigger supertable or virtual supertable.
+- `ROLLUP BY` supports `PERIOD`, `SLIDING`, `INTERVAL`, and `SESSION` triggers. It does not support state windows, event windows, or count windows.
+- `FROM <table_name>` must be specified when using `ROLLUP BY`, even for `PERIOD` triggers.
+- If the tag value is `NULL` or an empty string, no rollup group is generated and no trigger or computation occurs for that value.
+- Tag values must not contain leading separators, trailing separators, repeated separators, empty path segments, control characters, or leading/trailing whitespace in a path segment. If an invalid path is detected, the stream enters the error state.
+- The tag column referenced by `ROLLUP BY` cannot be modified, dropped, or renamed. Dropping a source child table does not drop output subtables that have already been generated.
 
 ### Stream Processing Output
 
@@ -374,13 +391,13 @@ Details are as follows:
   - If no trigger grouping is used, this table will be a regular table.
   - If the trigger only sends notifications without computation, or if computation results are only sent as notifications without being stored, this option does not need to be specified.
 - `[NODELAY_CREATE_SUBTABLE]`: Optional. Specifies that the calculation output subtables/normal-table for each group are created immediately when the stream is created. By default, output subtables/normal-table are created only when the first calculated data is written. If this option is added, subtables are created asynchronously after the stream is created. If not all subtables are created successfully, the stream status remains `Idle`; if creation succeeds, the status changes to `Running`. For regular tables and supertables as output tables, they are created automatically when the stream is created by default, and no configuration is needed.
-- `[OUTPUT_SUBTABLE(tbname_expr)]`: Optional. Specifies the name of the calculation output table (subtable) for each trigger group. This cannot be specified if there is no trigger grouping. If not specified, a unique output table (subtable) name will be automatically generated for each group. tbname_expr can be any output string expression, and may include trigger group partition columns (from [PARTITION BY col1[, ...]]). The output length must not exceed the maximum table name length; if it does, it will be truncated. If you do not want different groups to output to the same subtable, you must ensure each group's output table name is unique.
+- `[OUTPUT_SUBTABLE(tbname_expr)]`: Optional. Specifies the name of the calculation output table (subtable) for each trigger group. This cannot be specified if there is no trigger grouping. If not specified, a unique output table (subtable) name will be automatically generated for each group. tbname_expr can be any output string expression, and may include trigger group partition columns (from [PARTITION BY col1[, ...]]). When `ROLLUP BY` is used, `%%1` references the full path of the current rollup node and `%%rollup_tag` references the local tag value of the current rollup node; `_trollup_tbcount` cannot be used here. The output length must not exceed the maximum table name length; if it does, it will be truncated. If you do not want different groups to output to the same subtable, you must ensure each group's output table name is unique.
 - `[(column_name1, column_name2 [COMPOSITE KEY][, ...])]`: Optional. Specifies the column names for each column in the output table. If not specified, each column name will be the same as the corresponding column name in the calculation result. You can use [COMPOSITE KEY] to indicate that the second column is a primary key column, forming a composite primary key together with the first column.
-- `[TAGS (tag_definition [, ...])]`: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). The tag_definition parameters are as follows:
+- `[TAGS (tag_definition [, ...])]`: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). When `ROLLUP BY` is used, the default tag value is the full path of the current rollup node. The tag_definition parameters are as follows:
   - `tag_name`: Name of the tag column.
   - `type_name`: Data type of the tag column.
   - `string_value`: Description of the tag column.
-  - `expr`: Tag value calculation expression, which can use any trigger table grouping columns (`from [PARTITION BY col1[, ...]]`).
+  - `expr`: Tag value calculation expression, which can use any trigger table grouping columns (`from [PARTITION BY col1[, ...]]`). When `ROLLUP BY` is used, `%%1` and `%%rollup_tag` can be used; `_trollup_tbcount` cannot be used.
 
 ### Stream Processing Computation Tasks
 
@@ -412,14 +429,18 @@ When performing calculations, you may need to use contextual information from th
 | Idle Trigger      | _tidleend        | The trigger time of the IDLE or RESUME event. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidleend/1000000 as timestamp)` to convert.|
 | All               | _tgrpid          | ID of trigger group (data type BIGINT)                       |
 | All               | _tlocaltime      | System time of current trigger (nanosecond precision)        |
-| All               | %%n              | Reference to trigger group column<br/>n is the column number in `[PARTITION BY col1[, ...]]`, starting with 1 |
+| All               | %%n              | Reference to trigger group column<br/>n is the column number in `[PARTITION BY col1[, ...]]`, starting with 1<br/>When `ROLLUP BY` is used, `%%1` is the full path of the current rollup node |
 | All               | %%tbname         | Reference to trigger table<br/>Only used with the trigger group contains tbname.<br/>Can be used in queries as `FROM %%tbname` |
-| All               | %%trows          | Reference to the trigger dataset of each group in the trigger table (the dataset that satisfies the current trigger).<br/>For scheduled triggers, this refers to the data written to the trigger table between the last and current trigger.<br/>Can only be used as a query table name (FROM %%trows).<br/>Applicable only for WINDOW_CLOSE triggers.<br/>Recommended for use in small data volume scenarios. |
+| All               | %%trows          | Reference to the trigger dataset of each group in the trigger table (the dataset that satisfies the current trigger).<br/>For scheduled triggers, this refers to the data written to the trigger table between the last and current trigger.<br/>When `ROLLUP BY` is used, it refers to the trigger dataset from child tables associated with the current rollup node path and all descendant paths.<br/>Can only be used as a query table name (FROM %%trows).<br/>Applicable only for WINDOW_CLOSE triggers.<br/>Recommended for use in small data volume scenarios. |
+| ROLLUP BY         | %%rollup_tag     | Local tag value of the current rollup node, that is, the last segment of the path. If the path does not contain `.`, it is the full path. |
+| ROLLUP BY         | _trollup_tbcount | Number of source child tables associated with the current rollup node at this trigger. |
 
 Usage Restrictions:
 
 - %%trows: Can only be used in the FROM clause. Queries that use %%trows do not support WHERE condition filtering or join operations on %%trows.
 - %%tbname: Can be used in the FROM, SELECT, and WHERE clauses.
+- %%rollup_tag: Available only with `ROLLUP BY`. It can be used in `OUTPUT_SUBTABLE`, `TAGS`, and positions in `AS subquery` where existing trigger placeholders are allowed.
+- _trollup_tbcount: Available only with `ROLLUP BY`. It can be used only in `AS subquery`; it cannot be used in `OUTPUT_SUBTABLE` or `TAGS`.
 - Other placeholders: Can only be used in the SELECT and WHERE clauses.
 
 ### Stream Processing Control Options
@@ -436,7 +457,7 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored. If not set, no data is considered expired. This option can be used when data writes or updates older than a certain time range are irrelevant. exp_time defines the expiration interval. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d).
 - IGNORE_DISORDER ignores out-of-order data in the trigger table. By default, out-of-order data is not ignored. This option is useful in scenarios where timeliness of computation or notification is more important, and where out-of-order data does not affect the result. Out-of-order data includes both newly written late data and updates to previously written data.
 - DELETE_RECALC specifies that data deletions in the trigger table (including when a child table is dropped) should trigger automatic recomputation. This can only be set if the trigger type supports automatic recomputation for deletions. By default, deletions are ignored. This is only needed when data deletions in the trigger table may affect computation results.
-- DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted. Applies only to scenarios grouped by subtables. Default: If not specified, deleting a subtable does not delete its output subtable.
+- DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted. It applies only to streams grouped by subtable and does not apply to `PARTITION BY` tag grouping or `ROLLUP BY` rollup tag grouping. Default: If not specified, deleting a subtable does not delete its output subtable.
 - FILL_HISTORY[(start_time)] triggers historical data computation starting from start_time (event time). Default: If not specified, computation starts from the earliest record. If neither FILL_HISTORY nor FILL_HISTORY_FIRST is specified, historical computation is disabled. Cannot be used together with FILL_HISTORY_FIRST. Not supported in PERIOD (scheduled trigger) mode.
 - FILL_HISTORY_FIRST[(start_time)] triggers historical data computation with priority, starting from start_time (event time). Default: If not specified, computation starts from the earliest record. Suitable when historical data must be processed strictly in time order, and real-time computation should not begin until historical processing is complete. Cannot be used together with FILL_HISTORY. Not supported in PERIOD (scheduled trigger) mode.
 - CALC_NOTIFY_ONLY sends computation results as notifications only, without saving them to the output table. Default: If not specified, results are saved to the output table.
@@ -894,7 +915,7 @@ After a stream is created, users may perform operations on the databases and tab
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | User creates a new child table under a trigger supertable (non-virtual) and writes data | The new child table is automatically included in the current stream processing, either joining an existing group or creating a new one. |
 | User creates a new child table under a virtual trigger supertable and writes data | Ignored; no additional handling.                             |
-| User deletes a child table of the trigger supertable         | Default: Ignored.<br/>Optional: Certain trigger types can be configured to automatically recalculate, or to delete the corresponding result table (only applies to streams grouped by child table). |
+| User deletes a child table of the trigger supertable         | Default: Ignored.<br/>Optional: Certain trigger types can be configured to automatically recalculate, or to delete the corresponding result table (only applies to streams grouped by child table).<br/>For `ROLLUP BY` streams, output subtables that have already been generated are retained. |
 | User deletes the trigger table                               | Ignored; no additional handling.                             |
 | User adds a column to the trigger table                      | Ignored; no additional handling.                             |
 | User deletes a column from the trigger table                 | Ignored; no additional handling.                             |
@@ -935,7 +956,8 @@ The following rules and limitations apply to stream processing:
 - In addition to specifying child table names, users can also define the tag columns of the output supertable and the tag values for each child table.
 - Stream processing supports nesting, meaning a new stream can be created based on the output table of an existing stream.
 - Count window triggers do not support automatic handling of out-of-order, update, or delete scenarios (they are ignored). In non-FILL_HISTORY_FIRST mode, historical and real-time windows may not align.
-- For supertable window triggers, only interval and session windows support grouping by tag, by child table, or no grouping. Other window types only support grouping by child table.
+- For supertable window triggers, only interval and session windows support grouping by tag, by rollup tag, by child table, or no grouping. Other window types only support grouping by child table.
+- `ROLLUP BY` is mutually exclusive with `PARTITION BY` and `DELETE_OUTPUT_TABLE`.
 - Pseudo-columns qstart, qend, and qduration are not supported in queries.
 
 Temporary Restrictions:
@@ -1077,6 +1099,23 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
   INTO avg_stb
   AS 
     SELECT _twstart, _twend, AVG(current) FROM %%trows;
+```
+
+- The `location` tag of the `meters` supertable uses `.` to represent a location hierarchy. Compute the average current for each hierarchy node every hour. If a child table has `location = 'California.SanFrancisco.Soma'`, its data participates in three groups: `California`, `California.SanFrancisco`, and `California.SanFrancisco.Soma`.
+
+```SQL
+CREATE STREAM rollup_avg_current
+  INTERVAL(1h) SLIDING(1h)
+  FROM meters ROLLUP BY location
+  INTO rollup_avg
+  OUTPUT_SUBTABLE(concat(%%1, '_avg'))
+  TAGS (
+    location VARCHAR(256) AS %%1,
+    node_name VARCHAR(64) AS %%rollup_tag
+  )
+  AS
+    SELECT _twstart, avg(current), _trollup_tbcount
+    FROM %%trows;
 ```
 
 #### Scheduled Trigger

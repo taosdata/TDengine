@@ -1431,6 +1431,13 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
           (SDataType){.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
       break;
     }
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG: {
+      break;
+    }
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT: {
+      pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+      break;
+    }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
       break;
     }
@@ -6857,6 +6864,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_placeholder_rollup_tag",
+    .type = FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE},},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_trollup_tbcount",
+    .type = FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_INT_TYPE},},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = streamPseudoScalarFunction,
     .finalizeFunc = NULL,

@@ -33,10 +33,13 @@ typedef struct SStreamTableMapElement {
   int32_t index;
 } SStreamTableMapElement;
 
+typedef enum { UIDMAP_SINGLE, UIDMAP_MULTI } EUidMapMode;
+
 typedef struct StreamTableListInfo {
   SArray*          pTableList;   // element type: SStreamTableKeyInfo*
   SHashObj*        gIdMap;       // key: groupId/suid, value: SStreamTableList
-  SHashObj*        uIdMap;       // key: uid, value: SStreamTableKeyInfo*,index
+  SHashObj*        uIdMap;       // SINGLE: uid -> SStreamTableMapElement; MULTI: uid -> SArray<SStreamTableMapElement>*
+  EUidMapMode      uIdMapMode;
   void*            pIter;        // iterator for gIdMap
   int64_t          version;
 } StreamTableListInfo;
@@ -56,6 +59,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*       pTagIndexCond;
   SNode*       pConditions;
   SNodeList*   partitionCols;
+  SNodeList*   pRollupTagCols;  // SNodeList<SColumnNode>; NULL = not rollup
   SNodeList*   triggerCols;
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
@@ -82,6 +86,8 @@ typedef struct SStreamTriggerReaderInfo {
   SHashObj*    triggerTableSchemaMapVTable; // key: uid, value: STSchema*
   STSchema*    triggerTableSchema;
   bool         groupByTbname;
+  bool         isRollupReader;
+  char*        extraErrMsg;
   void*        pVnode;
   SStorageAPI  storageApi;
   SRWLatch     lock;
@@ -126,6 +132,8 @@ typedef struct {
   SSDataBlock*                         pResBlock;
   SSDataBlock*                         pResBlockDst;
   SStreamOptions*                      options;
+  SSHashObj*                           pRollupMetaByUid;
+  SSHashObj*                           pRollupMetaCount;
   char*                                idStr;
   SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;
@@ -145,8 +153,9 @@ int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTas
                          SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
 
 int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** ppTask, SStorageAPI* api);
-         
-int32_t  initStreamTableListInfo(StreamTableListInfo* pTableListInfo);
+bool isRollupMultiReader(SStreamTriggerReaderInfo* sStreamReaderInfo);
+
+int32_t initStreamTableListInfo(StreamTableListInfo* pTableListInfo, EUidMapMode uIdMapMode);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);
@@ -154,6 +163,7 @@ int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, Strea
 int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t  qStreamGetGroupTableCount(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid);
 SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
 uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);

@@ -209,6 +209,7 @@ SNode*     createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft,
 SNode*     createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode*     createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
 SNode*     createPHTbnameFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
+SNode*     createPHRollupTagFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
 SNode*     createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType dt);
 SNode*     createPositionFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pExpr2);
 SNode*     createTrimFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, ETrimType type);
@@ -514,7 +515,8 @@ SNode* createRecalcRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd);
 SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList,
                                 SNodeList* pTagList, int32_t nodelayCreateSubtable);
 SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, SNode* pTriggerTable,
-                               SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification);
+                               SNodeList* pPartitionList, SNodeList* pRollupTagList, SNode* pOptions,
+                               SNode* pNotification);
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNodeList* pStreamList);
 SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream);
 SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated, SNode* pStream);

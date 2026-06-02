@@ -156,6 +156,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid alter table statement";
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
+    case TSDB_CODE_PAR_COL_TAG_REF_BY_STM:
+      return "Col/Tag referenced by stream";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
       return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be "
              "increased, not decreased";

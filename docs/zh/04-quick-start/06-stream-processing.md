@@ -26,7 +26,7 @@ TDengine TSDB 的流计算引擎还提供了其他使用上的便利。针对结
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
     
 trigger_type: {
@@ -93,7 +93,7 @@ tag_definition:
 
 通常意义来说，一个流计算只对应一个计算，比如根据一个子表触发和产生一个计算，结果保存到一张表中。根据 TDengine TSDB **一个设备一张表**的设计理念，如果需要对所有设备分别计算，那就需要为每个子表创建一个流计算，这会造成使用的不便和处理效率的降低。为了解决这个问题，TDengine TSDB 的流计算支持触发分组，分组是流计算的最小执行单元，从逻辑上可以认为每个分组对应一个单独的流计算，每个分组对应一个输出表和单独的事件通知。
 
-**总结来说，一个流计算输出表（子表或普通表）的个数与触发表的分组个数相同，未指定分组时只产生一个输出表（普通表）。**
+**总结来说，一个流计算输出表（子表或普通表）的个数与触发表的分组个数相同，未指定分组时只产生一个输出表（普通表）。** `ROLLUP BY tag_name` 可用于按一个字符串标签列的 `.` 分隔路径产生层级汇总分组，与 `PARTITION BY` 互斥。详细规则参见 [CREATE STREAM 核心语法](../06-stream-processing/01-syntax.md#触发分组)。
 
 ### 计算任务
 
@@ -115,6 +115,8 @@ tag_definition:
 - `%%n`：触发分组列的引用，n 为分组列的下标
 - `%%tbname`：触发表每个分组表名的引用，可作为查询表名使用（`FROM %%tbname`）
 - `%%trows`：触发表每个分组的触发数据集（满足本次触发的数据集）的引用
+- `%%rollup_tag`：使用 `ROLLUP BY` 时，当前 rollup 节点路径的最后一级标签值
+- `_trollup_tbcount`：使用 `ROLLUP BY` 时，当前 rollup 节点在本次触发时关联的源子表数量
 
 ### 控制选项
 
@@ -123,7 +125,7 @@ tag_definition:
 - WATERMARK(duration_time)：数据乱序的容忍时长。
 - EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据。
 - IGNORE_DISORDER：指定忽略触发表的乱序数据。
-- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除。
+- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按子表分组，不适用于按标签分组和 `ROLLUP BY`。
 - FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算。
 - FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算。
 - CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表。
