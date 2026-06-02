@@ -3462,6 +3462,12 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
 
   int64_t this = pRequest->self;
+  SRequestObj* pThis = acquireRequest(this);
+  if (pThis != pRequest) {
+    // NOTE: internal logic error, not recoverable!!!
+    tscError("internal logic error: SRequestObj lifecycle management");
+    abort();
+  }
 
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
@@ -3482,15 +3488,8 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
 
-  if (!pRequest->literal_by_stmt2) {
-    SRequestObj* pReq = acquireRequest(this);
-    if (pReq != NULL) {
-      pReq->inCallback = false;
-      (void)releaseRequest(this);
-    }
-  } else {
-    pRequest->inCallback = false;
-  }
+  pRequest->inCallback = false;
+  (void)releaseRequest(this); // NOTE: pairing `pThis = acquireRequest(this);`
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,

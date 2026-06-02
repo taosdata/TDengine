@@ -3784,6 +3784,9 @@ const char* stmt2Errstr(TAOS_STMT2* stmt) {
       // NOTE: since pStmt->exec.pRequest not fully prepared yet
       //       error msg is stored in pStmt->msgBuf via `SET_ERR`
       return pStmt->msgBuf;
+    } else if (pStmt->exec.pRequest->msgBuf[0]) {
+      // NOTE: reuse error msg stored in `msgBuf`
+      return pStmt->exec.pRequest->msgBuf;
     }
     return pStmt->exec.pRequest->msgBuf;
   }
