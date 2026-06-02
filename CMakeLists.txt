@@ -40,9 +40,6 @@ include(cmake/check_env.cmake)
 include(cmake/define.cmake)
 include(cmake/version.cmake)
 
-# Ensure pthread is linked globally (workaround for mold linker issues)
-link_libraries(pthread)
-
 if(USE_CONAN)
   message(STATUS "Using Conan for dependency management")
   include(cmake/conan.cmake)
