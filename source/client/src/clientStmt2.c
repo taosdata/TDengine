@@ -3785,7 +3785,7 @@ const char* stmt2Errstr(TAOS_STMT2* stmt) {
       //       error msg is stored in pStmt->msgBuf via `SET_ERR`
       return pStmt->msgBuf;
     }
-    return tstrerror(pStmt->ctx.code);
+    return pStmt->exec.pRequest->msgBuf;
   }
 
   if (stmt == NULL || NULL == pStmt->exec.pRequest) {
