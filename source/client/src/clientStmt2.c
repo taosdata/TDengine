@@ -2122,9 +2122,6 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
 
   pStmt->errCode = 0;
 
-  stmt2LiteralCtxReset(&pStmt->ctx);
-  pStmt->literal = 0;
-
   // Wait for async execution to complete
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
@@ -2152,6 +2149,10 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
     (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
     (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
   }
+
+  // NOTE: do NOT reset until asynchronous operations have completed
+  stmt2LiteralCtxReset(&pStmt->ctx);
+  pStmt->literal = 0;
 
   // Clean all SQL and execution info (stmtCleanSQLInfo already handles most cleanup)
   pStmt->bInfo.boundColsCached = false;
@@ -3733,8 +3734,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
   (void)taosThreadCondDestroy(&pStmt->asyncBindParam.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->asyncBindParam.mutex);
 
-  stmt2LiteralCtxRelease(&pStmt->ctx);
-
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
       STMT2_ELOG_E("fail to wait asyncExecSem");
@@ -3748,6 +3747,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
       STMT2_ELOG_E("fail to post asyncExecSem");
     }
   }
+
+  // NOTE: do NOT release until asynchronous operations have completed
+  stmt2LiteralCtxRelease(&pStmt->ctx);
 
   STMT2_DLOG("stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
