@@ -423,6 +423,7 @@ void tmq_ctx_cleanup(struct tmq_ctx* context) {
     tmq_topic_info *tinfo, *tinfo_tmp;
 
     HASH_ITER(hh_id, context->topic_info, tinfo, tinfo_tmp) {
+      HASH_DELETE(hh_id, context->topic_info, tinfo);
       ttq_free(tinfo->topic_name);
       ttq_free(tinfo);
     }
