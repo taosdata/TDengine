@@ -110,13 +110,6 @@ void tdbPCacheClose(SPCache *pCache) {
   return;
 }
 
-// TODO:
-// if (pPage->id >= pCache->nPages) {
-//   free(pPage);
-//   pCache->aPage[pPage->id] = NULL;
-// } else {
-//   add to free list
-// }
 
 static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
   if (pCache->nPages == nPage) {
@@ -192,14 +185,10 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force
   SPage *pPage;
   i32    nRef = 0;
 
-  tdbPCacheLock(pCache);
-
   pPage = tdbPCacheFetchImpl(pCache, pPgid, pTxn, force, loaded);
   if (pPage) {
     nRef = tdbRefPage(pPage);
   }
-
-  tdbPCacheUnlock(pCache);
 
   if (pPage) {
     tdbTrace("pcache/fetch page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
@@ -267,31 +256,26 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
     return;
   }
 
-  tdbPCacheLock(pCache);
   nRef = tdbUnrefPage(pPage);
   tdbTrace("pcache/release page %p/%d/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
   if (nRef == 0) {
-    // test the nRef again to make sure
-    // it is safe th handle the page
-    // nRef = tdbGetPageRef(pPage);
-    // if (nRef == 0) {
     if (pPage->isLocal) {
+      tdbPCacheLock(pCache);
       if (!pPage->isFree) {
         tdbPCacheUnpinPage(pCache, pPage);
       } else {
         tdbPCacheFreePage(pCache, pPage);
       }
+      tdbPCacheUnlock(pCache);
     } else {
       if (TDB_TXN_IS_WRITE(pTxn)) {
-        // remove from hash
+        tdbPCacheLock(pCache);
         tdbPCacheRemovePageFromHash(pCache, pPage);
+        tdbPCacheUnlock(pCache);
       }
-
       tdbPageDestroy(pPage, pTxn->xFree, pTxn->xArg);
     }
-    // }
   }
-  tdbPCacheUnlock(pCache);
 }
 
 int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->szPage; }
@@ -312,6 +296,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn,
   }
 
   // 1. Search the hash table
+  tdbPCacheLock(pCache);
   pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
   while (pPage) {
     if (pPage->pgid.pgno == pPgid->pgno && memcmp(pPage->pgid.fileid, pPgid->fileid, TDB_FILE_ID_LEN) == 0) break;
@@ -321,6 +306,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn,
   if (pPage) {
     if (pPage->isLocal || TDB_TXN_IS_WRITE(pTxn)) {
       tdbPCachePinPage(pCache, pPage);
+      tdbPCacheUnlock(pCache);
       if (loaded) {
         *loaded = true;
       }
@@ -347,6 +333,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn,
     tdbPCacheRemovePageFromHash(pCache, pPage);
     tdbPCachePinPage(pCache, pPage);
   }
+  tdbPCacheUnlock(pCache);
 
   // 4. Try a create new page
   if (!pPage && pTxn->xMalloc != NULL) {
@@ -403,7 +390,9 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn,
       pPage->pPager = NULL;
 
       if (pPage->isLocal || TDB_TXN_IS_WRITE(pTxn)) {
+        tdbPCacheLock(pCache);
         tdbPCacheAddPageToHash(pCache, pPage);
+        tdbPCacheUnlock(pCache);
       }
     }
   }
