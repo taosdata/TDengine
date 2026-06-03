@@ -160,6 +160,10 @@ In **Batch Size**, set the batch size for each write, that is, the maximum numbe
 
 In **Batch Delay**, set the maximum delay for a single send (in seconds). When the timeout ends, as long as there is data, it is sent immediately even if it does not meet the **Batch Size**.
 
+When **Cache Realtime Data** is enabled, data consumed from OPC DA is first written to a local file; a background task continuously reads from the file and sends data to the downstream consumer. This is intended for traffic shaping when the data rate is high enough that downstream cannot keep up and would otherwise drop messages. Once the backlog is consumed, the file is cleaned up automatically. Disabled by default. For detailed information about this feature, see [Store and Forward](../../14-reference/01-components/05-taosx-agent/store-and-forward.md).
+
+In **Cache Storage Directory**, you can enter the directory where the cache files are stored. It defaults to the data directory configured at taosX startup, but can be overridden. This option only takes effect when **Cache Realtime Data** is enabled.
+
 In **Save Raw Data**, choose whether to save raw data. Default value: no.
 
 When saving raw data, the following 2 parameters are effective.

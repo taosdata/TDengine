@@ -130,6 +130,27 @@ else
     REP_MOUNT_PARAM="${REPDIR}:/mnt/tsdb/source/taos-community"
     REP_MOUNT_DEBUG="${REPDIR_DEBUG}:/mnt/tsdb/debug/"
     REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/mnt/tsdb/debug/build/lib:ro"
+    # 若 taos-internal 目录与 taos-community 同级（tsdb / TDinternal 布局），一并挂入容器，
+    # 使企业版测试用例（如 test_new_stream_compatibility.py）可访问 /mnt/tsdb/source/taos-internal
+    TAOS_INTERNAL_DIR="$(dirname "$REPDIR")/taos-internal"
+    # 兜底：同级目录不存在时，尝试 CI_PROJECT_DIR/source/taos-internal（GitLab runner 完整 checkout）
+    if [ ! -d "$TAOS_INTERNAL_DIR" ] && [ -n "${CI_PROJECT_DIR:-}" ] && \
+       [ -d "${CI_PROJECT_DIR}/source/taos-internal" ]; then
+        TAOS_INTERNAL_DIR="${CI_PROJECT_DIR}/source/taos-internal"
+    fi
+    REP_MOUNT_INTERNAL=""
+    if [ -d "$TAOS_INTERNAL_DIR" ]; then
+        REP_MOUNT_INTERNAL="${TAOS_INTERNAL_DIR}:/mnt/tsdb/source/taos-internal"
+    fi
+    # 若 REPDIR 下 docs/ 目录不存在（如 TDinternal/community 布局下 docs 位于仓库根目录），
+    # 检测同级 docs/ 并追加挂载，使容器内 getTDenginePath()/docs/ 路径可达（test_check_error_code.py 等用例依赖此路径）。
+    REP_MOUNT_DOCS=""
+    if [ ! -d "${REPDIR}/docs" ]; then
+        _parent_docs="$(dirname "$REPDIR")/docs"
+        if [ -d "$_parent_docs" ]; then
+            REP_MOUNT_DOCS="${_parent_docs}:${CONTAINER_TESTDIR}/docs"
+        fi
+    fi
 fi
 
 ulimit -c unlimited
@@ -188,23 +209,27 @@ echo "docker run \
     ${name_param:+$name_param }--privileged=true \
     $asan_env \
     -v $REP_MOUNT_PARAM \
+    ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
+    ${REP_MOUNT_DOCS:+-v $REP_MOUNT_DOCS} \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
     -v $MOUNT_DIR \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v \"$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}\" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 docker run \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
     -v $REP_MOUNT_PARAM \
+    ${REP_MOUNT_INTERNAL:+-v $REP_MOUNT_INTERNAL} \
+    ${REP_MOUNT_DOCS:+-v $REP_MOUNT_DOCS} \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \
     -v $MOUNT_DIR \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 tdengine-ci:0.1 $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 exit $ret

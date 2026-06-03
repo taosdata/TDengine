@@ -69,7 +69,9 @@ static void msg_process(TAOS_RES* msg) {
   TAOS* pConn = use_db();
   int32_t ret = tmq_write_raw(pConn, raw);
   printf("write raw data: %s\n", tmq_err2str(ret));
-  ASSERT(ret == 0);
+  if(ret != 0){
+    exit(ret);
+  }
 
   tmq_free_raw(raw);
   taos_close(pConn);

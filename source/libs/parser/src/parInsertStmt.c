@@ -188,10 +188,6 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         goto end;
       }
     }
-    if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = terrno;
-      goto end;
-    }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bind[c].buffer);
@@ -260,10 +256,16 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         code = terrno;
         goto end;
       }
+      if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
+        code = terrno;
+        goto end;
+      }
     }
   }
 
-  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+  if (!isJson &&
+      (code = tTagNewWithName(pTagArray, tagName, pSchema, pDataBlock->pMeta->tableInfo.numOfTags, 1, &pTag)) !=
+          TSDB_CODE_SUCCESS) {
     goto end;
   }
 
@@ -670,10 +672,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         goto end;
       }
     }
-    if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-      code = terrno;
-      goto end;
-    }
+    
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bindData.buffer);
@@ -749,10 +748,16 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         code = terrno;
         goto end;
       }
+      if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
+        code = terrno;
+        goto end;
+      }
     }
   }
 
-  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+  if (!isJson &&
+      (code = tTagNewWithName(pTagArray, tagName, pSchema, pDataBlock->pMeta->tableInfo.numOfTags, 1, &pTag)) !=
+          TSDB_CODE_SUCCESS) {
     goto end;
   }
 

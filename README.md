@@ -7,24 +7,29 @@
   />
   </a>
 </p>
+
 <div align="center">
-
-[![TDengine Release Build](https://github.com/taosdata/TDengine/actions/workflows/tdengine-release-build.yml/badge.svg)](https://github.com/taosdata/TDengine/actions/workflows/tdengine-release-build.yml)
-[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)](https://github.com/taosdata/TDengine/commits/main/)
-<br />
-[![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)](https://github.com/taosdata/TDengine/releases)
-[![GitHub License](https://img.shields.io/github/license/taosdata/tdengine)](https://github.com/taosdata/TDengine/blob/main/LICENSE)
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
-<br />
-[![Twitter Follow](https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social)](https://twitter.com/tdenginedb)
-[![YouTube Channel](https://img.shields.io/badge/Subscribe_@tdengine--white?logo=youtube&style=social)](https://www.youtube.com/@tdengine)
-[![Discord Community](https://img.shields.io/badge/Join_Discord--white?logo=discord&style=social)](https://discord.com/invite/VZdSuUg4pS)
-[![LinkedIn](https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social)](https://www.linkedin.com/company/tdengine)
-[![StackOverflow](https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange)](https://stackoverflow.com/questions/tagged/tdengine)
-[![DeepWiki](https://img.shields.io/badge/Ask%20DeepWiki-white.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAyCAYAAAAnWDnqAAAAAXNSR0IArs4c6QAAA05JREFUaEPtmUtyEzEQhtWTQyQLHNak2AB7ZnyXZMEjXMGeK/AIi+QuHrMnbChYY7MIh8g01fJoopFb0uhhEqqcbWTp06/uv1saEDv4O3n3dV60RfP947Mm9/SQc0ICFQgzfc4CYZoTPAswgSJCCUJUnAAoRHOAUOcATwbmVLWdGoH//PB8mnKqScAhsD0kYP3j/Yt5LPQe2KvcXmGvRHcDnpxfL2zOYJ1mFwrryWTz0advv1Ut4CJgf5uhDuDj5eUcAUoahrdY/56ebRWeraTjMt/00Sh3UDtjgHtQNHwcRGOC98BJEAEymycmYcWwOprTgcB6VZ5JK5TAJ+fXGLBm3FDAmn6oPPjR4rKCAoJCal2eAiQp2x0vxTPB3ALO2CRkwmDy5WohzBDwSEFKRwPbknEggCPB/imwrycgxX2NzoMCHhPkDwqYMr9tRcP5qNrMZHkVnOjRMWwLCcr8ohBVb1OMjxLwGCvjTikrsBOiA6fNyCrm8V1rP93iVPpwaE+gO0SsWmPiXB+jikdf6SizrT5qKasx5j8ABbHpFTx+vFXp9EnYQmLx02h1QTTrl6eDqxLnGjporxl3NL3agEvXdT0WmEost648sQOYAeJS9Q7bfUVoMGnjo4AZdUMQku50McDcMWcBPvr0SzbTAFDfvJqwLzgxwATnCgnp4wDl6Aa+Ax283gghmj+vj7feE2KBBRMW3FzOpLOADl0Isb5587h/U4gGvkt5v60Z1VLG8BhYjbzRwyQZemwAd6cCR5/XFWLYZRIMpX39AR0tjaGGiGzLVyhse5C9RKC6ai42ppWPKiBagOvaYk8lO7DajerabOZP46Lby5wKjw1HCRx7p9sVMOWGzb/vA1hwiWc6jm3MvQDTogQkiqIhJV0nBQBTU+3okKCFDy9WwferkHjtxib7t3xIUQtHxnIwtx4mpg26/HfwVNVDb4oI9RHmx5WGelRVlrtiw43zboCLaxv46AZeB3IlTkwouebTr1y2NjSpHz68WNFjHvupy3q8TFn3Hos2IAk4Ju5dCo8B3wP7VPr/FGaKiG+T+v+TQqIrOqMTL1VdWV1DdmcbO8KXBz6esmYWYKPwDL5b5FA1a0hwapHiom0r/cKaoqr+27/XcrS5UwSMbQAAAABJRU5ErkJggg==)](https://deepwiki.com/taosdata/TDengine)
-
-English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine.com) | [Documentation](https://docs.tdengine.com) | [Learn more about TSDB](https://tdengine.com/time-series-database/)
+  <a href="https://github.com/taosdata/TDengine/actions/workflows/tdengine-release-build.yml"><img src="https://github.com/taosdata/TDengine/actions/workflows/tdengine-release-build.yml/badge.svg" alt="TDengine Release Build" /></a>
+  <a href="https://coveralls.io/github/taosdata/TDengine?branch=3.0"><img src="https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0" alt="Coverage Status" /></a>
+  <a href="https://github.com/taosdata/TDengine/commits/main/"><img src="https://img.shields.io/github/commit-activity/m/taosdata/tdengine" alt="GitHub commit activity" /></a>
+  <br />
+  <a href="https://github.com/taosdata/TDengine/releases"><img src="https://img.shields.io/github/v/release/taosdata/tdengine" alt="GitHub Release" /></a>
+  <a href="https://github.com/taosdata/TDengine/blob/main/LICENSE"><img src="https://img.shields.io/github/license/taosdata/tdengine" alt="GitHub License" /></a>
+  <a href="https://bestpractices.coreinfrastructure.org/projects/4201"><img src="https://bestpractices.coreinfrastructure.org/projects/4201/badge" alt="CII Best Practices" /></a>
+  <br />
+  <a href="https://twitter.com/tdenginedb"><img src="https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social" alt="Twitter Follow" /></a>
+  <a href="https://www.youtube.com/@tdengine"><img src="https://img.shields.io/badge/Subscribe_@tdengine--white?logo=youtube&style=social" alt="YouTube Channel" /></a>
+  <a href="https://discord.com/invite/VZdSuUg4pS"><img src="https://img.shields.io/badge/Join_Discord--white?logo=discord&style=social" alt="Discord Community" /></a>
+  <a href="https://www.linkedin.com/company/tdengine"><img src="https://img.shields.io/badge/Follow_LinkedIn--white?logo=linkedin&style=social" alt="LinkedIn" /></a>
+  <a href="https://stackoverflow.com/questions/tagged/tdengine"><img src="https://img.shields.io/badge/Ask_StackOverflow--white?logo=stackoverflow&style=social&logoColor=orange" alt="StackOverflow" /></a>
+  <a href="https://deepwiki.com/taosdata/TDengine"><img src="https://img.shields.io/badge/Ask%20DeepWiki-white.svg" alt="DeepWiki" /></a>
+  <br />
+  <a href="./README.md">English</a> |
+  <a href="./README-CN.md">简体中文</a> |
+  <a href="https://cloud.tdengine.com">TDengine Cloud</a> |
+  <a href="https://docs.tdengine.com">Documentation</a> |
+  <a href="https://tdengine.com/time-series-database/">Learn more about TSDB</a>
+</div>
 
 # TDengine
 
@@ -106,7 +111,7 @@ sudo yum groupinstall -y "Development Tools"
 sudo yum install -y cmake3 git
 ```
 
-Note: CMake >= 3.21 is required for external builds. If your distro provides an older version, install a newer release from <https://cmake.org/download/>.
+Note: CMake >= 3.21 is required for external builds. If your distro provides an older version, install a newer release from [https://cmake.org/download/](https://cmake.org/download/).
 
 You may also need these tools depending on what you build:
 
@@ -379,8 +384,8 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 # for more information about options please refer to ./run_local_coverage.sh -h
 ```
 
-> **NOTE**:
-> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
+> **NOTE:**
+> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take an amount of time.
 
 </details>
 

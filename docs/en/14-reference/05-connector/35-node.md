@@ -24,6 +24,7 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.5.0                     | Supports taosAdapter HA (high availability). | - |
 | 3.4.0                     | 1. Supports BLOB data type. <br/> 2. Parameter binding supports DECIMAL data type. <br/> 3. Supports reporting user APP name and IP address. | - |
 | 3.3.0                     | Supports load balancing and failover | - |
 | 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
@@ -112,11 +113,12 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
 
 - **protocol**: Uses the WebSocket protocol to establish the connection. For example, `ws://localhost:6041`.
 - **username/password**: Database username and password.
-- **addresses**: A list of addresses, supporting one or more `host:port` addresses, separated by commas (e.g., `localhost:6041,localhost:6042`). `@tdengine/websocket` supports both IPv4 and IPv6 address formats. For IPv6 addresses, they must be enclosed in square brackets (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number resolution conflicts.
+- **addresses**: A list of addresses, supporting one or more `host:port` addresses, separated by commas (e.g., `node1:6041,node2:6041`). `@tdengine/websocket` supports both IPv4 and IPv6 address formats. For IPv6 addresses, they must be enclosed in square brackets (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number resolution conflicts.
 - **database**: Database name.
 - **params**:
   - `token`: Used for TDengine TSDB cloud service authentication.
   - `bearer_token`: Used for TDengine TSDB authentication, with higher priority than username/password.
+  - `adapter_ha`: Whether to enable taosAdapter high availability. `true` enables it, `false` disables it, and the default value is `false`. After it is enabled, once the connection succeeds the connector automatically fetches all taosAdapter endpoints in the cluster and adds them to the address pool for load balancing and failover. This feature requires TDengine TSDB version `3.4.2.0` or later.
   - `retries`: Maximum number of retries when the connection fails, defaults to 5.
   - `retry_backoff_ms`: The initial wait time (milliseconds) when a connection fails, defaulting to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
   - `retry_backoff_max_ms`: The maximum wait time (milliseconds) when a connection fails, defaulting to 2000.
@@ -131,7 +133,10 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
   ws://root:taosdata@[::1]:6041
 
   // Multiple addresses (can be used for load balancing and failover scenarios):
-  ws://root:taosdata@localhost:6041,localhost:6042,localhost:6043
+  ws://root:taosdata@node1:6041,node2:6041,node3:6041
+
+  // Enable taosAdapter HA. After the connection succeeds, other taosAdapter endpoints in the cluster are discovered automatically:
+  ws://root:taosdata@node1:6041,node2:6041/power?adapter_ha=true
 ```
 
 ### WSConfig

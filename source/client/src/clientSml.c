@@ -19,7 +19,33 @@
 #include <string.h>
 
 #include "clientSml.h"
+#include "osRand.h"
 #include "thash.h"
+
+#define SML_RETRY_MAX_TIMES     30
+#define SML_RETRY_BASE_MS       100u
+#define SML_RETRY_MAX_SLEEP_MS  12000u  // hard cap on base backoff; actual sleep ≤ SML_RETRY_MAX_SLEEP_MS with jitter
+#define SML_RETRY_MAX_SHIFT     7u      // 100ms << 7 = 12800ms, then capped by SML_RETRY_MAX_SLEEP_MS
+
+// Exponential backoff with full-jitter: base doubles each attempt (capped at SML_RETRY_MAX_SLEEP_MS),
+// then perturbed ±25% so concurrent threads do not stampede in lockstep.
+// Uses a per-thread seed via taosRandR() to avoid global rand() lock contention.
+// Worst-case total wait per call site (SML_RETRY_MAX_TIMES=30):
+//   retries 1–7:  100+200+400+800+1600+3200+6400 = 12700 ms
+//   retries 8–30: 23 × 12000                     = 276000 ms
+//   total ≈ 289 s (≈ 4.8 min) per call site.
+// smlModifyDBSchemas loop allows up to superTables×SML_RETRY_MAX_TIMES retries.
+static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
+  static __thread uint32_t tlSeed = 0;
+  if (tlSeed == 0) tlSeed = (uint32_t)taosGetTimestampUs();
+  uint32_t shift   = retryIdx > SML_RETRY_MAX_SHIFT ? SML_RETRY_MAX_SHIFT : retryIdx;
+  uint32_t backoff = SML_RETRY_BASE_MS << shift;
+  if (backoff > SML_RETRY_MAX_SLEEP_MS) backoff = SML_RETRY_MAX_SLEEP_MS;
+  uint32_t jitter  = taosRandR(&tlSeed) % (backoff / 2 + 1);
+  uint32_t sleepMs = backoff - backoff / 4 + jitter;  // backoff * [0.75, 1.25]
+  if (sleepMs > SML_RETRY_MAX_SLEEP_MS) sleepMs = SML_RETRY_MAX_SLEEP_MS;
+  return sleepMs;
+}
 
 #define RETURN_FALSE                                 \
   smlBuildInvalidDataMsg(msg, "invalid data", pVal); \
@@ -1740,9 +1766,13 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
         code != TSDB_CODE_MND_TRANS_CONFLICT && code != TSDB_CODE_MND_INVALID_SCHEMA_VER) {
       break;
     }
-    taosMsleep(100);
-    uInfo("SML:0x%" PRIx64 ", smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
-  } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
+    // Exponential backoff with jitter to reduce mnode transaction-conflict storms
+    // when many concurrent writers race to ALTER the same stable.
+    uint32_t sleepMs = smlComputeBackoffMs((uint32_t)retryNum);
+    taosMsleep(sleepMs);
+    uInfo("SML:0x%" PRIx64 ", smlModifyDBSchemas retry code:%s, times:%d, sleep:%ums", info->id, tstrerror(code),
+          retryNum, sleepMs);
+  } while (retryNum++ < SML_RETRY_MAX_TIMES);
 
   SML_CHECK_CODE(code);
   info->cost.insertBindTime = taosGetTimestampUs();
@@ -1848,16 +1878,21 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
     info->cost.code = code;
     if (NEED_CLIENT_HANDLE_ERROR(code) || code == TSDB_CODE_SDB_OBJ_CREATING || code == TSDB_CODE_PAR_VALUE_TOO_LONG ||
         code == TSDB_CODE_MND_TRANS_CONFLICT || code == TSDB_CODE_SYN_NOT_LEADER) {
-      if (cnt++ >= 10) {
-        uInfo("SML:%" PRIx64 " retry:%d/10 end code:%d, msg:%s", info->id, cnt, code, tstrerror(code));
+      if (cnt++ >= SML_RETRY_MAX_TIMES) {
+        uInfo("SML:0x%" PRIx64 " retry:%d/%d end code:%d, msg:%s", info->id, cnt, SML_RETRY_MAX_TIMES, code,
+              tstrerror(code));
         break;
       }
-      taosMsleep(100);
-      uInfo("SML:%" PRIx64 " retry:%d/10,ver is old retry or object is creating code:%d, msg:%s", info->id, cnt, code,
-            tstrerror(code));
+      // Exponential backoff with jitter to mitigate schema-change / transaction-conflict storms
+      // under highly concurrent schemaless writes.
+      uint32_t sleepMs = smlComputeBackoffMs((uint32_t)(cnt - 1));
+      taosMsleep(sleepMs);
+      uInfo("SML:0x%" PRIx64
+            " retry:%d/%d, ver is old retry or object is creating, sleep:%ums, code:%d, msg:%s",
+            info->id, cnt, SML_RETRY_MAX_TIMES, sleepMs, code, tstrerror(code));
       code = refreshMeta(request->pTscObj, request);
       if (code != 0) {
-        uInfo("SML:%" PRIx64 " refresh meta error code:%d, msg:%s", info->id, code, tstrerror(code));
+        uInfo("SML:0x%" PRIx64 " refresh meta error code:%d, msg:%s", info->id, code, tstrerror(code));
       }
       smlDestroyInfo(info);
       info = NULL;

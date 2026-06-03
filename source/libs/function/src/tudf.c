@@ -138,6 +138,11 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   }
   TAOS_STRCAT(path, "/" CUS_PROMPT "udf");
 #endif
+  if (taosStatFile(path, NULL, NULL, NULL) != 0) {
+    fnError("udfd binary does not exist: %s", path);
+    err = TSDB_CODE_UDF_UV_EXEC_FAILURE;
+    goto _OVER;
+  }
   char *argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
   options.file = path;

@@ -3,6 +3,7 @@ if(TD_LINUX OR TD_WINDOWS)
 
     add_executable(tssTest ${TSS_TEST_SRC})
     DEP_ext_gtest(tssTest)
+    target_compile_features(tssTest PRIVATE cxx_std_20)
     target_include_directories(tssTest
         PUBLIC
         "${TD_SOURCE_DIR}/include/libs/tss"
