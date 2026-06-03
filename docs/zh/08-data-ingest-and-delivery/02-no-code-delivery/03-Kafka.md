@@ -36,7 +36,7 @@ create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
 insert into db.tb using db.meters tags(1) values(now, 1);
 ```
 
-关于主题定义、消费位点和订阅参数的更多说明，请参考 [数据订阅](../../07-develop/07-tmq.md)。
+关于主题定义、消费位点和订阅参数的更多说明，请参考 [数据订阅](../../07-data-subscription/index.md)。
 
 ## 创建 Kafka 数据发布任务
 
