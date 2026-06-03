@@ -1,1 +1,0 @@
-::: query.function.test_sin
