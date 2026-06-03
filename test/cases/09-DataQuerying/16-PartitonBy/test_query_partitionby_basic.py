@@ -1028,11 +1028,11 @@ class TestPartitionByBasic:
                 TAGS (1733124730908, 1003, "00:11:23:33:44:55", 100000)'
         tdSql.execute(sql)
         
-        sql = f'insert into {self.dbname}.d00 values(now - 3s, 5, 5, true, true, false);'
+        sql = f'insert into {self.dbname}.d00 values(now - 2s, 5, 5, true, true, false);'
         tdSql.execute(sql)
-        sql = f'insert into {self.dbname}.d01 values(now - 2s, 6, 5, true, true, true);'
+        sql = f'insert into {self.dbname}.d01 values(now - 1s, 6, 5, true, true, true);'
         tdSql.execute(sql)
-        sql = f'insert into {self.dbname}.d02 values(now - 1s, 6, 7, true, true, true);'
+        sql = f'insert into {self.dbname}.d02 values(now, 6, 7, true, true, true);'
         tdSql.execute(sql)
         
         sql = f'select `location`, tbname from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'

@@ -70,7 +70,7 @@ static char *shellAllocHexString(const char *val, int32_t length);
 static void  shellPrintHex(const char *val, int32_t length, int32_t width);
 void shellPrintString(const char *str, int32_t width);
 
-bool shellCmdkilled = false;
+static bool shellCmdkilled = false;
 
 bool shellIsEmptyCommand(const char *cmd) {
   for (char c = *cmd++; c != 0; c = *cmd++) {
@@ -116,12 +116,6 @@ int32_t shellRunSingleCommand(char *command) {
       displayWidth = TRANGE(displayWidth, 1, 10 * 1024);
       shell.args.displayWidth = displayWidth;
     }
-    return 0;
-  }
-
-  if (shellRegexMatch(command, "^[ \t]*subscribe[ \t;]", REG_EXTENDED | REG_ICASE) ||
-      shellRegexMatch(command, "^[ \t]*subscribe$", REG_EXTENDED | REG_ICASE)) {
-    shellSubscribe(command);
     return 0;
   }
 

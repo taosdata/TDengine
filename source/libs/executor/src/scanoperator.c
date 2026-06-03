@@ -557,11 +557,9 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   // only child table has tag value
   if (pMetaReader->me.type == TSDB_CHILD_TABLE || pMetaReader->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
-    if (pTag != NULL) {
-      pVal->pTags = taosMemoryMalloc(pTag->len);
-      QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
-      memcpy(pVal->pTags, pTag, pTag->len);
-    }
+    pVal->pTags = taosMemoryMalloc(pTag->len);
+    QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
+    memcpy(pVal->pTags, pTag, pTag->len);
   }
 
   (*ppResVal) = pVal;
@@ -703,10 +701,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
     } else {  // these are tags
       STagVal tagVal = {0};
       tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
-      const char* p = NULL;
-      if (val.pTags != NULL) {
-        p = pHandle->api.metaFn.extractTagVal(val.pTags, pColInfoData->info.type, &tagVal);
-      }
+      const char* p = pHandle->api.metaFn.extractTagVal(val.pTags, pColInfoData->info.type, &tagVal);
 
       char* data = NULL;
       if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {

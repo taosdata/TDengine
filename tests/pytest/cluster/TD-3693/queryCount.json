@@ -1,0 +1,15 @@
+{
+  "filetype":"query",
+  "cfgdir": "/etc/taos",
+  "host": "192.168.1.104",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "confirm_parameter_prompt": "no",
+  "databases": "db2",
+  "query_times": 1000000,
+  "specified_table_query":
+    {"query_interval":1, "concurrent":100,
+     "sqls": [{"sql": "select count(*) from db.stb0", "result": ""}]
+    }
+}

@@ -298,7 +298,7 @@ function clean_lib() {
   # Remove link
   for dir in "${lib_link_dir}" "${lib64_link_dir}"; do
     if [ -d "$dir" ]; then
-      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
+      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
         find "${dir:?}" -name "$pattern" -exec rm -f {} \; || :
       done
     fi

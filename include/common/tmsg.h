@@ -2656,7 +2656,6 @@ typedef struct {
     int32_t compactId;
     int32_t id;
   };
-  int8_t  force;
   int32_t sqlLen;
   char*   sql;
 } SKillCompactReq;

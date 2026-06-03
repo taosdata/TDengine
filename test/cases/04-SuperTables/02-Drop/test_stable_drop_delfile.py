@@ -31,7 +31,7 @@ class TestDeleteCheck:
         # init cluster path
         cls.selfPath = os.path.dirname(os.path.realpath(__file__))
         projPath = find_proj_path(cls.selfPath)
-        cls.projDir = os.path.join(projPath, "sim") + os.sep
+        cls.projDir = f"{projPath}sim/"
         tdLog.info(f" init projPath={cls.projDir}")
 
     def compactDatbase(self):

@@ -541,11 +541,7 @@ typedef enum {
 #define TSDB_DEFAULT_FSYNC_PERIOD       3000    // three second
 #define TSDB_MIN_WAL_LEVEL              0
 #define TSDB_MAX_WAL_LEVEL              2
-#ifdef WINDOWS
-#define TSDB_DEFAULT_WAL_LEVEL          2
-#else
 #define TSDB_DEFAULT_WAL_LEVEL          1
-#endif
 #define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
 #define TSDB_MAX_PRECISION              TSDB_TIME_PRECISION_NANO
 #define TSDB_DEFAULT_PRECISION          TSDB_TIME_PRECISION_MILLI

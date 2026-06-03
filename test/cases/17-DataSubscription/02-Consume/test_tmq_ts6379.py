@@ -637,7 +637,7 @@ class TestCase:
             tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
             tdSql.execute(f"reload topic if exists t2 as select * from t1")
             
-            time.sleep(3)
+            time.sleep(1)
             tdSql.execute(f'insert into t1 values(now, 1) (now+1s, 2)')
 
             while True:
@@ -689,7 +689,7 @@ class TestCase:
             tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
             tdSql.execute(f"reload topic if exists t3 as select * from st")
             
-            time.sleep(3)
+            time.sleep(1)
             tdSql.execute(f'insert into t1 values(now, 1) (now+1s, 2)')
 
             while True:
@@ -738,7 +738,7 @@ class TestCase:
             tdSql.execute(f'insert into t1 using st tags(1) values(now, 1) (now+1s, 2)')
             tdSql.execute(f"reload topic if exists t1 as select * from t1")
             
-            time.sleep(3)
+            time.sleep(1)
             tdSql.execute(f'insert into t1 values(now, 1) (now+1s, 2)')
 
             while True:

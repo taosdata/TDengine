@@ -1499,26 +1499,22 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
           }
         }
       }
+      taosMemoryFreeClear(pTableMeta);
       if (rebuildTag) {
-        STag*    ppTag = NULL;
-        SSchema* pTagSchema = pTableMeta->schema + pTableMeta->tableInfo.numOfColumns;
-        code = tTagNewWithName(pTagVals, pCreateReq->ctb.tagName, pTagSchema, pTableMeta->tableInfo.numOfTags, 1,
-                               &ppTag);
+        STag* ppTag = NULL;
+        code = tTagNew(pTagVals, 1, false, &ppTag);
         taosArrayDestroy(pTagVals);
         pTagVals = NULL;
         if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFreeClear(pTableMeta);
           goto end;
         }
         if (NULL == taosArrayPush(pTagList, &ppTag)) {
           code = terrno;
           tTagFree(ppTag);
-          taosMemoryFreeClear(pTableMeta);
           goto end;
         }
         pCreateReq->ctb.pTag = (uint8_t*)ppTag;
       }
-      taosMemoryFreeClear(pTableMeta);
       taosArrayDestroy(pTagVals);
     }
     RAW_NULL_CHECK(taosArrayPush(pRequest->tableList, &pName));

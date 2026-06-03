@@ -1495,14 +1495,8 @@ static int32_t setColData(int64_t rows, int32_t rowStart, int32_t rowEnd, SColDa
   for (int32_t k = rowStart; k < rowEnd; k++) {
     SColVal colVal = {0};
     STREAM_CHECK_RET_GOTO(tColDataGetValue(colData, k, &colVal));
-    if (IS_VAR_DATA_TYPE(colVal.value.type)) {
-      STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, rows + k - rowStart,
-                                             (const char*)colVal.value.pData, colVal.value.nData,
-                                             !COL_VAL_IS_VALUE(&colVal)));
-    } else {
-      STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k - rowStart, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
-                                          !COL_VAL_IS_VALUE(&colVal)));
-    }    
+    STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, rows + k - rowStart, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
+                                        !COL_VAL_IS_VALUE(&colVal)));
   }
   end:
   return code;

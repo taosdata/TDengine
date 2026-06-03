@@ -414,22 +414,17 @@ if(BUILD_MSVCREGEX)      # {
         INC_DIR          include
         LIB              lib/${ext_msvcregex_static}
     )
-    # Use public gitee commit archive to avoid internal network dependency and
-    # keep reproducible source contents.
+    # Originally from https://gitee.com/l0km/libgnurx-msvc (mirrored on GitLab)
     get_from_local_if_exists(
-        "https://gitee.com/l0km/libgnurx-msvc/repository/archive/1a6514d.tar.gz"
+        "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest/libgnurx-msvc-1a6514d.tar.gz"
         "libgnurx-msvc-1a6514d.tar.gz"
     )
-    # ExternalProject extracts single-root archives into ext_msvcregex_source.
-    # Use the source root directly to avoid path mismatch across archive layouts.
-    set(ext_msvcregex_archive_source "${ext_msvcregex_source}")
+    set(ext_msvcregex_archive_source "${ext_msvcregex_source}/libgnurx-msvc-master")
     ExternalProject_Add(ext_msvcregex
         URL ${_url}
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND ""
-        PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -DMSVCREGEX_ROOT=${ext_msvcregex_archive_source} -P "${TD_SOURCE_DIR}/cmake/normalize_ext_msvcregex_layout.cmake"
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E chdir "${ext_msvcregex_archive_source}" nmake /f NMakefile all test test2 test3
         INSTALL_COMMAND
@@ -1528,7 +1523,7 @@ elseif(TD_WINDOWS)
     if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
         set(ext_libxml2_static libxml2sd.lib)
     else()
-        set(ext_libxml2_static libxml2s.lib)
+        set(ext_libxml2_static libxml2.lib)
     endif()
     # On Windows, libxml2 is built as a static library, consumers must define LIBXML_STATIC
     macro(DEP_ext_libxml2_INC tgt)
@@ -1963,15 +1958,10 @@ endif()
 string(REPLACE "." "_" _ver_safe "${_ver_short}")
 string(REPLACE "." "" _vermm "${_ver_short}")
 set(_extname "ext_cpython_${_ver_safe}")
-set(_pyudf_sdk_url "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
-set(_pyudf_sdk_archive "cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
 
 INIT_DIRS(${_extname} ${TD_EXTERNALS_BASE_DIR})
 
-get_from_local_if_exists(
-    "${_pyudf_sdk_url}"
-    "${_pyudf_sdk_archive}"
-)
+set(_url "https://github.com/astral-sh/python-build-standalone/releases/download/${_pyudf_pbs_release}/cpython-${_pyver}+${_pyudf_pbs_release}-${_pbs_triple}-install_only.tar.gz")
 
 ExternalProject_Add(${_extname}
     URL "${_url}"
@@ -2009,13 +1999,11 @@ message(STATUS "[pyudf] Will download CPython ${_pyver} SDK for ${_pbs_triple}")
 INIT_EXT(ext_plog
     INC_DIR          include
 )
-get_from_local_if_exists(
-    "https://github.com/SergiusTheBest/plog/archive/refs/tags/1.1.10.tar.gz"
-    "plog-1.1.10.tar.gz"
-)
+get_from_local_repo_if_exists("https://github.com/SergiusTheBest/plog.git")
 ExternalProject_Add(ext_plog
-    URL "${_url}"
-    URL_HASH SHA256=55a090fc2b46ab44d0dde562a91fe5fc15445a3caedfaedda89fe3925da4705a
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG 1.1.10
+    GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
@@ -2023,7 +2011,6 @@ ExternalProject_Add(ext_plog
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/include"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory "${ext_plog_source}/include/plog" "${_ins}/include/plog"
     EXCLUDE_FROM_ALL TRUE
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     VERBATIM
 )
 add_dependencies(build_externals ext_plog)

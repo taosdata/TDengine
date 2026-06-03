@@ -47,17 +47,11 @@ class AvroCConan(ConanFile):
     def source(self):
         # Download from Apache Avro GitHub repository
         # Use the commit hash from external.cmake: 7b106b12ae22853c977259710d92a237d76f2236
-        _commit = "7b106b12ae22853c977259710d92a237d76f2236"
-        _filename = f"avro-{_commit[:12]}.tar.gz"
-        _public_url = f"https://github.com/apache/avro/archive/{_commit}.tar.gz"
-        _mirror = os.environ.get("DEPS_MIRROR_URL", "")
-        if _mirror:
-            try:
-                get(self, f"{_mirror}/{_filename}", strip_root=True)
-                return
-            except Exception:
-                self.output.warning(f"Mirror download failed, falling back to public URL")
-        get(self, _public_url, strip_root=True)
+        get(
+            self,
+            "https://github.com/apache/avro/archive/7b106b12ae22853c977259710d92a237d76f2236.tar.gz",
+            strip_root=True,
+        )
 
     def generate(self):
         tc = CMakeToolchain(self)

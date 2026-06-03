@@ -200,18 +200,6 @@ SColVal *tRowIterNext(SRowIter *pIter);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
-// Reorder pTagName in place so its element order matches the cid order of
-// pTagVals after tTagNew() sorted pTagVals by cid. This prevents tag name
-// <-> value misalignment in downstream consumers (e.g. the JSON meta
-// emitted by tmq_get_json_meta for auto-created child tables) when the
-// INSERT/binding column order differs from the STABLE TAGS schema order.
-int32_t tTagAlignNameByCid(const SSchema *pSchema, int32_t numOfTags, SArray *pTagVals, SArray *pTagName);
-// Wrapper that builds STag via tTagNew() and, on success, realigns the
-// caller-supplied pTagName array with the cid-sorted pTagVals. Non-JSON
-// callers MUST prefer this helper over a bare tTagNew() whenever they
-// also maintain a parallel tagName array, to avoid the misalignment bug.
-int32_t tTagNewWithName(SArray *pTagVals, SArray *pTagName, const SSchema *pSchema, int32_t numOfTags,
-                        int32_t version, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
 bool    tTagIsJsonNull(void *tagVal);

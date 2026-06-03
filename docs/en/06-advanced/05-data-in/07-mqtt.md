@@ -142,10 +142,6 @@ Click **Preview** to view the mapping results.
 
 In the **Log Level** dropdown, select a log level. There are five options: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`. The default is INFO.
 
-When **Cache Realtime Data** is enabled, data consumed from MQTT is first written to a local file; a background task continuously reads from the file and sends data to the downstream consumer. This is intended for traffic shaping when the MQTT data rate is high enough that downstream cannot keep up and would otherwise drop messages. Once the backlog is consumed, the file is cleaned up automatically. Disabled by default. For detailed information about this feature, see [Store and Forward](../../14-reference/01-components/05-taosx-agent/store-and-forward.md).
-
-In **Cache Storage Directory**, you can enter the directory where the cache files are stored. It defaults to the data directory configured at taosX startup, but can be overridden. This option only takes effect when **Cache Realtime Data** is enabled.
-
 When **saving raw data**, the following two parameters are effective.
 
 Set the maximum retention days for raw data in **Maximum Retention Days**.

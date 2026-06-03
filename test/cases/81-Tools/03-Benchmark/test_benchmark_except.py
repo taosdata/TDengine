@@ -14,7 +14,6 @@
 from new_test_framework.utils import tdLog, tdSql, etool, sc
 import os
 import time
-_ASAN_BUILD = os.environ.get("CI_ASAN_BUILD") == "1"
 import threading
 import signal
 import psutil
@@ -68,13 +67,8 @@ class TestBenchmarkExcept:
             # Send second SIGINT immediately (no delay!) to trigger forced exit
             os.kill(pids[0], signal.SIGINT)
 
-        # Wait for benchmark to finish and write output.
-        # Under ASAN taosBenchmark exits much slower; poll instead of sleeping a fixed amount.
-        _max_wait = 90 if _ASAN_BUILD else 15
-        for _ in range(_max_wait):
-            if self._rlist is not None:
-                break
-            time.sleep(1)
+        # Wait for benchmark to finish and write output
+        time.sleep(10)
 
         if self._rlist:
             tdLog.info(self._rlist)
@@ -130,13 +124,8 @@ class TestBenchmarkExcept:
         tdLog.info("stopping dnode 1 ...")
         sc.dnodeStop(1)
 
-        # Wait for benchmark to detect error and exit.
-        # Under ASAN taosBenchmark exits much slower; poll instead of sleeping a fixed amount.
-        _max_wait = 90 if _ASAN_BUILD else 15
-        for _ in range(_max_wait):
-            if self._rlist is not None:
-                break
-            time.sleep(1)
+        # Wait for benchmark to detect error and exit
+        time.sleep(10)
 
         if self._rlist:
             tdLog.info(self._rlist)

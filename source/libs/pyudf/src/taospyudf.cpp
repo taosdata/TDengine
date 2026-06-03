@@ -10,16 +10,7 @@
 #include <dlfcn.h>
 #endif
 
-// GCC 7 / manylinux compatibility: <filesystem> may live under <experimental/filesystem>
-#if __has_include(<filesystem>)
-  #include <filesystem>
-  namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-  #include <experimental/filesystem>
-  namespace fs = std::experimental::filesystem;
-#else
-  #error "No <filesystem> or <experimental/filesystem> support"
-#endif
+#include <filesystem>
 #include <regex>
 
 #include <chrono>
@@ -1130,7 +1121,7 @@ int32_t pyOpen(SScriptUdfEnvItem *items, int numItems) {
 #endif
 
   std::error_code ec;
-  fs::path logDir = fs::temp_directory_path(ec);
+  std::filesystem::path logDir = std::filesystem::temp_directory_path(ec);
   if (ec || logDir.empty()) {
 #ifdef _WIN32
     logDir = ".";
@@ -1147,7 +1138,7 @@ int32_t pyOpen(SScriptUdfEnvItem *items, int numItems) {
     }
   }
 
-  fs::path logPath = logDir / "taospyudf.log";
+  std::filesystem::path logPath = logDir / "taospyudf.log";
   plog::init(plog::info, logPath.c_str(), 50 * 1024 * 1024, 5);
 
 #ifdef TAOSPYUDF_SELF_DSO

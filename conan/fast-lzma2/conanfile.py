@@ -38,16 +38,11 @@ class FastLzma2Conan(ConanFile):
     def source(self):
         # Fetch sources from GitHub at a pinned commit.
         # Using an archive URL avoids requiring git during build.
-        _filename = f"fast-lzma2-{self._commit[:12]}.tar.gz"
-        _public_url = f"https://github.com/conor42/fast-lzma2/archive/{self._commit}.tar.gz"
-        _mirror = os.environ.get("DEPS_MIRROR_URL", "")
-        if _mirror:
-            try:
-                get(self, f"{_mirror}/{_filename}", strip_root=True)
-                return
-            except Exception:
-                self.output.warning(f"Mirror download failed, falling back to public URL")
-        get(self, _public_url, strip_root=True)
+        get(
+            self,
+            f"https://github.com/conor42/fast-lzma2/archive/{self._commit}.tar.gz",
+            strip_root=True,
+        )
 
     def build(self):
         # Enter source code directory

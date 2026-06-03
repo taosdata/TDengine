@@ -1,0 +1,92 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "connection_pool_size": 8,
+  "thread_count": 4,
+  "create_table_thread_count": 4,
+  "result_file": "./insert_res.txt",
+  "confirm_parameter_prompt": "no",
+  "num_of_records_per_req": 10000,
+  "prepared_rand": 10000,
+  "chinese": "no",
+  "escape_character": "yes",
+  "continue_if_fail": "no",
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "testvtable",
+        "drop": "yes",
+        "vgroups": 4,
+        "precision": "ms"
+      },
+      "super_tables": [
+        {
+          "name": "stbstbstb",
+          "child_table_exists": "no",
+          "childtable_count": 1,
+          "childtable_prefix": "dbool",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 5,
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "non_stop_mode": "no",
+          "line_protocol": "line",
+          "insert_rows": 10000,
+          "childtable_limit": 0,
+          "childtable_offset": 0,
+          "interlace_rows": 0,
+          "insert_interval": 0,
+          "partial_col_num": 0,
+          "timestamp_step": 5,
+          "start_timestamp": "2020-10-01 00:00:00.000",
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "use_sample_ts": "no",
+          "tags_file": "",
+          "columns": [
+            {"type": "utinyint", "name": "u_tinyint_col", "count": 1, "max": 255, "min": 0 },
+            {"type": "usmallint", "name": "u_smallint_col", "count": 1, "max": 65535, "min": 0 },
+            {"type": "uint", "name": "u_int_col", "count": 1, "max": 4294967295, "min": 0 },
+            {"type": "ubigint", "name": "u_bigint_col", "count": 1, "max": 18446744073709551615, "min": 0 },
+            {"type": "tinyint", "name": "tinyint_col", "count": 1, "max": 127, "min": -128 },
+            {"type": "smallint", "name": "smallint_col", "count": 1, "max": 32767, "min": -32768 },
+            {"type": "int", "name": "int_col", "count": 1, "max": 2147483647, "min": -2147483648 },
+            {"type": "bigint", "name": "bigint_col", "count": 1, "max": 9223372036854775807, "min": -9223372036854775808 },
+            {"type": "float", "name": "float_col", "count": 1, "max": 100000, "min": -100000 },
+            {"type": "double", "name": "double_col", "count": 1, "max": 100000000, "min": -100000000 },
+            {"type": "bool", "name": "bool_col", "count": 1, "max": 1, "min": 0 },
+            {"type": "binary", "name": "binary_16_col", "len": 16,
+              "values": ["San Francisco", "Los Angles", "San Diego",
+              "San Jose", "Palo Alto", "Campbell", "Mountain View",
+              "Sunnyvale", "Santa Clara", "Cupertino"] },
+            {"type": "binary", "name": "binary_32_col", "len": 32,
+              "values": ["Beijing - San Francisco", "Shanghai - Los Angles", "Hangzhou - San Diego",
+                "Chengdu - San Jose", "Hong Kong - Palo Alto", "Harbin - Campbell", "Tianjin - Mountain View",
+                "Xian - Sunnyvale", "Taiyuan - Santa Clara", "Shijiazhuang - Cupertino"] },
+            {"type": "nchar", "name": "nchar_16_col", "len": 16,
+              "values": ["一。San Francisco", "二。Los Angles", "三。San Diego",
+                "四。San Jose", "五。Palo Alto", "六。Campbell", "七。Mountain View",
+                "八。Sunnyvale", "九。Santa Clara", "十。Cupertino"] },
+            {"type": "nchar", "name": "nchar_32_col", "len": 32,
+              "values": ["旧金山 - San Francisco", "洛杉矶 - Los Angles", "圣地亚哥 - San Diego",
+                "圣何塞 - San Jose", "帕洛阿托 - Palo Alto", "坎贝尔 - Campbell", "山景城 - Mountain View",
+                "森尼韦尔 - Sunnyvale", "圣克拉拉 - Santa Clara", "库比蒂诺 - Cupertino"] }
+          ],
+          "tags": [
+            {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1},
+            {"type": "BINARY",  "name": "location", "len": 16,
+              "values": ["San Francisco", "Los Angles", "San Diego",
+                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                "Sunnyvale", "Santa Clara", "Cupertino"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

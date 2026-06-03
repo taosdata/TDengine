@@ -189,7 +189,6 @@ SWords shellCommands[] = {
     {"select today();", 0, 0, NULL},
     {"select timezone();", 0, 0, NULL},
     {"set max_binary_display_width ", 0, 0, NULL},
-    {"subscribe ", 0, 0, NULL},
     {"show apps;", 0, 0, NULL},
     {"show alive;", 0, 0, NULL},
     {"show anodes;", 0, 0, NULL},
@@ -730,7 +729,6 @@ void showHelp() {
     select today();\n\
     select timezone();\n\
     set max_binary_display_width ...\n\
-    subscribe <topic_name> -g <group_id> [-c <client_id>] [-o latest|earliest] [-n <count>] [-t <timeout_ms>]\n\
     show apps;\n\
     show alive;\n\
     show anodes;\n\

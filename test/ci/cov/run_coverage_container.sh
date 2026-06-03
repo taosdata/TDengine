@@ -6,13 +6,13 @@ function usage() {
     echo -e "\t -b branch id for coverage (required)"
     echo -e "\t -l test log dir (optional, for collecting gcda from test cases)"
     echo -e "\t -c container name (default: taos_coverage_tdengine)"
-    echo -e "\t -i docker image (default: ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3})"
+    echo -e "\t -i docker image (default: tdengine-ci:0.1)"
     echo -e "\t -h help"
 }
 
 WORKDIR="/var/lib/jenkins/workspace"
 CONTAINER_NAME="taos_coverage_tdengine"
-DOCKER_IMAGE="${DOCKER_IMAGE_NAME:-tdengine-ci:0.3}"
+DOCKER_IMAGE="tdengine-ci:0.1"
 branch_name_id=""
 test_log_dir=""
 

@@ -3259,13 +3259,9 @@ class TDCom:
                 normalized_file1 = self._normalize_diff_file(file1)
                 normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
-                diff_args = [cmd, "-u"]
-                if platform.system().lower() == "linux":
-                    diff_args.append("--color")
-                diff_args.extend([normalized_file1, normalized_file2])
-                tdLog.info(f"cmd: {' '.join(diff_args[:-2])} {file1} {file2}")
+                tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run(
-                    diff_args,
+                    [cmd, "-u", "--color", normalized_file1, normalized_file2],
                     text=True,
                     capture_output=True,
                 )
