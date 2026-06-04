@@ -122,6 +122,7 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic16())
         streams.append(self.Basic17())
         streams.append(self.Basic18())
+        streams.append(self.Basic19())
 
         tdStream.checkAll(streams)      
         stop_notify_server_background()
@@ -2378,3 +2379,98 @@ class TestStreamNotifyTrigger:
             for child_event in events[1:4]:
                 assert child_event.get("triggerId") != parent_trigger_id, events
                 assert child_event.get("parentTriggerId") == parent_trigger_id, events
+
+    class Basic19(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb19"
+
+        def create(self):
+            tdLog.info("=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(
+                "create table s1_5w ("
+                "ts timestamp, v1 int, v2 int, v3 int, v4 int"
+                ") tags (id int)"
+            )
+            tdSql.execute("create table s1_5w_sub_0 using s1_5w tags(0)")
+            tdSql.execute(
+                "create stream notify_stream_s1_5w_0_v10 "
+                "count_window(1) from s1_5w_sub_0 "
+                "stream_options(calc_notify_only | pre_filter(v1 >= 110 or v1 < 90)) "
+                "notify('ws://localhost:12345/basic19_no_into') on (window_close) "
+                "as select "
+                "ts as ts, "
+                "tbname as device_name, "
+                "'v1' as field_name, "
+                "v1 as val, "
+                "case "
+                "when v1 < 80 then -2 "
+                "when v1 >= 80 and v1 < 90 then -1 "
+                "when v1 >= 90 and v1 < 110 then 0 "
+                "when v1 >= 110 and v1 < 120 then 1 "
+                "when v1 >= 120 then 2 "
+                "else null end as alarm_level "
+                "from %%trows"
+            )
+
+        def insert1(self):
+            tdSql.execute("insert into s1_5w_sub_0 values(now, 190, 90, 90, 90)")
+
+        def check1(self):
+            event = expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic19_no_into.log"),
+                streamName=f"{self.db}.notify_stream_s1_5w_0_v10",
+                eventType="WINDOW_CLOSE",
+                triggerType="Count",
+                result_pred=lambda rows: len(rows) == 1
+                and rows[0]["device_name"] == "s1_5w_sub_0"
+                and rows[0]["field_name"] == "v1"
+                and rows[0]["val"] == 190
+                and rows[0]["alarm_level"] == 2,
+            )
+            assert event.tableName == f"{self.db}.notify_stream_s1_5w_0_v10"
+
+            tdSql.query("show tables like 'notify_stream_s1_5w_0_v10'")
+            tdSql.checkRows(0)
+
+            tdSql.execute("drop stream notify_stream_s1_5w_0_v10")
+            tdSql.execute(
+                "create stream notify_stream_s1_5w_0_v11 "
+                "count_window(1) from s1_5w_sub_0 "
+                "stream_options(calc_notify_only | pre_filter(v1 >= 110 or v1 < 90)) "
+                "notify('ws://localhost:12345/basic19_with_into') on (window_close) "
+                "into test_stream_alarm as select "
+                "ts as ts, "
+                "tbname as device_name, "
+                "'v1' as field_name, "
+                "v1 as val, "
+                "case "
+                "when v1 < 80 then -2 "
+                "when v1 >= 80 and v1 < 90 then -1 "
+                "when v1 >= 90 and v1 < 110 then 0 "
+                "when v1 >= 110 and v1 < 120 then 1 "
+                "when v1 >= 120 then 2 "
+                "else null end as alarm_level "
+                "from %%trows"
+            )
+            tdStream.checkStreamStatus("notify_stream_s1_5w_0_v11")
+
+            tdSql.execute("insert into s1_5w_sub_0 values(now, 190, 90, 90, 90)")
+
+            event = expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic19_with_into.log"),
+                streamName=f"{self.db}.notify_stream_s1_5w_0_v11",
+                eventType="WINDOW_CLOSE",
+                triggerType="Count",
+                tableName="test_stream_alarm",
+                result_pred=lambda rows: len(rows) == 1
+                and rows[0]["device_name"] == "s1_5w_sub_0"
+                and rows[0]["field_name"] == "v1"
+                and rows[0]["val"] == 190
+                and rows[0]["alarm_level"] == 2,
+            )
+            assert event.tableName == "test_stream_alarm"
+
+            tdSql.query("show tables like 'test_stream_alarm'")
+            tdSql.checkRows(0)
