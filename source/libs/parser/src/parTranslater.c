@@ -17464,9 +17464,6 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
 
   if (strlen(pStmt->targetDbName) == 0 && strlen(pStmt->targetTabName) == 0) {
     parserDebug("no out table in create stream req");
-    if (pReq->calcNotifyOnly && pStmt->pQuery) {
-      PAR_ERR_JRET(columnDefNodeToField(pStmt->pCols, &pReq->outCols, false, false));
-    }
     return code;
   }
 
