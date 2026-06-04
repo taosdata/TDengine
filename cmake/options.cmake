@@ -5,6 +5,8 @@ if(TD_COMMUNITY_STANDALONE)
   option(BUILD_SANITIZER     "Enable sanitizers"                     OFF)
   option(BUILD_COVERAGE      "Enable code coverage"                  OFF)
   option(BUILD_JEMALLOC      "Enable jemalloc allocator"             OFF)
+  option(BUILD_CONTRIB       "Build thirdpart from source"           ON)
+  option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" ON)
 
   set(BUILD_VER_NUMBER      "" CACHE STRING "Version number override")
   set(BUILD_VER_COMPATIBLE  "" CACHE STRING "Compatible version number override")
