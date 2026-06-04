@@ -181,6 +181,7 @@ static void dmSetSignalHandle() {
 }
 
 extern bool generateNewMeta;
+extern SArray *generateNewMetaVnodeIds;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
@@ -367,15 +368,12 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   if (global.repairCopy.enabled) {
     if (global.repairCopy.modeStr[0] == '\0') {
       // -r without --mode: legacy meta regeneration
-      if (global.repairCopy.vnodeIds != NULL) {
-        taosArrayDestroy(global.repairCopy.vnodeIds);
-        global.repairCopy.vnodeIds = NULL;
-      }
       global.repairCopy.nodeType[0] = '\0';
       global.repairCopy.sourceCfg[0] = '\0';
       global.repairCopy.modeStr[0] = '\0';
       global.repairCopy.enabled = false;
       generateNewMeta = true;
+      generateNewMetaVnodeIds = global.repairCopy.vnodeIds;
     } else if (strcmp(global.repairCopy.modeStr, "copy") == 0) {
       // -r --mode copy: validate required args
       if (strcmp(global.repairCopy.nodeType, "vnode") != 0) {
@@ -671,6 +669,7 @@ int mainWindows(int argc, char **argv) {
     dError("failed to start since failed to get encrypt key");
     taosCloseLog();
     taosCleanupArgs();
+    taosArrayDestroy(global.repairCopy.vnodeIds);
     return code;
   };
 
@@ -684,6 +683,7 @@ int mainWindows(int argc, char **argv) {
     taosCleanupCfg();
     taosCloseLog();
     taosConvDestroy();
+    taosArrayDestroy(global.repairCopy.vnodeIds);
     return code;
   }
 
@@ -694,5 +694,6 @@ int mainWindows(int argc, char **argv) {
   dInfo("shutting down the service");
 
   dmCleanup();
+  taosArrayDestroy(global.repairCopy.vnodeIds);
   return code;
 }

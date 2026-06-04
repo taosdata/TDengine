@@ -274,6 +274,7 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
 }
 
 bool generateNewMeta = false;
+SArray *generateNewMetaVnodeIds = NULL;
 
 static void metaResetStatisInfo(SMeta *pMeta) {
   pMeta->pVnode->config.vndStats.numOfSTables = 0;
@@ -289,6 +290,13 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   SMeta  *pNewMeta = NULL;
   SMeta  *pMeta = *ppMeta;
   SVnode *pVnode = pMeta->pVnode;
+
+  if (generateNewMetaVnodeIds != NULL) {
+    int32_t vid = TD_VID(pMeta->pVnode);
+    if (taosArraySearch(generateNewMetaVnodeIds, &vid, compareInt32Val, TD_EQ) == NULL) {
+      return 0;
+    }
+  }
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
 
