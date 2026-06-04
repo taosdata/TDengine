@@ -7,3 +7,4 @@ pandas==1.5
 scikit-learn
 flask==3.0.3
 momentfm
+cookiecutter>=2.1.1
