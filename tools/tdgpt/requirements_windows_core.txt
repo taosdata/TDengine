@@ -4,3 +4,4 @@ transformers==4.51.0
 --find-links https://download.pytorch.org/whl/torch/
 torch==2.6.0+cpu
 accelerate==0.34.2
+cookiecutter>=2.1.1
