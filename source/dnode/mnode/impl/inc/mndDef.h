@@ -860,6 +860,7 @@ typedef struct {
   int64_t   compStorage;
   int64_t   pointsWritten;
   int8_t    compact;
+  int8_t    snapRestoring;
   int8_t    isTsma;
   int8_t    replica;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];

@@ -110,9 +110,8 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
           return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
         }
       }
-    } else if ((*pHisto)->numOfEntries > 0 && (*pHisto)->elems[(*pHisto)->numOfEntries - 1].val > val) {
-      qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", (*pHisto)->numOfEntries - 1,
-             (*pHisto)->elems[(*pHisto)->numOfEntries - 1].val, val);
+    } else if ((*pHisto)->numOfElems > 0 && (*pHisto)->elems[(*pHisto)->numOfEntries].val > val) {
+      qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", (*pHisto)->numOfEntries, (*pHisto)->elems[idx].val, val);
       return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 

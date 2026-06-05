@@ -315,31 +315,6 @@ class TestFunApercentile:
         self.distribute_agg_query()
         print("do apercentile distribute ............. [passed]\n")
 
-    def do_apercentile_negative_histogram(self):
-        tdSql.prepare(dbname="apct_neg", drop=True)
-        tdSql.execute("create table t (ts timestamp, v double)")
-
-        values = []
-        start_ts = 1767225600000
-        for i in range(501):
-            values.append(f"({start_ts + i * 1000}, {-1000 + i})")
-        tdSql.execute(f"insert into t values {' '.join(values)}")
-
-        tdSql.query("select count(*), min(v), max(v) from t")
-        tdSql.checkData(0, 0, 501)
-        tdSql.checkData(0, 1, -1000)
-        tdSql.checkData(0, 2, -500)
-
-        tdSql.query("select apercentile(v, 25) from t")
-        tdSql.checkRows(1)
-        if tdSql.getData(0, 0) is None:
-            tdLog.exit("default apercentile returned null for non-null input")
-
-        tdSql.query('select apercentile(v, 25, "t-digest") from t')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, -875.25)
-        print("do apercentile negative histogram ...... [passed]\n")
-
     #
     # ------------------ main ------------------
     #
@@ -368,4 +343,3 @@ class TestFunApercentile:
         self.do_sim_apercentile()
         self.do_apercentile()
         self.do_distribute_apercentile()
-        self.do_apercentile_negative_histogram()

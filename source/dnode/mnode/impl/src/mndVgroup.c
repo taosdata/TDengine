@@ -30,8 +30,9 @@
 #include "mndUser.h"
 #include "tmisce.h"
 
-#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
-#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
+#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER  2
+#define VGROUP_VER_COMPAT_SNAP_RESTORING     3
+#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_SNAP_RESTORING
 #define VGROUP_RESERVE_SIZE              60
 // since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 4 + 8 + 8 + 60 = 80
 #define DLEN_AFTER_SYNC_CONF_CHANGE_VER 80
@@ -125,6 +126,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT32(pRaw, dataPos, pVgroup->mountVgId, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersion, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersionTime, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pVgroup->snapRestoring, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -194,6 +196,11 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersionTime, _OVER)
+  }
+  if (dataPos + sizeof(int8_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pVgroup->snapRestoring, _OVER)
+  } else {
+    pVgroup->snapRestoring = 0;
   }
   if (dataPos + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
@@ -272,6 +279,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pOld->isTsma = pNew->isTsma;
   pOld->keepVersion = pNew->keepVersion;
   pOld->keepVersionTime = pNew->keepVersionTime;
+  pOld->snapRestoring    = pNew->snapRestoring;  // ephemeral: preserve in-memory value across SDB update
   for (int32_t i = 0; i < pNew->replica; ++i) {
     SVnodeGid *pNewGid = &pNew->vnodeGid[i];
     for (int32_t j = 0; j < pOld->replica; ++j) {
