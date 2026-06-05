@@ -16,6 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
+static void qmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
       .code = code,
@@ -117,6 +122,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     dError("failed to start qnode-query worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->queryWorker.queue, qmFreeRpcQitem);
 
   tsNumOfQueryThreads += tsNumOfQnodeQueryThreads;
 
@@ -132,6 +138,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     dError("failed to start qnode-fetch worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->fetchWorker.queue, qmFreeRpcQitem);
 
   dDebug("qnode workers are initialized");
   return code;
