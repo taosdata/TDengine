@@ -60,8 +60,6 @@ void showme();
 /*------   Version   ------*/
 #define ZSTD_VERSION_MAJOR    1
 #define ZSTD_VERSION_MINOR    3
-/* Base version is 1.3.5; patched with CVE-2019-11922 fix backported from v1.3.8
- * (bounds check added in ZSTD_buildCTable before writing to output buffer) */
 #define ZSTD_VERSION_RELEASE  5
 
 #define ZSTD_VERSION_NUMBER  (ZSTD_VERSION_MAJOR *100*100 + ZSTD_VERSION_MINOR *100 + ZSTD_VERSION_RELEASE)
