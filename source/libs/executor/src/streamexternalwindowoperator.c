@@ -55,6 +55,7 @@ typedef struct SExternalWindowOperator {
   int32_t            blkWinStartIdx;
   int32_t            blkWinIdx;
   int32_t            blkRowStartIdx;
+  int32_t            blkScanFlag;
   int32_t            outputWinId;
   int32_t            outputWinNum;
   int32_t            outWinIdx;
@@ -850,6 +851,7 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->outputWinId = 0;
   pExtW->lastWinId = -1;
   pExtW->outputWinNum = 0;
+  pExtW->blkScanFlag = -1;
   taosArrayClear(pExtW->pWins);
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
@@ -2055,6 +2057,7 @@ static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInf
   pExtW->outputWinId = pInfo->curIdx;
   pExtW->lastWinId = -1;
   pExtW->blkWinStartIdx = pInfo->curIdx;
+  pExtW->blkScanFlag = -1;
 
 _exit:
 
@@ -2063,6 +2066,23 @@ _exit:
   }
 
   return code;
+}
+
+static void extWinPrepareBlockScan(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SSDataBlock* pBlock) {
+  if (pExtW->blkScanFlag == pBlock->info.scanFlag) {
+    return;
+  }
+
+  if (pExtW->blkScanFlag == PRE_SCAN && pBlock->info.scanFlag == MAIN_SCAN) {
+    extWinSetCurWinIdx(pOperator, pExtW->outputWinId);
+    pExtW->lastWinId = pExtW->outputWinId - 1;
+    pExtW->lastSKey = INT64_MIN;
+    pExtW->lastEKey = INT64_MIN;
+  }
+
+  pExtW->blkScanFlag = pBlock->info.scanFlag;
+  pExtW->blkWinStartIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  pExtW->blkRowStartIdx = 0;
 }
 
 static bool extWinNonAggGotResBlock(SExternalWindowOperator* pExtW) {
@@ -2150,6 +2170,7 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pExtW->outputWinId = 0;
     pExtW->lastWinId = -1;
     pExtW->blkWinStartIdx = 0;
+    pExtW->blkScanFlag = -1;
     pExtW->outWinIdx = 0;
     pExtW->lastSKey = INT64_MIN;
     pExtW->lastEKey = INT64_MIN;
@@ -2205,7 +2226,8 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
     qDebug("ext window mode:%d got %" PRId64 " rows from downstream", pExtW->mode, pBlock->info.rows);
-    
+    extWinPrepareBlockScan(pOperator, pExtW, pBlock);
+
     switch (pExtW->mode) {
       case EEXT_MODE_SCALAR:
         TAOS_CHECK_EXIT(extWinProjectOpen(pOperator, pBlock));
