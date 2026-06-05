@@ -3790,7 +3790,7 @@ const char* stmt2Errstr(TAOS_STMT2* stmt) {
       // NOTE: reuse error msg stored in `msgBuf`
       return pStmt->exec.pRequest->msgBuf;
     }
-    return pStmt->exec.pRequest->msgBuf;
+    return (const char*)tstrerror(pStmt->exec.pRequest->code);
   }
 
   if (stmt == NULL || NULL == pStmt->exec.pRequest) {
