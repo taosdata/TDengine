@@ -32,7 +32,6 @@ struct STaosQueue {
   void         *ahandle;  // for queue set
   FItem         itemFp;
   FItems        itemsFp;
-  FFreeItem     freeFp;
   int32_t       numOfItems;
   int64_t       memOfItems;
   int64_t       threadId;
@@ -84,10 +83,6 @@ void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
   queue->itemsFp = itemsFp;
 }
 
-void taosQueueSetFreeFp(STaosQueue *queue, FFreeItem fp) {
-  if (queue) queue->freeFp = fp;
-}
-
 void taosCloseQueue(STaosQueue *queue) {
   if (queue == NULL) return;
   STaosQnode *pTemp;
@@ -106,9 +101,6 @@ void taosCloseQueue(STaosQueue *queue) {
   while (pNode) {
     pTemp = pNode;
     pNode = pNode->next;
-    if (queue->freeFp) {
-      queue->freeFp((void *)((char *)pTemp + sizeof(STaosQnode)));
-    }
     taosMemoryFree(pTemp);
   }
 

@@ -17,11 +17,6 @@
 #include "smInt.h"
 #include "stream.h"
 
-static void smFreeRpcQitem(void *pItem) {
-  SRpcMsg *pMsg = (SRpcMsg *)pItem;
-  rpcFreeCont(pMsg->pCont);
-}
-
 static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt     *pMgmt = pInfo->ahandle;
   const STraceId *trace = &pMsg->info.traceId;
@@ -294,7 +289,6 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     dError("failed to start snode runner worker since %s", tstrerror(code));
     return code;
   }
-  taosQueueSetFreeFp(pMgmt->runnerWorker.queue, smFreeRpcQitem);
 
   SDispatchWorkerPool* pTriggerPool = &pMgmt->triggerWorkerPool;
   pTriggerPool->max = tsNumOfStreamTriggerThreads;
@@ -308,9 +302,6 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
   if (code != 0) {
     dError("failed to start snode stream-trigger worker since %s", tstrerror(code));
     return code;
-  }
-  for (int32_t i = 0; i < pTriggerPool->num; ++i) {
-    taosQueueSetFreeFp(pTriggerPool->pWorkers[i].queue, smFreeRpcQitem);
   }
 
   dDebug("snode workers are initialized");

@@ -17,7 +17,6 @@
 #include "function.h"
 #include "os.h"
 #include "query.h"
-#include "taoserror.h"
 #include "tname.h"
 #include "tutil.h"
 
@@ -246,7 +245,7 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
   return true;
 }
 
-static int32_t recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex) {
+static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex) {
   SColumnDataAgg* pColAgg = NULL;
 
   size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
@@ -270,40 +269,24 @@ static int32_t recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSD
     } else {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      int32_t dataLen = 0;
       if (pkey->type == TSDB_DATA_TYPE_JSON) {
-        dataLen = getJsonValueLen(val);
-        if (dataLen > pkey->bytes) {
-          qError("recordNewGroupKeys col:%s, colId:%" PRId16 ", json data len "
-                 "%d exceeds schema bytes %d",
-                 pCol->name, pCol->colId, dataLen, pkey->bytes);
-          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        }
+        // if (tTagIsJson(val)) {
+        //   terrno = TSDB_CODE_QRY_JSON_IN_GROUP_ERROR;
+        //   return;
+        // }
+        int32_t dataLen = getJsonValueLen(val);
+        memcpy(pkey->pData, val, dataLen);
       } else if (IS_VAR_DATA_TYPE(pkey->type)) {
         if (IS_STR_DATA_BLOB(pkey->type)) {
-          dataLen = blobDataTLen(val);
-          if (dataLen > pkey->bytes) {
-            qError("recordNewGroupKeys col:%s, colId:%" PRId16 ", blob data "
-                   "len %d exceeds schema bytes %d",
-                   pCol->name, pCol->colId, dataLen, pkey->bytes);
-            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-          }
+          memcpy(pkey->pData, val, blobDataTLen(val));
         } else {
-          dataLen = varDataTLen(val);
-          if (dataLen > pkey->bytes) {
-            qError("recordNewGroupKeys col:%s, colId:%" PRId16 ", type:%d, var "
-                   "data len %d exceeds schema bytes %d",
-                   pCol->name, pCol->colId, pkey->type, dataLen, pkey->bytes);
-            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-          }
+          memcpy(pkey->pData, val, varDataTLen(val));
         }
       } else {
-        dataLen = pkey->bytes;
+        memcpy(pkey->pData, val, pkey->bytes);
       }
-      memcpy(pkey->pData, val, dataLen);
     }
   }
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
@@ -385,17 +368,13 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   //  }
 
   int32_t len = 0;
-  int32_t code = TSDB_CODE_SUCCESS;
   terrno = TSDB_CODE_SUCCESS;
 
   int32_t num = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
-      code = recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       pInfo->isInit = true;
       num++;
       continue;
@@ -409,51 +388,45 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
-      code = recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      if (code != TSDB_CODE_SUCCESS) {
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       num = 1;
       continue;
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    code = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
-                                  len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
-    if (code != TSDB_CODE_SUCCESS) {  // null data, too many state code
-      T_LONG_JMP(pTaskInfo->env, code);
+    int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
+                                          len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
+    if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
+      T_LONG_JMP(pTaskInfo->env, ret);
     }
 
     int32_t rowIndex = j - num;
-    code = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
                                           pOperator->exprSupp.numOfExprs);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
     }
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
-    code = recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
-    }
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     num = 1;
   }
 
   // The data of the last group is processed here, and if there is only one group, it is also processed here.
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    code = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
+    int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
     }
 
     int32_t rowIndex = pBlock->info.rows - num;
-    code = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
+    ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
                                           pOperator->exprSupp.numOfExprs);
-    if (code != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, code);
+    if (ret != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, ret);
     }
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
   }
@@ -831,8 +804,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
 
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    code = recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-    QUERY_CHECK_CODE(code, lino, _end);
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
     SDataGroupInfo* pGroupInfo = NULL;
