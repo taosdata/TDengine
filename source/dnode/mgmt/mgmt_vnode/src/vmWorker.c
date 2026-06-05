@@ -17,6 +17,11 @@
 #include "vmInt.h"
 #include "vnodeInt.h"
 
+static void vmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   if (pMsg->info.handle == NULL) return;
   SRpcMsg rsp = {
@@ -428,17 +433,20 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   if (code) {
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pWriteW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pSyncW, &scfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pSyncW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pSyncRdW, &sccfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
     tMultiWorkerCleanup(&pVnode->pSyncW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pSyncRdW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pApplyW, &acfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
@@ -446,10 +454,14 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     tMultiWorkerCleanup(&pVnode->pSyncRdW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pApplyW.queue, vmFreeRpcQitem);
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
+  taosQueueSetFreeFp(pVnode->pQueryQ, vmFreeRpcQitem);
   pVnode->pStreamReaderQ = tQueryAutoQWorkerAllocQueue(&pMgmt->streamReaderPool, pVnode, (FItem)vmProcessStreamReaderQueue);
+  taosQueueSetFreeFp(pVnode->pStreamReaderQ, vmFreeRpcQitem);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
+  taosQueueSetFreeFp(pVnode->pFetchQ, vmFreeRpcQitem);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
       pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pFetchQ == NULL || !pVnode->pStreamReaderQ) {

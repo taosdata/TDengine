@@ -90,6 +90,23 @@ typedef struct SStreamMgmtInfo {
   SHashObj*              vgroupMap;                       // vgId => SStreamVgReaderTasks
 
   SArray*                snodeTasks;                      // SArray<SStreamTask*>
+
+  // Cleanup gating for stream timer callbacks.
+  //   tmrStopped:  set to 1 by streamCleanup before tearing down shared state.
+  //                streamTmrStart() checks this flag and refuses to (re-)arm
+  //                any stream timer once cleanup has been signaled, so timer
+  //                callbacks can no longer be scheduled.
+  //   tmrInflight: bumped on entry of every stream timer callback (via the
+  //                STREAM_TMR_CB_ENTER / STREAM_TMR_CB_LEAVE macros below)
+  //                and decremented at exit; streamTmrWaitAllCallbacks()
+  //                spins until it observes zero so that streamCleanup never
+  //                frees state a callback is still dereferencing.  The
+  //                increment MUST happen before the tmrStopped load
+  //                (publish-before-check) to close the TOCTOU window with
+  //                the cleaner; the macros below encode that order, do not
+  //                hand-roll it at the call site.
+  volatile int8_t        tmrStopped;
+  volatile int32_t       tmrInflight;
 } SStreamMgmtInfo;
 
 extern SStreamMgmtInfo gStreamMgmt;
@@ -131,10 +148,40 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter);
 void streamTimerCleanUp();
+void streamTmrWaitAllCallbacks(void);
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
 void streamTmrStop(tmr_h tmrId);
 void smEnableVgDeploy(int32_t vgId);
 void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId);
+
+// Stream timer callback entry/leave protocol.
+// MUST be used by every callback installed via streamTmrStart so that
+// streamCleanup can drain in-flight callbacks before freeing shared state.
+// See SStreamMgmtInfo.tmrStopped / tmrInflight for the protocol overview.
+//
+// Ordering is publish-before-check (inflight++ then load tmrStopped) to
+// close the TOCTOU window with streamTmrWaitAllCallbacks().  Do NOT hand
+// roll this protocol at the call site; adding a new stream timer callback
+// just means wrapping its body in the two macros below.
+//
+// Usage:
+//   static void myCallback(void *param, void *tmrId) {
+//     STREAM_TMR_CB_ENTER("my-cb");   // returns early if cleanup started
+//     ... callback body, may self re-arm via streamTmrStart ...
+//     STREAM_TMR_CB_LEAVE();           // MUST be the last statement
+//   }
+#define STREAM_TMR_CB_ENTER(_name)                                  \
+  do {                                                              \
+    atomic_add_fetch_32(&gStreamMgmt.tmrInflight, 1);               \
+    if (atomic_load_8(&gStreamMgmt.tmrStopped)) {                   \
+      atomic_sub_fetch_32(&gStreamMgmt.tmrInflight, 1);             \
+      stTrace("%s skipped: timer stopped", (_name));                \
+      return;                                                       \
+    }                                                               \
+  } while (0)
+
+#define STREAM_TMR_CB_LEAVE() \
+  (void)atomic_sub_fetch_32(&gStreamMgmt.tmrInflight, 1)
 
 #ifdef __cplusplus
 }
