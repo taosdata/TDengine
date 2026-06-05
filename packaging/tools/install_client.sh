@@ -242,8 +242,8 @@ function install_lib() {
   rm -f "${lib_link_dir}"/libtaosnative.* || :
   rm -f "${lib64_link_dir}"/libtaosnative.* || :
 
-  [ -f "${lib_link_dir}/libtaosws.so" ] && rm -f "${lib_link_dir}/libtaosws.so" || :
-  [ -f "${lib64_link_dir}/libtaosws.so" ] && rm -f "${lib64_link_dir}/libtaosws.so" || :
+  rm -f "${lib_link_dir}/libtaosws.so"* || :
+  rm -f "${lib64_link_dir}/libtaosws.so"* || :
 
   cp -rf "${script_dir}/driver/"* "${install_main_dir}/driver"
   chmod 777 "${install_main_dir}/driver/"*
@@ -254,7 +254,7 @@ function install_lib() {
     ln -sf "${install_main_dir}/driver/libtaosnative."* "${lib_link_dir}/libtaosnative.so.1"
     ln -sf "${lib_link_dir}/libtaosnative.so.1" "${lib_link_dir}/libtaosnative.so"
 
-    [ -f "${install_main_dir}/driver/libtaosws.so" ] && ln -sf "${install_main_dir}/driver/libtaosws.so" "${lib_link_dir}/libtaosws.so" || :
+    ln -sf "${install_main_dir}/driver/libtaosws.so."* "${lib_link_dir}/libtaosws.so" || :
 
     if [ -d "${lib64_link_dir}" ] && [ "${lib64_link_dir}" != "${lib_link_dir}" ]; then
       ln -sf "${install_main_dir}/driver/libtaos."* "${lib64_link_dir}/libtaos.so.1" || :
@@ -262,7 +262,7 @@ function install_lib() {
       ln -sf "${install_main_dir}/driver/libtaosnative."* "${lib64_link_dir}/libtaosnative.so.1" || :
       ln -sf "${lib64_link_dir}/libtaosnative.so.1" "${lib64_link_dir}/libtaosnative.so" || :
 
-      [ -f "${install_main_dir}/driver/libtaosws.so" ] && ln -sf "${install_main_dir}/driver/libtaosws.so" "${lib64_link_dir}/libtaosws.so" || :
+      ln -sf "${install_main_dir}/driver/libtaosws.so."* "${lib64_link_dir}/libtaosws.so" || :
     fi
 
     if [ "$user_mode" -eq 0 ]; then
@@ -274,7 +274,7 @@ function install_lib() {
     ln -sf "${install_main_dir}/driver/libtaosnative."* "${lib_link_dir}/libtaosnative.1.dylib"
     ln -sf "${lib_link_dir}/libtaosnative.1.dylib" "${lib_link_dir}/libtaosnative.dylib"
 
-    [ -f "${install_main_dir}/driver/libtaosws.dylib" ] && ln -sf "${install_main_dir}/driver/libtaosws.dylib" "${lib_link_dir}/libtaosws.dylib" || :
+    ln -sf "${install_main_dir}/driver/libtaosws.dylib."* "${lib_link_dir}/libtaosws.dylib" || :
 
     if [ "$user_mode" -eq 0 ]; then
       update_dyld_shared_cache
