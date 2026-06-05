@@ -3556,7 +3556,10 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     if (TSDB_CODE_SUCCESS == code && i < pCols->numOfBound - 1) {
       NEXT_VALID_TOKEN(*pSql, *pToken);
       if (TK_NK_COMMA != pToken->type) {
-        if (!pCxt->forceUpdate) {
+        // ')' before all columns are consumed means the client has a stale schema with
+        // more columns than the server (e.g. after DROP COLUMN from another connection).
+        // Any other unexpected token is a genuine syntax error in the SQL.
+        if (!pCxt->forceUpdate && TK_NK_RP == pToken->type) {
           code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
           parserWarn("QID:0x%" PRIx64 ", column number is smaller than %d, need retry", pCxt->pComCxt->requestId,
                      pCols->numOfBound);

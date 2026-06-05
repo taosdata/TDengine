@@ -146,15 +146,13 @@ int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *k
                                    bool *acquired);
 int32_t  metaUidFilterCachePut(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen, double selectivityRatio);
-int32_t  metaStableTagFilterCacheGet(void *pVnode, tb_uid_t suid, const uint8_t *pTagCondKey, int32_t tagCondKeyLen,
-                                     const uint8_t *pKey, int32_t keyLen, SArray *pList, bool *acquired,
-                                     bool *needWarmup);
-int32_t  metaWarmupStableTagFilterCache(void *pVnode, uint64_t suid, const void *pTagCondKey, int32_t tagCondKeyLen,
-                                        const uint8_t *pKey, int32_t keyLen, const SArray *pTagColIds, SArray *pList,
-                                        bool *acquired);
-int32_t  metaStableTagFilterCachePut(void *pVnode, uint64_t suid, const void *pTagCondKey, int32_t tagCondKeyLen,
-                                     const void *pKey, int32_t keyLen, SArray *pUidList, SArray **pTagColIds);
-int32_t  metaStableTagFilterCacheDropSTable(SMeta *pMeta, tb_uid_t suid);
+int32_t  metaStableTagFilterCacheGet(void* pVnode, tb_uid_t suid,
+  const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+  const uint8_t* pKey, int32_t keyLen, SArray* pList, bool* acquired);
+int32_t  metaStableTagFilterCachePut(void* pVnode, uint64_t suid,
+  const void* pTagCondKey, int32_t tagCondKeyLen,
+  const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
+int32_t metaStableTagFilterCacheDropSTable(SMeta* pMeta, tb_uid_t suid);
 typedef enum {
   STABLE_TAG_FILTER_CACHE_DROP_TABLE = 1,
   STABLE_TAG_FILTER_CACHE_ADD_TABLE = 2,
