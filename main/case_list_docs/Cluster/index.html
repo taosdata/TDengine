@@ -3958,6 +3958,28 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="md-nav__link">
+        taosd starts normally and queries succeed after WAL corruption 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_wal_corruption_three_replica.TestWalCorruptionThreeReplica.test_wal_corruption_three_replica" class="md-nav__link">
+        taosd starts normally and queries succeed after WAL corruption 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4828,6 +4850,28 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="md-nav__link">
         KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="md-nav__link">
+        taosd starts normally and queries succeed after WAL corruption 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_wal_corruption_three_replica.TestWalCorruptionThreeReplica.test_wal_corruption_three_replica" class="md-nav__link">
+        taosd starts normally and queries succeed after WAL corruption 
       </a>
       
     </li>
@@ -6506,6 +6550,83 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_mnode_encrypt.py" target="_blank">
                       cases/70-Cluster/test_mnode_encrypt.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="doc doc-heading">
+
+<a href="#70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>taosd starts normally and queries succeed after WAL corruption</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check 1 dnode is ready</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. ALTER ALL DNODES &#39;walDeleteOnCorruption&#39; &#39;1&#39;  (ONE SQL change;</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   persists via mnode across dnode restarts)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. For each position (first/middle/last) and corruption type</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   (truncate/delete):</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   a. Create single-replica database, accumulate &gt;=3 WAL segments</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   b. Stop dnode, corrupt the target WAL file</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   c. Restart dnode — assert taosd comes back ready</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   d. Assert queries on the database succeed</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   e. Drop database, clean up wal.corrupted.* dirs</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_wal_corruption_single_replica.py" target="_blank">
+                      cases/70-Cluster/test_wal_corruption_single_replica.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_wal_corruption_three_replica.TestWalCorruptionThreeReplica.test_wal_corruption_three_replica" class="doc doc-heading">
+
+<a href="#70-Cluster.test_wal_corruption_three_replica.TestWalCorruptionThreeReplica.test_wal_corruption_three_replica" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>taosd starts normally and queries succeed after WAL corruption</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check 3 dnodes are ready</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. ALTER ALL DNODES &#39;walDeleteOnCorruption&#39; &#39;1&#39;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. For each position (first/middle/last) and corruption type</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   (truncate/delete):</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   a. Create 3-replica database, accumulate &gt;=3 WAL segments on dnode 3</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   b. Stop dnode 3, corrupt the target WAL file</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   c. Restart dnode 3 — assert cluster comes back to 3 ready dnodes</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   d. Assert queries on the database succeed</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   e. Drop database, clean up wal.corrupted.* dirs</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_wal_corruption_three_replica.py" target="_blank">
+                      cases/70-Cluster/test_wal_corruption_three_replica.py
                     </a>
                   </div>
         </div>
