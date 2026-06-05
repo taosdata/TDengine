@@ -17,6 +17,8 @@
 #include "vmInt.h"
 #include "vnodeInt.h"
 
+extern int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
 static void vmFreeRpcQitem(void *pItem) {
   SRpcMsg *pMsg = (SRpcMsg *)pItem;
   rpcFreeCont(pMsg->pCont);
@@ -96,6 +98,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP:
       code = vmProcessCheckLearnCatchupReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_QUERY_SNAP_SEND_PROGRESS:
+      code = vmProcessDnodeQuerySnapSendProgressReq(pMgmt, pMsg);
       break;
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
