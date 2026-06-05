@@ -179,8 +179,8 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
-
-extern bool generateNewMeta;
+ 
+extern int generateNewMeta;
 extern SArray *generateNewMetaVnodeIds;
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
@@ -363,16 +363,22 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
   }
 
-  // Resolve -r flag: if --mode is specified, route to repair copy mode;
-  // otherwise fall back to legacy meta regeneration behavior.
+  // Resolve -r flag: if --mode is 'copy', route to repair copy mode;
+  // if --mode is '1', '2' or not specified, fall back to legacy meta regeneration behavior.
   if (global.repairCopy.enabled) {
-    if (global.repairCopy.modeStr[0] == '\0') {
-      // -r without --mode: legacy meta regeneration
+    if ((strcmp(global.repairCopy.modeStr, "") == 0) || (strcmp(global.repairCopy.modeStr, "1") == 0)) {
       global.repairCopy.nodeType[0] = '\0';
       global.repairCopy.sourceCfg[0] = '\0';
       global.repairCopy.modeStr[0] = '\0';
       global.repairCopy.enabled = false;
-      generateNewMeta = true;
+      generateNewMeta = 1;
+      generateNewMetaVnodeIds = global.repairCopy.vnodeIds;
+    } else if (strcmp(global.repairCopy.modeStr, "2") == 0) {
+      global.repairCopy.nodeType[0] = '\0';
+      global.repairCopy.sourceCfg[0] = '\0';
+      global.repairCopy.modeStr[0] = '\0';
+      global.repairCopy.enabled = false;
+      generateNewMeta = 2;
       generateNewMetaVnodeIds = global.repairCopy.vnodeIds;
     } else if (strcmp(global.repairCopy.modeStr, "copy") == 0) {
       // -r --mode copy: validate required args

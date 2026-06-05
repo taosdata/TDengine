@@ -273,7 +273,7 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
   snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
-bool generateNewMeta = false;
+int generateNewMeta = 0;
 SArray *generateNewMetaVnodeIds = NULL;
 
 static void metaResetStatisInfo(SMeta *pMeta) {
@@ -298,7 +298,7 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
     }
   }
 
-  metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
+  metaInfo("vgId:%d start to generate new meta, mode = %d", TD_VID(pMeta->pVnode), generateNewMeta);
 
   // Reset statistics info
   metaResetStatisInfo(pMeta);
@@ -314,137 +314,136 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
     return code;
   }
 
-#if 1
-  // i == 0, scan super table
-  // i == 1, scan normal table and child table
-  for (int i = 0; i < 2; i++) {
-    TBC    *uidCursor = NULL;
-    int32_t counter = 0;
+  // generateNewMeta == 1, scan super table
+  // generateNewMeta != 1 && generateNewMeta != 0, scan normal table and child table
+  if (generateNewMeta == 1) {
+    for (int i = 0; i < 2; i++) {
+      TBC    *uidCursor = NULL;
+      int32_t counter = 0;
 
-    code = tdbTbcOpen(pMeta->pUidIdx, &uidCursor, NULL);
+      code = tdbTbcOpen(pMeta->pUidIdx, &uidCursor, NULL);
+      if (code) {
+        metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+        return code;
+      }
+
+      code = tdbTbcMoveToFirst(uidCursor);
+      if (code) {
+        metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
+        tdbTbcClose(uidCursor);
+        return code;
+      }
+
+      for (;;) {
+        const void *pKey;
+        int         kLen;
+        const void *pVal;
+        int         vLen;
+
+        if (tdbTbcGet(uidCursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+          break;
+        }
+
+        tb_uid_t    uid = *(tb_uid_t *)pKey;
+        SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
+        if ((i == 0 && (pUidIdxVal->suid && pUidIdxVal->suid == uid))          // super table
+            || (i == 1 && (pUidIdxVal->suid == 0 || pUidIdxVal->suid != uid))  // normal table and child table
+        ) {
+          counter++;
+          if (i == 0) {
+            metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter, "super", uid);
+          } else {
+            metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter,
+                     pUidIdxVal->suid == 0 ? "normal" : "child", uid);
+          }
+
+          // fetch table entry
+          void *value = NULL;
+          int   valueSize = 0;
+          if (tdbTbGet(pMeta->pTbDb,
+                       &(STbDbKey){
+                           .version = pUidIdxVal->version,
+                           .uid = uid,
+                       },
+                       sizeof(uid), &value, &valueSize) == 0) {
+            SDecoder   dc = {0};
+            SMetaEntry me = {0};
+            tDecoderInit(&dc, value, valueSize);
+            if (metaDecodeEntry(&dc, &me) == 0) {
+              if (me.type == TSDB_CHILD_TABLE &&
+                  tdbTbGet(pMeta->pUidIdx, &me.ctbEntry.suid, sizeof(me.ctbEntry.suid), NULL, NULL) != 0) {
+                metaError("vgId:%d failed to get super table uid:%" PRId64 " for child table uid:%" PRId64,
+                          TD_VID(pVnode), me.ctbEntry.suid, uid);
+              } else if (metaHandleEntry2(pNewMeta, &me) != 0) {
+                metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
+              }
+            }
+            tDecoderClear(&dc);
+          }
+          tdbFree(value);
+        }
+
+        code = tdbTbcMoveToNext(uidCursor);
+        if (code) {
+          metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
+          return code;
+        }
+      }
+
+      tdbTbcClose(uidCursor);
+    }
+  } else {
+    TBC *cursor = NULL;
+
+    code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
     if (code) {
-      metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+      metaError("vgId:%d failed to open table.db cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
       return code;
     }
 
-    code = tdbTbcMoveToFirst(uidCursor);
+    code = tdbTbcMoveToFirst(cursor);
     if (code) {
       metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
-      tdbTbcClose(uidCursor);
+      tdbTbcClose(cursor);
       return code;
     }
 
-    for (;;) {
+    while (true) {
       const void *pKey;
       int         kLen;
       const void *pVal;
       int         vLen;
 
-      if (tdbTbcGet(uidCursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+      if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
         break;
       }
 
-      tb_uid_t    uid = *(tb_uid_t *)pKey;
-      SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
-      if ((i == 0 && (pUidIdxVal->suid && pUidIdxVal->suid == uid))          // super table
-          || (i == 1 && (pUidIdxVal->suid == 0 || pUidIdxVal->suid != uid))  // normal table and child table
-      ) {
-        counter++;
-        if (i == 0) {
-          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter, "super", uid);
-        } else {
-          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter,
-                   pUidIdxVal->suid == 0 ? "normal" : "child", uid);
-        }
+      STbDbKey  *pKeyEntry = (STbDbKey *)pKey;
+      SDecoder   dc = {0};
+      SMetaEntry me = {0};
 
-        // fetch table entry
-        void *value = NULL;
-        int   valueSize = 0;
-        if (tdbTbGet(pMeta->pTbDb,
-                     &(STbDbKey){
-                         .version = pUidIdxVal->version,
-                         .uid = uid,
-                     },
-                     sizeof(uid), &value, &valueSize) == 0) {
-          SDecoder   dc = {0};
-          SMetaEntry me = {0};
-          tDecoderInit(&dc, value, valueSize);
-          if (metaDecodeEntry(&dc, &me) == 0) {
-            if (me.type == TSDB_CHILD_TABLE &&
-                tdbTbGet(pMeta->pUidIdx, &me.ctbEntry.suid, sizeof(me.ctbEntry.suid), NULL, NULL) != 0) {
-              metaError("vgId:%d failed to get super table uid:%" PRId64 " for child table uid:%" PRId64,
-                        TD_VID(pVnode), me.ctbEntry.suid, uid);
-            } else if (metaHandleEntry2(pNewMeta, &me) != 0) {
-              metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
-            }
-          }
-          tDecoderClear(&dc);
-        }
-        tdbFree(value);
+      tDecoderInit(&dc, (uint8_t *)pVal, vLen);
+      if (metaDecodeEntry(&dc, &me) < 0) {
+        tDecoderClear(&dc);
+        break;
       }
 
-      code = tdbTbcMoveToNext(uidCursor);
+      if (metaHandleEntry2(pNewMeta, &me) != 0) {
+        metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), pKeyEntry->uid);
+        tDecoderClear(&dc);
+        break;
+      }
+      tDecoderClear(&dc);
+
+      code = tdbTbcMoveToNext(cursor);
       if (code) {
         metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
-        return code;
+        break;
       }
     }
 
-    tdbTbcClose(uidCursor);
-  }
-#else
-  TBC *cursor = NULL;
-
-  code = tdbTbcOpen(pMeta->pTbDb, &cursor, NULL);
-  if (code) {
-    metaError("vgId:%d failed to open table.db cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
-    return code;
-  }
-
-  code = tdbTbcMoveToFirst(cursor);
-  if (code) {
-    metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
     tdbTbcClose(cursor);
-    return code;
   }
-
-  while (true) {
-    const void *pKey;
-    int         kLen;
-    const void *pVal;
-    int         vLen;
-
-    if (tdbTbcGet(cursor, &pKey, &kLen, &pVal, &vLen) < 0) {
-      break;
-    }
-
-    STbDbKey  *pKeyEntry = (STbDbKey *)pKey;
-    SDecoder   dc = {0};
-    SMetaEntry me = {0};
-
-    tDecoderInit(&dc, (uint8_t *)pVal, vLen);
-    if (metaDecodeEntry(&dc, &me) < 0) {
-      tDecoderClear(&dc);
-      break;
-    }
-
-    if (metaHandleEntry2(pNewMeta, &me) != 0) {
-      metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), pKeyEntry->uid);
-      tDecoderClear(&dc);
-      break;
-    }
-    tDecoderClear(&dc);
-
-    code = tdbTbcMoveToNext(cursor);
-    if (code) {
-      metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
-      break;
-    }
-  }
-
-  tdbTbcClose(cursor);
-
-#endif
 
   code = metaCommit(pNewMeta, pNewMeta->txn);
   if (code) {
