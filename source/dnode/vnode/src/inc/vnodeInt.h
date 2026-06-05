@@ -661,4 +661,6 @@ int32_t vHashDrop(SVHashTable* ht, const void* obj);
 }
 #endif
 
+int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
+
 #endif /*_TD_VNODE_DEF_H_*/
