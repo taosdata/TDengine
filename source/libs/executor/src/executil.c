@@ -2494,15 +2494,7 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
       return NULL;
     }
 
-    // todo extract method
-    SColumn c = {0};
-    c.slotId = pColNode->slotId;
-    c.colId = pColNode->colId;
-    c.type = pColNode->node.resType.type;
-    c.bytes = pColNode->node.resType.bytes;
-    c.precision = pColNode->node.resType.precision;
-    c.scale = pColNode->node.resType.scale;
-
+    SColumn c = extractColumnFromColumnNode(pColNode);
     void* tmp = taosArrayPush(pList, &c);
     if (!tmp) {
       taosArrayDestroy(pList);
@@ -3168,6 +3160,7 @@ SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   c.bytes = pColNode->node.resType.bytes;
   c.scale = pColNode->node.resType.scale;
   c.precision = pColNode->node.resType.precision;
+  tstrncpy(c.name, pColNode->colName, tListLen(c.name));
   return c;
 }
 
