@@ -1866,71 +1866,6 @@ _OVER:
   return terrno;
 }
 
-extern int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
-
-int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t                         code = 0;
-  SDnodeQuerySnapSendProgressRsp  rsp = {0};
-  SArray                         *pVnodes = NULL;
-  int8_t                         *pRsp = NULL;
-  int32_t                         rspLen = 0;
-
-  rsp.dnodeId = pMgmt->pData->dnodeId;
-
-  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
-  pVnodes = taosArrayInit(taosHashGetSize(pMgmt->runngingHash), sizeof(SVnodeObj *));
-  if (!pVnodes) {
-    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
-    code = terrno;
-    goto _OVER;
-  }
-  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
-  while (pIter) {
-    SVnodeObj **ppVnode = pIter;
-    if (*ppVnode && (*ppVnode)->pImpl) {
-      taosArrayPush(pVnodes, ppVnode);
-    }
-    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
-  }
-  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
-
-  int32_t numOfVnodes = (int32_t)taosArrayGetSize(pVnodes);
-  rsp.pVnodeInfos = taosMemoryCalloc(numOfVnodes, sizeof(SSnapSendVnodeInfo));
-  if (!rsp.pVnodeInfos) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  rsp.numOfVnodes = 0;
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj **ppVnode = taosArrayGet(pVnodes, i);
-    SVnodeObj  *pVnode = *ppVnode;
-    SSnapSendVnodeInfo *pInfo = &rsp.pVnodeInfos[rsp.numOfVnodes];
-    if (vnodeGetSnapSendProgress(pVnode->pImpl, rsp.dnodeId, pInfo) == 0) {
-      rsp.numOfVnodes++;
-    }
-  }
-
-  rspLen = tSerializeSDnodeQuerySnapSendProgressRsp(NULL, 0, &rsp);
-  if (rspLen < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-  pRsp = rpcMallocCont(rspLen);
-  if (!pRsp) {
-    code = terrno;
-    goto _OVER;
-  }
-  tSerializeSDnodeQuerySnapSendProgressRsp(pRsp, rspLen, &rsp);
-  pMsg->info.rsp = pRsp;
-  pMsg->info.rspLen = rspLen;
-
-_OVER:
-  taosArrayDestroy(pVnodes);
-  tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
-  return code;
-}
-
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
@@ -2006,7 +1941,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_SNAP_SEND_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

@@ -74,8 +74,6 @@ extern "C" {
 #define TSDB_INS_DISK_USAGE                "ins_disk_usage"
 #define TSDB_INS_TABLE_FILESETS            "ins_filesets"
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS "ins_transaction_details"
-#define TSDB_INS_TABLE_SNAP_SEND_VNODES     "ins_snap_send_vnodes"
-#define TSDB_INS_TABLE_SNAP_SEND_FILESETS   "ins_snap_send_filesets"
 #define TSDB_INS_TABLE_MOUNTS              "ins_mounts"
 #define TSDB_INS_TABLE_SCANS               "ins_scans"
 #define TSDB_INS_TABLE_SCAN_DETAILS        "ins_scan_details"

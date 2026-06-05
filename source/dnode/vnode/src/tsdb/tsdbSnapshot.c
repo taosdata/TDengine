@@ -207,17 +207,6 @@ static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
     reader->ctx->isDataDone = false;
     reader->ctx->isTombDone = false;
 
-    // record fileset start time
-    STsdb* tsdb = reader->tsdb;
-    (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
-    if (tsdb->pSnapStat != NULL) {
-      int32_t idx = reader->ctx->fsrArrIdx - 1;
-      if (idx >= 0 && idx < tsdb->pSnapStat->totalFileSets) {
-        tsdb->pSnapStat->pFileSetStats[idx].startTime = taosGetTimestampMs();
-      }
-    }
-    (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
-
     code = tsdbSnapReadFileSetOpenReader(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -236,20 +225,6 @@ static int32_t tsdbSnapReadRangeEnd(STsdbSnapReader* reader) {
   tsdbSnapReadFileSetCloseIter(reader);
   tsdbSnapReadFileSetCloseReader(reader);
   reader->ctx->fsr = NULL;
-
-  // mark fileset finished
-  STsdb* tsdb = reader->tsdb;
-  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
-  if (tsdb->pSnapStat != NULL) {
-    int32_t idx = reader->ctx->fsrArrIdx - 1;
-    tsdb->pSnapStat->finishedFileSets++;
-    if (idx >= 0 && idx < tsdb->pSnapStat->totalFileSets) {
-      SSnapSendFileSetStat* pFs = &tsdb->pSnapStat->pFileSetStats[idx];
-      pFs->finishedFileCount = pFs->fileCount;
-    }
-  }
-  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
-
   return 0;
 }
 
@@ -481,35 +456,6 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // build snap stat
-  {
-    int32_t            nFileSets = (int32_t)TARRAY2_SIZE(reader[0]->fsrArr);
-    SSnapSendVnodeStat *pStat = (SSnapSendVnodeStat*)taosMemoryCalloc(1, sizeof(*pStat));
-    if (pStat != NULL) {
-      pStat->vgId        = TD_VID(tsdb->pVnode);
-      pStat->totalFileSets = nFileSets;
-      pStat->startTime   = taosGetTimestampMs();
-      if (nFileSets > 0) {
-        pStat->pFileSetStats = (SSnapSendFileSetStat*)taosMemoryCalloc(nFileSets, sizeof(*pStat->pFileSetStats));
-        if (pStat->pFileSetStats != NULL) {
-          pStat->fileSetCount = nFileSets;
-          for (int32_t i = 0; i < nFileSets; i++) {
-            STFileSetRange *pFsr = TARRAY2_GET(reader[0]->fsrArr, i);
-            pStat->pFileSetStats[i].fid         = pFsr->fid;
-            pStat->pFileSetStats[i].sver        = sver;
-            pStat->pFileSetStats[i].ever        = ever;
-            pStat->pFileSetStats[i].transferType = type;
-          }
-        }
-      }
-      (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
-      taosMemoryFree(tsdb->pSnapStat ? tsdb->pSnapStat->pFileSetStats : NULL);
-      taosMemoryFree(tsdb->pSnapStat);
-      tsdb->pSnapStat = pStat;
-      (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
-    }
-  }
-
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
@@ -552,14 +498,6 @@ void tsdbSnapReaderClose(STsdbSnapReader** reader) {
 
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
-
-  // clear snap stat
-  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
-  if (tsdb->pSnapStat) {
-    taosMemoryFree(tsdb->pSnapStat->pFileSetStats);
-    taosMemoryFreeClear(tsdb->pSnapStat);
-  }
-  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
 
   return;
 }
@@ -608,23 +546,12 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   } else {
-    // accumulate readSize for current fileset
-    if (data[0] != NULL) {
-      SSnapDataHdr *hdr = (SSnapDataHdr *)data[0];
-      STsdb        *tsdb = reader->tsdb;
-      (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
-      if (tsdb->pSnapStat != NULL) {
-        int32_t idx = reader->ctx->fsrArrIdx - 1;
-        if (idx >= 0 && idx < tsdb->pSnapStat->totalFileSets) {
-          tsdb->pSnapStat->pFileSetStats[idx].readSize += hdr->size;
-        }
-      }
-      (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
-    }
     tsdbDebug("vgId:%d %s done", TD_VID(reader->tsdb->pVnode), __func__);
   }
   return code;
 }
+
+// STsdbSnapWriter ========================================
 struct STsdbSnapWriter {
   STsdb*  tsdb;
   int64_t sver;

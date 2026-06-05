@@ -194,8 +194,6 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
-  TSDB_MGMT_TABLE_SNAP_SEND_VNODES,
-  TSDB_MGMT_TABLE_SNAP_SEND_FILESETS,
   TSDB_MGMT_TABLE_VC_COL,
   TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_MOUNT,
@@ -2798,7 +2796,6 @@ typedef struct {
   int64_t bufferSegmentSize;
   int32_t snapSeq;
   int64_t syncTotalIndex;
-  int8_t  snapshotSending;  // 1 if this vnode is currently sending a snapshot
 } SVnodeLoad;
 
 typedef struct {
@@ -3159,39 +3156,6 @@ typedef struct {
 
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
-
-// Snap send progress query (mnode → dnode, dnode → mnode RSP)
-typedef struct {
-  int32_t fid;
-  int32_t fileCount;
-  int32_t finishedFileCount;
-  int64_t totalSize;
-  int64_t readSize;
-  int64_t startTime;    // ms timestamp
-  int64_t sver;
-  int64_t ever;
-  int8_t  transferType; // SNAP_DATA_TSDB(2) or SNAP_DATA_RAW(14)
-} SSnapSendFileSetInfo;
-
-typedef struct {
-  int32_t             vgId;
-  int32_t             dnodeId;
-  int32_t             totalFileSets;
-  int32_t             finishedFileSets;
-  int64_t             startTime;    // ms timestamp of reader open
-  int32_t             fileSetCount; // length of pFileSetInfos
-  SSnapSendFileSetInfo *pFileSetInfos;
-} SSnapSendVnodeInfo;
-
-typedef struct {
-  int32_t dnodeId;
-  int32_t numOfVnodes;
-  SSnapSendVnodeInfo *pVnodeInfos; // array of numOfVnodes elements
-} SDnodeQuerySnapSendProgressRsp;
-
-int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
-int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
-void    tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp);
 
 typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
 typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;

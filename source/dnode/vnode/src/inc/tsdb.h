@@ -361,29 +361,6 @@ typedef struct {
 typedef struct SCompMonitor SCompMonitor;
 typedef struct SRetentionMonitor SRetentionMonitor;
 typedef struct SSsMigrateMonitor SSsMigrateMonitor;
-
-// Snapshot send progress tracking structures
-typedef struct {
-  int32_t fid;
-  int32_t fileCount;
-  int32_t finishedFileCount;
-  int64_t totalSize;
-  int64_t readSize;
-  int64_t startTime;
-  int64_t sver;
-  int64_t ever;
-  int8_t  transferType;
-} SSnapSendFileSetStat;
-
-typedef struct {
-  int32_t               vgId;
-  int32_t               totalFileSets;
-  int32_t               finishedFileSets;
-  int64_t               startTime;
-  int32_t               fileSetCount;
-  SSnapSendFileSetStat *pFileSetStats;
-} SSnapSendVnodeStat;
-
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -407,8 +384,6 @@ struct STsdb {
   SCompMonitor        *pCompMonitor;
   SRetentionMonitor   *pRetentionMonitor;
   SSsMigrateMonitor   *pSsMigrateMonitor;
-  SSnapSendVnodeStat  *pSnapStat;
-  TdThreadRwlock       snapStatLock;
   struct {
     SVHashTable *ht;
     SArray      *arr;

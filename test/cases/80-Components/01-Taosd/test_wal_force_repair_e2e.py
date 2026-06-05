@@ -75,7 +75,7 @@ class TestWalForceRepairE2E(TsdbForceRepairBase):
 
         tdSql.checkEqual(code, 0)
         tdSql.checkEqual(os.path.isdir(wal_dir), True)
-        # tdSql.checkEqual(len(corrupted_dirs) > 0, True)
+        tdSql.checkEqual(len(corrupted_dirs) > 0, True)
         tdSql.query(f"select count(*) from {dbname}.t1")
         tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
         tdSql.execute(f"insert into {dbname}.t1 values(now+2000s, 50000)")
