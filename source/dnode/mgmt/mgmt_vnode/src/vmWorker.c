@@ -17,6 +17,11 @@
 #include "vmInt.h"
 #include "vnodeInt.h"
 
+static void vmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 extern int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 extern int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
@@ -523,17 +528,20 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   if (code) {
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pWriteW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pSyncW, &scfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pSyncW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pSyncRdW, &sccfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
     tMultiWorkerCleanup(&pVnode->pSyncW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pSyncRdW.queue, vmFreeRpcQitem);
   code = tMultiWorkerInit(&pVnode->pApplyW, &acfg);
   if (code) {
     tMultiWorkerCleanup(&pVnode->pWriteW);
@@ -541,15 +549,22 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     tMultiWorkerCleanup(&pVnode->pSyncRdW);
     return code;
   }
+  taosQueueSetFreeFp(pVnode->pApplyW.queue, vmFreeRpcQitem);
 
   pVnode->pQueryQ = tQueryAutoQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)vmProcessQueryQueue);
+  taosQueueSetFreeFp(pVnode->pQueryQ, vmFreeRpcQitem);
   pVnode->pFetchQ = tWWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItems)vmProcessFetchQueue);
+  taosQueueSetFreeFp(pVnode->pFetchQ, vmFreeRpcQitem);
 
   // init stream msg processing queue family
   pVnode->pStreamQ = tAutoQWorkerAllocQueue(&pMgmt->streamPool, pVnode, (FItem)vmProcessStreamQueue, 2);
+  taosQueueSetFreeFp(pVnode->pStreamQ, vmFreeRpcQitem);
   pVnode->pStreamCtrlQ = tWWorkerAllocQueue(&pMgmt->streamCtrlPool, pVnode, (FItems)vmProcessStreamCtrlQueue);
+  taosQueueSetFreeFp(pVnode->pStreamCtrlQ, vmFreeRpcQitem);
   pVnode->pStreamLongExecQ = tAutoQWorkerAllocQueue(&pMgmt->streamLongExecPool, pVnode, (FItem)vmProcessStreamLongExecQueue, 1);
+  taosQueueSetFreeFp(pVnode->pStreamLongExecQ, vmFreeRpcQitem);
   pVnode->pStreamChkQ = tWWorkerAllocQueue(&pMgmt->streamChkPool, pVnode, (FItems)vmProcessStreamChkptQueue);
+  taosQueueSetFreeFp(pVnode->pStreamChkQ, vmFreeRpcQitem);
 
   if (pVnode->pWriteW.queue == NULL || pVnode->pSyncW.queue == NULL || pVnode->pSyncRdW.queue == NULL ||
       pVnode->pApplyW.queue == NULL || pVnode->pQueryQ == NULL || pVnode->pStreamQ == NULL || pVnode->pFetchQ == NULL

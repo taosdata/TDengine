@@ -16,6 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
+static void smFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
       .code = code,
@@ -93,6 +98,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       dError("failed to start snode-unique worker since %s", tstrerror(code));
       return code;
     }
+    taosQueueSetFreeFp(pWriteWorker->queue, smFreeRpcQitem);
     if (taosArrayPush(pMgmt->writeWroker, &pWriteWorker) == NULL) {
       code = terrno;
       return code;
@@ -111,6 +117,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     dError("failed to start snode shared-worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->streamWorker.queue, smFreeRpcQitem);
 
   dDebug("snode workers are initialized");
   return code;
