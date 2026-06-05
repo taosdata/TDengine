@@ -1888,6 +1888,7 @@ ZSTD_buildCTable(void* dst, size_t dstCapacity,
 
     switch (type) {
     case set_rle:
+        if (dstCapacity==0) return ERROR(dstSize_tooSmall);  /* CVE-2019-11922: guard against out-of-bounds write */
         *op = codeTable[0];
         CHECK_F(FSE_buildCTable_rle(nextCTable, (BYTE)max));
         return 1;
