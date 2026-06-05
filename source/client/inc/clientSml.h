@@ -69,7 +69,6 @@ extern "C" {
 #define VALUE_LEN (sizeof(VALUE)-1)
 
 #define OTD_JSON_FIELDS_NUM     4
-#define MAX_RETRY_TIMES 10
 
 #define IS_SAME_CHILD_TABLE (elements->measureTagsLen == info->preLine.measureTagsLen \
 && memcmp(elements->measure, info->preLine.measure, elements->measureTagsLen) == 0)

@@ -9,16 +9,16 @@ toc_max_heading_level: 4
 Windows 下调试定位 TDengine TSDB 崩溃问题指引手册。
 
 ## 查找 dmp 文件
-   
-taosd.exe 进程在崩溃发生时，会捕获崩溃，并在其所在目录下生成 .dmp 文件，文件名以 taosd 开头，中间为崩溃时间，如 “taosd_20260509_124419.dmp”，大小一般在 10M \~ 200M 之间。
-   
-> **注意：** 若有 dmp 文件大小为 0K，可能存在严重堆栈被破坏情况。
+
+`taosd.exe` 进程在崩溃发生时，会捕获崩溃，并在其所在目录下生成 `.dmp` 文件，文件名以 `taosd` 开头，中间为崩溃时间，如`taosd_20260509_124419.dmp`，大小一般在 `10M~200M` 之间。
+
+> **注意：** 若有 `dmp` 文件大小为 0K，可能存在严重堆栈被破坏情况。
 
 ## 未生成 dmp 文件
 
-若上一步中未生成 dmp，可能崩溃无法从进程内捕获，需启动进程外捕获 dmp。
+若上一步中未生成 `dmp`，可能崩溃无法从进程内捕获，需启动进程外捕获 `dmp`。
 
-把以下内容保存为 .reg 文件，双击 .reg 文件导入至注册表中，开启进程外捕获 dmp：
+把以下内容保存为 `.reg` 文件，双击 `.reg` 文件导入至注册表中，开启进程外捕获 `dmp`：
 
 ```Bash
 Windows Registry Editor Version 5.00
@@ -46,13 +46,14 @@ Windows Registry Editor Version 5.00
 ```
 
 配置项说明：
+
 - DumpCount：10 生成 dmp 文件数上限，超过后会删除最旧的 dmp 文件。
 - DumpFolder：C:\\TDengine\\core\\ 存放 dmp 文件的目录。
 
 ## PDB 文件获取
 
 崩溃栈需结合 PDB 文件方可定位函数名及行号，提供以下方式获取 PDB 文件：
-- 社区版用户：官方下载链接：[https://www.taosdata.com/symbols/](https://www.taosdata.com/symbols/)，选择对应版本号下载 PDB 文件。
+
 - 企业版用户：暂未提示供下载，需联系 TDengine 技术支持获取。
 - 自己编译版本：PDB 文件与编译输出的可执行文件在同一目录下。
 
@@ -60,14 +61,14 @@ Windows Registry Editor Version 5.00
 
 若 dmp 无法定位问题，需进一步升级，启用 ASan 版本调试。
 
-目前 TDengine 仓库 Debug/Release 都支持编译 ASAN 版本，编译选项与 LINUX 相同。 
+目前 TDengine 仓库 Debug/Release 都支持编译 ASAN 版本，编译选项与 LINUX 相同。
 
 > **说明：** Windows 下的 ASAN 不支持内存泄露检查功能，但越界访问及 Use-after-free 都支持。
 
 ### 版本编译
 
 - 编译选项： `-DBUILD_SANITIZER=true`。
-- DEBUG 版本： VS 2022 任意版本都可编译。
+- DEBUG 版本：VS 2022 任意版本都可编译。
 - RELEASE 版本：VS 2022 >= 17.14.32。
 
 ### 前置条件
@@ -111,7 +112,7 @@ taosd.exe
 
 taosBenchmark 创建 1W 子表，每子表 1W 的智能电表数据
 
-*说明： DEBUG 版本大量写入数据会崩溃（已知编译的问题），暂无法测试*
+> **说明：** DEBUG 版本大量写入数据会崩溃（已知编译的问题），暂无法测试
 
 |                     | 写入性能 | 对比     |
 | --------------------- | ---------- | ---------- |
@@ -121,6 +122,7 @@ taosBenchmark 创建 1W 子表，每子表 1W 的智能电表数据
 ### ASan 检测效果图
 
 测试代码段：
+
 ```C
 void test() {
     char buf[4];
@@ -133,7 +135,8 @@ void test() {
 
 ASan 成功检测到越界访问，报告如下：
 
-```=================================================================
+```text
+=================================================================
 ==12345==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffde5c1f8f0 at pc 0x0000000000000 bp 0x7ffde5c1f8a0 sp 0x7ffde5c1f890
 READ of size 8 at 0x7ffde5c1f8f0 thread T0
     #0 0x000000000000 in test() (taosd.exe+0x000000000000)
@@ -145,8 +148,8 @@ Address 0x7ffde5c1f8f0 is located in stack of thread T0 at offset 48 in frame
 HINT: this may be a false positive if your program uses some custom stack unwind mechanism or swapcontext
       (longjmp and C++ exceptions *are* supported)
 SUMMARY: AddressSanitizer: stack-buffer-overflow in test() (taosd.exe+0x000000000000)
-```        
+```
 
 ## 总结
-   
-   如果有 DMP 文件优先分析 DMP 文件定位原因，仍然无法定位后上 ASAN 版本查找问题。
+
+如果有 DMP 文件优先分析 DMP 文件定位原因，仍然无法定位后上 ASAN 版本查找问题。

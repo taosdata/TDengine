@@ -934,13 +934,20 @@ int64_t getWindowsTimezoneOffset(void) {
   DWORD len = GetEnvironmentVariableA("TZ", tz_env, sizeof(tz_env));
 
   if (len > 0 && len < sizeof(tz_env) && tz_env[0] != '\0') {
-    // TZ format like "+0:00" or "-8:00"
-    if (tz_env[0] == '+' || tz_env[0] == '-') {
-      char sign = tz_env[0];
+    /* TZ is always stored in POSIX format by taosSetGlobalTimezone /
+     * initTimezoneInfo: optional alpha prefix (e.g. "UTC") then sign+offset.
+     * POSIX sign: '+' = west of UTC, '-' = east.
+     * E.g. "UTC-8:00" or "-8:00" = (East 8, e.g. Asia/Shanghai);
+     *      "UTC+5:00" or "+5:00" = (West 5, e.g. America/Bogota). */
+    const char *p = tz_env;
+    while (*p && ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z'))) p++;
+    if (*p == '+' || *p == '-') {
+      char sign = *p;
       int  hours = 0;
       int  minutes = 0;
-      if (sscanf(tz_env + 1, "%d:%d", &hours, &minutes) >= 1) {
+      if (sscanf(p + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
+        /* POSIX: '+' means west, '-' means east; return east-negative. */
         return (sign == '+') ? offset_seconds : -offset_seconds;
       }
     }
@@ -1027,7 +1034,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   // We convert this directly to TZ env var format expected by
   // getWindowsTimezoneOffset(), preserving POSIX sign semantics.
   if (strcasecmp(tz, "UTC") == 0 || strcasecmp(tz, "GMT") == 0) {
-    snprintf(winStr, sizeof(winStr), "+0:00");
+    snprintf(winStr, sizeof(winStr), "UTC+00:00");
     snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, +0000)", tz);
     found = 1;
   } else {
@@ -1042,11 +1049,11 @@ int32_t taosSetGlobalTimezone(const char *tz) {
       int  tzMins = 0;
 
       if (sscanf(p + 1, "%d:%d", &tzHours, &tzMins) >= 1 && tzHours >= 0 && tzHours <= 23 && tzMins >= 0 && tzMins <= 59) {
-        snprintf(winStr, sizeof(winStr), "%c%d:%02d", sign, tzHours, tzMins);
+        /* Keep POSIX sign as-is: "UTC-8" (east) → "UTC-08:00". */
+        char utc_sign = (sign == '-') ? '+' : '-';
+        snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", sign, tzHours, tzMins);
 
-        // Display string keeps UTC direction (inverse of POSIX sign).
-        char utcSign = (sign == '+') ? '-' : '+';
-        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utcSign, tzHours, tzMins);
+        snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, utc_sign, tzHours, tzMins);
         found = 1;
       }
     }
@@ -1074,11 +1081,10 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         int  tzHours  = (keyValue[5] - '0') * 10 + (keyValue[6] - '0');
         int  tzMins   = (keyValue[8] - '0') * 10 + (keyValue[9] - '0');
 
-        // Build TZ env-var in the POSIX offset format expected by getWindowsTimezoneOffset():
-        //   "<sign><hours>:<minutes>"  e.g. East 8 (UTC+08:00) -> "-8:00"
-        // The sign is inverted because the POSIX `timezone` global uses east-negative convention.
-        char tzSign = (origSign == '+') ? '-' : '+';
-        snprintf(winStr, sizeof(winStr), "%c%d:%02d", tzSign, tzHours, tzMins);
+        /* POSIX TZ sign is inverted from UTC direction:
+         * registry origSign='+' (UTC+8 east) → POSIX '-' → "UTC-08:00". */
+        char posix_sign = (origSign == '+') ? '-' : '+';
+        snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", posix_sign, tzHours, tzMins);
 
         // Display string keeps the original UTC direction (not inverted).
         if (strcasecmp(tz, "UTC") == 0) {
@@ -1135,10 +1141,9 @@ int32_t taosGetLocalTimezoneOffset(int32_t *code) {
   }
   if (code != NULL) *code = TSDB_CODE_SUCCESS;
 #ifdef WINDOWS
-  // getWindowsTimezoneOffset() reads the TZ environment variable set by taosSetGlobalTimezone.
-  // TZ is stored in POSIX `timezone` convention (east-negative), e.g. East 8 (UTC+8) -> "-8:00"
-  // -> returns -28800.  We negate it here to produce an east-positive result consistent
-  // with the Linux/macOS tm_gmtoff convention returned by the #else branch below.
+  /* getWindowsTimezoneOffset() reads TZ env var (POSIX format, e.g. "UTC-08:00").
+   * Returns east-negative: East 8 (TZ="UTC-08:00") → -28800, West 5 (TZ="UTC+05:00") → +18000.
+   * Negate for east-positive (tm_gmtoff convention). */
   return -(int32_t)getWindowsTimezoneOffset();
 #elif defined(TD_ASTRA)
   return -(int32_t)timezone;
@@ -1363,17 +1368,16 @@ int32_t initTimezoneInfo(void) {
       uInfo("[tz] Time zone has no DST mode, effective bias=%ld", minute_offset);
     }
     
-    // minute_offset is in POSIX timezone convention (east-negative, west-positive).
-    // For TZ env var, use the same convention: e.g., "-8:00" for UTC+8 (East 8).
-     // Derive sign from the full minute_offset to handle sub-hour offsets correctly.
-     char sign = (minute_offset < 0) ? '-' : '+';
-     LONG abs_minutes = (minute_offset < 0) ? -minute_offset : minute_offset;
-     int32_t offset_hours = (int32_t)(abs_minutes / 60);
-     int32_t offset_mins = (int32_t)(abs_minutes % 60);
+    /* minute_offset: east-negative (UTC+8 = -480, UTC-5 = +300).
+     * POSIX TZ sign matches: east '-' → "UTC-8:00", west '+' → "UTC+5:00". */
+    char sign = (minute_offset < 0) ? '-' : '+';
+    LONG abs_minutes = (minute_offset < 0) ? -minute_offset : minute_offset;
+    int32_t offset_hours = (int32_t)(abs_minutes / 60);
+    int32_t offset_mins = (int32_t)(abs_minutes % 60);
     
     char winStr[64] = {0};
-    snprintf(winStr, sizeof(winStr), "%c%d:%02d", sign, offset_hours, offset_mins);
-    
+    snprintf(winStr, sizeof(winStr), "UTC%c%02d:%02d", sign, offset_hours, offset_mins);
+
     uInfo("[tz] About to set TZ env var: minutes=%ld, hours=%d, mins=%d, result: TZ=%s",
       minute_offset, offset_hours, offset_mins, winStr);
     

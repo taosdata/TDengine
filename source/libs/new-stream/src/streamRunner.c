@@ -404,6 +404,28 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   return code;
 }
 
+static int32_t stRunnerGetNotifyTbName(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                       const char** ppTbName) {
+  if (pExec->tbname[0] == '\0') {
+    if (pTask->notification.calcNotifyOnly && pTask->pSubTableExpr == NULL) {
+      const char* pStreamName = pTask->streamName;
+      const char* pos = strstr(pStreamName, TS_PATH_DELIMITER);
+      *ppTbName = pos ? pos + 1 : pStreamName;
+      return TSDB_CODE_SUCCESS;
+    } else {
+      int32_t code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+      if (code != 0) {
+        ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
+        return code;
+      }
+      ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
+    }
+  }
+
+  *ppTbName = pExec->tbname;
+  return TSDB_CODE_SUCCESS;
+}
+
 static void stRunnerLogWinLatency(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
   SStreamRuntimeFuncInfo* pRuntime = &pExec->runtimeInfo.funcInfo;
   
@@ -547,15 +569,21 @@ static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startW
 
 static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                const char* tbname) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t              code = 0;
+  int32_t              lino = 0;
+  int32_t              winSize = 0;
+  int32_t              nParam = 0;
+  SSTriggerCalcParam** params = NULL;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t              winSize = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size;
-  int32_t              nParam = 0;
-  SSTriggerCalcParam** params = taosMemCalloc(winSize, sizeof(SSTriggerCalcParam*));
+  if (tbname[0] == '\0') {
+    TAOS_CHECK_EXIT(stRunnerGetNotifyTbName(pTask, pExec, &tbname));
+  }
+
+  winSize = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size;
+  params = taosMemCalloc(winSize, sizeof(SSTriggerCalcParam*));
   if (!params) {
     ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", winSize);
     TAOS_CHECK_EXIT(terrno);
@@ -595,23 +623,19 @@ _exit:
 
 static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, int32_t startWinIdx,
                                     int32_t endWinIdx, const char* tbname) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t              code = 0;
+  int32_t              lino = 0;
+  int32_t              nParam = endWinIdx - startWinIdx;
+  SSTriggerCalcParam** params = NULL;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (tbname[0] == '\0') {
-    code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
-    if(code != 0) {
-      ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
-      return code;
-    }
-    ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
+    TAOS_CHECK_EXIT(stRunnerGetNotifyTbName(pTask, pExec, &tbname));
   }
 
-  int32_t              nParam = endWinIdx - startWinIdx;
-  SSTriggerCalcParam** params = taosMemCalloc(nParam, sizeof(SSTriggerCalcParam*));
+  params = taosMemCalloc(nParam, sizeof(SSTriggerCalcParam*));
   if (!params) {
     ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", nParam);
     TAOS_CHECK_EXIT(terrno);
@@ -657,12 +681,7 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   int32_t lino = 0;
 
   if (tbname[0] == '\0') {
-    code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
-    if(code != 0) {
-      ST_TASK_ELOG("%s failed to calc output tbname for notification: %s", __FUNCTION__, tstrerror(code));
-      return code;
-    }
-    ST_TASK_ILOG("%s table name is blank, so calc output table name, get %s.", __FUNCTION__, pExec->tbname);
+    TAOS_CHECK_GOTO(stRunnerGetNotifyTbName(pTask, pExec, &tbname), &lino, _exit);
   }
   bool  empty = (!pBlock || pBlock->info.rows <= 0);
   char* pContent = NULL;
@@ -670,9 +689,8 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
                                              empty ? 0 : pBlock->info.rows - 1);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
-    int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx;
-    SSTriggerCalcParam* pTriggerCalcParams =
-        taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, index);
+    int32_t             index = pExec->runtimeInfo.funcInfo.curOutIdx;
+    SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, index);
     if (pTriggerCalcParams == NULL) {
       ST_TASK_ELOG("%s failed to get trigger calc params for index:%d, size:%d", __FUNCTION__, index,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
@@ -685,6 +703,10 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->addOptions, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
+  }
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
   }
   return code;
 }
@@ -909,7 +931,7 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
   handle.pMsgCb = &pTask->msgCb;
   //handle.pMsgCb = pTask->pMsgCb;
   handle.pWorkerCb = pTask->pWorkerCb;
-  if (pTask->topTask) {
+  if (pTask->topTask && !pTask->notification.calcNotifyOnly) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
                                    .tbname = pExec->tbname,
                                    .pFields = pTask->output.outCols,
@@ -1105,7 +1127,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   handle.pMsgCb = &pTask->msgCb;
   //handle.pMsgCb = pTask->pMsgCb;
   handle.pWorkerCb = pTask->pWorkerCb;
-  if (pTask->topTask) {
+  if (pTask->topTask && !pTask->notification.calcNotifyOnly) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
                                    .tbname = pExec->tbname,
                                    .pFields = pTask->output.outCols,

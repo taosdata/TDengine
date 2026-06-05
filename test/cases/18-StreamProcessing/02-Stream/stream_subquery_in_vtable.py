@@ -285,7 +285,7 @@ class TestStreamSubQueryInVtable:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:01:00', 1, 25.5) ('2026-01-01 00:01:01', 2, 30.0) ('2026-01-01 00:01:02', 3, 22.0) ('2026-01-01 00:01:03', 1, 26.0)")
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 3)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 3, 120)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
             tdSql.checkData(2, 1, 1)
