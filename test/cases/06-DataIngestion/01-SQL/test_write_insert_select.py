@@ -1,4 +1,14 @@
+import os
+import subprocess
+import sys
+import tempfile
+import textwrap
+import time
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+
+TSDB_CODE_TSC_SQL_SYNTAX_ERROR = 0x80000216
+TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER = 0x8000061B
 
 
 class TestWriteInsertSelect:
@@ -202,3 +212,217 @@ class TestWriteInsertSelect:
 
         tdSql.execute(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT '1.34' as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
         tdSql.error(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT 1.34 as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
+
+    def test_write_schema_stale(self):
+        """INSERT parser: schema-refresh retry and syntax-error guard
+
+        Schema-refresh retry tests use subprocess isolation so each process
+        has its own taosc catalog instance.  The sequence is:
+          1. Subprocess connects and caches schema version N.
+          2. Main process executes ALTER TABLE (server schema advances to N+1).
+          3. Subprocess INSERTs with values matching the NEW schema; its catalog
+             still has version N so the parser (DROP COLUMN) or vnode
+             (ADD COLUMN) detects the mismatch and the client retries.
+
+        Background — why subprocess isolation is required:
+          All taos.connect() handles within the same process share the same
+          taosc catalog keyed by clusterId (catalogGetHandle uses a global
+          gCtgMgmt hash).  An ALTER TABLE from any in-process connection
+          synchronously updates the shared catalog via handleAlterTbExecRes →
+          catalogUpdateTableMeta, so subsequent INSERTs always see the fresh
+          schema and the retry path is never reached.  A subprocess has its
+          own gCtgMgmt and is unaffected by the parent's ALTER TABLE.
+
+        Syntax guard (test 3) does not require subprocess because it tests
+        the parser's error classification, not the schema version.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: TD-33977
+
+        History:
+            - 2026-06-04 Cover schema-retry path via subprocess catalog isolation.
+        """
+        self._test_insert_after_drop_column_succeeds()
+        self._test_insert_after_add_column_succeeds()
+        self._test_invalid_values_expr_gives_syntax_error()
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+
+    def _subprocess_insert(self, script: str) -> None:
+        """Run *script* in an isolated subprocess; fail the test on non-zero exit."""
+        import subprocess, sys
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            tdLog.exit(
+                f"Schema-retry subprocess failed (rc={result.returncode}):\n"
+                f"stdout: {result.stdout}\nstderr: {result.stderr}"
+            )
+
+    def _test_insert_after_drop_column_succeeds(self):
+        """
+        DROP COLUMN retry path (parseOneRow parser-side detection).
+
+        Trigger:
+          Subprocess caches 3-col schema (sversion=N).
+          Main drops column → server at sversion=N+1 (2 cols).
+          Subprocess INSERTs 2 values; its parser expects 3 (stale schema) and
+          hits ')' after value 2 at i < numOfBound-1 → our fix returns
+          TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER → client retries with fresh
+          schema (2 cols) → success.
+          Without retry the INSERT would fail with "Table schema is old".
+        """
+        db = "test_schema_drop_col"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"use {db}")
+        tdSql.execute("create table t1 (ts timestamp, c1 int, c2 int)")
+        # Seed one row so the table is non-empty and schema is available.
+        tdSql.execute("insert into t1 values('2025-01-01 00:00:00', 1, 2)")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ready   = os.path.join(tmpdir, "ready")
+            proceed = os.path.join(tmpdir, "proceed")
+
+            # Worker: cache 3-col schema, wait for ALTER, then INSERT 2 values.
+            script = textwrap.dedent(f"""
+                import taos, os, time
+                conn = taos.connect()
+                conn.execute("use {db}")
+                conn.execute("select * from t1")   # caches sversion=1 (3-col schema)
+                open("{ready}", "w").close()
+                deadline = time.time() + 10
+                while not os.path.exists("{proceed}") and time.time() < deadline:
+                    time.sleep(0.05)
+                # Stale schema has 3 cols; INSERT 2 values triggers retry via parseOneRow ')'
+                conn.execute("insert into t1 values(now, 10)")
+                conn.close()
+            """)
+            # Disable ASAN leak detection in the subprocess: Python itself
+            # allocates memory that is reported as leaks, causing a non-zero
+            # exit code that would be misread as a test failure.
+            sub_env = os.environ.copy()
+            sub_env["ASAN_OPTIONS"] = "detect_leaks=0"
+            proc = subprocess.Popen([sys.executable, "-c", script],
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    env=sub_env)
+            try:
+                deadline = time.time() + 10
+                while not os.path.exists(ready) and time.time() < deadline:
+                    time.sleep(0.05)
+                assert os.path.exists(ready), "Subprocess did not signal ready in time"
+
+                # Advance server schema while subprocess holds stale catalog.
+                tdSql.execute("alter table t1 drop column c2")
+                open(proceed, "w").close()
+
+                stdout, stderr = proc.communicate(timeout=30)
+                if proc.returncode != 0:
+                    tdLog.exit(
+                        f"DROP COLUMN retry subprocess failed:\n{stderr.decode()}"
+                    )
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
+        tdSql.query("select * from t1 order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(1, 1, 10)
+        tdSql.execute(f"drop database if exists {db}")
+        tdLog.info("schema retry after DROP COLUMN: passed")
+
+    def _test_insert_after_add_column_succeeds(self):
+        """
+        ADD COLUMN retry path (PAR_INVALID_COLUMNS_NUM / vnode sversion mismatch).
+
+        Trigger:
+          Subprocess caches 2-col schema (sversion=N).
+          Main adds column → server at sversion=N+1 (3 cols).
+          Subprocess INSERTs 3 values; parseOneRow sees the extra ','
+          after value 2 or vnode rejects the sversion → client retries
+          with fresh schema (3 cols) → success.
+        """
+        db = "test_schema_add_col"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"use {db}")
+        tdSql.execute("create table t2 (ts timestamp, c1 int)")
+        tdSql.execute("insert into t2 values('2025-01-01 00:00:00', 1)")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ready   = os.path.join(tmpdir, "ready")
+            proceed = os.path.join(tmpdir, "proceed")
+
+            script = textwrap.dedent(f"""
+                import taos, os, time
+                conn = taos.connect()
+                conn.execute("use {db}")
+                conn.execute("select * from t2")   # caches sversion=1 (2-col schema)
+                open("{ready}", "w").close()
+                deadline = time.time() + 10
+                while not os.path.exists("{proceed}") and time.time() < deadline:
+                    time.sleep(0.05)
+                # 3 values for stale 2-col schema → retry via PAR_INVALID_COLUMNS_NUM
+                conn.execute("insert into t2 values(now, 10, 20)")
+                conn.close()
+            """)
+            # Disable ASAN leak detection (same reason as above).
+            sub_env = os.environ.copy()
+            sub_env["ASAN_OPTIONS"] = "detect_leaks=0"
+            proc = subprocess.Popen([sys.executable, "-c", script],
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    env=sub_env)
+            try:
+                deadline = time.time() + 10
+                while not os.path.exists(ready) and time.time() < deadline:
+                    time.sleep(0.05)
+                assert os.path.exists(ready), "Subprocess did not signal ready in time"
+
+                tdSql.execute("alter table t2 add column c2 int")
+                open(proceed, "w").close()
+
+                stdout, stderr = proc.communicate(timeout=30)
+                if proc.returncode != 0:
+                    tdLog.exit(
+                        f"ADD COLUMN retry subprocess failed:\n{stderr.decode()}"
+                    )
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+
+        tdSql.query("select * from t2 order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(1, 1, 10)
+        tdSql.checkData(1, 2, 20)
+        tdSql.execute(f"drop database if exists {db}")
+        tdLog.info("schema retry after ADD COLUMN: passed")
+
+    def _test_invalid_values_expr_gives_syntax_error(self):
+        db = "test_schema_syntax"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"use {db}")
+        tdSql.execute("create table tb1 (ts timestamp, c1 int, c2 int)")
+        tdSql.execute("create table tb3 (ts timestamp, c1 int)")
+        tdSql.execute("insert into tb3 values(now, 0)")
+
+        for sql in [
+            "insert into tb1 values(now, 1 > all (select c1 from tb3), 1)",
+            "insert into tb1 values(now, 1 >= all (select c1 from tb3), 1)",
+            "insert into tb1 values(now, 1 < any (select c1 from tb3), 1)",
+            "insert into tb1 values(now, 1 = some (select c1 from tb3), 1)",
+        ]:
+            tdLog.info(f"Expecting syntax error for: {sql}")
+            tdSql.error(sql, expectedErrno=TSDB_CODE_TSC_SQL_SYNTAX_ERROR, fullMatched=False)
+            if tdSql.errno == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER:
+                tdLog.exit(f"Regression: got schema-old instead of syntax error for: {sql}")
+
+        tdSql.execute(f"drop database if exists {db}")
+        tdLog.info("syntax error preserved for invalid VALUES expression: passed")
