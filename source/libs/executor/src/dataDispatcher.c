@@ -16,6 +16,7 @@
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
 #include "executorInt.h"
+#include "lz4.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tdatablock.h"
@@ -152,8 +153,9 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   {
+    size_t dataBufSize = pBuf->allocSize - sizeof(SDataCacheEntry);
     // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
-    size_t dataEncodeBufSize = pBuf->allocSize + 8;
+    size_t dataEncodeBufSize = dataBufSize + 8;
     if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
       if (pHandle->pCompressBuf == NULL) {
         pHandle->pCompressBuf = taosMemoryMalloc(dataEncodeBufSize);
@@ -180,7 +182,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         return terrno;
       }
       int32_t len =
-          tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
+          tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, dataBufSize, ONE_STAGE_COMP, NULL, 0);
       if (len < dataLen) {
         pEntry->compressed = 1;
         pEntry->dataLen = len;
@@ -192,7 +194,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         TAOS_MEMCPY(pEntry->data, pHandle->pCompressBuf, dataLen);
       }
     } else {
-      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols);
+      pEntry->dataLen = blockEncode(pInput->pData, pEntry->data, dataBufSize, numOfCols);
       if(pEntry->dataLen < 0) {
         qError("failed to encode data block, code: %d", pEntry->dataLen);
         return terrno;
@@ -219,7 +221,14 @@ static int32_t allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInp
     }
   */
 
-  pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
+  int32_t dataEncodeSize = blockGetEncodeSize(pInput->pData);
+  int32_t dataBufSize = dataEncodeSize;
+  int32_t totalEncodeSize = sizeof(SDataCacheEntry) + dataEncodeSize;
+  if ((totalEncodeSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pDispatcher->pManager->cfg.compress) {
+    dataBufSize = TMAX(dataEncodeSize, LZ4_compressBound(dataEncodeSize) + 1);
+  }
+
+  pBuf->allocSize = sizeof(SDataCacheEntry) + dataBufSize;
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {

@@ -21,6 +21,9 @@ SQWorkerMgmt gQwMgmt = {
 TdThreadOnce gQueryPoolInit = PTHREAD_ONCE_INIT;
 SQueryMgmt   gQueryMgmt = {0};
 
+static bool qwIsExpectedPreQueryCode(int32_t code) {
+  return code == TSDB_CODE_SYN_RESTORING || code == TSDB_CODE_SYN_NOT_LEADER;
+}
 
 int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
@@ -599,7 +602,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       }
 
       if (TSDB_CODE_SUCCESS != input->code) {
-        QW_TASK_ELOG("task already failed at phase %s, code:0x%x", qwPhaseStr(phase), input->code);
+        if (QW_PHASE_PRE_QUERY == phase && qwIsExpectedPreQueryCode(input->code)) {
+          QW_TASK_DLOG("task already failed at phase %s, code:0x%x", qwPhaseStr(phase), input->code);
+        } else {
+          QW_TASK_ELOG("task already failed at phase %s, code:0x%x", qwPhaseStr(phase), input->code);
+        }
         ctx->ctrlConnInfo.handle = NULL;
         (void)qwDropTask(QW_FPARAMS());
 
@@ -670,7 +677,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   }
 
   if (ctx->rspCode) {
-    QW_TASK_ELOG("task already failed at phase %s, code:%s", qwPhaseStr(phase), tstrerror(ctx->rspCode));
+    if (QW_PHASE_PRE_QUERY == phase && qwIsExpectedPreQueryCode(ctx->rspCode)) {
+      QW_TASK_DLOG("task already failed at phase %s, code:%s", qwPhaseStr(phase), tstrerror(ctx->rspCode));
+    } else {
+      QW_TASK_ELOG("task already failed at phase %s, code:%s", qwPhaseStr(phase), tstrerror(ctx->rspCode));
+    }
     QW_ERR_JRET(ctx->rspCode);
   }
 
@@ -690,7 +701,11 @@ _return:
   }
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_QRY_TASK_CTX_NOT_EXIST) {
-    QW_TASK_ELOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
+    if (QW_PHASE_PRE_QUERY == phase && qwIsExpectedPreQueryCode(code)) {
+      QW_TASK_DLOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
+    } else {
+      QW_TASK_ELOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
+    }
   } else {
     QW_TASK_DLOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
   }
