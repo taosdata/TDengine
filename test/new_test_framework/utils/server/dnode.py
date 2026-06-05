@@ -469,9 +469,7 @@ class TDDnode:
                     if i > 50:
                         break
                 with open(logFile) as f:
-                    _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
-                    _start_timeout = 60 if _asan_build else 20
-                    timeout = time.time() + _start_timeout
+                    timeout = time.time() + 10 * 2
                     while True:
                         line = f.readline().encode("utf-8")
                         if bkey in line:

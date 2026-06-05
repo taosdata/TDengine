@@ -155,7 +155,6 @@ static void getFreeBlock(SDataSinkFileMgr* pFileMgr, int32_t needSize, SFileBloc
   if (pFreeBlock != NULL) {
     pGroupBlockOffset->size = pFreeBlock->length;
     pGroupBlockOffset->offset = pFreeBlock->start;
-    destroyFreeBlock(pFreeBlock);
     return;
   }
   pGroupBlockOffset->offset = pFileMgr->fileSize;
@@ -314,8 +313,6 @@ int32_t readSlidingDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int
         stError("failed to add to free block, err: %s, lineno:%d", terrMsg, lino);
         return code;
       }
-      taosArrayRemove(pSlidingGrpMgr->blocksInFile, pResult->offset);
-      continue;
     }
     if (finished) {
       pResult->dataPos = DATA_SINK_ALL_TMP;

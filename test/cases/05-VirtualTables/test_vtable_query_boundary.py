@@ -45,63 +45,6 @@ class TestVTableQueryBoundary:
     def _to_int_or_none(value):
         return None if value is None else int(value)
 
-    def test_state_window_pseudocolumns_respect_referenced_filter(self):
-        """State window pseudo columns respect referenced-column filters.
-
-        A normal virtual table state-window query that only selects pseudo
-        columns used to build an invalid empty merge path and could also lose
-        the referenced-column filter during virtual-scan optimization.
-
-        Since: v3.4.0.0
-
-        Catalog: query/window
-
-        Labels: virtual_table,state_window,boundary_case,window_optimize
-
-        History:
-            - 2026-05-29 Codex Added regression case
-
-        """
-        tdSql.execute("drop database if exists test_vtable_state_window_pseudo")
-        tdSql.execute("create database test_vtable_state_window_pseudo")
-        tdSql.execute("use test_vtable_state_window_pseudo")
-
-        tdSql.execute("create table origin_t(ts timestamp, status int)")
-        tdSql.execute(
-            "insert into origin_t values "
-            "('2026-05-29 00:00:00.000', 1) "
-            "('2026-05-29 00:00:01.000', 1) "
-            "('2026-05-29 00:00:02.000', 2) "
-            "('2026-05-29 00:00:03.000', 2) "
-            "('2026-05-29 00:00:04.000', 1)"
-        )
-        tdSql.execute("create vtable vt(ts timestamp, status int from origin_t.status)")
-
-        tdSql.query("select _wstart, _wend from vt where status = 2 state_window(status)")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2026-05-29 00:00:02.000")
-        tdSql.checkData(0, 1, "2026-05-29 00:00:03.000")
-
-        tdSql.query("select _wstart, _wduration, _wend from vt where status = 2 state_window(status)")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1000)
-
-        tdSql.query("select _wend from vt where status = 2 state_window(status)")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2026-05-29 00:00:03.000")
-
-        tdSql.query("select _wstart, _wduration, _wend from vt where status = 2 state_window(status, 1)")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2026-05-29 00:00:02.000")
-        tdSql.checkData(0, 1, 1000)
-        tdSql.checkData(0, 2, "2026-05-29 00:00:03.000")
-
-        tdSql.query("select _wstart, _wduration, _wend from vt where status = 2 state_window(status, 2)")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "2026-05-29 00:00:02.000")
-        tdSql.checkData(0, 1, 1000)
-        tdSql.checkData(0, 2, "2026-05-29 00:00:03.000")
-
     def test_event_window_no_window_not_out_of_range(self):
         """Event window empty result should not crash.
 
@@ -253,7 +196,6 @@ class TestVTableQueryBoundary:
             tdSql.checkEqual(Counter(actual_rows), Counter(expected_rows))
 
     def run(self):
-        self.test_state_window_pseudocolumns_respect_referenced_filter()
         self.test_event_window_no_window_not_out_of_range()
         self.test_event_window_last_wend_not_plus_one()
         self.test_event_window_true_for_definition()

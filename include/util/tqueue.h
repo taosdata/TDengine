@@ -61,7 +61,6 @@ typedef enum {
 
 typedef void (*FItem)(SQueueInfo *pInfo, void *pItem);
 typedef void (*FItems)(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfItems);
-typedef void (*FFreeItem)(void *item);
 
 typedef struct STaosQnode STaosQnode;
 
@@ -79,7 +78,6 @@ struct STaosQnode {
 int32_t taosOpenQueue(STaosQueue **queue);
 void    taosCloseQueue(STaosQueue *queue);
 void    taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
-void    taosQueueSetFreeFp(STaosQueue *queue, FFreeItem fp);
 int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **item);
 void    taosFreeQitem(void *pItem);
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem);

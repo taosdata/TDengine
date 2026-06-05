@@ -76,17 +76,7 @@ fi
 # shellcheck disable=SC2126
 indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 # shellcheck disable=SC2126
-# tmq_vtable intentionally triggers tAssert in error test cases (case_non_snapshot_stb_topic_error).
-# tAssert emits two consecutive lines:
-#   E UTL FATAL tAssert at file .../tmq_vtable.c:72 exit:1
-#   E UTL FATAL obtained 8 stack frames          <- matched by grep -w "stack"
-# The "obtained N stack frames" line carries no file name, so grep -v "tmq_vtable" misses it.
-# Use awk to suppress that line only when it immediately follows a tmq_vtable tAssert line.
-python_error=$(
-  awk '/tmq_vtable/{skip=1;next} skip&&/obtained [0-9]+ stack frames/{skip=0;next} {skip=0}' \
-    "${LOG_DIR}"/*.info \
-  | grep -w "stack" | wc -l
-)
+python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 
 # Use "#" "0x" and "TDinternal" to match python taos error log
 # #1 0x7f480ff14839  (/usr/local/lib/python3.9/site-packages/taosws/taosws.abi3.so+0x269839)

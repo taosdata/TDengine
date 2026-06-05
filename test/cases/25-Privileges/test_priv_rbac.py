@@ -224,97 +224,6 @@ class TestCase:
         tdSql.execute("drop table if exists d2.not_exist_table")
         tdSql.error("drop table d2.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
 
-    def do_check_7002697409(self):
-        """ Test TS-7002697409: correct error for non-existent table when user has db.* or *.* privileges """
-
-        tdSql.connect("root", "taosdata")
-
-        # Best-effort cleanup for re-runs
-        for stmt in [
-            "drop database if exists d_7002",
-            "drop database if exists d_7002_owner",
-        ]:
-            tdSql.execute(stmt)
-        for u in ["u_7002_db", "u_7002_star", "u_7002_owner", "u_7002_noperm"]:
-            try:
-                tdSql.execute(f"drop user {u}", queryTimes=1)
-            except Exception:
-                pass
-
-        tdSql.execute("create database d_7002 keep 36500")
-
-        tdSql.execute(f"create user u_7002_db pass '{self.test_pass}'")    # db.* privileges
-        tdSql.execute(f"create user u_7002_star pass '{self.test_pass}'")  # *.* privileges
-        tdSql.execute(f"create user u_7002_owner pass '{self.test_pass}'") # db owner
-        tdSql.execute(f"create user u_7002_noperm pass '{self.test_pass}'")# use only, no table privileges
-
-        # u_7002_db: grant use + select + insert + show-create on db.*
-        tdSql.execute("grant use on database d_7002 to u_7002_db")
-        tdSql.execute("grant select,insert,show create table on table d_7002.* to u_7002_db")
-        tdSql.execute("revoke role `SYSINFO_1` from u_7002_db")
-
-        # u_7002_star: grant use + select + insert on *.* (global wildcard)
-        tdSql.execute("grant use on database d_7002 to u_7002_star")
-        tdSql.execute("grant select,insert,show create table on table *.* to u_7002_star")
-        tdSql.execute("revoke role `SYSINFO_1` from u_7002_star")
-
-        # u_7002_owner: creates its own database (becomes owner)
-        tdSql.execute("grant create database to u_7002_owner")
-        tdSql.execute("revoke role `SYSINFO_1` from u_7002_owner")
-        tdSql.connect("u_7002_owner", self.test_pass)
-        tdSql.execute("create database d_7002_owner keep 36500")
-
-        # u_7002_noperm: use only, no table-level privileges
-        tdSql.connect("root", "taosdata")
-        tdSql.execute("grant use on database d_7002 to u_7002_noperm")
-        tdSql.execute("revoke role `SYSINFO_1` from u_7002_noperm")
-
-        # u_7002_db (db.* select+insert+show_create): non-existent table → "Table does not exist"
-        tdSql.connect("u_7002_db", self.test_pass)
-        time.sleep(5)  # wait for privilege changes to take effect
-        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
-        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Table does not exist", fullMatched=False)
-        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
-
-        # u_7002_star (*.* select+insert): non-existent table → "Table does not exist"
-        tdSql.connect("u_7002_star", self.test_pass)
-        time.sleep(5)  # wait for privilege changes to take effect
-        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
-        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Table does not exist", fullMatched=False)
-        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
-
-
-        # u_7002_owner (db owner): non-existent table → "Table does not exist"
-        tdSql.connect("u_7002_owner", self.test_pass)
-        time.sleep(5)
-        tdSql.error("select * from d_7002_owner.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
-        tdSql.error("insert into d_7002_owner.not_exist_tb values(now(), 1)", expectErrInfo="Table does not exist", fullMatched=False)
-        tdSql.error("show create table d_7002_owner.not_exist_tb", expectErrInfo="Table does not exist", fullMatched=False)
-
-        # u_7002_noperm (use only, no table privilege): non-existent table → "Permission denied or target object not exist"
-        tdSql.connect("u_7002_noperm", self.test_pass)
-        time.sleep(5)  # wait for privilege changes to take effect
-        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-
-        # Revoke db.* privileges from u_7002_db, verify error changes
-        tdSql.connect("root", "taosdata")
-        tdSql.execute("revoke select on table d_7002.* from u_7002_db")
-        tdSql.execute("revoke insert on table d_7002.* from u_7002_db")
-        tdSql.execute("revoke show create table on table d_7002.* from u_7002_db")
-        tdSql.connect("u_7002_db", self.test_pass)
-        time.sleep(5)  # wait for privilege changes to take effect
-        tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-        tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
-
-        # Cleanup
-        tdSql.connect("root", "taosdata")
-        tdSql.execute("drop database if exists d_7002")
-        tdSql.execute("drop database if exists d_7002_owner")
-        for u in ["u_7002_db", "u_7002_star", "u_7002_owner", "u_7002_noperm"]:
-            tdSql.execute(f"drop user {u}")
-
     def do_check_user_privileges(self, user, expected_privs):
         tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='{user}'")
         tdSql.checkRows(expected_privs)
@@ -1779,7 +1688,6 @@ class TestCase:
         self.do_check_role_privileges()
         # self.do_check_variable_privileges()
         self.do_check_6841225129()
-        self.do_check_7002697409()
         self.do_check_schemaless_db_owner()
         self.do_check_legacy_grammar()
         self.do_check_reserved_principal_names()

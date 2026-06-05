@@ -3489,8 +3489,7 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
 
   // handle first window's start key and last window's end key
   int32_t winBatchNum = (int32_t)taosArrayGetSize(pDynInfo->vtbWindow.pWins);
-  bool    needExtendScan = pInfo->isVstb || pOperator->numOfDownstream > 1;
-  if (winBatchNum > 0 && needExtendScan) {
+  if (winBatchNum > 0) {
     SArray* firstBatch = (SArray*)taosArrayGetP(pDynInfo->vtbWindow.pWins, 0);
     SArray* lastBatch = (SArray*)taosArrayGetP(pDynInfo->vtbWindow.pWins, winBatchNum - 1);
 
@@ -3662,59 +3661,53 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
     }
   } else {
-    if (pOperator->numOfDownstream > 1) {
-      mergeOp = pOperator->pDownstream[1];
-      code = buildMergeOperatorParam(pDynInfo, &pMergeParam, pWinArray, mergeOp->numOfDownstream, numOfWins);
-      QUERY_CHECK_CODE(code, lino, _return);
+    mergeOp = pOperator->pDownstream[1];
+    code = buildMergeOperatorParam(pDynInfo, &pMergeParam, pWinArray, mergeOp->numOfDownstream, numOfWins);
+    QUERY_CHECK_CODE(code, lino, _return);
 
-      SSDataBlock* pMergedBlock = NULL;
-      code = mergeOp->fpSet.getNextExtFn(mergeOp, pMergeParam, &pMergedBlock);
-      QUERY_CHECK_CODE(code, lino, _return);
-      // Free the parameter after operator completes, as it's been saved to the operator
-      if (mergeOp->pOperatorGetParam) {
-        freeOperatorParam(mergeOp->pOperatorGetParam, OP_GET_PARAM);
-        mergeOp->pOperatorGetParam = NULL;
-      }
-      // Also free downstream params if any
-      if (mergeOp->pDownstreamGetParams) {
-        for (int32_t i = 0; i < mergeOp->numOfDownstream; i++) {
-          if (mergeOp->pDownstreamGetParams[i]) {
-            freeOperatorParam(mergeOp->pDownstreamGetParams[i], OP_GET_PARAM);
-            mergeOp->pDownstreamGetParams[i] = NULL;
-          }
+    SSDataBlock* pMergedBlock = NULL;
+    code = mergeOp->fpSet.getNextExtFn(mergeOp, pMergeParam, &pMergedBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+    // Free the parameter after operator completes, as it's been saved to the operator
+    if (mergeOp->pOperatorGetParam) {
+      freeOperatorParam(mergeOp->pOperatorGetParam, OP_GET_PARAM);
+      mergeOp->pOperatorGetParam = NULL;
+    }
+    // Also free downstream params if any
+    if (mergeOp->pDownstreamGetParams) {
+      for (int32_t i = 0; i < mergeOp->numOfDownstream; i++) {
+        if (mergeOp->pDownstreamGetParams[i]) {
+          freeOperatorParam(mergeOp->pDownstreamGetParams[i], OP_GET_PARAM);
+          mergeOp->pDownstreamGetParams[i] = NULL;
         }
       }
+    }
 
-      blockDataCleanup(pRes);
-      code = blockDataEnsureCapacity(pRes, numOfWins);
+    blockDataCleanup(pRes);
+    code = blockDataEnsureCapacity(pRes, numOfWins);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    if (pMergedBlock) {
+      code = copyColumnsValue(pInfo->pTargets, pMergedBlock->info.id.blockId, pRes, pMergedBlock, numOfWins);
       QUERY_CHECK_CODE(code, lino, _return);
 
-      if (pMergedBlock) {
-        code = copyColumnsValue(pInfo->pTargets, pMergedBlock->info.id.blockId, pRes, pMergedBlock, numOfWins);
-        QUERY_CHECK_CODE(code, lino, _return);
+      if (pInfo->curWinBatchIdx == 0) {
+        // first batch, bound _wstart by upstream window range
+        SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(taosArrayGetP(pInfo->pWins, 0), 0);
+        QUERY_CHECK_NULL(firstWin, code, lino, _return, terrno)
 
-        if (pInfo->curWinBatchIdx == 0) {
-          // first batch, bound _wstart by upstream window range
-          SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(taosArrayGetP(pInfo->pWins, 0), 0);
-          QUERY_CHECK_NULL(firstWin, code, lino, _return, terrno)
-
-          firstWin->tw.skey = TMAX(firstWin->tw.skey, pMergedBlock->info.window.skey);
-        }
-        if (pInfo->curWinBatchIdx == taosArrayGetSize(pInfo->pWins) - 1) {
-          // last batch, bound _wend by upstream window range
-          SExtWinTimeWindow* lastWin =
-              (SExtWinTimeWindow*)taosArrayGetLast(taosArrayGetP(pInfo->pWins, taosArrayGetSize(pInfo->pWins) - 1));
-          QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
-
-          lastWin->tw.ekey = TMIN(lastWin->tw.ekey, pMergedBlock->info.window.ekey + 1);
-        }
+        firstWin->tw.skey = TMAX(firstWin->tw.skey, pMergedBlock->info.window.skey);
       }
-    } else {
-      blockDataCleanup(pRes);
-      code = blockDataEnsureCapacity(pRes, numOfWins);
-      QUERY_CHECK_CODE(code, lino, _return);
+      if (pInfo->curWinBatchIdx == taosArrayGetSize(pInfo->pWins) - 1) {
+        // last batch, bound _wend by upstream window range
+        SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(taosArrayGetP(pInfo->pWins, taosArrayGetSize(pInfo->pWins) - 1));
+        QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
+
+        lastWin->tw.ekey = TMIN(lastWin->tw.ekey, pMergedBlock->info.window.ekey + 1);
+      }
     }
   }
+
 
   if (pInfo->outputWstartSlotId != -1) {
     SColumnInfoData* pWstartCol = taosArrayGet(pRes->pDataBlock, pInfo->outputWstartSlotId);

@@ -1,0 +1,69 @@
+select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col slimit 10 limit 10;
+select u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col slimit 10 limit 10;
+select u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col slimit 10 limit 10;
+select avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col slimit 10 limit 10;
+select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col slimit 10 limit 10;
+select * from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col slimit 10 limit 10;
+
+select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col + 1 slimit 10 limit 10;
+select u_tinyint_col + 1 from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col + 1 slimit 10 limit 10;
+select u_tinyint_col + 1, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col + 1 slimit 10 limit 10;
+select avg(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col + 1 slimit 10 limit 10;
+select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col + 1 slimit 10 limit 10;
+select * from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col + 1 slimit 10 limit 10;
+
+select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select u_tinyint_col, tinyint_col from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select u_tinyint_col, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select avg(u_int_col), avg(tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col, tinyint_col slimit 10 limit 10;
+select * from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col, tinyint_col slimit 10 limit 10;
+
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(10s) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col interval(10s) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col interval(10s) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col interval(1d) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col interval(1d) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col interval(1d) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col interval(1d) slimit 10 limit 10;
+
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col state_window(bool_col) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col state_window(bool_col) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col state_window(bool_col) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col state_window(bool_col) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col state_window(bool_col) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col state_window(bool_col) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col state_window(bool_col) slimit 10 limit 10;
+
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col session(ts, 10a) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col session(ts, 10a) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col session(ts, 10a) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col session(ts, 10a) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col session(ts, 10a) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col session(ts, 10a) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col session(ts, 10a) slimit 10 limit 10;
+
+select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 slimit 10 limit 10;
+select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 slimit 10 limit 10;
+select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 slimit 10 limit 10;
+select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 slimit 10 limit 10;
+
+select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 slimit 10 limit 10;
+select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 slimit 10 limit 10;
+select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 slimit 10 limit 10;
+select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 slimit 10 limit 10;
+
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col count_window(10) slimit 10 limit 10;
+select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tinyint_col count_window(10) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col count_window(10) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col count_window(10) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col count_window(10) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col count_window(10) slimit 10 limit 10;
+select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ntb_full partition by bool_col count_window(10) slimit 10 limit 10;
+
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(1s) slimit 10 limit 10;
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(1s) slimit 2 limit 10;
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(1s) slimit 2 limit 5;
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(1s) slimit 20 limit 2;
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(1s) slimit 20 limit 5;
+select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ntb_full partition by u_tinyint_col interval(1s) slimit 10 limit 2;
