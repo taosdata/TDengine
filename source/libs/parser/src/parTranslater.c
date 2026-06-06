@@ -24007,7 +24007,8 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SNodeList* pSpecif
     }
   }
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNewWithName(pTagArray, tagName, getTableTagSchema(pSuperTableMeta), numOfTags, 1, ppTag);
+    taosArraySort(tagName, tTagNameCompare);
+    code = tTagNew(pTagArray, 1, false, ppTag);
   }
 
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
@@ -24131,7 +24132,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   }
 
   STag*   pTag = NULL;
-  SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
 
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pStmt->pSpecificTags) {
@@ -24326,8 +24327,8 @@ static int32_t parseOneStbRow(SMsgBuf* pMsgBuf, SParseFileContext* pParFileCxt, 
   if (TSDB_CODE_SUCCESS == code) {
     pParFileCxt->tagNameFilled = true;
     if (!isJson) {
-      code = tTagNewWithName(pParFileCxt->aTagVals, pParFileCxt->aTagNames, pSchemas, numOfTags, 1,
-                             &pParFileCxt->pTag);
+      taosArraySort(pParFileCxt->aTagNames, tTagNameCompare);
+      code = tTagNew(pParFileCxt->aTagVals, 1, false, &pParFileCxt->pTag);
     }
   }
 
@@ -24439,7 +24440,7 @@ static int32_t constructParseFileContext(SCreateSubTableFromFileClause* pStmt, S
   tstrncpy(pParFileCxt->ctbName.dbname, pStmt->useDbName, TSDB_DB_NAME_LEN);
 
   if (NULL == pParFileCxt->aTagNames) {
-    pParFileCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    pParFileCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
     if (NULL == pParFileCxt->aTagNames) {
       code = terrno;
       goto _ERR;
@@ -26660,7 +26661,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   PAR_ERR_JRET(checkCreateVSubTable(pCxt, pStmt));
 
   pBufArray = taosArrayInit(1, POINTER_BYTES);
-  tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
   if (NULL == pBufArray || NULL == tagName) {
     PAR_ERR_JRET(terrno);
   }

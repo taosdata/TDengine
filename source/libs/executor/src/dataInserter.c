@@ -1002,7 +1002,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     } else {
       pReq = (*ppSendInfo)->msg;
     }
-    SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    SArray* TagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
     if (!TagNames) {
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
@@ -1048,7 +1048,8 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
               tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
               goto _end;
             }
-            if (NULL == taosArrayPush(TagNames, tSchema->name)) {
+            int32_t code = insTagNameAppend(TagNames, tSchema->name, tSchema->colId);
+            if (code != 0) {
               taosArrayDestroy(TagNames);
               tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
               goto _end;
@@ -1078,7 +1079,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
                 tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
                 goto _end;
               }
-              if (NULL == taosArrayPush(TagNames, tSchema->name)) {
+              if (TSDB_CODE_SUCCESS != insTagNameAppend(TagNames, tSchema->name, tSchema->colId)) {
                 taosArrayDestroy(TagNames);
                 tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
                 goto _end;
@@ -1095,7 +1096,8 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       }
     }
     STag* pTag = NULL;
-    code = tTagNewWithName(pTagVals, TagNames, pInserter->pTagSchema->pSchema, pInserter->pTagSchema->nCols, 1, &pTag);
+    taosArraySort(TagNames, tTagNameCompare);
+    code = tTagNew(pTagVals, 1, false, &pTag);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
       qError("failed to create tag, error:%s", tstrerror(code));
@@ -1338,7 +1340,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
       // 解析tag
-      pTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+      pTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
       if (!pTagNames) {
         terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         goto _end;
@@ -1379,7 +1381,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
               if (NULL == taosArrayPush(pTagVals, &tv)) {
                 goto _end;
               }
-              if (NULL == taosArrayPush(pTagNames, tSchema->name)) {
+              int32_t code = insTagNameAppend(pTagNames, tSchema->name, tSchema->colId);
+              if (code != 0) {
                 goto _end;
               }
             }
@@ -1403,7 +1406,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
                 if (NULL == taosArrayPush(pTagVals, &tv)) {
                   goto _end;
                 }
-                if (NULL == taosArrayPush(pTagNames, tSchema->name)) {
+                int32_t code = insTagNameAppend(pTagNames, tSchema->name, tSchema->colId);
+                if (code != 0) {
                   goto _end;
                 }
               }
@@ -1416,7 +1420,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         }
       }
       STag* pTag = NULL;
-      code = tTagNewWithName(pTagVals, pTagNames, pInserter->pTagSchema->pSchema, pInserter->pTagSchema->nCols, 1, &pTag);
+      taosArraySort(pTagNames, tTagNameCompare);
+      code = tTagNew(pTagVals, 1, false, &pTag);
       if (code != TSDB_CODE_SUCCESS) {
         terrno = code;
         qError("failed to create tag, error:%s", tstrerror(code));
@@ -1842,16 +1847,10 @@ static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInser
                  pInsertParam->suid, pInsertParam->sver);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
-  int32_t  nTags = pInserterInfo->pTagVals->size;
-  SSchema* pTagSchema = NULL;
+  int32_t nTags = pInserterInfo->pTagVals->size;
 
-  TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN);
+  TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN + sizeof(col_id_t));
   if (!TagNames) {
-    code = terrno;
-    goto _end;
-  }
-  pTagSchema = taosMemoryCalloc(nTags, sizeof(SSchema));
-  if (!pTagSchema) {
     code = terrno;
     goto _end;
   }
@@ -1877,13 +1876,8 @@ static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInser
   for (int32_t i = 0; i < nTags; ++i) {
     SStreamTagInfo*    pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
     SFieldWithOptions* pField = taosArrayGet(pInsertParam->pTagFields, i);
-    col_id_t           cid = pInsertParam->tagCids ? *(col_id_t*)taosArrayGet(pInsertParam->tagCids, i)
-                                                   : (col_id_t)(pInsertParam->pFields->size + i + 1);
-    // Always populate pTagSchema so tTagAlignNameByCid() can resolve any cid
-    // that ends up in pTagVals, including when some tags are skipped below
-    // because their value is null.
-    pTagSchema[i].colId = cid;
-    tstrncpy(pTagSchema[i].name, pField->name, TSDB_COL_NAME_LEN);
+    col_id_t cid = pInsertParam->tagCids ? *(col_id_t*)taosArrayGet(pInsertParam->tagCids, i)
+                                         : (col_id_t)(pInsertParam->pFields->size + i + 1);
 
     if (pTagInfo->val.isNull) {
       continue;
@@ -1904,13 +1898,15 @@ static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInser
       code = terrno;
       goto _end;
     }
-    if (NULL == taosArrayPush(TagNames, pField->name)) {
+    int32_t code = insTagNameAppend(TagNames, pField->name, cid);
+    if (code != 0) {
       code = terrno;
       goto _end;
     }
   }
-  
-  code = tTagNewWithName(pTagVals, TagNames, pTagSchema, nTags, pInsertParam->sver, &pTag);
+
+  taosArraySort(TagNames, tTagNameCompare);
+  code = tTagNew(pTagVals, pInsertParam->sver, false, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("failed to create tag, error:%s", tstrerror(code));
     goto _end;
@@ -1937,7 +1933,6 @@ _end:
   if (pTagVals) {
     taosArrayDestroy(pTagVals);
   }
-  taosMemoryFreeClear(pTagSchema);
   return code;
 }
 

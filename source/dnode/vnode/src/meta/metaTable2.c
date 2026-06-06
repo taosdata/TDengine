@@ -1439,14 +1439,18 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
     SUpdatedTagVal *pTagVal = taosArrayGet(arr, i);
     if (taosHashGet(*hashMap, &pTagVal->colId, sizeof(pTagVal->colId)) != NULL) {
       metaError("%s failed at %s:%d since duplicate tags %s", __func__, __FILE__, __LINE__, pTagVal->tagName);
-      taosHashCleanup(*hashMap);
       return TSDB_CODE_INVALID_MSG;
     }
 
+    for (int32_t i = 0; i < pTagSchema->nCols; i++) { // update colId accrodding colName
+      if (strcmp(pTagSchema->pSchema[i].name, pTagVal->tagName) == 0) {
+        pTagVal->colId = pTagSchema->pSchema[i].colId;
+      }
+    }
+    
     int32_t code = taosHashPut(*hashMap, &pTagVal->colId, sizeof(pTagVal->colId), pTagVal, sizeof(*pTagVal));
     if (code) {
       metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
-      taosHashCleanup(*hashMap);
       return code;
     }
   }
@@ -1460,7 +1464,6 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
   }
   if (changed < numOfTags) {
     metaError("%s failed at %s:%d since tag count mismatch, %d:%d", __func__, __FILE__, __LINE__, changed, numOfTags);
-    taosHashCleanup(*hashMap);
     return TSDB_CODE_VND_COL_NOT_EXISTS;
   }
 
