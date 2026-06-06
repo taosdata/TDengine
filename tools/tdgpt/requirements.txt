@@ -26,7 +26,7 @@ pytz==2024.2
 rich==13.9.2
 rstl==0.1.3
 six==1.16.0
-sympy==1.12
+sympy==1.13.1
 threadpoolctl==3.5.0
 urllib3==2.7.0
 Flask-Testing==0.8.1
