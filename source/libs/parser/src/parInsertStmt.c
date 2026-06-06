@@ -15,10 +15,12 @@
 
 #include "geosWrapper.h"
 #include "os.h"
+#include "osDef.h"
 #include "parInsertUtil.h"
 #include "parInt.h"
 #include "parToken.h"
 #include "query.h"
+#include "tarray.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -159,7 +161,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
 
-  SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));  // last 2 bytes save coiId to compare
   if (!tagName) {
     code = buildInvalidOperationMsg(&pBuf, "out of memory");
     goto end;
@@ -256,16 +258,13 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
         code = terrno;
         goto end;
       }
-      if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-        code = terrno;
-        goto end;
-      }
+      code = insTagNameAppend(tagName, pTagSchema->name, pTagSchema->colId);
+      if (TSDB_CODE_SUCCESS != code) goto end;
     }
   }
+  taosArraySort(tagName, tTagNameCompare);
 
-  if (!isJson &&
-      (code = tTagNewWithName(pTagArray, tagName, pSchema, pDataBlock->pMeta->tableInfo.numOfTags, 1, &pTag)) !=
-          TSDB_CODE_SUCCESS) {
+  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
@@ -619,7 +618,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   if (tags->parseredTags) {
     tagName = taosArrayDup(tags->parseredTags->STagNames, NULL);
   } else {
-    tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
   }
 
   if (!tagName) {
@@ -748,17 +747,15 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         code = terrno;
         goto end;
       }
-      if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
-        code = terrno;
-        goto end;
-      }
+      code = insTagNameAppend(tagName, pTagSchema->name, pTagSchema->colId);
+      if (TSDB_CODE_SUCCESS != code) goto end;
     }
   }
 
-  if (!isJson &&
-      (code = tTagNewWithName(pTagArray, tagName, pSchema, pDataBlock->pMeta->tableInfo.numOfTags, 1, &pTag)) !=
-          TSDB_CODE_SUCCESS) {
-    goto end;
+  if (!isJson) {
+    taosArraySort(tagName, tTagNameCompare);
+    code = tTagNew(pTagArray, 1, false, &pTag);
+    if (code != TSDB_CODE_SUCCESS) goto end;
   }
 
   if (pCreateTbReq) {
