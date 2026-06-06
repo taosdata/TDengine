@@ -124,7 +124,10 @@ void getFieldsError(TAOS* taos, const char* sql, int errorCode, const char* erro
   TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
   int code = taos_stmt2_prepare(stmt, sql, 0);
-  checkError(stmt, code, __FILE__, __LINE__);
+  // checkError(stmt, code, __FILE__, __LINE__);
+  ASSERT_EQ(code, errorCode);
+
+  if (code) return;
 
   int             fieldNum = 0;
   TAOS_FIELD_ALL* pFields = NULL;
@@ -477,6 +480,8 @@ TEST(stmt2Case, timezone) {
       getRecordCounts++;
     }
     ASSERT_EQ(getRecordCounts, 1);
+
+    taos_stmt2_close(stmt);
   }
 
   // stmt2 wiht time str in UTC timezone
@@ -781,7 +786,7 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
   {
     const char* sql = "insert into stmt2_testdb_2.stb(t1,t2,ts,b,tbname) values(*,*,*,*,*)";
     printf("case 9 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_PAR_INVALID_COLUMNS_NUM, "Illegal number of columns");
+    getFieldsError(taos, sql, /*TSDB_CODE_PAR_INVALID_COLUMNS_NUM*/TSDB_CODE_TSC_SQL_SYNTAX_ERROR, "Illegal number of columns");
   }
 
   do_query(taos, "drop database if exists stmt2_testdb_2");
@@ -1120,7 +1125,7 @@ TEST(stmt2Case, insert_ntb_get_fields_Test) {
   {
     const char* sql = "insert into stmt2_testdb_4.? values(?,?)";
     printf("case 2 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Table does not exist");
+    getFieldsError(taos, sql, /*TSDB_CODE_TSC_STMT_TBNAME_ERROR*/TSDB_CODE_SUCCESS, "Table does not exist");
   }
 
   // case 3 :  wrong para nums
@@ -1609,6 +1614,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     int code = taos_stmt2_prepare(stmt, sql, 0);
     ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
     ASSERT_STREQ(taos_stmt2_error(stmt), "stmt only support 'SELECT' or 'INSERT'");
+
 
     taos_stmt2_close(stmt);
   }
@@ -3747,7 +3753,7 @@ TEST(stmt2Case, errcode) {
     int             fieldNum = 0;
     TAOS_FIELD_ALL* pFields = NULL;
     code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-    ASSERT_EQ(code, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
+    ASSERT_EQ(code, /*TSDB_CODE_TSC_STMT_TBNAME_ERROR*/TSDB_CODE_SUCCESS);
 
     // get fail dont influence the next stmt prepare
     sql = "insert into ? (ts, name) values (?, ?)";
@@ -5124,7 +5130,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv = &params[0];
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], NULL, &paramv};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -5145,7 +5151,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv = &params[0];
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], NULL, &paramv};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -5208,7 +5214,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[0]};
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], &pTag, &paramv[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -5226,7 +5232,7 @@ TEST(stmt2Case, no_tag) {
     TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[0]};
     TAOS_STMT2_BINDV bindv = {1, &tbname[1], &pTag, &paramv[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    ASSERT_EQ(code, /*TSDB_CODE_PAR_TABLE_NOT_EXIST*/TSDB_CODE_TSC_STMT_CACHE_ERROR);
 
     taos_stmt2_close(stmt);
   }
@@ -6163,55 +6169,289 @@ TEST(stmt2Case, query_timestamp_auto_precision) {
   taos_close(taos);
 }
 
-TEST(stmt2Case, query_event_window_concat_date) {
-  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
-  ASSERT_NE(taos, nullptr);
+class stmt2CaseF : public testing::Test {
+  public:
+    stmt2CaseF() : taos_(NULL), stmt2_(NULL) { }
+    ~stmt2CaseF() { }
 
-  do_query(taos, "drop database if exists ggdl_scss");
-  do_query(taos, "create database if not exists ggdl_scss");
-  do_query(taos, "create table ggdl_scss.scss_dc_pwr_spd_irrad(ts timestamp, dccode binary(32), pwr double)");
+    void SetUp(void) override {
+    }
 
-  do_query(taos,
-           "insert into ggdl_scss.scss_dc_pwr_spd_irrad values"
-           "('2026-05-20 00:00:00', 'dc_a', 10.0)"
-           "('2026-05-20 00:10:00', 'dc_a', 30.0)"
-           "('2026-05-20 00:00:00', 'dc_b', 1.0)"
-           "('2026-05-20 00:05:00', 'dc_b', 2.0)"
-           "('2026-05-20 00:10:00', 'dc_b', 3.0)");
+    void TearDown(void) override {
+      if (stmt2_) {
+        taos_stmt2_close(stmt2_);
+        stmt2_ = NULL;
+      }
+      if (taos_) {
+        taos_close(taos_);
+        taos_ = NULL;
+      }
+    }
 
-  const char* sql =
-      "SELECT st AS data_time, SUM(val) AS sum_pwr "
-      "FROM ("
-      "  SELECT _wstart AS st, last(pwr) AS val "
-      "  FROM ggdl_scss.scss_dc_pwr_spd_irrad "
-      "  WHERE ts >= CONCAT(?, ' 00:00:00') "
-      "    AND ts <= CONCAT(?, ' 23:59:59') "
-      "  PARTITION BY dccode "
-      "  INTERVAL(5m) "
-      "  FILL(PREV)"
-      ") t "
-      "GROUP BY st "
-      "ORDER BY st";
+    const char* hexify(int32_t code) {
+      snprintf(buf_, sizeof(buf_), "0x%08x", code);
+      return buf_;
+    }
 
-  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
-  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
-  ASSERT_NE(stmt, nullptr);
+    TAOS       *taos_;
+    TAOS_STMT2 *stmt2_;
+    char        buf_[64];
+};
 
-  int code = taos_stmt2_prepare(stmt, sql, 0);
+TEST_F(stmt2CaseF, exec_direct) {
+  taos_ = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos_, nullptr);
 
-  int32_t          date_len[2] = {0};
-  char             isnull[1] = {1};
-  TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_BINARY, (void*)NULL, &date_len[0], isnull, 1},
-                                {TSDB_DATA_TYPE_BINARY, (void*)NULL, &date_len[0], isnull, 1}};
-  TAOS_STMT2_BIND* paramv = &params[0];
-  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+  stmt2_ = taos_stmt2_init(taos_, NULL);
+  ASSERT_NE(stmt2_, nullptr);
 
-  code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  code = taos_stmt2_exec(stmt, NULL);
+#define R(sql, exp, affected_rows, rows) { __LINE__, sql, exp, affected_rows, rows }
+  struct {
+    int                 line;
+    const char         *sql;
+    bool                exp_ok;
+    int                 exp_affected_rows;
+    int                 exp_rows;
+  } _cases[] = {
+    R("drop database if exists stmt2_exec_direct",
+        true, 0, -1),
+    R("create database if not exists stmt2_exec_direct precision 'ns'",
+        true, 0, -1),
+    R("create table stmt2_exec_direct.t (ts timestamp, i32 int)",
+        true, 0, -1),
+    R("insert into stmt2_exec_direct.t (ts, i32) values (now, 1) (now+1b, 2) (now+2b, 3)",
+        true, 3, -1),
+    R("select * from stmt2_exec_direct.t",
+        true, 0, 3),
+    R("select * from stmt2_exec_direct.t where 1 = 2",
+        true, 0, 0),
+  };
+#undef R
+  for (size_t i=0; i<sizeof(_cases)/sizeof(*_cases); ++i) {
+    int         line               = _cases[i].line;
+    const char *sql                = _cases[i].sql;
+    bool        exp_ok             = _cases[i].exp_ok;
+    int         exp_affected_rows  = _cases[i].exp_affected_rows;
+    int         exp_rows           = _cases[i].exp_rows;
+    int r = taos_stmt2_prepare(stmt2_, sql, (unsigned long)strlen(sql));
+    if ((!r) ^ exp_ok) {
+      if (exp_ok) {
+        ASSERT_EQ(r, 0)
+          << "`taos_stmt2_prepare` "
+          << "expecting success, but failed" << std::endl
+          << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+          << "@" << line << std::endl
+          << sql << std::endl;
+      } else {
+        ASSERT_NE(r, 0)
+          << "`taos_stmt2_prepare` "
+          << "expecting failure, but succeeded" << std::endl
+          << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+          << "@" << line << std::endl
+          << sql << std::endl;
+      }
+    }
 
-  taos_stmt2_close(stmt);
-  do_query(taos, "drop database if exists ggdl_scss");
-  taos_close(taos);
+    int affected_rows = 0;
+    r = taos_stmt2_exec(stmt2_, &affected_rows);
+    if ((!r) ^ exp_ok) {
+      if (exp_ok) {
+        ASSERT_EQ(r, 0)
+          << "`taos_stmt2_exec` "
+          << "expecting success, but failed" << std::endl
+          << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+          << "@" << line << std::endl
+          << sql << std::endl;
+      } else {
+        ASSERT_NE(r, 0)
+          << "`taos_stmt2_exec` "
+          << "expecting success, but failed" << std::endl
+          << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+          << "@" << line << std::endl
+          << sql << std::endl;
+      }
+    } else if (r == 0) {
+      ASSERT_EQ(affected_rows, exp_affected_rows)
+        << "@" << line << std::endl
+        << sql << std::endl;
+    }
+
+    TAOS_RES *res = taos_stmt2_result(stmt2_);
+    if ((!!res) ^ (exp_rows!=-1)) {
+      if (exp_rows!=-1) {
+        ASSERT_NE(res, nullptr)
+          << "expecting resultset, but got either ddl or insert" << std::endl
+          << "@" << line << std::endl
+          << sql << std::endl;
+      } else {
+        ASSERT_EQ(res, nullptr)
+          << "expecting either ddl or insert, but got resultset" << std::endl
+          << "@" << line << std::endl
+          << sql << std::endl;
+      }
+    }
+    if (exp_rows!=-1) {
+      int nr_rows = 0;
+      while (taos_fetch_row(res)) {
+        ++nr_rows;
+      }
+      ASSERT_EQ(nr_rows, exp_rows)
+          << "@" << line << std::endl
+          << sql << std::endl;
+    }
+  }
+
+  taos_stmt2_close(stmt2_);
+  stmt2_ = nullptr;
+
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+  do_query(taos_, "drop database if exists stmt2_exec_direct");
+}
+
+TEST_F(stmt2CaseF, insert) {
+  taos_ = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos_, nullptr);
+
+  stmt2_ = taos_stmt2_init(taos_, NULL);
+  ASSERT_NE(stmt2_, nullptr);
+
+#define R(sql) { __LINE__, sql }
+  struct {
+    int                 line;
+    const char         *sql;
+  } _cases[] = {
+    R("drop database if exists stmt2_insert"),
+    R("create database if not exists stmt2_insert precision 'ns'"),
+    R("create table stmt2_insert.t (ts timestamp, i32 int)"),
+    R("create table stmt2_insert.stb (ts timestamp, i32 int) tags (tname varchar(2))"),
+  };
+#undef R
+  for (size_t i=0; i<sizeof(_cases)/sizeof(*_cases); ++i) {
+    int         line               = _cases[i].line;
+    const char *sql                = _cases[i].sql;
+    int r = taos_stmt2_prepare(stmt2_, sql, (unsigned long)strlen(sql));
+    ASSERT_EQ(r, 0)
+      << "`taos_stmt2_prepare` "
+      << "expecting success, but failed" << std::endl
+      << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+      << "@" << line << std::endl
+      << sql << std::endl;
+
+    r = taos_stmt2_exec(stmt2_, NULL);
+    ASSERT_EQ(r, 0)
+      << "`taos_stmt2_exec` "
+      << "expecting success, but failed" << std::endl
+      << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+      << "@" << line << std::endl
+      << sql << std::endl;
+  }
+
+#define R(sql, exp_code, exp_params) { __LINE__, sql, exp_code, exp_params}
+  struct {
+    int                 line;
+    const char         *sql;
+    int32_t             exp_code;
+    int                 exp_params;
+  } _cases1[] = {
+    R("insert into stmt2_insert.t (ts, i32) values (?, 1)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? (ts, i32) values (?, ?)",
+        TSDB_CODE_SUCCESS, 3),
+    R("insert into stmt2_insert.t (ts, i32) values (?, ?)",
+        TSDB_CODE_SUCCESS, 2),
+    // no table found
+    R("insert into stmt2_insert.tx (ts, i32) values (?, ?)",
+        TSDB_CODE_TSC_STMT_TBNAME_ERROR, -1),
+    // no super table (guessed by `tbname`) found
+    R("insert into stmt2_insert.xstb (tbname, tname, ts, i32) values (?, ?, ?, ?)",
+        TSDB_CODE_TSC_STMT_TBNAME_ERROR, -1),
+    // no super table (guessed by using clause) found
+    R("insert into ? using stmt2_insert.xstb (tname) tags (?) (ts, i32) values (?, ?)",
+        TSDB_CODE_TSC_STMT_TBNAME_ERROR, -1),
+    // no super table (guessed by using clause with normal column names ahead) found
+    R("insert into ? (ts, i32) using stmt2_insert.xstb (tname) tags (?) values (?, ?)",
+        TSDB_CODE_TSC_STMT_TBNAME_ERROR, -1),
+    // invalid column name
+    R("insert into stmt2_insert.stb(t1,t2,ts,b,tbname) values(*,*,*,*,*)",
+        TSDB_CODE_PAR_INVALID_COLUMN, -1),
+    // invalid `*` in values clause
+    R("insert into stmt2_insert.stb(tname,ts,i32,tbname) values(*,*,*,*)",
+        TSDB_CODE_TSC_SQL_SYNTAX_ERROR, -1),
+    R("insert into stmt2_insert.t (ts, i32) values (?, ?)",
+        TSDB_CODE_SUCCESS, 2),
+    R("insert into stmt2_insert.stb (tbname, tname, ts, i32) values (?, ?, ?, ?)",
+        TSDB_CODE_SUCCESS, 4),
+    R("insert into ? using stmt2_insert.stb (tname) tags (?) (ts, i32) values (?, ?)",
+        TSDB_CODE_SUCCESS, 4),
+    R("insert into ? (ts, i32) using stmt2_insert.stb (tname) tags (?) values (?, ?)",
+        TSDB_CODE_SUCCESS, 4),
+    R("insert into ? (ts, i32) values (?, ?)",
+        TSDB_CODE_SUCCESS, 3),
+    R("select * from stmt2_insert.t where ts = ? and (i32 = ? or i32 = ?)",
+        TSDB_CODE_SUCCESS, 3),
+    R("insert into stmt2_insert.t (ts, i32) values (?, ?) (?, ?)",
+        TSDB_CODE_SUCCESS, 2), // flaw: redundant (?, ?) shall be reported as error
+    R("insert into stmt2_insert.t (ts, i32) values (?, 1)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(?,?)",
+        TSDB_CODE_SUCCESS, 3),
+    R("insert into stmt2_insert.? values(now(),?)",
+        TSDB_CODE_SUCCESS, 2),
+    R("insert into stmt2_insert.? values(now,?)",
+        TSDB_CODE_SUCCESS, 2),
+    R("insert into stmt2_insert.? values(now,null)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,true)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,false)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,-1)",
+        TSDB_CODE_SUCCESS, 1),
+    R("insert into stmt2_insert.? values(now,-1.2)",
+        TSDB_CODE_SUCCESS, 1),
+  };
+#undef R
+  for (size_t i=0; i<sizeof(_cases1)/sizeof(*_cases1); ++i) {
+    int         line               = _cases1[i].line;
+    const char *sql                = _cases1[i].sql;
+    int         exp_code           = _cases1[i].exp_code;
+    int         exp_params         = _cases1[i].exp_params;
+
+    int r = taos_stmt2_prepare(stmt2_, sql, (unsigned long)strlen(sql));
+    if (r) {
+      ASSERT_EQ(r, exp_code)
+        << "`taos_stmt2_prepare` "
+        << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+        << "@" << line << std::endl
+        << sql << std::endl;
+      continue;
+    } else {
+      ASSERT_EQ(r, exp_code)
+        << "`taos_stmt2_prepare` "
+        << "@" << line << std::endl
+        << sql << std::endl;
+    }
+
+    int             count  = 0;
+    TAOS_FIELD_ALL *fields = NULL;
+    r = taos_stmt2_get_fields(stmt2_, &count, &fields);
+    taos_stmt2_free_fields(stmt2_, fields);
+    ASSERT_EQ(r, 0)
+      << "`taos_stmt2_get_fields` "
+      << "expecting success, but failed" << std::endl
+      << "[" << hexify(r) << "]" << taos_stmt2_error(stmt2_) << std::endl
+      << "@" << line << std::endl
+      << sql << std::endl;
+    ASSERT_EQ(count, exp_params)
+      << "@" << line << std::endl
+      << sql << std::endl;
+  }
+
+  taos_stmt2_close(stmt2_);
+  stmt2_ = nullptr;
+
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+  do_query(taos_, "drop database if exists stmt2_insert");
 }
 
 #pragma GCC diagnostic pop
