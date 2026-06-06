@@ -504,6 +504,9 @@ class TDCom:
     #     return
 
     def getBuildPath(self):
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -1901,8 +1904,18 @@ def is_json(msg):
         return False
 
 def get_path(tool="taosd"):
+    # 优先使用 BUILD_DIR 环境变量（run_case.sh 和 pytest.sh 均会导出）
+    build_dir = os.environ.get("BUILD_DIR", "")
+    if build_dir:
+        _bin = os.path.join(build_dir, "build", "bin", tool)
+        if os.path.isfile(_bin):
+            return _bin
+        if os.path.isfile(_bin + ".exe"):
+            return _bin + ".exe"
     selfPath = os.path.dirname(os.path.realpath(__file__))
-    if ("community" in selfPath):
+    if ("taos-community" in selfPath):
+        projPath = selfPath[:selfPath.find("taos-community")]
+    elif ("community" in selfPath):
         projPath = selfPath[:selfPath.find("community")]
     else:
         projPath = selfPath[:selfPath.find("tests")]

@@ -1,10 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -406,5 +409,49 @@ func Test_createSTables(t *testing.T) {
 		} else {
 			assert.NoError(t, err)
 		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestGeneralMetric_lineWriteBody_ClientDoErrorNilResponse_ReturnsError(t *testing.T) {
+	sentinel := errors.New("net boom")
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return nil, sentinel
+	})}
+
+	gm := &GeneralMetric{
+		client:   client,
+		username: "u",
+		password: "p",
+		url: &url.URL{
+			Scheme:   "http",
+			Host:     "example.com",
+			Path:     "/influxdb/v1/write",
+			RawQuery: "db=test&precision=ms&table_name_key=" + STABLE_NAME_KEY,
+		},
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("m  1\n")
+
+	var logs bytes.Buffer
+	oldOut := logger.Logger.Out
+	logger.Logger.SetOutput(&logs)
+	defer logger.Logger.SetOutput(oldOut)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("lineWriteBody should return the client error without panic, got panic: %v", r)
+		}
+	}()
+
+	err := gm.lineWriteBody(&buf, 42)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, sentinel)
+	if !strings.Contains(logs.String(), "resp:-1") {
+		t.Fatalf("expected nil response to be logged as resp:-1, got log: %q", logs.String())
 	}
 }

@@ -1898,6 +1898,7 @@ int32_t tDeserializeSCompactDbRsp(void* buf, int32_t bufLen, SCompactDbRsp* pRsp
 
 typedef struct {
   int32_t compactId;
+  int8_t  force;
   int32_t sqlLen;
   char*   sql;
 } SKillCompactReq;

@@ -57,6 +57,7 @@ typedef struct {
   int32_t  encryptAlgorithm;
   char     encryptKey[ENCRYPT_KEY_LEN + 1];
   int8_t   clearFiles;
+  int32_t  replicaNum;  // number of replicas, used for corruption-handling policy
 } SWalCfg;
 
 typedef struct {
@@ -185,6 +186,10 @@ int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
 int32_t walEndSnapshot(SWal *, bool forceTrim);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 void    walApplyVer(SWal *, int64_t ver);
+// Clear a corrupted WAL and reset it to a valid empty state anchored at commitIndex.
+// Equivalent to walRenameCorruptedDir followed by a version reset.
+// Returns TSDB_CODE_WAL_LOG_INCOMPLETE when deletion is not permitted by configuration.
+int32_t walClearCorruption(SWal *pWal, int64_t commitIndex);
 
 // wal reader
 SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);

@@ -38,9 +38,15 @@ class TDFindPath:
         Returns:
             str: the path to directory containing taosdemo
         """
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return os.path.join(build_dir, "build", "bin") + "/"
+
         selfPath = os.path.dirname(os.path.realpath(self.file))
 
-        if ("community" in selfPath):
+        if ("taos-community" in selfPath):
+            projPath = selfPath[:selfPath.find("taos-community")]
+        elif ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
@@ -65,7 +71,9 @@ class TDFindPath:
         """
         selfPath = os.path.dirname(os.path.realpath(self.file))
 
-        if ("community" in selfPath):
+        if ("taos-community" in selfPath):
+            projPath = selfPath[:selfPath.find("taos-community")]
+        elif ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]

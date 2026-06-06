@@ -88,7 +88,9 @@ class TDDnode:
         self.asan = value
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
-            if ("community" in selfPath):
+            if ("taos-community" in selfPath):
+                self.execPath = os.path.abspath(self.path + "/source/taos-community/tests/script/sh/exec.sh")
+            elif ("community" in selfPath):
                 self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")
             else:
                 self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")
@@ -223,6 +225,11 @@ class TDDnode:
             (self.index, self.cfgPath))
 
     def getPath(self, tool="taosd"):
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            tool_path = os.path.join(build_dir, "build", "bin", tool)
+            if os.path.isfile(tool_path):
+                return tool_path
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):

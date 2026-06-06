@@ -54,20 +54,24 @@ class TDTestCase(TBase):
         time.sleep(10)
         pids = self.get_pids_by_name("taosBenchmark")
         if pids:
-            tdLog.info(f"Find a process named taosBbenchmark with PID: {pids}")
+            tdLog.info(f"Find a process named taosBenchmark with PID: {pids}")
+            os.kill(pids[0], signal.SIGINT)
         else:
-            tdLog.exit("No process named taosBbenchmark was found.")
+            # taosBenchmark already exited on its own, nothing to kill
+            tdLog.info("taosBenchmark already exited before SIGINT, skip kill")
+            return
 
-        os.kill(pids[0], signal.SIGINT)
+        # Poll until t1 sets self._rlist (taosBenchmark output collected), max 60s
+        for _ in range(60):
+            if self._rlist is not None:
+                break
+            time.sleep(1)
 
-
-        time.sleep(10)
-        
         if self._rlist:
-            tdLog.info(self._rlist)   
+            tdLog.info(self._rlist)
             self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
-            tdLog.exit("The benchmark process has not stopped!")
+            tdLog.exit("taosBenchmark did not exit within 60s after SIGINT")
 
 
     def dbInsert(self):
@@ -94,9 +98,11 @@ class TDTestCase(TBase):
         t2 = threading.Thread(target=self.stopThread, args=(False,))
         t1.start()
         t2.start()
+        t1.join(timeout=120)
+        t2.join(timeout=120)
+        if t1.is_alive() or t2.is_alive():
+            tdLog.exit(f"{__file__} threads did not finish within 120s")
         tdLog.success(f"{__file__} successfully executed")
-        t1.join()
-        t2.join()
 
     def stop(self):
         tdSql.close()

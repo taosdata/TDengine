@@ -18,6 +18,11 @@
 #include "tgrant.h"
 #include "thttp.h"
 
+static void dmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -617,6 +622,7 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
     dError("failed to start dnode-mgmt worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->mgmtWorker.queue, dmFreeRpcQitem);
 
   dDebug("dnode workers are initialized");
   return 0;

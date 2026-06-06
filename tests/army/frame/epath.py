@@ -28,6 +28,16 @@ def binPath():
     if binDir != "":
         return binDir
 
+    # 优先使用 BUILD_DIR 环境变量（pytest.sh / run_case.sh 均会导出）
+    build_dir = os.environ.get("BUILD_DIR", "")
+    if build_dir:
+        bin_dir_candidate = os.path.join(build_dir, "build", "bin")
+        taosd = "taosd.exe" if platform.system().lower() == "windows" else "taosd"
+        if os.path.isfile(os.path.join(bin_dir_candidate, taosd)):
+            tdLog.info(f"taosd found in {build_dir}")
+            binDir = bin_dir_candidate + os.sep
+            return binDir
+
     selfPath = os.path.dirname(os.path.realpath(__file__))
     if platform.system().lower() == "windows":
         split = "\\"

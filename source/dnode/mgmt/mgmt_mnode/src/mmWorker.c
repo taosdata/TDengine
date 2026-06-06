@@ -16,6 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+static void mmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
+
 #define PROCESS_THRESHOLD (2000 * 1000)
 
 static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
@@ -231,6 +236,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode-query worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->queryWorker.queue, mmFreeRpcQitem);
 
   tsNumOfQueryThreads += tsNumOfMnodeQueryThreads;
 
@@ -245,6 +251,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode-fetch worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->fetchWorker.queue, mmFreeRpcQitem);
 
   SSingleWorkerCfg rCfg = {
       .min = tsNumOfMnodeReadThreads,
@@ -257,6 +264,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode-read worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->readWorker.queue, mmFreeRpcQitem);
 
   SSingleWorkerCfg stautsCfg = {
       .min = 1,
@@ -269,6 +277,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode-status worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->statusWorker.queue, mmFreeRpcQitem);
 
   SSingleWorkerCfg wCfg = {
       .min = 1,
@@ -281,6 +290,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode-write worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->writeWorker.queue, mmFreeRpcQitem);
 
   SSingleWorkerCfg sCfg = {
       .min = 1,
@@ -293,6 +303,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode mnode-sync worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->syncWorker.queue, mmFreeRpcQitem);
 
   SSingleWorkerCfg scCfg = {
       .min = 1,
@@ -305,6 +316,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode mnode-sync-rd worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->syncRdWorker.queue, mmFreeRpcQitem);
 
   SSingleWorkerCfg arbCfg = {
       .min = 1,
@@ -317,6 +329,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     dError("failed to start mnode mnode-arb worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->arbWorker.queue, mmFreeRpcQitem);
 
   dDebug("mnode workers are initialized");
   return code;

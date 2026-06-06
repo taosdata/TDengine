@@ -36,6 +36,9 @@ class TDTestCase:
         self.stop_dnode = None
 
     def getBuildPath(self):
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]

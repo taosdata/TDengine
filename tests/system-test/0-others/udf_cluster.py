@@ -30,6 +30,9 @@ class TDTestCase:
 
 
     def getBuildPath(self):
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            return build_dir
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -46,16 +49,20 @@ class TDTestCase:
         return buildPath
 
     def prepare_udf_so(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir:
+            lib_dir = os.path.join(build_dir, "build", "lib")
         else:
-            projPath = selfPath[:selfPath.find("tests")]
-        print(projPath)
+            selfPath = os.path.dirname(os.path.realpath(__file__))
+            if ("taos-community" in selfPath):
+                lib_dir = selfPath[:selfPath.find("taos-community")]
+            elif ("community" in selfPath):
+                lib_dir = selfPath[:selfPath.find("community")]
+            else:
+                lib_dir = selfPath[:selfPath.find("tests")]
 
-        libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-        libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%lib_dir , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%lib_dir , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         os.system("mkdir /tmp/udf/")
         os.system("sudo cp %s /tmp/udf/ "%libudf1.replace("\n" ,""))
         os.system("sudo cp  %s /tmp/udf/ "%libudf2.replace("\n" ,""))

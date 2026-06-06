@@ -240,6 +240,23 @@ def before_test_class(request):
 
     # 如果用例中定义了updatecfgDict，则更新配置
     if hasattr(request.cls, "updatecfgDict"):
+        # Under ASAN builds taosd is significantly slower; give TTL background threads
+        # more time by scaling up ttlPushInterval.  The test's own time.sleep() also
+        # reads self.updatecfgDict['ttlPushInterval'], so both the daemon config and the
+        # sleep duration are stretched together — no test logic change required.
+        #
+        # IMPORTANT: only apply the scale-up when ttlBatchDropNum is ALSO present.
+        # Tests like test_table_param_ttl use a hard-coded wait timeout that does NOT
+        # scale with ttlPushInterval; making the interval larger there would cause TTL
+        # drops to miss the fixed deadline and fail.  ttlBatchDropNum is the key that
+        # uniquely identifies the "batch-drop timing" scenario (test_subtable_ttl) where
+        # the slow first batch needs more room before the next push scan fires.
+        if os.environ.get("CI_ASAN_BUILD", "0") == "1" and \
+                "ttlPushInterval" in request.cls.updatecfgDict and \
+                "ttlBatchDropNum" in request.cls.updatecfgDict:
+            _orig = request.cls.updatecfgDict['ttlPushInterval']
+            request.cls.updatecfgDict['ttlPushInterval'] = _orig * 3
+            tdLog.info(f"[ASAN] ttlPushInterval scaled: {_orig} -> {request.cls.updatecfgDict['ttlPushInterval']}")
         tdLog.info(f"update cfg: {request.cls.updatecfgDict}")
         request.session.before_test.update_cfg(request.cls.updatecfgDict)
     

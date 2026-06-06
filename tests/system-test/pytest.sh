@@ -27,7 +27,10 @@ CODE_DIR=$(dirname $0)
 CODE_DIR=$(pwd)
 
 IN_TDINTERNAL="community"
-if [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
+if [[ "$CODE_DIR" == *"taos-community"* ]]; then
+  # tsdb CI 布局：脚本在 taos-community/tests/system-test，需回退四层到 /mnt/tsdb/
+  cd ../../../..
+elif [[ "$CODE_DIR" == *"$IN_TDINTERNAL"* ]]; then
   cd ../../..
 else
   cd ../../
@@ -46,6 +49,14 @@ fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 declare -x SIM_DIR=$TOP_DIR/sim
+# 本地运行时 libtaos.so 未安装到系统路径，需把 build/lib 加到 LD_LIBRARY_PATH
+# 优先从 TAOS_BIN_PATH 推断（本地复现时由外部传入），否则从 BUILD_DIR 推断
+if [ -n "${TAOS_BIN_PATH:-}" ] && [ -d "$(dirname "$TAOS_BIN_PATH")/lib" ]; then
+  export LD_LIBRARY_PATH="$(dirname "$TAOS_BIN_PATH")/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  export PATH="${TAOS_BIN_PATH}${PATH:+:$PATH}"
+elif [ -d "$BUILD_DIR/build/lib" ]; then
+  export LD_LIBRARY_PATH="$BUILD_DIR/build/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
 PROGRAM=$BUILD_DIR/build/bin/tsim
 PRG_DIR=$SIM_DIR/tsim
 ASAN_DIR=$SIM_DIR/asan
@@ -96,6 +107,18 @@ else
 
   export ASAN_OPTIONS=detect_odr_violation=0:malloc_context_size=10:quarantine_size_mb=64
   echo "ASAN_OPTIONS: ${ASAN_OPTIONS}"
+
+  # CI_NO_ASAN=1 且非 ASAN 构建：直接运行，不重定向到 psim.info，按退出码判断
+  if [[ -n "${CI_NO_ASAN:-}" && "${CI_ASAN_BUILD:-}" != "1" ]]; then
+    $*
+    _ec=$?
+    if [ $_ec -ne 0 ]; then
+      echo "Execute script failure (exit $_ec)"
+      exit 1
+    fi
+    echo "Execute script successfully"
+    exit 0
+  fi
 
   $* -a > $AsanFile 2>&1
   cat $AsanFile

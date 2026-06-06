@@ -371,6 +371,39 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// Copy all files in srcDir to dstDir (non-recursive, best-effort).
+static int32_t walCopyDirFiles(int32_t vgId, const char* srcDir, const char* dstDir) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  TdDirPtr pDir = taosOpenDir(srcDir);
+  if (pDir == NULL) {
+    wWarn("vgId:%d, failed to open WAL dir %s for backup", vgId, srcDir);
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  TdDirEntryPtr pEntry;
+  while ((pEntry = taosReadDir(pDir)) != NULL) {
+    const char* name = taosGetDirEntryName(pEntry);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+    if (taosDirEntryIsDir(pEntry)) continue;
+
+    char srcFile[WAL_FILE_LEN + TSDB_FILENAME_LEN];
+    char dstFile[WAL_FILE_LEN + TSDB_FILENAME_LEN];
+    (void)snprintf(srcFile, sizeof(srcFile), "%s%s%s", srcDir, TD_DIRSEP, name);
+    (void)snprintf(dstFile, sizeof(dstFile), "%s%s%s", dstDir, TD_DIRSEP, name);
+
+    int64_t copied = taosCopyFile(srcFile, dstFile);
+    if (copied < 0) {
+      wWarn("vgId:%d, failed to copy WAL file %s to %s", vgId, srcFile, dstFile);
+      code = TAOS_SYSTEM_ERROR(errno);
+      // Continue copying remaining files even on partial failure
+    } else {
+      wDebug("vgId:%d, backed up WAL file %s -> %s (%" PRId64 " bytes)", vgId, srcFile, dstFile, copied);
+    }
+  }
+  (void)taosCloseDir(&pDir);
+  return code;
+}
+
 static int32_t walRenameCorruptedDir(SWal* pWal) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -391,18 +424,41 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
     pWal->pIdxFile = NULL;
   }
 
-  // Build old and new directory paths
+  // Build old path
   tstrncpy(oldPath, pWal->path, sizeof(oldPath));
-  snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
 
-  wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, oldPath, newPath);
+  // If a backup directory is configured, copy WAL files there before clearing
+  if (tsWalCorruptionBackupDir[0] != '\0') {
+    char backupSubDir[PATH_MAX + 64];
+    (void)snprintf(backupSubDir, sizeof(backupSubDir), "%s%swal_vgId%d_%" PRId64, tsWalCorruptionBackupDir, TD_DIRSEP,
+                   pWal->cfg.vgId, now);
+    wInfo("vgId:%d, backing up corrupted WAL directory %s to %s", pWal->cfg.vgId, oldPath, backupSubDir);
+    if (taosMkDir(backupSubDir) != 0) {
+      wWarn("vgId:%d, failed to create backup dir %s, skip backup", pWal->cfg.vgId, backupSubDir);
+    } else {
+      int32_t backupCode = walCopyDirFiles(pWal->cfg.vgId, oldPath, backupSubDir);
+      if (backupCode != TSDB_CODE_SUCCESS) {
+        wWarn("vgId:%d, partial failure during WAL backup to %s", pWal->cfg.vgId, backupSubDir);
+      } else {
+        wInfo("vgId:%d, successfully backed up corrupted WAL to %s", pWal->cfg.vgId, backupSubDir);
+      }
+    }
+  }
 
-  // Rename the directory (taosRenameFile works for directories too)
-  if (taosRenameFile(oldPath, newPath) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, oldPath, newPath,
-           tstrerror(code));
-    TAOS_CHECK_GOTO(code, &lino, _exit);
+  if (tsWalCorruptionBackupDir[0] != '\0') {
+    // Backup dir configured: rename so the corrupted copy is also preserved locally
+    snprintf(newPath, sizeof(newPath), "%s.corrupted.%" PRId64, oldPath, now);
+    wInfo("vgId:%d, renaming corrupted WAL directory from %s to %s", pWal->cfg.vgId, oldPath, newPath);
+    if (taosRenameFile(oldPath, newPath) != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      wError("vgId:%d, failed to rename WAL directory from %s to %s since %s", pWal->cfg.vgId, oldPath, newPath,
+             tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+  } else {
+    // No backup dir configured: delete the corrupted directory directly
+    wInfo("vgId:%d, removing corrupted WAL directory %s", pWal->cfg.vgId, oldPath);
+    taosRemoveDir(oldPath);
   }
 
   // Clear the fileInfoSet
@@ -421,7 +477,7 @@ static int32_t walRenameCorruptedDir(SWal* pWal) {
   pWal->writeCur = -1;
   pWal->totSize = 0;
 
-  wInfo("vgId:%d, successfully renamed corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
+  wInfo("vgId:%d, successfully cleared corrupted WAL directory and recreated a new one", pWal->cfg.vgId);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -429,6 +485,37 @@ _exit:
            lino);
   }
   TAOS_RETURN(code);
+}
+
+// Clear a corrupted WAL and reset it to a valid empty state anchored at commitIndex.
+// This is the public interface for the Sync layer to call when it detects a WAL/buffer
+// mismatch that cannot be recovered by repair alone.
+int32_t walClearCorruption(SWal* pWal, int64_t commitIndex) {
+  if (!tsWalDeleteOnCorruption) {
+    wWarn("vgId:%d, WAL corruption clear requested but tsWalDeleteOnCorruption is disabled", pWal->cfg.vgId);
+    TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
+  }
+
+  wInfo("vgId:%d, clearing WAL corruption, anchoring at commitIndex:%" PRId64, pWal->cfg.vgId, commitIndex);
+
+  int32_t code = walRenameCorruptedDir(pWal);
+  if (code != TSDB_CODE_SUCCESS) {
+    wError("vgId:%d, failed to clear corrupted WAL directory since %s", pWal->cfg.vgId, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  // Mirror the state walRestoreFromSnapshot sets so that the WAL is in a
+  // well-defined empty-but-anchored state: [commitIndex+1, commitIndex].
+  pWal->vers.firstVer = commitIndex + 1;
+  pWal->vers.lastVer = commitIndex;
+  pWal->vers.commitVer = commitIndex;
+  pWal->vers.snapshotVer = commitIndex;
+  pWal->vers.verInSnapshotting = -1;
+  pWal->lastRollSeq = -1;
+
+  wInfo("vgId:%d, WAL corruption cleared, firstVer:%" PRId64 ", lastVer:%" PRId64, pWal->cfg.vgId, pWal->vers.firstVer,
+        pWal->vers.lastVer);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static int32_t walLogEntriesComplete(SWal* pWal) {
@@ -561,8 +648,6 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
   int     metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int     actualFileNum = taosArrayGetSize(actualLog);
-  int64_t firstVerPrev = pWal->vers.firstVer;
-  int64_t lastVerPrev = pWal->vers.lastVer;
   int64_t totSize = 0;
   bool    updateMeta = (metaFileNum != actualFileNum);
 

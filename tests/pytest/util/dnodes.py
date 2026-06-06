@@ -177,7 +177,9 @@ class TDDnode:
         self.asan = value
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
-            if ("community" in selfPath):
+            if ("taos-community" in selfPath):
+                self.execPath = os.path.join(self.path, "source/taos-community/tests/script/sh/exec.sh")
+            elif ("community" in selfPath):
                 self.execPath = os.path.abspath(self.path + "/community/tests/script/sh/exec.sh")
             else:
                 self.execPath = os.path.abspath(self.path + "/tests/script/sh/exec.sh")
@@ -292,6 +294,12 @@ class TDDnode:
 
     def getPath(self, tool="taosd"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        # tsdb CI 布局：debug 目录是 source 的兄弟目录，无法通过向上遍历找到。
+        # 优先使用 pytest.sh 导出的 BUILD_DIR 环境变量。
+        build_dir = os.environ.get("BUILD_DIR", "")
+        if build_dir and os.path.isfile(os.path.join(build_dir, "build/bin", tool)):
+            return os.path.join(build_dir, "build/bin", tool)
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
@@ -703,7 +711,10 @@ class TDDnodes:
         self.asan = value
         if value:
             selfPath = os.path.dirname(os.path.realpath(__file__))
-            if ("community" in selfPath):
+            if ("taos-community" in selfPath):
+                self.stopDnodesPath = os.path.join(self.path, "source/taos-community/tests/script/sh/stop_dnodes.sh")
+                self.stopDnodesSigintPath = os.path.join(self.path, "source/taos-community/tests/script/sh/sigint_stop_dnodes.sh")
+            elif ("community" in selfPath):
                 self.stopDnodesPath = os.path.abspath(self.path + "/community/tests/script/sh/stop_dnodes.sh")
                 self.stopDnodesSigintPath = os.path.abspath(self.path + "/community/tests/script/sh/sigint_stop_dnodes.sh")
             else:

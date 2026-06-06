@@ -2884,6 +2884,8 @@ int32_t cliNotifyImplCb(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     if (pCtx->pSem) {
       if (pCtx->pRsp == NULL) {
         tGTrace("%s conn:%p(sync) failed to resp, ignore", CONN_GET_INST_LABEL(pConn), pConn);
+        rpcFreeCont(pResp->pCont);
+        pResp->pCont = NULL;
       } else {
         memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
       }
