@@ -10,4 +10,4 @@ if(NOT TD_WINDOWS)
         NAME smaTest
         COMMAND smaTest
     )
-endif(NOT ${TD_WINDOWS})
+endif(NOT TD_WINDOWS)

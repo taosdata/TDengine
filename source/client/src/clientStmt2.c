@@ -14,6 +14,55 @@
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+#define SET_ERR(fmt, ...) do {                                                 \
+  char       *sbuf = pStmt->msgBuf;                                            \
+  size_t      nlen = sizeof(pStmt->msgBuf);                                    \
+  if (pStmt->exec.pRequest) {                                                  \
+    sbuf = pStmt->exec.pRequest->msgBuf;                                       \
+    nlen = pStmt->exec.pRequest->msgBufLen;                                    \
+  }                                                                            \
+  (void)snprintf(sbuf, nlen, "%s[%d]%s():" fmt "",                             \
+      __FILE__, __LINE__, __func__, ##__VA_ARGS__);                            \
+} while (0)
+
+static inline void
+stmt2LiteralCtxReset(SStmt2LiteralCtx *ctx) {
+  ctx->code = 0;
+  ctx->prepared       = 0;
+  ctx->executing      = 0;
+  ctx->executed       = 0;
+  ctx->has_result_set = 0;
+}
+
+static inline void
+stmt2LiteralCtxRelease(SStmt2LiteralCtx *ctx) {
+  stmt2LiteralCtxReset(ctx);
+  if (ctx->sem_valid) {
+    tsem_destroy(&ctx->sem);
+    ctx->sem_valid = 0;
+  }
+}
+
+static inline int
+stmt2LiteralCtxInit(SStmt2LiteralCtx *ctx) {
+  if (ctx->sem_valid) return 0;
+  if (tsem_init(&ctx->sem, 0, 0)) return -1;
+  ctx->sem_valid = 1;
+  return 0;
+}
+
+static inline int
+stmt2LiteralCtxIsValid(SStmt2LiteralCtx *ctx) {
+  return ctx && ctx->sem_valid;
+}
+
+int stmtIsLiteral(TAOS_STMT2 *stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  return pStmt && pStmt->literal;
+}
+
+
+
 /* Free any existing siInfo.dbname and replace with a heap copy of src.
  * src may be NULL or empty — in either case dbname is left NULL. */
 static int32_t stmtDupSiInfoDbname(SStbInterlaceInfo* pSi, const char* src) {
@@ -2107,8 +2156,13 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
     (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
   }
 
+  // NOTE: do NOT reset until asynchronous operations have completed
+  stmt2LiteralCtxReset(&pStmt->ctx);
+  pStmt->literal = 0;
+
   // Clean all SQL and execution info (stmtCleanSQLInfo already handles most cleanup)
   pStmt->bInfo.boundColsCached = false;
+  pStmt->bInfo.tbNameFlag = 0; // NOTE:
   if (stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }
@@ -2155,6 +2209,90 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void stmtLiteralCallback(void *param, TAOS_RES *res, int code) {
+  TAOS_STMT2* stmt = (TAOS_STMT2*)param;
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  pStmt->ctx.code  = code; // NOTE: currently taos_stmt2_xxx is NOT thread-safe
+
+  if (pStmt->exec.pRequest == NULL) {
+    // NOTE: preparing stage for literal statement by stmt2
+    //       transfer `res` which is created by buildRequest
+    pStmt->exec.pRequest = res;
+    // NOTE: wake up waiting thread
+    tsem_post(&pStmt->ctx.sem);
+  } else {
+    // NOTE: executing stage for literal statement by stmt2
+    if (pStmt->exec.pRequest != res) {
+      // NOTE: internal logic error, not recoverable!!!
+      STMT2_ELOG("%s[%d]:%s():internal logic error",
+          __FILE__, __LINE__, __func__);
+      abort();
+    }
+
+    int nr_fields = taos_num_fields(pStmt->exec.pRequest);
+    if (nr_fields ||
+        (pStmt->exec.pRequest &&
+          pStmt->exec.pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT)) {
+      // NOTE: literal sql statement generates a result set
+      // 1. normal query with result set
+      // 2. empty result when `QueryTbNotExistAsEmpty` is set
+      //    and table not exists
+      pStmt->ctx.has_result_set = 1;
+    }
+
+    if (pStmt->options.asyncExecFn) {
+      // NOTE: user requires asynchronous execution via `taos_stmt2_init`
+      // TODO: a well-defined reentrancy protection is desired, but ...
+
+      // NOTE: `executing` and `executed` are mutually exclusive
+      pStmt->ctx.executing = 0;
+      pStmt->ctx.executed = 1;
+
+      pStmt->options.asyncExecFn(pStmt->options.userdata,
+          pStmt->exec.pRequest, pStmt->ctx.code);
+    } else {
+      // NOTE: wake up waiting thread
+      tsem_post(&pStmt->ctx.sem);
+    }
+  }
+}
+
+static int stmtPrepareLiteral2(TAOS_STMT2* stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  int32_t    code = 0;
+
+  pStmt->literal = 1;
+
+  if (stmt2LiteralCtxInit(&pStmt->ctx)) {
+    SET_ERR("out of memory");
+    STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  uint64_t          connId = pStmt->taos->id;
+  const char       *sql    = pStmt->sql.sqlStr;
+  int64_t           reqid  = pStmt->options.reqid;
+
+  STscObj *pObj = acquireTscObj(connId);
+  if (pObj != pStmt->taos) {
+    releaseTscObj(connId);
+    SET_ERR("internal logic error");
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR); // TODO: a new error code?
+  }
+
+  taosAsyncQueryImplWithReqid(stmt, connId, sql,
+      stmtLiteralCallback, stmt, false, reqid);
+  tsem_wait(&pStmt->ctx.sem);
+
+  releaseTscObj(connId);
+
+  if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
+    pStmt->ctx.prepared = 1;
+  }
+
+  return pStmt->ctx.code;
+}
+
 int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
@@ -2188,6 +2326,11 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
     STMT_ERR_RET(terrno);
   }
   pStmt->sql.sqlLen = length;
+
+  if (qIsLiteralSql(pStmt->sql.sqlStr)) {
+    return stmtPrepareLiteral2(stmt);
+  }
+
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (stmt2IsInsert(pStmt)) {
@@ -2209,6 +2352,12 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
       }
     }
 
+    int             count  = 0;
+    TAOS_FIELD_ALL *fields = NULL;
+    code = taos_stmt2_get_fields(stmt, &count, &fields);
+    taos_stmt2_free_fields(stmt, fields);
+    fields = NULL;
+    STMT_ERR_RET(code);
   } else if (stmt2IsSelect(pStmt)) {
     pStmt->sql.stbInterlaceMode = false;
     STMT_ERR_RET(stmtParseSql(pStmt));
@@ -2217,6 +2366,13 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int stmtBindLiteral2(TAOS_STMT2 *stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  SET_ERR("no data binding required for literal sql statement");
+  STMT_RET(TSDB_CODE_TSC_STMT_API_ERROR);
 }
 
 static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
@@ -3356,6 +3512,62 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   }
 }
 
+static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  int32_t    code = 0;
+
+  if (pStmt->ctx.code) {
+    return pStmt->ctx.code;
+  }
+
+  if (pStmt->ctx.prepared == 0) {
+    SET_ERR("literal sql statement not fully prepared yet");
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+  }
+
+  if (pStmt->ctx.executing) {
+    SET_ERR("previous execution of literal sql statement still in progress");
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+  }
+
+  if (pStmt->ctx.executed) {
+    SET_ERR("multiple execution of a prepared literal sql statement "
+        "not supported yet");
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+  }
+
+  pStmt->ctx.executing = 1;
+
+  // NOTE: triggering execution logic of a prepared literal sql statement
+  taosAsyncExecLiteral(stmt);
+
+  if (pStmt->options.asyncExecFn == NULL) {
+    // NOTE: waiting for execution process to finish
+    tsem_wait(&pStmt->ctx.sem);
+
+    // NOTE: `executing` and `executed` are mutualy exclusive
+    pStmt->ctx.executing = 0;
+    pStmt->ctx.executed = 1;
+
+    if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
+      if (affected_rows) {
+        if (pStmt->ctx.has_result_set) {
+          // NOTE: literal sql statement generates a result set
+          *affected_rows = 0;
+        } else {
+          // NOTE: literal sql statement does not generate any result set
+          TAOS_RES *res = pStmt->exec.pRequest;
+          *affected_rows = taos_affected_rows(res);
+        }
+      }
+    }
+    return pStmt->ctx.code;
+  }
+
+  // NOTE: what if taosAsyncExecLiteral failed prematurelly?
+  return TSDB_CODE_SUCCESS;
+}
+
 int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
@@ -3365,6 +3577,10 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
+  }
+
+  if (stmtIsLiteral(pStmt)) {
+    return stmtExecLiteral2(stmt, affected_rows);
   }
 
   STMT_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
@@ -3539,6 +3755,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
+  // NOTE: do NOT release until asynchronous operations have completed
+  stmt2LiteralCtxRelease(&pStmt->ctx);
+
   STMT2_DLOG("stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
@@ -3568,6 +3787,18 @@ int stmtClose2(TAOS_STMT2* stmt) {
 
 const char* stmt2Errstr(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  if (stmt && stmtIsLiteral(pStmt)) {
+    if (NULL == pStmt->exec.pRequest) {
+      // NOTE: since pStmt->exec.pRequest not fully prepared yet
+      //       error msg is stored in pStmt->msgBuf via `SET_ERR`
+      return pStmt->msgBuf;
+    } else if (pStmt->exec.pRequest->msgBuf[0]) {
+      // NOTE: reuse error msg stored in `msgBuf`
+      return pStmt->exec.pRequest->msgBuf;
+    }
+    return pStmt->exec.pRequest->msgBuf;
+  }
 
   if (stmt == NULL || NULL == pStmt->exec.pRequest) {
     return (char*)tstrerror(terrno);
@@ -3635,8 +3866,20 @@ _return:
 }
 
 int stmtGetStbColFields2(TAOS_STMT2* stmt, int* nums, TAOS_FIELD_ALL** fields) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t code = stmtParseColFields2(stmt);
   if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_TSC_STMT_TBNAME_ERROR) {
+      SPureInsertParserCtx ctx = {0};
+      const char *pStr   = pStmt->sql.sqlStr;
+      code = qPureParseInsert(&ctx, pStr);
+      if (code) {
+        SET_ERR("%s", ctx.buf);
+        return code;
+      }
+      if (nums) *nums = ctx.nr_params;
+      return TSDB_CODE_SUCCESS;
+    }
     return code;
   }
 
@@ -3799,6 +4042,24 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   STMT2_TLOG_E("start to use result");
+
+  if (stmtIsLiteral(pStmt)) {
+    if (pStmt->ctx.executing) {
+      SET_ERR("literal sql statement still in progress");
+      pStmt->errCode = TSDB_CODE_TSC_STMT_API_ERROR;
+      return NULL;
+    }
+    if (pStmt->ctx.executed == 0) {
+      SET_ERR("literal sql statement not executed yet");
+      pStmt->errCode = TSDB_CODE_TSC_STMT_API_ERROR;
+      return NULL;
+    }
+    if (!pStmt->ctx.has_result_set) {
+      STMT2_ELOG_E("useResult only for query statement");
+      return NULL;
+    }
+    return pStmt->exec.pRequest;
+  }
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     STMT2_ELOG_E("useResult only for query statement");
