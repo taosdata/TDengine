@@ -1,0 +1,21 @@
+# file_schema_types.in — FILE column_list type coverage (positive tests only)
+# P1: VARBINARY, P2: NCHAR, P3: integer types, P4: NULL representations
+# P7: BOOL, P8: FLOAT/DOUBLE, P9: partial columns, P10: DECIMAL
+CREATE DATABASE IF NOT EXISTS file_src_db;
+USE file_src_db;
+# P1: VARBINARY round-trip
+SELECT ts, v FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_varbinary.csv', 'ts TIMESTAMP, v VARBINARY(64)') f ORDER BY ts;
+# P2: NCHAR with Chinese text
+SELECT ts, n FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_nchar.csv', 'ts TIMESTAMP, n NCHAR(64)') f ORDER BY ts;
+# P3: SMALLINT/TINYINT/unsigned integers
+SELECT * FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_integers.csv', 'ts TIMESTAMP, v1 TINYINT, v2 SMALLINT, v3 UTINYINT, v4 USMALLINT, v5 UINT, v6 UBIGINT') f;
+# P4: CSV NULL representations (empty, NULL, null, normal)
+SELECT ts, v, s FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_nulls.csv', 'ts TIMESTAMP, v INT, s VARCHAR(32)') f ORDER BY ts;
+# P7: BOOL values from CSV
+SELECT ts, b FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_bool.csv', 'ts TIMESTAMP, b BOOL') f ORDER BY ts;
+# P8: FLOAT/DOUBLE precision
+SELECT ts, f, d FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_float.csv', 'ts TIMESTAMP, f FLOAT, d DOUBLE') f_tbl ORDER BY ts;
+# P9: CSV has more columns than column_list
+SELECT * FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_partial.csv', 'ts TIMESTAMP, a INT, b VARCHAR(32)') f ORDER BY ts;
+# P10: DECIMAL(10,2) from CSV
+SELECT ts, d FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_schema_decimal.csv', 'ts TIMESTAMP, d DECIMAL(10,2)') f ORDER BY ts;

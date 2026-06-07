@@ -97,7 +97,14 @@ static int32_t inputSafetyCheck(SDataDispatchHandle* pHandle, const SInputData* 
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
       if (pColInfoData->info.type != pSlotDesc->dataType.type) {
-        qError("invalid column type, schema:%d, input:%d", pSlotDesc->dataType.type, pColInfoData->info.type);
+        qError("invalid column type, colNum:%d slotId:%d, schema:%d/%d, input:%d/%d, colId:%d, blockId:%" PRId64 ", totalCols:%zu",
+               colNum, pSlotDesc->slotId, pSlotDesc->dataType.type, pSlotDesc->dataType.bytes,
+               pColInfoData->info.type, pColInfoData->info.bytes, pColInfoData->info.colId,
+               pInput->pData->info.id.blockId, taosArrayGetSize(pInput->pData->pDataBlock));
+        for (int32_t di = 0; di < (int32_t)taosArrayGetSize(pInput->pData->pDataBlock); di++) {
+          SColumnInfoData* pDbg = taosArrayGet(pInput->pData->pDataBlock, di);
+          if (pDbg) qError("  col[%d]: type=%d bytes=%d colId=%d", di, pDbg->info.type, pDbg->info.bytes, pDbg->info.colId);
+        }
         return TSDB_CODE_QRY_INVALID_INPUT;
       }
       if (pColInfoData->info.bytes != pSlotDesc->dataType.bytes) {

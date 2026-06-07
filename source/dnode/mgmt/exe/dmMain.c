@@ -108,9 +108,9 @@ typedef struct {
   char backupPath[PATH_MAX];  // --backup-path
   char mode[32];              // --mode
                               //   force: single node recovery mode. (Recovery as mush data as possible with local info)
-                              //   copy: copy from backup
-                              //   replica: form replica
-  SRepairVnodeOpt vnodeOpt;
+                              //   copy: copy from healthy node
+  SRepairVnodeOpt  vnodeOpt;
+  SRepairCopyOpt   copyOpt;
   // SRepairMnodeOpt mnodeOpt;
   // SRepairSnodeOpt snodeOpt;
 } SDmRepairOption;
@@ -143,6 +143,7 @@ static struct {
   int64_t         startTime;
   bool            generateCode;
   bool            runRepairFlow;
+  bool            runCopyMode;
   char            encryptKey[ENCRYPT_KEY_LEN + 1];
   SDmRepairOption repairOpt;
 } global = {0};
@@ -781,6 +782,47 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
     }
   }
 
+  if (!matched) {
+    char sourceCfgBuf[PATH_MAX] = {0};
+    code = dmParseLongOptionValue(argc, argv, &index, "--source-cfg", sourceCfgBuf, sizeof(sourceCfgBuf), &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      tstrncpy(global.repairOpt.copyOpt.sourceCfg, sourceCfgBuf, PATH_MAX);
+      pOpt->hasRepairArgs = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    char sourceHostBuf[256] = {0};
+    code = dmParseLongOptionValue(argc, argv, &index, "--source-host", sourceHostBuf, sizeof(sourceHostBuf), &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      tstrncpy(global.repairOpt.copyOpt.sourceHost, sourceHostBuf, sizeof(global.repairOpt.copyOpt.sourceHost));
+      pOpt->hasRepairArgs = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    char vnodeBuf[PATH_MAX] = {0};
+    code = dmParseLongOptionValue(argc, argv, &index, "--vnode", vnodeBuf, sizeof(vnodeBuf), &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      if (global.repairOpt.copyOpt.vnodeIds != NULL) {
+        printf("--vnode specified more than once\n");
+        return TSDB_CODE_INVALID_PARA;
+      }
+      global.repairOpt.copyOpt.vnodeIds = dmParseVnodeIds(vnodeBuf);
+      if (global.repairOpt.copyOpt.vnodeIds == NULL) {
+        printf("invalid --vnode format: '%s'\n", vnodeBuf);
+        return TSDB_CODE_INVALID_PARA;
+      }
+      pOpt->hasRepairArgs = true;
+      matched = true;
+    }
+  }
+
   if (matched) {
     *pParsed = true;
     *pIndex = index;
@@ -792,6 +834,7 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
 static int32_t dmFinalizeRepairOption() {
   SDmRepairOption *pOpt = &global.repairOpt;
   global.runRepairFlow = false;
+  global.runCopyMode = false;
 
   if ((pOpt->vnodeOpt.metaOpt.enabled || pOpt->vnodeOpt.tsdbOpt.enabled || pOpt->vnodeOpt.walOpt.enabled) &&
       !pOpt->withR) {
@@ -810,6 +853,33 @@ static int32_t dmFinalizeRepairOption() {
   }
 
   if (!pOpt->withR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Route to copy mode if --mode copy is specified
+  if (pOpt->hasMode && strcmp(pOpt->mode, "copy") == 0) {
+    // Reject force-mode-only flags that would be silently ignored
+    if (pOpt->hasBackupPath) {
+      printf("--backup-path cannot be used with --mode copy\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (pOpt->vnodeOpt.metaOpt.enabled || pOpt->vnodeOpt.tsdbOpt.enabled || pOpt->vnodeOpt.walOpt.enabled) {
+      printf("--repair-target cannot be used with --mode copy\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (!pOpt->hasNodeType || strcmp(pOpt->nodeType, "vnode") != 0) {
+      printf("--mode copy requires --node-type vnode\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (global.repairOpt.copyOpt.sourceCfg[0] == '\0') {
+      printf("--mode copy requires --source-cfg\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (global.repairOpt.copyOpt.vnodeIds == NULL || taosArrayGetSize(global.repairOpt.copyOpt.vnodeIds) == 0) {
+      printf("--mode copy requires --vnode\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    global.runCopyMode = true;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1084,16 +1154,29 @@ static void dmPrintHelp() {
 }
 
 static void dmPrintRepairHelp() {
-  printf("Usage: %sd -r --mode force --node-type vnode [--backup-path PATH]\n", CUS_PROMPT);
+  printf("Usage:\n");
+  printf("  Force mode (in-place repair):\n");
+  printf("    %sd -r --mode force --node-type vnode [--backup-path PATH]\n", CUS_PROMPT);
   printf("              --repair-target TARGET [--repair-target TARGET]...\n\n");
 
-  printf("Current scope\n");
-  printf("  --node-type: vnode (only)\n");
-  printf("  --mode: force (only)\n");
-  printf("  --backup-path: optional global backup root\n");
-  printf("  --repair-target: <file-type>:<key>=<value>[:<key>=<value>]...\n\n");
+  printf("  Copy mode (copy vnode data from a source cluster):\n");
+  printf("    %sd -r --mode copy --node-type vnode --source-cfg PATH\n", CUS_PROMPT);
+  printf("              [--source-host HOST] --vnode ID[,ID]...\n\n");
 
-  printf("Supported targets\n");
+  printf("Common options\n");
+  printf("  --node-type: vnode (only)\n");
+  printf("  --mode:      force | copy\n\n");
+
+  printf("Force mode options\n");
+  printf("  --backup-path:    optional global backup root\n");
+  printf("  --repair-target:  <file-type>:<key>=<value>[:<key>=<value>]...\n\n");
+
+  printf("Copy mode options\n");
+  printf("  --source-cfg:     path to the source cluster taos.cfg\n");
+  printf("  --source-host:    SSH host for remote source (omit for local copy)\n");
+  printf("  --vnode:          comma-separated list of vnode IDs to copy\n\n");
+
+  printf("Supported force-mode targets\n");
   printf("  meta:vnode=<id>[:strategy=from_uid|from_redo]\n");
   printf("  tsdb:vnode=<id>:fileid=<id|*>[:strategy=drop_invalid_only|head_only_rebuild|full_rebuild]\n");
   printf("  wal:vnode=<id>\n");
@@ -1161,6 +1244,10 @@ static void taosCleanupTransientArgs() {
 
 static void taosCleanupRepairArgs() {
   dmCleanupRepairOption(&global.repairOpt);
+  if (global.repairOpt.copyOpt.vnodeIds != NULL) {
+    taosArrayDestroy(global.repairOpt.copyOpt.vnodeIds);
+    global.repairOpt.copyOpt.vnodeIds = NULL;
+  }
 }
 
 static void taosCleanupArgs() {
@@ -1386,6 +1473,15 @@ int mainWindows(int argc, char **argv) {
     taosCleanupArgs();
     taosConvDestroy();
     return 0;
+  }
+
+  if (global.runCopyMode) {
+    code = dmRepairCopyMode(&global.repairOpt.copyOpt);
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return code;
   }
 
   osSetProcPath(argc, (char **)argv);

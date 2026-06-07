@@ -125,6 +125,8 @@ class TestDistinct:
         tdSql.checkRows(3)
         tdSql.query(f"select distinct  c1,c2 from {dbname}.stb1 where c1 <{tbnum} limit 3 offset {tbnum*3-2}")
         tdSql.checkRows(2)
+        tdSql.query(f"select distinct  c1, c2 from {dbname}.stb1 where c1 > 3 interval(1d) ")
+        tdSql.checkRows(291)
 
         tdSql.query(f"select distinct  c1 from {dbname}.t1 where c1 <{tbnum}")
         tdSql.checkRows(1)
@@ -140,6 +142,8 @@ class TestDistinct:
         tdSql.checkRows(3)
         tdSql.query(f"select distinct  c1,c2 from {dbname}.t1 where c1 <{tbnum} limit 3 offset 2")
         tdSql.checkRows(1)
+        tdSql.query(f"select distinct  c1, c2 from {dbname}.t1 where c1 > 3 interval(1d) ")
+        tdSql.checkRows(0)
 
         # tdSql.query(f"select distinct  c3 from {dbname}.stb2 where c2 <{tbnum} ")
         # tdSql.checkRows(3)
@@ -173,8 +177,6 @@ class TestDistinct:
         tdSql.error(f"select max(c2), distinct  c1 from {dbname}.t1 ")
         tdSql.error(f"select distinct  c1, c2 from {dbname}.stb1 where c1 > 3 group by t0")
         tdSql.error(f"select distinct  c1, c2 from {dbname}.t1 where c1 > 3 group by t0")
-        tdSql.error(f"select distinct  c1, c2 from {dbname}.stb1 where c1 > 3 interval(1d) ")
-        tdSql.error(f"select distinct  c1, c2 from {dbname}.t1 where c1 > 3 interval(1d) ")
         tdSql.error(f"select distinct  c1, c2 from {dbname}.stb1 where c1 > 3 interval(1d) fill(next)")
         tdSql.error(f"select distinct  c1, c2 from {dbname}.t1 where c1 > 3 interval(1d) fill(next)")
         tdSql.error(f"select distinct  c1, c2 from {dbname}.stb1 where ts > now-10d and ts < now interval(1d) fill(next)")
@@ -260,6 +262,8 @@ class TestDistinct:
         tdSql.checkRows(1)
         tdSql.query(f"select distinct  t3, t4 from {dbname}.t0100num")
         tdSql.checkRows(1)
+        tdSql.query(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 interval(1d) ")
+        tdSql.checkRows(3)
 
 
         ########## should be error #########
@@ -292,7 +296,6 @@ class TestDistinct:
         tdSql.error(f"select distinct  stb1.t0, stb1.t1 from {dbname}.stb1, {dbname}.stb2 where stb1.t2=stb2.t4")
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where stb2.t4 > 2")
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 group by t0")
-        tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 interval(1d) ")
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where t1 > 3 interval(1d) fill(next)")
         tdSql.error(f"select distinct  t0, t1 from {dbname}.stb1 where ts > now-10d and ts < now interval(1d) fill(next)")
 

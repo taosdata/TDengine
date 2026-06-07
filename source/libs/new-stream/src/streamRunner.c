@@ -1,4 +1,5 @@
 #include "streamRunner.h"
+#include "cmdnodes.h"
 #include "dataSink.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
@@ -10,7 +11,6 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
-#include "cmdnodes.h"
 #include "ttime.h"
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
@@ -999,6 +999,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
   pExec->runtimeInfo.funcInfo.isWindowTrigger = pReq->isWindowTrigger;
   pExec->runtimeInfo.funcInfo.precision = pReq->precision;
+  pExec->runtimeInfo.funcInfo.rollupTbCount = pReq->rollupTbCount;
   pExec->runtimeInfo.funcInfo.addOptions = pTask->addOptions;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);

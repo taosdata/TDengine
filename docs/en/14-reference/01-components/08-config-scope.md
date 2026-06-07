@@ -73,6 +73,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | minSlidingTime | taosc | Minimum allowable value for sliding |
 | minIntervalTime | taosc | Minimum allowable value for interval |
 | compareAsStrInGreatest | taosc | Comparison type conversion rules for greatest and least functions |
+| ignoreNullInGreatest | taosc | Whether greatest and least functions skip NULL arguments |
 | showFullCreateTableColumn | taosc | Whether show create table returns column compression information |
 | rpcRecvLogThreshold| taosd| The threshold for warning logs in the RPC module |
 | **Region Related** | | |
@@ -120,6 +121,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | syncHeartbeatInterval | taosd | Internal parameter, for debugging synchronization module |
 | syncHeartbeatTimeout | taosd | Internal parameter, for debugging synchronization module |
 | syncSnapReplMaxWaitN | taosd | Internal parameter, for debugging synchronization module |
+| snapshotRateLimit | taosd | Controls the total snapshot sending bandwidth per dnode (MB/s), 0 means no limit |
 | arbHeartBeatIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbCheckSyncIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbSetAssignedTimeoutSec | taosd | Internal parameter, for debugging synchronization module |
@@ -200,6 +202,11 @@ This document compares the configuration parameters of taosd (server-side) and t
 | enableAuditDelete | taosd | Internal parameter, used for testing audit functions |
 | slowLogThresholdTest | taosd | Internal parameter, used for testing slow logs |
 | bypassFlag | both | Internal parameter, used for short-circuit testing |
+| **CPU Affinity** | | |
+| enableCpuAffinity | taosd | Master switch for CPU affinity binding, 0: disabled (default), 1: enabled |
+| managementCpuCores | taosd | Number of CPU cores dedicated to management threads, default 1 |
+| readCpuCores | taosd | Number of CPU cores dedicated to read threads (1-256), default dynamically computed |
+| otherCpuCores | taosd | Number of CPU cores dedicated to write threads (1-256), default dynamically computed |
 | **Compression Parameters** | | |
 | fPrecision | taosd | Sets the compression precision for float type floating numbers |
 | dPrecision | taosd | Sets the compression precision for double type floating numbers |

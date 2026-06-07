@@ -48,8 +48,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "ORDER BY / GROUP BY item must be the number of a SELECT-list expression";
     case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
       return "Not a GROUP BY expression";
-    case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
-      return "Not SELECTed expression";
+    case TSDB_CODE_PAR_NOT_SELECT_EXPRESSION:
+      return "Not a SELECT expression";
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
       return "Not a single-group group function, '%s' is used incorrectly";
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
@@ -93,7 +93,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
       return "Only support STATE_WINDOW on integer/bool/varchar column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
-      return "Not support STATE_WINDOW on tag column";
+      return "Invalid STATE_WINDOW column specification";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
       return "STATE_WINDOW not support for super table query";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
@@ -156,6 +156,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid alter table statement";
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
+    case TSDB_CODE_PAR_COL_TAG_REF_BY_STM:
+      return "Col/Tag referenced by stream";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
       return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be "
              "increased, not decreased";
@@ -413,12 +415,38 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     return NULL;
   }
 
-  size_t      size = TABLE_META_FULL_SIZE(pTableMeta);
-  STableMeta* p = taosMemoryMalloc(size);
+  size_t baseSize = TABLE_META_BASE_SIZE(pTableMeta);
+  bool   hasSchemaExt = (pTableMeta->schemaExt != NULL);
+  size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
+  bool   bHasColRef = (pTableMeta->colRef != NULL && pTableMeta->numOfColRefs > 0);
+  size_t colRefSize = bHasColRef ? pTableMeta->numOfColRefs * sizeof(SColRef) : 0;
+  bool   bHasTagRef = (pTableMeta->tagRef != NULL && pTableMeta->numOfTagRefs > 0);
+  size_t tagRefSize = bHasTagRef ? pTableMeta->numOfTagRefs * sizeof(SColRef) : 0;
+
+  size_t      totalSize = baseSize + schemaExtSize + colRefSize + tagRefSize;
+  STableMeta* p = taosMemoryMalloc(totalSize);
   if (NULL == p) return NULL;
 
-  memcpy(p, pTableMeta, size);
-  tableMetaResetPointers(p);
+  memcpy(p, pTableMeta, baseSize);
+  if (hasSchemaExt) {
+    p->schemaExt = (SSchemaExt*)(((char*)p) + baseSize);
+    memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
+  } else {
+    p->schemaExt = NULL;
+  }
+  if (bHasColRef) {
+    p->colRef = (SColRef*)(((char*)p) + baseSize + schemaExtSize);
+    memcpy(p->colRef, pTableMeta->colRef, colRefSize);
+  } else {
+    p->colRef = NULL;
+  }
+  if (bHasTagRef) {
+    p->tagRef = (SColRef*)(((char*)p) + baseSize + schemaExtSize + colRefSize);
+    memcpy(p->tagRef, pTableMeta->tagRef, tagRefSize);
+  } else {
+    p->tagRef = NULL;
+    p->numOfTagRefs = 0;
+  }
   return p;
 }
 
@@ -1009,6 +1037,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   snprintf(select->stmtName, TSDB_TABLE_NAME_LEN, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
+  select->windowMode = WINDOW_MODE_NONE;
   select->onlyHasKeepOrderFunc = true;
   TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;
@@ -1242,7 +1271,7 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableName, (void**)&pMeta);
   if (TSDB_CODE_SUCCESS == code) {
     if (!pMeta) code = TSDB_CODE_PAR_INTERNAL_ERROR;
-    const char* pTableName = (const char *)pMeta + TABLE_META_FULL_SIZE(pMeta);
+    const char* pTableName = (const char*)pMeta + TABLE_META_FULL_SIZE(pMeta);
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
 
@@ -1604,7 +1633,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pSchemaExt = pSchemaExt;
 
   SColRef *pColRef = NULL;
-  if (hasRefCol(pCfg->tableType) && pCfg->pColRefs) {
+  if (hasColRef(pCfg->tableType) && pCfg->pColRefs) {
     int32_t colRefSize = pCfg->numOfColumns * sizeof(SColRef);
     pColRef = taosMemoryMalloc(colRefSize);
     if (!pColRef) goto err;
@@ -1614,7 +1643,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pColRefs = pColRef;
 
   SColRef *pTagRef = NULL;
-  if (hasRefCol(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
+  if (hasTagRef(pCfg->tableType) && pCfg->pTagRefs && pCfg->numOfTagRefs > 0) {
     int32_t tagRefSize = pCfg->numOfTagRefs * sizeof(SColRef);
     pTagRef = taosMemoryMalloc(tagRefSize);
     if (!pTagRef) goto err;

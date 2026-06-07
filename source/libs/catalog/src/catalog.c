@@ -366,10 +366,12 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
     SET_META_TYPE_CTABLE(output->metaType);
 
     CTG_ERR_JRET(queryCreateCTableMetaFromMsg(rspMsg, &output->ctbMeta));
-  } else if (TSDB_VIRTUAL_CHILD_TABLE == rspMsg->tableType && NULL == rspMsg->pSchemas) {
+  } else if (TSDB_VIRTUAL_CHILD_TABLE == rspMsg->tableType) {
     tstrncpy(output->ctbName, rspMsg->tbName, sizeof(output->ctbName));
 
     SET_META_TYPE_VCTABLE(output->metaType);
+    ctgDebug("ctgUpdateTbMeta VCTABLE path for tb:%s numColRefs=%d numTagRefs=%d pSchemas=%p",
+             rspMsg->tbName, rspMsg->numOfColRefs, rspMsg->numOfTagRefs, rspMsg->pSchemas);
 
     CTG_ERR_JRET(queryCreateVCTableMetaFromMsg(rspMsg, &output->vctbMeta));
   } else {
@@ -2121,7 +2123,7 @@ int32_t catalogGetStreamCreateSQL(SCatalog* pCtg, SRequestConnInfo* pConn, const
   }
 
   SGetStreamCreateSqlRsp rsp = {0};
-  int32_t code = ctgGetStreamCreateSqlFromMnode(pCtg, pConn, streamFName, &rsp);
+  int32_t                code = ctgGetStreamCreateSqlFromMnode(pCtg, pConn, streamFName, &rsp);
   if (code != 0) {
     tFreeGetStreamCreateSqlRsp(&rsp);
     CTG_API_LEAVE(code);
@@ -2130,7 +2132,35 @@ int32_t catalogGetStreamCreateSQL(SCatalog* pCtg, SRequestConnInfo* pConn, const
   *ppSQL = rsp.sql;
   rsp.sql = NULL;  // ownership transferred to caller
 
+  tFreeGetStreamCreateSqlRsp(&rsp);
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogGetStreamTriggerTable(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                     SName* pTriggerTable) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !streamFName || !pTriggerTable) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SGetStreamCreateSqlRsp rsp = {0};
+  int32_t                code = ctgGetStreamCreateSqlFromMnode(pCtg, pConn, streamFName, &rsp);
+  if (code != TSDB_CODE_SUCCESS) {
+    tFreeGetStreamCreateSqlRsp(&rsp);
+    CTG_API_LEAVE(code);
+  }
+
+  if (rsp.triggerDB && rsp.triggerDB[0] != '\0' && rsp.triggerTblName && rsp.triggerTblName[0] != '\0') {
+    code = tNameFromString(pTriggerTable, rsp.triggerDB, T_NAME_ACCT | T_NAME_DB);
+    if (code == TSDB_CODE_SUCCESS) {
+      pTriggerTable->type = TSDB_TABLE_NAME_T;
+      tstrncpy(pTriggerTable->tname, rsp.triggerTblName, TSDB_TABLE_NAME_LEN);
+    }
+  }
+
+  tFreeGetStreamCreateSqlRsp(&rsp);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {

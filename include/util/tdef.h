@@ -356,6 +356,7 @@ typedef enum {
 
 #define TSDB_MAX_BYTES_PER_ROW         65531  // 49151:65531
 #define TSDB_MAX_BYTES_PER_ROW_VIRTUAL 524283
+#define TSDB_MAX_VTABLE_REF_DEPTH      32
 #define TSDB_MAX_TAGS_LEN              16384
 #define TSDB_MAX_TAGS                  128
 
@@ -705,6 +706,7 @@ typedef enum {
 #define TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR 512
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
+#define ROWSET_COL_ID_START            (PRIMARYKEY_TIMESTAMP_COL_ID + 1)
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
 #ifdef WINDOWS

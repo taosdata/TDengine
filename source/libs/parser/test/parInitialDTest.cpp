@@ -21,6 +21,20 @@ namespace ParserTest {
 
 class ParserInitialDTest : public ParserDdlTest {};
 
+TEST_F(ParserInitialDTest, setFirstDayOfWeek) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT);
+    SSetFirstDayOfWeekStmt* pStmt = (SSetFirstDayOfWeekStmt*)pQuery->pRoot;
+    ASSERT_EQ(pStmt->firstDayOfWeek, 0);
+  });
+
+  run("SET FIRST_DAY_OF_WEEK 0", TSDB_CODE_SUCCESS, PARSER_STAGE_PARSE);
+
+  run("SET FIRST_DAY_OF_WEEK -1", TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK, PARSER_STAGE_PARSE);
+}
+
 // DELETE FROM table_name [WHERE condition]
 TEST_F(ParserInitialDTest, delete) {
   useDb("root", "test");

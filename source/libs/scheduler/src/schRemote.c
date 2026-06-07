@@ -250,8 +250,16 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         }
         SCH_ERR_JRET(rsp.code);
 
-        pJob->execRes.res = rsp.pMeta;
-        pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
+        if (rsp.pMeta) {
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          if (pJob->execRes.res) {
+            tFreeSTableMetaRsp(pJob->execRes.res);
+            taosMemoryFree(pJob->execRes.res);
+          }
+          pJob->execRes.res = rsp.pMeta;
+          pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+        }
       }
 
       SCH_ERR_JRET(rspCode);
@@ -1294,6 +1302,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       }
 
       SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
+
+      qMsg.firstDayOfWeek = pJob->firstDayOfWeek;
 
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {

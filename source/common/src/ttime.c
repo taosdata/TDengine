@@ -187,6 +187,277 @@ int32_t offsetOfTimezone(char* tzStr, int64_t* offset) {
 }
 
 /*
+ * Normalize a fixed-offset timezone string to POSIX TZ format for tzalloc().
+ * Handles: Z, +HH, +HHMM, +HH:MM, -HH, -HHMM, -HH:MM.
+ * Two-digit hours required; single-digit (+8) is rejected.
+ */
+static bool normalizeOffsetTzCommon(const char *val, char *buf, int32_t bufLen) {
+  if (val == NULL || val[0] == '\0') return false;
+
+  if ((val[0] == 'Z' || val[0] == 'z') && val[1] == '\0') {
+    tstrncpy(buf, "UTC", bufLen);
+    return true;
+  }
+
+  if (val[0] != '+' && val[0] != '-') return false;
+
+  char        sign = val[0];
+  const char *p = val + 1;
+  if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
+  int hours = (p[0] - '0') * 10 + (p[1] - '0');
+  p += 2;
+
+  int minutes = 0;
+  if (*p == ':') {
+    p++;
+    if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+    p += 2;
+  } else if (p[0] >= '0' && p[0] <= '9' && p[1] >= '0' && p[1] <= '9') {
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+    p += 2;
+  }
+  if (*p != '\0') return false;
+  if (hours > 14 || minutes > 59 || (hours == 14 && minutes > 0)) return false;
+
+  /* All offset formats use POSIX sign convention: + = west, - = east */
+  if (minutes == 0) {
+    snprintf(buf, bufLen, "<%s>%c%d", val, sign, hours);
+  } else {
+    snprintf(buf, bufLen, "<%s>%c%d:%02d", val, sign, hours, minutes);
+  }
+  return true;
+}
+
+int32_t taosValidateTimezone(const char *tzStr, timezone_t *pTz) {
+  if (tzStr == NULL || tzStr[0] == '\0') {
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  }
+
+  /* Reject ambiguous abbreviations: 2-6 uppercase letters, no slash, not UTC */
+  {
+    const char *p = tzStr;
+    bool        allUpper = true;
+    bool        hasSlash = false;
+    int32_t     len = 0;
+    while (*p) {
+      if (*p == '/') hasSlash = true;
+      if (*p < 'A' || *p > 'Z') allUpper = false;
+      p++;
+      len++;
+    }
+    if (allUpper && len >= 2 && strcmp(tzStr, "UTC") != 0) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    if (!hasSlash && tzStr[0] != '+' && tzStr[0] != '-'
+        && strcmp(tzStr, "UTC") != 0
+        && strncmp(tzStr, "UTC+", 4) != 0 && strncmp(tzStr, "UTC-", 4) != 0
+        && !(tzStr[0] == 'Z' && tzStr[1] == '\0')
+        && !(tzStr[0] == 'z' && tzStr[1] == '\0')) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+  }
+
+  /* Normalize fixed-offset for tzalloc */
+  char        posixBuf[TD_TIMEZONE_LEN] = {0};
+  const char *tzName = tzStr;
+  if (tzStr[0] == '+' || tzStr[0] == '-') {
+    if (!normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    tzName = posixBuf;
+  } else if (strncmp(tzStr, "UTC+", 4) == 0 || strncmp(tzStr, "UTC-", 4) == 0) {
+    /*
+     * All UTC± formats use POSIX sign convention (+ = west, - = east).
+     *  - "UTC+8", "UTC-10"  → short form, pass directly to tzalloc.
+     *  - "UTC+08:00", "UTC+0530" → long form, strip "UTC" prefix
+     *    and convert to angle-bracket format (sign preserved).
+     */
+    const char *off = tzStr + 4;       /* digits after 'UTC+' or 'UTC-' */
+    bool isIso = false;
+    for (const char *q = off; *q; q++) {
+      if (*q == ':' || (q - off >= 2 && *q >= '0' && *q <= '9')) {
+        isIso = true;
+        break;
+      }
+    }
+    if (isIso) {
+      const char *src = tzStr + 3;     /* "+08:00" or "-0530" etc. */
+      char padded[TD_TIMEZONE_LEN];
+      if (src[1] >= '0' && src[1] <= '9' && !(src[2] >= '0' && src[2] <= '9')) {
+        snprintf(padded, sizeof(padded), "%c0%s", src[0], src + 1);
+        src = padded;
+      }
+      if (!normalizeOffsetTzCommon(src, posixBuf, sizeof(posixBuf))) {
+        TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+      }
+      tzName = posixBuf;
+    }
+    /* else: pure POSIX "UTC+8" / "UTC-10", keep tzName = tzStr */
+  } else if (normalizeOffsetTzCommon(tzStr, posixBuf, sizeof(posixBuf))) {
+    tzName = posixBuf;
+  }
+
+  timezone_t tz = tzalloc(tzName);
+  if (tz == NULL) {
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  }
+
+  if (pTz != NULL) {
+    *pTz = tz;
+  } else {
+    tzfree(tz);
+  }
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+/*
+ * Normalize a fixed-offset string to POSIX UTC±h[:mm] format.
+ * Input: sign + digits (+08:00, +0800, +08, -05:30, -0530, -05)
+ * All offsets use POSIX sign convention: + = west, - = east.
+ * Output: "UTC+8", "UTC-5:30", etc. (sign preserved, format simplified)
+ * Returns true on success.
+ */
+static bool normalizeOffsetToPosixUtc(const char *val, char *buf, int32_t bufLen) {
+  if (val == NULL || (val[0] != '+' && val[0] != '-')) return false;
+
+  char        sign = val[0];
+  const char *p = val + 1;
+  if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
+  int hours = (p[0] - '0') * 10 + (p[1] - '0');
+  p += 2;
+
+  int minutes = 0;
+  if (*p == ':') {
+    p++;
+    if (!(p[0] >= '0' && p[0] <= '9') || !(p[1] >= '0' && p[1] <= '9')) return false;
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+    p += 2;
+  } else if (p[0] >= '0' && p[0] <= '9' && p[1] >= '0' && p[1] <= '9') {
+    minutes = (p[0] - '0') * 10 + (p[1] - '0');
+    p += 2;
+  }
+  if (*p != '\0') return false;
+  if (hours > 14 || minutes > 59 || (hours == 14 && minutes > 0)) return false;
+
+  /* All offset formats use POSIX sign convention: + = west, - = east */
+  if (minutes == 0) {
+    snprintf(buf, bufLen, "UTC%c%d", sign, hours);
+  } else {
+    snprintf(buf, bufLen, "UTC%c%d:%02d", sign, hours, minutes);
+  }
+  return true;
+}
+
+int32_t taosValidateAndNormalizeTimezone(const char *tzStr,
+                                         char *normBuf, int32_t normBufLen,
+                                         timezone_t *pTz) {
+  if (tzStr == NULL || tzStr[0] == '\0' || normBufLen < 8) {
+    TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+  }
+
+  /* Z/z -> UTC */
+  if ((tzStr[0] == 'Z' || tzStr[0] == 'z') && tzStr[1] == '\0') {
+    tstrncpy(normBuf, "UTC", normBufLen);
+    goto validate;
+  }
+
+  /* Reject GMT series explicitly */
+  if (strncasecmp(tzStr, "GMT", 3) == 0) {
+    if (tzStr[3] == '\0' || tzStr[3] == '+' || tzStr[3] == '-') {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+  }
+
+  /* UTC alone */
+  if (strcasecmp(tzStr, "UTC") == 0) {
+    tstrncpy(normBuf, "UTC", normBufLen);
+    goto validate;
+  }
+
+  /* UTC± prefix: all formats use POSIX sign convention (+ = west, - = east) */
+  if (strncasecmp(tzStr, "UTC", 3) == 0 && (tzStr[3] == '+' || tzStr[3] == '-')) {
+    const char *off = tzStr + 4;
+    bool isIso = false;
+    for (const char *q = off; *q; q++) {
+      if (*q == ':' || (q - off >= 2 && *q >= '0' && *q <= '9')) {
+        isIso = true;
+        break;
+      }
+    }
+    if (isIso) {
+      /* Long form: UTC+08:00, UTC+0530 -> simplify to UTC±h[:mm] */
+      const char *src = tzStr + 3; /* "+08:00" or "-0530" etc. */
+      char padded[TD_TIMEZONE_LEN];
+      if (src[1] >= '0' && src[1] <= '9' && !(src[2] >= '0' && src[2] <= '9')) {
+        /* single digit hour like "+8:00" -> pad to "+08:00" */
+        snprintf(padded, sizeof(padded), "%c0%s", src[0], src + 1);
+        src = padded;
+      }
+      if (!normalizeOffsetToPosixUtc(src, normBuf, normBufLen)) {
+        TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+      }
+    } else {
+      /* Short form: UTC-8, UTC+10 — keep as-is */
+      tstrncpy(normBuf, tzStr, normBufLen);
+    }
+    goto validate;
+  }
+
+  /* Bare fixed-offset: +08:00, +0800, +08, -05:30 etc. -> POSIX UTC±h[:mm] */
+  if (tzStr[0] == '+' || tzStr[0] == '-') {
+    /* Require 2-digit hours */
+    if (!(tzStr[1] >= '0' && tzStr[1] <= '9') || !(tzStr[2] >= '0' && tzStr[2] <= '9')) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    if (!normalizeOffsetToPosixUtc(tzStr, normBuf, normBufLen)) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    goto validate;
+  }
+
+  /* IANA name (contains '/') — pass through */
+  {
+    const char *p = tzStr;
+    bool hasSlash = false;
+    while (*p) {
+      if (*p == '/') { hasSlash = true; break; }
+      p++;
+    }
+    if (hasSlash) {
+      tstrncpy(normBuf, tzStr, normBufLen);
+      goto validate;
+    }
+  }
+
+  /* Windows canonical name — try mapping to IANA */
+  {
+    const char *ianaName = taosWindowsNameToIana(tzStr);
+    if (ianaName != NULL) {
+      tstrncpy(normBuf, ianaName, normBufLen);
+      goto validate;
+    }
+  }
+
+  /* Reject ambiguous abbreviations and anything else without a slash */
+  TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+
+validate:
+  {
+    timezone_t tz = tzalloc(normBuf);
+    if (tz == NULL) {
+      TAOS_RETURN(TSDB_CODE_PAR_INVALID_TIMEZONE);
+    }
+    if (pTz != NULL) {
+      *pTz = tz;
+    } else {
+      tzfree(tz);
+    }
+  }
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+/*
  * rfc3339 format:
  * 2013-04-12T15:52:01+08:00
  * 2013-04-12T15:52:01.123+08:00
@@ -767,6 +1038,7 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
         tm.tm_mon = alignedMonths % 12;
       }
 
+      tm.tm_isdst = -1;
       aligned = (int64_t)taosMktime(&tm, tz) * precisionFactor;
       break;
     }
@@ -786,6 +1058,7 @@ int64_t alignToNaturalBoundary(int64_t timestamp, char unit, int64_t value, int6
         tm.tm_year = 70 + alignedYears;
       }
 
+      tm.tm_isdst = -1;
       aligned = (int64_t)taosMktime(&tm, tz) * precisionFactor;
       break;
     }
@@ -826,9 +1099,9 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
     TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
-  /* natual month/year are not allowed in absolute duration */
+  /* natural month/year/quarter are not allowed in absolute duration */
   *unit = token[tokenlen - 1];
-  if (*unit == 'n' || *unit == 'y') {
+  if (IS_CALENDAR_TIME_DURATION(*unit)) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -846,7 +1119,14 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   }
 
   *unit = token[tokenLen - 1];
-  if (*unit == 'n' || *unit == 'y') {
+  if (*unit == 'q' || *unit == 'Q') {
+    if (*duration > INT64_MAX / 3 || *duration < INT64_MIN / 3) {
+      TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+    }
+    *duration *= 3;
+    *unit = 'n';
+  }
+  if (IS_CALENDAR_TIME_DURATION(*unit)) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   if (isdigit(*unit)) {
@@ -899,6 +1179,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   if (tm.tm_mday > daysOfMonth[tm.tm_mon]) {
     tm.tm_mday = daysOfMonth[tm.tm_mon];
   }
+  tm.tm_isdst = -1;
 
   tt = taosMktime(&tm, tz);
   if (tt == -1){
@@ -991,14 +1272,64 @@ int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval
 }
 
 /*
+ * Resolve the east-positive UTC offset that is in effect at `timeSec`.
+ *
+ * This is intentionally different from taosGetTZOffsetSeconds(), which has no
+ * timestamp input and therefore returns only the timezone's current/default
+ * offset.  Use this helper whenever the caller needs the offset for a target
+ * instant and DST/history can change the answer.
+ */
+int32_t taosGetTimezoneOffsetAtSeconds(time_t timeSec, timezone_t tz,
+                                       int64_t *pOffsetSeconds) {
+  if (pOffsetSeconds == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  struct tm tmLocal;
+
+  if (taosLocalTime(&timeSec, &tmLocal, NULL, 0, tz) == NULL) {
+    uError("%s failed to get local time for ts:%" PRId64 ", code:%d",
+           __FUNCTION__, (int64_t)timeSec, ERRNO);
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  *pOffsetSeconds = (int64_t)(taosTimeGm(&tmLocal) - timeSec);
+  return TSDB_CODE_SUCCESS;
+}
+
+int64_t taosTimeTruncateIANA(int64_t ts, int64_t truncateUnit, int8_t fdow,
+                             int32_t precision, timezone_t tz) {
+  int64_t factor = TSDB_TICK_PER_SECOND(precision);
+  int64_t weekUnit = 604800LL * factor;
+  bool    isWeek = (truncateUnit == weekUnit);
+  time_t  t = (time_t)(ts / factor);
+  if (ts < 0 && ts % factor != 0) {
+    t--;
+  }
+  struct tm tmInfo;
+  if (taosLocalTime(&t, &tmInfo, NULL, 0, tz) == NULL) {
+    return ts;
+  }
+  if (isWeek) {
+    int32_t daysBack = (tmInfo.tm_wday - (int32_t)fdow + 7) % 7;
+    tmInfo.tm_mday -= daysBack;
+  }
+  tmInfo.tm_hour = 0;
+  tmInfo.tm_min  = 0;
+  tmInfo.tm_sec  = 0;
+  tmInfo.tm_isdst = -1;
+  time_t truncated = taosMktime(&tmInfo, tz);
+  return (truncated != (time_t)-1) ? truncated * factor : ts;
+}
+
+/*
   getTZOffsetAtTicks - return the east-positive UTC offset (in ticks) that is
   in effect at the given timestamp.
- 
+
   Unlike taosGetTZOffsetSeconds() which queries the offset for "now", this
-  function converts `ticks` to local time via taosLocalTime() and then
-  derives the offset as (taosTimeGm(local) - t_sec), so it correctly
-  resolves DST for the *target* instant.
- 
+  function resolves the offset for the *target* instant, so DST-sensitive
+  callers do not accidentally reuse the current offset.
+
   On conversion failure 0 is returned (UTC fallback).
  */
 static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t tz) {
@@ -1008,13 +1339,15 @@ static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t t
     t_sec_ticks -= 1;
   }
   time_t    t_sec = (time_t)t_sec_ticks;
-  struct tm tm_local;
-  if (taosLocalTime(&t_sec, &tm_local, NULL, 0, tz) == NULL) {
+  int64_t   offsetSec = 0;
+
+  if (taosGetTimezoneOffsetAtSeconds(t_sec, tz, &offsetSec) != TSDB_CODE_SUCCESS) {
     uWarn("%s failed to convert ticks:%" PRId64 " to local time, code:%d",
           __FUNCTION__, ticks, ERRNO);
     return 0;
   }
-  return (int64_t)(taosTimeGm(&tm_local) - t_sec) * factor;
+
+  return offsetSec * factor;
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
@@ -1051,6 +1384,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       tm.tm_mon = mon % 12;
     }
 
+    tm.tm_isdst = -1;
     tt = taosMktime(&tm, pInterval->timezone);
     if (tt == -1){
       uError("%s failed to convert local time to time, code:%d", __FUNCTION__, ERRNO);
@@ -1087,30 +1421,50 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         start = prev;
       }
     } else {
-      int64_t delta = ts - pInterval->interval;
-      start = (delta / pInterval->sliding) * pInterval->sliding;
-
-      if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-        start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
-      }
-
-      int64_t end = 0;
-
-      // not enough time range
-      if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-        end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-        while (end < ts) {  // move forward to the correct time window
-          start += pInterval->sliding;
-
-          if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-            end = start + pInterval->interval - 1;
-          } else {
-            end = INT64_MAX;
-            break;
+      if (pInterval->intervalUnit == 'w') {
+        /* Week interval: align to local week boundary using firstDayOfWeek (0-6).
+         * The default keeps Unix epoch alignment and is shared via tsDefaultFirstDayOfWeek. */
+        time_t    t = (time_t)(ts / (int64_t)TSDB_TICK_PER_SECOND(precision));
+        struct tm tm;
+        if (taosLocalTime(&t, &tm, NULL, 0, pInterval->timezone) != NULL) {
+          int32_t daysBack = (tm.tm_wday - pInterval->firstDayOfWeek + 7) % 7;
+          /* tm_mday may go negative; POSIX mktime normalizes this. */
+          tm.tm_mday -= daysBack;
+          tm.tm_hour = 0;
+          tm.tm_min = 0;
+          tm.tm_sec = 0;
+          tm.tm_isdst = -1;
+          time_t truncated = taosMktime(&tm, pInterval->timezone);
+          if (truncated != (time_t)-1) {
+            start = (int64_t)truncated * (int64_t)TSDB_TICK_PER_SECOND(precision);
           }
         }
       } else {
-        end = INT64_MAX;
+        int64_t delta = ts - pInterval->interval;
+        start = (delta / pInterval->sliding) * pInterval->sliding;
+
+        if (pInterval->intervalUnit == 'd') {
+          start -= getTZOffsetAtTicks(start, precision, pInterval->timezone);
+        }
+
+        int64_t end = 0;
+
+        // not enough time range
+        if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+          end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+          while (end < ts) {  // move forward to the correct time window
+            start += pInterval->sliding;
+
+            if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+              end = start + pInterval->interval - 1;
+            } else {
+              end = INT64_MAX;
+              break;
+            }
+          }
+        } else {
+          end = INT64_MAX;
+        }
       }
     }
   }
@@ -1282,6 +1636,39 @@ char* formatTimestampLocal(char* buf, int32_t cap, int64_t val, int precision) {
     snprintf(buf + pos, cap - (pos), ".%09d", (int)(val % 1000000000));
   } else {
     snprintf(buf + pos, cap - (pos), ".%03d", (int)(val % 1000));
+  }
+
+  return buf;
+}
+
+char* formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, timezone_t tz) {
+  time_t tt;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+  } else {
+    tt = (time_t)(val / 1000);
+  }
+
+  struct tm tm;
+  if (taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
+    return NULL;
+  }
+  size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    int frac = (int)(val % 1000000);
+    if (frac < 0) frac += 1000000;
+    snprintf(buf + pos, cap - (pos), ".%06d", frac);
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    int frac = (int)(val % 1000000000);
+    if (frac < 0) frac += 1000000000;
+    snprintf(buf + pos, cap - (pos), ".%09d", frac);
+  } else {
+    int frac = (int)(val % 1000);
+    if (frac < 0) frac += 1000;
+    snprintf(buf + pos, cap - (pos), ".%03d", frac);
   }
 
   return buf;

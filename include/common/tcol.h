@@ -83,7 +83,8 @@ uint16_t    columnCompressVal(const char* compress);
 
 bool withColCompress(uint8_t tableType);
 bool withExtSchema(uint8_t tableType);
-bool hasRefCol(uint8_t tableType);
+bool hasColRef(uint8_t tableType);
+bool hasTagRef(uint8_t tableType);
 bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]);

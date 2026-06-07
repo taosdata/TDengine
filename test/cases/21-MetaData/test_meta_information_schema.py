@@ -17,9 +17,15 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdDnodes
 import os
 import time
 
+NUM_INFO_DB_TABLES = 61  # number of system tables in information_schema
+NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
 
 sysdb_tables = { 
-    "information_schema": ["ins_dnodes", "ins_mnodes", "ins_modules", "ins_qnodes", "ins_snodes", "ins_cluster", "ins_databases", "ins_functions", "ins_indexes", "ins_stables", "ins_tables", "ins_tags", "ins_columns", "ins_users", "ins_grants", "ins_vgroups", "ins_configs", "ins_dnode_variables", "ins_topics", "ins_subscriptions", "ins_streams", "ins_streams_tasks", "ins_vnodes", "ins_user_privileges", "undefined"], 
+    "information_schema": ["ins_dnodes", "ins_mnodes", "ins_modules", "ins_qnodes", "ins_snodes", "ins_cluster", "ins_databases",
+                           "ins_functions", "ins_indexes", "ins_stables", "ins_tables", "ins_tags", "ins_columns", "ins_users",
+                           "ins_grants", "ins_vgroups", "ins_configs", "ins_dnode_variables", "ins_topics", "ins_subscriptions",
+                           "ins_streams", "ins_streams_tasks", "ins_vnodes", "ins_user_privileges", "ins_table_fixed_distributed",
+                           "undefined"], 
     "performance_schema": ["perf_connections", "perf_queries", "perf_consumers", "perf_trans", "perf_apps", "undefined"]
     }
 
@@ -165,12 +171,12 @@ class TestDdlInSysdb:
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'information_schema' order by table_name")
 
-        tdSql.checkRows(61)
+        tdSql.checkRows(NUM_INFO_DB_TABLES)
 
         tdSql.checkData(0, 0, "ins_anodes")
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'performance_schema' order by table_name")
-        tdSql.checkRows(6)
+        tdSql.checkRows(NUM_PERF_DB_TABLES)
         tdSql.checkData(0, 0, "perf_apps")
         
 
@@ -756,7 +762,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 68)
+        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + 1)
 
         tdSql.checkData(1, 1, 10)
 
@@ -771,9 +777,9 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, 61)
+        tdSql.checkData(2, 1, NUM_INFO_DB_TABLES)
 
-        tdSql.checkData(3, 1, 6)
+        tdSql.checkData(3, 1, NUM_PERF_DB_TABLES)
 
         tdSql.query(
             f"select db_name,stable_name,count(table_name) from information_schema.ins_tables group by db_name, stable_name order by db_name, stable_name;"
@@ -790,9 +796,9 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, 61)
+        tdSql.checkData(5, 2, NUM_INFO_DB_TABLES)
 
-        tdSql.checkData(6, 2, 6)
+        tdSql.checkData(6, 2, NUM_PERF_DB_TABLES)
 
         tdSql.query(
             f"select count(table_name) from information_schema.ins_tables where db_name='db1' and stable_name='sta' group by stable_name"
@@ -927,7 +933,7 @@ class TestDdlInSysdb:
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
                         "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status',
-                        "ins_roles", "ins_role_privileges", "ins_role_column_privileges", "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents", "ins_virtual_tables_referencing", "ins_security_policies","ins_snap_send_vnodes","ins_snap_send_filesets"]
+                        "ins_roles", "ins_role_privileges", "ins_role_column_privileges", "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents", "ins_virtual_tables_referencing", "ins_security_policies","ins_snap_send_vnodes","ins_snap_send_filesets", "ins_table_fixed_distributed", "ins_cpu_allocation"]
         self.perf_list = ['perf_connections', 'perf_queries',
                          'perf_consumers',  'perf_trans', 'perf_apps','perf_instances']
 

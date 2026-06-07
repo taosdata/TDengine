@@ -163,6 +163,7 @@ typedef struct SParseContext {
   setQueryFn  setQueryFp;
   timezone_t  timezone;
   void*       charsetCxt;
+  int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
 } SParseContext;
 
 typedef struct SPureInsertParserCtx {

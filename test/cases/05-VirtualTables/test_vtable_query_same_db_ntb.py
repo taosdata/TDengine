@@ -15,6 +15,9 @@ import os
 from vtable_util import VtableQueryUtil
 
 class TestVTableQuerySameDBNtb:
+    updatecfgDict = {
+        "minReservedMemorySize": "1024",
+    }
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()

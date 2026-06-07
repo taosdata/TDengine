@@ -93,7 +93,6 @@ void msmDestroyRuntimeInfo(SMnode *pMnode) {
   mstInfo("mnode stream mgmt destroyed");  
 }
 
-
 void msmStopStreamByError(int64_t streamId, SStmStatus* pStatus, int32_t errCode, int64_t currTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -124,6 +123,7 @@ void msmStopStreamByError(int64_t streamId, SStmStatus* pStatus, int32_t errCode
 
   pStatus->fatalRetryTimes++;
   pStatus->fatalError = errCode;
+  TAOS_CHECK_EXIT(mstSetExtraErrMsg(&pStatus->extraErrMsg, NULL));
   pStatus->fatalRetryDuration = (pStatus->fatalRetryTimes > 10) ? MST_MAX_RETRY_DURATION : MST_ISOLATION_DURATION;
   pStatus->fatalRetryTs = currTs + pStatus->fatalRetryDuration;
 
@@ -761,6 +761,7 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
     pTrigger->partitionCols = pInfo->pCreate->partitionCols;
+    pTrigger->rollupTagCols = pInfo->pCreate->rollupTagCols;
     pTrigger->triggerCols = pInfo->pCreate->triggerCols;
     //pTrigger->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
     pTrigger->triggerScanPlan = pInfo->pCreate->triggerScanPlan;
@@ -857,6 +858,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->isTriggerTblStb = (pStream->pCreate->triggerTblType == TSDB_SUPER_TABLE);
   pMsg->precision = pStream->pCreate->triggerPrec;
   pMsg->partitionCols = pInfo->pCreate->partitionCols;
+  pMsg->rollupTagCols = pInfo->pCreate->rollupTagCols;
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
@@ -3516,7 +3518,8 @@ void msmHandleTaskAbnormalStatus(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pMsg, SStm
       if (STREAM_RUNNER_TASK == pTask->type || STREAM_TRIGGER_TASK == pTask->type) {
         msttWarn("task failed with error:%s, try to undeploy whole stream, idx:%d", tstrerror(pMsg->errorCode),
                  pMsg->taskIdx);
-        msmStopStreamByError(streamId, pStatus, code, pCtx->currTs);
+        msmStopStreamByError(streamId, pStatus, pMsg->errorCode, pCtx->currTs);
+        TAOS_CHECK_EXIT(mstSetExtraErrMsg(&pStatus->extraErrMsg, pMsg->extraErrMsg));
       } else {
         msttInfo("task failed with error:%s, try to undeploy current task, idx:%d", tstrerror(pMsg->errorCode),
                  pMsg->taskIdx);
@@ -3650,6 +3653,7 @@ int32_t msmNormalHandleStatusUpdate(SStmGrpCtx* pCtx) {
     }
     
     (*ppStatus)->errCode = pTask->errorCode;
+    TAOS_CHECK_EXIT(mstSetExtraErrMsg(&(*ppStatus)->extraErrMsg, pTask->extraErrMsg));
     (*ppStatus)->status = pTask->status;
     (*ppStatus)->lastUpTs = pCtx->currTs;
     
@@ -3716,12 +3720,19 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       
       SStmTaskStatus taskStatus = {0};
       taskStatus.pStream = pStatus;
-      mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask);
+      TAOS_CHECK_EXIT(mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask));
       if (STREAM_IS_TRIGGER_READER(pTask->flags)) {
         pNewTask = taosArrayPush(pList, &taskStatus);
-        TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
+        if (pNewTask == NULL) {
+          mstDestroySStmTaskStatus(&taskStatus);
+          TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
+        }
       } else {
-        TAOS_CHECK_EXIT(tdListAppend(pStatus->calcReaders, &taskStatus));
+        code = tdListAppend(pStatus->calcReaders, &taskStatus);
+        if (code != TSDB_CODE_SUCCESS) {
+          mstDestroySStmTaskStatus(&taskStatus);
+          TAOS_CHECK_EXIT(code);
+        }
         SListNode* pTailNode = tdListGetTail(pStatus->calcReaders);
         QUERY_CHECK_NULL(pTailNode, code, lino, _exit, TSDB_CODE_INTERNAL_ERROR);
         pNewTask = (SStmTaskStatus*)pTailNode->data;
@@ -3732,11 +3743,12 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       break;
     }
     case STREAM_TRIGGER_TASK: {
+      mstDestroySStmTaskStatus(pStatus->triggerTask);
       taosMemoryFreeClear(pStatus->triggerTask);
       pStatus->triggerTask = taosMemoryCalloc(1, sizeof(*pStatus->triggerTask));
       TSDB_CHECK_NULL(pStatus->triggerTask, code, lino, _exit, terrno);
       pStatus->triggerTask->pStream = pStatus;
-      mstSetTaskStatusFromMsg(pCtx, pStatus->triggerTask, pTask);
+      TAOS_CHECK_EXIT(mstSetTaskStatusFromMsg(pCtx, pStatus->triggerTask, pTask));
       pNewTask = pStatus->triggerTask;
 
       TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pNewTask));
@@ -3756,9 +3768,12 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       
       SStmTaskStatus taskStatus = {0};
       taskStatus.pStream = pStatus;
-      mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask);
+      TAOS_CHECK_EXIT(mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask));
       pNewTask = taosArrayPush(pStatus->runners[pTask->deployId], &taskStatus);
-      TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
+      if (pNewTask == NULL) {
+        mstDestroySStmTaskStatus(&taskStatus);
+        TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
+      }
 
       TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pNewTask));
       TAOS_CHECK_EXIT(msmSTAddToSnodeMapImpl(streamId, pNewTask, pTask->deployId));

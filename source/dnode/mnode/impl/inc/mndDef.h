@@ -1078,7 +1078,6 @@ typedef struct {
 
   // data for display
   int32_t pid;
-  SEpSet  ep;
   int64_t createTime;
   int64_t pollTime;
   int64_t subscribeTime;
@@ -1100,16 +1099,8 @@ int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
-  int32_t vgId;
-  SEpSet epSet;
-} SMqVgEp;
-
-int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
-void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
-
-typedef struct {
   int64_t consumerId;  // -1 for unassigned
-  SArray* vgs;         // SArray<SMqVgEp>
+  SArray* vgs;         // SArray<vgId>
   SArray* offsetRows;  // SArray<OffsetRows>
 } SMqConsumerEp;
 
@@ -1125,7 +1116,7 @@ typedef struct {
   int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
-  SArray*   unassignedVgs;  // SArray<SMqVgEp>
+  SArray*   unassignedVgs;  // SArray<vgId>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
   SRWLatch  lock;
@@ -1145,7 +1136,7 @@ typedef struct {
 typedef struct {
   int64_t  oldConsumerId;
   int64_t  newConsumerId;
-  SMqVgEp  pVgEp;
+  int32_t  vgId;
 } SMqRebOutputVg;
 
 typedef struct {

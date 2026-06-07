@@ -188,7 +188,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
   }
 
-  if (hasRefCol(pMeta->tableType)) {
+  if (hasColRef(pMeta->tableType)) {
     pCol8 = taosArrayGet(pBlock->pDataBlock, 4);
   }
 
@@ -242,7 +242,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         STR_TO_VARSTR(buf, fillTagCol == 0 ? "" : "disabled");
         COL_DATA_SET_VAL_AND_CHECK(pCol7, pBlock->info.rows, buf, false);
       }
-    } else if (hasRefCol(pMeta->tableType) && pMeta->colRef) {
+    } else if (hasColRef(pMeta->tableType) && pMeta->colRef) {
       if (i < pMeta->numOfColRefs) {
         if (pMeta->colRef[i].hasRef) {
           char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
@@ -302,7 +302,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (pDesc->pMeta) {
-      if (hasRefCol(pDesc->pMeta->tableType)) {
+      if (hasColRef(pDesc->pMeta->tableType)) {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_REF, pRsp);
       } else if (withColCompress(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
@@ -641,7 +641,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
                           columnLevelStr(COMPRESS_L2_TYPE_LEVEL_U32(pCfg->pSchemaExt[i].compress)));
     }
 
-    if (hasRefCol(pCfg->tableType) && pRef && pRef->hasRef) {
+    if (hasColRef(pCfg->tableType) && pRef && pRef->hasRef) {
       typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM `%s`", pRef->refDbName);
       typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
       typeLen +=
@@ -670,7 +670,7 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     char     type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN];
     int      typeLen = 0;
 
-    if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
+    if (hasColRef(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
       typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
       typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
       typeLen +=

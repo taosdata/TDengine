@@ -50,4 +50,3 @@ class TestVtableQueryCrossDbStbFunction:
         """
 
         self.run_normal_query("test_vstable_select_test_function")
-

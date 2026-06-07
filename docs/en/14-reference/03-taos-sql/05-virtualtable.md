@@ -36,9 +36,12 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     TAGS (tag_value [, tag_value] ...)
      
   create_definition:
-    [stb_col_name FROM] [db_name.]table_name.col_name
+     [stb_col_name FROM] [db_name.]table_name.col_name
   tag_value:
      const_value
+     | [db_name.]table_name.tag_name
+     | FROM [db_name.]table_name.tag_name
+     | tag_name FROM [db_name.]table_name.tag_name
 ```
 
 Usage Notes:
@@ -54,7 +57,16 @@ Usage Notes:
 9. Virtual supertables only support creating virtual subtables, virtual subtables can only use virtual supertables as template.
 10. Ensure virtual tables' column/tag data types match their source columns/tags.
 11. Virtual table names must be unique within a database and cannot conflict with table names, and it is recommended that view names do not duplicate virtual table names (not enforced). When a view and a virtual table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the virtual table with the same name. .
-12. When creating virtual subtables/basic tables, `FROM` columns must originate from basic tables/subtables (not supertables, views, or other virtual tables).
+12. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. Supertables and views are not supported as direct sources, and tables with composite primary keys are not supported.
+13. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
+14. A tag-ref must point to a tag column, not a data column, and the source tag type must match the target virtual tag type.
+
+### Currently Supported Reference Patterns
+
+- Virtual subtables support tag-ref, and queries resolve tag values dynamically from the current source-tag values.
+- Virtual-table columns can directly reference columns from existing virtual tables, so direct VChild → VChild chains are supported.
+- You can build layered virtual-child chains across virtual supertables, including same-database and cross-database cases.
+- Tag-ref and col-ref can be mixed across multiple hops. The current reference-depth limit is 32; validation or query execution returns `0x8000620C` when the chain exceeds that limit.
 
 ## Query Virtual Tables
 
@@ -293,7 +305,7 @@ ALTER VTABLE [db_name.]vtb_name alter_table_clause
 
 alter_table_clause: {
   ALTER COLUMN vtb_col_name SET table_name.col_name
-  | SET TAG tag_name = new_tag_value
+  | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
 }
 ```
 
@@ -302,6 +314,8 @@ alter_table_clause: {
 ```sql
 ALTER VTABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
+
+`SET TAG` can assign either a literal value or a tag-ref. For example, `ALTER VTABLE v0 SET TAG local_tag = src0.city` converts `local_tag` to a tag-ref. The source must be a tag column, and its type must match the target tag. Setting a literal value clears any previous tag-ref.
 
 ### Change Column Source
 
@@ -323,11 +337,15 @@ DROP VTABLE [IF EXISTS] [dbname].vtb_name;
 SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
 ```
 
+Use `SHOW VTABLES` to list the virtual basic tables and virtual subtables covered here. `SHOW TABLES` does not return these virtual tables.
+
 ### Show Creation Statement
 
 ```sql
 SHOW CREATE VTABLE [db_name.]vtable_name;
 ```
+
+Displays the creation statement for the specified virtual table. For virtual subtables created with tag-ref, the returned statement preserves the tag-ref definition.
 
 ### Describe Structure
 
@@ -335,11 +353,36 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 DESCRIBE [db_name.]vtb_name;
 ```
 
-### Query All Virtual Tables' Information
+`DESCRIBE` shows the virtual table's columns and tags. For tag-ref or col-ref entries, the result also shows the reference source.
+
+### Show Current Tag Values of a Virtual Child Table
+
+```sql
+SHOW TAGS FROM child_table_name [FROM db_name];
+SHOW TAGS FROM [db_name.]child_table_name;
+```
+
+For tag-ref virtual subtables, `SHOW TAGS` returns the currently resolved tag values.
+
+### Validate Virtual-Table References
+
+```sql
+SHOW VTABLE VALIDATE FOR [db_name.]vtb_name;
+```
+
+`SHOW VTABLE VALIDATE` checks column/tag references for a virtual basic table or virtual child table and returns the same validation metadata as `information_schema.ins_virtual_tables_referencing`, including `err_code` and `err_msg`.
+
+### Query Virtual Basic Tables and Virtual Subtables
 
 ```sql
 SELECT ... FROM information_schema.ins_tables WHERE type = 'VIRTUAL_NORMAL_TABLE' OR type = 'VIRTUAL_CHILD_TABLE';
 ```
+
+```sql
+SELECT ... FROM information_schema.ins_virtual_tables_referencing;
+```
+
+Use `ins_virtual_tables_referencing` to inspect source database, source table, source column, and validation status for virtual-table columns and tags.
 
 ## Write to Virtual Tables
 
@@ -390,8 +433,8 @@ REVOKE privileges ON [db_name.]vtable_name FROM user_name
 
 | No. | Operation                | Permission Requirements                                                                                                                                                                                  |  
 |-----|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|  
-| 1   | CREATE VTABLE            | The user has **WRITE** permission on the database to which the virtual table belongs, and <br />the user has **READ** permission on the source tables corresponding to the virtual table's data sources. |  
-| 2   | DROP/ALTER VTABLE        | The user has **WRITE** permission on the virtual table. If specifying a column's data source, the user must also have **READ** permission on the source table corresponding to that column.              |  
+| 1   | CREATE VTABLE            | The user has **WRITE** permission on the database to which the virtual table belongs, and <br />the user has **READ** permission on the source tables or source virtual tables referenced by the virtual table. |
+| 2   | DROP/ALTER VTABLE        | The user has **WRITE** permission on the virtual table. If specifying a source for either a column reference or a tag reference, the user must also have **READ** permission on the referenced source table or source virtual table. |
 | 3   | SHOW VTABLES             | None                                                                                                                                                                                                     |  
 | 4   | SHOW CREATE VTABLE       | None                                                                                                                                                                                                     |  
 | 5   | DESCRIBE VTABLE          | None                                                                                                                                                                                                     |  
@@ -401,6 +444,6 @@ REVOKE privileges ON [db_name.]vtable_name FROM user_name
 
 ## Use Cases
 
-| SQL Query | SQL Write | STMT Query | STMT Write | Subscribe | Stream Compute |
-|----------|-----------|------------|------------|-----------|----------------|
-| Supported | Not Supported | Not Supported | Not Supported | Not Supported | Supported |
+| SQL Query | SQL Write | STMT Query | STMT Write |
+|----------|-----------|------------|------------|
+| Supported | Not Supported | Not Supported | Not Supported |

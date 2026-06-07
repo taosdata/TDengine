@@ -60,6 +60,8 @@ typedef struct STokenBucket       STokenBucket;
 #define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
 #define PLACE_HOLDER_IDLE_START       BIT_FLAG_MASK(14)
 #define PLACE_HOLDER_IDLE_END         BIT_FLAG_MASK(15)
+#define PLACE_HOLDER_ROLLUP_TAG       BIT_FLAG_MASK(16)
+#define PLACE_HOLDER_ROLLUP_TBCOUNT   BIT_FLAG_MASK(17)
 
 #define CREATE_STREAM_FLAG_NONE                     0
 #define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
@@ -88,14 +90,19 @@ typedef struct SSessionTrigger {
   int64_t sessionVal;
 } SSessionTrigger;
 
+// Sentinel value in deploy msg binary encoding to distinguish v2 (multi-slot)
+// from v1 (single-slot) state window format. Must not collide with any valid
+// slotId value; -1 is reserved for expression keys, so we use -2.
+#define STATE_WIN_SLOT_SENTINEL_V2  ((int16_t)-2)
+
 typedef struct SStateWinTrigger {
-  int16_t slotId;
+  SArray* pSlotIds;  // SArray<int16_t>
   int16_t extend;
-  void*   zeroth;
+  void*   zeroth;  // serialized nodelist
   int32_t trueForType;
   int32_t trueForCount;
   int64_t trueForDuration;
-  void*   expr;
+  void*   expr;  // serialized nodelist
 } SStateWinTrigger;
 
 typedef struct SSlidingTrigger {
@@ -117,6 +124,14 @@ typedef struct SEventTrigger {
   int32_t trueForType;
   int32_t trueForCount;
   int64_t trueForDuration;
+  // start condition consecutive-streak limit (0 = no limit)
+  int32_t startTrueForType;
+  int32_t startTrueForCount;
+  int64_t startTrueForDuration;
+  // end condition consecutive-streak limit (0 = no limit)
+  int32_t endTrueForType;
+  int32_t endTrueForCount;
+  int64_t endTrueForDuration;
 } SEventTrigger;
 
 typedef struct SCountTrigger {
@@ -182,6 +197,7 @@ typedef struct {
   void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
   void*          partitionCols;         // nodelist of SColumnNode
+  void*          rollupTagCols;         // serialized SNodeList* of SColumnNode; NULL = not rollup
   SArray*        outCols;               // array of SFieldWithOptions
   SArray*        outTags;               // array of SFieldWithOptions
   int64_t        maxDelay;              // precision is ms
@@ -287,8 +303,6 @@ typedef enum EStreamTaskType {
 
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
-
-
 typedef enum SStreamMgmtReqType {
   STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
   STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER
@@ -346,6 +360,7 @@ typedef struct SStreamTask {
   EStreamStatus status;
   int32_t       detailStatus; // status index in pTriggerStatus
   int32_t       errorCode;
+  char*         extraErrMsg;
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
@@ -431,6 +446,7 @@ typedef struct {
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
   void*   partitionCols;  // nodelist of SColumnNode
+  void*   rollupTagCols;  // nodelist of SColumnNode
   void*   triggerCols;    // nodelist of SColumnNode
   // void*   triggerPrevFilter;
   void* triggerScanPlan;
@@ -487,6 +503,7 @@ typedef struct {
   int8_t isTriggerTblStb;
   int8_t precision;
   void*  partitionCols;
+  void*  rollupTagCols;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -913,6 +930,7 @@ typedef struct SSTriggerGroupCalcInfo {
   SArray* pParams;  // SArray<SSTriggerCalcParam>
   SArray* pGroupColVals;
   int8_t  createTable;
+  int32_t rollupTbCount;
   void*   pRunnerGrpCtx; // reserved for runner
 } SSTriggerGroupCalcInfo;
 
@@ -940,6 +958,7 @@ typedef struct SSTriggerCalcRequest {
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
   int8_t  createTable;
+  int32_t rollupTbCount;
 
   // The following fields are used for multi-group calculation
   SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>, valid when isMultiGroupCalc is true
@@ -1009,6 +1028,7 @@ typedef struct SStreamRuntimeFuncInfo {
   STimeWindow curWindow;
 //  STimeWindow wholeWindow;
   int64_t groupId;
+  int32_t rollupTbCount;
   int32_t curIdx; // for pesudo func calculation
   int64_t sessionId;
   uint64_t streamGen;
@@ -1056,6 +1076,7 @@ int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsRe
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
 
 typedef struct SStreamWalDataSlice {
+  int64_t  uid;
   uint64_t gId;
   int32_t startRowIdx;  // start row index of current slice in DataBlock
   int32_t currentRowIdx;
@@ -1085,6 +1106,15 @@ typedef struct SStreamGroupInfo {
 int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);
 void    tDestroySStreamGroupValue(void *ptr);
+int32_t tGetStreamRollupGroupLeaf(const SStreamGroupValue* pValue, const char** ppLeaf, int32_t* pLeafLen);
+
+typedef enum EStreamWalMetaCol {
+  STREAM_WAL_META_GID_COL = 0,
+  STREAM_WAL_META_SKEY_COL,
+  STREAM_WAL_META_EKEY_COL,
+  STREAM_WAL_META_VER_COL,
+  STREAM_WAL_META_ROLLUP_TBCOUNT_COL,
+} EStreamWalMetaCol;
 
 typedef enum EValueType {
   SCL_VALUE_TYPE_NULL = 0,
@@ -1114,6 +1144,8 @@ typedef struct {
 
 typedef struct {
   char* sql;
+  char* triggerDB;
+  char* triggerTblName;
 } SGetStreamCreateSqlRsp;
 
 int32_t tSerializeGetStreamCreateSqlReq(void* buf, int32_t bufLen, const SGetStreamCreateSqlReq* pReq);

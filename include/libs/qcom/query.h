@@ -171,10 +171,13 @@ typedef struct STableMeta {
   ((withExtSchema((pMeta)->tableType) && NULL != (pMeta)->schemaExt) ? (pMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0)
 
 #define TABLE_META_COL_REF_SIZE(pMeta) \
-  ((hasRefCol((pMeta)->tableType) && NULL != (pMeta)->colRef) ? (pMeta)->numOfColRefs * sizeof(SColRef) : 0)
+  ((hasColRef((pMeta)->tableType) && NULL != (pMeta)->colRef) ? (pMeta)->numOfColRefs * sizeof(SColRef) : 0)
+
+#define TABLE_META_TAG_REF_SIZE(pMeta) \
+  ((hasTagRef((pMeta)->tableType) && NULL != (pMeta)->tagRef && (pMeta)->numOfTagRefs > 0) ? (pMeta)->numOfTagRefs * sizeof(SColRef) : 0)
 
 #define TABLE_META_FULL_SIZE(pMeta) \
-  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta))))
+  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta)) + TABLE_META_TAG_REF_SIZE((pMeta))))
 
 static inline void tableMetaResetPointers(STableMeta *pMeta) {
   if (NULL == pMeta) {
@@ -190,15 +193,20 @@ static inline void tableMetaResetPointers(STableMeta *pMeta) {
     pMeta->schemaExt = NULL;
   }
 
-  if (hasRefCol(pMeta->tableType) && NULL != pMeta->colRef) {
+  if (hasColRef(pMeta->tableType) && NULL != pMeta->colRef) {
     pMeta->colRef = (SColRef *)pCursor;
     pCursor += pMeta->numOfColRefs * sizeof(SColRef);
   } else {
     pMeta->colRef = NULL;
   }
 
-  pMeta->tagRef = NULL;
-  pMeta->numOfTagRefs = 0;
+  if (hasTagRef(pMeta->tableType) && NULL != pMeta->tagRef && pMeta->numOfTagRefs > 0) {
+    pMeta->tagRef = (SColRef *)pCursor;
+    pCursor += pMeta->numOfTagRefs * sizeof(SColRef);
+  } else {
+    pMeta->tagRef = NULL;
+    pMeta->numOfTagRefs = 0;
+  }
 }
 
 typedef struct SViewMeta {
@@ -540,10 +548,11 @@ void* getTaskPoolWorkerCb();
 
 #define IS_VIEW_REQUEST(_type) ((_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
 
-#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
-  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
-   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||     \
-   (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA)
+#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                       \
+  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE ||      \
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||          \
+   (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA || \
+   (_type) == TDMT_MND_CREATE_STREAM || (_type) == TDMT_MND_DROP_STREAM)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \

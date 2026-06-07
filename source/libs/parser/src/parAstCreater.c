@@ -404,6 +404,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
         snprintf(pExpr->userAlias, sizeof(pExpr->userAlias), "%%%%%s", pColId->literal);
       } else if (strcmp(((SFunctionNode*)pExpr)->functionName, "_placeholder_tbname") == 0) {
         tstrncpy(pExpr->userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+      } else if (strcmp(((SFunctionNode*)pExpr)->functionName, "_placeholder_rollup_tag") == 0) {
+        tstrncpy(pExpr->userAlias, "%%rollup_tag", TSDB_COL_NAME_LEN);
       } else {
         tstrncpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
       }
@@ -737,6 +739,7 @@ SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   CHECK_PARSER_STATUS(pCxt);
   pFunc->tz = pCxt->pQueryCxt->timezone;
   pFunc->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  pFunc->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)pFunc;
 _err:
   return NULL;
@@ -781,6 +784,20 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   val->translate = false;
   val->tz = pCxt->pQueryCxt->timezone;
   val->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  return (SNode*)val;
+_err:
+  return NULL;
+}
+
+SNode* createNullValueNode(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SValueNode* val = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&val);
+  CHECK_MAKE_NODE(val);
+  val->isNull = true;
+  val->translate = true;
+  val->node.resType.type = TSDB_DATA_TYPE_NULL;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
   return (SNode*)val;
 _err:
   return NULL;
@@ -1490,6 +1507,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -1502,6 +1520,28 @@ SNode* createPHTbnameFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncNa
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
   tstrncpy(func->functionName, "_placeholder_tbname", TSDB_FUNC_NAME_LEN);
+  func->pParameterList = pParameterList;
+  func->tz = pCxt->pQueryCxt->timezone;
+  func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
+  return (SNode*)func;
+_err:
+  nodesDestroyList(pParameterList);
+  return NULL;
+}
+
+SNode* createPHRollupTagFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (pFuncName->n != strlen("rollup_tag") || 0 != strncasecmp(pFuncName->z, "rollup_tag", pFuncName->n)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid placeholder, only %%%%rollup_tag is supported");
+    goto _err;
+  }
+
+  SFunctionNode* func = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
+  CHECK_MAKE_NODE(func);
+  tstrncpy(func->functionName, "_placeholder_rollup_tag", TSDB_FUNC_NAME_LEN);
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
@@ -1527,6 +1567,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_PARSER_STATUS(pCxt);
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
 
   return (SNode*)func;
 _err:
@@ -1764,6 +1805,38 @@ _err:
   return NULL;
 }
 
+SNode* createTextTableNode(SAstCreateContext* pCxt, SNodeList* pColDefs, SNodeList* pRows, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
+  if (NULL == pColDefs || LIST_LENGTH(pColDefs) == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires column definitions");
+    goto _err;
+  }
+  if (NULL == pRows || LIST_LENGTH(pRows) == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TEXT requires at least one row");
+    goto _err;
+  }
+  STextTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TEXT_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->pColDefs = pColDefs;
+  pNode->pRows    = pRows;
+  pNode->colCount = LIST_LENGTH(pColDefs);
+  pNode->rowCount = LIST_LENGTH(pRows);
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyList(pColDefs);
+  nodesDestroyList(pRows);
+  return NULL;
+}
+
 SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                            SNode* pJoinCond) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1846,30 +1919,70 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit) {
+static SNode* createStateWindowNodeImpl(SAstCreateContext* pCxt, SNodeList* pExprList, SNode* pExtend,
+                                        SNodeList* pZerothList, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
   CHECK_MAKE_NODE(state);
+
+  state->pExprList = pExprList;
+  state->pExtend = pExtend;
+  state->pZerothList = pZerothList;
+  state->pTrueForLimit = pTrueForLimit;
+  pExprList = NULL;
+  pExtend = NULL;
+  pZerothList = NULL;
+  pTrueForLimit = NULL;
+
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(state->pCol);
-  state->pExpr = pExpr;
-  state->pTrueForLimit = pTrueForLimit;
-  if (pOptions != NULL) {
-    if (pOptions->length >= 1) {
-      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 0), &state->pExtend);
-      CHECK_MAKE_NODE(state->pExtend);
-    }
-    if (pOptions->length == 2) {
-      pCxt->errCode = nodesCloneNode(nodesListGetNode(pOptions, 1), &state->pZeroth);
-      CHECK_MAKE_NODE(state->pZeroth);
-    }
-    nodesDestroyList(pOptions);
-  }
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
-  nodesDestroyNode(pExpr);
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
+  nodesDestroyNode(pTrueForLimit);
+  return NULL;
+}
+
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList, SNodeList* pOptions, SNode* pTrueForLimit) {
+  SNode* pExtend = NULL;
+  SNodeList* pZerothList = NULL;
+
+  if (pOptions != NULL) {
+    if (pOptions->length >= 1) {
+      SNode* pOpt = nodesListGetNode(pOptions, 0);
+      if (pOpt == NULL) {
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+        goto _err;
+      }
+      if (nodeType(pOpt) == QUERY_NODE_NODE_LIST) {
+        pCxt->errCode = nodesCloneList(((SNodeListNode*)pOpt)->pNodeList, &pZerothList);
+        CHECK_PARSER_STATUS(pCxt);
+      } else {
+        pCxt->errCode = nodesCloneNode(pOpt, &pExtend);
+        CHECK_MAKE_NODE(pExtend);
+      }
+    }
+    if (pOptions->length == 2) {
+      SNode* pOpt2 = nodesListGetNode(pOptions, 1);
+      if (pOpt2 == NULL || nodeType(pOpt2) != QUERY_NODE_NODE_LIST) {
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+        goto _err;
+      }
+      pCxt->errCode = nodesCloneList(((SNodeListNode*)pOpt2)->pNodeList, &pZerothList);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+    nodesDestroyList(pOptions);
+  }
+
+  return createStateWindowNodeImpl(pCxt, pExprList, pExtend, pZerothList, pTrueForLimit);
+_err:
+  nodesDestroyList(pExprList);
+  nodesDestroyNode(pExtend);
+  nodesDestroyList(pZerothList);
   nodesDestroyNode(pTrueForLimit);
   nodesDestroyList(pOptions);
   return NULL;
@@ -1941,6 +2054,48 @@ SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const STok
 _err:
   nodesDestroyNode((SNode*)pTrueFor);
   nodesDestroyNode(pDuration);
+  return NULL;
+}
+
+SNode* createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_DURATION_ONLY;
+  pTrueFor->count = 0;
+  pTrueFor->pDuration = pDuration;
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode(pDuration);
+  nodesDestroyNode((SNode*)pTrueFor);
+  return NULL;
+}
+
+SNode* createTrueForFullNode (SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit) {
+  STrueForNode* pNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  if (pWindowLimit != NULL) {
+    STrueForNode* pW = (STrueForNode*)pWindowLimit;
+    pNode->trueForType = pW->trueForType;
+    pNode->count = pW->count;
+    pNode->pDuration = pW->pDuration;
+    pW->pDuration = NULL;
+    nodesDestroyNode(pWindowLimit);
+    pWindowLimit = NULL;
+  }
+  pNode->pStartLimit = pStartLimit;
+  pNode->pEndLimit   = pEndLimit;
+  return (SNode*)pNode;
+
+_err:
+  nodesDestroyNode(pWindowLimit);
+  nodesDestroyNode(pStartLimit);
+  nodesDestroyNode(pEndLimit);
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }
 
@@ -2039,21 +2194,28 @@ _err:
 
 SNode* createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding) {
   SIntervalWindowNode* pInterval = NULL;
+  SSlidingWindowNode*  pSlidingWin = (SSlidingWindowNode*)pSliding;
   CHECK_PARSER_STATUS(pCxt);
   if (pInter) {
     pInterval = (SIntervalWindowNode*)pInter;
   } else {
     pCxt->errCode = nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW, (SNode**)&pInterval);
     CHECK_MAKE_NODE(pInterval);
+    pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pInterval->pCol);
   }
-  pInterval->pCol = createPrimaryKeyCol(pCxt, NULL);
-  CHECK_MAKE_NODE(pInterval->pCol);
-  pInterval->pSliding = ((SSlidingWindowNode*)pSliding)->pSlidingVal;
-  pInterval->pSOffset = ((SSlidingWindowNode*)pSliding)->pOffset;
+  pInterval->pSliding = pSlidingWin->pSlidingVal;
+  pInterval->pSOffset = pSlidingWin->pOffset;
+  pSlidingWin->pSlidingVal = NULL;
+  pSlidingWin->pOffset = NULL;
+  nodesDestroyNode(pSliding);
   return (SNode*)pInterval;
 _err:
-  nodesDestroyNode((SNode*)pInter);
-  nodesDestroyNode((SNode*)pInterval);
+  if (pInter) {
+    nodesDestroyNode(pInter);
+  } else {
+    nodesDestroyNode((SNode*)pInterval);
+  }
   nodesDestroyNode((SNode*)pSliding);
   return NULL;
 }
@@ -2619,8 +2781,15 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
     ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
   }
 
-    pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
-    CHECK_MAKE_NODE(pExtWin->pCol);
+  pExtWin->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pExtWin->pCol);
+
+  if (NULL != pFill) {
+    SFillNode* pFillClause = (SFillNode*)pFill;
+    nodesDestroyNode(pFillClause->pWStartTs);
+    pFillClause->pWStartTs = createPrimaryKeyCol(pCxt, NULL);
+    CHECK_MAKE_NODE(pFillClause->pWStartTs);
+  }
 
   // Attach subquery and optional fill node
   pExtWin->pSubquery = pSubquery;
@@ -2702,6 +2871,13 @@ SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectT
     } else {
       ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
     }
+  }
+  return pStmt;
+}
+
+SNode* setSelectStmtWindowMode(SAstCreateContext* pCxt, SNode* pStmt, EWindowMode windowMode) {
+  if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->windowMode = windowMode;
   }
   return pStmt;
 }
@@ -3967,6 +4143,24 @@ SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, 
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterTableAlterTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pTagName,
+                                   SNode* pRef) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pTagName));
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
+  tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
@@ -7145,6 +7339,36 @@ _err:
   return NULL;
 }
 
+SNode* createSetTimezoneStmt(SAstCreateContext* pCxt, const SToken* pTimezone) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetTimezoneStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_TIMEZONE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pTimezone->z, pTimezone->n, pStmt->timezone, sizeof(pStmt->timezone));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createSetFirstDayOfWeekStmt(SAstCreateContext* pCxt, const SToken* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  SSetFirstDayOfWeekStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  int64_t val = taosStr2Int64(pVal->z, NULL, 10);
+  if (val < 0 || val > 6) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK,
+                                "Invalid firstDayOfWeek: %.*s, must be 0-6", pVal->n, pVal->z);
+    goto _err;
+  }
+  pStmt->firstDayOfWeek = (int8_t)val;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 SNode* createDefaultExplainOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SExplainOptions* pOptions = NULL;
@@ -7325,7 +7549,8 @@ _err:
 }
 
 SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, SNode* pTriggerTable,
-                               SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification) {
+                               SNodeList* pPartitionList, SNodeList* pRollupTagList, SNode* pOptions,
+                               SNode* pNotification) {
   SStreamTriggerNode* pTrigger = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger);
@@ -7335,6 +7560,7 @@ SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, S
   pTrigger->pNotify = pNotification;
   pTrigger->pTrigerTable = pTriggerTable;
   pTrigger->pPartitionList = pPartitionList;
+  pTrigger->pRollupTagList = pRollupTagList;
   pTrigger->pTriggerWindow = pTriggerWindow;
   return (SNode*)pTrigger;
 
@@ -7345,6 +7571,7 @@ _err:
   nodesDestroyNode(pOptions);
   nodesDestroyNode(pNotification);
   nodesDestroyList(pPartitionList);
+  nodesDestroyList(pRollupTagList);
   return NULL;
 }
 
@@ -7640,20 +7867,29 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
     goto _err;
   }
   nodesDestroyNode(pStream);
+  pStream = NULL;
 
   pStmt->ignoreExists = ignoreExists;
   pStmt->pTrigger = pTrigger;
   pStmt->pQuery = pQuery;
-  pStmt->pTags = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pTags : NULL;
-  pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
-  pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
-  pStmt->nodelayCreateSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->nodelayCreateSubtable : 0;
+  if (pOutTable) {
+    SStreamOutTableNode* pOut = (SStreamOutTableNode*)pOutTable;
+    pStmt->pTags = pOut->pTags;
+    pStmt->pSubtable = pOut->pSubtable;
+    pStmt->pCols = pOut->pCols;
+    pStmt->nodelayCreateSubtable = pOut->nodelayCreateSubtable;
+    pOut->pTags = NULL;
+    pOut->pSubtable = NULL;
+    pOut->pCols = NULL;
+    nodesDestroyNode(pOutTable);
+  }
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pStream);
   nodesDestroyNode(pOutTable);
-  nodesDestroyNode(pQuery);
   nodesDestroyNode(pTrigger);
   nodesDestroyNode(pQuery);
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 
@@ -8284,25 +8520,22 @@ _err:
   return NULL;
 }
 
-SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type) {
+SNode* createShowStreamsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNode* pLike, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
-
-  if (needDbShowStmt(type) && NULL == pDbName) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-    CHECK_PARSER_STATUS(pCxt);
-  }
 
   SShowStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->withFull = false;
   pStmt->pDbName = pDbName;
+  pStmt->pTbName = pLike;
+  pStmt->tableCondType = OP_TYPE_LIKE;
 
   return (SNode*)pStmt;
 
 _err:
   nodesDestroyNode(pDbName);
+  nodesDestroyNode(pLike);
   return NULL;
 }
 
@@ -8391,5 +8624,97 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName) {
 
   return (SNode*)pStmt;
 _err:
+  return NULL;
+}
+
+/* ---- FILE table source ---- */
+
+SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const SToken* pVal) {
+  SFileOptions opt = {.header = -1, .delimiter = '\0'};
+  if (!pName || pName->n == 0) return opt;
+
+  if (pName->n == 6 && taosStrncasecmp(pName->z, "header", 6) == 0) {
+    // header = 1/0/true/false
+    if (pVal->type == TK_NK_INTEGER) {
+      opt.header = (int8_t)(pVal->z[0] != '0');
+    } else if (pVal->type == TK_TRUE) {
+      opt.header = 1;
+    } else if (pVal->type == TK_FALSE) {
+      opt.header = 0;
+    } else if (pVal->type == TK_NK_BOOL) {
+      // lowercase true/false tokenized as TK_NK_BOOL
+      opt.header = (int8_t)(taosStrncasecmp(pVal->z, "true", 4) == 0);
+    } else if (pVal->n >= 1) {
+      // string "true" / "false"
+      char buf[8] = {0};
+      uint32_t len = TMIN(pVal->n, 7u);
+      tstrncpy(buf, pVal->z, len + 1);
+      opt.header = (int8_t)(taosStrncasecmp(buf, "true", 4) == 0 || buf[0] == '1');
+    }
+  } else if (pName->n == 9 && taosStrncasecmp(pName->z, "delimiter", 9) == 0) {
+    // delimiter = ',' — must be exactly one char inside quotes
+    if (pVal->n == 3 && (pVal->z[0] == '\'' || pVal->z[0] == '"')) {
+      opt.delimiter = pVal->z[1];
+    } else {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                           "FILE: delimiter must be a single character");
+    }
+  }
+  return opt;
+}
+
+SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const SToken* pSchemaDecl,
+                           bool header, char delimiter, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkTableName(pCxt, pTableAlias)) {
+    return NULL;
+  }
+  if (!pPath || pPath->n < 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a path string");
+    return NULL;
+  }
+  // Reject empty path literal ''
+  if (pPath->n == 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE: path must not be empty");
+    return NULL;
+  }
+  if (!pSchemaDecl || pSchemaDecl->n < 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE requires a column_list string");
+    return NULL;
+  }
+  if (pSchemaDecl->n == 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "FILE: column_list must not be empty");
+    return NULL;
+  }
+
+  SFileTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FILE_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  // Strip surrounding quotes from path and schemaDecl
+  uint32_t pathLen   = pPath->n >= 2 ? pPath->n - 2 : 0;
+  uint32_t schemaLen = pSchemaDecl->n >= 2 ? pSchemaDecl->n - 2 : 0;
+
+  pNode->path = taosMemoryMalloc(pathLen + 1);
+  if (!pNode->path) { pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; goto _err; }
+  if (pathLen > 0) tstrncpy(pNode->path, pPath->z + 1, pathLen + 1);
+  else pNode->path[0] = '\0';
+
+  pNode->schemaDecl = taosMemoryMalloc(schemaLen + 1);
+  if (!pNode->schemaDecl) { pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; goto _err; }
+  if (schemaLen > 0) tstrncpy(pNode->schemaDecl, pSchemaDecl->z + 1, schemaLen + 1);
+  else pNode->schemaDecl[0] = '\0';
+
+  pNode->header    = header;
+  pNode->delimiter = (delimiter != '\0') ? delimiter : ',';
+
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }

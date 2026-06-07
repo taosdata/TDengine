@@ -1159,6 +1159,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
+    case QUERY_NODE_SHOW_CPU_ALLOCATION_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SShowCreateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_SHOW_CREATE, PRIV_OBJ_DB);
@@ -1284,6 +1285,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return authAlterLocal(pCxt, (SAlterLocalStmt*)pStmt);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_DROP_DATABASE_STMT:
       return authDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:

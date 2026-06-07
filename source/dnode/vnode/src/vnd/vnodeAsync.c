@@ -220,6 +220,7 @@ static void *vnodeAsyncLoop(void *arg) {
   }
 
   setThreadName(async->label);
+  taosSetCpuAffinity(THREAD_CAT_WRITE);
 
   for (;;) {
     (void)taosThreadMutexLock(&async->mutex);

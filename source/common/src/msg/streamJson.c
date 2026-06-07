@@ -1,6 +1,9 @@
 #include "streamMsg.h"
 #include "tjson.h"
 
+static int32_t int16ToJson(const void* pObj, SJson* pJson);
+static int32_t jsonToInt16(const SJson* pJson, void* pObj);
+
 static const char* jkFieldName     = "name";
 static const char* jkFieldType     = "type";
 static const char* jkFieldFlags    = "flags";
@@ -83,7 +86,9 @@ static int32_t jsonToSessionTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* forward compat: decode old "slotId" single-value payloads */
 static const char* jkStateTriggerSlotId           = "slotId";
+static const char* jkStateTriggerSlotIds          = "slotIds";
 static const char* jkStateTriggerExtend           = "extend";
 static const char* jkStateTriggerZeroth           = "zeroth";
 static const char* jkStateTriggerTrueForType      = "trueForType";
@@ -92,8 +97,9 @@ static const char* jkStateTriggerTrueForDuration  = "trueForDuration";
 static const char* jkStateTriggerExpr             = "expr";
 static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
   const SStateWinTrigger* pTrigger = (const SStateWinTrigger*)pObj;
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
-    pJson, jkStateTriggerSlotId, pTrigger->slotId));
+  TAOS_CHECK_RETURN(tjsonAddTArray(
+    pJson, jkStateTriggerSlotIds,
+    int16ToJson, pTrigger->pSlotIds));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerExtend, pTrigger->extend));
   if (NULL != pTrigger->zeroth) {
@@ -112,8 +118,21 @@ static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToStateTrigger(const SJson* pJson, void* pObj) {
   SStateWinTrigger* pTrigger = (SStateWinTrigger*)pObj;
-  TAOS_CHECK_RETURN(
-    tjsonGetSmallIntValue(pJson, jkStateTriggerSlotId, &pTrigger->slotId));
+  SJson* pSlotIds = tjsonGetObjectItem(pJson, jkStateTriggerSlotIds);
+  if (pSlotIds != NULL) {
+    TAOS_CHECK_RETURN(tjsonToTArray(
+      pJson, jkStateTriggerSlotIds, jsonToInt16, &pTrigger->pSlotIds, sizeof(int16_t)));
+  } else if (tjsonGetObjectItem(pJson, jkStateTriggerSlotId) != NULL) {
+    int16_t slotId = -1;
+    TAOS_CHECK_RETURN(tjsonGetSmallIntValue(pJson, jkStateTriggerSlotId, &slotId));
+    pTrigger->pSlotIds = taosArrayInit(1, sizeof(int16_t));
+    if (pTrigger->pSlotIds == NULL) {
+      return terrno;
+    }
+    if (taosArrayPush(pTrigger->pSlotIds, &slotId) == NULL) {
+      return terrno;
+    }
+  }
   TAOS_CHECK_RETURN(
     tjsonGetSmallIntValue(pJson, jkStateTriggerExtend, &pTrigger->extend));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
@@ -186,11 +205,17 @@ static int32_t jsonToSlidingTrigger(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* jkEventTriggerStartCond       = "startCond";
-static const char* jkEventTriggerEndCond         = "endCond";
-static const char* jkEventTriggerTrueForType     = "trueForType";
-static const char* jkEventTriggerTrueForCount    = "trueForCount";
-static const char* jkEventTriggerTrueForDuration = "trueForDuration";
+static const char* jkEventTriggerStartCond            = "startCond";
+static const char* jkEventTriggerEndCond              = "endCond";
+static const char* jkEventTriggerTrueForType          = "trueForType";
+static const char* jkEventTriggerTrueForCount         = "trueForCount";
+static const char* jkEventTriggerTrueForDuration      = "trueForDuration";
+static const char* jkEventTriggerStartTrueForType     = "startTrueForType";
+static const char* jkEventTriggerStartTrueForCount    = "startTrueForCount";
+static const char* jkEventTriggerStartTrueForDuration = "startTrueForDuration";
+static const char* jkEventTriggerEndTrueForType       = "endTrueForType";
+static const char* jkEventTriggerEndTrueForCount      = "endTrueForCount";
+static const char* jkEventTriggerEndTrueForDuration   = "endTrueForDuration";
 static int32_t eventTriggerToJson(const void* pObj, SJson* pJson) {
   const SEventTrigger* pTrigger = (const SEventTrigger*)pObj;
   if (NULL != pTrigger->startCond) {
@@ -204,6 +229,12 @@ static int32_t eventTriggerToJson(const void* pObj, SJson* pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerTrueForType, pTrigger->trueForType));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerTrueForCount, pTrigger->trueForCount));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerTrueForDuration, pTrigger->trueForDuration));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerStartTrueForType, pTrigger->startTrueForType));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerStartTrueForCount, pTrigger->startTrueForCount));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerStartTrueForDuration, pTrigger->startTrueForDuration));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerEndTrueForType, pTrigger->endTrueForType));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerEndTrueForCount, pTrigger->endTrueForCount));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkEventTriggerEndTrueForDuration, pTrigger->endTrueForDuration));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -216,6 +247,21 @@ static int32_t jsonToEventTrigger(const SJson* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkEventTriggerTrueForType, &pTrigger->trueForType));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkEventTriggerTrueForCount, &pTrigger->trueForCount));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(pJson, jkEventTriggerTrueForDuration, &pTrigger->trueForDuration));
+  // New fields are optional for backward compatibility. Missing keys are
+  // treated as zero here explicitly instead of relying on caller-side
+  // zero-initialization or tjson helper defaults.
+  pTrigger->startTrueForType = 0;
+  pTrigger->startTrueForCount = 0;
+  pTrigger->startTrueForDuration = 0;
+  pTrigger->endTrueForType = 0;
+  pTrigger->endTrueForCount = 0;
+  pTrigger->endTrueForDuration = 0;
+  (void)tjsonGetIntValue(pJson, jkEventTriggerStartTrueForType, &pTrigger->startTrueForType);
+  (void)tjsonGetIntValue(pJson, jkEventTriggerStartTrueForCount, &pTrigger->startTrueForCount);
+  (void)tjsonGetBigIntValue(pJson, jkEventTriggerStartTrueForDuration, &pTrigger->startTrueForDuration);
+  (void)tjsonGetIntValue(pJson, jkEventTriggerEndTrueForType, &pTrigger->endTrueForType);
+  (void)tjsonGetIntValue(pJson, jkEventTriggerEndTrueForCount, &pTrigger->endTrueForCount);
+  (void)tjsonGetBigIntValue(pJson, jkEventTriggerEndTrueForDuration, &pTrigger->endTrueForDuration);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -429,6 +475,7 @@ static const char* jkCreateStreamReqNotifyHistory        = "notifyHistory";
 static const char* jkCreateStreamReqTriggerFilterCols    = "triggerFilterCols";
 static const char* jkCreateStreamReqTriggerCols          = "triggerCols";
 static const char* jkCreateStreamReqPartitionCols        = "partitionCols";
+static const char* jkCreateStreamReqRollupTagCols        = "rollupTagCols";
 static const char* jkCreateStreamReqOutCols              = "outCols";
 static const char* jkCreateStreamReqOutTags              = "outTags";
 static const char* jkCreateStreamReqMaxDelay             = "maxDelay";
@@ -564,6 +611,9 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   if (NULL != pReq->partitionCols) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
       pJson, jkCreateStreamReqPartitionCols, (const char*)pReq->partitionCols));
+  }
+  if (NULL != pReq->rollupTagCols) {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkCreateStreamReqRollupTagCols, (const char*)pReq->rollupTagCols));
   }
 
   // out cols
@@ -819,6 +869,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqTriggerCols, (char**)&pReq->triggerCols));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkCreateStreamReqPartitionCols, (char**)&pReq->partitionCols));
+  TAOS_CHECK_RETURN(tjsonDupStringValue(pJson, jkCreateStreamReqRollupTagCols, (char**)&pReq->rollupTagCols));
   // out cols
   TAOS_CHECK_RETURN(tjsonToTArray(
     pJson, jkCreateStreamReqOutCols, jsonToSFieldWithOptions,

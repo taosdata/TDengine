@@ -17,6 +17,7 @@ class TestVtableCreate:
     def setup_class(cls):
         tdLog.info(f"prepare org tables.")
 
+        tdSql.execute("drop database if exists test_vtable_max_column;")
         tdSql.execute("create database test_vtable_max_column;")
         tdSql.execute("use test_vtable_max_column;")
         tdSql.execute("alter local 'maxSQLLength' '4194304'")

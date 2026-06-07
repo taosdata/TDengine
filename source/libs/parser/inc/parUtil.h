@@ -107,6 +107,7 @@ typedef struct SParseStreamInfo {
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
   SNode*           triggerTbl;
+  SNodeList*       rollupTagList;
   SNodeList*       triggerPartitionList;
   SHashObj*        calcDbs;
 } SParseStreamInfo;

@@ -105,6 +105,9 @@ typedef struct SScanLogicNode {
   int64_t            sliding;
   int8_t             intervalUnit;
   int8_t             slidingUnit;
+  int8_t             firstDayOfWeek;  /* 0-6, propagated from window logic node */
+  void*              timezone;        /* timezone_t handle for interval alignment */
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
   SNode*             pTagCond;
   SNode*             pTagIndexCond;
   int8_t             triggerType;
@@ -186,7 +189,40 @@ typedef struct SVirtualScanLogicNode {
   SVgroupsInfo* pVgroupList;
   EScanType     scanType;
   SName         tableName;
+
+  // TagRef support fields - for tag references only (NOT column references)
+  SNodeList*    pTagRefSources;  // STagRefSourceLogicNode list for tag references
+  SNodeList*    pLocalTags;      // Local tags (no reference) - use TagScan
+  SNodeList*    pRefTagCols;     // Referenced tag columns - need source table scan
+  SNode*        pTagFilterCond;  // Tag filter condition extracted from WHERE clause
+
+  // Flags
+  bool          hasTagRef;        // true if has tag references
+  bool          hasLocalTag;      // true if has local tags
 } SVirtualScanLogicNode;
+
+// Tag reference column information
+typedef struct STagRefColumn {
+  ENodeType type;
+  col_id_t  colId;        // Column ID in virtual table
+  col_id_t  sourceColId;  // Tag column ID in source table
+  char      colName[TSDB_COL_NAME_LEN];
+  char      sourceColName[TSDB_COL_NAME_LEN];  // Tag name in source table
+  int32_t   bytes;                             // Tag bytes
+  int8_t    dataType;                          // Tag data type
+} STagRefColumn;
+
+// Tag reference source node - represents a source table that provides referenced tags
+typedef struct STagRefSourceLogicNode {
+  SLogicNode    node;
+  SName         sourceTableName;  // Source table name (db.table)
+  uint64_t      sourceSuid;       // Source super table uid
+  int32_t       sourceId;         // Source ID for matching
+  SNodeList*    pRefCols;         // STagRefColumn list - tags to fetch from this source
+  SVgroupsInfo* pVgroupList;      // Vgroup information for this source table
+  bool          isUsedInFilter;   // true if used in WHERE clause for filtering
+  bool          isUsedInProjection; // true if used in SELECT clause for output
+} STagRefSourceLogicNode;
 
 typedef struct SAggLogicNode {
   SLogicNode node;
@@ -240,6 +276,17 @@ typedef struct SForecastFuncLogicNode {
   SNodeList* pFuncs;
 } SForecastFuncLogicNode, SGenericAnalysisLogicNode;
 
+typedef struct SRowsetSourceLogicNode {
+  SLogicNode node;
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;  // owned; released by destroy; moved to physi node by physical planner (then set to NULL)
+} SRowsetSourceLogicNode;
+
 typedef struct SGroupCacheLogicNode {
   SLogicNode node;
   bool       grpColsMayBeNull;
@@ -261,6 +308,7 @@ typedef struct SDynQueryCtrlVtbScan {
   bool          hasPartition;
   bool          scanAllCols;
   bool          isSuperTable;
+  bool          hasLocalTag;       // Planner flag: true if STB has local (non-ref) tags
   bool          useTagScan;
   char          dbName[TSDB_DB_NAME_LEN];
   char          tbName[TSDB_TABLE_NAME_LEN];
@@ -270,6 +318,11 @@ typedef struct SDynQueryCtrlVtbScan {
   SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
   SNodeList*    pScanCols;
+  // Tag-ref filter optimization: TERMINAL physical source info (resolved through chain)
+  uint64_t      tagRefSourceSuid;     // Terminal physical STB UID (0 = not available)
+  col_id_t      tagRefSourceColId;    // Terminal physical tag column ID
+  int8_t        tagRefSourceColType;  // Terminal physical tag column data type
+  char          tagRefTerminalColName[TSDB_COL_NAME_LEN]; // Terminal physical tag column name
 } SDynQueryCtrlVtbScan;
 
 
@@ -343,6 +396,12 @@ typedef enum EWindowAlgorithm {
   EXTERNAL_ALGO_MERGE,
 } EWindowAlgorithm;
 
+typedef struct SExtWindowFillInfo {
+  EFillMode  mode;
+  SNodeList* pFillExprs;
+  SNode*     pFillValues;
+} SExtWindowFillInfo;
+
 #define WINDOW_PART_HAS  0x01
 #define WINDOW_PART_TB   0x02
 
@@ -362,11 +421,14 @@ typedef struct SWindowLogicNode {
   int64_t               sliding;
   int8_t                intervalUnit;
   int8_t                slidingUnit;
+  int8_t                firstDayOfWeek;  /* 0-6, from connection; default 4 (Thu) */
+  void*                 timezone;        /* timezone_t handle for calendar alignment */
+  char                  timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
   // for session window
   int64_t               sessionGap;
   SNode*                pTsEnd;
   // for state window
-  SNode*                pStateExpr;
+  SNodeList*            pStateExprs;
   EStateWinExtendOption extendOption;
   // for event window
   SNode*                pStartCond;
@@ -375,6 +437,12 @@ typedef struct SWindowLogicNode {
   int32_t               trueForType;
   int32_t               trueForCount;
   int64_t               trueForDuration;
+  int32_t               startTrueForType;
+  int32_t               startTrueForCount;
+  int64_t               startTrueForDuration;
+  int32_t               endTrueForType;
+  int32_t               endTrueForCount;
+  int64_t               endTrueForDuration;
   // for count window
   int64_t               windowCount;
   int64_t               windowSliding;
@@ -387,6 +455,7 @@ typedef struct SWindowLogicNode {
   bool                  extWinSplit;
   bool                  needGroupSort;
   bool                  calcWithPartition;
+  SExtWindowFillInfo    extFill;
   int32_t               orgTableVgId;
   tb_uid_t              orgTableUid;
 
@@ -411,6 +480,7 @@ typedef struct SFillLogicNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -521,6 +591,19 @@ typedef struct STagScanPhysiNode {
 
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
+// Tag reference source physical node - represents a source table scan for referenced tags
+typedef struct STagRefSourcePhysiNode {
+  SPhysiNode    node;
+  SName         sourceTableName;  // Source table name (db.table)
+  uint64_t      sourceSuid;       // Source super table uid
+  int32_t       sourceId;         // Source ID for matching
+  SNodeList*    pRefCols;         // STagRefColumn list - tags to fetch from this source
+  SVgroupsInfo* pVgroupList;      // Vgroup information for this source table
+  SNodeList*    pScanCols;        // Columns to scan from source table
+  bool          isUsedInFilter;   // true if used in WHERE clause for filtering
+  bool          isUsedInProjection; // true if used in SELECT clause for output
+} STagRefSourcePhysiNode;
+
 typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pGroupTags;
@@ -531,6 +614,16 @@ typedef struct SVirtualScanPhysiNode {
   SNode*         pSubtable;
   int8_t         igExpired;
   int8_t         igCheckUpdate;
+
+  // TagRef support fields - for tag references only (NOT column references)
+  SNodeList*     pTagRefSources;  // STagRefSourcePhysiNode list for tag references
+  SNodeList*     pLocalTags;      // Local tags (no reference) - use TagScan
+  SNodeList*     pRefTagCols;     // Referenced tag columns - need source table scan
+  SNode*         pTagFilterCond;  // Tag filter condition extracted from WHERE clause
+
+  // Flags
+  bool           hasTagRef;        // true if has tag references
+  bool           hasLocalTag;      // true if has local tags
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
@@ -587,6 +680,10 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         firstDayOfWeek;  /* 0-6, propagated from interval logic node */
+  void*          timezone;        /* timezone_t handle for interval alignment */
+  char           timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
+  bool           ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   int8_t         triggerType;
   int64_t        watermark;
   int8_t         igExpired;
@@ -637,6 +734,17 @@ typedef struct SForecastFuncPhysiNode {
   SNodeList* pExprs;
   SNodeList* pFuncs;
 } SForecastFuncPhysiNode, SGenericAnalysisPhysiNode;
+
+typedef struct SRowsetSourcePhysiNode {
+  SPhysiNode node;           // QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE
+  int32_t    numBlocks;
+  int32_t    totalRows;
+  bool       hasPrimaryTs;   // first column is TIMESTAMP
+  bool       isSortedByTs;   // rows are in ascending primary-ts order
+  int16_t    primaryTsSlot;
+  int32_t    blockBufLen;
+  uint8_t*   pBlockBuf;      // SSDataBlock binary; owned; freed by destroy
+} SRowsetSourcePhysiNode;
 
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode   node;
@@ -708,6 +816,7 @@ typedef struct SVtbScanDynCtrlBasic {
   bool       hasPartition;
   bool       scanAllCols;
   bool       isSuperTable;
+  bool       hasLocalTag;       // Planner flag: true if STB has local (non-ref) tags
   char       dbName[TSDB_DB_NAME_LEN];
   char       tbName[TSDB_TABLE_NAME_LEN];
   uint64_t   suid;
@@ -717,6 +826,14 @@ typedef struct SVtbScanDynCtrlBasic {
   SEpSet     mgmtEpSet;
   SNodeList *pScanCols;
   SNodeList *pOrgVgIds;
+  // Tag-ref filter optimization: propagated from VirtualScanPhysiNode
+  SNode*     pTagFilterCond;   // WHERE tag_ref_col = const condition
+  SNodeList *pRefTagCols;      // SColumnNode list of ref-tag columns
+  // Tag-ref filter optimization: TERMINAL physical source info (resolved through chain)
+  uint64_t   tagRefSourceSuid;     // Terminal physical STB UID (0 = not available)
+  col_id_t   tagRefSourceColId;    // Terminal physical tag column ID
+  int8_t     tagRefSourceColType;  // Terminal physical tag column data type
+  char       tagRefTerminalColName[TSDB_COL_NAME_LEN]; // Terminal physical tag column name
 } SVtbScanDynCtrlBasic;
 
 typedef struct SVtbWindowDynCtrlBasic {
@@ -799,6 +916,10 @@ typedef struct SIntervalPhysiNode {
   int64_t          sliding;
   int8_t           intervalUnit;
   int8_t           slidingUnit;
+  int8_t           firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
+  void*            timezone;        /* timezone_t handle; NULL → server default */
+  char             timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
+  bool             ownsTimezone;    /* true when timezone was tzalloc'd during deser */
   STimeWindow      timeRange;
 } SIntervalPhysiNode;
 
@@ -817,6 +938,7 @@ typedef struct SFillPhysiNode {
   SNodeList*  pFillNullExprs;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   SNode*      pSurroundingTime;
+  bool        indefRowsMode;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
@@ -831,7 +953,7 @@ typedef struct SSessionWinodwPhysiNode {
 
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pStateKey;
+  SNodeList*       pStateKeys;
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
@@ -845,6 +967,12 @@ typedef struct SEventWinodwPhysiNode {
   ETrueForType     trueForType;
   int32_t          trueForCount;
   int64_t          trueForDuration;
+  ETrueForType     startTrueForType;
+  int32_t          startTrueForCount;
+  int64_t          startTrueForDuration;
+  ETrueForType     endTrueForType;
+  int32_t          endTrueForCount;
+  int64_t          endTrueForDuration;
 } SEventWinodwPhysiNode;
 
 typedef struct SCountWindowPhysiNode {
@@ -868,6 +996,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;
@@ -973,6 +1102,7 @@ typedef struct SExplainInfo {
   EExplainMode mode;
   bool         verbose;
   double       ratio;
+  timezone_t   tz;       /* session timezone for formatting timestamps */
 } SExplainInfo;
 
 typedef struct SQueryPlan {

@@ -69,6 +69,7 @@ typedef struct SSchedulerReq {
   int8_t             source;
   int8_t             secureDelete;
   void*              pWorkerCb;
+  int8_t             firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
 } SSchedulerReq;
 
 int32_t schedulerInit(void);

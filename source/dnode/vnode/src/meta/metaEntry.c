@@ -19,7 +19,7 @@
 #include "tencode.h"
 #include "tmsg.h"
 
-static bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
+bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
   for (int32_t i = 0; i < nCols; i++) {
     if (HAS_TYPE_MOD(pSchema + i)) {
       return true;
@@ -276,6 +276,14 @@ static int32_t metaCloneColRef(const SColRefWrapper*pSrc, SColRefWrapper *pDst) 
     }
     memcpy(pDst->pColRef, pSrc->pColRef, pSrc->nCols * sizeof(SColRef));
   }
+  if (pSrc->nTagRefs > 0 && pSrc->pTagRef) {
+    pDst->nTagRefs = pSrc->nTagRefs;
+    pDst->pTagRef = (SColRef*)taosMemoryCalloc(pSrc->nTagRefs, sizeof(SColRef));
+    if (NULL == pDst->pTagRef) {
+      return terrno;
+    }
+    memcpy(pDst->pTagRef, pSrc->pTagRef, pSrc->nTagRefs * sizeof(SColRef));
+  }
   return 0;
 }
 
@@ -356,6 +364,7 @@ static int32_t metaCloneColCmpr(const SColCmprWrapper *pSrc, SColCmprWrapper *pD
 static void metaCloneColRefFree(SColRefWrapper *pColRef) {
   if (pColRef) {
     taosMemoryFreeClear(pColRef->pColRef);
+    taosMemoryFreeClear(pColRef->pTagRef);
   }
 }
 
@@ -709,6 +718,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     }
     (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
     (*ppEntry)->stbEntry.ownerId = pEntry->stbEntry.ownerId;
+    (*ppEntry)->stbEntry.securityLevel = pEntry->stbEntry.securityLevel;
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;

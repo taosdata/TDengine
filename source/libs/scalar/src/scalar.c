@@ -962,6 +962,55 @@ static int32_t sclAssignExternalWindowColumnRes(SColumnInfoData* pResColData, in
   return colDataSetNItems(pResColData, offset, pData, rows, 1, false);
 }
 
+static int32_t sclAssignRollupTagRes(SColumnInfoData *pResColData, int64_t offset, int64_t rows,
+                                     const SStreamRuntimeFuncInfo *pInfo) {
+  if (pInfo == NULL || pInfo->pStreamPartColVals == NULL || taosArrayGetSize(pInfo->pStreamPartColVals) <= 0) {
+    sclError("invalid rollup tag placeholder context");
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SStreamGroupValue *pValue = taosArrayGet(pInfo->pStreamPartColVals, 0);
+  if (pValue == NULL) {
+    sclError("invalid rollup tag placeholder group value");
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pValue->isNull) {
+    colDataSetNItemsNull(pResColData, offset, rows);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pValue->data.type != pResColData->info.type) {
+    sclError("rollup tag placeholder source type: %d mismatch result type: %d", pValue->data.type,
+             pResColData->info.type);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  const char *pLeaf = NULL;
+  int32_t     leafLen = 0;
+  code = tGetStreamRollupGroupLeaf(pValue, &pLeaf, &leafLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    sclError("invalid rollup tag placeholder source type: %d, data length: %d", pValue->data.type, pValue->data.nData);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t bufSize = VARSTR_HEADER_SIZE + leafLen;
+  char   *buf = taosMemoryCalloc(1, bufSize);
+  if (buf == NULL) {
+    return terrno;
+  }
+
+  if (leafLen > 0) {
+    (void)memcpy(varDataVal(buf), pLeaf, leafLen);
+  }
+  varDataSetLen(buf, leafLen);
+
+  code = colDataSetNItems(pResColData, offset, buf, rows, 1, false);
+  taosMemoryFree(buf);
+  return code;
+}
+
 int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams, SNode* pParamNode) {
   int32_t t = fmGetFuncTypeFromId(funcId);
   SStreamRuntimeFuncInfo* pInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
@@ -1014,6 +1063,10 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
       }
       return colDataSetNItems(pResColData, offset, (const char *)buf, rows, 1, false);
     }
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG:
+      return sclAssignRollupTagRes(pResColData, offset, rows, pInfo);
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT:
+      return doCopyNItems(pResColData, offset, (const char *)&pInfo->rollupTbCount, sizeof(int32_t), rows, false);
     case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
       return sclAssignExternalWindowColumnRes(pResColData, offset, rows, pParams, pParamNode);
     }
@@ -1125,6 +1178,7 @@ int32_t sclInitParamList(SScalarParam **pParams, SNodeList *pParamList, SScalarC
     }
   } else {
     paramList[0].numOfRows = *rowNum;
+    paramList[0].param = ctx->param;
   }
 
   if (0 == *rowNum) {
@@ -1403,6 +1457,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       code = 0;
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, node->funcId));
   setTzCharset(params, node->tz, node->charsetCxt);
+  if (params != NULL) {
+    params[0].firstDayOfWeek = node->firstDayOfWeek;
+  }
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     code = callUdfScalarFunc(node->functionName, params, paramNum, output);
@@ -2118,7 +2175,8 @@ void sclGetValueNodeSrcTable(SNode *pNode, char **ppSrcTable, bool *multiTable) 
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) {
+  if ((!ctx->dual && (!fmIsScalarFunc(node->funcId) || fmIsUserDefinedFunc(node->funcId))) ||
+      fmIsVolatileFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -2887,12 +2945,17 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
 
   int32_t    code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
+
+  void*           savedTaskInfo = gTaskScalarExtra.pTaskInfo;
+  sclIsTaskKilled savedIsKilled = gTaskScalarExtra.isTaskKilled;
   if (NULL != pExtra) {
     ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
     ctx.stream.streamTsRange = pExtra->pStreamRange;
     ctx.pSubJobCtx = pExtra->pSubJobCtx;
     ctx.isStream = pExtra->isStream;
     ctx.fetchFp = pExtra->fp;
+    gTaskScalarExtra.pTaskInfo    = pExtra->pTaskInfo;
+    gTaskScalarExtra.isTaskKilled = pExtra->isTaskKilled;
     ctx.streamGen = pExtra->streamGen;
   }
   
@@ -2935,6 +2998,8 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
   }
 
 _return:
+  gTaskScalarExtra.pTaskInfo    = savedTaskInfo;
+  gTaskScalarExtra.isTaskKilled = savedIsKilled;
   sclFreeRes(ctx.pRes);
   return code;
 }

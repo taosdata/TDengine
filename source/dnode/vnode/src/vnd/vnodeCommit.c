@@ -442,7 +442,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   code = syncEndSnapshot(pVnode->sync, pInfo->forceTrim);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tqCommitOffset(pVnode->pTq);
+  code = tqOffsetCommit(pVnode->pTq);
   TSDB_CHECK_CODE(code, lino, _exit);
   
 _exit:

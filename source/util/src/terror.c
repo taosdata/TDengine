@@ -189,11 +189,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PERIOD_RANGE,     "Invalid period range"
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OFFSET_UNIT,      "Invalid offset unit")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OFFSET_VALUE,     "Invalid offset value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_EXT_WIN_COL_IN_WHERE,     "WHERE clause cannot reference EXTERNAL_WINDOW columns")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TIMEZONE,         "Invalid timezone: '%s'")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK,"Invalid firstDayOfWeek %d, must be 0-6")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_VTABLE,      "Invalid drop vtable")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN_REF,       "Invalid column reference")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SLIDING_OFFSET,   "Invalid sliding offset")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offset")
-TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS,    "Operation not supported in windows")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOKEN,            "Invalid token")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INSTANCE_API_RATE_LIMIT,  "instance register/list API rate limit exceeded")
@@ -652,6 +654,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP,     "Duplicate timestamp n
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_NOT_FOUND,           "Subquery context not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_EXEC_ERROR,          "Subquery exec error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND,    "VSTB slotId not found for column")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_STATE_NOT_EXIST,   "Window state not found")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -791,7 +794,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WRONG_VALUE_TYPE,          "Invalid value type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION,  "There mustn't be aggregation")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT,    "ORDER BY / GROUP BY item must be the number of a SELECT-list expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,   "Not a GROUP BY expression")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION,   "Not SELECTed expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SELECT_EXPRESSION,   "Not a SELECT expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SINGLE_GROUP,          "Not a single-group group function")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAGS_NOT_MATCHED,          "Tags number not matched")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TAG_NAME,          "Invalid tag name")
@@ -811,7 +814,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_BNODE_OPTION,      "Invalid Bnode option
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST,    "GROUP BY and WINDOW-clause can't be used together")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AGG_FUNC_NESTING,          "Aggregate functions do not support nesting")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,    "Only support STATE_WINDOW on integer/bool/varchar column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_COL,     "Not support STATE_WINDOW on tag column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_COL,     "Invalid STATE_WINDOW column specification")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE,   "STATE_WINDOW not support for super table query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_GAP,         "SESSION gap should be fixed time window, and greater than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_SESSION_COL,         "Only support SESSION on primary timestamp column")
@@ -1080,6 +1083,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SUBTABLE,        "Invalid subtable in
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TAGS,        "Invalid out tags in create stream clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY_COND,     "Invalid notify condition in create stream clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,    "Invalid placeholder in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_ROLLUP_ILLEGAL_PATH,     "Stream rollup tag path is illegal")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_ROLLUP,          "Invalid ROLLUP BY clause")
 
 
 // TDLite
@@ -1120,6 +1125,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE,      "Virtual table has too many reference tables")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,     "Virtual table query find invalid origin scan")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL,   "Virtual table query cannot find origin timestamp column")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,      "Virtual table reference depth exceeds limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_REF_COLUMN,      "Virtual table query cannot resolve ref column")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_CIRCULAR_REF,            "Virtual table circular reference detected")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
@@ -1156,6 +1164,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_TOO_DEEP,       "Stream vtable ref chain too deep")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_CIRCULAR_REF,       "Stream vtable circular reference detected")
 
 // Xnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")

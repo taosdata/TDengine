@@ -341,6 +341,8 @@ int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal)
   return TSDB_CODE_SUCCESS;
 }
 
+bool tjsonIsArray(const SJson* pJson) { return cJSON_IsArray(pJson); }
+
 int32_t tjsonGetArraySize(const SJson* pJson) { return cJSON_GetArraySize(pJson); }
 
 SJson* tjsonGetArrayItem(const SJson* pJson, int32_t index) { return cJSON_GetArrayItem(pJson, index); }

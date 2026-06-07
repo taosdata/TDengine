@@ -144,13 +144,16 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
 
-- If any parameter is NULL, the comparison result is NULL.
+- If any parameter is NULL, the comparison result is NULL. (See `ignoreNullInGreatest` below to skip NULL arguments instead.)
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
 - If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
 - In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
 
-**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+**Related configuration items**:
+
+- `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
 
 #### LEAST
 
@@ -864,6 +867,49 @@ LTRIM(expr)
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
 **Applicable to**: Tables and supertables.
+
+#### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**Function Description**: Applies the POSIX extended regular expression `pattern` to `expr` and returns the substring matched by capture group `group_idx`. Returns NULL when there is no match or when `expr` or `pattern` is NULL.
+
+**Return Type**: Same as `expr` (VARCHAR or NCHAR).
+
+**Applicable Data Types**: `expr`: VARCHAR, NCHAR. `pattern`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If omitted, `group_idx` defaults to `1`.
+- If provided as a non-`NULL` value, `group_idx` must be a non-negative integer constant. `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
+- If `group_idx` is SQL `NULL`, the function returns `NULL`.
+- Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
+- `pattern` must be provided as a constant literal or parameter placeholder; it cannot reference a column or be computed from other expressions.
+
+**Example**:
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
 
 #### REGEXP_IN_SET
 
@@ -1738,7 +1784,7 @@ CAST(expr AS type_name)
 TO_ISO8601(expr [, timezone])
 ```
 
-**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with additional timezone information. The `timezone` parameter allows users to specify any timezone information for the output. If the `timezone` parameter is omitted, the output will include the current client system's timezone information.
+**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with timezone information. The optional `timezone` parameter allows users to specify the output timezone. If omitted, it uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 
 **Return Data Type**: VARCHAR type.
 
@@ -1750,7 +1796,9 @@ TO_ISO8601(expr [, timezone])
 
 **Usage Notes**:
 
-- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00"). The valid timezone offset range is -14:00 to +14:00.
+- The `timezone` parameter accepts the formats described in [Supported Timezone Formats](./95-timezone.md#supported-timezone-formats). **Only `TO_ISO8601` interprets offsets in ISO 8601 convention** (`local = UTC + offset`, i.e. `'+08:00'` = east-8 = Beijing time); `'+0800'`, `'UTC+8'`, `'UTC+0800'`, and `'UTC+08:00'` all behave identically. See [ISO 8601 sign convention](./95-timezone.md#to_iso8601).
+- If `timezone` is omitted, it uses the current connection timezone.
+- For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
 #### TO_JSON
@@ -1799,10 +1847,10 @@ return_timestamp: {
 #### TO_CHAR
 
 ```sql
-TO_CHAR(ts, format_str_literal)
+TO_CHAR(ts, format_str_literal [, timezone])
 ```
 
-**Function Description**: Converts a timestamp type to a string according to the specified format
+**Function Description**: Converts a timestamp type to a string according to the specified format.
 
 **Version**: ver-3.2.2.0
 
@@ -1856,7 +1904,9 @@ Supported Formats:
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
-- It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
+- If `timezone` is provided, the accepted formats are described in [Supported Timezone Formats](./95-timezone.md#supported-timezone-formats).
+- If `timezone` is omitted, it uses the current connection timezone.
+- For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
 
 #### TO_TIMESTAMP
@@ -1914,9 +1964,11 @@ NOW()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units include:
-        b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
+- `NOW()` and `NOW` both follow the current connection timezone set by `SET TIMEZONE`.
+- When using fixed-offset values with `SET TIMEZONE`, the sign is counterintuitive: `SET TIMEZONE '+08:00'` displays time 8 hours **behind** UTC, not ahead. Use `SET TIMEZONE 'Asia/Shanghai'` to get Beijing time reliably.
+- To verify which timezone a connection is using, run `SELECT TIMEZONE()`. To see the current time with timezone offset, run `SELECT TO_ISO8601(NOW())`.
 
 #### TIMEDIFF
 
@@ -1944,7 +1996,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - Returns NULL if `expr1` or `expr2` is NULL.
 - Returns NULL if the input contains strings that do not conform to any date-time format.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
-- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - If `time_unit` is NULL, it is equivalent to the time unit not being specified.
 
 **Example**:
@@ -1964,12 +2016,7 @@ taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
 #### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, use_current_timezone])
-
-use_current_timezone: {
-    0
-  | 1
-}
+TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 ```
 
 **Function Description**: Truncates the timestamp according to the specified time unit `time_unit`.
@@ -1982,18 +2029,17 @@ use_current_timezone: {
 
 **Usage Instructions**:
 
-- Supported time units `time_unit` include:
-          1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- Supported time units are listed in [Time Units](./01-datatype.md#time-units). For natural calendar truncation, `1n`, `1q`, and `1y` are supported.
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
-- When using 1d/1w as the time unit to truncate timestamps, the `use_current_timezone` parameter can be set to specify whether to truncate based on the current timezone.
-  A value of 0 means truncation using the UTC timezone, and a value of 1 means truncation using the current timezone.
-  For example, if the client's configured timezone is UTC+0800, then TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) returns the East Eight Zone time '2020-01-01 08:00:00'.
-  Using TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) returns the East Eight Zone time '2020-01-01 00:00:00'.
-  When `use_current_timezone` is not specified, the default value is 1.
-- When truncating the time value to a week (1w), the calculation of timetruncate is based on the Unix timestamp (January 1, 1970, 00:00:00 UTC). Since the Unix timestamp starts on a Thursday,
-  all truncated dates are Thursdays.
+- The third parameter supports both integer flags and timezone strings.
+  - Integer `0`: truncates on fixed boundaries on the UTC timeline. For example, `1d` aligns to UTC `00:00`, and `1w` aligns to UTC week boundaries. The returned timestamp is still displayed in the current connection timezone.
+  - Integer `1`: truncates on local calendar boundaries in the current connection timezone.
+    - String timezone: accepts the formats described in [Supported Timezone Formats](./95-timezone.md#supported-timezone-formats).
+- When the third parameter is omitted, it uses the current connection timezone.
+- For `1w`, week alignment uses `firstDayOfWeek`. For `firstDayOfWeek` initialization and platform differences, see [firstDayOfWeek](../01-components/02-taosc.md#region-related).
+- `GMT` / `GMT±...` and ambiguous abbreviations (for example `CST`) are rejected.
 
 #### TIMEZONE
 
@@ -2001,7 +2047,7 @@ use_current_timezone: {
 TIMEZONE()
 ```
 
-**Function Description**: Returns the current timezone information of the client.
+**Function Description**: Returns the single effective timezone string for the current connection. It prefers the connection-level setting; if none is set, it falls back to the client-global timezone snapshotted when the connection was created, and then to the system default timezone.
 
 **Return Data Type**: VARCHAR.
 
@@ -2025,9 +2071,9 @@ TODAY()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units include:
-                b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
+- Timezone resolution uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 
 #### WEEK
 
@@ -2817,7 +2863,7 @@ LAG(expr, offset[, default_val])
 - `default_val` must be type-compatible with `expr`.
 - `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
 
 ### LEAD
 
@@ -2840,7 +2886,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` must be type-compatible with `expr`.
 - `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
 
 ### MAX
 
@@ -3162,6 +3208,7 @@ MAVG(expr, k)
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
 - Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT
 
@@ -3186,7 +3233,7 @@ STATECOUNT(expr, oper, val)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATECOUNT` counts consecutive records only inside the current window and does not accumulate across windows.
 
 ### STATEDURATION
 
@@ -3212,7 +3259,7 @@ STATEDURATION(expr, oper, val, unit)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATEDURATION` measures continuous duration only inside the current window and does not accumulate across windows.
 
 ### TWA
 
@@ -3269,6 +3316,40 @@ SELECT CURRENT_USER();
 ```
 
 **Description**: Retrieves the current user.
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
+
+**Parameters**:
+
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative or NULL values skip the sleep and return 0
+
+**Return value**: INT - Returns 0 on success or for negative/NULL arguments
+
+**Examples**:
+
+```sql
+-- Sleep for 2 seconds
+SELECT SLEEP(2);
+
+-- Sleep for 500 milliseconds
+SELECT SLEEP(0.5);
+
+-- Negative argument returns 0 immediately
+SELECT SLEEP(-1);
+
+-- NULL argument returns 0 immediately
+SELECT SLEEP(NULL);
+
+-- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- total wait time equals the sum of each row's duration
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## Geometry Functions
 

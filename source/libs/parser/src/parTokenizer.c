@@ -34,6 +34,7 @@ static SKeyword keywordTable[] = {
     {"ADD",                  TK_ADD},
     {"AES_DECRYPT",          TK_AES_DECRYPT},
     {"AES_ENCRYPT",          TK_AES_ENCRYPT},
+    {"AGG",                  TK_AGG},
     {"AGGREGATE",            TK_AGGREGATE},
     {"ALL",                  TK_ALL},
     {"ALLOW_DROP",           TK_ALLOW_DROP},
@@ -120,6 +121,7 @@ static SKeyword keywordTable[] = {
     {"EXPLAIN",              TK_EXPLAIN},
     {"EVENT_TYPE",           TK_EVENT_TYPE},
     {"EVENT_WINDOW",         TK_EVENT_WINDOW},
+    {"EXTEND",               TK_EXTEND},
     {"EXTERNAL_WINDOW",      TK_EXTERNAL_WINDOW},
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
@@ -127,6 +129,7 @@ static SKeyword keywordTable[] = {
     {"FILL_HISTORY",         TK_FILL_HISTORY},
     {"FILL_HISTORY_FIRST",   TK_FILL_HISTORY_FIRST},
     {"FIRST",                TK_FIRST},
+    {"FIRST_DAY_OF_WEEK",    TK_FIRST_DAY_OF_WEEK},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},
@@ -214,6 +217,7 @@ static SKeyword keywordTable[] = {
     {"NOW",                  TK_NOW},
     {"NOTIFY_OPTIONS",       TK_NOTIFY_OPTIONS},
     {"NO_BATCH_SCAN",        TK_NO_BATCH_SCAN},
+    {"NO_ZEROTH",            TK_NO_ZEROTH},
     {"NULL",                 TK_NULL},
     {"NULL_F",               TK_NULL_F},
     {"NULLIF",               TK_NULLIF},
@@ -274,6 +278,7 @@ static SKeyword keywordTable[] = {
     {"ROLLUP",               TK_ROLLUP},
     {"RSMA",                 TK_RSMA},
     {"RSMAS",                TK_RSMAS},
+    {"SCALAR",               TK_SCALAR},
     {"SCHEMALESS",           TK_SCHEMALESS},
     {"SCORES",               TK_SCORES},
     {"SECURITY_LEVEL",       TK_SECURITY_LEVEL},
@@ -329,6 +334,7 @@ static SKeyword keywordTable[] = {
     {"TAG",                  TK_TAG},
     {"TAGS",                 TK_TAGS},
     {"TBNAME",               TK_TBNAME},
+    {"TEXT",                 TK_TEXT},
     {"THEN",                 TK_THEN},
     {"TIMESTAMP",            TK_TIMESTAMP},
     {"TIMEZONE",             TK_TIMEZONE},
@@ -420,6 +426,7 @@ static SKeyword keywordTable[] = {
     {"_TNEXT_LOCALTIME",     TK_TNEXT_LOCALTIME},
     {"_TLOCALTIME",          TK_TLOCALTIME},
     {"_TGRPID",              TK_TGRPID},
+    {"_TROLLUP_TBCOUNT",     TK_TROLLUP_TBCOUNT},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
     {"SS_CHUNKPAGES",        TK_SS_CHUNKPAGES},
@@ -493,6 +500,8 @@ static SKeyword keywordTable[] = {
     {"_TIDLESTART",          TK_TIDLESTART},
     {"_TIDLEEND",            TK_TIDLEEND},
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
+    {"ZEROTH_STATE",         TK_ZEROTH_STATE},
+    {"CPU_ALLOCATION",       TK_CPU_ALLOCATION},
 };
 // clang-format on
 
@@ -793,10 +802,11 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
       for (i = 1; isdigit(z[i]); i++) {
       }
 
-      /* here is the 1u/1a/2s/3m/9y */
+      /* here is the 1u/1a/2s/3m/9y/1q */
       if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' ||
            z[i] == 'n' || z[i] == 'y' || z[i] == 'w' || z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' ||
-           z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' || z[i] == 'Y' || z[i] == 'W') &&
+           z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' || z[i] == 'Y' || z[i] == 'W' ||
+           z[i] == 'q' || z[i] == 'Q') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenId = TK_NK_VARIABLE;
         i += 1;

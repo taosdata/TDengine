@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <gtest/gtest.h>
 
+#include "streamMsg.h"
 #include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
@@ -365,6 +366,98 @@ void processCommandArgs(int argc, char** argv) {
   }
 }
 
+TEST(td_msg_test, destroy_sv_create_tb_req_frees_tag_ref) {
+  SVCreateTbReq req = {0};
+  req.type = TSDB_VIRTUAL_CHILD_TABLE;
+  req.colRef.nCols = 1;
+  req.colRef.pColRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pColRef, nullptr);
+  req.colRef.nTagRefs = 2;
+  req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(2, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pTagRef, nullptr);
+
+  req.colRef.pTagRef[0].hasRef = true;
+  req.colRef.pTagRef[0].id = 1;
+
+  tDestroySVCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+
+  ASSERT_EQ(req.colRef.pColRef, nullptr);
+  ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
+TEST(td_msg_test, destroy_sv_submit_create_tb_req_frees_tag_ref) {
+  SVCreateTbReq req = {0};
+  req.type = TSDB_VIRTUAL_CHILD_TABLE;
+  req.colRef.nCols = 0;
+  req.colRef.pColRef = nullptr;
+  req.colRef.nTagRefs = 1;
+  req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pTagRef, nullptr);
+
+  tDestroySVSubmitCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+
+  ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
+static int32_t serializeOldStreamHbMsg(void* buf, int32_t bufLen, const SStreamHbMsg* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, (uint8_t*)buf, bufLen);
+
+  if (tStartEncode(&encoder) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->streamGId) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->snodeId) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->runnerThreadNum) != 0) return -1;
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pVgLeaders
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pStreamStatus
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pStreamReq
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pTriggerStatus
+  tEndEncode(&encoder);
+
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  return len;
+}
+
+TEST(td_msg_test, stream_hb_msg_backward_compat_without_extra_error_messages) {
+  SStreamHbMsg req = {0};
+  req.dnodeId = 11;
+  req.streamGId = 22;
+  req.snodeId = 33;
+  req.runnerThreadNum = 44;
+
+  std::vector<char> buf(256, 0);
+  int32_t           len = serializeOldStreamHbMsg(buf.data(), (int32_t)buf.size(), &req);
+  ASSERT_GT(len, 0);
+
+  SStreamHbMsg out = {0};
+  SDecoder     decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), len);
+  ASSERT_EQ(tDecodeStreamHbMsg(&decoder, &out), 0);
+  ASSERT_EQ(out.dnodeId, req.dnodeId);
+  ASSERT_EQ(out.streamGId, req.streamGId);
+  ASSERT_EQ(out.snodeId, req.snodeId);
+  ASSERT_EQ(out.runnerThreadNum, req.runnerThreadNum);
+  ASSERT_EQ(taosArrayGetSize(out.pStreamStatus), 0);
+  ASSERT_EQ(taosArrayGetSize(out.pTriggerStatus), 0);
+
+  tCleanupStreamHbMsg(&out, true);
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, stream_rollup_group_leaf_extracts_last_nchar_segment) {
+  TdUcs4            path[] = {'A', '.', 'B', '.', 'C'};
+  SStreamGroupValue value = {0};
+  value.data.type = TSDB_DATA_TYPE_NCHAR;
+  value.data.pData = (uint8_t*)path;
+  value.data.nData = sizeof(path);
+
+  const char* leaf = NULL;
+  int32_t     leafLen = 0;
+  ASSERT_EQ(tGetStreamRollupGroupLeaf(&value, &leaf, &leafLen), 0);
+  ASSERT_EQ(leafLen, (int32_t)sizeof(TdUcs4));
+  ASSERT_EQ(*(const TdUcs4*)leaf, (TdUcs4)'C');
+}
 
 #include "SClientHbBatchReq.cpp"
 int main(int argc, char **argv) {

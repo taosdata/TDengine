@@ -70,10 +70,9 @@ set(
     "src/tq/tqUtil.c"
     "src/tq/tqScan.c"
     "src/tq/tqMeta.c"
-    "src/tq/tqRead.c"
     "src/tq/tqOffset.c"
-    "src/tq/tqSink.c"
     "src/tq/tqSnapshot.c"
+    "src/tq/tqInterface.c"
 
     #bse
     "src/bse/bseMgt.c"

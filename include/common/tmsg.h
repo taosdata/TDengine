@@ -253,6 +253,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
 #define TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL      19 // alter multiple tag values of multi tables
 #define TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL      20 // alter multiple tag values of the child tables of a stable
+#define TSDB_ALTER_TABLE_ALTER_TAG_REF                  21 // set/change tag reference for virtual child table
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -373,6 +374,9 @@ typedef enum ENodeType {
   QUERY_NODE_UPDATE_TAG_VALUE,
   QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE,
   QUERY_NODE_REMOTE_TABLE,
+  QUERY_NODE_FILE_TABLE,
+  QUERY_NODE_TEXT_TABLE,
+  QUERY_NODE_TAG_REF_COLUMN,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -452,6 +456,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_TOTP_SECRET_STMT,
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
+  QUERY_NODE_SET_TIMEZONE_STMT,
+  QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -573,6 +579,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_XNODE_JOBS_STMT,
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
   QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+  QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -595,6 +602,8 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC,
   QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN,
   QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_LOGIC_PLAN_ROWSET_SOURCE,
+  QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE,
 
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
@@ -665,6 +674,10 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INSERT,
   QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC,
+  QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE,
+  QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE,
+
+
   // xnode
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
@@ -825,6 +838,8 @@ typedef struct SVCTableRefCols {
   int32_t      numOfSrcTbls;
   int32_t      numOfColRefs;
   SRefColInfo* refCols;
+  int32_t      numOfTagRefs;
+  SRefColInfo* tagRefCols;
 } SVCTableRefCols;
 
 typedef struct SVCTableMergeInfo {
@@ -2063,6 +2078,7 @@ typedef struct {
   char        slidingUnit;
   char        offsetUnit;
   int8_t      precision;
+  int8_t      firstDayOfWeek;
   int64_t     interval;
   int64_t     sliding;
   int64_t     offset;
@@ -2165,6 +2181,13 @@ int32_t tDeserializeSVStbRefDbsReq(void* buf, int32_t bufLen, SVStbRefDbsReq* pR
 typedef struct {
   int32_t vgId;
   SArray* pDbs;  // SArray<char* (db name)>
+  // Resolved col-ref info synthesized in catalog for local planner/parser consumption only.
+  // Not serialized in vnode wire format.
+  int32_t      numOfColRefs;
+  SRefColInfo* pColRefCols;  // Array[numOfColRefs]
+  // Tag ref info synthesized from first child (local only, not serialized in vnode wire format)
+  int32_t      numOfTagRefs;
+  SRefColInfo* pTagRefCols;  // Array[numOfTagRefs]
 } SVStbRefDbsRsp;
 
 int32_t tSerializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
@@ -3193,6 +3216,22 @@ int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDno
 int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
 void    tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp);
 
+typedef struct {
+  int32_t compactId;
+} SDnodeQueryCompactProgressReq;
+
+int32_t tSerializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+int32_t tDeserializeSDnodeQueryCompactProgressReq(void *buf, int32_t bufLen, SDnodeQueryCompactProgressReq *pReq);
+
+typedef struct {
+  int32_t                   dnodeId;
+  int32_t                   numOfVnodes;
+  SQueryCompactProgressRsp *vnodeProgress;  // array of numOfVnodes elements
+} SDnodeQueryCompactProgressRsp;
+
+int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
+void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
 typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
 typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;
 
@@ -4395,6 +4434,7 @@ typedef struct SSubQueryMsg {
   int8_t   explain;
   int8_t   needFetch;
   int8_t   compress;
+  int8_t   firstDayOfWeek;
   uint32_t sqlLen;
   char*    sql;
   uint32_t msgLen;
@@ -4528,9 +4568,23 @@ typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   STimeWindow     window;
   SOperatorParam* pTagScanOp;
+  int32_t         tagDownStreamId;
+  char            tbName[TSDB_TABLE_NAME_LEN];
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
   SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
+  SArray*         pResolvedTags;  // SArray<STagVal>, resolved tag values from source tables
 } SVTableScanOperatorParam;
+
+typedef struct SSysTableScanVtbRefReq {
+  int32_t vgId;                            // target vnode id that owns the referenced table
+  char    dbName[TSDB_DB_NAME_LEN];        // short database name of the referenced table
+  char    tbName[TSDB_TABLE_NAME_LEN];     // referenced table name
+  char    colName[TSDB_COL_NAME_LEN];      // referenced column name on the target table
+} SSysTableScanVtbRefReq;
+
+typedef struct SSysTableScanOperatorParam {
+  SArray* pVtbRefReqs;  // SArray<SSysTableScanVtbRefReq>
+} SSysTableScanOperatorParam;
 
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
@@ -5110,6 +5164,7 @@ typedef struct SUpdateTableTagVal {
   SArray* tags; // Array of SUpdatedTagVal
 } SUpdateTableTagVal;
 
+
 typedef struct SVAlterTbReq {
   char*   tbName;
   int8_t  action;
@@ -5145,7 +5200,7 @@ typedef struct SVAlterTbReq {
   uint8_t* where;      // [where] is the encode where condition.
   // for Add column
   STypeMod typeMod;
-  // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
+  // TSDB_ALTER_TABLE_ALTER_COLUMN_REF / TSDB_ALTER_TABLE_ALTER_TAG_REF
   char* refDbName;
   char* refTbName;
   char* refColName;
@@ -5156,7 +5211,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 void    destroyAlterTbReq(SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
-void    tfreeMultiTagUpateVal(void* pMultiTag);
+void    tfreeMultiTagUpdateVal(void* pMultiTag);
 void    tfreeUpdateTableTagVal(void* pMultiTable);
 
 typedef struct {
@@ -5672,7 +5727,7 @@ enum {
 };
 
 enum {
-  WITH_DATA = 0,
+  ONLY_DATA = 0,
   WITH_META = 1,
   ONLY_META = 2,
 };
@@ -6278,12 +6333,6 @@ typedef struct {
   int32_t debugFlag;
 } SMqHbRsp;
 
-typedef struct {
-  SMsgHead head;
-  int64_t  consumerId;
-  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
-} SMqSeekReq;
-
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t       suid;
@@ -6410,9 +6459,6 @@ void    tDestroySMqHbReq(SMqHbReq* pReq);
 int32_t tSerializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 int32_t tDeserializeSMqHbRsp(void* buf, int32_t bufLen, SMqHbRsp* pRsp);
 void    tDestroySMqHbRsp(SMqHbRsp* pRsp);
-
-int32_t tSerializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
-int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 
 #define TD_REQ_FROM_APP               0x0
 #define SUBMIT_REQ_AUTO_CREATE_TABLE  0x1

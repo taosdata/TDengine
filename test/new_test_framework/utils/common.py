@@ -3086,10 +3086,7 @@ class TDCom:
                     f"> {self.query_result_file}.raw "
                 )
                 time.sleep(1)
-                with (
-                    open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin,
-                    open(self.query_result_file, "w", encoding="utf-8") as fout,
-                ):
+                with open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin, open(self.query_result_file, "w", encoding="utf-8") as fout:
                     for line in fin:
                         stripped = line.rstrip()
                         # Skip lines that are entirely taos> or taos> followed by whitespace
