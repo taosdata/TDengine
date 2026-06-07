@@ -1424,7 +1424,7 @@ static int32_t  decodeRawData(SDecoder* decoder, void* data, uint32_t dataLen, _
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
                                 SVCreateTbReq* pCreateReqDst, SCatalog* pCatalog, SRequestConnInfo* conn, SName* pName,
-                                STableMeta** pMeta, SSchemaWrapper* pSW, void* rawData, int32_t retry, SArray* pTagList) {
+                                STableMeta** pMeta, SSchemaWrapper* pSW, void* rawData, int32_t retry) {
   if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || pCatalog == NULL || conn == NULL || pName == NULL ||
       pMeta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -1460,7 +1460,7 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
       pTableMeta->vgId = info.vgInfo.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
       pCreateReqDst->ctb.suid = pTableMeta->suid;
-      RAW_RETURN_CHECK(reBuildTag(pCreateReqDst, pTableMeta, pTagList));
+      RAW_RETURN_CHECK(reBuildTag(pCreateReqDst, pTableMeta, NULL));
     }
 
     RAW_RETURN_CHECK(taosHashPut(pNameHash, pName->tname, strlen(pName->tname), &info, sizeof(tbInfo)));
@@ -1592,7 +1592,6 @@ end:
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
-  taosArrayDestroyP(pTagList, NULL);
   RAW_LOG_END
   return code;
 }
