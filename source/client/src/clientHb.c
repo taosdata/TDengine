@@ -248,6 +248,16 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
       }
 
+      // adopt the server's authoritative passVer after a self password change, so this
+      // connection's hb stops reporting the grace value (-1) and is no longer at risk of
+      // a stale-conn kick for a change it performed itself.
+      if (atomic_load_8(&pTscObj->passSelfChanged) != 0) {
+        atomic_store_32(&pTscObj->loginPassVer, pRsp->passVer);
+        atomic_store_8(&pTscObj->passSelfChanged, 0);
+        tscDebug("adopt passVer %d of user %s after self password change, conn:%" PRIi64, pRsp->passVer, pRsp->user,
+                 pTscObj->id);
+      }
+
       // update ip white list version
       {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
@@ -660,7 +670,13 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
         }
       }
 
-      if (pRsp->query->killConnection) {
+      if (pRsp->query->killConnection == HB_KILL_CONN_AUTH) {
+        // password changed after this client logged in: mark the conn so any
+        // further request fails clearly with an authentication error
+        atomic_store_8(&pTscObj->passKilled, 1);
+        tscInfo("conn:0x%" PRIx64 ", marked auth-failed by hb since password changed, user:%s", pTscObj->id,
+                pTscObj->user);
+      } else if (pRsp->query->killConnection) {
         taos_close_internal(pTscObj);
       }
 
@@ -1392,6 +1408,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     tstrncpy(pOneReq->cInfo, pTscObj->optionInfo.cInfo, sizeof(pOneReq->cInfo));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
     pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
+    pOneReq->passVer = atomic_load_32(&pTscObj->loginPassVer);
     tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
 
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
