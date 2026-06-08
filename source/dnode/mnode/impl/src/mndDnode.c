@@ -1113,6 +1113,49 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseVgroup(pMnode, pVgroup);
   }
 
+  // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes)
+  // Skip during reboot — vnodes may not all be ready in the first heartbeat after restart
+  if (!reboot) {
+    SSdb *pSdb = pMnode->pSdb;
+    void *pIter2 = NULL;
+    while (1) {
+      SVgObj *pVgroup = NULL;
+      pIter2 = sdbFetch(pSdb, SDB_VGROUP, pIter2, (void **)&pVgroup);
+      if (pIter2 == NULL) break;
+
+      for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+        SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+        if (pGid->dnodeId == statusReq.dnodeId && pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
+          bool found = false;
+          for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
+            SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
+            if (pVload->vgId == pVgroup->vgId) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s",
+                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState));
+            pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
+            pGid->syncRestore = 0;
+            pGid->syncCanRead = 0;
+            pGid->startTimeMs = 0;
+
+            SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+            if (pDb != NULL && pDb->stateTs != curMs) {
+              pDb->stateTs = curMs;
+            }
+            mndReleaseDb(pMnode, pDb);
+          }
+          break;
+        }
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
+  }
+
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
     if (statusReq.mload.roleTimeMs == 0) {
