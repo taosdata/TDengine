@@ -1102,6 +1102,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->learnerProgress = state.progress;
   pLoad->snapSeq = state.snapSeq;
   pLoad->syncTotalIndex = state.totalIndex;
+  pLoad->snapshotSending = syncSnapshotSending(pVnode->sync) ? 1 : 0;
   return 0;
 }
 

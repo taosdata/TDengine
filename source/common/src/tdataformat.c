@@ -2770,6 +2770,14 @@ bool tTagIsJsonNull(void *data) {
   return ((STag *)data)->nTag == 0;
 }
 
+int32_t tTagNameCompare(const void *a, const void *b) {
+  int16_t c1 = 0, c2 = 0;
+  memcpy(&c1, (char*)a + TSDB_COL_NAME_LEN, sizeof(int16_t));
+  memcpy(&c2, (char*)b + TSDB_COL_NAME_LEN, sizeof(int16_t));
+  if (c1 < c2) return -1;
+  return c1 > c2;
+}
+
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   int32_t  code = 0;
   uint8_t *p = NULL;
@@ -2839,74 +2847,6 @@ _err:
 
 void tTagFree(STag *pTag) {
   if (pTag) taosMemoryFree(pTag);
-}
-
-// See header comment for behavior summary. Semantics:
-//   - NULL pSchema/pTagVals/pTagName: SUCCESS (nothing to align).
-//   - empty arrays (size 0):          SUCCESS (nothing to align).
-//   - size(pTagVals) != size(pTagName):       PAR_INVALID_TAG_NAME (caller bug).
-//   - any pVal->cid missing in pSchema:       PAR_INVALID_TAG_NAME, pTagName is left
-//                                             unmodified (defensive fallback).
-// Callers MUST keep pTagName length in sync with pTagVals length before
-// calling this helper.
-int32_t tTagAlignNameByCid(const SSchema *pSchema, int32_t numOfTags, SArray *pTagVals, SArray *pTagName) {
-  if (pTagVals == NULL || pTagName == NULL || pSchema == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t nVals = taosArrayGetSize(pTagVals);
-  int32_t nName = taosArrayGetSize(pTagName);
-  if (nVals != nName) {
-    return TSDB_CODE_PAR_INVALID_TAG_NAME;
-  }
-  if (nVals == 0) {
-    return 0;
-  }
-  SArray *pReordered = taosArrayInit(nVals, TSDB_COL_NAME_LEN);
-  if (pReordered == NULL) {
-    return terrno;
-  }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < nVals; ++i) {
-    STagVal    *pVal = (STagVal *)TARRAY_GET_ELEM(pTagVals, i);
-    const char *pName = NULL;
-    for (int32_t j = 0; j < numOfTags; ++j) {
-      if (pSchema[j].colId == pVal->cid) {
-        pName = pSchema[j].name;
-        break;
-      }
-    }
-    if (pName == NULL) {
-      uError("%s tag cid:%d not found in schema, fallback to original order", __func__, pVal->cid);
-      taosArrayDestroy(pReordered);
-      return TSDB_CODE_PAR_INVALID_TAG_NAME;
-    }
-    if (NULL == taosArrayPush(pReordered, pName)) {
-      code = terrno;
-      taosArrayDestroy(pReordered);
-      return code;
-    }
-  }
-
-  taosArrayClear(pTagName);
-  for (int32_t i = 0; i < nVals; ++i) {
-    char *pName = (char *)TARRAY_GET_ELEM(pReordered, i);
-    if (NULL == taosArrayPush(pTagName, pName)) {
-      code = terrno;
-      break;
-    }
-  }
-  taosArrayDestroy(pReordered);
-  return code;
-}
-
-int32_t tTagNewWithName(SArray *pTagVals, SArray *pTagName, const SSchema *pSchema, int32_t numOfTags,
-                        int32_t version, STag **ppTag) {
-  int32_t code = tTagNew(pTagVals, version, false, ppTag);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tTagAlignNameByCid(pSchema, numOfTags, pTagVals, pTagName);
-  }
-  return code;
 }
 
 char *tTagValToData(const STagVal *value, bool isJson) {

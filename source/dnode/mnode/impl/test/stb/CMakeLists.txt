@@ -10,4 +10,4 @@ if(NOT TD_WINDOWS)
         NAME stbTest
         COMMAND stbTest
     )
-endif(NOT ${TD_WINDOWS})
+endif(NOT TD_WINDOWS)

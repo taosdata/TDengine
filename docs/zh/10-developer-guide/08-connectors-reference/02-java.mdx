@@ -331,7 +331,8 @@ properties 中的配置参数如下：
 
 **配置描述**：实验性的参数绑定序列化模式配置，仅对 WebSocket 连接生效且不支持高效写入模式，用于优化特定场景下的参数绑定性能。
 
-- TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]：参数绑定序列化模式，目前是实验特性，仅支持 `line` 模式，在参数绑定一批绑定的数据中每个子表仅一条数据时可以提升性能。仅在使用 WebSocket 连接时生效，不支持高效写入模式。默认值为空。
+- TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]：**已废弃**。
+- TSDBDriver.PROPERTY_KEY_STMT_BIND_MODE [`stmtBindMode`]：参数绑定序列化模式，支持 `column` （列模式，TDengine 3.4.1.13 版本后支持，序列化效率高且字节数少）、`traditional` （之前的按表分组绑定模式）和 `auto` (根据版本自动选择)。仅在使用 WebSocket 连接时生效，支持高效写入模式。默认值为 `auto`。
 
 ---
 

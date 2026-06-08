@@ -200,18 +200,7 @@ SColVal *tRowIterNext(SRowIter *pIter);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
-// Reorder pTagName in place so its element order matches the cid order of
-// pTagVals after tTagNew() sorted pTagVals by cid. This prevents tag name
-// <-> value misalignment in downstream consumers (e.g. the JSON meta
-// emitted by tmq_get_json_meta for auto-created child tables) when the
-// INSERT/binding column order differs from the STABLE TAGS schema order.
-int32_t tTagAlignNameByCid(const SSchema *pSchema, int32_t numOfTags, SArray *pTagVals, SArray *pTagName);
-// Wrapper that builds STag via tTagNew() and, on success, realigns the
-// caller-supplied pTagName array with the cid-sorted pTagVals. Non-JSON
-// callers MUST prefer this helper over a bare tTagNew() whenever they
-// also maintain a parallel tagName array, to avoid the misalignment bug.
-int32_t tTagNewWithName(SArray *pTagVals, SArray *pTagName, const SSchema *pSchema, int32_t numOfTags,
-                        int32_t version, STag **ppTag);
+int32_t tTagNameCompare(const void *a, const void *b);
 void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
 bool    tTagIsJsonNull(void *tagVal);
@@ -567,6 +556,19 @@ struct SRowBuildScanInfo {
 
 int8_t schemaHasBlob(const STSchema *pSchema);
 #endif
+
+// Append a tag name and its column ID into a tag-name array whose elemSize is
+// TSDB_COL_NAME_LEN + sizeof(col_id_t).  Using taosArrayPush(arr, name) would
+// copy elemSize bytes from a TSDB_COL_NAME_LEN-byte source, causing an
+// out-of-bounds read.  This helper uses taosArrayReserve to allocate the slot
+// first, then writes the two fields separately.
+static FORCE_INLINE int32_t insTagNameAppend(SArray *pTagNames, const char *name, col_id_t colId) {
+  void *slot = taosArrayReserve(pTagNames, 1);
+  if (NULL == slot) return terrno;
+  memcpy(slot, name, TSDB_COL_NAME_LEN);
+  *(col_id_t *)POINTER_SHIFT(slot, TSDB_COL_NAME_LEN) = colId;
+  return TSDB_CODE_SUCCESS;
+}
 
 #ifdef __cplusplus
 }

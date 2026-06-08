@@ -166,7 +166,18 @@ typedef struct SParseContext {
   int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
 } SParseContext;
 
+typedef struct SPureInsertParserCtx {
+  int                    nr_params;
+
+  char                   buf[512];
+} SPureInsertParserCtx;
+
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
+bool    qIsLiteralSql(const char* pStr);
+
+// NOTE: only for insert into [db.]? (...) values (...)
+int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr);
+
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
 bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
                         char* msgBuf, int32_t msgBufLen, int* pCode);

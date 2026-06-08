@@ -1641,9 +1641,8 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
                       SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void* charsetCxt) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull && pTagName) {
-    if (NULL == taosArrayPush(pTagName, pTagSchema->name)) {
-      return terrno;
-    }
+    int32_t code = insTagNameAppend(pTagName, pTagSchema->name, pTagSchema->colId);
+    if (TSDB_CODE_SUCCESS != code) return code;
   }
 
   if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
@@ -1877,7 +1876,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
-      !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
+      !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN + sizeof(col_id_t)))) {
     code = terrno;
     goto _exit;
   }
@@ -1935,7 +1934,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 
   if (TSDB_CODE_SUCCESS == code && !isJson) {
-    code = tTagNewWithName(pTagVals, pTagName, pSchema, getNumOfTags(pStmt->pTableMeta), 1, &pTag);
+    taosArraySort(pTagName, tTagNameCompare);
+    code = tTagNew(pTagVals, 1, false, &pTag);
   }
 
   if (TSDB_CODE_SUCCESS == code && !autoCreate) {
@@ -2981,9 +2981,8 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
-      SSchema* pTagsSchema = getTableTagSchema(pStbRowsCxt->pStbMeta);
-      code = tTagNewWithName(pStbRowsCxt->aTagVals, pStbRowsCxt->aTagNames, pTagsSchema,
-                             getNumOfTags(pStbRowsCxt->pStbMeta), 1, &pStbRowsCxt->pTag);
+      taosArraySort(pStbRowsCxt->aTagNames, tTagNameCompare);
+      code = tTagNew(pStbRowsCxt->aTagVals, 1, false, &pStbRowsCxt->pTag);
     }
   }
   if (code == TSDB_CODE_SUCCESS && pStbRowsCxt->pTagCond) {
@@ -3127,7 +3126,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
             if (pCxt->tags.parseredTags == NULL) {
               code = terrno;
             } else {
-              pCxt->tags.parseredTags->STagNames = taosArrayInit(numOfTags, sizeof(STagVal));
+              pCxt->tags.parseredTags->STagNames = taosArrayInit(numOfTags, TSDB_COL_NAME_LEN + sizeof(col_id_t));
               pCxt->tags.parseredTags->pTagVals = taosArrayInit(numOfTags, sizeof(STagVal));
               pCxt->tags.parseredTags->pTagIndex = taosMemoryCalloc(numOfTags, sizeof(uint8_t));
               pCxt->tags.parseredTags->numOfTags = 0;
@@ -3556,7 +3555,10 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     if (TSDB_CODE_SUCCESS == code && i < pCols->numOfBound - 1) {
       NEXT_VALID_TOKEN(*pSql, *pToken);
       if (TK_NK_COMMA != pToken->type) {
-        if (!pCxt->forceUpdate) {
+        // ')' before all columns are consumed means the client has a stale schema with
+        // more columns than the server (e.g. after DROP COLUMN from another connection).
+        // Any other unexpected token is a genuine syntax error in the SQL.
+        if (!pCxt->forceUpdate && TK_NK_RP == pToken->type) {
           code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
           parserWarn("QID:0x%" PRIx64 ", column number is smaller than %d, need retry", pCxt->pComCxt->requestId,
                      pCols->numOfBound);
@@ -4017,7 +4019,7 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
     pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
     pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
 
-    pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
+    pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
     if (!pStbRowsCxt->aTagNames) {
       code = terrno;
     }

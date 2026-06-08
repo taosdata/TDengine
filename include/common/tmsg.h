@@ -194,6 +194,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
+  TSDB_MGMT_TABLE_SNAP_SEND_VNODES,
+  TSDB_MGMT_TABLE_SNAP_SEND_FILESETS,
   TSDB_MGMT_TABLE_VC_COL,
   TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_MOUNT,
@@ -2819,6 +2821,7 @@ typedef struct {
   int64_t bufferSegmentSize;
   int32_t snapSeq;
   int64_t syncTotalIndex;
+  int8_t  snapshotSending;  // 1 if this vnode is currently sending a snapshot
 } SVnodeLoad;
 
 typedef struct {
@@ -3180,6 +3183,39 @@ typedef struct {
 int32_t tSerializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 int32_t tDeserializeSQueryCompactProgressRsp(void* buf, int32_t bufLen, SQueryCompactProgressRsp* pReq);
 
+// Snap send progress query (mnode → dnode, dnode → mnode RSP)
+typedef struct {
+  int32_t fid;
+  int32_t fileCount;
+  int32_t finishedFileCount;
+  int64_t totalSize;
+  int64_t readSize;
+  int64_t startTime;    // ms timestamp
+  int64_t sver;
+  int64_t ever;
+  int8_t  transferType; // SNAP_DATA_TSDB(2) or SNAP_DATA_RAW(14)
+} SSnapSendFileSetInfo;
+
+typedef struct {
+  int32_t             vgId;
+  int32_t             dnodeId;
+  int32_t             totalFileSets;
+  int32_t             finishedFileSets;
+  int64_t             startTime;    // ms timestamp of reader open
+  int32_t             fileSetCount; // length of pFileSetInfos
+  SSnapSendFileSetInfo *pFileSetInfos;
+} SSnapSendVnodeInfo;
+
+typedef struct {
+  int32_t dnodeId;
+  int32_t numOfVnodes;
+  SSnapSendVnodeInfo *pVnodeInfos; // array of numOfVnodes elements
+} SDnodeQuerySnapSendProgressRsp;
+
+int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
+int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
+void    tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp);
+
 typedef struct {
   int32_t compactId;
 } SDnodeQueryCompactProgressReq;
@@ -3196,7 +3232,6 @@ typedef struct {
 int32_t tSerializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
 int32_t tDeserializeSDnodeQueryCompactProgressRsp(void *buf, int32_t bufLen, SDnodeQueryCompactProgressRsp *pRsp);
 void    tFreeSDnodeQueryCompactProgressRsp(SDnodeQueryCompactProgressRsp *pRsp);
-
 typedef SQueryCompactProgressReq SQueryRetentionProgressReq;
 typedef SQueryCompactProgressRsp SQueryRetentionProgressRsp;
 
@@ -5296,12 +5331,16 @@ typedef struct {
   SArray*  queryDesc;  // SArray<SQueryDesc>
 } SQueryHbReqBasic;
 
+// values for SQueryHbRspBasic.killConnection
+#define HB_KILL_CONN       1  // close the connection (e.g. KILL CONNECTION)
+#define HB_KILL_CONN_AUTH  2  // password changed after login; reject access with auth failure
+
 typedef struct {
   uint32_t connId;
   uint64_t killRid;
   int32_t  totalDnodes;
   int32_t  onlineDnodes;
-  int8_t   killConnection;
+  int8_t   killConnection;  // HB_KILL_CONN_*: 0 keep, 1 close, 2 reject with auth failure
   int8_t   align[3];
   SEpSet   epSet;
   SArray*  pQnodeList;
@@ -5342,6 +5381,7 @@ typedef struct {
   SIpRange          userDualIp;
   char              sVer[TSDB_VERSION_LEN];
   char              cInfo[CONNECTOR_INFO_LEN];
+  int32_t           passVer;  // password version the client authenticated with (-1: not reported)
 } SClientHbReq;
 
 typedef struct {

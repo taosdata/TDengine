@@ -137,7 +137,7 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
   int32_t lino = 0;
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
   TSDB_CHECK_NULL(pTagArray, code, lino, end, terrno);
-  *tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  *tagName = taosArrayInit(8, TSDB_COL_NAME_LEN + sizeof(col_id_t));
   TSDB_CHECK_NULL(*tagName, code, lino, end, terrno);
 
   for (int i = 0; i < tags->numOfBound; ++i) {
@@ -147,7 +147,8 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     bool cond = (kv->keyLen == strlen(pTagSchema->name) && memcmp(kv->key, pTagSchema->name, kv->keyLen) == 0 &&
                  kv->type == pTagSchema->type);
     TSDB_CHECK_CONDITION(cond, code, lino, end, TSDB_CODE_SML_INVALID_DATA);
-    TSDB_CHECK_NULL(taosArrayPush(*tagName, pTagSchema->name), code, lino, end, terrno);
+    code = insTagNameAppend(*tagName, pTagSchema->name, pTagSchema->colId);
+    TSDB_CHECK_CODE(code, lino, end);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
     if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
         pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
@@ -162,7 +163,8 @@ static int32_t smlBuildTagRow(SArray* cols, SBoundColInfo* tags, SSchema* pSchem
     }
     TSDB_CHECK_NULL(taosArrayPush(pTagArray, &val), code, lino, end, terrno);
   }
-  code = tTagNewWithName(pTagArray, *tagName, pSchema, numOfTags, 1, ppTag);
+  taosArraySort(*tagName, tTagNameCompare);
+  code = tTagNew(pTagArray, 1, false, ppTag);
   TSDB_CHECK_CODE(code, lino, end);
 
 end:

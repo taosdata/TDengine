@@ -1459,12 +1459,29 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 }
 
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery) {
+  if (pRequest == NULL || pQuery == NULL || pQuery->pRoot == NULL || pRequest->pTscObj == NULL) {
+    return;
+  }
+  if (nodeType(pQuery->pRoot) != QUERY_NODE_ALTER_USER_STMT) {
+    return;
+  }
+  SAlterUserStmt* pStmt = (SAlterUserStmt*)pQuery->pRoot;
+  if (pStmt->pUserOptions == NULL || !pStmt->pUserOptions->hasPassword) {
+    return;
+  }
+  if (0 == strncmp(pStmt->userName, pRequest->pTscObj->user, TSDB_USER_LEN)) {
+    pRequest->passAlterSelf = true;
+  }
+}
+
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
   int32_t subplanNum = 0;
 
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
+    markPassAlterSelf(pRequest, pQuery);
     if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
       pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
     }
@@ -3298,7 +3315,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   doAsyncQuery(pRequest, false);
 }
 
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -3326,6 +3343,8 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     fp(param, NULL, terrno);
     return;
   }
+
+  pRequest->literal_by_stmt2 = stmt;
 
   code = connCheckAndUpateMetric(connId);
 
@@ -3398,7 +3417,7 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
     return NULL;
   }
 
-  taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
+  taosAsyncQueryImplWithReqid(NULL, *(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -3511,6 +3530,13 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
 
   int64_t this = pRequest->self;
+  SRequestObj* pThis = acquireRequest(this);
+  if (pThis != pRequest) {
+    // NOTE: internal logic error, not recoverable!!!
+    tscError("internal logic error: SRequestObj lifecycle management");
+    abort();
+  }
+
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
@@ -3530,11 +3556,8 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
 
-  SRequestObj* pReq = acquireRequest(this);
-  if (pReq != NULL) {
-    pReq->inCallback = false;
-    (void)releaseRequest(this);
-  }
+  pRequest->inCallback = false;
+  (void)releaseRequest(this); // NOTE: pairing `pThis = acquireRequest(this);`
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,

@@ -239,6 +239,9 @@ typedef struct STscObj {
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
   int32_t        authVer;
+  int32_t        loginPassVer;  // password version at login; immutable, used for hb stale-conn kick
+  int8_t         passKilled;    // set by hb when password changed after login; requests then fail with auth error
+  int8_t         passSelfChanged;  // set when this conn changed its OWN password; hb adopts the new passVer instead of kicking
   SAppInstInfo*  pAppInfo;
   SHashObj*      pRequests;
   SPassInfo      passInfo;
@@ -345,6 +348,7 @@ typedef struct SRequestObj {
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
   int32_t              stmtType;
+  bool                 passAlterSelf;  // this request is "ALTER USER <self> PASS ..."
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
@@ -367,6 +371,8 @@ typedef struct SRequestObj {
   int32_t              execPhase;       // EQueryExecPhase
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
+
+  TAOS_STMT2          *literal_by_stmt2; // reference only
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -390,9 +396,11 @@ void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source);
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
 
+void taosAsyncExecLiteral(TAOS_STMT2 *stmt);
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                         int8_t source);
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
@@ -473,6 +481,8 @@ int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery);
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid);
+
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery);
 
 void taos_close_internal(void* taos);
 

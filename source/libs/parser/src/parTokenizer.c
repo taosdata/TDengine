@@ -708,6 +708,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
         if (delim != '`' && z[i] == '\\') {  // ignore the escaped character that follows this backslash
+          // Check bounds before skipping the next character to avoid out-of-bounds read
+          if (z[i + 1] == '\0') {
+            break;
+          }
           i++;
           continue;
         }

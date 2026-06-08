@@ -161,6 +161,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_SSMIGRATE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNAP_SEND_VNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SNAP_SEND_VNODES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNAP_SEND_FILESETS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SNAP_SEND_FILESETS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {

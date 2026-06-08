@@ -400,6 +400,57 @@ end:
   return code;
 }
 
+static int32_t reBuildTag(SVCreateTbReq* pCreateReq, STableMeta* pTableMeta, SArray* pTagList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTagVals = NULL;
+  code = tTagToValArray((STag*)pCreateReq->ctb.pTag, &pTagVals);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("create tb invalid tag data %s", pCreateReq->name);
+    goto end;
+  }
+
+  bool rebuildTag = false;
+  for (int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++) {
+    char* tName = taosArrayGet(pCreateReq->ctb.tagName, i);
+    if (tName == NULL) {
+      continue;
+    }
+    for (int32_t j = pTableMeta->tableInfo.numOfColumns;
+          j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++) {
+      SSchema* tag = &pTableMeta->schema[j];
+      if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
+        STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
+        if (pTagVal) {
+          if (pTagVal->cid != tag->colId) {
+            pTagVal->cid = tag->colId;
+            rebuildTag = true;
+          }
+        } else {
+          uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name,
+                  (int)taosArrayGetSize(pTagVals), i, tag->colId);
+        }
+      }
+    }
+  }
+  if (rebuildTag) {
+    STag* ppTag = NULL;
+    code = tTagNew(pTagVals, 1, false, &ppTag);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;
+    }
+    if (pTagList != NULL && NULL == taosArrayPush(pTagList, &ppTag)) {
+      code = terrno;
+      tTagFree(ppTag);
+      goto end;
+    }
+    pCreateReq->ctb.pTag = (uint8_t*)ppTag;
+  }
+
+end:
+  taosArrayDestroy(pTagVals);
+  return code;
+}
+
 static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -412,6 +463,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   SRequestObj*       pRequest = NULL;
   SQuery*            pQuery = NULL;
   SHashObj*          pVgroupHashmap = NULL;
+  STableMeta*        pTableMeta = NULL;
 
   RAW_LOG_START
   SArray* pTagList = taosArrayInit(0, POINTER_BYTES);
@@ -459,7 +511,6 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
     pCreateReq->flags |= TD_CREATE_IF_NOT_EXISTS;
     // change tag cid to new cid
     if (pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
-      STableMeta* pTableMeta = NULL;
       SName       sName = {0};
       tb_uid_t    oldSuid = pCreateReq->ctb.suid;
       //      pCreateReq->ctb.suid = processSuid(pCreateReq->ctb.suid, pRequest->pDb);
@@ -492,59 +543,8 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
             checkColRefForCreate(pCatalog, &conn, pColRef, pTscObj->acctId, pTableMeta->tableInfo.precision, pSchema,
                                  pSchemaExt));
       }
-      
-      SArray* pTagVals = NULL;
-      code = tTagToValArray((STag*)pCreateReq->ctb.pTag, &pTagVals);
-      if (code != TSDB_CODE_SUCCESS) {
-        uError("create tb invalid tag data %s", pCreateReq->name);
-        taosMemoryFreeClear(pTableMeta);
-        goto end;
-      }
-
-      bool rebuildTag = false;
-      for (int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++) {
-        char* tName = taosArrayGet(pCreateReq->ctb.tagName, i);
-        if (tName == NULL) {
-          continue;
-        }
-        for (int32_t j = pTableMeta->tableInfo.numOfColumns;
-             j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++) {
-          SSchema* tag = &pTableMeta->schema[j];
-          if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
-            STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, i);
-            if (pTagVal) {
-              if (pTagVal->cid != tag->colId) {
-                pTagVal->cid = tag->colId;
-                rebuildTag = true;
-              }
-            } else {
-              uError("create tb invalid data %s, size:%d index:%d cid:%d", pCreateReq->name,
-                     (int)taosArrayGetSize(pTagVals), i, tag->colId);
-            }
-          }
-        }
-      }
-      if (rebuildTag) {
-        STag*    ppTag = NULL;
-        SSchema* pTagSchema = pTableMeta->schema + pTableMeta->tableInfo.numOfColumns;
-        code = tTagNewWithName(pTagVals, pCreateReq->ctb.tagName, pTagSchema, pTableMeta->tableInfo.numOfTags, 1,
-                               &ppTag);
-        taosArrayDestroy(pTagVals);
-        pTagVals = NULL;
-        if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFreeClear(pTableMeta);
-          goto end;
-        }
-        if (NULL == taosArrayPush(pTagList, &ppTag)) {
-          code = terrno;
-          tTagFree(ppTag);
-          taosMemoryFreeClear(pTableMeta);
-          goto end;
-        }
-        pCreateReq->ctb.pTag = (uint8_t*)ppTag;
-      }
+      RAW_RETURN_CHECK(reBuildTag(pCreateReq, pTableMeta, pTagList));
       taosMemoryFreeClear(pTableMeta);
-      taosArrayDestroy(pTagVals);
     }
     RAW_NULL_CHECK(taosArrayPush(pRequest->tableList, &pName));
 
@@ -596,6 +596,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
+  taosMemoryFreeClear(pTableMeta);
   taosArrayDestroyP(pTagList, NULL);
   RAW_LOG_END
   return code;
@@ -1459,6 +1460,7 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
       pTableMeta->vgId = info.vgInfo.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
       pCreateReqDst->ctb.suid = pTableMeta->suid;
+      RAW_RETURN_CHECK(reBuildTag(pCreateReqDst, pTableMeta, NULL));
     }
 
     RAW_RETURN_CHECK(taosHashPut(pNameHash, pName->tname, strlen(pName->tname), &info, sizeof(tbInfo)));

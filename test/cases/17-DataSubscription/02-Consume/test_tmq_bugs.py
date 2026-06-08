@@ -155,7 +155,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td32187'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-32187 ................ [passed]")
 
@@ -294,7 +295,8 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_td35698'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-35698 ................ [passed]")
 
@@ -433,7 +435,8 @@ class TestTmqBugs:
         cmdStr = '%s/build/bin/tmq_td38404'%(buildPath)
         # cmdStr = '/Users/mingming/code/TDengine2/debug/build/bin/tmq_td38404'
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
         print("bug TD-38404 ................ [passed]")
 
@@ -556,7 +559,18 @@ class TestTmqBugs:
     #
     # ------------------- 12 ----------------
     #
+    def insert(self):
+        # create new connector for new tdSql instance in my thread
+        newTdSql = tdCom.newTdSql()
+        for i in range(10):
+            newTdSql.execute(f'insert into db_5466.tt{i}(ts, c1, c2) using db_5466.s5466 tags("__devicid__") values(1669092069068, 0, 1)')
+            newTdSql.execute(f'alter table db_5466.tt{i} set tag t = "hello"')
+            time.sleep(0.5)
+
+        return
+    
     def do_ts5466(self):
+        tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'create database if not exists db_taosx')
         tdSql.execute(f'create database if not exists db_5466')
         tdSql.execute(f'use db_5466')
@@ -573,8 +587,19 @@ class TestTmqBugs:
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_ts5466'%(buildPath)
         tdLog.info(cmdStr)
-        os.system(cmdStr)
+
+        pThread = threading.Thread(target=self.insert)
+        pThread.start()
+
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
         
+        pThread.join()
+        tdSql.checkResultsBySql(
+            sql="select tbname,t from db_5466.s5466 order by tbname",
+            exp_sql="select tbname,t from db_taosx.s5466 order by tbname",
+            retry=1,
+        )
         print("bug TS-5466 ................ [passed]")
     
     #

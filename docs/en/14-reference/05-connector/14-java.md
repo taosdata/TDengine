@@ -329,7 +329,8 @@ The configuration parameters in properties are as follows:
 
 **Configuration Description**: Experimental parameter binding serialization mode configuration, which only takes effect for WebSocket connections and is not supported in efficient writing mode, used to optimize parameter binding performance in specific scenarios.
 
-- TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]: Parameter binding serialization mode, currently an experimental feature, only supports `line` mode, which can improve performance when each subtable has only one piece of data in a batch of bound data. Effective only when using WebSocket connections, and not supported in Efficient Writing mode. Default value is empty.
+- TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]: **deprecated**.
+- TSDBDriver.PROPERTY_KEY_STMT_BIND_MODE [`stmtBindMode`]: Parameter binding serialization mode, supports `column` (column mode, supported after TDengine version 3.4.1.13, high serialization efficiency and fewer bytes), `traditional` (previous table-based grouping binding mode), and `auto` (automatically selected based on version). Only effective when using WebSocket connections, supports efficient write mode. Default value is `auto`.
 
 ---
 

@@ -354,6 +354,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->cInfo));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->user));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->tokenName));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pReq->passVer));
 
   tEndEncode(pEncoder);
   return 0;
@@ -362,6 +363,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
 static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) {
   int32_t code = 0;
   int32_t line = 0;
+  pReq->passVer = -1;  // default: client did not report a password version
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
 
@@ -515,6 +517,10 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->user), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->tokenName), &line, _error);
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_GOTO(tDecodeI32(pDecoder, &pReq->passVer), &line, _error);
   }
   tEndDecode(pDecoder);
 
@@ -2146,6 +2152,12 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->auditVgId));
 
+  // Encode snapshotSending per vnode (appended for backward compat)
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pload->snapshotSending));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2334,6 +2346,14 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeI16(&decoder, &(pReq->auditEpSet.eps[i].port)));
     }
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &(pReq->auditVgId)));
+  }
+
+  // Decode snapshotSending per vnode (backward compat guard)
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *pLoad = taosArrayGet(pReq->pVloads, i);
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pLoad->snapshotSending));
+    }
   }
 
   tEndDecode(&decoder);
@@ -19271,4 +19291,96 @@ int32_t tDeserializeSScanVnodeReq(void *buf, int32_t bufLen, SScanVnodeReq *pReq
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numOfVnodes));
+  for (int32_t i = 0; i < pRsp->numOfVnodes; ++i) {
+    SSnapSendVnodeInfo *pVInfo = &pRsp->pVnodeInfos[i];
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVInfo->vgId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVInfo->dnodeId));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVInfo->totalFileSets));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVInfo->finishedFileSets));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pVInfo->startTime));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pVInfo->fileSetCount));
+    for (int32_t j = 0; j < pVInfo->fileSetCount; ++j) {
+      SSnapSendFileSetInfo *pFInfo = &pVInfo->pFileSetInfos[j];
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFInfo->fid));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFInfo->fileCount));
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pFInfo->finishedFileCount));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFInfo->totalSize));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFInfo->readSize));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFInfo->startTime));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFInfo->sver));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pFInfo->ever));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder,  pFInfo->transferType));
+    }
+  }
+  tEndEncode(&encoder);
+
+_exit:
+  tEncoderClear(&encoder);
+  return code;
+}
+
+int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfVnodes));
+  if (pRsp->numOfVnodes > 0) {
+    pRsp->pVnodeInfos = taosMemoryCalloc(pRsp->numOfVnodes, sizeof(SSnapSendVnodeInfo));
+    if (!pRsp->pVnodeInfos) TAOS_CHECK_EXIT(terrno);
+    for (int32_t i = 0; i < pRsp->numOfVnodes; ++i) {
+      SSnapSendVnodeInfo *pVInfo = &pRsp->pVnodeInfos[i];
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVInfo->vgId));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVInfo->dnodeId));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVInfo->totalFileSets));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVInfo->finishedFileSets));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pVInfo->startTime));
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pVInfo->fileSetCount));
+      if (pVInfo->fileSetCount > 0) {
+        pVInfo->pFileSetInfos = taosMemoryCalloc(pVInfo->fileSetCount, sizeof(SSnapSendFileSetInfo));
+        if (!pVInfo->pFileSetInfos) TAOS_CHECK_EXIT(terrno);
+        for (int32_t j = 0; j < pVInfo->fileSetCount; ++j) {
+          SSnapSendFileSetInfo *pFInfo = &pVInfo->pFileSetInfos[j];
+          TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFInfo->fid));
+          TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFInfo->fileCount));
+          TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pFInfo->finishedFileCount));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFInfo->totalSize));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFInfo->readSize));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFInfo->startTime));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFInfo->sver));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pFInfo->ever));
+          TAOS_CHECK_EXIT(tDecodeI8(&decoder,  &pFInfo->transferType));
+        }
+      }
+    }
+  }
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp) {
+  if (!pRsp || !pRsp->pVnodeInfos) return;
+  for (int32_t i = 0; i < pRsp->numOfVnodes; ++i) {
+    taosMemoryFree(pRsp->pVnodeInfos[i].pFileSetInfos);
+  }
+  taosMemoryFree(pRsp->pVnodeInfos);
+  pRsp->pVnodeInfos = NULL;
+  pRsp->numOfVnodes = 0;
 }
