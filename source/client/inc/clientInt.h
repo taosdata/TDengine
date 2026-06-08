@@ -239,6 +239,9 @@ typedef struct STscObj {
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
   int32_t        authVer;
+  int32_t        loginPassVer;  // password version at login; immutable, used for hb stale-conn kick
+  int8_t         passKilled;    // set by hb when password changed after login; requests then fail with auth error
+  int8_t         passSelfChanged;  // set when this conn changed its OWN password; hb adopts the new passVer instead of kicking
   SAppInstInfo*  pAppInfo;
   SHashObj*      pRequests;
   SPassInfo      passInfo;
@@ -345,6 +348,7 @@ typedef struct SRequestObj {
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
   int32_t              stmtType;
+  bool                 passAlterSelf;  // this request is "ALTER USER <self> PASS ..."
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
@@ -477,6 +481,8 @@ int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery);
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid);
+
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery);
 
 void taos_close_internal(void* taos);
 

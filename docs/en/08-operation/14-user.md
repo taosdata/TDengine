@@ -79,7 +79,7 @@ alter_user_clause: {
 
 The parameters are explained as follows.
 
-- pass: Modify the user's password.
+- pass: Modify the user's password. After a password change, the server detects and disconnects connections established with the old password via heartbeat. Subsequent requests on the disconnected connections will return an authentication failure error (0x80000357). The connection that performed the password change itself is not affected. Token-based connections are not affected by this mechanism.
 - enable: Whether to enable the user. 1 means to enable this user, 0 means to disable this user.
 - sysinfo: Whether the user can view system information. 1 means they can view system information, 0 means they cannot.
 - createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. // Supported starting from TDengine Enterprise version 3.3.2.0

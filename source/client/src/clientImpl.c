@@ -1459,12 +1459,29 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 }
 
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery) {
+  if (pRequest == NULL || pQuery == NULL || pQuery->pRoot == NULL || pRequest->pTscObj == NULL) {
+    return;
+  }
+  if (nodeType(pQuery->pRoot) != QUERY_NODE_ALTER_USER_STMT) {
+    return;
+  }
+  SAlterUserStmt* pStmt = (SAlterUserStmt*)pQuery->pRoot;
+  if (pStmt->pUserOptions == NULL || !pStmt->pUserOptions->hasPassword) {
+    return;
+  }
+  if (0 == strncmp(pStmt->userName, pRequest->pTscObj->user, TSDB_USER_LEN)) {
+    pRequest->passAlterSelf = true;
+  }
+}
+
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
   int32_t subplanNum = 0;
 
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
+    markPassAlterSelf(pRequest, pQuery);
     if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
       pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
     }

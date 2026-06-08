@@ -687,6 +687,25 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       rspBasic->killConnection = 1;
     }
 
+    // kick stale clients: if the user's password changed after this client authenticated
+    // (client-reported passVer < current passVersion), force it to reconnect. Token
+    // connections use independent credentials, so they are not affected.
+    if (pHbReq->passVer >= 0 && pHbReq->tokenName[0] == 0) {
+      const char *hbUser = RPC_MSG_USER(pMsg);
+      if (hbUser != NULL && hbUser[0] != 0) {
+        SUserObj *pChkUser = NULL;
+        if (mndAcquireUser(pMnode, hbUser, &pChkUser) == 0 && pChkUser != NULL) {
+          if (pHbReq->passVer < pChkUser->passVersion) {
+            rspBasic->killConnection = HB_KILL_CONN_AUTH;
+            
+            mInfo("user:%s, conn:%u killed by hb, client passVer:%d < server passVer:%d", hbUser, pConn->id,
+                  pHbReq->passVer, pChkUser->passVersion);
+          }
+          mndReleaseUser(pMnode, pChkUser);
+        }
+      }
+    }
+
     if (pConn->killId != 0) {
       rspBasic->killRid = pConn->killId;
       pConn->killId = 0;

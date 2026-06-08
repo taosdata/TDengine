@@ -241,7 +241,7 @@ def _calc_cosine_similarity(arr1, arr2):
 
 def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, min_window: int, max_window: int,
                                         window_size_step: int, window_sliding_step: int,
-                                        exclude_source: bool = False, source_ts_window=None):
+                                        exclude_source: bool = False, exclude_overlap: bool = False, source_ts_window=None):
     ts_arr = np.array(ts_vals)
     data_arr = np.array(data_vals, dtype=float)
 
@@ -272,9 +272,13 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, mi
             end = start + win_size - 1
             assert end < data_arr.size and end < ts_arr.size
 
-            if exclude_source and source_ts_window is not None:
-                if ts_arr[start] <= source_ts_window[0] and ts_arr[end] >= source_ts_window[1]:
-                    continue
+            if source_ts_window is not None:
+                if exclude_source and ts_arr[start] <= source_ts_window[0] and ts_arr[end] >= source_ts_window[1]:
+                        continue
+                
+                # overlap with the source timewindow should also be excluded.
+                if exclude_overlap and _is_interval_overlapping([ts_arr[start], ts_arr[end]], source_ts_window):
+                        continue
 
             yield {
                 "series": data_arr[start:end + 1],
@@ -284,7 +288,7 @@ def _build_window_candidates_from_series(ts_vals, data_vals, source_len: int, mi
 
 
 def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window,
-                                    exclude_source=False, source_ts_window=None):
+                                    exclude_source=False, exclude_overlap=False, source_ts_window=None):
     if not isinstance(profiles, list) or len(profiles) == 0:
         raise ValueError('"target_data.data" must be a non-empty array')
 
@@ -310,9 +314,13 @@ def _build_candidates_from_profiles(ts_vals, profiles, min_window, max_window,
         else:
             raise ValueError('when "target_data.data" is a list of profiles, each corresponding item in "target_data.ts" must be a [start_ts, end_ts] pair')
 
-        if exclude_source and source_ts_window is not None:
-            if ts_window[0] <= source_ts_window[0] and ts_window[1] >= source_ts_window[1]:
-                continue
+        if source_ts_window is not None:
+            if exclude_source and ts_window[0] <= source_ts_window[0] and ts_window[1] >= source_ts_window[1]:
+                    continue
+            
+            # overlap with the source timewindow should also be excluded.
+            if exclude_overlap and _is_interval_overlapping(ts_window, source_ts_window):
+                    continue
 
         has_candidate = True
         yield {
@@ -548,12 +556,12 @@ def do_profile_search_impl(req_json):
         if parsed["is_profile_list"]:
             return _build_candidates_from_profiles(
                 ts_list, data_list, min_window, max_window,
-                exclude_source=exclude_source, source_ts_window=source_ts_window
+                exclude_source=exclude_source, exclude_overlap=exclude_overlap, source_ts_window=source_ts_window
             )
         return _build_window_candidates_from_series(
             ts_list, data_list, source_arr.size, min_window, max_window,
             window_size_step, window_sliding_step,
-            exclude_source=exclude_source, source_ts_window=source_ts_window
+            exclude_source=exclude_source, exclude_overlap=exclude_overlap, source_ts_window=source_ts_window
         )
 
     # Score all candidates once.
