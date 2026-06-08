@@ -354,6 +354,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->cInfo));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->user));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->tokenName));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pReq->passVer));
 
   tEndEncode(pEncoder);
   return 0;
@@ -362,6 +363,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
 static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) {
   int32_t code = 0;
   int32_t line = 0;
+  pReq->passVer = -1;  // default: client did not report a password version
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
 
@@ -515,6 +517,10 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->user), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->tokenName), &line, _error);
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_GOTO(tDecodeI32(pDecoder, &pReq->passVer), &line, _error);
   }
   tEndDecode(pDecoder);
 

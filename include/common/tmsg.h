@@ -5240,12 +5240,16 @@ typedef struct {
   SArray*  queryDesc;  // SArray<SQueryDesc>
 } SQueryHbReqBasic;
 
+// values for SQueryHbRspBasic.killConnection
+#define HB_KILL_CONN       1  // close the connection (e.g. KILL CONNECTION)
+#define HB_KILL_CONN_AUTH  2  // password changed after login; reject access with auth failure
+
 typedef struct {
   uint32_t connId;
   uint64_t killRid;
   int32_t  totalDnodes;
   int32_t  onlineDnodes;
-  int8_t   killConnection;
+  int8_t   killConnection;  // HB_KILL_CONN_*: 0 keep, 1 close, 2 reject with auth failure
   int8_t   align[3];
   SEpSet   epSet;
   SArray*  pQnodeList;
@@ -5286,6 +5290,7 @@ typedef struct {
   SIpRange          userDualIp;
   char              sVer[TSDB_VERSION_LEN];
   char              cInfo[CONNECTOR_INFO_LEN];
+  int32_t           passVer;  // password version the client authenticated with (-1: not reported)
 } SClientHbReq;
 
 typedef struct {

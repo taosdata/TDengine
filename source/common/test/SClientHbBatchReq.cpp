@@ -148,6 +148,7 @@ TEST(td_msg_test, sclient_hb_batch_req_codec) {
   tstrncpy(hbReq.cInfo,     "connector_v1",  CONNECTOR_INFO_LEN);
   tstrncpy(hbReq.user,      "root",          TSDB_USER_LEN);
   tstrncpy(hbReq.tokenName, "mytoken",       TSDB_TOKEN_NAME_LEN);
+  hbReq.passVer = 7;
 
   // 填充 userDualIp（IPv4 类型）
   hbReq.userDualIp.type       = 0;   // IPv4
@@ -205,6 +206,7 @@ TEST(td_msg_test, sclient_hb_batch_req_codec) {
   ASSERT_STREQ(pOut->cInfo,     pSrc->cInfo);
   ASSERT_STREQ(pOut->user,      pSrc->user);
   ASSERT_STREQ(pOut->tokenName, pSrc->tokenName);
+  ASSERT_EQ(pOut->passVer,      pSrc->passVer);
 
   // 校验 userDualIp（IPv4 类型）
   ASSERT_EQ(pOut->userDualIp.type,       pSrc->userDualIp.type);
@@ -322,6 +324,8 @@ TEST(td_msg_test, sclient_hb_batch_req_backward_compat_without_user_token) {
   // 旧客户端未写入这两个字段，新反序列化器通过 !tDecodeIsEnd 保护，保持零值
   ASSERT_STREQ(pOut->user,      "");
   ASSERT_STREQ(pOut->tokenName, "");
+  // 旧客户端未写入 passVer，新反序列化器将其初始化为 -1（表示未上报）
+  ASSERT_EQ(pOut->passVer, -1);
 
   // ===== 6. 释放内存 =====
   taosHashCleanup(hbReq.info);
