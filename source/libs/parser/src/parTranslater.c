@@ -19476,6 +19476,91 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   return taosCloseFile(&tfile);
 }
 
+// CVE-2023-38502: Validate UDF library path to prevent loading arbitrary files
+static int32_t validateUdfLibraryPath(const char* libPath, int8_t scriptType) {
+  if (libPath == NULL || libPath[0] == '\0') {
+    return TSDB_CODE_PAR_INVALID_FUNCTION_NAME;
+  }
+
+  // For binary libraries (C/C++), validate file extension
+  if (scriptType == TSDB_FUNC_SCRIPT_BIN_LIB) {
+    const char* ext = NULL;
+    
+    // Find the last dot in the filename
+    const char* lastDot = strrchr(libPath, '.');
+    if (lastDot == NULL) {
+      parserError("UDF library path missing file extension: %s", libPath);
+      return TSDB_CODE_PAR_SYNTAX_ERROR;
+    }
+    
+#ifdef WINDOWS
+    // Windows: must end with .dll
+    if (strcasecmp(lastDot, ".dll") != 0) {
+      parserError("UDF library on Windows must have .dll extension, got: %s", libPath);
+      return TSDB_CODE_PAR_SYNTAX_ERROR;
+    }
+#else
+    // Linux/macOS: must end with .so
+    if (strcasecmp(lastDot, ".so") != 0) {
+      parserError("UDF library on Linux/macOS must have .so extension, got: %s", libPath);
+      return TSDB_CODE_PAR_SYNTAX_ERROR;
+    }
+#endif
+
+    // Additional security check: verify ELF/Mach-O magic number for native libraries
+    TdFilePtr tfile = taosOpenFile(libPath, O_RDONLY | O_BINARY);
+    if (tfile == NULL) {
+      parserError("Cannot open UDF library file: %s", libPath);
+      return terrno;
+    }
+
+    // Read first 16 bytes to check magic number
+    unsigned char magic[16] = {0};
+    int64_t bytesRead = taosReadFile(tfile, magic, sizeof(magic));
+    (void)taosCloseFile(&tfile);
+
+    if (bytesRead < 4) {
+      parserError("UDF library file too small or unreadable: %s", libPath);
+      return TSDB_CODE_TSC_FILE_EMPTY;
+    }
+
+    // Check for ELF magic (0x7f 'E' 'L' 'F')
+    bool isValidLib = false;
+    if (magic[0] == 0x7f && magic[1] == 'E' && magic[2] == 'L' && magic[3] == 'F') {
+      isValidLib = true;  // ELF format (Linux)
+    }
+#ifndef WINDOWS
+    // Check for Mach-O magic (0xfe ed fa ce or 0xce fa ed fe)
+    else if ((magic[0] == 0xfe && magic[1] == 0xed && magic[2] == 0xfa && magic[3] == 0xce) ||
+             (magic[0] == 0xce && magic[1] == 0xfa && magic[2] == 0xed && magic[3] == 0xfe)) {
+      isValidLib = true;  // Mach-O format (macOS)
+    }
+#endif
+#ifdef WINDOWS
+    // Check for PE/COFF magic (MZ header: 0x4d 0x5a)
+    else if (magic[0] == 0x4d && magic[1] == 0x5a) {
+      isValidLib = true;  // PE format (Windows)
+    }
+#endif
+
+    if (!isValidLib) {
+      parserError("UDF library is not a valid shared library (invalid magic number): %s", libPath);
+      return TSDB_CODE_PAR_SYNTAX_ERROR;
+    }
+  }
+  // For Python scripts, we allow .py extension but don't enforce strict validation
+  // as Python files are interpreted, not loaded via dlopen
+  else if (scriptType == TSDB_FUNC_SCRIPT_PYTHON) {
+    const char* lastDot = strrchr(libPath, '.');
+    if (lastDot != NULL && strcasecmp(lastDot, ".py") != 0) {
+      parserWarn("UDF Python script should typically have .py extension: %s", libPath);
+      // Don't fail, just warn - Python can import modules without .py
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionStmt* pStmt) {
   if (fmIsBuiltinFunc(pStmt->funcName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNCTION_NAME);
@@ -19491,6 +19576,12 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "BUFSIZE can only be used with UDAF");
   }
 
+  // CVE-2023-38502: Validate library path before reading file
+  int32_t code = validateUdfLibraryPath(pStmt->libraryPath, pStmt->language);
+  if (code != TSDB_CODE_SUCCESS) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid UDF library path: %s", pStmt->libraryPath);
+  }
+
   SCreateFuncReq req = {0};
   tstrncpy(req.name, pStmt->funcName, TSDB_FUNC_NAME_LEN);
   req.orReplace = pStmt->orReplace;
@@ -19501,7 +19592,7 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   pStmt->outputDt.bytes = calcTypeBytes(pStmt->outputDt);
   req.outputLen = pStmt->outputDt.bytes;
   req.bufSize = pStmt->bufSize;
-  int32_t code = readFromFile(pStmt->libraryPath, &req.codeLen, &req.pCode);
+  code = readFromFile(pStmt->libraryPath, &req.codeLen, &req.pCode);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_FUNC, (FSerializeFunc)tSerializeSCreateFuncReq, &req);
   }
