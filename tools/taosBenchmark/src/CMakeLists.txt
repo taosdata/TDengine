@@ -116,10 +116,8 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   include(CheckLinkerFlag)
   check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" _have_no_warn_dup_libs)
   if(_have_no_warn_dup_libs)
-    target_link_options(taosdump PRIVATE -Wl,-no_warn_duplicate_libraries)
     target_link_options(taosBenchmark PRIVATE -Wl,-no_warn_duplicate_libraries)
   endif()
   # brew install argp-standalone
   target_include_directories(taosBenchmark PRIVATE ${BREW_PREFIX}/include)
 endif()
-
