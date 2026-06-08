@@ -1,6 +1,6 @@
 ---
 sidebar_label: 安全公告
-title: TDengine 安全公告
+title: 安全公告
 description: TDengine 产品安全漏洞公告与修复信息
 toc_max_heading_level: 4
 ---
