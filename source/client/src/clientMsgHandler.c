@@ -41,6 +41,14 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
+  // A connection that successfully changes its OWN password must not be kicked by the
+  // hb stale-conn check. Enter a grace state (loginPassVer = -1 => server skips the kick)
+  // until the next hb adopts the server's authoritative passVer for this user.
+  if (code == TSDB_CODE_SUCCESS && pRequest->passAlterSelf && pRequest->pTscObj != NULL) {
+    atomic_store_8(&pRequest->pTscObj->passSelfChanged, 1);
+    atomic_store_32(&pRequest->pTscObj->loginPassVer, -1);
+  }
+
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
     if (removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type)) != 0) {
       tscError("failed to remove meta data for table");
@@ -177,6 +185,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connType = connectRsp.connType;
   pTscObj->passInfo.ver = connectRsp.passVer;
+  atomic_store_32(&pTscObj->loginPassVer, connectRsp.passVer);
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
   pTscObj->userId = connectRsp.userId;

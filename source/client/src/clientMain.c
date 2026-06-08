@@ -1873,6 +1873,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->stableQuery = pQuery->stableQuery;
     if (pQuery->pRoot) {
       pRequest->stmtType = pQuery->pRoot->type;
+      markPassAlterSelf(pRequest, pQuery);
       if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
         pRequest->secureDelete = ((SDeleteStmt *)pQuery->pRoot)->secureDelete;
       }
@@ -2095,6 +2096,7 @@ static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
+    markPassAlterSelf(pRequest, pRequest->pQuery);
     code = phaseAsyncQuery(pWrapper);
   }
 
