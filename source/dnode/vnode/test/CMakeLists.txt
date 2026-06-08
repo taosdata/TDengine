@@ -62,6 +62,30 @@ IF(NOT TD_WINDOWS)
     )
 ENDIF()
 
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbFSEditTest tsdbFSEditTest.cpp)
+    DEP_ext_gtest(tsdbFSEditTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbFSEditTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+             tsdbFSEditTest
+             PUBLIC os util common vnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbFSEditTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    enable_testing()
+    add_test(
+            NAME tsdb_fs_edit_test
+            COMMAND tsdbFSEditTest
+    )
+ENDIF()
+
 # ADD_EXECUTABLE(tsdbRepairTest tsdbRepairTest.cpp)
 # DEP_ext_gtest(tsdbRepairTest)
 # TARGET_LINK_LIBRARIES(
