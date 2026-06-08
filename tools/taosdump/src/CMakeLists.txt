@@ -141,6 +141,15 @@ target_include_directories(taosdump PRIVATE "${ext_arrow_inc_dir}")
 # Declare build-time dependency so ext_arrow is compiled before taosdump links
 add_dependencies(taosdump ext_arrow)
 
+if(TD_DARWIN)
+    # Suppress ld64 duplicate static library noise caused by transitive links.
+    include(CheckLinkerFlag)
+    check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" _have_no_warn_dup_libs)
+    if(_have_no_warn_dup_libs)
+        target_link_options(taosdump PRIVATE -Wl,-no_warn_duplicate_libraries)
+    endif()
+endif()
+
 if(NOT ${TD_WINDOWS})
     # Put each function/data in its own section so --gc-sections can dead-strip
     # unused code that is dragged in from Arrow/Parquet static libraries.
