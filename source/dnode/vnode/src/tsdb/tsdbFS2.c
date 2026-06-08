@@ -883,6 +883,10 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, lino,
               tstrerror(code), etype);
+    TARRAY2_CLEAR(fs->fSetArrTmp, tsdbTFileSetClear);
+    if (tsem_post(&fs->canEdit) != 0) {
+      tsdbError("vgId:%d failed to post semaphore", TD_VID(fs->tsdb->pVnode));
+    }
   } else {
     tsdbInfo("vgId:%d %s done, etype:%d", TD_VID(fs->tsdb->pVnode), __func__, etype);
   }
