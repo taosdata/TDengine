@@ -765,7 +765,19 @@ uint64_t taosNtoh64(uint64_t val) {
 }
 
 int32_t taosSetSockOpt2(int32_t fd) {
-#if defined(WINDOWS) || defined(DARWIN) || defined(TD_ASTRA)
+#if defined(WINDOWS)
+#ifndef SIO_TCP_SET_ACK_FREQUENCY
+#define SIO_TCP_SET_ACK_FREQUENCY _WSAIOW(IOC_VENDOR, 23)
+#endif
+  int   freq = 1;
+  DWORD bytesReturned = 0;
+  if (WSAIoctl((SOCKET)(uintptr_t)fd, SIO_TCP_SET_ACK_FREQUENCY, &freq, sizeof(freq), NULL, 0, &bytesReturned, NULL,
+               NULL) == SOCKET_ERROR) {
+    terrno = TAOS_SYSTEM_ERROR(WSAGetLastError());
+    return terrno;
+  }
+  return 0;
+#elif defined(DARWIN) || defined(TD_ASTRA)
   return 0;
 #else
   int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
@@ -776,7 +788,64 @@ int32_t taosSetSockOpt2(int32_t fd) {
     return 0;
   }
 #endif
+}
+
+int32_t taosSetTcpKeepalive(int fd, int keepalive_sec) {
+#if defined(WINDOWS)
+  #ifndef TD_TCP_KEEPALIVE_DEFINED
+  #define TD_TCP_KEEPALIVE_DEFINED
+  #ifndef SIO_KEEPALIVE_VALS
+  #define SIO_KEEPALIVE_VALS 0x98000004
+  #endif
+  struct td_tcp_keepalive {
+    uint32_t onoff;
+    uint32_t keepalivetime;
+    uint32_t keepaliveinterval;
+  };
+  #endif
+  struct td_tcp_keepalive vals;
+  vals.onoff = 1;
+  vals.keepalivetime = keepalive_sec * 1000;
+  vals.keepaliveinterval = 1000;
+  DWORD bytesReturned = 0;
+  if (WSAIoctl((SOCKET)(uintptr_t)fd, SIO_KEEPALIVE_VALS, &vals, sizeof(vals), NULL, 0, &bytesReturned, NULL,
+               NULL) == SOCKET_ERROR) {
+    terrno = TAOS_SYSTEM_ERROR(WSAGetLastError());
+    return terrno;
+  }
   return 0;
+#elif defined(DARWIN)
+  // macOS: setsockopt-based keepalive
+  int32_t on = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  int32_t idle = keepalive_sec;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle, sizeof(idle)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  return 0;
+#else
+  // Linux: setsockopt-based keepalive
+  int32_t on = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  int32_t idle = keepalive_sec;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  int32_t intvl = 1;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  return 0;
+#endif
 }
 
 int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {

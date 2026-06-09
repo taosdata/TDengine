@@ -2255,6 +2255,10 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
            taosGetSelfPthreadId());
 #endif
 
+#if defined(WINDOWS)
+  uv_pipe_pending_instances(&srv->pipeListen, numOfThreads);
+#endif
+
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
   if (ret != 0) {
     tError("failed to bind pipe, errmsg:%s", uv_err_name(ret));
