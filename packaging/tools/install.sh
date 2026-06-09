@@ -737,7 +737,9 @@ function install_jemalloc() {
 function install_header() {
   rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${inc_link_dir}/taosws.h ] && rm -f ${inc_link_dir}/taosws.h
+  if [ -f "${inc_link_dir}/taosws.h" ]; then
+    rm -f "${inc_link_dir}/taosws.h"
+  fi
 
   cp -f ${script_dir}/inc/* ${install_main_dir}/include && chmod 644 ${install_main_dir}/include/*
   ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
@@ -746,7 +748,9 @@ function install_header() {
   ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
   ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${install_main_dir}/include/taosws.h ] && ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h
+  if [ -f "${install_main_dir}/include/taosws.h" ]; then
+    ln -sf "${install_main_dir}/include/taosws.h" "${inc_link_dir}/taosws.h"
+  fi
 }
 
 function add_newHostname_to_hosts() {
