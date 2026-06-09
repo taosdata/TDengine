@@ -609,8 +609,8 @@ int32_t transSendResp(const SRpcMsg* pMsg);
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
 #if defined(WINDOWS) || defined(DARWIN)
-#define BUFFER_LIMIT       1
-#define STATE_BUFFER_LIMIT 1
+#define BUFFER_LIMIT       16
+#define STATE_BUFFER_LIMIT 16
 #else
 #define BUFFER_LIMIT       4
 #define STATE_BUFFER_LIMIT 8

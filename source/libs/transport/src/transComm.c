@@ -455,12 +455,25 @@ int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len) {
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
   int32_t ret = 0;
 #if defined(WINDOWS) || defined(DARWIN)
+  uv_os_fd_t fd;
+  int uvRet = uv_fileno((uv_handle_t*)stream, &fd);
+  if (uvRet == 0) {
+    int32_t r = taosSetTcpKeepalive((int)(uintptr_t)fd, keepalive);
+    if (r != 0) {
+      tWarn("taosSetTcpKeepalive failed, fd:%d, code:0x%x", (int)(uintptr_t)fd, r);
+    }
+    r = taosSetSockOpt2((int)(uintptr_t)fd);
+    if (r != 0) {
+      tWarn("taosSetSockOpt2 failed, fd:%d, code:0x%x", (int)(uintptr_t)fd, r);
+    }
+  } else {
+    tWarn("uv_fileno failed in transSetConnOption, ret:%d, %s", uvRet, uv_err_name(uvRet));
+  }
 #else
   ret = uv_tcp_keepalive(stream, 1, keepalive);
 #endif
   ret = uv_tcp_nodelay(stream, 1);
   return ret;
-  // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool) {
@@ -1227,6 +1240,14 @@ void freeWReqToWQ(queue* wq, SWReqsWrapper* w) {
 }
 
 int32_t transSetReadOption(uv_handle_t* handle) {
+#if defined(WINDOWS)
+  // On Windows, SIO_TCP_SET_ACK_FREQUENCY (set in transSetConnOption) is a persistent
+  // socket option and does not need to be re-applied on each read. This differs from
+  // Linux where TCP_QUICKACK is a one-shot flag that must be reset after each recv.
+  return 0;
+#else
+  // On Linux, TCP_QUICKACK is a temporary state and needs to be reset
+  // on each read to maintain the low-latency behavior.
   int32_t code = 0;
   int32_t fd;
   int     ret = uv_fileno((uv_handle_t*)handle, &fd);
@@ -1236,6 +1257,7 @@ int32_t transSetReadOption(uv_handle_t* handle) {
   }
   code = taosSetSockOpt2(fd);
   return code;
+#endif
 }
 
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet) {

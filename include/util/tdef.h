@@ -708,7 +708,7 @@ typedef enum {
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
 #ifdef WINDOWS
-#define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
+#define TSDB_MAX_RPC_THREADS 64  // uv_pipe_pending_instances() is set to numOfThreads in transSvr.c; must keep in sync
 #else
 #define TSDB_MAX_RPC_THREADS 100
 #endif
